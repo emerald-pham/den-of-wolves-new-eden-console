@@ -366,6 +366,51 @@ it('opens Maliades on its Dione Engineer route and returns by keyboard', async (
   expect(screen.getByText('Dione Engineer parent')).toBeInTheDocument();
 });
 
+it('opens Blacksmith on its Icebreaker Engineer route with its repair and cargo envelope', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['icebreaker-engineer'],
+    shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker', dockedAt: 'SESSION START' }],
+    shuttleFuelled: { blacksmith: true },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'icebreaker-engineer' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/blacksmith']}>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/icebreaker/roles/icebreaker-engineer" element={<p>Icebreaker Engineer parent</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'C.S.S. Blacksmith' })).toBeInTheDocument();
+  expect(screen.getByText('Engineer // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*icebreaker/i,
+  );
+  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
+    .toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
+  expect(screen.getByText(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i))
+    .toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Fuelled repair' })).toBeInTheDocument();
+  expect(screen.getByText(/fuelled.*repair consoles on a second ship/i)).toBeInTheDocument();
+  expect(screen.queryByText(/fuelled.*repair or scrap/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
+
+  const back = screen.getByRole('link', { name: /back to icebreaker engineer console/i });
+  expect(back).toHaveClass('ship-console__back', 'cic-text-button');
+  expect(back).toHaveAttribute('href', '/ships/icebreaker/roles/icebreaker-engineer');
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Icebreaker Engineer parent')).toBeInTheDocument();
+});
+
 it('opens Starlight on its Wing Commander route with its routed operation envelope', () => {
   const state = useSessionStore.getState();
   state.setSession({

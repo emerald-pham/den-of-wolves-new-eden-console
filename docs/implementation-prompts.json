@@ -1621,8 +1621,8 @@
     {
       "direction": "266 -> 161;162",
       "id": "E-AUDIT-266",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Blacksmith registration preserves its Icebreaker Engineer owner, all source-aligned cargo types, Icebreaker initial dock, and distinct repair, permissioned dismantle, fuelled second-ship repair, and boarding procedures; route proof presents the configuration without claiming mechanic execution.",
+      "source": "src/data/vessels/blacksmith.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Blacksmith derivative",
       "type": "hard_prompt"
     },
     {
@@ -11332,7 +11332,7 @@
         "acceptance": "cargo, repair, dismantle, permission, second-ship fuel rule, owner, dock, and route are correct.",
         "title": "Register Blacksmith completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical typed Blacksmith registration preserves Icebreaker Engineer ownership, SESSION START Icebreaker docking, and the six source-aligned cargo types: security teams, ore, fuel, food, water, and materials. Its distinct procedures record repair of up to 2 consoles on one ship for 4 materials each, permission-gated console damage yielding 3 materials, fuelled repair on a second ship, and docked-ship boarding support. Focused catalog, server ownership, and route tests verify these facts and route presentation, including keyboard-accessible return to the owning Icebreaker Engineer console. A local rendered review of /shuttles/blacksmith at 320x844, 1440x900, and 844x390 under reduced motion found the computed body and procedure fonts readable, no horizontal overflow, and a visible 44px-or-larger return control whose keyboard Enter reached the Icebreaker parent route. The route presents source-aligned configuration; future cargo transfer, repair, dismantle, and boarding engines remain owned by separate prompts. The routed Blacksmith derivative establishes this contract, and the private source index does not preserve a Blacksmith primary PDF, so this closure records a derivative-only source basis and makes no primary visual-verification claim.",
       "evidenceIds": "E-AUDIT-266",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11344,7 +11344,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

@@ -38,6 +38,11 @@ describe('role-owned craft composition', () => {
     ])).toEqual(['macaw']);
   });
 
+  it('keeps Blacksmith owned by the Icebreaker Engineer', () => {
+    expect(ownedCraftIdsForRole('icebreaker-engineer', ['icebreaker-engineer']))
+      .toEqual(['blacksmith']);
+  });
+
   it('rejects a changed owner or mode in the persisted server manifest', () => {
     const expected = roleOwnedCraftManifestForSetup(['admiral', 'wing-commander'], 'base-capybara');
     expect(roleOwnedCraftManifestMatches(expected, expected)).toBe(true);
