@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['427', '257', '273'],
+    implementationProgress: {
+      completed: 199,
+      total: 747,
+      percentage: '26.64%',
+      done: 199,
+      partial: 16,
+      active: 0,
+      missing: 532,
+    },
+    changes: [
+      'GMs can privately prepare Wolf attack drafts together, including ship choices, targets, and notes.',
+      'Capybara can run its Scrap Refinery. PDF fighter-wing and Wobbly references now describe their own operating rules.',
+      '199 of 747 planned items are complete (26.64%).',
+    ],
+  },
+  {
+    version: '0.3.69',
     implementationPrompts: ['403', '282', '275'],
     implementationProgress: {
       completed: 191,
