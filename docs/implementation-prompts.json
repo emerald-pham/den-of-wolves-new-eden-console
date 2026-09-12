@@ -6967,7 +6967,7 @@
         "acceptance": "a legal local exchange commits atomically and an overdraw, wrong location, or stale trade leaves both sides unchanged.",
         "title": "Resolve same-table trades."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Preserved [NEW] prompt: the routed rules establish that the five base resources (with Security Teams moving like resources) may trade at one ship table, but they do not define the participating inventories, actor authorization, consent, or exchange quantities. Production currently stores only one shared `shipResources` ledger per vessel and has no same-table trade callable or player-owned trade inventory; `shuttleCargo` is the separate shuttle-transfer surface reserved for Prompt 113. Keep this prompt missing until the product owner names the distinct same-table inventories and consent contract; do not model a ship-ledger exchange or bypass the Cargo Transfer boundary.",
       "evidenceIds": "E-AUDIT-112",
       "hardContract": "none",
       "hardMilestone": "none",
