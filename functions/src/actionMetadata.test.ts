@@ -16,6 +16,10 @@ describe('action metadata', () => {
       actorScope: ['player', 'facilitator'],
       requiredPhase: 'coordination',
     });
+    expect(ACTION_METADATA.transfer).toMatchObject({
+      actorScope: ['player', 'facilitator'],
+      requiredPhase: 'coordination',
+    });
   });
 
   it('normalizes current nested and legacy direct phase representations', () => {
@@ -57,6 +61,33 @@ describe('action metadata', () => {
     ).toEqual({
       allowed: true,
       action: 'jump',
+      phase: 'coordination',
+      reason: 'allowed',
+    });
+  });
+
+  it('denies transfer during Team and allows it during Coordination', () => {
+    expect(
+      decideActionAuthorization({
+        action: 'transfer',
+        actorScope: 'player',
+        turnPhase: { airspace: { state: 'restricted' } },
+      }),
+    ).toEqual({
+      allowed: false,
+      action: 'transfer',
+      phase: 'team',
+      reason: 'wrong-phase',
+    });
+    expect(
+      decideActionAuthorization({
+        action: 'transfer',
+        actorScope: 'player',
+        turnPhase: { airspace: { state: 'lifted' } },
+      }),
+    ).toEqual({
+      allowed: true,
+      action: 'transfer',
       phase: 'coordination',
       reason: 'allowed',
     });

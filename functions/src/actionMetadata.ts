@@ -31,7 +31,7 @@ export const ACTION_METADATA: Readonly<Record<ActionId, ActionMetadata>> = {
   charge: { actorScope: ['player', 'facilitator'], requiredPhase: 'team' },
   fuel: { actorScope: ['player', 'facilitator'], requiredPhase: 'team' },
   repair: { actorScope: ['player', 'facilitator'], requiredPhase: 'team' },
-  transfer: { actorScope: ['player', 'facilitator'], requiredPhase: 'team' },
+  transfer: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
   jump: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
   movement: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
   scouting: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },

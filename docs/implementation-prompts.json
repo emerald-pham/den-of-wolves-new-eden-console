@@ -392,6 +392,13 @@
       "language": "The existing server-owned Team and Coordination clock now persists one complete turnState alongside its compatibility fields: current and maximum turn, phase, monotonic phase revision, and authoritative phase start/end instants. The start/advance, Team-to-Coordination, timer extension, emergency pause/resume, join, resume, and client callable paths preserve the entity; malformed records are rejected and legacy sessions are backfilled only at a real phase boundary. Focused turn-zero, start, production 8/19/20, airspace transition, and client parser tests cover the schema and lifecycle.",
       "source": "functions/src/turnZero.ts; functions/src/index.ts; functions/src/turnZero.test.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; functions/src/maintenanceCallable.test.ts; src/lib/turnPhase.ts; src/lib/turnPhase.test.ts; src/lib/firestore.ts; src/lib/sessionService.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "100 -> M2-COORDINATION-ACTIONS",
+      "id": "E-100-COORDINATION-METADATA",
+      "language": "The shared action metadata classifies transfer as a Coordination action, and policy tests prove transfer is denied during Team and allowed during Coordination. Transfer, scouting, and research callable coverage remains open, so Prompt 100 stays partial.",
+      "source": "functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; authorized source review",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2795,8 +2802,8 @@
         "acceptance": "movement, transfer, scouting, research, and jumps fail outside Coordination except printed exceptions.",
         "title": "Gate Coordination actions."
       },
-      "description": "Movement/jump Coordination gates exist; transfer/scouting/research coverage remains open.",
-      "evidenceIds": "none",
+      "description": "`functions/src/actionMetadata.ts` now classifies transfer as a Coordination action, with policy tests proving Team-phase denial and Coordination allowance; transfer, scouting, and research callable coverage and the complete gate matrix remain open.",
+      "evidenceIds": "E-100-COORDINATION-METADATA",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
