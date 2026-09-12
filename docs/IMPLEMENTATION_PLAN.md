@@ -2405,7 +2405,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 278
 - [ ] Prompt 279
 - [ ] Prompt 280
-- [ ] Prompt 281
+- [x] Prompt 281
 - [ ] Prompt 282
 - [ ] Prompt 283
 - [ ] Prompt 284

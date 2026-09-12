@@ -722,7 +722,7 @@ release classification and evidence.
 | 278 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 279 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 280 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 281 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 281 | done | non-feature | — | One platform-independent immutable graph now supplies all 22 printed systems and 40 undirected edges to both the browser star chart and server coordinate validation. Every adjacency set was checked against the authorized routed source table. Frozen coordinate/edge arrays and returned neighbor lists resist consumer mutation, and unknown or unprinted coordinates have no entry. Existing topology, overlay presentation and coordinate acceptance are unchanged; no new jump authorization or scouting behavior is claimed. |
 | 282 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 283 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 284 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

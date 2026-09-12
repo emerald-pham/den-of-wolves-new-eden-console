@@ -1,3 +1,6 @@
+import { neighborsForCoordinate } from '../../functions/src/starChartGraph';
+export { STAR_CHART_CONNECTIONS } from '../../functions/src/starChartGraph';
+
 /**
  * The printed DoWNE star chart is a 2D jump network. The organiser's A/B/C
  * sheets change the A–P site code at a coordinate, but never change the
@@ -45,29 +48,7 @@ export interface StarSystem {
   readonly neighbors: readonly string[];
 }
 
-/** Every undirected edge appears once, with the printed coordinate order. */
-export const STAR_CHART_CONNECTIONS: readonly (readonly [string, string])[] = [
-  ['0000', '5143'], ['0000', '1413'],
-  ['5143', '9997'], ['5143', '6837'],
-  ['1413', '6837'], ['1413', '0488'],
-  ['9997', '6931'],
-  ['6837', '0488'], ['6837', '6931'], ['6837', '4454'],
-  ['0488', '4454'],
-  ['6931', '4454'], ['6931', '4753'], ['6931', '1096'],
-  ['4454', '1096'], ['4454', '6964'],
-  ['4753', '1096'], ['4753', '3068'], ['4753', '2580'],
-  ['1096', '3068'], ['1096', '0853'], ['1096', '6964'],
-  ['6964', '0853'], ['6964', '6943'],
-  ['2580', '6798'],
-  ['3068', '6798'], ['3068', '8378'], ['3068', '0853'],
-  ['0853', '8378'], ['0853', '1964'],
-  ['6943', '1964'],
-  ['6798', '1380'], ['6798', '1836'],
-  ['8378', '1836'], ['8378', '0408'], ['8378', '1964'],
-  ['1964', '0408'], ['1964', '4888'],
-  ['1380', '1836'],
-  ['0408', '4888'],
-];
+
 
 const SYSTEM_LAYOUT: readonly Omit<StarSystem, 'neighbors'>[] = [
   {
@@ -162,11 +143,7 @@ const SYSTEM_LAYOUT: readonly Omit<StarSystem, 'neighbors'>[] = [
 
 export const STAR_CHART_SYSTEMS: readonly StarSystem[] = SYSTEM_LAYOUT.map((system) => ({
   ...system,
-  neighbors: STAR_CHART_CONNECTIONS.flatMap(([from, to]) => {
-    if (from === system.coordinate) return [to];
-    if (to === system.coordinate) return [from];
-    return [];
-  }),
+  neighbors: neighborsForCoordinate(system.coordinate) ?? [],
 }));
 
 export const EXPLORATION_SITES: Readonly<Record<ExplorationCode, ExplorationSite>> = {

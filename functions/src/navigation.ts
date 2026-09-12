@@ -1,3 +1,5 @@
+import { neighborsForCoordinate } from './starChartGraph';
+
 export type NavigationEventType = 'self-jump' | 'ship-jump-away' | 'ship-jump-arrival';
 
 export interface NavigationLogEntry {
@@ -15,14 +17,8 @@ export interface NavigationLogEntry {
 
 export type NavigationLogs = Readonly<Record<string, readonly NavigationLogEntry[]>>;
 
-const PRINTED_COORDINATES = new Set([
-  '0000', '5143', '1413', '9997', '6837', '0488', '6931', '4454',
-  '4753', '1096', '6964', '2580', '3068', '0853', '6943', '6798',
-  '8378', '1964', '1380', '1836', '0408', '4888',
-]);
-
 export function isStarSystemCoordinate(value: string): boolean {
-  return PRINTED_COORDINATES.has(value);
+  return neighborsForCoordinate(value) !== undefined;
 }
 
 export function stardateForDate(date: Date): string {

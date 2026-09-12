@@ -4403,6 +4403,13 @@
       "language": "The sole production change is the regulation body. Fifty-nine focused component, storage and App tests passed. Chrome rendered the real SessionWaiver at 320x844,390x844,1440x900,844x390 with reduced motion: one exact StaticText accessibility node, complete wrapping, 14px/21.7px body font, 44px checkbox labels and no horizontal overflow. Native Space/Tab checkboxes and Enter confirmation after the existing ten-second delay reached the fixture continuation. No shared authority, acknowledgement persistence, GM-expiry, debrief or historical release copy changed.",
       "source": "src/components/SessionWaiver.tsx; src/components/SessionWaiver.test.tsx; src/lib/sessionWaiver.test.ts; src/App.test.tsx; /tmp/p589b-render/*.png",
       "type": "evidence"
+    },
+    {
+      "direction": "281 -> canonical graph",
+      "id": "E-281-SHARED-GRAPH",
+      "language": "The routed private exploration derivative adjacency table was compared against every one of the 22 systems and 40 edges. Explicit per-system tests verify complete adjacency sets, unknown/prototype-name coordinate rejection and mutation resistance. Existing client star-chart and server navigation tests pass against the shared module; Functions build and client typecheck pass. This consolidates existing topology without changing player-facing values, coordinate acceptance or authorization; no primary chart visual inspection is claimed.",
+      "source": "functions/src/starChartGraph.ts; functions/src/starChartGraph.test.ts; functions/src/navigation.ts; functions/src/navigation.test.ts; src/data/starChart.ts; src/data/starChart.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -11720,8 +11727,8 @@
         "acceptance": "every printed system returns its exact adjacency list from server-safe immutable data.",
         "title": "Encode the canonical star-chart graph."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "One platform-independent immutable graph now supplies all 22 printed systems and 40 undirected edges to both the browser star chart and server coordinate validation. Every adjacency set was checked against the authorized routed source table. Frozen coordinate/edge arrays and returned neighbor lists resist consumer mutation, and unknown or unprinted coordinates have no entry. Existing topology, overlay presentation and coordinate acceptance are unchanged; no new jump authorization or scouting behavior is claimed.",
+      "evidenceIds": "E-281-SHARED-GRAPH",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -11732,7 +11739,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
