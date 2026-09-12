@@ -20962,7 +20962,7 @@
         "acceptance": "cached, current, or resume-in-flight state at `/` never calls create or join; accessible reconnecting/stale state then resolves to the authoritative last route or `/roles`. Back, refresh, and reconnect converge; terminal denial clears only an established path while transient failure preserves recovery; an unexpected create race gives a truthful alert/link; and the launcher never auto-disconnects, releases, or mutates a session.",
         "title": "Route an already-connected launcher to its current session."
       },
-      "description": "Planned [REPAIR] prompt: route a cached, current, or resume-in-flight launcher at `/` to the authoritative current session/last route without create/join, mutation, release, or misleading recovery copy.",
+      "description": "The launcher now keeps cached or reconnecting sessions out of create/join actions, exposes a truthful current-session recovery link, restores only recognized in-session routes, and preserves transient resume state until terminal denial clears it. Focused App, Landing, session-service, and connection-indicator tests plus Chrome CDP route/recovery checks cover the required viewports and reduced motion.",
       "evidenceIds": "E-AUDIT-656",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20971,10 +20971,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.54"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

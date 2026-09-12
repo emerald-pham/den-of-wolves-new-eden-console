@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**134 / 747 prompts complete (17.94%)**
+**135 / 747 prompts complete (18.07%)**
 
-Status breakdown: **134 done · 7 partial · 606 missing**.
+Status breakdown: **135 done · 7 partial · 605 missing**.
 
 Active prompt: **none**
 
@@ -1132,7 +1132,7 @@ release classification and evidence.
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 654 | missing | non-feature | — | Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1. |
 | 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
-| 656 | missing | non-feature | — | Planned [REPAIR] prompt: route a cached, current, or resume-in-flight launcher at `/` to the authoritative current session/last route without create/join, mutation, release, or misleading recovery copy. |
+| 656 | done | non-feature | 0.3.54 | The launcher now keeps cached or reconnecting sessions out of create/join actions, exposes a truthful current-session recovery link, restores only recognized in-session routes, and preserves transient resume state until terminal denial clears it. Focused App, Landing, session-service, and connection-indicator tests plus Chrome CDP route/recovery checks cover the required viewports and reduced motion. |
 | 657 | missing | non-feature | — | Planned [REPAIR] prompt: remove standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage. |
 | 658 | missing | non-feature | — | Planned [POLISH] prompt: retain `/roles` seat-change confirmation as the exact visible and accessible `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat/retry/stale/reconnect/privacy behavior and existing layout. |
 | 659 | missing | non-feature | — | Planned [PRESERVE] prompt: inventory reachable player-facing copy, check in the approved CIC lexicon, forbidden jargon, and reviewed exceptions, and enforce the contract deterministically; this includes removing `System reduced motion is off.` while preserving system/effective reduced-motion behavior and meaningful accessibility. |

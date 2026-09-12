@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['656'],
+    implementationProgress: {
+      completed: 135,
+      total: 747,
+      percentage: '18.07%',
+      done: 135,
+      partial: 7,
+      active: 0,
+      missing: 605,
+    },
+    changes: [
+      'Returning players now go straight back to their current session after a refresh or reconnect, while a temporary connection problem keeps their recovery path available. The launcher will not create or join over an existing session, and a clear link returns to the last recognized station. 135 of 747 planned items are complete (18.07%).',
+    ],
+  },
+  {
+    version: '0.3.53',
     implementationPrompts: ['114'],
     implementationProgress: {
       completed: 134,

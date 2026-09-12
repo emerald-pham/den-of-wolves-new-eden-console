@@ -817,7 +817,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 653 | EXTEND | missing | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
 | 654 | REPAIR | missing | none | M1 | none | OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
 | 655 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
-| 656 | REPAIR | missing | 034;050 | none | none | none | none | none | none | none | E-AUDIT-656 | none | Route an already-connected launcher to its current session. |
+| 656 | REPAIR | done | 034;050 | none | none | none | none | none | none | none | E-AUDIT-656 | none | Route an already-connected launcher to its current session. |
 | 657 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Remove roadmap jargon from player-facing changelog history and future entries. |
 | 658 | POLISH | missing | 030;050 | none | none | none | none | none | none | none | E-AUDIT-658 | none | Use CIC language for seat-change confirmation when the page remains. |
 | 659 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | none | Enforce in-universe player-facing copy app-wide. |
