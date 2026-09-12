@@ -38,7 +38,7 @@ beforeEach(() => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner }
+        ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : { phase: mock.phase };
     return { exists: true, get: (key: string) => fields[key] };
   });

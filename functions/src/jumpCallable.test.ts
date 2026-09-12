@@ -78,7 +78,7 @@ beforeEach(() => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner }
+        ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {
           phase: 'active',
           currentTurn: mock.currentTurn,
@@ -227,7 +227,7 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner }
+        ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {
           phase: 'active',
           currentTurn: mock.currentTurn,

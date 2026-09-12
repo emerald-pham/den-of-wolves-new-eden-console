@@ -42,7 +42,7 @@ beforeEach(() => {
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }, { id: 'gm2' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
-      : path.includes('/gmInstances/') ? { uid: mock.owner }
+      : path.includes('/gmInstances/') ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
       : {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
         shipResources: { dione: { fuel: mock.fuel } },

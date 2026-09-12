@@ -68,7 +68,7 @@ function put(path: string, fields: Fields): void {
 function provision(): void {
   put('sessions/s1', { phase: 'active', currentTurn: 1 });
   put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true });
-  put('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: true });
+  put('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: true, lastSeenAt: new Date() });
   put('sessions/s1/loyaltyCensus/current', {
     type: 'loyalty-census',
     revision: 3,
