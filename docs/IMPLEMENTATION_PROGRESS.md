@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 736 prompts complete (13.99%)**
+**103 / 737 prompts complete (13.98%)**
 
-Status breakdown: **103 done · 17 partial · 616 missing**.
+Status breakdown: **103 done · 17 partial · 617 missing**.
 
 Active prompt: **none**
 
@@ -1146,6 +1146,7 @@ release classification and evidence.
 | 667 | missing | non-feature | — | Planned [PROVE] security-governance prompt: codify trusted contributors but untrusted-until-reviewed output, retain mandatory independent review, inventory and map the existing Firebase Hosting CDN, reCAPTCHA Enterprise App Check, Firestore enforcement, callable instance cap, and join-code/throttle controls, and route any demonstrated runtime gap to a separately registered feature rather than duplicate or speculative security expansion. |
 | 668 | missing | non-feature | — | Planned [POLISH] prompt: make the Write Mode Off control use the shared button visual and interaction language while preserving current guards, accessible state, responsive behavior, and authorization. |
 | 669 | missing | non-feature | — | Planned [POLISH] prompt: bring the GM DRADIS console to visual and interaction parity with the current ship-console DRADIS reference, with regression proof for all non-GM DRADIS behavior and authority and no broader refactor. |
+| 670 | missing | non-feature | — | Planned [REPAIR] prompt: remove the unwanted additional-GM registration lockout from Role Select and the GM console while preserving server-owned identity, legitimate authorization, existing authority, and focused denial coverage. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

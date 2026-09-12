@@ -17242,6 +17242,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "POLISH"
+    },
+    {
+      "changeClass": "non-feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "after auditing the actual registration blocker, remove the unwanted lockout that prevents an authorized additional GM instance from being added through both the Role Select screen and the GM console. Existing authorized GM/session state, server-owned GM grant and instance identity, existing write/observer authority, stale and unauthorized claim denial, and safe idempotent replay handling remain intact; focused regressions cover both surfaces and prove that the repair does not grant arbitrary privilege or broadly relax authorization.",
+        "title": "Allow authorized additional GMs to register from both surfaces."
+      },
+      "description": "Planned [REPAIR] prompt: remove the unwanted additional-GM registration lockout from Role Select and the GM console while preserving server-owned identity, legitimate authorization, existing authority, and focused denial coverage.",
+      "evidenceIds": "none",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "670",
+      "milestoneHints": "none",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "REPAIR"
     }
   ],
   "retiredPromptIds": [
