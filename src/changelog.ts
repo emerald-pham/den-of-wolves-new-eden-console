@@ -21,10 +21,26 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['263'],
+    implementationProgress: {
+      completed: 175, total: 747, percentage: '23.43%',
+      done: 175, partial: 10, active: 0, missing: 562,
+    },
+    changes: [
+      'The Philia shuttle console now shows its security-team cargo, permission-gated dismantling, and fuelled repair procedures for the Dione Engineer. 175 of 747 planned items are complete (23.43%).',
+    ],
+  },
+  {
+    version: '0.3.64',
     implementationPrompts: ['589b'],
     implementationProgress: {
-      completed: 174, total: 747, percentage: '23.29%',
-      done: 174, partial: 10, active: 0, missing: 563,
+      completed: 174,
+      total: 747,
+      percentage: '23.29%',
+      done: 174,
+      partial: 10,
+      active: 0,
+      missing: 563,
     },
     changes: [
       'The session code of conduct now gives a shorter, clearer reminder to treat fellow players with care. 174 of 747 planned items are complete (23.29%).',

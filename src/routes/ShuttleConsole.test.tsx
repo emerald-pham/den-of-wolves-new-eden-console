@@ -388,7 +388,8 @@ it('opens Starlight on its Wing Commander route with its routed operation envelo
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
 });
 
-it('opens Philia on its Dione Engineer route with its repair and cargo envelope', () => {
+it('opens Philia on its Dione Engineer route with its repair and cargo envelope', async () => {
+  const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!,
@@ -400,7 +401,10 @@ it('opens Philia on its Dione Engineer route with its repair and cargo envelope'
 
   render(
     <MemoryRouter initialEntries={['/shuttles/philia']}>
-      <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/dione/roles/dione-engineer" element={<p>Dione Engineer parent</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -419,6 +423,13 @@ it('opens Philia on its Dione Engineer route with its repair and cargo envelope'
   expect(screen.getByText(/fuelled.*repair consoles on a second ship/i)).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+  const back = screen.getByRole('link', { name: /back to dione engineer console/i });
+  expect(back).toHaveClass('ship-console__back', 'cic-text-button');
+  expect(back).toHaveAttribute('href', '/ships/dione/roles/dione-engineer');
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Dione Engineer parent')).toBeInTheDocument();
 });
 
 it('opens Pallas on its Executive Officer route with its security and boarding envelope', () => {
