@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
+import { findShip } from '@/data/ships';
 import { SHUTTLECRAFT, dockingForShuttle, isShuttleEnabled } from '@/data/shuttles';
 import { isJointEngineeringRoleId } from '@/data/rolePresets';
 import { consoleRoleRoute } from '@/lib/consoleRole';
@@ -63,6 +64,17 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     }
   }
 
+  const ownerParent = captainRole && isJointEngineeringRoleId(captainRole.id)
+    ? {
+        to: consoleRoleRoute(captainRole.id),
+        label: 'Back to Joint Engineering Union',
+      }
+    : !isGm && captainRole && !isPressShuttle
+    ? {
+        to: consoleRoleRoute(captainRole.id),
+        label: `Back to ${findShip(captainRole.shipId)?.name ?? captainRole.shipId} ${captainRole.name} console`,
+      }
+    : undefined;
   const returnTo = isPressShuttle && !isGm
     ? me.activeConsoleRoleId === shuttle.captainRoleId
       ? {
@@ -75,12 +87,7 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
           to: '/console',
           label: 'Back to Independent Stations',
         }
-    : isJointEngineeringRoleId(shuttle.captainRoleId)
-    ? {
-        to: consoleRoleRoute(shuttle.captainRoleId),
-        label: 'Back to Joint Engineering Union',
-      }
-    : undefined;
+    : ownerParent;
   return <ShuttleConsoleTemplate shuttle={shuttle} captainName={captainRole?.name ?? 'Captain'}
     canLeave={isGm} docking={docking} fuelled={session.shuttleFuelled?.[shuttle.id] === true}
     returnTo={returnTo} />;
