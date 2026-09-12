@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**158 / 747 prompts complete (21.15%)**
+**159 / 747 prompts complete (21.29%)**
 
-Status breakdown: **158 done · 7 partial · 582 missing**.
+Status breakdown: **159 done · 7 partial · 581 missing**.
 
 Active prompt: **none**
 
@@ -983,7 +983,7 @@ release classification and evidence.
 | 521 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 521a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 521b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
-| 522 | missing | non-feature | — | Planned [REPAIR] prompt: current distinct main/assistant staffing must become one-GM ownership with optional multi-GM lanes/handoff and no stale-instance deadlock. |
+| 522 | done | feature | 0.3.57 | One authorized GM instance can now carry both printed responsibilities and the complete next-action queue, while optional GMs can share or hand off lanes. Each GM instance has its own server lease: claim and exact-instance heartbeat renew it, stale or disconnected instances expire independently, and live public projections exclude stale claims. Exact UID and instance checks protect every GM authority path. The accepted Firebase UID trust boundary is explicit: same-origin contexts using the same authorized UID share that principal, so P522 does not claim cryptographic per-tab isolation or introduce an opaque bearer credential. Focused P522 validation covers 308 cases across the affected Functions and client services, with independent Terra review clearing cross-UID, non-GM, and stale exact-claim risks. |
 | 523 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523a | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |

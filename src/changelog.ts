@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['522'],
+    implementationProgress: {
+      completed: 159,
+      total: 747,
+      percentage: '21.29%',
+      done: 159,
+      partial: 7,
+      active: 0,
+      missing: 581,
+    },
+    changes: [
+      'Facilitators can now run both printed responsibilities from one authorized GM session, while optional GMs can share or hand off lanes. Stale GM browser sessions expire independently without removing a live sibling. 159 of 747 planned items are complete (21.29%).',
+    ],
+  },
+  {
+    version: '0.3.56',
     implementationPrompts: ['275b'],
     implementationProgress: {
       completed: 158,

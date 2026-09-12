@@ -144,6 +144,32 @@ pending/rejected/committed state, non-color cues, narrow/short viewports, and
 reduced motion. The one-GM fixture is mandatory before the optional multi-GM
 race fixture.
 
+### Prompt 522 — one-facilitator ownership and the GM lease boundary
+
+Prompt 522 extends the printed two-responsibility model so one authorized GM
+instance can carry both responsibilities and the complete next-action queue;
+additional GMs remain optional collaborators who can share or hand off lanes.
+Every GM instance is bound to its authenticated Firebase UID and has its own
+server lease. Claim writes the instance lease, the GM heartbeat renews only
+that instance, and expiry or disconnect removes only the stale instance while
+preserving a live sibling for the same authorized player. Public GM-instance
+projections contain only live, allowlisted records, and exact instance checks
+run before renewal or gameplay mutation, so foreign UIDs, stale claims, and
+omitted or mismatched instance IDs cannot exercise GM authority.
+
+The accepted trust boundary is the authenticated Firebase UID: same-origin
+contexts signed into the same UID share that principal and its browser storage.
+Reusing a live instance ID within that same authorized principal is therefore
+not presented as cryptographic per-tab isolation. P522 does not introduce an
+opaque bearer credential or claim to separate same-principal tabs; that would
+be a separately scoped client and callable contract. Terra's final scoped
+review found no cross-UID, non-GM, or stale exact-claim exploit under this
+boundary. Evidence is recorded in
+`functions/src/gmSessionCallable.test.ts`,
+`functions/src/sessionLifecycleCallable.test.ts`,
+`src/lib/sessionService.test.ts`, and the focused release validation for the
+P522 candidate.
+
 ## 1. Source and ambiguity ledger — Prompt 003
 
 The source map in the plan is authoritative for routing. Printed ship,

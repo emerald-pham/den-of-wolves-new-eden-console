@@ -668,7 +668,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 521 | NEW | missing | 515;494 | none | none | none | none | none | none | none | E-AUDIT-521 | M10 | Complete Wolf Commander powers. |
 | 521a | NEW | missing | 521 | none | none | none | none | none | none | none | E-AUDIT-521A | M10 | Resolve the Wolf Commander address. |
 | 521b | DECISION | missing | 521a | none | none | none | none | none | none | none | E-AUDIT-521B | M10 | Resolve Wolf Commander amnesty. |
-| 522 | REPAIR | missing | 044;045 | none | none | none | none | none | none | none | E-AUDIT-522 | M10 | Model one-facilitator ownership with optional GM lanes. |
+| 522 | REPAIR | done | 044;045 | none | none | none | none | none | none | none | E-AUDIT-522;E-522-GM-LEASE | M10 | Model one-facilitator ownership with optional GM lanes. |
 | 523 | DECISION | missing | 522;167 | none | none | none | none | none | none | none | E-AUDIT-523 | M10 | Record facilitator rule calls. |
 | 523a | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523A | M10 | Configure Wolf Attack difficulty. |
 | 523b | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523B | M10 | Configure Crisis difficulty. |
@@ -1339,6 +1339,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-521A | hard_prompt | 521a -> 521 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Commander address consumes Commander powers. |
 | E-AUDIT-521B | hard_prompt | 521b -> 521a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Commander amnesty consumes the address state. |
 | E-AUDIT-522 | hard_prompt | 522 -> 044;045 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Facilitator ownership consumes eligibility and GM instance authority. |
+| E-522-GM-LEASE | evidence / authority / release | 522 -> 044;045 | functions/src/index.ts; functions/src/gmSessionCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts; src/lib/sessionService.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 522 closure | One GM instance can carry both printed responsibilities while optional GM lanes remain independently live, projected, and stale-safe. The server owns per-instance lease timestamps and exact UID/instance checks for claim, heartbeat, expiry, disconnect, and gameplay authority. Same-origin contexts using the same authenticated UID share that security principal; P522 does not claim cryptographic per-tab isolation or add an opaque bearer credential. |
 | E-AUDIT-523 | hard_prompt | 523 -> 522;167 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Facilitator calls consume ownership and action envelopes. |
 | E-AUDIT-523A | hard_prompt | 523a -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
 | E-AUDIT-523B | hard_prompt | 523b -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |

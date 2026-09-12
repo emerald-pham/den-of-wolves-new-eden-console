@@ -3334,6 +3334,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "522 -> 044;045",
+      "id": "E-522-GM-LEASE",
+      "language": "One GM instance can carry both printed responsibilities while optional GM lanes remain independently live, projected, and stale-safe. The server owns per-instance lease timestamps and exact UID/instance checks for claim, heartbeat, expiry, disconnect, and gameplay authority. Same-origin contexts using the same authenticated UID share that security principal; P522 does not claim cryptographic per-tab isolation or add an opaque bearer credential.",
+      "source": "functions/src/index.ts; functions/src/gmSessionCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts; src/lib/sessionService.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 522 closure",
+      "type": "evidence / authority / release"
+    },
+    {
       "direction": "523 -> 522;167",
       "id": "E-AUDIT-523",
       "language": "Facilitator calls consume ownership and action envelopes.",
@@ -17601,15 +17608,15 @@
       "tag": "DECISION"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "one authorized GM can own both printed responsibilities and the complete next-action queue; additional GMs may claim/share/handoff optional lanes, private views, and calls without over-broad reads, readiness coupling, or stale-instance deadlock.",
         "title": "Model one-facilitator ownership with optional GM lanes."
       },
-      "description": "Planned [REPAIR] prompt: current distinct main/assistant staffing must become one-GM ownership with optional multi-GM lanes/handoff and no stale-instance deadlock.",
-      "evidenceIds": "E-AUDIT-522",
+      "description": "One authorized GM instance can now carry both printed responsibilities and the complete next-action queue, while optional GMs can share or hand off lanes. Each GM instance has its own server lease: claim and exact-instance heartbeat renew it, stale or disconnected instances expire independently, and live public projections exclude stale claims. Exact UID and instance checks protect every GM authority path. The accepted Firebase UID trust boundary is explicit: same-origin contexts using the same authorized UID share that principal, so P522 does not claim cryptographic per-tab isolation or introduce an opaque bearer credential. Focused P522 validation covers 308 cases across the affected Functions and client services, with independent Terra review clearing cross-UID, non-GM, and stale exact-claim risks.",
+      "evidenceIds": "E-AUDIT-522;E-522-GM-LEASE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "044;045",
@@ -17617,10 +17624,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.57"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {
