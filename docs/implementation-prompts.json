@@ -4237,6 +4237,13 @@
       "type": "evidence"
     },
     {
+      "direction": "131",
+      "id": "E-131-VERIFIED",
+      "language": "Existing damage resolution treats an already-exhausted required deck as a terminal destroyed result without inventing a card. Both addShipDamage and runMaintenance use that resolver inside their authoritative transactions, persist the destroyed ship state, and write the durable ship-destroyed draw record. The focused resolver, callable, maintenance, and maintenance-callable suite passed 105 tests on 2026-09-12; this records existing behavior, not a new runtime release.",
+      "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/index.ts addShipDamage/runMaintenance; functions/src/shipDamageCallable.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts",
+      "type": "evidence"
+    },
+    {
       "direction": "163",
       "id": "E-163-VERIFIED",
       "language": "Existing production composition and counter tests prove expansion inventory creation, removal on return to base mode, and denial of inactive Scrap mutations. Resource allowlists keep Scrap off other vessels, and join/resume inventories use active-vessel filtering. Verified 28 existing resource/composition/projection tests on 2026-09-12; no new runtime release.",
@@ -7529,8 +7536,8 @@
         "acceptance": "a required draw with no cards enters one authoritative destruction flow.",
         "title": "Destroy a ship on empty-deck draw."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-131",
+      "description": "Existing damage resolution treats an already-exhausted required deck as a terminal destroyed result without inventing a card. Both addShipDamage and runMaintenance use that resolver inside their authoritative transactions, persist the destroyed ship state, and write the durable ship-destroyed draw record. The focused resolver, callable, maintenance, and maintenance-callable suite passed 105 tests on 2026-09-12; this records existing behavior, not a new runtime release.",
+      "evidenceIds": "E-AUDIT-131;E-131-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "130",
@@ -7541,7 +7548,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

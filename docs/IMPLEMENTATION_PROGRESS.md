@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**155 / 747 prompts complete (20.75%)**
+**156 / 747 prompts complete (20.88%)**
 
-Status breakdown: **155 done · 7 partial · 585 missing**.
+Status breakdown: **156 done · 7 partial · 584 missing**.
 
 Active prompt: **none**
 
@@ -546,7 +546,7 @@ release classification and evidence.
 | 128 | done | non-feature | — | Existing numbered-turn transitions call expireTurnScopedResources inside the authoritative transaction, clearing every stored vessel charge/refuelling marker and shuttle fuel flag without consulting the resource owner presence. Both next-turn and terminal-debrief paths persist the cleared state. Existing callable coverage checks expiry, unchanged cargo/docking/stores, stale turn denial, terminal receipt replay, and concurrent phase observers; all 40 maintenance callable tests passed during the 2026-09-12 evidence review. No runtime change or new deployment is claimed. |
 | 129 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 130 | done | non-feature | — | Existing damage resolution selects the remaining card with server randomness fixed outside transaction retries, persists the affected system and permitted draw result atomically, handles armour recycling and empty decks, and does not persist a future deck order in the client-visible damage state. The GM damage control and gameplay maintenance share this resolver. Verified 34 existing damage/helper/callable tests and all 66 Firestore rules tests, including member-only drawn-card reads and denial of player/GM direct writes. This records existing behavior, not a new runtime release. |
-| 131 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 131 | done | non-feature | — | Existing damage resolution treats an already-exhausted required deck as a terminal destroyed result without inventing a card. Both addShipDamage and runMaintenance use that resolver inside their authoritative transactions, persist the destroyed ship state, and write the durable ship-destroyed draw record. The focused resolver, callable, maintenance, and maintenance-callable suite passed 105 tests on 2026-09-12; this records existing behavior, not a new runtime release. |
 | 132 | done | non-feature | — | Focused `addShipDamage` production-callable proof in `functions/src/shipDamageCallable.test.ts` covers both AEGIS Armoured Hull cards, survivor preservation, conditional recycling when another damage card remains, final-card retention, and transaction retry-stable randomness/audit identity; no production-path change. |
 | 133 | done | non-feature | — | Focused `adjustShipPopulation` production-callable proof in `functions/src/shipPopulationCallables.test.ts` covers all seven printed tracks, next printed values, endpoints, off-track denial, threshold alert creation, and pending-alert no-write behavior; no production-path change. |
 | 134 | missing | non-feature | — | Planned [REPAIR] prompt: current alerts can require every GM instance and let a stale optional GM deadlock maintenance. One-GM ownership/unblock, informational additional-GM delivery, stale-instance expiry, and one-winner acknowledgement remain open. |
