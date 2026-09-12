@@ -139,14 +139,29 @@ it('stops an airspace bulletin when Press publishes new copy', async () => {
   expectAuthoritativeTicker(mock.update.mock.calls[0]?.[1], 'dispatch-new');
 });
 
-it('holds Press Officer dispatches at Turn 0 unless the caller is a GM', async () => {
+it('allows the claimed Press Officer to publish during Turn 0', async () => {
   mock.currentTurn = 0;
-  await expect(publishPressDispatch.run(request())).rejects.toMatchObject({
-    code: 'failed-precondition',
-    message: expect.stringMatching(/turn 1/i),
-  });
-  mock.role = 'gm';
   await expect(publishPressDispatch.run(request())).resolves.toMatchObject({ revision: 1 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    pressDispatch: {
+      dispatches: [{ id: 'dispatch-new', text: `SNN // ${data.text}` }],
+      revision: 1,
+    },
+  }));
+});
+
+it('allows the claimed Press Officer to dismiss during Turn 0', async () => {
+  mock.currentTurn = 0;
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }],
+    revision: 1,
+  };
+  await expect(dismissPressDispatch.run(request({
+    sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 1,
+  }))).resolves.toMatchObject({ revision: 2, dispatches: [] });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    pressDispatch: { dispatches: [], revision: 2 },
+  }));
 });
 
 it('dismisses only the selected active dispatch and advances the collection revision', async () => {

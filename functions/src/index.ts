@@ -8010,7 +8010,6 @@ export const publishPressDispatch = onCall<{
     if (session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');
     }
-    requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
@@ -8091,7 +8090,6 @@ export const dismissPressDispatch = onCall<{
     if (session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');
     }
-    requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }

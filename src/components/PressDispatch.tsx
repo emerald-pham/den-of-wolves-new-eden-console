@@ -2,8 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Shuttlecraft } from '@/data/shuttles';
 import { dismissPressDispatch, publishPressDispatch } from '@/lib/pressDispatchService';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
-import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
+import { useSessionStore } from '@/store/useSessionStore';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 const MAX_DISPATCH_LENGTH = 220;
@@ -14,7 +13,6 @@ export default function PressDispatch({ shuttle }: {
   const me = useSessionStore((state) => state.me);
   const session = useSessionStore((state) => state.session);
   const connection = useSessionStore((state) => state.connection);
-  const isGm = useSessionStore(selectIsGm);
   const dispatchState = session?.pressDispatch;
   const current = normalizePressDispatch(dispatchState).dispatches;
   const [text, setText] = useState('');
@@ -22,8 +20,9 @@ export default function PressDispatch({ shuttle }: {
   const [dismissing, setDismissing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const hasPressAuthority = me?.activeConsoleRoleId === shuttle.captainRoleId;
-  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
-  const authorized = hasPressAuthority && !turnZeroLocked && session?.phase !== 'debrief' && session?.phase !== 'closed';
+  // The independent Press desk is explicitly available during Turn 0. Keep
+  // the ordinary endgame phase gates and server authority checks intact.
+  const authorized = hasPressAuthority && session?.phase !== 'debrief' && session?.phase !== 'closed';
 
   async function publish(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -107,9 +106,7 @@ export default function PressDispatch({ shuttle }: {
         ) : <p className="press-dispatch__empty">No active dispatches</p>}
       </div>
       <p className="press-dispatch__status" aria-live="polite">
-        {notice || (turnZeroLocked
-          ? 'Turn 0 // Awaiting Iris Authentication'
-          : session?.phase === 'debrief'
+        {notice || (session?.phase === 'debrief'
             ? 'Endgame evaluation // gameplay dispatches frozen'
             : !authorized ? 'Press Officer authority required' : '')}
       </p>

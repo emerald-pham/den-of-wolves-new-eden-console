@@ -136,7 +136,8 @@ it('gives the Press Officer a dispatch desk that publishes to the fleet ticker',
   expect(desk).toHaveTextContent('Dispatch transmitted');
 });
 
-it('holds Press Officer dispatch controls during Turn 0', () => {
+it('keeps the claimed Press Officer dispatch desk actionable during Turn 0', async () => {
+  const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setMe({ ...state.me!, activeConsoleRoleId: 'press-officer' });
   state.setSession({ ...state.session!, currentTurn: 0 });
@@ -147,9 +148,15 @@ it('holds Press Officer dispatch controls during Turn 0', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('textbox', { name: 'Dispatch' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Publish dispatch' })).toBeDisabled();
-  expect(screen.getByText('Turn 0 // Awaiting Iris Authentication')).toBeVisible();
+  const desk = screen.getByRole('region', { name: 'Press dispatch desk' });
+  const textbox = screen.getByRole('textbox', { name: 'Dispatch' });
+  const publish = screen.getByRole('button', { name: 'Publish dispatch' });
+  expect(textbox).toBeEnabled();
+  await user.type(textbox, 'Turn Zero press check');
+  await user.click(publish);
+  expect(publishPressDispatch).toHaveBeenCalledWith('Turn Zero press check');
+  expect(desk).toHaveTextContent('Dispatch transmitted');
+  expect(screen.queryByText('Turn 0 // Awaiting Iris Authentication')).not.toBeInTheDocument();
 });
 
 it('shows every current dispatch and dismisses only the selected dispatch', async () => {
