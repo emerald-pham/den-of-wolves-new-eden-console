@@ -10,6 +10,7 @@ import type {
   EntityId,
   EntityKind,
   EventId,
+  GroupId,
   PlayerId,
   RoleId,
   SeatId,

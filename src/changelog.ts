@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['432', '140d', '314', '286'],
+    implementationProgress: {
+      completed: 200,
+      total: 747,
+      percentage: '26.77%',
+      done: 200,
+      partial: 19,
+      active: 0,
+      missing: 528,
+    },
+    changes: [
+      'GMs can declare a prepared Wolf attack once all craft have confirmed parking, with private targeting and a fleet announcement.',
+      'Destroyed full-size ships leave active navigation while their escape-pod capacity, survivors, and retained craft remain recorded.',
+      'Fleet membership now stays consistent when players join, return, or are removed, including in older sessions.',
+      '200 of 747 planned items are complete (26.77%).',
+    ],
+  },
+  {
+    version: '0.3.70',
     implementationPrompts: ['427', '257', '273'],
     implementationProgress: {
       completed: 199,
