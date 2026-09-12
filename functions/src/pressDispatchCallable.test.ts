@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   turnPhase: undefined as unknown,
   activeRoleIds: undefined as readonly string[] | undefined,
   pressEnabled: true,
+  pressHolderUid: undefined as string | undefined,
   randomUUID: vi.fn(() => 'dispatch-new'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: vi.fn(), randomUUID: mock.randomUUID }));
@@ -27,8 +28,8 @@ vi.mock('firebase-admin/firestore', () => ({
 import { dismissPressDispatch, publishPressDispatch } from './index';
 
 const data = { sessionId: 's1', text: 'Convoy arrival confirmed', expectedRevision: 0 };
-const request = (input: Record<string, unknown> = data) => ({
-  data: input, auth: { uid: 'u1' },
+const request = (input: Record<string, unknown> = data, uid = 'u1') => ({
+  data: input, auth: { uid },
 }) as CallableRequest<Record<string, unknown>>;
 
 function expectAuthoritativeTicker(update: Record<string, unknown>, sourceId: string) {
@@ -55,6 +56,7 @@ beforeEach(() => {
     phase: 'active', currentTurn: 1, pressDispatch: undefined, fleetTicker: undefined, turnPhase: undefined,
     activeRoleIds: undefined,
     pressEnabled: true,
+    pressHolderUid: undefined,
   });
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('dispatch-new');
@@ -80,6 +82,7 @@ beforeEach(() => {
         turnPhase: mock.turnPhase,
         activeRoleIds: mock.activeRoleIds,
         pressEnabled: mock.pressEnabled,
+        pressHolderUid: mock.pressHolderUid,
       };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
@@ -245,13 +248,102 @@ it('keeps Press publishing when the counted roster changes', async () => {
   expect(mock.update).toHaveBeenCalled();
 });
 
-it('replays a request id without publishing a second dispatch or ticker revision', async () => {
+it('replays a live publish request id without publishing a second dispatch or ticker revision', async () => {
   const command = { ...data, requestId: 'press-retry-1' };
   const first = await publishPressDispatch.run(request(command));
   mock.update.mockClear();
+  mock.set.mockClear();
 
   await expect(publishPressDispatch.run(request(command))).resolves.toEqual(first);
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+const replayInvalidations = [
+  { name: 'role revocation', apply: () => { mock.post = 'admiral'; }, code: 'permission-denied' },
+  { name: 'Press reassignment', apply: () => { mock.pressHolderUid = 'u2'; }, code: 'permission-denied' },
+  { name: 'Press disablement', apply: () => { mock.pressEnabled = false; }, code: 'permission-denied' },
+  { name: 'disconnect', apply: () => { mock.connected = false; }, code: 'permission-denied' },
+  { name: 'endgame closure', apply: () => { mock.phase = 'closed'; }, code: 'failed-precondition' },
+] as const;
+
+it.each(replayInvalidations)('does not replay a publish after $name', async ({ apply, code }) => {
+  const command = { ...data, requestId: 'press-revoked-publish' };
+  await publishPressDispatch.run(request(command));
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  apply();
+  await expect(publishPressDispatch.run(request(command))).rejects.toMatchObject({ code });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a foreign UID reusing a publish receipt without disclosing its result or writing', async () => {
+  const command = { ...data, requestId: 'press-foreign-publish' };
+  const first = await publishPressDispatch.run(request(command));
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(publishPressDispatch.run(request(command, 'u2'))).rejects
+    .toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(first).toEqual({
+    dispatches: [{ id: 'dispatch-new', text: `SNN // ${data.text}` }],
+    revision: 1,
+  });
+});
+
+it('replays a live dismissal request id without retiring a second dispatch', async () => {
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
+  };
+  const command = {
+    sessionId: 's1', requestId: 'press-retry-dismissal', dispatchId: 'dispatch-1', expectedRevision: 1,
+  };
+  const first = await dismissPressDispatch.run(request(command));
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(dismissPressDispatch.run(request(command))).resolves.toEqual(first);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each(replayInvalidations)('does not replay a dismissal after $name', async ({ apply, code }) => {
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
+  };
+  const command = {
+    sessionId: 's1', requestId: 'press-revoked-dismissal', dispatchId: 'dispatch-1', expectedRevision: 1,
+  };
+  await dismissPressDispatch.run(request(command));
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  apply();
+  await expect(dismissPressDispatch.run(request(command))).rejects.toMatchObject({ code });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a foreign UID reusing a dismissal receipt without disclosing its result or writing', async () => {
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
+  };
+  const command = {
+    sessionId: 's1', requestId: 'press-foreign-dismissal', dispatchId: 'dispatch-1', expectedRevision: 1,
+  };
+  const first = await dismissPressDispatch.run(request(command));
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(dismissPressDispatch.run(request(command, 'u2'))).rejects
+    .toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(first).toEqual({ dispatches: [], revision: 2 });
 });
 
 it('denies every Press action while the authoritative toggle is disabled, including GM access', async () => {

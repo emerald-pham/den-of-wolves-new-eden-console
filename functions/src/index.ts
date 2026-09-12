@@ -7992,11 +7992,6 @@ export const publishPressDispatch = onCall<{
       tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
       tx.get(ref),
     ]);
-    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
-    if (receipt && fingerprint) {
-      const replay = replayBoundCommand(receipt, fingerprint, isPressDispatchResult, 'Press dispatch');
-      if (replay) return replay;
-    }
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
         player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
@@ -8014,6 +8009,11 @@ export const publishPressDispatch = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActiveGameplayPhase(session);
+    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(receipt, fingerprint, isPressDispatchResult, 'Press dispatch');
+      if (replay) return replay;
+    }
     const current = pressDispatchState(session.get('pressDispatch'));
     if (current.revision !== data.expectedRevision) {
       throw commandError(
@@ -8072,11 +8072,6 @@ export const dismissPressDispatch = onCall<{
       tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
       tx.get(ref),
     ]);
-    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
-    if (receipt && fingerprint) {
-      const replay = replayBoundCommand(receipt, fingerprint, isPressDispatchResult, 'Press dismissal');
-      if (replay) return replay;
-    }
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
         player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
@@ -8094,6 +8089,11 @@ export const dismissPressDispatch = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActiveGameplayPhase(session);
+    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(receipt, fingerprint, isPressDispatchResult, 'Press dismissal');
+      if (replay) return replay;
+    }
     const current = pressDispatchState(session.get('pressDispatch'));
     if (current.revision !== data.expectedRevision) {
       throw commandError(
