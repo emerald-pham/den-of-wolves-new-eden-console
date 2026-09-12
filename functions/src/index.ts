@@ -463,11 +463,13 @@ function clearPressPrivateState(
   wolfSecretRef: DocumentReference,
   wolfSecret: DocumentSnapshot,
   removeWolfRole: boolean,
-): void {
+): boolean {
+  const removedLoyalty = !hasCoreAssignment(player);
   if (!hasCoreAssignment(player)) {
     tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${player.id}`));
   }
   if (removeWolfRole) removePressWolfRole(tx, wolfSecretRef, wolfSecret);
+  return removedLoyalty;
 }
 
 type ReturningSeat = Readonly<{
@@ -2270,6 +2272,17 @@ export const startGame = onCall<{
         });
       }
     }
+    setLoyaltyCensusEntries(
+      tx,
+      start.sessionId,
+      committedSetupRevision,
+      holders.flatMap((holder) => {
+        const assignment = loyaltyAssignments[holder.uid];
+        return assignment
+          ? [{ uid: holder.uid, kind: assignment.kind, suspicion: assignment.suspicion }]
+          : [];
+      }),
+    );
     tx.set(db.doc(`sessions/${start.sessionId}/secrets/wolf-assignment`), {
       visibleToUids: gmUids,
       payload: { type: 'wolf-assignment', roleIds: selectedWolfRoleIds },
@@ -2533,6 +2546,8 @@ export const releaseRole = onCall<{
   const receiptRef = commandReceiptRef(release.sessionId, release.requestId);
   const targetSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${release.targetUid}`);
   const targetBriefRef = db.doc(`sessions/${release.sessionId}/roleBriefs/${release.targetUid}`);
+  const playersRef = db.collection(`sessions/${release.sessionId}/players`);
+  const secretsRef = db.collection(`sessions/${release.sessionId}/secrets`);
   const fingerprint: CommandFingerprint = {
     action: 'release-role',
     sessionId: release.sessionId,
@@ -2560,9 +2575,11 @@ export const releaseRole = onCall<{
     );
     if (replay) return { sessionId: replay.sessionId, setupRevision: replay.setupRevision };
     if (legacyEvent.exists) rejectLegacyEventReplay('role release');
-    const [target, targetSecret] = await Promise.all([
+    const [target, targetSecret, players, secrets] = await Promise.all([
       tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
       tx.get(targetSecretRef),
+      tx.get(playersRef),
+      tx.get(secretsRef),
     ]);
     const storedSeatId = target.get('seatId');
     const targetSeatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
@@ -2617,10 +2634,25 @@ export const releaseRole = onCall<{
     // record above also makes a concurrent assignment retry against this
     // transaction instead of leaving a stale hidden faction behind.
     if (targetSecret.exists) tx.delete(targetSecretRef);
+    const removedUids = new Map<string, LoyaltyCensusEntry | null>([
+      [release.targetUid, null],
+    ]);
     if (partnerSecret?.exists && partnerSecretRef && partnerUid) {
       const reciprocal = privateFriendPartnerUid(partnerSecret, partnerUid) === release.targetUid;
-      if (reciprocal) tx.delete(partnerSecretRef);
+      if (reciprocal) {
+        tx.delete(partnerSecretRef);
+        removedUids.set(partnerUid, null);
+      }
     }
+    setLoyaltyCensusFromSecrets(
+      tx,
+      release.sessionId,
+      result.setupRevision,
+      secrets.docs ?? [],
+      players.docs,
+      configuredRoleIds(authority.session),
+      removedUids,
+    );
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'role-release',
@@ -2764,6 +2796,77 @@ type CanonicalLoyaltySecret = Readonly<{
   uid: string;
   kind: LoyaltyKind;
 }>;
+
+type LoyaltyCensusEntry = Readonly<{
+  uid: string;
+  kind: LoyaltyKind;
+  suspicion: number | null;
+}>;
+
+function loyaltyCensusEntryFromSecret(
+  secret: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): LoyaltyCensusEntry | null {
+  if (!secret.exists || !secret.id.startsWith('loyalty-')) return null;
+  const uid = secret.id.slice('loyalty-'.length);
+  if (!uid || !hasExactPrivateSecretAudience(secret, uid)) return null;
+  const holder = players.find((candidate) => candidate.id === uid);
+  const eligibleCoreHolder = isCanonicalLoyaltyHolder(holder, uid, players, activeRoleIds);
+  const eligiblePressHolder = Boolean(holder && isActivePlayer(holder) && holder.get('role') === 'player' && hasPressState(holder));
+  if (!eligibleCoreHolder && !eligiblePressHolder) return null;
+  const payload = secret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  if (record.type !== 'loyalty' || typeof record.kind !== 'string') return null;
+  const suspicion = record.suspicion === null
+    ? null
+    : typeof record.suspicion === 'number' ? record.suspicion : Number.NaN;
+  const decision = loyaltyAssignmentDecision(record.kind, suspicion);
+  if (!decision.allowed) return null;
+  if (record.kind !== 'friend' && record.partnerUid !== undefined && record.partnerUid !== null) return null;
+  if (record.kind === 'friend' &&
+      (typeof record.partnerUid !== 'string' || record.partnerUid === uid)) return null;
+  return { uid, kind: record.kind as LoyaltyKind, suspicion: decision.suspicion };
+}
+
+function setLoyaltyCensusFromSecrets(
+  tx: Transaction,
+  sessionId: string,
+  revision: number,
+  secrets: readonly DocumentSnapshot[],
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+  patches: ReadonlyMap<string, LoyaltyCensusEntry | null> = new Map(),
+): void {
+  const entries = new Map<string, LoyaltyCensusEntry>();
+  for (const secret of secrets) {
+    const entry = loyaltyCensusEntryFromSecret(secret, players, activeRoleIds);
+    if (entry) entries.set(entry.uid, entry);
+  }
+  for (const [uid, entry] of patches) {
+    if (entry) entries.set(uid, entry);
+    else entries.delete(uid);
+  }
+  tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
+    type: 'loyalty-census',
+    revision,
+    entries: [...entries.values()].sort((left, right) => left.uid.localeCompare(right.uid)),
+  });
+}
+
+function setLoyaltyCensusEntries(
+  tx: Transaction,
+  sessionId: string,
+  revision: number,
+  entries: readonly LoyaltyCensusEntry[],
+): void {
+  tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
+    type: 'loyalty-census',
+    revision,
+    entries: [...entries].sort((left, right) => left.uid.localeCompare(right.uid)),
+  });
+}
 
 function canonicalLoyaltySecret(
   secret: DocumentSnapshot,
@@ -3034,6 +3137,25 @@ export const assignLoyalty = onCall<{
     for (const displacedPartnerRef of reciprocalDisplacedPartnerRefs) {
       tx.delete(displacedPartnerRef);
     }
+    const censusPatches = new Map<string, LoyaltyCensusEntry | null>([
+      [assignment.targetUid, { uid: assignment.targetUid, kind, suspicion: validSuspicion }],
+      ...(assignment.partnerUid
+        ? [[assignment.partnerUid, { uid: assignment.partnerUid, kind: 'friend', suspicion: 0 }] as const]
+        : []),
+    ]);
+    for (const displacedPartnerRef of reciprocalDisplacedPartnerRefs) {
+      const displacedUid = displacedPartnerRef.id.slice('loyalty-'.length);
+      if (displacedUid) censusPatches.set(displacedUid, null);
+    }
+    setLoyaltyCensusFromSecrets(
+      tx,
+      assignment.sessionId,
+      result.setupRevision,
+      secrets.docs ?? [],
+      playerDocuments,
+      activeRoleIds,
+      censusPatches,
+    );
     tx.update(sessionRef, {
       phase: 'casting',
       setupRevision: result.setupRevision,
@@ -3588,13 +3710,17 @@ export const claimGmInstance = onCall<{
   const instanceRef = db.doc(
     `sessions/${claim.sessionId}/gmInstances/${claim.instanceId}`,
   );
+  const playersRef = db.collection(`sessions/${claim.sessionId}/players`);
+  const secretsRef = db.collection(`sessions/${claim.sessionId}/secrets`);
   await db.runTransaction(async (tx) => {
-    const [access, session, player, existing, activeInstances] = await Promise.all([
+    const [access, session, player, existing, activeInstances, players, secrets] = await Promise.all([
       tx.get(accessRef),
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
       tx.get(instancesRef),
+      tx.get(playersRef),
+      tx.get(secretsRef),
     ]);
     if (!access.exists || !isGmAccessActive(access.get('authenticatedAt'))) {
       throw new HttpsError('permission-denied', 'Log in to GM access before claiming the GM console.');
@@ -3631,6 +3757,15 @@ export const claimGmInstance = onCall<{
     if (hasPressState(player)) {
       if (!hasCoreAssignment(player)) {
         tx.delete(db.doc(`sessions/${claim.sessionId}/secrets/loyalty-${uid}`));
+        setLoyaltyCensusFromSecrets(
+          tx,
+          claim.sessionId,
+          setupRevision(session),
+          secrets.docs ?? [],
+          players.docs,
+          configuredRoleIds(session),
+          new Map([[uid, null]]),
+        );
       }
       if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
         tx.update(sessionRef, { pressHolderUid: null });
@@ -3843,6 +3978,7 @@ export const setPressEnabled = onCall<{
   );
   const receiptRef = commandReceiptRef(setting.sessionId, setting.requestId);
   const playersRef = db.collection(`sessions/${setting.sessionId}/players`);
+  const secretsRef = db.collection(`sessions/${setting.sessionId}/secrets`);
   const wolfSecretRef = db.doc(`sessions/${setting.sessionId}/secrets/wolf-assignment`);
   const fingerprint: CommandFingerprint = {
     action: 'set-press-availability',
@@ -3855,11 +3991,12 @@ export const setPressEnabled = onCall<{
   };
 
   const result = await db.runTransaction(async (tx) => {
-    const [session, player, instance, players, receipt, legacyEvent, wolfSecret] = await Promise.all([
+    const [session, player, instance, players, secrets, receipt, legacyEvent, wolfSecret] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
       tx.get(playersRef),
+      tx.get(secretsRef),
       tx.get(receiptRef),
       tx.get(eventRef),
       tx.get(wolfSecretRef),
@@ -3932,15 +4069,28 @@ export const setPressEnabled = onCall<{
     if (!setting.pressEnabled) {
       // Revoke live and stale station authority, while preserving assignments,
       // dispatch history, and every counted/core roster field.
+      const removedLoyaltyUids = new Set<string>();
       players.docs
         .filter(hasPressState)
         .forEach((candidate) => {
           tx.update(candidate.ref, releasedPressFields(candidate));
           if (!hasCoreAssignment(candidate)) {
             tx.delete(db.doc(`sessions/${setting.sessionId}/secrets/loyalty-${candidate.id}`));
+            removedLoyaltyUids.add(candidate.id);
           }
         });
       removePressWolfRole(tx, wolfSecretRef, wolfSecret);
+      if (removedLoyaltyUids.size > 0) {
+        setLoyaltyCensusFromSecrets(
+          tx,
+          setting.sessionId,
+          result.revision,
+          secrets.docs ?? [],
+          players.docs,
+          configuredRoleIds(session),
+          new Map([...removedLoyaltyUids].map((removedUid) => [removedUid, null])),
+        );
+      }
     }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'press-availability',
@@ -4910,6 +5060,8 @@ export const refreshPresence = onCall<{
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const pressHoldersRef = db.collection(`sessions/${sessionId}/players`)
     .where('activeConsoleRoleId', '==', 'press-officer');
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   await db.runTransaction(async (tx) => {
     const requestedRoleId = typeof request.data?.activeConsoleRoleId === 'string'
@@ -4919,12 +5071,14 @@ export const refreshPresence = onCall<{
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
       : null;
-    const [player, session, holders, pressHolders, wolfSecret] = await Promise.all([
+    const [player, session, holders, pressHolders, wolfSecret, players, secrets] = await Promise.all([
       tx.get(playerRef),
       tx.get(sessionRef),
       roleHolders ? tx.get(roleHolders) : null,
       tx.get(pressHoldersRef),
       tx.get(wolfSecretRef),
+      tx.get(playersRef),
+      tx.get(secretsRef),
     ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
@@ -4933,6 +5087,7 @@ export const refreshPresence = onCall<{
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
+    const removedLoyaltyUids = new Set<string>();
     let pressHolderUidUpdate: string | null | undefined;
     const otherActivePressHolders = pressHolders.docs.filter((holder) =>
       holder.id !== uid && isAuthoritativePressHolder(holder));
@@ -4947,14 +5102,14 @@ export const refreshPresence = onCall<{
     if (explicitRelease || invalidCurrentPressAuthority || orphanedPressAssignment) {
       Object.assign(presenceUpdate, releasedPressFields(player));
       if (hasPressState(player)) {
-        clearPressPrivateState(
+        if (clearPressPrivateState(
           tx,
           sessionId,
           player,
           wolfSecretRef,
           wolfSecret,
           otherActivePressHolders.length === 0,
-        );
+        )) removedLoyaltyUids.add(player.id);
         const storedPressHolderUid = session.get('pressHolderUid');
         pressHolderUidUpdate = otherActivePressHolders[0]?.id ??
           (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid
@@ -5019,7 +5174,9 @@ export const refreshPresence = onCall<{
         for (const holder of pressHolders.docs) {
           if (holder.id === uid || isAuthoritativePressHolder(holder)) continue;
           tx.update(holder.ref, releasedPressFields(holder));
-          clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret, false);
+          if (clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret, false)) {
+            removedLoyaltyUids.add(holder.id);
+          }
         }
         if (player.get('assignedRoleId') === 'press-officer') {
           presenceUpdate.assignedRoleId = null;
@@ -5033,6 +5190,17 @@ export const refreshPresence = onCall<{
       request.data?.activeConsoleRoleId !== null
     ) {
       pressHolderUidUpdate = uid;
+    }
+    if (removedLoyaltyUids.size > 0) {
+      setLoyaltyCensusFromSecrets(
+        tx,
+        sessionId,
+        setupRevision(session),
+        secrets.docs ?? [],
+        players.docs,
+        configuredRoleIds(session),
+        new Map([...removedLoyaltyUids].map((removedUid) => [removedUid, null])),
+      );
     }
     tx.update(playerRef, presenceUpdate);
     if (pressHolderUidUpdate !== undefined) {
@@ -5054,17 +5222,21 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const players = db.collection(`sessions/${sessionId}/players`);
+  const allPlayers = db.collection(`sessions/${sessionId}/players`);
+  const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
   const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
 
   await db.runTransaction(async (tx) => {
-    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret] = await Promise.all([
+    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(players.where('connected', '==', true)),
       tx.get(gmInstances.where('uid', '==', uid)),
       tx.get(wolfSecretRef),
+      tx.get(allPlayers),
+      tx.get(secretsRef),
     ]);
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -5079,9 +5251,20 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
     if (hasPressState(player)) {
       const anotherPressHolder = connected.docs.some((candidate) =>
         candidate.id !== uid && isAuthoritativePressHolder(candidate));
-      clearPressPrivateState(
+      const removedLoyalty = clearPressPrivateState(
         tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
       );
+      if (removedLoyalty) {
+        setLoyaltyCensusFromSecrets(
+          tx,
+          sessionId,
+          setupRevision(sessionDoc),
+          secrets.docs ?? [],
+          playerSnapshot.docs,
+          configuredRoleIds(sessionDoc),
+          new Map([[uid, null]]),
+        );
+      }
       if (sessionDoc.get('pressHolderUid') === uid || sessionDoc.get('pressHolderUid') === undefined) {
         const successor = connected.docs.find((candidate) =>
           candidate.id !== uid && isAuthoritativePressHolder(candidate));
@@ -5145,16 +5328,20 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const players = db.collection(`sessions/${sessionId}/players`);
+    const allPlayers = db.collection(`sessions/${sessionId}/players`);
+    const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
     const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
     const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
     await db.runTransaction(async (tx) => {
-      const [session, player, membership, connected, ownedInstances, wolfSecret] = await Promise.all([
+      const [session, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
         tx.get(players.where('connected', '==', true)),
         tx.get(gmInstances.where('uid', '==', uid)),
         tx.get(wolfSecretRef),
+        tx.get(allPlayers),
+        tx.get(secretsRef),
       ]);
       const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
       if (
@@ -5175,9 +5362,20 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
       if (hasPressState(player)) {
         const anotherPressHolder = connected.docs.some((connectedPlayer) =>
           connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
-        clearPressPrivateState(
+        const removedLoyalty = clearPressPrivateState(
           tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
         );
+        if (removedLoyalty) {
+          setLoyaltyCensusFromSecrets(
+            tx,
+            sessionId,
+            setupRevision(session),
+            secrets.docs ?? [],
+            playerSnapshot.docs,
+            configuredRoleIds(session),
+            new Map([[uid, null]]),
+          );
+        }
         if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
           const successor = connected.docs.find((connectedPlayer) =>
             connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));

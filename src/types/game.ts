@@ -350,6 +350,18 @@ export interface RoleBrief {
   readonly setupRevision: number;
 }
 
+/** Facilitator-only projection of the current private loyalty cards. */
+export interface LoyaltyCensusEntry {
+  readonly uid: PlayerId;
+  readonly kind: string;
+  readonly suspicion: number | null;
+}
+
+export interface LoyaltyCensus {
+  readonly revision: number;
+  readonly entries: readonly LoyaltyCensusEntry[];
+}
+
 export interface ShuttleDocking {
   readonly shuttleId: ShuttleId;
   readonly shipId: VesselId;

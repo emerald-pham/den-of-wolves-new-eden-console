@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type {
   GameSession,
   GmInstance,
+  LoyaltyCensus,
   Player,
   PrivateLoyalty,
   RoleBrief,
@@ -268,6 +269,7 @@ interface SessionState {
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
   roleBrief: RoleBrief | null;
+  gmLoyaltyCensus: LoyaltyCensus | null;
   gmSetupReceipt: SetupReceipt | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
@@ -286,6 +288,7 @@ interface SessionState {
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
   setPrivateLoyalty: (loyalty: PrivateLoyalty | null) => void;
   setRoleBrief: (brief: RoleBrief | null) => void;
+  setGmLoyaltyCensus: (census: LoyaltyCensus | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
@@ -307,6 +310,7 @@ const initial = {
   turnStartReplay: null,
   privateLoyalty: null,
   roleBrief: null,
+  gmLoyaltyCensus: null,
   gmSetupReceipt: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
@@ -317,7 +321,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -352,6 +356,7 @@ export const useSessionStore = create<SessionState>()(
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
       setPrivateLoyalty: (privateLoyalty) => set({ privateLoyalty }),
       setRoleBrief: (roleBrief) => set({ roleBrief }),
+      setGmLoyaltyCensus: (gmLoyaltyCensus) => set({ gmLoyaltyCensus }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
@@ -377,6 +382,7 @@ export const useSessionStore = create<SessionState>()(
           turnStartReplay: null,
           privateLoyalty: null,
           roleBrief: null,
+          gmLoyaltyCensus: null,
           gmSetupReceipt: null,
           mode: null,
           lastRoute: null,

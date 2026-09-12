@@ -1429,6 +1429,37 @@ body {
   color: var(--cic-scream);
 }
 
+.gm-loyalty-census__table-wrap {
+  overflow-x: auto;
+}
+
+.gm-loyalty-census__table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--cic-ink);
+  font: 0.76rem/1.45 var(--cic-mono);
+  text-align: left;
+}
+
+.gm-loyalty-census__table th,
+.gm-loyalty-census__table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--cic-grid);
+  vertical-align: top;
+}
+
+.gm-loyalty-census__table thead th {
+  color: var(--cic-muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-loyalty-census__table tbody th {
+  color: var(--cic-cyan);
+  font-weight: 600;
+}
+
 .gm-console {
   width: 100%;
   max-width: none;

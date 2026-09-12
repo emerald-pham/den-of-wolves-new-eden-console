@@ -114,6 +114,16 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
       payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 },
     }),
   );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/loyaltyCensus/current' }),
+    expect.objectContaining({
+      type: 'loyalty-census', revision: 3,
+      entries: expect.arrayContaining([
+        { uid: 'u2', kind: 'intelligence-agent', suspicion: 6 },
+        { uid: 'u3', kind: 'wolf-agent', suspicion: 0 },
+      ]),
+    }),
+  );
   const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/intelligence-with-wolf')?.[1];
   expect(eventWrite).toBeDefined();
   expect(eventWrite).not.toHaveProperty('fingerprint');

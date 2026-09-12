@@ -94,22 +94,23 @@ function AppRoutes() {
           if (!next.assignedRoleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
-            return;
+          } else {
+            const bufferedBrief = pendingRoleBrief;
+            pendingRoleBrief = null;
+            if (
+              bufferedBrief &&
+              bufferedBrief.assignmentUid === next.uid &&
+              bufferedBrief.roleId === next.assignedRoleId
+            ) {
+              store.setRoleBrief(bufferedBrief);
+            } else {
+              const currentBrief = store.roleBrief;
+              if (currentBrief && currentBrief.roleId !== next.assignedRoleId) {
+                store.setRoleBrief(null);
+              }
+            }
           }
-          const bufferedBrief = pendingRoleBrief;
-          pendingRoleBrief = null;
-          if (
-            bufferedBrief &&
-            bufferedBrief.assignmentUid === next.uid &&
-            bufferedBrief.roleId === next.assignedRoleId
-          ) {
-            store.setRoleBrief(bufferedBrief);
-            return;
-          }
-          const currentBrief = store.roleBrief;
-          if (currentBrief && currentBrief.roleId !== next.assignedRoleId) {
-            store.setRoleBrief(null);
-          }
+          if (next.role !== 'gm') store.setGmLoyaltyCensus(null);
         },
         onKicked: () => useSessionStore.getState().disconnect(),
         onSeats: (next) => useSessionStore.getState().setSeats(next),
@@ -137,6 +138,7 @@ function AppRoutes() {
           pendingRoleBrief = next;
           store.setRoleBrief(null);
         },
+        onLoyaltyCensus: (next) => useSessionStore.getState().setGmLoyaltyCensus(next),
         onSetupReceipt: (next) => useSessionStore.getState().setGmSetupReceipt(next),
         onError: () => useSessionStore.getState().setConnection('offline'),
       });

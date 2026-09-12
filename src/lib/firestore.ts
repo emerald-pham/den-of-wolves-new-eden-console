@@ -18,6 +18,7 @@ import type {
   DamageDraw,
   GameSession,
   GmInstance,
+  LoyaltyCensus,
   PopulationAlert,
   Player,
   PrivateLoyalty,
@@ -158,6 +159,25 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
     commonRules: raw.commonRules,
     setupRevision: raw.setupRevision,
   };
+}
+
+function loyaltyCensus(value: unknown): LoyaltyCensus | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (raw.type !== 'loyalty-census' ||
+      typeof raw.revision !== 'number' || !Number.isSafeInteger(raw.revision) || raw.revision < 0 ||
+      !Array.isArray(raw.entries)) return null;
+  const entries = raw.entries.flatMap((entry): LoyaltyCensus['entries'][number][] => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+    const candidate = entry as Record<string, unknown>;
+    const uid = parseEntityId('player', candidate.uid);
+    if (!uid || typeof candidate.kind !== 'string' ||
+        (typeof candidate.suspicion !== 'number' && candidate.suspicion !== null)) return [];
+    return [{ uid, kind: candidate.kind, suspicion: candidate.suspicion }];
+  });
+  if (entries.length !== raw.entries.length ||
+      new Set(entries.map((entry) => entry.uid)).size !== entries.length) return null;
+  return { revision: raw.revision, entries };
 }
 
 function setupReceipt(value: unknown): SetupReceipt | null {
@@ -602,6 +622,7 @@ export interface SessionStateHandlers {
   readonly onSeats: (seats: readonly Seat[]) => void;
   readonly onPrivateLoyalty?: (loyalty: PrivateLoyalty | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
+  readonly onLoyaltyCensus?: (census: LoyaltyCensus | null) => void;
   readonly onSetupReceipt?: (receipt: SetupReceipt | null) => void;
   readonly onError: () => void;
 }
@@ -694,6 +715,21 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
+    ...(handlers.onLoyaltyCensus ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/loyaltyCensus/current`),
+      (snapshot) => {
+        if (!subscribed) return;
+        // A cached facilitator projection may outlive a GM demotion. Wait for
+        // a server snapshot so an old private census can never be rendered to
+        // a newly unauthorized member during reconnect.
+        if (snapshot.metadata?.fromCache === true) return;
+        handlers.onLoyaltyCensus?.(snapshot.exists() ? loyaltyCensus(snapshot.data()) : null);
+      },
+      () => {
+        handlers.onLoyaltyCensus?.(null);
+        onError();
+      },
+    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -716,6 +752,7 @@ export function subscribeSessionState(
     subscribed = false;
     unsubscribes.forEach((unsubscribe) => unsubscribe());
     handlers.onRoleBrief?.(null);
+    handlers.onLoyaltyCensus?.(null);
   };
 }
 

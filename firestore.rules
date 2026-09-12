@@ -109,6 +109,13 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // The facilitator census is a server-written, known-path projection of
+      // loyalty kind and suspicion. It is never enumerable or client writable.
+      match /loyaltyCensus/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+      }
+
       match /events/{eventId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

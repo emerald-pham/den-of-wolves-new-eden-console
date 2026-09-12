@@ -137,6 +137,11 @@ beforeEach(async () => {
       commonRules: 'Keep this private.',
       setupRevision: 1,
     });
+    await setDoc(doc(db, `${SESSION}/loyaltyCensus/current`), {
+      type: 'loyalty-census',
+      revision: 3,
+      entries: [{ uid: 'alice', kind: 'fleet-loyalist', suspicion: 0 }],
+    });
     await setDoc(doc(db, `${SESSION}/damageDraws/draw1`), {
       shipId: 'aegis',
       card: '10♥',
@@ -182,6 +187,21 @@ describe('role-private brief boundary', () => {
 });
 
 describe('session header', () => {
+  it('exposes only the known loyalty census path to a connected GM', async () => {
+    const gmCensus = doc(as('gm1'), `${SESSION}/loyaltyCensus/current`);
+    const playerCensus = doc(as('alice'), `${SESSION}/loyaltyCensus/current`);
+
+    await assertSucceeds(getDoc(gmCensus));
+    await assertFails(getDoc(playerCensus));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/loyaltyCensus`)));
+    await assertFails(setDoc(gmCensus, { type: 'loyalty-census', revision: 99, entries: [] }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+    await assertFails(getDoc(gmCensus));
+  });
+
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);

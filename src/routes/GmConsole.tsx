@@ -233,6 +233,7 @@ export default function GmConsole() {
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const connection = useSessionStore((state) => state.connection);
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
+  const loyaltyCensus = useSessionStore((state) => state.gmLoyaltyCensus);
   const queuedKicks = new Set(
     pendingCommands.flatMap((command) =>
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
@@ -1794,6 +1795,39 @@ export default function GmConsole() {
               </ul>
             )}
           </section>
+
+          {isGm && loyaltyCensus && (
+            <section
+              className="gm-console__module cic-frame gm-loyalty-census"
+              aria-label="Private loyalty census"
+            >
+              <h2 className="gm-console__section-title">Private loyalty census</h2>
+              <p className="gm-player-roster__hint">
+                Facilitator-only readout // revision {loyaltyCensus.revision}
+              </p>
+              {loyaltyCensus.entries.length === 0 ? (
+                <p className="gm-console__status">No private loyalty cards are currently projected.</p>
+              ) : (
+                <div className="gm-loyalty-census__table-wrap">
+                  <table className="gm-loyalty-census__table">
+                    <caption className="sr-only">Private loyalty cards by player identity</caption>
+                    <thead>
+                      <tr><th scope="col">Player</th><th scope="col">Loyalty</th><th scope="col">Suspicion</th></tr>
+                    </thead>
+                    <tbody>
+                      {loyaltyCensus.entries.map((entry) => (
+                        <tr key={entry.uid}>
+                          <th scope="row">{entry.uid}</th>
+                          <td>{entry.kind}</td>
+                          <td>{entry.suspicion === null ? 'none' : entry.suspicion}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="gm-console__module cic-frame" aria-label="GM instances">
             <h2 className="gm-console__section-title">GM instances</h2>

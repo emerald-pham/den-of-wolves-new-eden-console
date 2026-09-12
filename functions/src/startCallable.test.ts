@@ -806,6 +806,14 @@ it('writes private automatic loyalties and a safe setup receipt in the same comm
     expect.objectContaining({ path: 'sessions/s1/secrets/setup-receipt-start-receipt' }),
     expect.objectContaining({ payload: expect.objectContaining({ type: 'setup-receipt' }) }),
   );
+  const censusWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/loyaltyCensus/current',
+  )?.[1];
+  expect(censusWrite).toMatchObject({ type: 'loyalty-census', revision: 1 });
+  expect(censusWrite.entries[0]).toEqual(expect.objectContaining({ uid: expect.any(String), kind: expect.any(String) }));
+  expect(censusWrite.entries[0]).not.toHaveProperty('partnerUid');
+  expect(censusWrite.entries[0]).not.toHaveProperty('brief');
+  expect(censusWrite.entries[0]).not.toHaveProperty('notes');
 });
 
 it('does not embed a release version in the server setup receipt', async () => {

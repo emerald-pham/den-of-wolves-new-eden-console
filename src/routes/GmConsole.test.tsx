@@ -142,6 +142,22 @@ it('lists every GM instance and only offers to kick other instances', async () =
   expect(screen.getAllByRole('button', { name: /kick/i })).toHaveLength(1);
 });
 
+it('shows the facilitator-only loyalty census without exposing private card extras', () => {
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 7,
+    entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const census = screen.getByRole('region', { name: 'Private loyalty census' });
+  expect(census).toHaveTextContent('u2');
+  expect(census).toHaveTextContent('wolf-agent');
+  expect(census).toHaveTextContent('10');
+  expect(census).not.toHaveTextContent(/brief|notes|link|proof/i);
+});
+
 it('returns to role selection', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);

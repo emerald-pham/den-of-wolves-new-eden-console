@@ -420,6 +420,45 @@ it('hydrates only the current UID role brief and clears it when the assignment i
   expect(onRoleBrief).toHaveBeenLastCalledWith(null);
 });
 
+it('hydrates the known facilitator census only from server authority and allowlists its fields', () => {
+  const { callbacks } = captureSessionListener();
+  const onLoyaltyCensus = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onLoyaltyCensus, onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    data: () => ({
+      type: 'loyalty-census', revision: 7,
+      entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10, notes: 'secret' }],
+    }),
+  });
+  expect(onLoyaltyCensus).not.toHaveBeenCalled();
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'loyalty-census', revision: 7,
+      entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10, notes: 'secret' }],
+    }),
+  });
+  expect(onLoyaltyCensus).toHaveBeenCalledWith({
+    revision: 7,
+    entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
+  });
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
+  });
+  expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+});
+
 it('drops malformed player identities from private loyalty and setup receipt projections', () => {
   const { callbacks } = captureSessionListener();
   const onPrivateLoyalty = vi.fn();
