@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, SessionEvent } from '@/types/game';
+import { projectShipState } from './shipStateProjection';
 import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as CLIENT_MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
 
@@ -88,6 +89,109 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   expect(session.shipNavigationLogs?.aegis?.[0]).toMatchObject({ id: 'jump-1', shipId: 'aegis' });
   expect(session.shuttleDockings?.[0]).toMatchObject({ shuttleId: 'starlight', shipId: 'aegis' });
   expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
+});
+
+it('removes hidden state nested in public and crew projections while preserving operations', () => {
+  const session = sessionFrom('redaction-session', {
+    ...sessionData(8),
+    activeVesselIds: ['aegis'],
+    confettiUsedShipIds: ['aegis', { candidateBonus: 4 }],
+    shuttleDockings: [{
+      shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START', facilitatorNote: 'hidden',
+    }, {
+      shuttleId: 'wolfAssignment', shipId: 'aegis', dockedAt: 'SESSION START',
+    }, {
+      shuttleId: 'starlight', shipId: 'wolfAssignment', dockedAt: 'SESSION START',
+    }],
+    shuttleVisitLog: [{
+      id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'docked', occurredAt: 'SESSION START', deckOrder: ['5d'],
+    }, {
+      id: 'secret-visit', shuttleId: 'wolfAssignment', shipId: 'aegis',
+      action: 'docked', occurredAt: 'SESSION START', wolfAssignment: 'hidden',
+    }, {
+      id: 'secret-host', shuttleId: 'starlight', shipId: 'wolfAssignment',
+      action: 'docked', occurredAt: 'SESSION START',
+    }],
+    pursuitGroups: { fleet: 2, candidateBonus: 4 },
+    fleetRedAlert: { active: true, revision: 2, candidateBonus: 3 },
+    shipGalacticCoordinates: { aegis: '0011', facilitatorNote: 'hidden adjudication' },
+    maintenanceCycles: {
+      aegis: {
+        step: 2,
+        revision: 4,
+        results: { '1': 'Storage intact.' },
+        charges: ['jump-drive'],
+        refuelled: [],
+        facilitatorNotes: 'keep this private',
+      },
+    },
+    shuttleCargo: {
+      starlight: { food: 3, privateCard: 'hidden-card', candidateBonus: 4 },
+    },
+    shipDamage: {
+      aegis: { damagedSystemIds: ['storage'], destroyed: false, deckOrder: ['5d'] },
+    },
+    shipUpgrades: {
+      aegis: ['storage', { candidateBonus: 2 }],
+    },
+    shipSurvivors: { aegis: 2_000, notes: 4 },
+    unrestAlerts: {
+      aegis: {
+        shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'],
+        createdAt: 'TURN 1', facilitatorNote: 'hidden',
+      },
+    },
+    populationAlerts: {
+      aegis: {
+        shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'],
+        population: 1, createdAt: 'TURN 1', loyalty: 'hidden',
+      },
+    },
+    facilitatorNotes: { aegis: 'hidden adjudication' },
+  });
+
+  expect(session.maintenanceCycles?.aegis).toMatchObject({
+    step: 2,
+    revision: 4,
+    results: { '1': 'Storage intact.' },
+  });
+  expect(session.shuttleCargo?.starlight).toEqual({ food: 3 });
+  expect(session.shipDamage?.aegis).toEqual({ damagedSystemIds: ['storage'], destroyed: false });
+  expect(session.shipUpgrades?.aegis).toEqual(['storage']);
+  expect(session.shipGalacticCoordinates?.aegis).toBe('0011');
+  expect(session.pursuitGroups).toEqual({ fleet: 2 });
+  expect(session.confettiUsedShipIds).toEqual(['aegis']);
+  expect(session.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' }),
+  ]));
+  expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'wolfAssignment' }),
+    expect.objectContaining({ shipId: 'wolfAssignment' }),
+  ]));
+  expect(session.shuttleVisitLog).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'starlight-initial-aegis-docking', shuttleId: 'starlight' }),
+  ]));
+  expect(session.shuttleVisitLog).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'wolfAssignment' }),
+    expect.objectContaining({ shipId: 'wolfAssignment' }),
+  ]));
+  expect(session.unrestAlerts?.aegis).toEqual({
+    shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'], createdAt: 'TURN 1',
+  });
+  expect(session.populationAlerts?.aegis).toEqual({
+    shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'], population: 1, createdAt: 'TURN 1',
+  });
+  expect(session).not.toHaveProperty('facilitatorNotes');
+
+  const crewProjection = projectShipState(session, 'aegis');
+  expect(crewProjection).toMatchObject({
+    shipId: 'aegis',
+    galacticCoordinate: '0011',
+    maintenanceCycle: { step: 2, revision: 4 },
+    damage: { damagedSystemIds: ['storage'], destroyed: false },
+  });
+  expect(crewProjection).not.toHaveProperty('facilitatorNotes');
 });
 
 it('does not carry malformed IDs from an untrusted session snapshot', () => {
@@ -723,7 +827,9 @@ it('parses only audience-safe maintenance result fields from member events', () 
 
 it('reconstructs the visible event snapshot once from server document IDs after reconnect', () => {
   const { callbacks } = captureSessionListener();
-  const onEvents = vi.fn((_events: readonly SessionEvent[]) => undefined);
+  const onEvents = vi.fn((events: readonly SessionEvent[]) => {
+    void events;
+  });
   subscribeSessionEvents('s1', onEvents, vi.fn());
 
   const eventDoc = (id: string, message: string, payloadId: string) => ({

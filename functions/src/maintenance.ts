@@ -1,6 +1,7 @@
 import { drawShipDamage, SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import type { ShipResourceInventory } from './resources';
 import { populationChange } from './shipPopulation';
+import { MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 
 export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
@@ -27,18 +28,69 @@ export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water:
 };
 export const emptyMaintenanceCycle = (): MaintenanceCycle => ({ step: 0, revision: 0, results: {}, charges: [], refuelled: [] });
 
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
+/** Parse the persisted cycle shape before it can be carried into a public write. */
+export function parseMaintenanceCycle(value: unknown): MaintenanceCycle | undefined {
+  const raw = record(value);
+  const step = nonNegativeInteger(raw?.step);
+  const revision = nonNegativeInteger(raw?.revision);
+  if (step === undefined || step > 7 || revision === undefined) return undefined;
+  const rawResults = record(raw?.results);
+  const results: Record<string, string> = {};
+  for (const [key, result] of Object.entries(rawResults ?? {})) {
+    if (MAINTENANCE_EVENT_RESULT_STEPS.includes(key as typeof MAINTENANCE_EVENT_RESULT_STEPS[number]) &&
+        typeof result === 'string') results[key] = result;
+  }
+  const charges = Array.isArray(raw?.charges)
+    ? raw.charges.filter((charge): charge is string => typeof charge === 'string')
+    : [];
+  const refuelled = Array.isArray(raw?.refuelled)
+    ? raw.refuelled.filter((shuttle): shuttle is string => typeof shuttle === 'string')
+    : [];
+  if (!Array.isArray(raw?.charges) || !Array.isArray(raw?.refuelled)) return undefined;
+  if (raw.turn !== undefined && nonNegativeInteger(raw.turn) === undefined) return undefined;
+  if (raw.rationBonus !== undefined &&
+      (typeof raw.rationBonus !== 'number' || !Number.isFinite(raw.rationBonus))) return undefined;
+  for (const key of ['startedAt', 'completedAt', 'damageDrawId']) {
+    if (raw[key] !== undefined && typeof raw[key] !== 'string') return undefined;
+  }
+  return {
+    step,
+    revision,
+    results,
+    charges,
+    refuelled,
+    ...(raw.turn === undefined ? {} : { turn: raw.turn as number }),
+    ...(raw.rationBonus === undefined ? {} : { rationBonus: raw.rationBonus as number }),
+    ...(raw.startedAt === undefined ? {} : { startedAt: raw.startedAt as string }),
+    ...(raw.completedAt === undefined ? {} : { completedAt: raw.completedAt as string }),
+    ...(raw.damageDrawId === undefined ? {} : { damageDrawId: raw.damageDrawId as string }),
+  };
+}
+
 export function advanceMaintenance(input: MaintenanceInput) {
   const { shipId, action } = input;
+  const cycleInput = parseMaintenanceCycle(input.cycle);
+  if (!cycleInput) throw new Error('Malformed maintenance cycle.');
   const rules = MAINTENANCE_RULES[shipId];
   if (!rules) throw new Error('Unknown maintenance ship.');
   if (input.damage.destroyed && action !== 'end') throw new Error('This ship is destroyed.');
-  if (input.expectedRevision !== input.cycle.revision) throw new Error('Maintenance changed. Refresh before proceeding.');
+  if (input.expectedRevision !== cycleInput.revision) throw new Error('Maintenance changed. Refresh before proceeding.');
   const steps: Record<string, number> = { begin: 0, storage: 1, rations: 2, unrest: 3, riot: 4, reactor: 5, bays: 6, end: 7 };
-  if (steps[action] === undefined || steps[action] !== input.cycle.step) throw new Error('This action is not available at the current step.');
-  if (action === 'begin' && input.cycle.turn === input.currentTurn) {
+  if (steps[action] === undefined || steps[action] !== cycleInput.step) throw new Error('This action is not available at the current step.');
+  if (action === 'begin' && cycleInput.turn === input.currentTurn) {
     throw new Error('Maintenance can only be done once per turn.');
   }
-  const cycle = { ...input.cycle, revision: input.cycle.revision + 1, results: { ...input.cycle.results } };
+  const cycle = { ...cycleInput, revision: cycleInput.revision + 1, results: { ...cycleInput.results } };
   let resources = { ...input.resources };
   let damage = input.damage;
   let unrest = input.unrest;

@@ -1,7 +1,7 @@
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
 import { projectMaintenanceEvent } from './maintenanceEvent';
 import { canOperateRole, shipForRole } from './crewAccess';
-import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, type MaintenanceCycle } from './maintenance';
+import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import {
   INITIAL_SHIP_SURVIVORS,
   acknowledgePopulationAlert,
@@ -127,12 +127,14 @@ import {
   canAdjustShipCounter,
   isResourceShipId,
   nextResourceAmount,
+  RESOURCE_IDS,
   shipResources,
   shipUnrest,
   unrestChange,
 } from './resources';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
 import {
+  ROLE_OWNED_CRAFT_CATALOG,
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
 } from './craftOwnership';
@@ -293,6 +295,9 @@ const INITIAL_SHIP_JUMP_STATES = Object.fromEntries(
 const INITIAL_SHIP_JUMP_TRANSITIONS = Object.fromEntries(
   Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, undefined]),
 );
+const AUTHORIZED_SHUTTLE_IDS: ReadonlySet<string> = new Set(
+  ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map((craft) => craft.id),
+);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -332,10 +337,11 @@ function reconcileActiveVesselMap<T>(
 }
 
 function shipGalacticCoordinates(value: unknown): Record<string, string> {
-  if (typeof value !== 'object' || value === null) {
-    return { ...INITIAL_SHIP_GALACTIC_COORDINATES };
-  }
-  return { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...value as Record<string, string> };
+  const stored = isRecord(value) ? value : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [
+    shipId,
+    typeof stored[shipId] === 'string' ? stored[shipId] : INITIAL_SHIP_GALACTIC_COORDINATES[shipId as keyof typeof INITIAL_SHIP_GALACTIC_COORDINATES] ?? '0000',
+  ]));
 }
 
 function shipConsoleLocks(value: unknown): Record<string, boolean> {
@@ -368,32 +374,155 @@ function shipJumpStates(value: unknown): Record<string, JumpDriveState> {
 }
 
 function shipJumpTransitions(value: unknown): Record<string, JumpTransition> {
-  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  const stored = isRecord(value) ? value : {};
   return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_TRANSITIONS).flatMap((shipId) => {
-    const raw = stored[shipId];
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
-    const transition = raw as Record<string, unknown>;
-    if (
-      typeof transition.id !== 'string' || typeof transition.shipId !== 'string' ||
-      typeof transition.origin !== 'string' || typeof transition.destination !== 'string' ||
-      typeof transition.occurredAt !== 'string'
-    ) return [];
-    return [[shipId, transition as unknown as JumpTransition]];
+    const raw = isRecord(stored[shipId]) ? stored[shipId] : undefined;
+    if (!raw || typeof raw.id !== 'string' || raw.shipId !== shipId ||
+        typeof raw.origin !== 'string' || typeof raw.destination !== 'string' ||
+        typeof raw.occurredAt !== 'string') return [];
+    return [[shipId, {
+      id: raw.id, shipId, origin: raw.origin, destination: raw.destination, occurredAt: raw.occurredAt,
+    }]];
   }));
 }
 
 function shipNavigationLogs(value: unknown): NavigationLogs {
-  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  const stored = isRecord(value) ? value : {};
   return Object.fromEntries(Object.keys(INITIAL_SHIP_NAVIGATION_LOGS).map((shipId) => [
     shipId,
     Array.isArray(stored[shipId])
-      ? stored[shipId] as NavigationLogEntry[]
-      : [],
+      ? stored[shipId].flatMap((value) => {
+        const raw = isRecord(value) ? value : undefined;
+        if (!raw || raw.shipId !== shipId || typeof raw.id !== 'string' ||
+            !['self-jump', 'ship-jump-away', 'ship-jump-arrival'].includes(String(raw.type)) ||
+            typeof raw.origin !== 'string' || typeof raw.destination !== 'string' ||
+            typeof raw.occurredAt !== 'string' || typeof raw.stardate !== 'string') return [];
+        return [{
+          id: raw.id, shipId, type: raw.type as NavigationLogEntry['type'],
+          origin: raw.origin, destination: raw.destination,
+          ...(typeof raw.subjectShipId === 'string' ? { subjectShipId: raw.subjectShipId } : {}),
+          ...(typeof raw.subjectShipName === 'string' ? { subjectShipName: raw.subjectShipName } : {}),
+          ...(typeof raw.navigationalError === 'boolean' ? { navigationalError: raw.navigationalError } : {}),
+          occurredAt: raw.occurredAt, stardate: raw.stardate,
+        } satisfies NavigationLogEntry];
+      }) : [],
   ]));
+}
+
+function publicMaintenanceCycles(value: unknown, activeVesselIds: readonly string[]): Record<string, MaintenanceCycle> {
+  const stored = isRecord(value) ? value : {};
+  return Object.fromEntries(activeVesselIds.flatMap((shipId) => {
+    const cycle = parseMaintenanceCycle(stored[shipId]);
+    return cycle ? [[shipId, cycle]] : [];
+  }));
+}
+
+function publicShuttleCargo(value: unknown): Record<string, Record<string, number>> {
+  const stored = isRecord(value) ? value : {};
+  const knownCargoIds: ReadonlySet<string> = new Set(RESOURCE_IDS);
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, cargo]) => {
+    if (!AUTHORIZED_SHUTTLE_IDS.has(shuttleId) || !isRecord(cargo)) return [];
+    const parsed = Object.fromEntries(Object.entries(cargo).flatMap(([resourceId, amount]) =>
+      knownCargoIds.has(resourceId) && typeof amount === 'number' && Number.isFinite(amount)
+        ? [[resourceId, amount]] : []));
+    return [[shuttleId, parsed]];
+  }));
+}
+
+function publicShuttleFuelled(value: unknown): Record<string, boolean> {
+  const stored = isRecord(value) ? value : {};
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, fuelled]) =>
+    AUTHORIZED_SHUTTLE_IDS.has(shuttleId) && typeof fuelled === 'boolean' ? [[shuttleId, fuelled]] : []));
+}
+
+type PublicShuttleDocking = Readonly<{
+  shuttleId: string;
+  shipId: string;
+  dockedAt: string;
+}>;
+
+type PublicShuttleVisit = Readonly<{
+  id: string;
+  shuttleId: string;
+  shipId: string;
+  action: 'docked' | 'departed';
+  occurredAt: string;
+}>;
+
+function publicShuttleDockings(
+  value: unknown,
+  activeVesselIds: readonly string[],
+  activeRoleIds: readonly string[],
+): readonly PublicShuttleDocking[] {
+  const source = Array.isArray(value) ? value : initialShuttleDockingsForRoles(activeRoleIds);
+  const active = new Set(activeVesselIds);
+  return source.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
+        !AUTHORIZED_SHUTTLE_IDS.has(entry.shuttleId) ||
+        typeof entry.shipId !== 'string' || typeof entry.dockedAt !== 'string' ||
+        !active.has(entry.shipId)) return [];
+    return [{ shuttleId: entry.shuttleId, shipId: entry.shipId, dockedAt: entry.dockedAt }];
+  });
+}
+
+function publicShuttleVisitLog(
+  value: unknown,
+  dockings: readonly PublicShuttleDocking[],
+  activeVesselIds: readonly string[],
+): readonly PublicShuttleVisit[] {
+  if (!Array.isArray(value)) return initialShuttleVisitsForDockings(dockings);
+  const visibleShuttles = new Set(dockings.map((docking) => docking.shuttleId));
+  const activeVessels = new Set(activeVesselIds);
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.shuttleId !== 'string' ||
+        typeof entry.shipId !== 'string' ||
+        (entry.action !== 'docked' && entry.action !== 'departed') ||
+        typeof entry.occurredAt !== 'string' || !visibleShuttles.has(entry.shuttleId) ||
+        !activeVessels.has(entry.shipId)) return [];
+    return [{
+      id: entry.id,
+      shuttleId: entry.shuttleId,
+      shipId: entry.shipId,
+      action: entry.action,
+      occurredAt: entry.occurredAt,
+    }];
+  });
+}
+
+function publicConfettiUsedShipIds(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((shipId): shipId is string => typeof shipId === 'string' && isFleetShipId(shipId))
+    : [];
+}
+
+function publicShipUpgrades(value: unknown, activeVesselIds: readonly string[]): Record<string, readonly string[]> {
+  const stored = isRecord(value) ? value : {};
+  return Object.fromEntries(activeVesselIds.flatMap((shipId) =>
+    Array.isArray(stored[shipId])
+      ? [[shipId, stored[shipId].filter((upgrade): upgrade is string => typeof upgrade === 'string')]]
+      : []));
+}
+
+function publicAlertMap<T extends { shipId: string; shipName: string; targetGmInstanceIds: readonly string[]; createdAt: string }>(
+  value: unknown,
+  activeVesselIds: readonly string[],
+  population: boolean,
+): Record<string, T> {
+  const stored = isRecord(value) ? value : {};
+  const active = new Set(activeVesselIds);
+  return Object.fromEntries(Object.entries(stored).flatMap(([shipId, alert]) => {
+    if (!active.has(shipId) || !isRecord(alert) || alert.shipId !== shipId ||
+        typeof alert.shipName !== 'string' || !Array.isArray(alert.targetGmInstanceIds) ||
+        alert.targetGmInstanceIds.some((id) => typeof id !== 'string') ||
+        typeof alert.createdAt !== 'string' || (population && typeof alert.population !== 'number')) return [];
+    return [[shipId, {
+      shipId,
+      shipName: alert.shipName,
+      targetGmInstanceIds: [...alert.targetGmInstanceIds] as string[],
+      createdAt: alert.createdAt,
+      ...(population ? { population: alert.population as number } : {}),
+    } as unknown as T]];
+  }));
 }
 
 function isConnectedPlayer(player: DocumentSnapshot): boolean {
@@ -3619,13 +3748,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const activeRoleIds = sessionActiveRoleIds(sessionSnap);
     const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
     const activeVesselIds = setup.activeVesselIds;
-    const storedDockings = (sessionSnap.get('shuttleDockings') as typeof INITIAL_SHUTTLE_DOCKINGS | undefined) ??
-      initialShuttleDockingsForRoles(activeRoleIds);
-    const shuttleDockings = activeShuttleDockingsForVessels(storedDockings, activeVesselIds);
-    const storedVisits = sessionSnap.get('shuttleVisitLog') as Array<{ shuttleId: string }> | undefined;
-    const shuttleVisitLog = storedVisits
-      ? activeShuttleVisitsForDockings(storedVisits, shuttleDockings)
-      : initialShuttleVisitsForDockings(shuttleDockings);
+    const shuttleDockings = publicShuttleDockings(
+      sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
+    );
+    const shuttleVisitLog = publicShuttleVisitLog(
+      sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
+    );
     return {
       session: {
         id: sessionId,
@@ -3670,20 +3798,20 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
         shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
         shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
-        unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
-        maintenanceCycles: sessionSnap.get('maintenanceCycles') ?? {},
-        shuttleCargo: sessionSnap.get('shuttleCargo') ?? {},
-        shuttleFuelled: sessionSnap.get('shuttleFuelled') ?? {},
-        shipUpgrades: sessionSnap.get('shipUpgrades') ?? {},
+        unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
+        maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
+        shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo')),
+        shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
+        shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
         shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
-        populationAlerts: sessionSnap.get('populationAlerts') ?? {},
+        populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
         activeRoleIds,
         shuttleDockings,
         shuttleVisitLog,
         pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
-        confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
+        confettiUsedShipIds: publicConfettiUsedShipIds(sessionSnap.get('confettiUsedShipIds')),
         ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
@@ -3805,13 +3933,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const activeRoleIds = sessionActiveRoleIds(sessionSnap);
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
-  const storedDockings = (sessionSnap.get('shuttleDockings') as typeof INITIAL_SHUTTLE_DOCKINGS | undefined) ??
-    initialShuttleDockingsForRoles(activeRoleIds);
-  const shuttleDockings = activeShuttleDockingsForVessels(storedDockings, activeVesselIds);
-  const storedVisits = sessionSnap.get('shuttleVisitLog') as Array<{ shuttleId: string }> | undefined;
-  const shuttleVisitLog = storedVisits
-    ? activeShuttleVisitsForDockings(storedVisits, shuttleDockings)
-    : initialShuttleVisitsForDockings(shuttleDockings);
+  const shuttleDockings = publicShuttleDockings(
+    sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
+  );
+  const shuttleVisitLog = publicShuttleVisitLog(
+    sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
+  );
   return {
     session: {
       id: sessionId,
@@ -3856,20 +3983,20 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
       shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
       shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
-      unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
-      maintenanceCycles: sessionSnap.get('maintenanceCycles') ?? {},
-      shuttleCargo: sessionSnap.get('shuttleCargo') ?? {},
-      shuttleFuelled: sessionSnap.get('shuttleFuelled') ?? {},
-      shipUpgrades: sessionSnap.get('shipUpgrades') ?? {},
+      unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
+      maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
+      shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo')),
+      shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
+      shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
       shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
-      populationAlerts: sessionSnap.get('populationAlerts') ?? {},
+      populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
       activeRoleIds,
       shuttleDockings,
       shuttleVisitLog,
       pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
-      confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
+      confettiUsedShipIds: publicConfettiUsedShipIds(sessionSnap.get('confettiUsedShipIds')),
       ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
       ownerUid: sessionSnap.get('ownerUid') as string,
       createdAt: isoOf(sessionSnap.get('createdAt')),

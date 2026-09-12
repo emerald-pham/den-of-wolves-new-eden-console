@@ -307,6 +307,9 @@ it('preserves valid state and normalizes malformed maintenance entries while fil
   const existingDamage = { aegis: { damagedSystemIds: ['reactor'], destroyed: false } };
   const existingMaintenance: Record<string, unknown> = {
     aegis: { step: 2, revision: 4, results: { '1': 'done' }, charges: ['reactor'], refuelled: [] },
+    dione: {
+      step: 1, revision: 2, results: { '1': 'stored' }, charges: [], refuelled: [], candidateBonus: 4,
+    },
     icebreaker: null,
     shepherd: { step: 0 },
   };
@@ -327,7 +330,10 @@ it('preserves valid state and normalizes malformed maintenance entries while fil
   const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
   expect(sessionUpdate).toMatchObject({
     shipDamage: expect.objectContaining({ aegis: existingDamage.aegis }),
-    maintenanceCycles: expect.objectContaining({ aegis: existingMaintenance.aegis }),
+    maintenanceCycles: expect.objectContaining({
+      aegis: existingMaintenance.aegis,
+      dione: { step: 1, revision: 2, results: { '1': 'stored' }, charges: [], refuelled: [] },
+    }),
     fleetRedAlert: existingAlert,
     pressDispatch: existingDispatch,
   });
@@ -338,6 +344,30 @@ it('preserves valid state and normalizes malformed maintenance entries while fil
       step: 0, revision: 0, results: {}, charges: [], refuelled: [],
     });
   }
+});
+
+it('strips hidden-shaped legacy cycle fields before the production start write', async () => {
+  mock.session.maintenanceCycles = {
+    aegis: {
+      step: 0,
+      revision: 3,
+      results: {},
+      charges: [],
+      refuelled: [],
+      facilitatorNotes: 'hidden adjudication',
+      candidateBonus: 4,
+    },
+  };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-redaction', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', currentTurn: 1 });
+
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  expect(sessionUpdate?.maintenanceCycles?.aegis).toEqual({
+    step: 0, revision: 3, results: {}, charges: [], refuelled: [],
+  });
+  expect(privateSnapshotKeys(sessionUpdate)).toEqual([]);
 });
 
 it('rejects a start when the persisted craft manifest changes owner, mode, or list before writes', async () => {

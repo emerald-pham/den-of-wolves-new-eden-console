@@ -45,6 +45,7 @@ import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
 import {
   normalizeShuttleManifest,
+  SHUTTLECRAFT,
 } from '@/data/shuttles';
 import {
   INITIAL_SHIP_CONSOLE_LOCKS,
@@ -52,13 +53,14 @@ import {
   INITIAL_SHIP_JUMP_STATES,
   INITIAL_SHIP_JUMP_TRANSITIONS,
 } from '@/data/ships';
-import { shipResources, shipUnrest } from '@/data/resources';
+import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
 import { useSessionStore } from '@/store/useSessionStore';
+import { parseMaintenanceCycle } from './shipStateProjection';
 import { entityId, parseEntityId } from '@/types/identifiers';
 import {
   acceptServerSessionAuthority,
@@ -107,6 +109,13 @@ export function db(): Firestore {
   }
   return firestore;
 }
+
+const SHUTTLE_CATALOG_IDS: ReadonlySet<string> = new Set(SHUTTLECRAFT.map((shuttle) => shuttle.id));
+const VESSEL_CATALOG_IDS: ReadonlySet<string> = new Set(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS));
+const CONFETTI_SOURCE_IDS: ReadonlySet<string> = new Set([
+  ...Object.keys(INITIAL_SHIP_CONSOLE_LOCKS),
+  'snn-press-shuttle',
+]);
 
 function iso(value: unknown): string {
   if (
@@ -365,8 +374,123 @@ function alertMap<T extends UnrestAlert | PopulationAlert>(value: unknown, popul
         !Array.isArray(raw.targetGmInstanceIds) ||
         raw.targetGmInstanceIds.some((id) => typeof id !== 'string') ||
         (population && typeof raw.population !== 'number')) return [];
-    return [[key, { ...raw, shipId } as T]];
+    const createdAt = timestampString(raw.createdAt);
+    if (!createdAt) return [];
+    const alert = {
+      shipId,
+      shipName: raw.shipName,
+      targetGmInstanceIds: [...raw.targetGmInstanceIds] as string[],
+      createdAt,
+      ...(population ? { population: raw.population as number } : {}),
+    } as unknown as T;
+    return [[key, alert]];
   })) as Readonly<Record<string, T>>;
+}
+
+type RecordValue = Readonly<Record<string, unknown>>;
+
+function recordValue(value: unknown): RecordValue | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as RecordValue
+    : undefined;
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
+function stringArray(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function timestampString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null && 'toDate' in value &&
+      typeof value.toDate === 'function') return iso(value);
+  return undefined;
+}
+
+function maintenanceCycles(value: unknown): NonNullable<GameSession['maintenanceCycles']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap((shipId) => {
+    const cycle = parseMaintenanceCycle(stored[shipId]);
+    return cycle ? [[shipId, cycle]] : [];
+  }));
+}
+
+function shuttleCargo(value: unknown): NonNullable<GameSession['shuttleCargo']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  const knownShuttleIds = new Set(SHUTTLECRAFT.map((shuttle) => shuttle.id));
+  const knownResourceIds = new Set<string>(RESOURCE_DEFINITIONS.map((resource) => resource.id));
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, cargo]) => {
+    if (!knownShuttleIds.has(shuttleId)) return [];
+    const rawCargo = recordValue(cargo);
+    if (!rawCargo) return [];
+    const parsedCargo = Object.fromEntries(Object.entries(rawCargo).flatMap(([resourceId, amount]) =>
+      knownResourceIds.has(resourceId) && typeof amount === 'number' && Number.isFinite(amount)
+        ? [[resourceId, amount]] : []));
+    return [[shuttleId, parsedCargo]];
+  }));
+}
+
+function shuttleFuelled(value: unknown): NonNullable<GameSession['shuttleFuelled']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  const knownShuttleIds = new Set(SHUTTLECRAFT.map((shuttle) => shuttle.id));
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, fuelled]) =>
+    knownShuttleIds.has(shuttleId) && typeof fuelled === 'boolean' ? [[shuttleId, fuelled]] : []));
+}
+
+function shipUpgrades(value: unknown): NonNullable<GameSession['shipUpgrades']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap((shipId) =>
+    Array.isArray(stored[shipId]) ? [[shipId, stringArray(stored[shipId])]] : []));
+}
+
+function shipDamage(value: unknown): NonNullable<GameSession['shipDamage']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap((shipId) => {
+    const raw = recordValue(stored[shipId]);
+    if (!raw || typeof raw.destroyed !== 'boolean' || !Array.isArray(raw.damagedSystemIds)) return [];
+    return [[shipId, {
+      damagedSystemIds: stringArray(raw.damagedSystemIds),
+      destroyed: raw.destroyed,
+    }]];
+  }));
+}
+
+function shipSurvivors(value: unknown): NonNullable<GameSession['shipSurvivors']> {
+  const stored = recordValue(value);
+  if (!stored) return INITIAL_SHIP_SURVIVORS;
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_SURVIVORS).flatMap((shipId) =>
+    typeof stored[shipId] === 'number' && Number.isFinite(stored[shipId])
+      ? [[shipId, stored[shipId] as number]] : []));
+}
+
+function shipGalacticCoordinates(value: unknown): Record<string, string> {
+  const stored = recordValue(value);
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [
+    shipId,
+    typeof stored?.[shipId] === 'string' ? stored[shipId] as string : INITIAL_SHIP_GALACTIC_COORDINATES[shipId] ?? '0000',
+  ]));
+}
+
+function fleetRedAlert(value: unknown): NonNullable<GameSession['fleetRedAlert']> {
+  const raw = recordValue(value);
+  const active = raw?.active === true;
+  const revision = nonNegativeInteger(raw?.revision) ?? 0;
+  const text = typeof raw?.text === 'string' ? raw.text : undefined;
+  const raisedAt = timestampString(raw?.raisedAt);
+  return {
+    active,
+    revision,
+    ...(text === undefined ? {} : { text }),
+    ...(raisedAt === undefined ? {} : { raisedAt }),
+  };
 }
 
 function shipConsoleLocks(value: unknown): NonNullable<GameSession['shipConsoleLocks']> {
@@ -432,7 +556,7 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   const result: Record<string, number> = {};
   for (const [group, amount] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0) {
+    if (group === 'fleet' && typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0) {
       result[group] = amount;
     }
   }
@@ -479,7 +603,8 @@ function shuttleDocking(value: unknown): ShuttleDocking | undefined {
   const raw = value as Record<string, unknown>;
   const shuttleId = parseEntityId('shuttle', raw.shuttleId);
   const shipId = parseEntityId('vessel', raw.shipId);
-  if (!shuttleId || !shipId || typeof raw.dockedAt !== 'string') return undefined;
+  if (!shuttleId || !SHUTTLE_CATALOG_IDS.has(shuttleId) || !shipId ||
+      !VESSEL_CATALOG_IDS.has(shipId) || typeof raw.dockedAt !== 'string') return undefined;
   return { shuttleId, shipId, dockedAt: raw.dockedAt };
 }
 
@@ -489,7 +614,8 @@ function shuttleVisit(value: unknown): ShuttleVisit | undefined {
   const id = parseEntityId('event', raw.id);
   const shuttleId = parseEntityId('shuttle', raw.shuttleId);
   const shipId = parseEntityId('vessel', raw.shipId);
-  if (!id || !shuttleId || !shipId ||
+  if (!id || !shuttleId || !SHUTTLE_CATALOG_IDS.has(shuttleId) || !shipId ||
+      !VESSEL_CATALOG_IDS.has(shipId) ||
       (raw.action !== 'docked' && raw.action !== 'departed') || typeof raw.occurredAt !== 'string') {
     return undefined;
   }
@@ -522,10 +648,17 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const storedVisits = Array.isArray(data.shuttleVisitLog)
     ? data.shuttleVisitLog.map(shuttleVisit).filter((visit): visit is ShuttleVisit => visit !== undefined)
     : undefined;
+  const activeVessels = activeVesselIds ? new Set(activeVesselIds) : undefined;
+  const visibleDockings = storedDockings?.filter((docking) =>
+    activeVessels === undefined || activeVessels.has(docking.shipId));
+  const visibleShuttles = visibleDockings ? new Set(visibleDockings.map((docking) => docking.shuttleId)) : undefined;
+  const visibleVisits = storedVisits?.filter((visit) =>
+    (activeVessels === undefined || activeVessels.has(visit.shipId)) &&
+    (visibleShuttles === undefined || visibleShuttles.has(visit.shuttleId)));
   const ownerUid = parseEntityId('player', data.ownerUid);
   const shuttleManifest = normalizeShuttleManifest(
-    storedDockings,
-    storedVisits,
+    visibleDockings,
+    visibleVisits,
     hasActiveRoleIds ? activeRoleIds : undefined,
     playerCount,
   );
@@ -559,30 +692,23 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       Number.isSafeInteger(data.pressAvailabilityRevision) && data.pressAvailabilityRevision >= 0
         ? data.pressAvailabilityRevision as number
         : 0,
-    shipGalacticCoordinates:
-      typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
-        ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
-        : INITIAL_SHIP_GALACTIC_COORDINATES,
+    shipGalacticCoordinates: shipGalacticCoordinates(data.shipGalacticCoordinates),
     shipNavigationLogs: shipNavigationLogs(data.shipNavigationLogs),
     shipConsoleLocks: shipConsoleLocks(data.shipConsoleLocks),
     shipJumpStates: shipJumpStates(data.shipJumpStates),
     shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
     pursuitGroups: pursuitGroups(data.pursuitGroups),
-    fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
+    fleetRedAlert: fleetRedAlert(data.fleetRedAlert),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
-    maintenanceCycles: data.maintenanceCycles ?? {},
-    shuttleCargo: data.shuttleCargo ?? {},
-    shuttleFuelled: data.shuttleFuelled ?? {},
-    shipUpgrades: data.shipUpgrades ?? {},
+    maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
+    shuttleCargo: shuttleCargo(data.shuttleCargo),
+    shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
+    shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: shipResources(data.shipResources),
-    shipDamage: typeof data.shipDamage === 'object' && data.shipDamage !== null
-      ? data.shipDamage as NonNullable<GameSession['shipDamage']>
-      : {},
+    shipDamage: shipDamage(data.shipDamage),
     shipUnrest: shipUnrest(data.shipUnrest),
-    shipSurvivors: typeof data.shipSurvivors === 'object' && data.shipSurvivors !== null
-      ? data.shipSurvivors as NonNullable<GameSession['shipSurvivors']>
-      : INITIAL_SHIP_SURVIVORS,
+    shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),
     unrestAlerts: alertMap<UnrestAlert>(data.unrestAlerts, false),
     gmControlsLocked: data.gmControlsLocked === true,
@@ -591,6 +717,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleVisitLog: shuttleManifest.visits,
     confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
       ? data.confettiUsedShipIds
+        .filter((shipId: unknown) => typeof shipId === 'string' && CONFETTI_SOURCE_IDS.has(shipId))
         .map((shipId: unknown) => parseEntityId('vessel', shipId))
         .filter((shipId): shipId is NonNullable<typeof shipId> => shipId !== undefined)
       : [],

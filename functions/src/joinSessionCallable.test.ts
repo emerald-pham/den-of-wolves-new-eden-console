@@ -126,6 +126,42 @@ it('returns only the public session projection when the persisted root has priva
       decks: { aegis: ['hidden card'] },
       notes: ['facilitator note'],
       setupReceipt: { selectedWolfRoleIds: ['admiral'] },
+      maintenanceCycles: {
+        aegis: {
+          step: 2, revision: 1, results: { '1': 'Storage intact.' }, charges: [], refuelled: [],
+          facilitatorNotes: 'hidden adjudication',
+        },
+      },
+      shuttleCargo: {
+        starlight: { food: 3, privateCard: 'hidden' }, wolfAssignment: { food: 1 },
+      },
+      shuttleFuelled: { starlight: true, wolfAssignment: true, candidateBonus: true },
+      shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false, deckOrder: ['5d'] } },
+      shipUpgrades: { aegis: ['storage', { candidateBonus: 2 }] },
+      shuttleVisitLog: [{
+        id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+        action: 'docked', occurredAt: 'SESSION START', deckOrder: ['5d'],
+      }, {
+        id: 'secret-visit', shuttleId: 'wolfAssignment', shipId: 'aegis',
+        action: 'docked', occurredAt: 'SESSION START', wolfAssignment: 'hidden',
+      }, {
+        id: 'secret-host', shuttleId: 'starlight', shipId: 'wolfAssignment',
+        action: 'docked', occurredAt: 'SESSION START',
+      }],
+      shuttleDockings: [{
+        shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START', facilitatorNote: 'hidden',
+      }, {
+        shuttleId: 'wolfAssignment', shipId: 'aegis', dockedAt: 'SESSION START',
+      }, {
+        shuttleId: 'starlight', shipId: 'wolfAssignment', dockedAt: 'SESSION START',
+      }],
+      confettiUsedShipIds: ['aegis', { candidateBonus: 4 }, 'wolfAssignment'],
+      populationAlerts: {
+        aegis: {
+          shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'], population: 1,
+          createdAt: 'TURN 1', facilitatorNote: 'hidden',
+        },
+      },
     });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
@@ -137,6 +173,13 @@ it('returns only the public session projection when the persisted root has priva
 
   expect(response.session).toMatchObject({
     id: 's1', phase: 'active', currentTurn: 1, activeVesselIds: expect.arrayContaining(['aegis']),
+    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' }],
+    shuttleVisitLog: [{
+      id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'docked', occurredAt: 'SESSION START',
+    }],
+    confettiUsedShipIds: ['aegis'],
+    shuttleFuelled: { starlight: true },
   });
   expect(privateSnapshotKeys(response.session)).toEqual([]);
 });

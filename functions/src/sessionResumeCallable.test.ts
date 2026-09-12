@@ -153,6 +153,74 @@ it('defaults a legacy resume reply with no Press toggle to enabled', async () =>
   expect(response.session.pressEnabled).toBe(true);
 });
 
+it('returns only operational fields when legacy root maps contain hidden-shaped fields', async () => {
+  prepareResume(
+    { status: 'open', holderUid: null },
+    {},
+    {
+      activeVesselIds: ['aegis'],
+      maintenanceCycles: {
+        aegis: {
+          step: 2, revision: 1, results: { '1': 'Storage intact.' }, charges: [], refuelled: [],
+          facilitatorNotes: 'hidden adjudication',
+        },
+      },
+      shuttleCargo: {
+        starlight: { food: 3, privateCard: 'hidden' }, wolfAssignment: { food: 1 },
+      },
+      shuttleFuelled: { starlight: true, wolfAssignment: true, candidateBonus: true },
+      shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false, deckOrder: ['5d'] } },
+      shipUpgrades: { aegis: ['storage', { candidateBonus: 2 }] },
+      shuttleVisitLog: [{
+        id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+        action: 'docked', occurredAt: 'SESSION START', deckOrder: ['5d'],
+      }, {
+        id: 'secret-visit', shuttleId: 'wolfAssignment', shipId: 'aegis',
+        action: 'docked', occurredAt: 'SESSION START', wolfAssignment: 'hidden',
+      }, {
+        id: 'secret-host', shuttleId: 'starlight', shipId: 'wolfAssignment',
+        action: 'docked', occurredAt: 'SESSION START',
+      }],
+      shuttleDockings: [{
+        shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START', facilitatorNote: 'hidden',
+      }, {
+        shuttleId: 'wolfAssignment', shipId: 'aegis', dockedAt: 'SESSION START',
+      }, {
+        shuttleId: 'starlight', shipId: 'wolfAssignment', dockedAt: 'SESSION START',
+      }],
+      confettiUsedShipIds: ['aegis', { candidateBonus: 4 }, 'wolfAssignment'],
+    },
+  );
+
+  const response = await resumeSession.run(request('s1')) as { session: Record<string, unknown> };
+  const hiddenKeys = new Set([
+    'brief', 'candidateBonus', 'deck', 'deckOrder', 'decks', 'facilitatorNote', 'facilitatorNotes',
+    'loyalty', 'loyaltyAssignment', 'loyaltyAssignments', 'loyalties', 'notes', 'privateCard',
+    'privateBrief', 'privateBriefs', 'privateCards', 'privateNotes', 'roleBrief', 'roleBriefs',
+    'setupReceipt', 'wolfAssignment',
+  ]);
+  const findHidden = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.flatMap(findHidden);
+    if (typeof value !== 'object' || value === null) return [];
+    return Object.entries(value).flatMap(([key, nested]) =>
+      hiddenKeys.has(key) ? [key] : findHidden(nested));
+  };
+  expect(findHidden(response.session)).toEqual([]);
+  expect(response.session).toMatchObject({
+    maintenanceCycles: { aegis: { step: 2, revision: 1, results: { '1': 'Storage intact.' } } },
+    shuttleCargo: { starlight: { food: 3 } },
+    shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
+    shipUpgrades: { aegis: ['storage'] },
+    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' }],
+    shuttleVisitLog: [{
+      id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'docked', occurredAt: 'SESSION START',
+    }],
+    confettiUsedShipIds: ['aegis'],
+    shuttleFuelled: { starlight: true },
+  });
+});
+
 it('returns a typed setup error before seat writes for a malformed persisted mode', async () => {
   prepareResume(
     { status: 'open', holderUid: null },

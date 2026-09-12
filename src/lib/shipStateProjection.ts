@@ -55,11 +55,20 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function optionalTimestampString(value: unknown): string | undefined {
+  const stringValue = optionalString(value);
+  if (stringValue) return stringValue;
+  if (typeof value !== 'object' || value === null || !('toDate' in value) ||
+      typeof value.toDate !== 'function') return undefined;
+  const date = value.toDate();
+  return date instanceof Date && Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+}
+
 function stringArray(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
-function maintenanceCycle(value: unknown): MaintenanceCycle | undefined {
+export function parseMaintenanceCycle(value: unknown): MaintenanceCycle | undefined {
   const raw = recordValue(value);
   const step = nonNegativeInteger(raw?.step);
   const revision = nonNegativeInteger(raw?.revision);
@@ -70,8 +79,8 @@ function maintenanceCycle(value: unknown): MaintenanceCycle | undefined {
   const rationBonus = typeof raw?.rationBonus === 'number' && Number.isFinite(raw.rationBonus)
     ? raw.rationBonus
     : undefined;
-  const startedAt = optionalString(raw?.startedAt);
-  const completedAt = optionalString(raw?.completedAt);
+  const startedAt = optionalTimestampString(raw?.startedAt);
+  const completedAt = optionalTimestampString(raw?.completedAt);
   const damageDrawId = optionalString(raw?.damageDrawId);
   const results = Object.fromEntries(
     Object.entries(rawResults ?? {}).filter(([key, result]) =>
@@ -177,7 +186,7 @@ export function projectShipState(session: GameSession, shipId: string): ShipCons
   const population = typeof storedPopulation === 'number' && Number.isFinite(storedPopulation)
     ? Math.max(0, storedPopulation)
     : populationForShip(shipId, undefined);
-  const maintenance = maintenanceCycle(session.maintenanceCycles?.[shipId]);
+  const maintenance = parseMaintenanceCycle(session.maintenanceCycles?.[shipId]);
   const jumps = jumpState(session.shipJumpStates?.[shipId]);
   const transition = jumpTransition(session.shipJumpTransitions?.[shipId], shipId);
   return {

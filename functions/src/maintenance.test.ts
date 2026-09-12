@@ -56,6 +56,25 @@ it('starts once and rejects stale commands and out-of-order steps', () => {
   expect(() => advanceMaintenance(input({ action: 'riot' }))).toThrow(/step/);
 });
 
+it('does not carry unknown persisted cycle fields into the next authoritative result', () => {
+  const result = advanceMaintenance(input({
+    cycle: ({
+      step: 0,
+      revision: 3,
+      results: {},
+      charges: [],
+      refuelled: [],
+      facilitatorNotes: 'hidden adjudication',
+      candidateBonus: 4,
+    } as MaintenanceInput['cycle'] & Record<string, unknown>),
+    expectedRevision: 3,
+  }));
+
+  expect(result.cycle).toMatchObject({ step: 1, revision: 4, turn: 1 });
+  expect(result.cycle).not.toHaveProperty('facilitatorNotes');
+  expect(result.cycle).not.toHaveProperty('candidateBonus');
+});
+
 it('allows only one maintenance cycle per turn', () => {
   expect(() => advanceMaintenance(input({
     cycle: {
