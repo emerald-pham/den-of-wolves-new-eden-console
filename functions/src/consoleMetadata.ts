@@ -166,8 +166,8 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'dione:storage': commonStorage(implemented('maintenance.storage')),
   'dione:reactor': commonReactor(4, 1),
   'dione:shuttle-bay': commonShuttleBay(6, implemented('maintenance.bays')),
-  'dione:hydroponics': commonHydroponics(deferred('Dione Hydroponics has no authoritative production resolver.', ['188'])),
-  'dione:water-reclamation': commonWaterReclamation(deferred('Dione Water Reclamation has no authoritative production resolver.', ['189'])),
+  'dione:hydroponics': commonHydroponics(implemented('maintenance.production')),
+  'dione:water-reclamation': commonWaterReclamation(implemented('maintenance.production')),
   'dione:vip-lounge': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: noUpgrade,
     effect: 'Draw a VIP card.', resolver: deferred('VIP card ownership and use remain unresolved.', ['190', '191']),
@@ -256,7 +256,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   },
   'capybara:scrap-refinery': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged when damaged.'), upgrade: noUpgrade,
-    effect: 'Choose one: spend 1 Scrap for 3 materials, or generate 1 Scrap.', resolver: deferred('Expansion Capybara Scrap Refinery has no authoritative production resolver.', ['257']),
+    effect: 'Choose one: spend 1 Scrap for 3 materials, or generate 1 Scrap.', resolver: implemented('maintenance.production'),
   },
   'capybara:shuttle-bay': commonShuttleBay(6, implemented('maintenance.bays')),
   'capybara:jump-drive': commonJumpDrive('3 / 6 / 12'),

@@ -31,9 +31,7 @@ describe('server-only console metadata', () => {
     expect(consoleMetadataFor('dione', 'storage')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.storage' });
     expect(consoleMetadataFor('dione', 'hydroponics')?.resolver).toEqual({
-      status: 'deferred',
-      followOnPrompts: ['188'],
-      reason: 'Dione Hydroponics has no authoritative production resolver.',
+      status: 'implemented', id: 'maintenance.production',
     });
     expect(consoleMetadataFor('aegis', 'missile-launchers')?.resolver).toEqual({
       status: 'deferred', followOnPrompts: ['182'],
@@ -42,6 +40,10 @@ describe('server-only console metadata', () => {
     expect(consoleMetadataFor('icebreaker', 'jump-drive')?.resolver)
       .toEqual({ status: 'implemented', id: 'jump.resolve' });
     expect(consoleMetadataFor('capybara', 'advanced-hydroponics')?.resolver)
+      .toEqual({ status: 'implemented', id: 'maintenance.production' });
+    expect(consoleMetadataFor('dione', 'water-reclamation')?.resolver)
+      .toEqual({ status: 'implemented', id: 'maintenance.production' });
+    expect(consoleMetadataFor('capybara', 'scrap-refinery')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
     expect(consoleMetadataFor('capybara', 'water-production')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
