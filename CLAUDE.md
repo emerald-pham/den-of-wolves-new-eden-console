@@ -139,6 +139,31 @@ while an upstream release settles. Reconcile onto its settled result before
 finalizing release metadata and running final validation. Do not repeatedly run
 a full gate on a candidate already known to need another rebase.
 
+### Stopping while a worker remains active
+
+When delegated work remains unfinished, a coordinator may yield or end its
+current reply while a concrete, bounded worker is actively running with
+authority for its full implementation, validation, and release scope. Give it a
+complete bounded brief, the canonical parent task destination, and expected
+checkpoint. The worker must report completion, a blocker, review-ready status,
+or a missing decision through
+collaboration or `send_message_to_thread` to that exact parent task; ordinary
+commentary is not a reliable handoff. The parent resumes on that boundary,
+retrieves a terminal result with one bounded status lookup if delivery is
+uncertain, and resolves/dispatches the next task while the goal remains
+unfinished.
+
+Do not end with no work running and imply progress, create a dummy worker or
+sleep heartbeat, or repeat empty polls. Waiting/yielding avoids continuous
+model generation, but worker execution, handoff, and resumed processing still
+consume usage; never promise zero tokens or unlimited overnight completion.
+If the goal remains unfinished and ready work is available, a completed worker
+needs a next dispatch; when no independent work is available, park only at an
+explicit boundary or genuine blocker and report it truthfully. Keep pending user
+decisions pending while independent work proceeds. App resume may not survive a
+sleeping host or closed app, so completion is never guaranteed across that
+boundary.
+
 ## Testing and review
 
 Use the smallest test that proves the behavior. Security and authority changes
