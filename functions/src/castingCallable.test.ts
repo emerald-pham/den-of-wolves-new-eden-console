@@ -265,7 +265,7 @@ it('rejects casting a target named by the session Press holder pointer even if t
   mock.target = {
     connected: true,
     role: 'player',
-    assignedRoleId: null,
+    assignedRoleId: 'icebreaker-miner',
     activeConsoleRoleId: null,
     seatId: null,
   };
