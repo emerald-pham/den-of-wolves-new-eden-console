@@ -21455,10 +21455,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "178;262;396;449",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.47"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     }
   ],

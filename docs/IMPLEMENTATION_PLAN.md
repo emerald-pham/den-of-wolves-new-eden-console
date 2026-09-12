@@ -2846,7 +2846,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 677
 - [ ] Prompt 678
 - [ ] Prompt 679
-- [ ] Prompt 680
+- [x] Prompt 680
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 - **Prompt 001 — [PRESERVE] Build the canonical rule-source index.** Acceptance: every planned mechanic resolves to a routed reference, with printed component sheets taking precedence over generic guides.

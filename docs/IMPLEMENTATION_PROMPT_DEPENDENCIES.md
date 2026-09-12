@@ -841,7 +841,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 677 | NEW | missing | 084;284;313;330 | none | none | none | none | none | none | 328 | E-677;E-677-DEPENDENCIES | none | Gate jump-map coordinates by ship knowledge and hide location details. |
 | 678 | NEW | missing | 328;339;340;677 | none | none | none | none | none | none | 330;331 | E-678;E-678-DEPENDENCIES | none | Transmit scanned system details to all fleet ships or selected ships. |
 | 679 | NEW | missing | 281;282;285;294;304;677 | none | none | none | none | none | none | 283;313 | E-679;E-679-DEPENDENCIES | none | Allow blind jumps to a random adjacent system. |
-| 680 | POLISH | missing | none | none | none | none | none | none | none | 178;262;396;449 | E-680-RELATED | none | Show authoritative live Alpha and Bravo fighter status. |
+| 680 | POLISH | done | none | none | none | none | none | none | none | 178;262;396;449 | E-680-RELATED | none | Show authoritative live Alpha and Bravo fighter status. |
 
 ## Explicit sequence rules
 

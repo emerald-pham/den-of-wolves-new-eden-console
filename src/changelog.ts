@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['104'],
+    implementationPrompts: ['680'],
     implementationProgress: {
-      completed: 122,
+      completed: 124,
       total: 747,
-      percentage: '16.33%',
-      done: 122,
+      percentage: '16.60%',
+      done: 124,
       partial: 6,
       active: 0,
-      missing: 619,
+      missing: 617,
     },
     changes: [
-      'When the configured final turn ends, normal gameplay actions now freeze and every console enters explicit endgame evaluation while existing GM debrief controls remain available. 122 of 747 planned items are complete (16.33%).',
+      'AEGIS crews and facilitators can now see each fighter wing's live strength, sourced capacity, and bay readiness separately, with GM-only count corrections when the table needs a manual update. 124 of 747 planned items are complete (16.60%).',
     ],
   },
   {
