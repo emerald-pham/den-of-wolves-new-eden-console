@@ -5009,6 +5009,12 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+.gm-console__balance-guidance {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+}
 .gm-emergency-pause {
   display: grid;
   gap: 0.65rem;

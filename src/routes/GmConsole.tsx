@@ -1382,6 +1382,11 @@ export default function GmConsole() {
               <p className="gm-console__hint">
                 Approximate facilitator marker // no automatic attack, combat resolution, or turn advance.
               </p>
+              <p className="gm-console__hint gm-console__balance-guidance">
+                Extra-role balance // For each extra role introduced, consider roughly 3 additional
+                Wolf damage capacity per attack. The facilitator chooses the adjustment; this
+                reminder does not change attacks.
+              </p>
               <div className="gm-turn-control__actions">
                 <button
                   className="cic-action-button"
