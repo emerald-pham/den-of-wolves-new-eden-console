@@ -125,4 +125,3 @@ it('enforces effective capacity from the authoritative Construction Bay upgrade'
   await expect(setFighterWingCount.run(request({ ...base, requestId: 'wing-2', count: 5 })))
     .resolves.toMatchObject({ status: 'committed', count: 5, capacity: 6 });
 });
-
