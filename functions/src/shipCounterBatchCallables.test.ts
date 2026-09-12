@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   fuel: 6, unrest: 7, population: 16_000,
+  retry: false, retryFuel: undefined as number | undefined,
   unrestAlerts: {} as Record<string, unknown>, populationAlerts: {} as Record<string, unknown>,
 }));
 
@@ -12,7 +13,14 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => path,
     collection: (path: string) => path,
-    runTransaction: (callback: (tx: unknown) => unknown) => callback({ get: mock.get, update: mock.update }),
+    runTransaction: async (callback: (tx: unknown) => unknown) => {
+      const transaction = { get: mock.get, update: mock.update };
+      if (mock.retry) {
+        await callback(transaction);
+        if (mock.retryFuel !== undefined) mock.fuel = mock.retryFuel;
+      }
+      return callback(transaction);
+    },
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
@@ -27,6 +35,7 @@ function request(data: Record<string, unknown>, uid = 'u1') {
 beforeEach(() => {
   mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true;
   mock.fuel = 6; mock.unrest = 7; mock.population = 16_000;
+  mock.retry = false; mock.retryFuel = undefined;
   mock.unrestAlerts = {}; mock.populationAlerts = {};
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
@@ -53,6 +62,22 @@ it('applies rapid resource steps in their click order inside one transaction', a
   }))).resolves.toEqual({ amount: 7, appliedSteps: [1, 1, -1], alertRaised: false });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': 7,
+  }));
+});
+
+it('re-evaluates one resource command against the latest count after a transaction retry', async () => {
+  mock.retry = true;
+  mock.retryFuel = 7;
+
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+    resourceId: 'fuel', steps: [1],
+  }))).resolves.toEqual({ amount: 8, appliedSteps: [1], alertRaised: false });
+  expect(mock.update).toHaveBeenNthCalledWith(1, 'sessions/s1', expect.objectContaining({
+    'shipResources.dione.fuel': 7,
+  }));
+  expect(mock.update).toHaveBeenNthCalledWith(2, 'sessions/s1', expect.objectContaining({
+    'shipResources.dione.fuel': 8,
   }));
 });
 

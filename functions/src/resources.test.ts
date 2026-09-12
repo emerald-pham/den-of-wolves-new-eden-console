@@ -42,6 +42,26 @@ describe('authoritative fleet resources', () => {
     });
   });
 
+  it('keeps malformed persisted ledgers nonnegative and integer typed without restoring spent stock', () => {
+    const inventories = shipResources({
+      aegis: {
+        fuel: -2,
+        food: 1.5,
+        water: Number.POSITIVE_INFINITY,
+        materials: Number.NaN,
+        securityTeams: null,
+      },
+      capybara: { scrap: -1 },
+    });
+
+    expect(inventories.aegis).toMatchObject({
+      fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0,
+    });
+    expect(inventories.capybara?.scrap).toBe(0);
+    expect(Object.values(inventories).flatMap(inventory => Object.values(inventory))
+      .every(value => Number.isSafeInteger(value) && value >= 0)).toBe(true);
+  });
+
   it('moves resource stock without allowing a negative amount', () => {
     expect(nextResourceAmount(4, 1)).toBe(5);
     expect(nextResourceAmount(0, -1)).toBe(0);

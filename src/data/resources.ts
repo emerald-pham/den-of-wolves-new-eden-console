@@ -58,7 +58,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function storedNumber(stored: Record<string, unknown>, key: string, fallback: number): number {
   const value = stored[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  if (value === undefined) return fallback;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 export function shipResources(value: unknown): ShipResourceInventories {

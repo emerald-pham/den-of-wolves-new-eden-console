@@ -53,7 +53,9 @@ describe('authoritative ship damage deck', () => {
 
   it('normalizes legacy and malformed session damage state', () => {
     expect(shipDamage(undefined)).toEqual({});
-    expect(shipDamage({ aegis: { damagedSystemIds: ['reactor', 'reactor', 42], destroyed: 'no' } }))
+    expect(shipDamage({ aegis: {
+      damagedSystemIds: ['reactor', 'reactor', 42], destroyed: 'no', deckOrder: ['forged-card'],
+    } }))
       .toEqual({ aegis: { damagedSystemIds: ['reactor'], destroyed: false } });
   });
 

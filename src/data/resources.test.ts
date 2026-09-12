@@ -42,6 +42,13 @@ describe('fleet resources', () => {
     });
   });
 
+  it('keeps malformed persisted values out of the client projection', () => {
+    expect(resourcesForShip('aegis', {
+      aegis: { fuel: -2, food: 1.5, water: Number.POSITIVE_INFINITY },
+    })).toMatchObject({ fuel: 0, food: 0, water: 0 });
+    expect(resourcesForShip('capybara', { capybara: { scrap: -1 } })?.scrap).toBe(0);
+  });
+
   it('normalizes legacy unrest readings to the authoritative 0–10 range', () => {
     expect(shipUnrest({ aegis: -4, capybara: 14 })).toMatchObject({ aegis: 0, capybara: 10 });
   });

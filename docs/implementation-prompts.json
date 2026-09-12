@@ -2,6 +2,13 @@
   "catalogPath": "docs/implementation-prompts.json",
   "evidence": [
     {
+      "direction": "111 -> RESOURCE-LEDGER-INTEGRITY",
+      "id": "E-AUDIT-111",
+      "language": "Prompt 111's production resource paths parse ore, fuel, food, water, materials, security teams, and Capybara-only Scrap as nonnegative safe-integer server state. GM-only resource callables apply ordered +/-1 changes transactionally and re-read the latest count after a retry; malformed present values become zero while absent legacy fields retain printed starting stock. Damage cards remain an immutable server-owned deck projection: only known damaged system IDs persist and legacy client-supplied deck order is ignored.",
+      "source": "functions/src/resources.ts; functions/src/shipCounterBatchCallables.test.ts; functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; src/data/resources.ts; src/data/resources.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
+    },
+    {
       "direction": "004 -> 021/030/073 -> 051/054/075 setup -> 020",
       "id": "E-M1-SETUP",
       "language": "Historical release order culminated in Prompt 020 after the 0.3.13 setup slice; the current ledger records this sequence as satisfied, not as a current readiness blocker.",
@@ -6928,8 +6935,8 @@
         "acceptance": "ore, fuel, food, water, materials, optional Scrap, security teams, and card inventories remain nonnegative typed server state.",
         "title": "Define authoritative resource ledgers."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Authoritative resource ledgers now parse ore, fuel, food, water, materials, security teams, and Capybara-only Scrap as nonnegative safe integers. GM-only resource callables apply ordered +/-1 changes transactionally and re-read the latest count after a retry; malformed present values become zero while absent legacy fields retain printed starting stock. Jump and maintenance consume the same parsed ledgers, and Firestore denies direct session writes. Damage cards remain a server-owned immutable deck projection: only known damaged system IDs persist and legacy client-supplied deck order is ignored. Focused tests cover malformed values, client projection, GM authority, ordered batches, retry/re-read behavior, expansion-only Scrap, exact printed stock, and retry-safe card draws. Proof-only; no player release.",
+      "evidenceIds": "E-AUDIT-111",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -6940,7 +6947,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

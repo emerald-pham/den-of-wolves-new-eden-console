@@ -210,7 +210,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 108 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Reconnect during a live timer. |
 | 109 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Reconcile delayed lifecycle updates. |
 | 110 | PROVE | done | 103 | none | none | none | none | none | none | none | E-AUDIT-110 | M2 | Run the lobby-to-two-turn scenario. |
-| 111 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Define authoritative resource ledgers. |
+| 111 | PRESERVE | done | none | none | none | none | none | none | none | none | E-AUDIT-111 | M2 | Define authoritative resource ledgers. |
 | 112 | NEW | missing | 111 | none | none | none | none | none | none | none | E-AUDIT-112 | M2 | Resolve same-table trades. |
 | 113 | NEW | missing | 111;164;361 | none | none | none | none | none | none | none | E-AUDIT-113 | M2 | Resolve shuttle-mediated transfers. |
 | 114 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-114 | M2 | Register vessel-specific maintenance order. |
@@ -863,6 +863,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 
 | Evidence ID | Edge type | From -> target | Source anchor | Source language |
 | --- | --- | --- | --- | --- |
+| E-AUDIT-111 | evidence | 111 -> RESOURCE-LEDGER-INTEGRITY | functions/src/resources.ts; functions/src/shipCounterBatchCallables.test.ts; functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; src/data/resources.ts; src/data/resources.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts | Prompt 111's production resource paths parse ore, fuel, food, water, materials, security teams, and Capybara-only Scrap as nonnegative safe-integer server state. GM-only resource callables apply ordered +/-1 changes transactionally and re-read the latest count after a retry; malformed present values become zero while absent legacy fields retain printed starting stock. Damage cards remain an immutable server-owned deck projection: only known damaged system IDs persist and legacy client-supplied deck order is ignored. |
 | E-M1-SETUP | sequence | 004 -> 021/030/073 -> 051/054/075 setup -> 020 | IMPLEMENTATION_PLAN.md - Historical follow-on Milestone 1 release sequence | Historical release order culminated in Prompt 020 after the 0.3.13 setup slice; the current ledger records this sequence as satisfied, not as a current readiness blocker. |
 | E-020A | hard_prompt | 020a -> 020; 074-081; 177; 287-304 | IMPLEMENTATION_PLAN.md - Prompt 020a definition | Dependencies: Prompt 020 plus setup/start/Turn 1 contracts in Prompts 074-081 and jump contracts in Prompts 177 and 287-304. |
 | E-031A | hard_prompt / sequence | 031a -> 030;031;032;034 | IMPLEMENTATION_PLAN.md - Future roadmap addendum, Dependency and delivery order | Prompt 031a then consumes the stable P030/P031/P032/P034 claim, release, race, and resume authority. |
