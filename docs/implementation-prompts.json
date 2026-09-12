@@ -4305,6 +4305,13 @@
       "language": "Existing start transaction validates locked holders, creates one recipient-only loyalty payload per player with a valid starting suspicion, preserves only complete valid explicit assignments, and rejects public or conflicting records. The 19-player and 20-plus-Press cases and suspicion distribution are covered. 105 focused start/setup/Wolf-assignment tests passed. Client secret writes remain denied by the existing rules. This evidence closes initial assignment only, not later exceptional Wolf-count override behavior in496.",
       "source": "functions/src/index.ts (startGame); functions/src/gameSetup.ts (composeDefaultLoyaltyAssignments, validateExplicitLoyaltySetup); functions/src/startCallable.test.ts; functions/src/gameSetup.test.ts; functions/src/wolfAssignment.test.ts; firestore.rules (secrets)",
       "type": "evidence"
+    },
+    {
+      "direction": "305 -> 485",
+      "id": "E-305-GROUP-FOUNDATION",
+      "language": "The current map only records the initial fleet score and has no authoritative group/location consumer. Per-turn increments need the group pursuit foundation to identify applicable groups and preserve the Ion Nebula no-rise exception. This is implementation readiness, not a Git or deployment gate.",
+      "source": "functions/src/index.ts (startGame, advanceTurnInTransaction); src/types/game.ts (Session.pursuitGroups); authorized pursuit source review 2026-09-12",
+      "type": "hard_prompt"
     }
   ],
   "plan": {
@@ -12170,11 +12177,11 @@
         "acceptance": "each applicable group adds two exactly once at the defined turn transition.",
         "title": "Advance pursuit each turn."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-305",
+      "description": "The current start transaction initializes pursuitGroups.fleet to 2, but advanceTurnInTransaction does not update it. This remains unimplemented. An applicable-group increment must consume the authoritative group and location foundation from Prompt 485 so the Ion Nebula no-rise exception is respected; adding two blindly to every map entry would violate the source. Keep split-fleet clock semantics as the separate pending Prompt 107 decision.",
+      "evidenceIds": "E-AUDIT-305;E-305-GROUP-FOUNDATION",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "103",
+      "hardPromptPrerequisites": "103;485",
       "id": "305",
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",

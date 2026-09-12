@@ -746,7 +746,7 @@ release classification and evidence.
 | 302 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 303 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 304 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 305 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 305 | missing | non-feature | — | The current start transaction initializes pursuitGroups.fleet to 2, but advanceTurnInTransaction does not update it. This remains unimplemented. An applicable-group increment must consume the authoritative group and location foundation from Prompt 485 so the Ion Nebula no-rise exception is respected; adding two blindly to every map entry would violate the source. Keep split-fleet clock semantics as the separate pending Prompt 107 decision. |
 | 306 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 307 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 308 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
