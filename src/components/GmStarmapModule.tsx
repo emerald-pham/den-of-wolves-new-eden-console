@@ -24,7 +24,8 @@ export default function GmStarmapModule({ session }: Props) {
     .filter((ship) =>
       activeShipIds.has(ship.id) &&
       (session.capybaraEnabled !== false || ship.id !== 'capybara') &&
-      (session.dioneEnabled !== false || ship.id !== 'dione'),
+      (session.dioneEnabled !== false || ship.id !== 'dione') &&
+      session.shipDamage?.[ship.id]?.destroyed !== true,
     )
     .map((ship) => ({
       id: ship.id,

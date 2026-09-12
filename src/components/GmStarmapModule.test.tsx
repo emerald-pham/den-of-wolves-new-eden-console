@@ -61,6 +61,37 @@ it('keeps an enabled toggle from plotting Capybara outside the canonical expansi
     .queryByRole('option', { name: 'Capybara' })).not.toBeInTheDocument();
 });
 
+it('removes a destroyed selected ship while keeping living movement choices and fallback', async () => {
+  const user = userEvent.setup();
+  vi.mocked(moveShipToLocation).mockClear();
+  const { rerender } = render(<GmStarmapModule session={{
+    ...session,
+    activeVesselIds: ['aegis', 'dione'],
+  } as unknown as GameSession} />);
+  const module = screen.getByRole('region', { name: 'GM starmap' });
+
+  await user.selectOptions(within(module).getByRole('combobox', { name: /ship to move/i }), 'dione');
+  await user.click(within(module).getByRole('button', { name: /system 5143/i }));
+
+  rerender(<GmStarmapModule session={{
+    ...session,
+    activeVesselIds: ['aegis', 'dione'],
+    shipDamage: {
+      dione: { damagedSystemIds: ['reactor'], destroyed: true },
+    },
+  } as unknown as GameSession} />);
+
+  const selector = within(module).getByRole('combobox', { name: /ship to move/i });
+  await vi.waitFor(() => expect(selector).toHaveValue('aegis'));
+  expect(within(module).queryByRole('option', { name: 'Dione' })).not.toBeInTheDocument();
+  expect(within(module).getByRole('option', { name: /aegis/i })).toBeInTheDocument();
+  expect(within(module).getByRole('button', { name: /system 0000/i })).toHaveAccessibleName(/AEGIS/);
+  expect(within(module).getByRole('button', { name: /system 0000/i })).not.toHaveAccessibleName(/DIONE/);
+
+  await user.click(within(module).getByRole('button', { name: /move ship to location/i }));
+  expect(moveShipToLocation).toHaveBeenCalledWith('aegis', '5143');
+});
+
 
 it('follows authoritative chart changes instead of keeping a local overlay selection', () => {
   const { rerender } = render(<GmStarmapModule session={{ ...session, chartId: 'B' }} />);
