@@ -478,11 +478,25 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "114 -> 161;162",
+      "direction": "114 -> 161;162;234;249",
       "id": "E-AUDIT-114",
-      "language": "Maintenance order is defined by the registered vessel and printed statistics.",
+      "language": "Maintenance order is defined by the registered vessel and printed statistics; all-vessel coverage also consumes the shared small-ship rules and Voyage 33-0 admission foundations.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "114 -> MAINTENANCE-ORDER",
+      "id": "E-AUDIT-114-ORDER",
+      "language": "The server-owned maintenance callable resolves the registered full-vessel order: AEGIS runs Shuttle Bay Zeta at step 6 and Shuttle Bay Omega at step 7, while the other six active full vessels run steps 1–6. Supplemental identities remain explicit metadata-only registrations until their runtime foundations land.",
+      "source": "functions/src/maintenanceOrder.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/routes/ShipConsole.test.tsx",
+      "type": "evidence"
+    },
+    {
+      "direction": "114 -> 121;235;241;242;246;250;571;591",
+      "id": "E-AUDIT-114-RELATED",
+      "language": "Small-ship population loss, variant maintenance, Voyage 33-0 maintenance, full Capybara execution, and vessel-specific help are related consumers of the maintenance order foundation; their runtime ownership remains with those prompts.",
+      "source": "docs/implementation-prompts.json - Prompt 114 related implementation boundaries",
+      "type": "related/consumes"
     },
     {
       "direction": "116 -> 117;162",
@@ -7027,19 +7041,21 @@
         "acceptance": "each vessel executes its printed step count and sequence rather than a generic inferred flow.",
         "title": "Register vessel-specific maintenance order."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-114",
+      "description": "The implemented full-vessel maintenance path now reads a registered order: AEGIS presents and authorizes Shuttle Bay Zeta at step 6 then Omega at step 7, while the other six full ships execute their printed 1–6 lane before explicit cycle closure. Focused server callable/state tests cover out-of-order bay and end actions, duplicate and retry-safe lifecycle, revision authority, and rendered AEGIS separation. Five supplemental identities are still metadata-only and therefore the each-vessel acceptance remains partial: Gorgoneion, base Capybara, Warrior, and Vulcan need shared small-ship runtime (P234) plus variant work (P235/P241/P242/P246), and Voyage 33-0 needs admission and maintenance (P249/P250); the population-loss exception belongs to P121. No unimplemented gameplay is implied.",
+      "evidenceIds": "E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "161;162",
+      "hardPromptPrerequisites": "161;162;234;249",
       "id": "114",
       "milestoneHints": "M2",
-      "relatedConsumes": "none",
+      "relatedConsumes": "121;235;241;242;246;250;571;591",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.52"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

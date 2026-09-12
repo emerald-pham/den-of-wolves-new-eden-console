@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['114'],
+    implementationProgress: {
+      completed: 134,
+      total: 747,
+      percentage: '17.94%',
+      done: 134,
+      partial: 7,
+      active: 0,
+      missing: 606,
+    },
+    changes: [
+      'Maintenance screens now follow each active full vessel’s printed sequence: AEGIS handles Shuttle Bay Zeta and Shuttle Bay Omega as separate steps, while the other ships finish their six-step lane before closing the cycle. 134 of 747 planned items are complete (17.94%).',
+    ],
+  },
+  {
+    version: '0.3.52',
     implementationPrompts: ['652b'],
     implementationProgress: {
       completed: 134,
