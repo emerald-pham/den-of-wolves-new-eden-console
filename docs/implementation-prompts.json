@@ -130,9 +130,9 @@
     {
       "direction": "106c -> 652a/652b; 652 -> 652a; 603a -> 652b",
       "id": "E-TICKER",
-      "language": "Implement Prompt 106c before P652a or P652b; P652a follows P106c and P652; P603a remains a prerequisite for P652b.",
-      "source": "IMPLEMENTATION_PLAN.md - Future roadmap addendum, Dependency and delivery order",
-      "type": "sequence / hard_prompt"
+      "language": "Prompt 106c now provides the server-owned FleetTicker stream: automatic, Admiral, and Press producers receive deterministic session-scoped identities, revisions, precedence, queue/drain state, dismissals, replay cursors, and server deadlines in one transaction. Server order/status/deadlines converge across reconnect and replay; each viewport finishes visible tails locally at constant speed without client frame or pass acknowledgements authoring shared progress. Red Alert stand-down has a 60-second server lifetime, while already-visible text may finish locally. Focused authority, projection, retry/race, rules, terminal/debrief, and rendered geometry evidence cover the closed lifecycle. Implement Prompt 106c before P652a or P652b; P652a follows P106c and P652; P603a remains a prerequisite for P652b.",
+      "source": "functions/src/fleetTickerState.ts; functions/src/index.ts; functions/src/fleetTickerState.test.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/pressDispatchCallable.test.ts; src/components/FleetBroadcast.tsx; src/components/FleetBroadcast.test.tsx; src/components/FleetTicker.tsx; rendered lifecycle evidence",
+      "type": "evidence / sequence / hard_prompt"
     },
     {
       "direction": "433a -> 351; 353-360; 605a",
@@ -6792,10 +6792,10 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "one transaction-owned stream gives automatic, Admiral, and Press transmissions deterministic session-scoped identities, revisions, precedence, current/queued/draining state, dismissals, pass counts, and replay cursors. Concurrent send/replace/dismiss and Red Alert activation/stand-down serialize once; idempotent retry, reconnect, replay, late join, and every live client converge without local resurrection, duplication, reorder, or early tail disposal. Enforce authenticated role/holder/GM authority, schemas, CAS, privacy-safe projections/audit, direct-write denial, and screen-reader announcement identity before P652a/P652b presentation work.",
+        "acceptance": "one transaction-owned stream gives automatic, Admiral, and Press transmissions deterministic session-scoped identities, revisions, precedence, current/queued/draining state, dismissals, replay cursors, and server deadlines. Concurrent send/replace/dismiss, terminal/debrief publication, and Red Alert activation/stand-down serialize once; idempotent retry, reconnect, replay, late join, and every live client converge on the same server order/status without local resurrection, duplication, reorder, or early tail disposal. The server owns order, lifecycle status, and deadlines; each viewport finishes already-visible tails locally at constant speed, with no client frame or visual-pass acknowledgement writing shared progress. Red Alert stand-down has a 60-second server lifetime. Enforce authenticated role/holder/GM authority, schemas, CAS, privacy-safe projections/audit, direct-write denial, and screen-reader announcement identity before P652a/P652b presentation work.",
         "title": "Make fleet-ticker lifecycle server-authoritative."
       },
-      "description": "Future server-authoritative FleetTicker lifecycle: deterministic session/message/revision identities, precedence, current/queued/draining state, pass counts, dismissals, and replay cursors must serialize concurrent automatic/Admiral/Press send-replace-dismiss and Red Alert activation/stand-down. Reconnect/replay/late join and every client converge; idempotent CAS, authenticated authority, privacy-safe projection/audit, schema bounds, and direct-write denial precede P652a/P652b.",
+      "description": "The FleetTicker lifecycle now uses one server-owned stream for automatic, Admiral, and Press transmissions. Deterministic session/message/revision identities, precedence, current/queued/draining state, dismissals, replay cursors, and server deadlines serialize concurrent send/replace/dismiss plus Red Alert activation/stand-down, including the terminal/debrief producer. Reconnect, replay, and late join converge on server order/status; each viewport scrolls visible tails at constant speed without client frame or visual-pass writes. Red Alert stand-down expires after a shared 60-second server lifetime. Authenticated authority, idempotent CAS, privacy-safe projections/audit, schema bounds, and direct-write denial are covered before P652a/P652b.",
       "evidenceIds": "E-TICKER",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -6804,10 +6804,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.48"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "TICKER-LIFECYCLE",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

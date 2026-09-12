@@ -1229,21 +1229,25 @@ beyond the outgoing tail—or at the right edge when the remaining tail is alrea
 inside the window—so it enters at that same rate. Never add a separate entrance,
 exit, fade, easing curve or message-specific speed.
 
-Alert copy repeats until replaced; stand-down copy makes two complete passes.
-Playback identity includes the session and alert revision, and completed passes
-survive navigation and tab reloads. Future Prompt 106c moves current, queued,
-draining, dismissal, pass-count, and replay-cursor truth into one server-owned,
-revisioned stream with deterministic session-scoped message/sequence IDs.
-Concurrent automatic, Admiral, and Press send/replace/dismiss plus Red Alert
-activation/stand-down resolve once through authenticated CAS/idempotency;
-reconnect, replay, late join, and every client converge on the same order and
-tail. Local session storage may optimize presentation but cannot resurrect,
-duplicate, reorder, or authorize a bulletin. Projections and audit expose only
-copy and metadata permitted to their audience, while direct writes and stale,
-foreign, malformed, oversized, or unauthorized commands fail without advancing
-the stream. A new alert follows any cancellation copy already visible while
-unentered cancellation repetitions are dropped. The shared FleetTicker accepts
-message copy, tone, spacing and optional pass count.
+Alert copy repeats until replaced. A stand-down has an authoritative 60-second
+server lifetime; text already visible when that deadline passes finishes locally
+at the same constant speed. Playback identity includes the session and alert
+revision. Prompt 106c moves current, queued, draining, dismissal, replay-cursor,
+and server-deadline truth into one server-owned, revisioned stream with
+deterministic session-scoped message/sequence IDs. Concurrent automatic, Admiral,
+and Press send/replace/dismiss plus Red Alert activation/stand-down resolve once
+through authenticated CAS/idempotency; reconnect, replay, late join, and every
+client converge on the same server order and status. Each viewport scrolls its
+visible tails locally; no client frame or visual-pass acknowledgement writes
+shared lifecycle progress, and the replay cursor describes authoritative stream
+delivery rather than a global visual completed-pass count. Local session storage
+may optimize presentation but cannot resurrect, duplicate, reorder, or authorize
+a bulletin. Projections and audit expose only copy and metadata permitted to
+their audience, while direct writes and stale, foreign, malformed, oversized, or
+unauthorized commands fail without advancing the stream. A new alert follows any
+cancellation copy already visible while unentered cancellation repetitions are
+dropped. The shared FleetTicker accepts message copy, tone, spacing and optional
+pass target.
 Press dispatches use its long-gap mode on the same instrument. Reduced motion
 shows the current stationary wrapped copy immediately and does not retain a
 dismissed visual message.

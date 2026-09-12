@@ -2210,7 +2210,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 106
 - [x] Prompt 106a
 - [x] Prompt 106b
-- [ ] Prompt 106c
+- [x] Prompt 106c
 - [ ] Prompt 107
 - [x] Prompt 108
 - [x] Prompt 109
@@ -2961,7 +2961,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 106 — [PRESERVE] Replay lifecycle announcements.** Acceptance: reconnecting members see the latest relevant turn/phase state without duplicate visual effects.
 - **Prompt 106a — [PRESERVE] Enforce FleetBroadcast precedence.** Acceptance: urgent authoritative transmissions preempt lower-priority ticker content, queue safely, and drain once without losing a higher-priority state.
 - **Prompt 106b — [PRESERVE] Verify exact turn-transmission timing.** Acceptance: Turn 0, Turn 1, ordinary turn, lockout, and finale copy appears, fades, and replays at its specified lifecycle moment.
-- **Prompt 106c — [EXTEND] Make fleet-ticker lifecycle server-authoritative.** Acceptance: one transaction-owned stream gives automatic, Admiral, and Press transmissions deterministic session-scoped identities, revisions, precedence, current/queued/draining state, dismissals, pass counts, and replay cursors. Concurrent send/replace/dismiss and Red Alert activation/stand-down serialize once; idempotent retry, reconnect, replay, late join, and every live client converge without local resurrection, duplication, reorder, or early tail disposal. Enforce authenticated role/holder/GM authority, schemas, CAS, privacy-safe projections/audit, direct-write denial, and screen-reader announcement identity before P652a/P652b presentation work.
+- **Prompt 106c — [EXTEND] Make fleet-ticker lifecycle server-authoritative.** Acceptance: one transaction-owned stream gives automatic, Admiral, and Press transmissions deterministic session-scoped identities, revisions, precedence, current/queued/draining state, dismissals, replay cursors, and server deadlines. Concurrent send/replace/dismiss, terminal/debrief publication, and Red Alert activation/stand-down serialize once; idempotent retry, reconnect, replay, late join, and every live client converge on the same server order/status without local resurrection, duplication, reorder, or early tail disposal. The server owns order, lifecycle status, and deadlines; each viewport finishes already-visible tails locally at constant speed, with no client frame or visual-pass acknowledgement writing shared progress. Red Alert stand-down has a 60-second server lifetime. Enforce authenticated role/holder/GM authority, schemas, CAS, privacy-safe projections/audit, direct-write denial, and screen-reader announcement identity before P652a/P652b presentation work.
 - **Prompt 107 — [DECISION] Decide split-fleet clock semantics.** Acceptance: one recorded policy governs whether groups share phase windows; no group learns forbidden location state.
 - **Prompt 108 — [PRESERVE] Reconnect during a live timer.** Acceptance: the device receives current server-derived remaining time and permitted actions, discarding local timer authority.
 - **Prompt 109 — [PRESERVE] Reconcile delayed lifecycle updates.** Acceptance: clients converge on the newest phase and never expose an action from an older window.

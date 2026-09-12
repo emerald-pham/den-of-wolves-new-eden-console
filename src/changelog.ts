@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['106c'],
+    implementationProgress: {
+      completed: 125,
+      total: 747,
+      percentage: '16.73%',
+      done: 125,
+      partial: 6,
+      active: 0,
+      missing: 616,
+    },
+    changes: [
+      'Fleet broadcasts now keep automatic, Admiral, and Press transmissions in one shared server order, so urgent notices preempt lower-priority copy safely while every screen receives the same queue and visible tails finish at a steady speed. Red Alert stand-downs use a shared 60-second server window, and reconnects cannot resurrect dismissed or expired notices. 125 of 747 planned items are complete (16.73%).',
+    ],
+  },
+  {
+    version: '0.3.47',
     implementationPrompts: ['680'],
     implementationProgress: {
       completed: 124,
