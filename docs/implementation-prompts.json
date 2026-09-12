@@ -16837,14 +16837,14 @@
       "tag": "REPAIR"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "behind an explicit experiment control, keep the current non-sticky layout at scroll top and switch to a top sticky/frozen row only when the ticker's measured lower edge crosses the named `safe-area-inset-top` threshold. Reserve the ticker's exact block in flow and recompute safely on wrapped copy, live resize, rotation, keyboard, and safe-area changes; never overlap content, controls, focus outlines, session ticket, or Role Select. Preserve the non-sticky fallback and stationary reduced-motion equivalent; prove 320×844, 390×844, 844×390, short landscape, touch/keyboard/screen-reader, interruption, layout-shift, and scroll-performance evidence, with 1440×900 as the non-sticky reference. Roll back under named criterion `TICKER-STICKY-OCCLUSION` for any supported-viewport occlusion, threshold oscillation, more than one unexpected layout shift per crossing, material baseline jank, or lost/duplicate announcement; do not silently make the experiment permanent.",
-        "title": "Run a reversible mobile sticky-ticker experiment."
+        "acceptance": "On narrow-width viewports, keep the Press ticker pinned to the top from initial render and throughout scrolling, using the established responsive breakpoint and safe-area layout. Provide an accessible narrow-only hide/reveal button that collapses the ticker while leaving a reachable reveal control. A new authoritative Red Alert broadcast or airspace-restriction change temporarily expands a hidden ticker with an expansion animation; after that notification finishes its complete display, animate it back to the hidden state only if the user has not chosen to reveal it. Repeated or overlapping notifications must not refold early, replay duplicate expansion, lose announcements, or clip the moving tail. Crossing into a wide viewport forces the ticker visible, resets hidden state, and removes the hide/reveal option from visual and keyboard/accessibility navigation; wide viewports cannot hide it. Reserve and update layout space during expansion, folding, resize, rotation, keyboard and safe-area changes so the ticker and reveal control never overlap content, focus, session ticket, or Role Select. Preserve authoritative message lifecycle, non-GM DRADIS behavior, and the existing wide-screen presentation; reduced motion uses equivalent immediate state changes and readable announcements. Prove scroll-top and scrolled states, manual hide/reveal, each automatic trigger, overlapping broadcasts, refolding, narrow-wide-narrow resize, live updates/reconnect, keyboard/screen-reader operation, and nonoverlap at 320×844, 390×844, 844×390, and 1440×900.",
+        "title": "Keep the mobile Press ticker pinned with reversible hiding and alert expansion."
       },
-      "description": "Future explicit mobile experiment: keep the non-sticky baseline at scroll top and become a reserved-space sticky row only after the measured lower edge crosses `safe-area-inset-top`. Reflow around safe areas, session ticket, Role Select, controls, keyboard, resize/rotation, and wrapped/reduced-motion copy. Roll back under `TICKER-STICKY-OCCLUSION` for occlusion, oscillation, excess layout shift, material jank, or lost/duplicate announcement; never silently make it permanent.",
+      "description": "Owner-requested mobile ticker behavior supersedes the earlier optional scroll-threshold experiment: always pin the Press ticker on narrow viewports, allow narrow-only hide/reveal, temporarily expand hidden content for Red Alert or airspace-restriction changes, and refold after notification display. Wide viewports force visible state and remove hiding controls; preserve lifecycle, layout, accessibility, and non-GM DRADIS guarantees.",
       "evidenceIds": "E-TICKER",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -17318,6 +17318,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "POLISH"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Show the existing galactic orientation compass on the ship navigation jump map, matching its established labels, orientation, visual conventions, and map-coordinate meaning. Reuse the existing shared compass component or configuration where practical instead of maintaining divergent copies. Preserve jump-map coordinates, targets, zoom/pan and selection interactions, route access, and server-authoritative jump behavior. Do not change the reference compass or accepted non-GM DRADIS appearance and behavior. Verify compass alignment, readable nonoverlapping placement, and existing map controls at phone, desktop, and short-landscape sizes, with accessible semantics and reduced-motion behavior.",
+        "title": "Mirror the galactic orientation compass on the ship navigation jump map."
+      },
+      "description": "Owner-requested addition of the existing galactic orientation compass to ship navigation jump maps, preserving the reference compass, map interactions, coordinate meaning, and jump authority.",
+      "evidenceIds": "none",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "673",
+      "milestoneHints": "none",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
     }
   ],
   "retiredPromptIds": [
@@ -17349,7 +17372,7 @@
       ],
       "hardDependency": "No; only hard fields block.",
       "id": "TICKER-LIFECYCLE",
-      "order": "Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b experiment; 652b runs only after its listed lifecycle/layout prerequisites"
+      "order": "Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b mobile ticker change; 652b runs only after its listed lifecycle/layout prerequisites"
     },
     {
       "evidenceIds": [

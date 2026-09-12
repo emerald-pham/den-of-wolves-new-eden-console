@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 739 prompts complete (13.94%)**
+**103 / 740 prompts complete (13.92%)**
 
-Status breakdown: **103 done · 17 partial · 619 missing**.
+Status breakdown: **103 done · 17 partial · 620 missing**.
 
 Active prompt: **none**
 
@@ -1128,7 +1128,7 @@ release classification and evidence.
 | 651 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 652 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 652a | missing | non-feature | — | Future ticker regression repair: restore `a91a020`'s continuous-tail baseline so every Red Alert glyph stays fully visible until its painted bounds are outside the viewport. Audit `080457e` and later geometry without reverting unrelated header work; prohibit clipping, fade, truncation, early unmount, remeasurement jump, and overlap across replacement/stand-down/font-load/resize/rotation, with single announcement and reduced-motion proof. |
-| 652b | missing | non-feature | — | Future explicit mobile experiment: keep the non-sticky baseline at scroll top and become a reserved-space sticky row only after the measured lower edge crosses `safe-area-inset-top`. Reflow around safe areas, session ticket, Role Select, controls, keyboard, resize/rotation, and wrapped/reduced-motion copy. Roll back under `TICKER-STICKY-OCCLUSION` for occlusion, oscillation, excess layout shift, material jank, or lost/duplicate announcement; never silently make it permanent. |
+| 652b | missing | feature | — | Owner-requested mobile ticker behavior supersedes the earlier optional scroll-threshold experiment: always pin the Press ticker on narrow viewports, allow narrow-only hide/reveal, temporarily expand hidden content for Red Alert or airspace-restriction changes, and refold after notification display. Wide viewports force visible state and remove hiding controls; preserve lifecycle, layout, accessibility, and non-GM DRADIS guarantees. |
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 654 | missing | non-feature | — | Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1. |
 | 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
@@ -1149,6 +1149,7 @@ release classification and evidence.
 | 670 | missing | non-feature | — | Planned [REPAIR] prompt: remove the unwanted additional-GM registration lockout from Role Select and the GM console while preserving server-owned identity, legitimate authorization, existing authority, and focused denial coverage. |
 | 671 | missing | non-feature | — | Owner-requested app-wide and fleet-wide button consistency audit and repair, including both Ship View Privacy toggles; preserve behavior, privacy, authorization, and the accepted non-GM DRADIS experience. |
 | 672 | missing | feature | — | Owner-requested placement of existing right-sidebar shuttle docking history inside main ship consoles, preserving its data authority, access rules, and existing sidebar behavior. |
+| 673 | missing | feature | — | Owner-requested addition of the existing galactic orientation compass to ship navigation jump maps, preserving the reference compass, map interactions, coordinate meaning, and jump authority. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

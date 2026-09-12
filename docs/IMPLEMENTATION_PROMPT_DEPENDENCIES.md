@@ -813,7 +813,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 651 | PROVE | missing | none | none | none | none | none | none | none | none | none | M13 | Run the final release-readiness audit. |
 | 652 | EXTEND | missing | none | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Prevent FleetTicker messages from overlapping. |
 | 652a | REPAIR | missing | 106c;652 | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Keep every moving ticker glyph visible through its real exit. |
-| 652b | NEW | missing | 106c;603a;652;652a | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Run a reversible mobile sticky-ticker experiment. |
+| 652b | NEW | missing | 106c;603a;652;652a | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Keep the mobile Press ticker pinned with reversible hiding and alert expansion. |
 | 653 | EXTEND | missing | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
 | 654 | REPAIR | missing | none | M1 | none | OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
 | 655 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
@@ -834,6 +834,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 670 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Allow authorized additional GMs to register from both surfaces. |
 | 671 | POLISH | missing | none | none | none | none | none | none | none | 668 | E-671 | none | Align buttons across the fleet and application. |
 | 672 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Show shuttle docking history in main ship consoles. |
+| 673 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Mirror the galactic orientation compass on the ship navigation jump map. |
 
 ## Explicit sequence rules
 
@@ -841,7 +842,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | --- | --- | --- | --- |
 | M1-SETUP | Historical order: Prompt 004 -> the separately evidenced 0.3.12 slice (021/030/073) -> the 0.3.13 slice (051/054/075 setup) -> Prompt 020. The current ledger records this sequence as satisfied | No; this historical sequence is context, not a current readiness blocker. | E-M1-SETUP |
 | UNIFIED-ENTRY | Prompt 031a follows the current setup/readiness slice and consumes the stable seat claim/release/race/resume contract | No; its named hard prompt/contract fields govern. | E-031A;E-031A-SETUP |
-| TICKER-LIFECYCLE | Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b experiment; 652b runs only after its listed lifecycle/layout prerequisites | No; only hard fields block. | E-TICKER;E-603A |
+| TICKER-LIFECYCLE | Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b mobile ticker change; 652b runs only after its listed lifecycle/layout prerequisites | No; only hard fields block. | E-TICKER;E-603A |
 | WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645 | No; this is delivery order, not a blanket range dependency. | E-WOLF |
 | ATTACK-DRADIS | Stable 433a precedes the DRADIS consumers 351 and 353-360; deferred 605a also waits on 433a and owner approval | No; only 605a hard prompt and owner fields block. | E-ATTACK-DRADIS;E-605A |
 | ATTACK-PRESSURE | Prompts 485-494 become authoritative before attack pressure depends on them | No; do not infer a target prompt from this statement. | E-ATTACK-PRESSURE |
