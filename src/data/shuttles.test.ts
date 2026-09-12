@@ -100,6 +100,33 @@ describe('fleet shuttlebays', () => {
       .toEqual(['snn-press-shuttle', 'starlight', 'maliades', 'endeavour']);
   });
 
+  it('keeps Hummingbird printed exploration, harvesting, ownership, docking, cargo, and mission facts distinct', () => {
+    const hummingbird = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'hummingbird');
+    expect(hummingbird).toMatchObject({
+      captainRoleId: 'quellon-explorer',
+      cargoTransferTypes: ['food', 'water'],
+      cargoTransfer: 'Food and water only',
+      initialDocking: { shipId: 'quellon', dockedAt: 'SESSION START' },
+    });
+    expect(hummingbird?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Scout system',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/one system within 3 jumps of Quellon/i),
+      }),
+      expect.objectContaining({
+        name: 'Resource harvesting',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/fuelled.*roll 2d6.*food.*water/i),
+      }),
+      expect.objectContaining({
+        name: 'Away missions',
+        phase: 'Away mission',
+        effect: expect.stringMatching(/\+3.*exploration.*\+1.*mining/i),
+      }),
+    ]);
+  });
+
   it('keeps Philia registration facts distinct across repair, dismantle, docking, and ownership', () => {
     const philia = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'philia');
     expect(philia).toMatchObject({

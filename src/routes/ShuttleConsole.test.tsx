@@ -311,6 +311,10 @@ it('opens a printed shipboard shuttle for its owning role and returns by keyboar
     /docked.*quellon/i,
   );
   expect(screen.getByRole('heading', { name: 'Scout system' })).toBeInTheDocument();
+  expect(screen.getByText('Food and water only')).toBeInTheDocument();
+  expect(screen.getByText(/one system within 3 jumps of Quellon/i)).toBeInTheDocument();
+  expect(screen.getByText(/fuelled.*roll 2d6.*food.*water/i)).toBeInTheDocument();
+  expect(screen.getByText(/\+3 to exploration and \+1 to mining checks/i)).toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
   const back = screen.getByRole('link', { name: /back to quellon explorer console/i });

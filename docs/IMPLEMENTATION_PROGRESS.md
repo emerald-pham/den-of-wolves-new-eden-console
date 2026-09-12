@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**176 / 747 prompts complete (23.56%)**
+**177 / 747 prompts complete (23.69%)**
 
-Status breakdown: **176 done · 10 partial · 561 missing**.
+Status breakdown: **177 done · 10 partial · 560 missing**.
 
 Active prompt: **none**
 
@@ -708,7 +708,7 @@ release classification and evidence.
 | 266 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 267 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 268 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 269 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 269 | done | non-feature | — | Closed as a source-aligned registration and proof update. The canonical Hummingbird definition preserves the Quellon Explorer owner, SESSION START Quellon dock, one-system scout within 3 jumps of Quellon, fuelled 2d6 food/water harvesting, food-and-water-only cargo, and +3 exploration/+1 mining away-mission bonuses. Focused data, route, and server-manifest tests verify the registration and parent keyboard return. Routed Hummingbird derivative evidence establishes these facts; no primary Hummingbird PDF inspection is claimed. Later scout entitlements, scouting, harvesting, and away-mission engines remain owned by P321, P324, P390, and P393. |
 | 270 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 271 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 272 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

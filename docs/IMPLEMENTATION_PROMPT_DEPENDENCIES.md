@@ -393,7 +393,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 266 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-266 | M3;M5;M6 | Register Blacksmith completely. |
 | 267 | PRESERVE | missing | 161;162;165 | none | none | none | none | none | none | none | E-AUDIT-267 | M3;M5;M6 | Register Endeavour completely. |
 | 268 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-268 | M3;M5;M6 | Register Black Sheep completely. |
-| 269 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-269 | M3;M5;M6 | Register Hummingbird completely. |
+| 269 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-269 | M3;M5;M6 | Register Hummingbird completely. |
 | 270 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-270 | M3;M5;M6 | Register Condor completely. |
 | 271 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-271 | M3;M5;M6 | Register Chacau completely. |
 | 272 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-272 | M3;M5;M6 | Register Chepu completely. |
@@ -1097,7 +1097,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-266 | hard_prompt | 266 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
 | E-AUDIT-267 | hard_prompt | 267 -> 161;162;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Endeavour registration consumes vessel and console metadata. |
 | E-AUDIT-268 | hard_prompt | 268 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
-| E-AUDIT-269 | hard_prompt | 269 -> 161;162;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Hummingbird registration consumes the canonical vessel/statistics definition; scout entitlements are a later consumer. |
+| E-AUDIT-269 | hard_prompt | 269 -> 161;162;321 | src/data/vessels/hummingbird.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Hummingbird derivative | Hummingbird registration preserves the Quellon Explorer owner, Quellon initial dock, three-jump scout, fuelled food/water harvesting, food-and-water cargo, and +3 exploration/+1 mining mission bonuses; route and manifest proof present the configuration without claiming later mechanic execution. |
 | E-AUDIT-270 | hard_prompt | 270 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
 | E-AUDIT-271 | hard_prompt | 271 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
 | E-AUDIT-272 | hard_prompt | 272 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |

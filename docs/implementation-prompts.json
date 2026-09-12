@@ -1642,8 +1642,8 @@
     {
       "direction": "269 -> 161;162;321",
       "id": "E-AUDIT-269",
-      "language": "Hummingbird registration consumes the canonical vessel/statistics definition; scout entitlements are a later consumer.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Hummingbird registration preserves the Quellon Explorer owner, Quellon initial dock, three-jump scout, fuelled food/water harvesting, food-and-water cargo, and +3 exploration/+1 mining mission bonuses; route and manifest proof present the configuration without claiming later mechanic execution.",
+      "source": "src/data/vessels/hummingbird.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Hummingbird derivative",
       "type": "hard_prompt"
     },
     {
@@ -11401,7 +11401,7 @@
         "acceptance": "three-jump scout range, harvesting, mission bonuses, owner, dock, cargo, and route match its sheet.",
         "title": "Register Hummingbird completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Closed as a source-aligned registration and proof update. The canonical Hummingbird definition preserves the Quellon Explorer owner, SESSION START Quellon dock, one-system scout within 3 jumps of Quellon, fuelled 2d6 food/water harvesting, food-and-water-only cargo, and +3 exploration/+1 mining away-mission bonuses. Focused data, route, and server-manifest tests verify the registration and parent keyboard return. Routed Hummingbird derivative evidence establishes these facts; no primary Hummingbird PDF inspection is claimed. Later scout entitlements, scouting, harvesting, and away-mission engines remain owned by P321, P324, P390, and P393.",
       "evidenceIds": "E-AUDIT-269",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11413,7 +11413,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
