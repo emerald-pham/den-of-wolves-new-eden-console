@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**165 / 747 prompts complete (22.09%)**
+**166 / 747 prompts complete (22.22%)**
 
-Status breakdown: **165 done · 7 partial · 575 missing**.
+Status breakdown: **166 done · 7 partial · 574 missing**.
 
 Active prompt: **none**
 
@@ -1067,7 +1067,7 @@ release classification and evidence.
 | 594 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 595 | done | non-feature | — | Settings renders APP_VERSION from the shared version module, which imports package metadata. Existing version and Settings tests verify the displayed release reference without handwritten version constants. Documentation verification only; no runtime change. |
 | 596 | done | non-feature | — | Settings exposes changelog entries in a named, keyboard-focusable region with bounded viewport-relative height, independent vertical scrolling and contained overscroll. Existing Settings tests verify opening, accessible region and scroll styles. All 148 entries were verified strictly newest-first at version 0.3.57. Documentation verification only; no runtime change. |
-| 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 597 | done | non-feature | — | Verified the existing danger-red two-step ARE YOU SURE? Settings action. Confirmation invokes the shared disconnect service and replaces the route with landing; the service captures session and GM-instance cleanup before clearing local identity, mode and private state, retaining cleanup commands for offline acknowledgement. Existing cancellation, offline queue and delayed acknowledgement tests pass; the Settings test now also proves landing navigation. No runtime change. |
 | 598 | partial | feature | 0.3.6, 0.3.10 | Historical releases provide the connected/offline grace primitive and earlier no-session copy repair, but the current live joined Turn 0 surface still needs the exact `CONNECTED — AWAITING IRIS AUTHENTICATION` visible copy and accessible name/title; `NOT CONNECTED` must never describe live transport or session state. Preserve the 30-second sustained-pre-outage grace and do not remap Prompt 041. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

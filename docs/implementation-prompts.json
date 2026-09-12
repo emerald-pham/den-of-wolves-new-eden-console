@@ -4333,6 +4333,13 @@
       "language": "Settings exposes changelog entries in a named, keyboard-focusable region with bounded viewport-relative height, independent vertical scrolling and contained overscroll. Existing Settings tests verify opening, accessible region and scroll styles. All 148 entries were verified strictly newest-first at version 0.3.57. Documentation verification only; no runtime change. The focused version and AppHeader suite passed 42 tests. This is source and test evidence, not a new rendered-device or deployment claim.",
       "source": "src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/index.css (settings-changelog__entries); src/changelog.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "597",
+      "id": "E-597-VERIFIED",
+      "language": "Verified the existing danger-red two-step ARE YOU SURE? Settings action. Confirmation invokes the shared disconnect service and replaces the route with landing; the service captures session and GM-instance cleanup before clearing local identity, mode and private state, retaining cleanup commands for offline acknowledgement. Existing cancellation, offline queue and delayed acknowledgement tests pass; the Settings test now also proves landing navigation. No runtime change. Focused AppHeader, sessionService and useSessionStore verification passed 161 tests. This is source and test evidence, not a new rendered-device or deployment claim.",
+      "source": "src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/lib/sessionService.ts (disconnectFromSession); src/lib/sessionService.test.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -19583,8 +19590,8 @@
         "acceptance": "danger styling and the required two-step `ARE YOU SURE?` flow queue presence cleanup, clear local state, and reach landing.",
         "title": "Complete exact disconnect confirmation."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Verified the existing danger-red two-step ARE YOU SURE? Settings action. Confirmation invokes the shared disconnect service and replaces the route with landing; the service captures session and GM-instance cleanup before clearing local identity, mode and private state, retaining cleanup commands for offline acknowledgement. Existing cancellation, offline queue and delayed acknowledgement tests pass; the Settings test now also proves landing navigation. No runtime change.",
+      "evidenceIds": "E-597-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -19595,7 +19602,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

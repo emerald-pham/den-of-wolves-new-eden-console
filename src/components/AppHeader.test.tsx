@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
@@ -596,7 +596,14 @@ it('releases a command role through settings and returns to role selection', asy
 
 it('requires a red confirmation before disconnecting this device from its session', async () => {
   const user = userEvent.setup();
-  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  render(
+    <MemoryRouter initialEntries={['/gm']}>
+      <Routes>
+        <Route path="/gm" element={<AppHeader />} />
+        <Route path="/" element={<h1>Landing fixture</h1>} />
+      </Routes>
+    </MemoryRouter>,
+  );
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
   await user.click(screen.getByRole('button', { name: /^disconnect$/i }));
@@ -611,6 +618,7 @@ it('requires a red confirmation before disconnecting this device from its sessio
   await user.click(confirm);
 
   expect(disconnectFromSession).toHaveBeenCalledOnce();
+  expect(screen.getByRole('heading', { name: 'Landing fixture' })).toBeVisible();
 });
 
 it('cancels the disconnect confirmation when it loses focus or receives Escape', async () => {
