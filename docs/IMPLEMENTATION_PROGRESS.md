@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**136 / 747 prompts complete (18.21%)**
+**137 / 747 prompts complete (18.34%)**
 
-Status breakdown: **136 done · 7 partial · 604 missing**.
+Status breakdown: **137 done · 7 partial · 603 missing**.
 
 Active prompt: **none**
 
@@ -543,7 +543,7 @@ release classification and evidence.
 | 125 | done | non-feature | — | Prompt 125 is preserved by the existing server-owned Reactor validation: unknown or non-chargeable IDs, duplicate selections, and damaged non-Jump consoles are rejected before writes; Team-phase, destroyed or unavailable ship, authority, revision, idempotency, and replay tests cover the remaining denial paths. The printed damaged Jump Drive integrity case remains chargeable and is resolved authoritatively by the jump path. Focused domain and UI tests cover the eligibility matrix and disabled controls. No player release is required. |
 | 126 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 127 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 128 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 128 | done | non-feature | — | Existing numbered-turn transitions call expireTurnScopedResources inside the authoritative transaction, clearing every stored vessel charge/refuelling marker and shuttle fuel flag without consulting the resource owner presence. Both next-turn and terminal-debrief paths persist the cleared state. Existing callable coverage checks expiry, unchanged cargo/docking/stores, stale turn denial, terminal receipt replay, and concurrent phase observers; all 40 maintenance callable tests passed during the 2026-09-12 evidence review. No runtime change or new deployment is claimed. |
 | 129 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 130 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 131 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

@@ -228,7 +228,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 125 | PRESERVE | done | 122;138 | none | none | none | none | none | none | none | E-AUDIT-125 | M2 | Enforce console charge eligibility. |
 | 126 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-126 | M2 | Resolve both AEGIS shuttle bays. |
 | 127 | PRESERVE | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-127 | M2 | Resolve ordinary single-bay fuelling. |
-| 128 | PRESERVE | missing | 103 | none | none | none | none | none | none | none | E-AUDIT-128 | M2 | Expire unused charges and shuttle fuel. |
+| 128 | PRESERVE | done | 103 | none | none | none | none | none | none | none | E-AUDIT-128;E-128-VERIFIED | M2 | Expire unused charges and shuttle fuel. |
 | 129 | PRESERVE | missing | 127 | none | none | none | none | none | none | none | E-AUDIT-129 | M2 | Surface damaged-bay denial. |
 | 130 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Draw damage cards authoritatively. |
 | 131 | PRESERVE | missing | 130 | none | none | none | none | none | none | none | E-AUDIT-131 | M2 | Destroy a ship on empty-deck draw. |
@@ -1466,6 +1466,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-641 | hard_prompt | 641 -> 159;320;422;524;540 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The base-game proof requires the foundation, jump/system, away-mission, Wolf, and crisis scenario proofs before it can pass. |
 | E-AUDIT-651 | hard_prompt | 651 -> 641-650 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Final release-readiness audit requires every preceding release-proof prompt in the 641-650 closure set. |
 | E-123-VERIFIED | evidence | 123 -> 122;162 | functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; commit 2dbce28 | The existing production Reactor branch uses per-vessel damagedPenalty values; the client maintenance presentation agrees. Existing seven-vessel capacity tests cover damaged and upgraded boundaries, and the callable suite covers authoritative snapshot inputs, eligibility, replay and persistence. Rechecked on 2026-09-12: 7 focused capacity cases and 40 callable tests pass. No new gameplay implementation or deployment is claimed. |
+| E-128-VERIFIED | evidence | 128 -> 103 | functions/src/turnTransition.ts; functions/src/index.ts advanceTurnInTransaction; functions/src/maintenanceCallable.test.ts | Server turn transitions expire the complete stored maintenance/fuel maps independently of resource-owner connection state. Existing callable tests verify charge/fuel expiry, preserve unrelated state, reject stale advancement, replay terminal receipts without writes, and serialize phase observers. The 40-test maintenance callable suite passed on 2026-09-12; this closes existing behavior evidence only. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

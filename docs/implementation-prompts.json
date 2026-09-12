@@ -4221,6 +4221,13 @@
       "language": "The existing production Reactor branch uses per-vessel damagedPenalty values; the client maintenance presentation agrees. Existing seven-vessel capacity tests cover damaged and upgraded boundaries, and the callable suite covers authoritative snapshot inputs, eligibility, replay and persistence. Rechecked on 2026-09-12: 7 focused capacity cases and 40 callable tests pass. No new gameplay implementation or deployment is claimed.",
       "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; commit 2dbce28",
       "type": "evidence"
+    },
+    {
+      "direction": "128 -> 103",
+      "id": "E-128-VERIFIED",
+      "language": "Server turn transitions expire the complete stored maintenance/fuel maps independently of resource-owner connection state. Existing callable tests verify charge/fuel expiry, preserve unrelated state, reject stale advancement, replay terminal receipts without writes, and serialize phase observers. The 40-test maintenance callable suite passed on 2026-09-12; this closes existing behavior evidence only.",
+      "source": "functions/src/turnTransition.ts; functions/src/index.ts advanceTurnInTransaction; functions/src/maintenanceCallable.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -7395,8 +7402,8 @@
         "acceptance": "turn rollover clears them once even when their owner disconnects.",
         "title": "Expire unused charges and shuttle fuel."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-128",
+      "description": "Existing numbered-turn transitions call expireTurnScopedResources inside the authoritative transaction, clearing every stored vessel charge/refuelling marker and shuttle fuel flag without consulting the resource owner presence. Both next-turn and terminal-debrief paths persist the cleared state. Existing callable coverage checks expiry, unchanged cargo/docking/stores, stale turn denial, terminal receipt replay, and concurrent phase observers; all 40 maintenance callable tests passed during the 2026-09-12 evidence review. No runtime change or new deployment is claimed.",
+      "evidenceIds": "E-AUDIT-128;E-128-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "103",
@@ -7407,7 +7414,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
