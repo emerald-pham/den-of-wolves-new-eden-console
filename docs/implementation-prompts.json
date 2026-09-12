@@ -231,6 +231,20 @@
       "language": "The owner requested automatic empty-session pause and corrected restart to resume. Existing exact timer pause, idempotent expiry, and server-time reconnect contracts are related implementation boundaries, not new hard prerequisites.",
       "source": "Owner request - disconnect pause and first-rejoin resume, 2026-09-11",
       "type": "related/consumes"
+    },
+    {
+      "direction": "677 -> 084;284;313;328;330",
+      "id": "E-677",
+      "language": "The owner requested ship-specific visited/discovered coordinate knowledge plus independent location-content privacy. Existing ship projections, chart redaction, discovery history, and private scout results are related contracts.",
+      "source": "Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11",
+      "type": "related/consumes"
+    },
+    {
+      "direction": "678 -> 677;328;330;331;339;340",
+      "id": "E-678",
+      "language": "The owner requested all-fleet or selected-ship transmission of known scanned system details. Per-ship knowledge, private scouting, discovery persistence, audit, and communication eligibility are related contracts.",
+      "source": "Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11",
+      "type": "related/consumes"
     }
   ],
   "plan": {
@@ -17424,6 +17438,52 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "POLISH"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "A player jump map reveals a system's jump coordinates only when that particular ship has previously visited the location or has authoritatively discovered those coordinates; another ship's knowledge alone must not reveal them. Enforce the entitled projection at the data boundary, including labels, tooltips, accessibility text, search, cached/reconnect state, and serialized map data, rather than merely concealing coordinates with CSS. Add a Ship View Privacy option to hide information about what is present at a location, independently of whether its coordinates are known, using the existing privacy-control scope and permissions without deleting the ship's recorded knowledge. Preserve authorized facilitator views, valid visited/discovered history, jump targeting and server legality, and accepted non-GM DRADIS behavior. Reconcile the older fleet-group discovery projection with this owner-requested per-ship distinction. Prove different knowledge on two ships, visited and scanned reveals, unknown-coordinate denial, privacy hide/reveal, stale cache/reconnect, and accessible responsive player maps.",
+        "title": "Gate jump-map coordinates by ship knowledge and hide location details."
+      },
+      "description": "Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates.",
+      "evidenceIds": "E-677",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "677",
+      "milestoneHints": "none",
+      "relatedConsumes": "084;284;313;328;330",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "NEW"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "From a ship console, an entitled player can select a system their ship has scanned, inspect the details actually known to that ship, and transmit those details to all ships in the fleet or an explicit selected subset. The server resolves the sending ship, known system facts, current fleet/group recipient eligibility, and recipients' knowledge updates; a client cannot invent scan results, expose unknown or facilitator-only chart data, or add unauthorized recipients. Reuse the per-ship knowledge model so accepted transmitted coordinates and location facts become available to the chosen ships through their entitled projections while unselected ships receive no private data or revealing event payload. Preserve applicable communication rules, Ship View Privacy presentation choices, and existing jump/scout authority; make unavailable recipients and failed sends truthful in the UI. Record accepted sharing idempotently, survive retries/reconnect and concurrent discoveries without duplicate effects or lost knowledge, and test all/subset delivery, recipient exclusion, stale or unauthorized sends, known-fact-only payloads, and accessible responsive selection/confirmation controls.",
+        "title": "Transmit scanned system details to all fleet ships or selected ships."
+      },
+      "description": "Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge.",
+      "evidenceIds": "E-678",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "678",
+      "milestoneHints": "none",
+      "relatedConsumes": "677;328;330;331;339;340",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "NEW"
     }
   ],
   "retiredPromptIds": [

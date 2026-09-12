@@ -838,6 +838,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 674 | REPAIR | missing | none | none | none | none | none | none | none | 048;049;628 | E-674 | none | Replace ship Observer roles with unobtrusive GM viewing and confirmed write access. |
 | 675 | POLISH | missing | none | none | none | none | none | none | none | 097;098;108 | E-675 | none | Pause an empty session timer and resume when someone rejoins. |
 | 676 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Render the jump-map scanline beneath map content. |
+| 677 | NEW | missing | none | none | none | none | none | none | none | 084;284;313;328;330 | E-677 | none | Gate jump-map coordinates by ship knowledge and hide location details. |
+| 678 | NEW | missing | none | none | none | none | none | none | none | 677;328;330;331;339;340 | E-678 | none | Transmit scanned system details to all fleet ships or selected ships. |
 
 ## Explicit sequence rules
 
@@ -892,6 +894,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-671 | related/consumes | 671 -> 668 | Owner request - application-wide button conventions, 2026-09-11 | The owner expanded the queued Write Mode Off button consistency request into an application-wide and fleet-wide button audit, explicitly including Ship View Privacy controls. Coordinate the shared case without imposing a hard prerequisite. |
 | E-674 | related/consumes | 674 -> 048;049;628 | Owner request - GM ship-console observation and confirmed intervention, 2026-09-11 | The owner requested removing the ship Observer role while retaining read-only GM viewing and confirming scoped writes. Existing read-only entry, ship-change revocation, and GM-instance authority contracts remain related implementation boundaries, not new hard prerequisites. |
 | E-675 | related/consumes | 675 -> 097;098;108 | Owner request - disconnect pause and first-rejoin resume, 2026-09-11 | The owner requested automatic empty-session pause and corrected restart to resume. Existing exact timer pause, idempotent expiry, and server-time reconnect contracts are related implementation boundaries, not new hard prerequisites. |
+| E-677 | related/consumes | 677 -> 084;284;313;328;330 | Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11 | The owner requested ship-specific visited/discovered coordinate knowledge plus independent location-content privacy. Existing ship projections, chart redaction, discovery history, and private scout results are related contracts. |
+| E-678 | related/consumes | 678 -> 677;328;330;331;339;340 | Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11 | The owner requested all-fleet or selected-ship transmission of known scanned system details. Per-ship knowledge, private scouting, discovery persistence, audit, and communication eligibility are related contracts. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

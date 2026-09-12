@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 743 prompts complete (13.86%)**
+**103 / 745 prompts complete (13.83%)**
 
-Status breakdown: **103 done · 17 partial · 623 missing**.
+Status breakdown: **103 done · 17 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -1153,6 +1153,8 @@ release classification and evidence.
 | 674 | missing | feature | — | Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch. |
 | 675 | missing | feature | — | Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority. |
 | 676 | missing | non-feature | — | Owner-requested jump-map layering repair: render the scanline under other map elements while preserving animation, map behavior, accessibility, and other console rendering. |
+| 677 | missing | feature | — | Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates. |
+| 678 | missing | feature | — | Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes
