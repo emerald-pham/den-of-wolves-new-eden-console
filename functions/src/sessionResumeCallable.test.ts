@@ -153,6 +153,34 @@ it('defaults a legacy resume reply with no Press toggle to enabled', async () =>
   expect(response.session.pressEnabled).toBe(true);
 });
 
+it('projects only public fleet ticker fields on resume', async () => {
+  prepareResume(
+    { status: 'open', holderUid: null },
+    {},
+    {
+      fleetTicker: {
+        revision: 2, nextSequence: 2, replayCursor: 2,
+        internal: 'do-not-project',
+        current: {
+          id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
+          text: 'RED ALERT', tone: 'danger', gap: 'standard', createdAt: '2026-09-12T13:00:00.000Z',
+          internal: 'do-not-project',
+        },
+        queued: [], draining: [], dismissed: [],
+      },
+    },
+  );
+
+  const response = await resumeSession.run(request('s1')) as { session: Record<string, unknown> };
+  const ticker = response.session.fleetTicker as Record<string, unknown>;
+  expect(ticker).toMatchObject({
+    revision: 2,
+    current: { id: 's1:fleet-ticker:2', text: 'RED ALERT' },
+  });
+  expect(ticker).not.toHaveProperty('internal');
+  expect(ticker.current).not.toHaveProperty('internal');
+});
+
 it('omits a valid-shaped turn entity when it disagrees with the current phase or configured limit', async () => {
   prepareResume(
     { status: 'open', holderUid: null },

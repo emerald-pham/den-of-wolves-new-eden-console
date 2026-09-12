@@ -63,7 +63,41 @@ it('passes the authoritative current identity and queued precedence to the ticke
     queue?: readonly { id: string; serverAuthoritative?: boolean }[];
   };
   expect(props.message).toMatchObject({
-    id: 's1:fleet-ticker:3', serverAuthoritative: true, pressText: 'SNN // REPORT',
+    id: 's1:fleet-ticker:3', serverAuthoritative: true,
   });
-  expect(props.queue ?? []).toEqual([]);
+  expect(props.message).not.toHaveProperty('pressText');
+  expect(props.queue).toMatchObject([
+    { id: 's1:fleet-ticker:2', serverAuthoritative: true },
+  ]);
+});
+
+it('does not resurrect legacy copy after an authoritative stream is empty', () => {
+  useSessionStore.getState().setIdentity(
+    {
+      id: 's1', name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'u1',
+      createdAt: '', updatedAt: '',
+      pressDispatch: {
+        revision: 1,
+        dispatches: [{ id: 'press-1', text: 'SNN // OLD COPY' }],
+      },
+      fleetTicker: {
+        revision: 8,
+        nextSequence: 4,
+        replayCursor: 4,
+        current: null,
+        queued: [],
+        draining: [],
+        dismissed: [{
+          id: 's1:fleet-ticker:4', sequence: 4, revision: 8,
+          dismissedAt: '2026-09-12T13:00:00.000Z',
+        }],
+      },
+    },
+    { uid: 'u1', sessionId: 's1', displayName: 'Admiral', role: 'player', seatId: null,
+      activeConsoleRoleId: 'admiral', joinedAt: '' },
+  );
+
+  render(<FleetBroadcast />);
+  const props = (renderTicker.mock.calls[0] as unknown[] | undefined)?.[0] as Record<string, unknown>;
+  expect(props).toBeUndefined();
 });

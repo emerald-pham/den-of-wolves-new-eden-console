@@ -207,6 +207,7 @@ import {
   FLEET_TICKER_PRIORITIES,
   publishFleetTicker,
   standDownExpiry,
+  fleetTickerState,
   type FleetTickerState,
   type FleetTickerTransmission,
 } from './fleetTickerState';
@@ -275,17 +276,14 @@ function fleetTickerStateFromLegacy(
   const alert = session.get('fleetRedAlert') as Record<string, unknown> | undefined;
   const alertRevision = typeof alert?.revision === 'number' && Number.isSafeInteger(alert.revision)
     ? alert.revision : 0;
-  if (alertRevision > 0) {
-    const active = alert?.active === true;
-    state = publishFleetTicker(sessionId, state, active ? {
+  // A legacy inactive alert has no persisted server deadline. Keep it
+  // streamless until its next authoritative command supplies one.
+  if (alertRevision > 0 && alert?.active === true) {
+    state = publishFleetTicker(sessionId, state, {
       source: 'admiral', priority: FLEET_TICKER_PRIORITIES.admiral,
       text: `ICSN ADMIRAL // ${(typeof alert?.text === 'string' && alert.text.length > 0
         ? alert.text : 'RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS').toUpperCase()}`,
       tone: 'danger', sourceId: `red-alert:${alertRevision}`,
-    } : {
-      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.admiral,
-      text: FLEET_TICKER_COPY.standDown, tone: 'normal', passCount: 2,
-      expiresAt: standDownExpiry(now), sourceId: `red-alert:${alertRevision}`,
     }, now);
   }
   const debrief = session.get('debriefMode') as Record<string, unknown> | undefined;
@@ -303,12 +301,27 @@ function fleetTickerStateFromLegacy(
 function fleetTickerForSession(
   sessionId: string,
   session: DocumentSnapshot,
+): FleetTickerState {
+  const stored = session.get('fleetTicker');
+  return stored === undefined
+    ? emptyFleetTickerState()
+    : fleetTickerState(stored);
+}
+
+/**
+ * Mutations may migrate the still-legacy producer fields as part of their
+ * source transaction. Public responses stay streamless until that write so a
+ * reconnect cannot invent a new finite deadline from its local request time.
+ */
+function fleetTickerForMutation(
+  sessionId: string,
+  session: DocumentSnapshot,
   now: string,
 ): FleetTickerState {
   const stored = session.get('fleetTicker');
   return stored === undefined
     ? fleetTickerStateFromLegacy(sessionId, session, now)
-    : (stored as FleetTickerState);
+    : fleetTickerState(stored);
 }
 
 function publishSessionFleetTicker(
@@ -317,7 +330,7 @@ function publishSessionFleetTicker(
   input: FleetTickerTransmission,
   now: string,
 ): FleetTickerState {
-  return publishFleetTicker(sessionId, fleetTickerForSession(sessionId, session, now), input, now);
+  return publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, now), input, now);
 }
 
 type TurnAdvanceEvent = Readonly<{
@@ -1098,16 +1111,17 @@ function advanceTurnInTransaction(
   };
   const turnPhase = startTurnPhase(nextTurn);
   const tickerTime = transition?.transitionServerTime ?? new Date().toISOString();
-  const fleetTicker = publishFleetTicker(
-    sessionId,
-    fleetTickerForSession(sessionId, session, tickerTime),
-    {
+  const fleetTicker = maxTurn !== undefined && currentTurn >= maxTurn
+    ? publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, tickerTime), {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.debrief,
+      text: FLEET_TICKER_COPY.finale, tone: 'normal', gap: 'long',
+      sourceId: 'debrief:1',
+    }, tickerTime)
+    : publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, tickerTime), {
       source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
       text: FLEET_TICKER_COPY.airspaceClosed, tone: 'normal', gap: 'long',
       sourceId: `airspace:${nextTurn}:restricted`,
-    },
-    tickerTime,
-  );
+    }, tickerTime);
   const turnState = nextTurnState(session, turnPhase, new Date().toISOString());
   const expiredTurnResources = currentTurn >= 1
     ? expireTurnScopedResources(
@@ -1122,6 +1136,7 @@ function advanceTurnInTransaction(
       turnPhase: FieldValue.delete(),
       turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(),
+      fleetTicker,
       ...(expiredTurnResources
         ? {
           maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -4136,7 +4151,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-        fleetTicker: fleetTickerForSession(sessionId, sessionSnap, new Date().toISOString()),
+        fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
         activeRoleIds,
         shuttleDockings,
         shuttleVisitLog,
@@ -4326,7 +4341,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-      fleetTicker: fleetTickerForSession(sessionId, sessionSnap, new Date().toISOString()),
+      fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
       activeRoleIds,
       shuttleDockings,
       shuttleVisitLog,
@@ -5228,7 +5243,7 @@ export const setDebriefMode = onCall<{
       }, transitionServerTime)
       : dismissFleetTickerSource(
         setting.sessionId,
-        fleetTickerForSession(setting.sessionId, session, transitionServerTime),
+        fleetTickerForMutation(setting.sessionId, session, transitionServerTime),
         `debrief:${current.revision}`,
         transitionServerTime,
       );
@@ -8098,7 +8113,7 @@ export const dismissPressDispatch = onCall<{
     };
     const fleetTicker = dismissFleetTickerSource(
       data.sessionId,
-      fleetTickerForSession(data.sessionId, session, serverTime),
+      fleetTickerForMutation(data.sessionId, session, serverTime),
       data.dispatchId,
       serverTime,
     );

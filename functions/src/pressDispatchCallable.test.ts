@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), receipts: new Map<string, Record<string, unknown>>(),
   role: 'player', post: 'press-officer', connected: true,
   exists: true, phase: 'active', currentTurn: 1, pressDispatch: undefined as unknown,
+  fleetTicker: undefined as unknown,
   turnPhase: undefined as unknown,
   activeRoleIds: undefined as readonly string[] | undefined,
   pressEnabled: true,
@@ -51,7 +52,7 @@ function expectAuthoritativeTicker(update: Record<string, unknown>, sourceId: st
 beforeEach(() => {
   Object.assign(mock, {
     role: 'player', post: 'press-officer', connected: true, exists: true,
-    phase: 'active', currentTurn: 1, pressDispatch: undefined, turnPhase: undefined,
+    phase: 'active', currentTurn: 1, pressDispatch: undefined, fleetTicker: undefined, turnPhase: undefined,
     activeRoleIds: undefined,
     pressEnabled: true,
   });
@@ -75,6 +76,7 @@ beforeEach(() => {
         currentTurn: mock.currentTurn,
         fleetRedAlert: { active: true, revision: 1 },
         pressDispatch: mock.pressDispatch,
+        fleetTicker: mock.fleetTicker,
         turnPhase: mock.turnPhase,
         activeRoleIds: mock.activeRoleIds,
         pressEnabled: mock.pressEnabled,
@@ -167,6 +169,42 @@ it('dismisses only the selected active dispatch and advances the collection revi
   }));
   const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
   expectAuthoritativeTicker(update, 'dispatch-1');
+});
+
+it('records dismissal for a Press copy already in the authoritative drain', async () => {
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }],
+    revision: 1,
+  };
+  mock.fleetTicker = {
+    revision: 2,
+    nextSequence: 2,
+    replayCursor: 2,
+    current: {
+      id: 's1:fleet-ticker:2', sequence: 2, source: 'automatic', priority: 100,
+      text: 'FINALE', tone: 'normal', gap: 'long', sourceId: 'debrief:1',
+      createdAt: '2026-09-12T13:00:00.000Z',
+    },
+    queued: [],
+    draining: [{
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
+      text: 'SNN // First report', tone: 'normal', gap: 'long', sourceId: 'dispatch-1',
+      createdAt: '2026-09-12T12:59:00.000Z',
+    }],
+    dismissed: [],
+  };
+
+  await dismissPressDispatch.run(request({
+    sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 1,
+  }));
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    revision: 3,
+    current: { id: 's1:fleet-ticker:2' },
+    draining: [{ id: 's1:fleet-ticker:1', sourceId: 'dispatch-1' }],
+    dismissed: [{ id: 's1:fleet-ticker:1', revision: 3 }],
+  });
 });
 
 it('denies other roles, disconnected players, and unsigned callers', async () => {

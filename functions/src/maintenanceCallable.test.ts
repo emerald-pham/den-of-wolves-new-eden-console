@@ -11,6 +11,7 @@ const mock = vi.hoisted(() => ({
   turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
+  fleetTicker: undefined as unknown,
   commandReceipts: {} as Record<string, Record<string, unknown>>,
   race: undefined as {
     attempts: number;
@@ -158,6 +159,7 @@ vi.mock('firebase-admin/firestore', () => ({
             turnPhase: mock.turnPhase,
             turnState: mock.turnState,
             turnStartAnnouncement: mock.turnStartAnnouncement,
+            fleetTicker: mock.fleetTicker,
             maintenanceCycles: mock.maintenanceCycles,
             shuttleFuelled: mock.shuttleFuelled,
             shipSurvivors: mock.shipSurvivors,
@@ -212,6 +214,7 @@ vi.mock('firebase-admin/firestore', () => ({
               if ('turnPhase' in fields) mock.turnPhase = fields.turnPhase;
               if ('turnState' in fields) mock.turnState = fields.turnState;
               if ('turnStartAnnouncement' in fields) mock.turnStartAnnouncement = fields.turnStartAnnouncement;
+              if ('fleetTicker' in fields) mock.fleetTicker = fields.fleetTicker;
               if ('maintenanceCycles' in fields) mock.maintenanceCycles = fields.maintenanceCycles as Record<string, unknown>;
               if ('shuttleFuelled' in fields) mock.shuttleFuelled = fields.shuttleFuelled as Record<string, boolean>;
               if ('fleetSurvivorPopulationAdjustment' in fields) {
@@ -278,6 +281,7 @@ beforeEach(() => {
   mock.dioneEnabled = true;
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
+  mock.fleetTicker = undefined;
   mock.turnPhase = undefined;
   mock.turnState = undefined;
   mock.turnLimit = 6;
@@ -348,6 +352,7 @@ beforeEach(() => {
           turnPhase: mock.turnPhase,
           turnState: mock.turnState,
           pressDispatch: mock.pressDispatch,
+          fleetTicker: mock.fleetTicker,
           pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
         };
@@ -963,6 +968,15 @@ it('freezes the configured final turn in debrief and replays the terminal receip
     turnPhase: 'delete-field',
     turnState: 'delete-field',
     turnStartAnnouncement: 'delete-field',
+    fleetTicker: expect.objectContaining({
+      revision: 2,
+      current: expect.objectContaining({
+        source: 'automatic',
+        priority: 100,
+        text: expect.stringContaining('CREDITS //'),
+        sourceId: 'debrief:1',
+      }),
+    }),
   }));
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/commandReceipts/advance-test-final',

@@ -253,17 +253,21 @@ export function dismissFleetTicker(
   const normalized = pruneExpired(fleetTickerState(value), now);
   const queuedTarget = normalized.queued.find((entry) => entry.id === messageId);
   const queued = normalized.queued.filter((entry) => entry.id !== messageId);
-  const target = normalized.current?.id === messageId ? normalized.current : null;
+  const currentTarget = normalized.current?.id === messageId ? normalized.current : null;
+  const drainingTarget = normalized.draining.find((entry) => entry.id === messageId) ?? null;
+  const target = currentTarget ?? drainingTarget;
   if (!target && queued.length === normalized.queued.length) return normalized;
   const revision = normalized.revision + 1;
   const [next, ...remaining] = sortQueue(queued);
   return {
     ...normalized,
     revision,
-    replayCursor: Math.max(normalized.replayCursor, target?.sequence ?? 0),
-    current: target ? (next ?? null) : normalized.current,
-    queued: target ? remaining : queued,
-    draining: withDraining(normalized, target),
+    replayCursor: Math.max(normalized.replayCursor, target?.sequence ?? queuedTarget?.sequence ?? 0),
+    current: currentTarget ? (next ?? null) : normalized.current,
+    queued: currentTarget ? remaining : queued,
+    // A draining item has already left current/queued. Keep it in the drain
+    // so viewers which have started the pass can finish their local tail.
+    draining: currentTarget ? withDraining(normalized, currentTarget) : normalized.draining,
     dismissed: [...normalized.dismissed, {
       id: messageId,
       sequence: target?.sequence ?? queuedTarget?.sequence ?? 0,
@@ -281,7 +285,8 @@ export function dismissFleetTickerSource(
   now: string,
 ): FleetTickerState {
   const state = fleetTickerState(value);
-  const target = [state.current, ...state.queued].find((entry) => entry?.sourceId === sourceId);
+  const target = [state.current, ...state.queued, ...state.draining]
+    .find((entry) => entry?.sourceId === sourceId);
   return target ? dismissFleetTicker(sessionId, state, target.id, now) : state;
 }
 

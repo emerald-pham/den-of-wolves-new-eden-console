@@ -90,34 +90,16 @@ export default function FleetBroadcast() {
   if (!session || !me) return null;
   const authoritativeTicker = fleetTickerState(session.fleetTicker);
   if (session.fleetTicker && authoritativeTicker.revision > 0) {
-    const currentIsRepeatingAlert = authoritativeTicker.current?.source === 'admiral' &&
-      authoritativeTicker.current.passCount === undefined &&
-      authoritativeTicker.current.expiresAt === undefined;
-    const activePressText = currentIsRepeatingAlert
-      ? authoritativeTicker.queued
-        .filter((entry) => entry.source === 'press')
-        .map((entry) => entry.text)
-        .join(' // ')
-      : '';
     const streamMessage = authoritativeTicker.current
-      ? displayFleetTickerMessage(authoritativeTicker.current, activePressText || undefined) : undefined;
+      ? displayFleetTickerMessage(authoritativeTicker.current) : undefined;
     const queue = authoritativeTicker.queued
-      .filter((entry) => !(currentIsRepeatingAlert && entry.source === 'press'))
       .map((entry) => displayFleetTickerMessage(entry));
-    const currentSourceId = authoritativeTicker.current?.sourceId;
-    const fallback = streamMessage && currentSourceId?.startsWith('red-alert:') &&
-      // A queued Press dispatch is already the next authoritative bulletin;
-      // using it as the compatibility fallback would duplicate the copy.
-      !authoritativeTicker.queued.some((entry) => entry.source === 'press')
-      ? standingMessage : undefined;
     if (streamMessage || queue.length > 0) {
       return <FleetTicker
         {...(streamMessage ? { message: streamMessage } : {})}
-        {...(fallback ? { fallback } : {})}
         {...(queue.length > 0 ? { queue } : {})}
       />;
     }
-    if (standingMessage) return <FleetTicker message={standingMessage} />;
     return null;
   }
   if (debriefMode.active) {

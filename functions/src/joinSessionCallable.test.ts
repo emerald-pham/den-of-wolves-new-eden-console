@@ -144,6 +144,60 @@ it('omits a valid-shaped turn entity when it disagrees with the current phase or
   expect(response.session).not.toHaveProperty('turnState');
 });
 
+it('projects only the public fleet ticker fields on join', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one', phase: 'active', currentTurn: 1,
+      fleetTicker: {
+        revision: 2, nextSequence: 2, replayCursor: 2,
+        internal: 'do-not-project',
+        current: {
+          id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
+          text: 'RED ALERT', tone: 'danger', gap: 'standard', createdAt: '2026-09-12T13:00:00.000Z',
+          internal: 'do-not-project',
+        },
+        queued: [], draining: [], dismissed: [],
+      },
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
+  const ticker = response.session.fleetTicker as Record<string, unknown>;
+  expect(ticker).toMatchObject({
+    revision: 2,
+    current: { id: 's1:fleet-ticker:2', text: 'RED ALERT' },
+  });
+  expect(ticker).not.toHaveProperty('internal');
+  expect(ticker.current).not.toHaveProperty('internal');
+});
+
+it('keeps a legacy inactive alert streamless until its server command writes a deadline', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one', phase: 'active', currentTurn: 1,
+      fleetRedAlert: { active: false, revision: 1 },
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
+  expect(response.session.fleetTicker).toEqual({
+    revision: 0, nextSequence: 0, replayCursor: 0,
+    current: null, queued: [], draining: [], dismissed: [],
+  });
+});
+
 it('returns only the public session projection when the persisted root has private-shaped fields', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
