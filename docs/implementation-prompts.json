@@ -4228,6 +4228,13 @@
       "language": "Server turn transitions expire the complete stored maintenance/fuel maps independently of resource-owner connection state. Existing callable tests verify charge/fuel expiry, preserve unrelated state, reject stale advancement, replay terminal receipts without writes, and serialize phase observers. The 40-test maintenance callable suite passed on 2026-09-12; this closes existing behavior evidence only.",
       "source": "functions/src/turnTransition.ts; functions/src/index.ts advanceTurnInTransaction; functions/src/maintenanceCallable.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "130",
+      "id": "E-130-VERIFIED",
+      "language": "Existing server resolver and addShipDamage transaction select, apply and log a permitted result without publishing future card order. Tests cover damage effects, recycling, empty decks, invalid decks, authorization and retry-stable randomness/event identity. Verified 34 damage tests and 66 emulator-backed rules tests on 2026-09-12; rules explicitly deny strangers and all client writes to draw results.",
+      "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/index.ts addShipDamage; functions/src/shipDamageCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -7448,8 +7455,8 @@
         "acceptance": "the server chooses the next card, applies its console effect, exposes the permitted result, and hides remaining order.",
         "title": "Draw damage cards authoritatively."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Existing damage resolution selects the remaining card with server randomness fixed outside transaction retries, persists the affected system and permitted draw result atomically, handles armour recycling and empty decks, and does not persist a future deck order in the client-visible damage state. The GM damage control and gameplay maintenance share this resolver. Verified 34 existing damage/helper/callable tests and all 66 Firestore rules tests, including member-only drawn-card reads and denial of player/GM direct writes. This records existing behavior, not a new runtime release.",
+      "evidenceIds": "E-130-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -7460,7 +7467,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

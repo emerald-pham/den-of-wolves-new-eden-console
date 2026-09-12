@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**137 / 747 prompts complete (18.34%)**
+**138 / 747 prompts complete (18.47%)**
 
-Status breakdown: **137 done · 7 partial · 603 missing**.
+Status breakdown: **138 done · 7 partial · 602 missing**.
 
 Active prompt: **none**
 
@@ -545,7 +545,7 @@ release classification and evidence.
 | 127 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 128 | done | non-feature | — | Existing numbered-turn transitions call expireTurnScopedResources inside the authoritative transaction, clearing every stored vessel charge/refuelling marker and shuttle fuel flag without consulting the resource owner presence. Both next-turn and terminal-debrief paths persist the cleared state. Existing callable coverage checks expiry, unchanged cargo/docking/stores, stale turn denial, terminal receipt replay, and concurrent phase observers; all 40 maintenance callable tests passed during the 2026-09-12 evidence review. No runtime change or new deployment is claimed. |
 | 129 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 130 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 130 | done | non-feature | — | Existing damage resolution selects the remaining card with server randomness fixed outside transaction retries, persists the affected system and permitted draw result atomically, handles armour recycling and empty decks, and does not persist a future deck order in the client-visible damage state. The GM damage control and gameplay maintenance share this resolver. Verified 34 existing damage/helper/callable tests and all 66 Firestore rules tests, including member-only drawn-card reads and denial of player/GM direct writes. This records existing behavior, not a new runtime release. |
 | 131 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 132 | done | non-feature | — | Focused `addShipDamage` production-callable proof in `functions/src/shipDamageCallable.test.ts` covers both AEGIS Armoured Hull cards, survivor preservation, conditional recycling when another damage card remains, final-card retention, and transaction retry-stable randomness/audit identity; no production-path change. |
 | 133 | done | non-feature | — | Focused `adjustShipPopulation` production-callable proof in `functions/src/shipPopulationCallables.test.ts` covers all seven printed tracks, next printed values, endpoints, off-track denial, threshold alert creation, and pending-alert no-write behavior; no production-path change. |
