@@ -143,6 +143,13 @@ import {
 } from './resources';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
 import {
+  INITIAL_FLEET_GROUP_ID,
+  fleetGroupRecord,
+  initialFleetGroup,
+  withFleetGroupVessels,
+  type FleetGroupRecord,
+} from './fleetGroups';
+import {
   ROLE_OWNED_CRAFT_CATALOG,
   roleOwnedCraftForRoles,
   roleOwnedCraftManifestForSetup,
@@ -563,6 +570,89 @@ function authoritativeActiveVesselIdsForWolfPreparation(session: DocumentSnapsho
     );
   }
   return [...stored] as string[];
+}
+
+function fleetGroupRef(sessionId: string) {
+  return db.doc(`sessions/${sessionId}/fleetGroups/${INITIAL_FLEET_GROUP_ID}`);
+}
+
+function activeFleetGroupMemberUids(players: readonly DocumentSnapshot[]): readonly string[] {
+  const memberUids = players
+    .filter((player) => player.exists && !isKickedPlayer(player))
+    .map((player) => player.id)
+    .filter((uid) => uid.length > 0);
+  if (new Set(memberUids).size !== memberUids.length) {
+    throw commandError(
+      'failed-precondition',
+      'The session contains duplicate player identities; fleet-group membership is unavailable.',
+      'conflict',
+    );
+  }
+  return memberUids;
+}
+
+function lifecycleFleetGroupMemberUids(storedGroup: DocumentSnapshot, uid: string): readonly string[] {
+  const parsed = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
+  return [...new Set([...(parsed?.memberUids ?? []), uid])];
+}
+
+/**
+ * Reconcile the one initial group from authoritative session/player records.
+ * This is migration-safe for legacy sessions while keeping all future split
+ * mechanics outside this prompt.
+ */
+function ensureInitialFleetGroup(
+  tx: Transaction,
+  sessionId: string,
+  activeVesselIds: readonly string[],
+  memberUids: readonly string[],
+  storedGroup: DocumentSnapshot,
+): FleetGroupRecord {
+  if (new Set(memberUids).size !== memberUids.length || memberUids.some((uid) => uid.length === 0)) {
+    throw commandError(
+      'failed-precondition',
+      'The session contains duplicate player identities; fleet-group membership is unavailable.',
+      'conflict',
+    );
+  }
+  const parsed = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
+  if (storedGroup.exists && !parsed) {
+    throw commandError(
+      'failed-precondition',
+      'The stored fleet-group identity is malformed; refresh before continuing.',
+      'malformed-input',
+    );
+  }
+  if (parsed && parsed.id !== INITIAL_FLEET_GROUP_ID) {
+    throw commandError(
+      'failed-precondition',
+      'The stored initial fleet-group identity is invalid; refresh before continuing.',
+      'malformed-input',
+    );
+  }
+  let group = parsed ?? initialFleetGroup(activeVesselIds, memberUids);
+  if (parsed && JSON.stringify(parsed.vesselIds) !== JSON.stringify(activeVesselIds)) {
+    group = withFleetGroupVessels(group, activeVesselIds);
+  }
+  if (JSON.stringify(group.memberUids) !== JSON.stringify(memberUids)) {
+    group = { ...group, memberUids: [...memberUids] };
+  }
+  const changed = !storedGroup.exists || JSON.stringify(parsed) !== JSON.stringify(group);
+  if (!storedGroup.exists) {
+    tx.set(fleetGroupRef(sessionId), {
+      ...group,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } else if (changed) {
+    tx.update(fleetGroupRef(sessionId), {
+      id: group.id,
+      vesselIds: [...group.vesselIds],
+      memberUids: [...group.memberUids],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return group;
 }
 
 function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[]): Record<string, number> {
@@ -1645,6 +1735,7 @@ export const createSession = onCall<{
       const setup = canonicalSessionSetup(creation.configuration, activeRoleIds);
       const stableSeats = stableSeatsForRoles(activeRoleIds);
       const composition = initialSessionComposition(setup);
+      const group = initialFleetGroup(setup.activeVesselIds, [uid]);
       const shipGalacticCoordinates = activeVesselRecord(
         INITIAL_SHIP_GALACTIC_COORDINATES,
         setup.activeVesselIds,
@@ -1707,6 +1798,7 @@ export const createSession = onCall<{
           activeConsoleRoleId: null,
           assignedRoleId: null,
           shipPreferenceId: null,
+          fleetGroupId: group.id,
           joinedAt: now,
         },
       };
@@ -1815,6 +1907,11 @@ export const createSession = onCall<{
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        tx.set(fleetGroupRef(sessionRef.id), {
+          ...group,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         for (const seat of stableSeats) {
           tx.set(db.doc(`sessions/${sessionRef.id}/seats/${seat.id}`), {
             ...seat,
@@ -1831,6 +1928,7 @@ export const createSession = onCall<{
           activeConsoleRoleId: null,
           assignedRoleId: null,
           shipPreferenceId: null,
+          fleetGroupId: group.id,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
@@ -2350,6 +2448,7 @@ export const confirmSetup = onCall<{
   const requestRef = db.doc(`sessions/${command.sessionId}/setupMutationRequests/${command.requestId}`);
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/setup-confirm-${command.requestId}`);
+  const groupRef = fleetGroupRef(command.sessionId);
   const markerFingerprint: CommandFingerprint = {
     action: 'confirm-setup',
     sessionId: command.sessionId,
@@ -2376,11 +2475,12 @@ export const confirmSetup = onCall<{
       command.activeRoleIds,
       command.expectedSetupRevision,
     );
-    const [prior, marker, authority, legacyEvent] = await Promise.all([
+    const [prior, marker, authority, legacyEvent, storedGroup] = await Promise.all([
       tx.get(requestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
       tx.get(eventRef),
+      tx.get(groupRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, command.sessionId, command.requestId, 'setup', [requestRef.path, eventRef.path],
@@ -2435,6 +2535,13 @@ export const confirmSetup = onCall<{
     const currentRoleIds = sessionActiveRoleIds(authority.session);
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
+    ensureInitialFleetGroup(
+      tx,
+      command.sessionId,
+      setup.activeVesselIds,
+      lifecycleFleetGroupMemberUids(storedGroup, uid),
+      storedGroup,
+    );
     const currentActiveVesselIds = activeVesselIdsForSession(authority.session);
     const nextActiveVesselIds = setup.activeVesselIds;
     const nextShipResources = reconcileActiveVesselMap(
@@ -2874,6 +2981,7 @@ export const startGame = onCall<{
   const instancesRef = db.collection(`sessions/${start.sessionId}/gmInstances`);
   const seatsRef = db.collection(`sessions/${start.sessionId}/seats`);
   const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
+  const fleetGroupRefForStart = fleetGroupRef(start.sessionId);
   const censusRef = db.doc(`sessions/${start.sessionId}/loyaltyCensus/current`);
   const missionDeckRef = db.doc(`sessions/${start.sessionId}/serverState/missionDeck`);
   const craftOwnershipManifestRef = db.doc(`sessions/${start.sessionId}/craftOwnership/manifest`);
@@ -2891,7 +2999,7 @@ export const startGame = onCall<{
   let candidateMissionDeck: MissionDeckState | undefined;
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot, storedGroup] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -2903,6 +3011,7 @@ export const startGame = onCall<{
       tx.get(craftOwnershipManifestRef),
       tx.get(censusRef),
       tx.get(missionDeckRef),
+      tx.get(fleetGroupRefForStart),
     ]);
     await rejectForeignLegacyM1Command(
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
@@ -3124,6 +3233,14 @@ export const startGame = onCall<{
     // successful transaction persists it.
     const missionDeckState = persistedMissionDeck ?? (candidateMissionDeck ??=
       missionDeckStateFromCards(shuffledMissionDeck()));
+
+    ensureInitialFleetGroup(
+      tx,
+      start.sessionId,
+      lockedSetup.activeVesselIds,
+      activeFleetGroupMemberUids(players.docs),
+      storedGroup,
+    );
 
     const committedSetupRevision = start.expectedSetupRevision + 1;
     const gmUids = [...new Set(effectiveLiveGmInstances
@@ -4633,10 +4750,11 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const resumedSeatId = await db.runTransaction(async (tx) => {
-      const [sessionDoc, player, membership] = await Promise.all([
+      const [sessionDoc, player, membership, storedGroup] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
+        tx.get(fleetGroupRef(sessionId)),
       ]);
       if (!sessionDoc.exists) throw new HttpsError('not-found', 'No session with that code.');
       if (sessionDoc.get('phase') === 'closed') {
@@ -4665,8 +4783,20 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         );
       }
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
-      await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
+      const setup = await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
+      const memberUids = lifecycleFleetGroupMemberUids(storedGroup, uid);
+      const group = ensureInitialFleetGroup(
+        tx, sessionId, setup.activeVesselIds, memberUids, storedGroup,
+      );
       if (player.exists) {
+        const storedGroupId = player.get('fleetGroupId');
+        if (storedGroupId !== undefined && storedGroupId !== group.id) {
+          throw commandError(
+            'failed-precondition',
+            'This player belongs to a different fleet group; refresh before reconnecting.',
+            'conflict',
+          );
+        }
         const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
         const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
         const storedPressHolderUid = sessionDoc.get('pressHolderUid');
@@ -4676,6 +4806,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
         );
         tx.update(playerRef, {
+          fleetGroupId: group.id,
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
           ...(releasePress ? releasedPressFields(player) : {}),
@@ -4704,6 +4835,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           role: 'player',
           seatId: null,
           activeConsoleRoleId: null,
+          fleetGroupId: group.id,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
@@ -4801,6 +4933,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
         role: playerSnap.get('role') as string,
         seatId: resumedSeatId,
+        ...(typeof playerSnap.get('fleetGroupId') === 'string'
+          ? { fleetGroupId: playerSnap.get('fleetGroupId') } : {}),
         ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
           ? { assignedRoleId: playerSnap.get('assignedRoleId') } : {}),
         ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
@@ -4840,10 +4974,11 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const resumedSeatId = await db.runTransaction(async (tx) => {
-    const [currentSession, currentPlayer, membership] = await Promise.all([
+    const [currentSession, currentPlayer, membership, storedGroup] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
+      tx.get(fleetGroupRef(sessionId)),
     ]);
     if (!currentSession.exists || currentSession.get('deletingAt')) {
       throw new HttpsError('not-found', 'That session no longer exists.');
@@ -4874,7 +5009,22 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       );
     }
     if (membership.exists && !membershipActive) tx.delete(membershipRef);
-    await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
+    const setup = await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
+    const group = ensureInitialFleetGroup(
+      tx,
+      sessionId,
+      setup.activeVesselIds,
+      lifecycleFleetGroupMemberUids(storedGroup, uid),
+      storedGroup,
+    );
+    const storedGroupId = currentPlayer.get('fleetGroupId');
+    if (storedGroupId !== undefined && storedGroupId !== group.id) {
+      throw commandError(
+        'failed-precondition',
+        'This player belongs to a different fleet group; refresh before reconnecting.',
+        'conflict',
+      );
+    }
     const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
     const currentPressAuthority = currentPlayer.get('activeConsoleRoleId') === 'press-officer';
     const storedPressHolderUid = currentSession.get('pressHolderUid');
@@ -4884,6 +5034,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
     tx.update(playerRef, {
+      fleetGroupId: group.id,
       connected: true,
       lastSeenAt: FieldValue.serverTimestamp(),
       ...(releasePress ? releasedPressFields(currentPlayer) : {}),
@@ -4992,6 +5143,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
       role: playerSnap.get('role') as string,
       seatId: resumedSeatId,
+      ...(typeof playerSnap.get('fleetGroupId') === 'string'
+        ? { fleetGroupId: playerSnap.get('fleetGroupId') } : {}),
       ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
         ? { assignedRoleId: playerSnap.get('assignedRoleId') } : {}),
       ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null

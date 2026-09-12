@@ -191,6 +191,16 @@ describe('role-private brief boundary', () => {
 });
 
 describe('session header', () => {
+  it('keeps fleet-group membership and vessel tuples server-only', async () => {
+    const group = `${SESSION}/fleetGroups/fleet-1`;
+    await assertFails(getDoc(doc(as('alice'), group)));
+    await assertFails(getDoc(doc(as('gm1'), group)));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/fleetGroups`)));
+    await assertFails(setDoc(doc(as('gm1'), group), {
+      id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['gm1'],
+    }));
+  });
+
   it('exposes only the known loyalty census path to a connected GM', async () => {
     const gmCensus = doc(as('gm1'), `${SESSION}/loyaltyCensus/current`);
     const playerCensus = doc(as('alice'), `${SESSION}/loyaltyCensus/current`);
@@ -911,6 +921,7 @@ describe('complete server-owned denial matrix', () => {
       SESSION + '/shipConfetti/aegis',
       SESSION + '/maintenanceUndo/aegis',
       SESSION + '/craftOwnership/manifest',
+      SESSION + '/fleetGroups/fleet-1',
       'joinCodes/482109',
       'activeMemberships/alice',
     ];
@@ -937,6 +948,7 @@ describe('complete server-owned denial matrix', () => {
       'secrets',
       'shipConfetti',
       'craftOwnership',
+      'fleetGroups',
     ];
 
     for (const name of protectedCollections) {

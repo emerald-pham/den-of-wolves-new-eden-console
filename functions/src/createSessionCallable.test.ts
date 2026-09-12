@@ -254,6 +254,22 @@ it('creates one configured lobby and persists a replayable creation result atomi
   ]);
 });
 
+it('creates one stable server-owned fleet group for the initial active roster', async () => {
+  const reply = await createSession.run(request({ requestId: 'create-group-1', playerCount: 8 }));
+  const session = reply.session as Record<string, unknown>;
+  const groupWrite = mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session/fleetGroups/fleet-1',
+  )?.[1] as Record<string, unknown> | undefined;
+
+  expect(reply.player).toMatchObject({ fleetGroupId: 'fleet-1' });
+  expect(groupWrite).toMatchObject({
+    id: 'fleet-1',
+    vesselIds: session.activeVesselIds,
+    memberUids: ['u1'],
+  });
+  expect(groupWrite).not.toHaveProperty('pursuit');
+});
+
 it('keeps the created member snapshot free of private game material', async () => {
   const reply = await createSession.run(request({
     requestId: 'create-public-snapshot', playerCount: 19, expansion: 'capybara', turnLimit: 7,

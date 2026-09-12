@@ -47,6 +47,8 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { joinSession } from './index';
+import { activeVesselIdsForRoles } from './gameSetup';
+import { recommendedRoleIds } from './roleConfiguration';
 
 const PRIVATE_SNAPSHOT_KEYS = new Set([
   'brief', 'deck', 'deckOrder', 'decks', 'facilitatorNotes', 'loyalty', 'loyaltyAssignment',
@@ -70,7 +72,7 @@ function request(joinCode: string) {
 }
 
 function snapshot(fields: Record<string, unknown>, exists = true) {
-  return { exists, get: (field: string) => fields[field] };
+  return { exists, data: () => fields, get: (field: string) => fields[field] };
 }
 
 beforeEach(() => {
@@ -82,6 +84,7 @@ beforeEach(() => {
 
 it('records an allowed code attempt before looking up the code', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
@@ -98,6 +101,7 @@ it('records an allowed code attempt before looking up the code', async () => {
 
 it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (joinCode) => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === `joinCodes/${joinCode}`) return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
@@ -114,6 +118,7 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
 
 it('omits a valid-shaped turn entity when it disagrees with the current phase or configured limit', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({
@@ -146,6 +151,7 @@ it('omits a valid-shaped turn entity when it disagrees with the current phase or
 
 it('projects only the public fleet ticker fields on join', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({
@@ -179,6 +185,7 @@ it('projects only the public fleet ticker fields on join', async () => {
 
 it('keeps a legacy inactive alert streamless until its server command writes a deadline', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({
@@ -200,6 +207,7 @@ it('keeps a legacy inactive alert streamless until its server command writes a d
 
 it('returns only the public session projection when the persisted root has private-shaped fields', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({
@@ -280,6 +288,7 @@ it('returns only the public session projection when the persisted root has priva
 
 it('does not redeem a code while its session is being retired', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/4821') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby', deletingAt: 'server-time' });
@@ -296,6 +305,7 @@ it('does not redeem a code while its session is being retired', async () => {
 it('does not reveal another code after the identity bucket is exhausted', async () => {
   const now = new Date();
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') {
       return snapshot({
         windowStartedAt: mock.Timestamp.fromDate(now),
@@ -324,6 +334,7 @@ it('rejects an unsupported code shape without spending a limiter attempt', async
 
 it('replaces a stale membership lock when the same identity joins its remembered table', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({
@@ -359,6 +370,7 @@ it('replaces a stale membership lock when the same identity joins its remembered
 
 it('rejects a browser that was kicked from this session', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
@@ -376,6 +388,7 @@ it('rejects a browser that was kicked from this session', async () => {
 
 it('refuses to displace an identity that is actively connected in another session', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
@@ -397,6 +410,7 @@ it('refuses to displace an identity that is actively connected in another sessio
 
 it('treats a legacy connected player without a heartbeat as active elsewhere', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
@@ -411,4 +425,53 @@ it('treats a legacy connected player without a heartbeat as active elsewhere', a
   });
   expect(mock.delete).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('assigns a joining identity to the stable group once across repeated joins', async () => {
+  const activeRoleIds = [...recommendedRoleIds(8)];
+  const activeVesselIds = activeVesselIdsForRoles(activeRoleIds);
+  const sessionFields = {
+    name: 'Table one',
+    phase: 'lobby',
+    playerCount: 8,
+    activeRoleIds,
+    activeVesselIds,
+  };
+  const playerFields: Record<string, unknown> = {};
+  let playerExists = false;
+  let groupFields: Record<string, unknown> | undefined;
+  let groupWrites = 0;
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot(sessionFields);
+    if (path === 'sessions/s1/players/u1') return snapshot(playerFields, playerExists);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(groupFields ?? {}, groupFields !== undefined);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  mock.set.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/players/u1') {
+      Object.assign(playerFields, fields);
+      playerExists = true;
+    }
+    if (ref.path === 'sessions/s1/fleetGroups/fleet-1') {
+      groupFields = { ...fields };
+      groupWrites += 1;
+    }
+  });
+  mock.update.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/players/u1') Object.assign(playerFields, fields);
+    if (ref.path === 'sessions/s1/fleetGroups/fleet-1') groupFields = { ...(groupFields ?? {}), ...fields };
+  });
+
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    player: { fleetGroupId: 'fleet-1' },
+  });
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    player: { fleetGroupId: 'fleet-1' },
+  });
+  expect(groupFields).toMatchObject({ id: 'fleet-1', vesselIds: activeVesselIds, memberUids: ['u1'] });
+  expect(groupWrites).toBe(1);
 });

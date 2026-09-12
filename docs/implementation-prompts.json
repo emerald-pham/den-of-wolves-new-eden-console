@@ -4489,6 +4489,13 @@
       "type": "evidence"
     },
     {
+      "direction": "286 -> authoritative fleet-group identity",
+      "id": "E-286-FLEET-GROUP",
+      "language": "The server creates one stable fleet-1 group from the canonical active-vessel tuple, assigns every created/joined/resumed session member a server-owned fleetGroupId, updates the group vessel tuple during setup changes, and reconciles all non-kicked players into the group before game start. Group member and vessel arrays reject duplicates, exact retries do not append a member twice, malformed group records fail closed, and client reads/writes to the private fleetGroups collection are denied by Firestore rules. Split/rejoin actions, independent clocks, and group-local discovery remain deferred to their owning prompts.",
+      "source": "functions/src/fleetGroups.ts; functions/src/index.ts; functions/src/fleetGroups.test.ts; functions/src/createSessionCallable.test.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/startCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; firestore.rules; tests/rules/firestore.rules.test.ts; routed REFERENCE_ONLY_FACILITATION.md split-fleet adjudication",
+      "type": "evidence / authority / related/consumes"
+    },
+    {
       "direction": "426 -> 427;312;421;421a;494",
       "id": "E-426-SCHEDULED-COMPOSITION",
       "language": "The routed private Wolf attack derivative supplies the exact turn-one roster and inclusive 15–24 capacity range for later ordinary scheduled attacks. Three focused tests verify exact composition rather than capacity alone, order independence, both capacity boundaries and adjacent invalid totals, unknown cards/invalid turns, input-copy isolation and frozen output. Functions build and affected-file lint pass. No player-selected hidden-card endpoint or randomness is added. Private staging/declaration consumes this policy in the next prompt; encounter and Commander rules are separate.",
@@ -12016,8 +12023,8 @@
         "acceptance": "every active ship and player belongs to exactly one group and no transaction creates duplicate membership.",
         "title": "Model fleet-group identity."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-286",
+      "description": "The server now persists one explicit stable fleet-1 group for the canonical active vessel tuple and assigns every created, joined, or resumed non-kicked session member to that group, including facilitator and observer records because GM is a device authority rather than a separate fleet member. Setup confirmation updates the group vessel tuple transactionally; game start reconciles the full current player roster before entering Turn 1. Group member and vessel arrays are unique, malformed records fail closed, repeated joins remain idempotent, and the private group collection is denied to clients. This establishes identity for later group-local projections without implementing split, rejoin, independent clocks, coordinate inference, or discovery redaction.",
+      "evidenceIds": "E-AUDIT-286;E-286-FLEET-GROUP",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "285",
@@ -12028,7 +12035,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -576,6 +576,8 @@ export interface Player {
   readonly shipPreferenceId?: VesselId | null;
   /** Server-authoritative command post held by this device until explicitly released. */
   readonly activeConsoleRoleId?: RoleId | null;
+  /** Server-owned group identity; group rosters remain private server state. */
+  readonly fleetGroupId?: GroupId | null;
   readonly joinedAt: Timestamp;
 }
 

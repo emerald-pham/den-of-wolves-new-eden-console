@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**199 / 747 prompts complete (26.64%)**
+**200 / 747 prompts complete (26.77%)**
 
-Status breakdown: **199 done · 18 partial · 530 missing**.
+Status breakdown: **200 done · 19 partial · 528 missing**.
 
 Active prompt: **none**
 
@@ -727,7 +727,7 @@ release classification and evidence.
 | 283 | done | non-feature | — | The existing coordinate lookup returns the correct selected-chart code and full site title for all 21 labelled systems on charts A, B and C. Source-table checks cover all 63 assignments, including L/M hostile sites and N/O/P candidates, and preserve the full Athena mission title where the chart table abbreviates it. The start and unprinted 0101 coordinate return no site. P282 supplies the authoritative session chart to the current GM lookup consumer; this closes lookup evidence without adding discovery permissions or mission execution. |
 | 284 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 285 | done | non-feature | — | Every ship in the canonical active roster receives an explicit starting coordinate in both the stored session and creation reply. Existing authoritative relocation and jump transactions change only the selected ship position; other ships retain their own coordinates. A successful jump atomically stores its arrived destination and identified transition record alongside its resource changes. This verifies the current immediate-arrival model; the transition record is event metadata, not a separate in-transit authority state. Fleet groups and later jump eligibility rules remain separate prompts. |
-| 286 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 286 | done | non-feature | — | The server now persists one explicit stable fleet-1 group for the canonical active vessel tuple and assigns every created, joined, or resumed non-kicked session member to that group, including facilitator and observer records because GM is a device authority rather than a separate fleet member. Setup confirmation updates the group vessel tuple transactionally; game start reconciles the full current player roster before entering Turn 1. Group member and vessel arrays are unique, malformed records fail closed, repeated joins remain idempotent, and the private group collection is denied to clients. This establishes identity for later group-local projections without implementing split, rejoin, independent clocks, coordinate inference, or discovery redaction. |
 | 287 | partial | non-feature | — | The server jump classifier now uses the canonical immutable star-chart graph and validates shortest paths for all 22 printed coordinates from 0000 in both directions, while preserving the existing one-edge-short, two-edge-medium, three-or-more-edge-long product policy. The routed CORE_RULES source confirms edge-based measurement but gives no numeric short/medium/long boundaries, so Prompt 287 remains partial pending that owner decision. Unknown 0101 remains outside the printed graph; no jump authorization, fuel profile, fleet-group state, or combat behavior changed. |
 | 288 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 289 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

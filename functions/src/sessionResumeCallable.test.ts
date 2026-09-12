@@ -102,6 +102,7 @@ function prepareResume(
   });
 
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'sessions/s1') return session;
     if (path === 'sessions/s1/players/u1') return player;
     if (path === 'activeMemberships/u1') return snapshot({}, false);
@@ -355,7 +356,7 @@ it('keeps the old seat when the returning player still holds it', async () => {
   );
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/u1' }),
-    { connected: true, lastSeenAt: 'server-time' },
+    { connected: true, fleetGroupId: 'fleet-1', lastSeenAt: 'server-time' },
   );
 });
 
@@ -380,6 +381,7 @@ it('reclaims an open old seat before resuming the player after two idle hours', 
 it('rejects a session that closes after the initial read but before resume commits', async () => {
   let sessionReads = 0;
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'sessions/s1') {
       sessionReads += 1;
       return snapshot({
@@ -413,6 +415,7 @@ it('returns fresh server state after the resume transaction instead of its initi
   let sessionReads = 0;
   let playerReads = 0;
   mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'sessions/s1') {
       sessionReads += 1;
       return snapshot({
@@ -448,6 +451,7 @@ it('returns fresh server state after the resume transaction instead of its initi
 it('replaces a stale membership lock but refuses an active membership in another session', async () => {
   const originalPrepare = (membership: Record<string, unknown>, otherPlayer: Record<string, unknown>) => {
     mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
       if (path === 'sessions/s1') return snapshot({
         name: 'Table one',
         joinCode: '482109',

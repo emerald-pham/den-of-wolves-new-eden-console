@@ -922,6 +922,9 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   const parsedConsoleId = data.activeConsoleRoleId === null || data.activeConsoleRoleId === undefined
     ? null
     : parseEntityId('role', data.activeConsoleRoleId);
+  const parsedFleetGroupId = data.fleetGroupId === null || data.fleetGroupId === undefined
+    ? null
+    : parseEntityId('group', data.fleetGroupId);
   return {
     uid: entityId('player', uid),
     sessionId: entityId('session', sessionId),
@@ -931,6 +934,7 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     ...(parsedRoleId !== undefined ? { assignedRoleId: parsedRoleId } : {}),
     ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
     ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
+    ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),
     joinedAt: iso(data.joinedAt),
   };
 }
