@@ -1,7 +1,7 @@
 import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 import { SHIPS, SHIP_ORIGIN_LABELS, type ShipOrigin } from '@/data/ships';
-import { findConsoleRole, rolesForShip } from '@/data/roles';
+import { activeFleetShipIds, findConsoleRole, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { consoleRoleRoute } from '@/lib/consoleRole';
@@ -42,6 +42,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         dioneEnabled={session.dioneEnabled !== false}
         pressEnabled={session.pressEnabled !== false}
         activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
+        {...(session.activeVesselIds === undefined ? {} : { activeVesselIds: session.activeVesselIds })}
         isGm={isGm}
       />
     );
@@ -78,6 +79,7 @@ function FleetRoster({
   dioneEnabled,
   pressEnabled,
   activeRoleIds,
+  activeVesselIds,
   isGm,
 }: {
   sessionName: string;
@@ -85,9 +87,11 @@ function FleetRoster({
   dioneEnabled: boolean;
   pressEnabled: boolean;
   activeRoleIds: readonly string[];
+  activeVesselIds?: readonly string[];
   isGm: boolean;
 }) {
   const active = new Set(activeRoleIds);
+  const activeShips = new Set(activeFleetShipIds(activeRoleIds, activeVesselIds));
   const unionRoles = CONSOLE_ROLES.filter(
     (role) => role.shipId === 'joint-engineering-union' &&
       isJointEngineeringRoleAvailable(activeRoleIds, role.id),
@@ -144,6 +148,7 @@ function FleetRoster({
           <div className="fleet-group__grid">
             {SHIPS.filter((ship) =>
               ship.origin === origin &&
+              activeShips.has(ship.id) &&
               (capybaraEnabled || ship.id !== 'capybara') &&
               (dioneEnabled || ship.id !== 'dione') &&
               (isGm || rolesForShip(ship.id).some((role) => active.has(role.id)))).map((ship) => (

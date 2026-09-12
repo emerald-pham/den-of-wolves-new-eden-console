@@ -62,6 +62,12 @@ describe('the initial fleet formation', () => {
     expect(fleetViewFrom('aegis', true, {}, false).map(({ id }) => id)).not.toContain('dione');
   });
 
+  it('uses a present canonical vessel set for DRADIS contacts', () => {
+    expect(fleetViewFrom('aegis', true, {}, true, ['aegis', 'shepherd']))
+      .toEqual([expect.objectContaining({ id: 'shepherd' })]);
+    expect(fleetViewFrom('aegis', true, {}, true, [])).toEqual([]);
+  });
+
   it('keeps DRADIS geometry fixed while hiding ships in other galactic systems', () => {
     const coordinates = {
       aegis: '0000',

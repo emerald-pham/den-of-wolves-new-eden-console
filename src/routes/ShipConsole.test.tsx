@@ -1152,3 +1152,32 @@ it('enables observer ship commands only after Write is selected', async () => {
   expect(cover).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Assign damage' })).toBeEnabled();
 });
+
+it('redirects a GM away from an inactive expansion ship in a base session', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.setState({
+    me: { ...useSessionStore.getState().me!, role: 'gm' },
+    connection: 'live',
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+    session: {
+      ...session,
+      playerCount: 8,
+      expansion: 'base',
+      capybaraEnabled: true,
+      activeRoleIds: ['admiral'],
+      activeVesselIds: ['aegis'],
+    },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/capybara/observer']}>
+      <Routes>
+        <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
+        <Route path="/console" element={<p>Fleet roster</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+});

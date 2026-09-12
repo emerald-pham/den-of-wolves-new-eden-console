@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ACTIVE_ROLE_IDS, rolesForShip } from './roles';
+import { activeFleetShipIds, DEFAULT_ACTIVE_ROLE_IDS, rolesForShip } from './roles';
 
 describe('fleet console roles', () => {
   it.each([
@@ -21,5 +21,18 @@ describe('fleet console roles', () => {
       'Shepherd / Icebreaker Engineer',
     ]);
     expect(union.every(({ id }) => !DEFAULT_ACTIVE_ROLE_IDS.includes(id))).toBe(true);
+  });
+
+  it('uses present canonical vessels before legacy role inference', () => {
+    expect(activeFleetShipIds(
+      ['capybara-captain', 'capybara-recycler'],
+      ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    )).toEqual(['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124']);
+    expect(activeFleetShipIds(['admiral', 'capybara-captain', 'capybara-recycler'], []))
+      .toEqual([]);
+    expect(activeFleetShipIds(['admiral', 'capybara-captain'], ['vessels/capybara']))
+      .toEqual([]);
+    expect(activeFleetShipIds(['joint-engineering-quellon-refinery'], undefined))
+      .toEqual(['quellon', 'refinery-124']);
   });
 });

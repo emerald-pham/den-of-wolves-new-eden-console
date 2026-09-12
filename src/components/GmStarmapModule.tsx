@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ORIGIN_GALACTIC_COORDINATE, SHIPS } from '@/data/ships';
+import { activeFleetShipIds } from '@/data/roles';
 import type { StarChartId } from '@/data/starChart';
 import type { GameSession } from '@/types/game';
 import { moveShipToLocation } from '@/lib/sessionService';
@@ -20,8 +21,10 @@ export default function GmStarmapModule({ session }: Props) {
   const [selectedShipId, setSelectedShipId] = useState('aegis');
   const [moving, setMoving] = useState(false);
   const [status, setStatus] = useState('Select a plotted ship and a printed system.');
+  const activeShipIds = new Set(activeFleetShipIds(session.activeRoleIds, session.activeVesselIds));
   const fleetMarkers: readonly StarmapFleetMarker[] = SHIPS
     .filter((ship) =>
+      activeShipIds.has(ship.id) &&
       (session.capybaraEnabled !== false || ship.id !== 'capybara') &&
       (session.dioneEnabled !== false || ship.id !== 'dione'),
     )

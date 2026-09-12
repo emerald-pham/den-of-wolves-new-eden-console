@@ -12,6 +12,7 @@ import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
+import { activeFleetShipIds } from '@/data/roles';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import type { GameSession } from '@/types/game';
@@ -42,6 +43,8 @@ export default function ShipPlot({
   dioneEnabled = true,
   shipGalacticCoordinates = {},
   shipJumpTransitions = {},
+  activeRoleIds,
+  activeVesselIds,
   ambientSession,
   turnPhase,
 }: {
@@ -52,6 +55,8 @@ export default function ShipPlot({
   dioneEnabled?: boolean;
   shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
   shipJumpTransitions?: GameSession['shipJumpTransitions'] | undefined;
+  activeRoleIds?: readonly string[] | undefined;
+  activeVesselIds?: readonly string[] | undefined;
   ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
   turnPhase?: GameSession['turnPhase'] | undefined;
 }) {
@@ -62,6 +67,7 @@ export default function ShipPlot({
 
   const viewer = findShip(viewerId) ?? findShip('aegis');
   const effectiveViewerId = viewer?.id ?? 'aegis';
+  const activeShipIds = activeFleetShipIds(activeRoleIds, activeVesselIds);
   const jumpTransition = shipJumpTransitions?.[effectiveViewerId];
 
   useEffect(() => {
@@ -141,6 +147,7 @@ export default function ShipPlot({
     capybaraEnabled,
     shipGalacticCoordinates,
     dioneEnabled,
+    activeShipIds,
   );
   const contacts = (jumpInProgress ? [] : fleetContacts).map((ship) => ({
     tag: ship.name.toUpperCase(),

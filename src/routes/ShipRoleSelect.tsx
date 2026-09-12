@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { findShip } from '@/data/ships';
-import { rolesForShip, findConsoleRole } from '@/data/roles';
+import { activeFleetShipIds, rolesForShip, findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import { selectIsGm } from '@/store/useSessionStore';
@@ -14,11 +14,13 @@ export default function ShipRoleSelect() {
   const isGm = useSessionStore(selectIsGm);
   const ship = findShip(shipId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
   const aboard = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId === shipId;
   const roles = rolesForShip(shipId ?? '').filter((role) => aboard || activeRoleIds.includes(role.id));
 
   if (!session || !me) return <Navigate to="/" replace />;
   const shipEnabled =
+    (ship === undefined || activeShipIds.includes(ship.id)) &&
     (ship?.id !== 'capybara' || session.capybaraEnabled !== false) &&
     (ship?.id !== 'dione' || session.dioneEnabled !== false);
   if (!shipEnabled) return <Navigate to="/console" replace />;

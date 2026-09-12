@@ -18,7 +18,7 @@ import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
-import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
+import { activeFleetShipIds, CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import {
   canOfferJointEngineeringRole,
   isJointEngineeringRoleId,
@@ -394,6 +394,10 @@ export default function GmConsole() {
   const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
   const draftPlayerCount = draftRecommendedPlayerCount ?? draftRoleIds.length;
   const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
+  const activeShipIds = activeFleetShipIds(
+    hasUnconfirmedRosterChanges ? draftRoleIds : serverRoleIds,
+    hasUnconfirmedRosterChanges ? undefined : session?.activeVesselIds,
+  );
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
   const rosterQueued = setupQueued;
   const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
@@ -402,6 +406,7 @@ export default function GmConsole() {
   });
   const availableShips = SHIPS.filter(
     (ship) =>
+      activeShipIds.includes(ship.id) &&
       (capybaraEnabled || ship.id !== 'capybara') &&
       (dioneEnabled || ship.id !== 'dione'),
   );
@@ -413,6 +418,7 @@ export default function GmConsole() {
     capybaraEnabled,
     session?.shipGalacticCoordinates,
     dioneEnabled,
+    activeShipIds,
   ).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
@@ -589,8 +595,10 @@ export default function GmConsole() {
   }, [loyaltyCensus?.entries, loyaltyCensus?.revision]);
 
   useEffect(() => {
-    if (!capybaraEnabled && viewerId === 'capybara') setViewerId('aegis');
-  }, [capybaraEnabled, viewerId]);
+    if ((!capybaraEnabled || !activeShipIds.includes('capybara')) && viewerId === 'capybara') {
+      setViewerId('aegis');
+    }
+  }, [activeShipIds, capybaraEnabled, viewerId]);
 
   useEffect(() => {
     if (!dioneEnabled && viewerId === 'dione') setViewerId('aegis');
@@ -2258,7 +2266,7 @@ export default function GmConsole() {
           >
             <div className="gm-dradis__viewport dradis-outline">
               <ContactPlot
-                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
+                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}-${activeShipIds.join(',')}`}
                 placement="inset"
                 size={dradisExpanded ? 'min(92vmin, 128vw)' : 'min(92cqi, 92cqb)'}
                 contacts={contacts}

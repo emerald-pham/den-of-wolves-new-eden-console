@@ -10,7 +10,7 @@ import ResourceIcon from '@/components/ResourceIcon';
 import RoleAssignment from '@/components/RoleAssignment';
 import { findShip, SHIP_ORIGIN_LABELS } from '@/data/ships';
 import { RESOURCE_DEFINITIONS } from '@/data/resources';
-import { findConsoleRole } from '@/data/roles';
+import { activeFleetShipIds, findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
@@ -57,6 +57,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const consoleRole = findConsoleRole(viewedRoleId);
   const hasConfirmedRole = !observer && me?.activeConsoleRoleId === consoleRole?.id;
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
   const configuredShipRoles = ship?.roles.filter(role => activeRoleIds.includes(role.id)) ?? [];
   const roleEnabled = !roleId || activeRoleIds.includes(roleId);
   const canCoverShortStaffedShip = Boolean(
@@ -95,6 +96,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
   const canClaimConsoleRole = Boolean(
     session && me && mode === 'console' && ship && consoleRole && validRole && roleEnabled &&
+    activeShipIds.includes(ship.id) &&
     !(ship.id === 'capybara' && session.capybaraEnabled === false) &&
     !(ship.id === 'dione' && session.dioneEnabled === false),
   );
@@ -183,6 +185,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   if (
     mode !== 'console' || !ship || !validRole ||
     (!roleEnabled && me.activeConsoleRoleId !== roleId && ownShip !== ship.id) ||
+    !activeShipIds.includes(ship.id) ||
     (ship.id === 'capybara' && session.capybaraEnabled === false) ||
     (ship.id === 'dione' && session.dioneEnabled === false)
   ) return <Navigate to="/console" replace />;

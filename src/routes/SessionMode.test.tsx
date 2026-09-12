@@ -344,6 +344,52 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
   expect(screen.getAllByRole('img')).toHaveLength(6);
 });
 
+it('does not surface the expansion ship from a base roster with Capybara enabled', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    playerCount: 8,
+    expansion: 'base',
+    capybaraEnabled: true,
+    activeRoleIds: recommendedRoleIds(8),
+    activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+  });
+  useSessionStore.getState().setMode('console');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('img')).toHaveLength(5);
+});
+
+it.each([19, 20] as const)('keeps Capybara visible for the canonical %i-player expansion roster', playerCount => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    playerCount,
+    expansion: 'capybara',
+    capybaraEnabled: true,
+    activeRoleIds: recommendedRoleIds(playerCount),
+    activeVesselIds: ['aegis', 'dione', 'icebreaker', 'capybara', 'shepherd', 'quellon', 'refinery-124'],
+  });
+  useSessionStore.getState().setMode('console');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /join capybara/i })).toBeInTheDocument();
+  expect(screen.getAllByRole('img')).toHaveLength(7);
+});
+
 it('removes Dione from the joinable fleet when the GM disables it', () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');

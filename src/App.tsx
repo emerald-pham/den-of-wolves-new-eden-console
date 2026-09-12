@@ -239,6 +239,8 @@ function AppRoutes() {
         dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}
         shipJumpTransitions={session?.shipJumpTransitions}
+        activeRoleIds={session?.activeRoleIds}
+        activeVesselIds={session?.activeVesselIds}
         ambientSession={session ?? undefined}
         turnPhase={session?.turnPhase}
       />

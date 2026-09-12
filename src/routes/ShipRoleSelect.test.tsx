@@ -76,6 +76,30 @@ it('returns to the fleet roster when Dione is disabled', () => {
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
 
+it('returns a direct base-session Capybara route to the fleet roster', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    playerCount: 8,
+    expansion: 'base',
+    capybaraEnabled: true,
+    activeRoleIds: ['admiral'],
+    activeVesselIds: ['aegis'],
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/capybara/roles']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+});
+
 it('offers only roles the GM has enabled', () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');

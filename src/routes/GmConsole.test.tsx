@@ -489,6 +489,28 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
 });
 
+it('keeps base setup from showing the expansion ship in GM targeting controls', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    playerCount: 8,
+    expansion: 'base',
+    capybaraEnabled: true,
+    activeRoleIds: recommendedRoleIds(8),
+    activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
+  expect(within(dradis).queryByRole('button', { name: /view dradis from capybara/i }))
+    .not.toBeInTheDocument();
+  const starmap = screen.getByRole('region', { name: /gm starmap/i });
+  expect(within(starmap).queryByRole('option', { name: 'Capybara' })).not.toBeInTheDocument();
+});
+
 it('uses the ship-console outline treatment for compact GM DRADIS', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);

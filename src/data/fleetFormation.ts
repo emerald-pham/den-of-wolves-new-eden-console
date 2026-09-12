@@ -44,14 +44,17 @@ export function fleetViewFrom(
   capybaraEnabled = true,
   shipGalacticCoordinates: Readonly<Record<string, string>> = {},
   dioneEnabled = true,
+  activeVesselIds?: readonly string[],
 ): readonly FleetContact[] {
   const viewer = fleetOriginFor(viewerId);
 
   const viewerCoordinate = shipGalacticCoordinates[viewerId] ?? ORIGIN_GALACTIC_COORDINATE;
+  const activeVessels = activeVesselIds === undefined ? undefined : new Set(activeVesselIds);
   return SHIPS.filter((ship) =>
     ship.id !== viewerId &&
     (capybaraEnabled || ship.id !== 'capybara') &&
     (dioneEnabled || ship.id !== 'dione') &&
+    (activeVessels === undefined || activeVessels.has(ship.id)) &&
     (shipGalacticCoordinates[ship.id] ?? ORIGIN_GALACTIC_COORDINATE) === viewerCoordinate)
     .flatMap((ship) => {
     const point = FLEET_FORMATION[ship.id];

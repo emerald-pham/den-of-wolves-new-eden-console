@@ -194,6 +194,22 @@ it('blinds DRADIS during a jump, then restores only ships that arrived at the de
   expect(container.querySelector('.contact-plot__contact')).toHaveTextContent('DIONE');
 });
 
+it('plots only canonical active vessels when the Capybara toggle remains enabled', () => {
+  const { container } = render(
+    <ShipPlot
+      hostile={false}
+      aboard
+      viewerId="aegis"
+      capybaraEnabled
+      activeRoleIds={['admiral']}
+      activeVesselIds={['aegis']}
+      shipGalacticCoordinates={{ aegis: '0000', capybara: '0000' }}
+    />,
+  );
+
+  expect(container.querySelectorAll('.contact-plot__contact')).toHaveLength(0);
+});
+
 it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {
   const user = userEvent.setup();
   const { container } = render(

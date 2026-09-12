@@ -46,3 +46,17 @@ it('freezes ship movement during endgame evaluation', async () => {
   );
   expect(moveShipToLocation).not.toHaveBeenCalled();
 });
+
+it('keeps an enabled toggle from plotting Capybara outside the canonical expansion roster', () => {
+  render(<GmStarmapModule session={{
+    ...session,
+    playerCount: 8,
+    expansion: 'base',
+    capybaraEnabled: true,
+    activeRoleIds: ['admiral'],
+    activeVesselIds: ['aegis'],
+  } as unknown as GameSession} />);
+
+  expect(within(screen.getByRole('region', { name: 'GM starmap' }))
+    .queryByRole('option', { name: 'Capybara' })).not.toBeInTheDocument();
+});
