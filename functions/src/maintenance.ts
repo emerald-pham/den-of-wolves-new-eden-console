@@ -183,7 +183,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.results['5'] = `Reactor powered up. Previous unused charge lost. Charged ${consoles.length}/${capacity} consoles.`;
     for (const dock of input.dockings.filter(d => d.shipId === shipId)) fuelled[dock.shuttleId] = false;
   } else if (action === 'production') {
-    const consoleId = input.productionConsoleId;
+    const consoleId = input.productionConsoleId as keyof typeof DIONE_PRODUCTION | undefined;
     if (!consoleId || !(consoleId in DIONE_PRODUCTION)) throw new Error('Select a Dione production console.');
     if (!cycleInput.charges.includes(consoleId)) throw new Error('Production console is not charged.');
     const productionMode = input.productionMode ?? 'run';
@@ -203,14 +203,15 @@ export function advanceMaintenance(input: MaintenanceInput) {
       cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label} skipped.`;
     } else {
       if (damage.damagedSystemIds.includes(consoleId)) throw new Error('Damaged production console cannot be used.');
-      const rule = DIONE_PRODUCTION[consoleId];
       const upgraded = input.upgraded?.includes(consoleId) ?? false;
       if (consoleId === 'hydroponics') {
+        const rule = DIONE_PRODUCTION.hydroponics;
         if (resources.water < rule.waterCost) throw new Error('Insufficient water for Hydroponics.');
         const foodYield = upgraded ? rule.upgradedFoodYield : rule.foodYield;
         resources = { ...resources, water: resources.water - rule.waterCost, food: resources.food + foodYield };
         cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}Hydroponics: spent ${rule.waterCost} water, generated ${foodYield} food.`;
       } else {
+        const rule = DIONE_PRODUCTION['water-reclamation'];
         const waterYield = upgraded ? rule.upgradedWaterYield : rule.waterYield;
         resources = { ...resources, water: resources.water + waterYield };
         cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}Water Reclamation: generated ${waterYield} water.`;

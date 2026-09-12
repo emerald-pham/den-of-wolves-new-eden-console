@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['188', '189'],
+    implementationProgress: {
+      completed: 162,
+      total: 747,
+      percentage: '21.69%',
+      done: 162,
+      partial: 7,
+      active: 0,
+      missing: 578,
+    },
+    changes: [
+      'Dione engineers can now resolve charged Hydroponics during maintenance, with live stores, upgrade yields, and an explicit skip choice under server authority.',
+      'Dione engineers can now resolve charged Water Reclamation during maintenance with order-safe resource authority and recoverable skip choices. 162 of 747 planned items are complete (21.69%).',
+    ],
+  },
+  {
+    version: '0.3.58',
     implementationPrompts: ['234'],
     implementationProgress: {
       completed: 160,

@@ -949,15 +949,15 @@
     {
       "direction": "188 -> 122;125;183",
       "id": "E-AUDIT-188",
-      "language": "Dione production consumes Reactor eligibility and Dione identity.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Dione Hydroponics is now an authoritative post-Reactor production choice with charge, water, upgrade, damage, replay, and order evidence.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx",
       "type": "hard_prompt"
     },
     {
       "direction": "189 -> 122;125;183",
       "id": "E-AUDIT-189",
-      "language": "Dione production consumes Reactor eligibility and Dione identity.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Dione Water Reclamation is now an authoritative post-Reactor production choice with charge, water, upgrade, damage, replay, and order evidence.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx",
       "type": "hard_prompt"
     },
     {
@@ -9048,14 +9048,14 @@
       "tag": "PRESERVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "charged J♣ converts one water into three food, or five upgraded.",
         "title": "Resolve Dione Hydroponics."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The Dione maintenance console now exposes Hydroponics as an authoritative post-Reactor choice: charged J♣ spends one water for three food, or five with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed Hydroponics-before-Water-Reclamation order; an explicit skip preserves a deliberate choice without trapping the cycle. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed.",
       "evidenceIds": "E-AUDIT-188",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9064,21 +9064,23 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.59"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "charged Q♣ produces two water, or four upgraded.",
         "title": "Resolve Dione Water Reclamation."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The Dione maintenance console now exposes Water Reclamation as an authoritative post-Reactor choice: charged Q♣ produces two water, or four with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed order boundary so an unresolved affordable Hydroponics charge cannot be bypassed; explicit skip and water-zero paths remain terminal and recoverable. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed.",
       "evidenceIds": "E-AUDIT-189",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9087,10 +9089,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.59"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**160 / 747 prompts complete (21.42%)**
+**162 / 747 prompts complete (21.69%)**
 
-Status breakdown: **160 done · 7 partial · 580 missing**.
+Status breakdown: **162 done · 7 partial · 578 missing**.
 
 Active prompt: **none**
 
@@ -611,8 +611,8 @@ release classification and evidence.
 | 185 | done | non-feature | — | Existing Dione Storage uses the shared authoritative maintenance storage branch and registered damage identity. Losses round down and affect only Dione stores and its docked craft, with stores/cargo persisted in one callable transaction. Verified the shared damaged-storage unit check and reused the passing 40-test maintenance callable suite; Dione roster gating is separately verified by Prompt 183. Evidence reconciliation only, with no runtime change. |
 | 186 | done | non-feature | — | The existing shared maintenance resolver implements the Dione Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 187 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 188 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 189 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 188 | done | feature | 0.3.59 | The Dione maintenance console now exposes Hydroponics as an authoritative post-Reactor choice: charged J♣ spends one water for three food, or five with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed Hydroponics-before-Water-Reclamation order; an explicit skip preserves a deliberate choice without trapping the cycle. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed. |
+| 189 | done | feature | 0.3.59 | The Dione maintenance console now exposes Water Reclamation as an authoritative post-Reactor choice: charged Q♣ produces two water, or four with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed order boundary so an unresolved affordable Hydroponics charge cannot be bypassed; explicit skip and water-zero paths remain terminal and recoverable. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed. |
 | 190 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 191 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 192 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

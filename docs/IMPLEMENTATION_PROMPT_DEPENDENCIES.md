@@ -296,8 +296,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 185 | PRESERVE | done | 115;183 | none | none | none | none | none | none | none | E-AUDIT-185;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Dione Storage. |
 | 186 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-186;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Dione Reactor. |
 | 187 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-187 | M3;M5 | Resolve the Dione Shuttle Bay. |
-| 188 | NEW | missing | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-188 | M3;M5 | Resolve Dione Hydroponics. |
-| 189 | NEW | missing | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-189 | M3;M5 | Resolve Dione Water Reclamation. |
+| 188 | NEW | done | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-188 | M3;M5 | Resolve Dione Hydroponics. |
+| 189 | NEW | done | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-189 | M3;M5 | Resolve Dione Water Reclamation. |
 | 190 | NEW | missing | 167 | none | none | none | none | none | none | none | E-AUDIT-190 | M3;M5 | Draw and own Dione VIP cards. |
 | 191 | NEW | missing | 119;190 | none | none | none | none | none | none | none | E-AUDIT-191 | M3;M5 | Spend a VIP unrest reroll. |
 | 192 | NEW | missing | 182;264 | none | none | none | none | none | none | none | E-AUDIT-192 | M3;M5 | Gate Dione's Fighter Bay and Maliades. |
@@ -998,8 +998,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-185 | hard_prompt | 185 -> 115;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione Storage consumes damaged-Storage behavior and Dione roster identity. |
 | E-AUDIT-186 | hard_prompt | 186 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
 | E-AUDIT-187 | hard_prompt | 187 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
-| E-AUDIT-188 | hard_prompt | 188 -> 122;125;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione production consumes Reactor eligibility and Dione identity. |
-| E-AUDIT-189 | hard_prompt | 189 -> 122;125;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione production consumes Reactor eligibility and Dione identity. |
+| E-AUDIT-188 | hard_prompt | 188 -> 122;125;183 | functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx | Dione Hydroponics is now an authoritative post-Reactor production choice with charge, water, upgrade, damage, replay, and order evidence. |
+| E-AUDIT-189 | hard_prompt | 189 -> 122;125;183 | functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx | Dione Water Reclamation is now an authoritative post-Reactor production choice with charge, water, upgrade, damage, replay, and order evidence. |
 | E-AUDIT-190 | hard_prompt | 190 -> 167 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Private VIP ownership uses the standard authoritative action envelope. |
 | E-AUDIT-191 | hard_prompt | 191 -> 119;190 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The VIP reroll consumes the unrest roll and private card ownership. |
 | E-AUDIT-192 | hard_prompt | 192 -> 182;264 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione fighter-bay gating consumes combat registration and Maliades craft identity. |
