@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['266'],
+    implementationProgress: {
+      completed: 179,
+      total: 747,
+      percentage: '23.96%',
+      done: 179,
+      partial: 10,
+      active: 0,
+      missing: 558,
+    },
+    changes: [
+      'The Blacksmith shuttle console now correctly describes its fuelled second-ship procedure as repair-only. The registration catalog also records the Black Sheep and Hummingbird evidence as complete. 179 of 747 planned items are complete (23.96%).',
+    ],
+  },
+  {
+    version: '0.3.65',
     implementationPrompts: ['263'],
     implementationProgress: {
       completed: 175, total: 747, percentage: '23.43%',
