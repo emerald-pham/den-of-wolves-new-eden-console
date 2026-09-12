@@ -4598,7 +4598,7 @@ export const listGmInstances = onCall<{ sessionId?: string }>(async (request) =>
     // in Firestore while a vanished browser's lease expires, but they must not
     // count toward locked-table recovery or appear as handoff targets.
     instances: liveInstances.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data(), liveInstances.length === 1)),
+      gmInstanceFrom(sessionId, instance.id, instance.data() ?? {}, liveInstances.length === 1)),
   };
 });
 
