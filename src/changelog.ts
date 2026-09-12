@@ -32,7 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 614,
     },
     changes: [
-      'Facilitators can now release a player’s printed role before game start; the old station opens with role, device, and private links cleaned up, while occupied stations and Press remain protected until their owner releases them. 103 of 734 implementation prompts are complete (14.03%).',
+      'Facilitators can now release a player’s printed role before game start; the old station opens with role, device, and private links cleaned up, while occupied stations and Press remain protected until their owner releases them. 103 of 734 planned items are complete (14.03%).',
     ],
   },
   {
