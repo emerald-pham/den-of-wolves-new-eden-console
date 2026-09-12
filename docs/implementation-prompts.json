@@ -350,6 +350,13 @@
       "language": "Ship consoles consume an allowlisted projection of the selected vessel's public operational state: stores, damage, population, unrest, navigation, maintenance, upgrades, jump status, coordinate, and console lock. Projection tests prove other-vessel entries and role/loyalty-shaped fields are excluded; protected role briefs and loyalty paths remain separate.",
       "source": "src/lib/shipStateProjection.ts; src/lib/shipStateProjection.test.ts; src/routes/ShipConsole.tsx; src/components/FleetConsoleWorkspace.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/AegisConsoleWorkspace.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "085 -> M1-ROLE-PRIVATE-RECONNECT",
+      "id": "E-085-ROLE-PRIVATE-RECONNECT",
+      "language": "The authenticated session listener hydrates only the current UID's role brief and loyalty projection, clears private projections when its session/UID subscription is replaced or removed, and ignores delayed callbacks from an older listener. Assignment UID and role guards remain in the App layer; protected roleBrief and loyalty paths remain rules enforced.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; src/App.tsx; src/App.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -357,7 +364,7 @@
   },
   "prompts": [
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
@@ -2396,8 +2403,8 @@
         "acceptance": "a player regains their own role and loyalty projection after reconnect without broadening readers.",
         "title": "Refresh role-private state."
       },
-      "description": "Role-private reconnect projection remains open.",
-      "evidenceIds": "none",
+      "description": "The session listener clears replaced private projections and ignores stale callbacks, so reconnect restores only the current player's role and loyalty state.",
+      "evidenceIds": "E-085-ROLE-PRIVATE-RECONNECT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2405,10 +2412,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.42"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

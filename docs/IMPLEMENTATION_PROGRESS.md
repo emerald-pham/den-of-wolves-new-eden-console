@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**113 / 747 prompts complete (15.13%)**
+**114 / 747 prompts complete (15.26%)**
 
-Status breakdown: **113 done · 9 partial · 625 missing**.
+Status breakdown: **114 done · 9 partial · 624 missing**.
 
 Active prompt: **none**
 
@@ -410,7 +410,7 @@ release classification and evidence.
 <!-- BEGIN GENERATED PROMPT CATALOG: progress-ledger -->
 | Prompt | Status | Change | Changelog | Evidence / result |
 | ---: | :--- | :--- | :--- | :--- |
-| 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
+| 001 | done | feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
 | 004 | done | feature | 0.3.9, 0.3.11 | Prompt 004 catalog slice complete: client/server tests prove exact ordered, unique 8–20 rows; 19 = base-17 plus Capybara Captain/Recycler and 20 = base-18 plus the same pair; invalid boundaries, Dione/SNN host at 19, vessels/Union, two Wolves, Press/GM exclusion, and GM-local 19 staging are covered. Creation/guard/hydration parity is inherited shared-count propagation only. Prompt 030 remains partial; no claims are made for Prompts 021, 030, 051, 054, 073, 075, or 020; lower-count Capybara substitutions remain unresolved. |
@@ -495,7 +495,7 @@ release classification and evidence.
 | 082 | done | non-feature | — | The server's explicit member session projection and persisted session roots expose turn, phase, active vessels, and permitted fleet status only; role briefs, loyalties, decks, setup receipts, and facilitator notes remain on separate protected paths. Create/start/join callable tests and Firestore member-boundary tests prove the public snapshot shape and audience boundary. |
 | 083 | done | non-feature | — | Member/nonmember snapshot rules tests. |
 | 084 | done | feature | 0.3.5 | Ship consoles now consume a typed allowlisted projection of selected public vessel state; private role briefs and loyalty remain on protected paths. |
-| 085 | missing | non-feature | — | Role-private reconnect projection remains open. |
+| 085 | done | non-feature | 0.3.42 | The session listener clears replaced private projections and ignores stale callbacks, so reconnect restores only the current player's role and loyalty state. |
 | 086 | partial | feature | 0.3.5 | GM reads exist; census/suspicion/note projection remains incomplete. |
 | 087 | done | non-feature | — | Broad direct-write denial matrix in rules tests. |
 | 088 | partial | non-feature | — | Revision parsing exists; universal delayed-snapshot ordering remains open. |

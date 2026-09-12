@@ -668,6 +668,11 @@ export interface SessionStateHandlers {
   readonly onError: () => void;
 }
 
+// App owns one session identity at a time. Keep a generation so an older
+// listener's cleanup cannot clear private state that a replacement listener
+// has already hydrated.
+let currentSessionSubscriptionToken: symbol | undefined;
+
 /** Keep the local snapshot current while Firestore handles reconnect/cache replay. */
 export function subscribeSessionState(
   sessionId: string,
@@ -676,14 +681,16 @@ export function subscribeSessionState(
 ): Unsubscribe {
   const database = db();
   let subscribed = true;
+  const subscriptionToken = Symbol('session-subscription');
+  currentSessionSubscriptionToken = subscriptionToken;
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
   const onError = () => {
-    if (subscribed) handlers.onError();
+    if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
   };
   const unsubscribes = [
     onSnapshot(doc(database, `sessions/${sessionId}`), (snapshot) => {
-      if (!subscribed) return;
+      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.exists()) {
         const fromCache = snapshot.metadata?.fromCache === true;
         // A cache callback can arrive after Firestore has delivered a newer
@@ -707,7 +714,7 @@ export function subscribeSessionState(
       else onError();
     }, onError),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), (snapshot) => {
-      if (!subscribed) return;
+      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       const fromCache = snapshot.metadata?.fromCache === true;
       // Player role/seat projections are part of the same reconnect identity.
       // Once the session cursor is server-authoritative, a delayed cached
@@ -723,7 +730,7 @@ export function subscribeSessionState(
       } else onError();
     }, onError),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {
-      if (!subscribed) return;
+      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
       handlers.onSeats(snapshot.docs
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
@@ -732,7 +739,7 @@ export function subscribeSessionState(
     ...(handlers.onPrivateLoyalty ? [onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       (snapshot) => {
-        if (!subscribed) return;
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         handlers.onPrivateLoyalty?.(
           snapshot.exists() ? privateLoyalty(snapshot.get('payload')) : null,
@@ -743,14 +750,14 @@ export function subscribeSessionState(
     ...(handlers.onRoleBrief ? [onSnapshot(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
       (snapshot) => {
-        if (!subscribed) return;
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         handlers.onRoleBrief?.(
           snapshot.exists() ? roleBrief(snapshot.data(), sessionId, uid) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed) return;
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onRoleBrief?.(null);
         }
@@ -763,7 +770,7 @@ export function subscribeSessionState(
         where('visibleToUids', 'array-contains', uid),
       ),
       (snapshot) => {
-        if (!subscribed) return;
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         const latest = snapshot.docs
           .map((secret) => setupReceipt(secret.get('payload')))
@@ -778,7 +785,17 @@ export function subscribeSessionState(
   return () => {
     subscribed = false;
     unsubscribes.forEach((unsubscribe) => unsubscribe());
-    handlers.onRoleBrief?.(null);
+    if (currentSessionSubscriptionToken === subscriptionToken) {
+      currentSessionSubscriptionToken = undefined;
+      // Private projections belong to this exact session/UID listener. Clear
+      // them before a replacement subscription can hydrate a different
+      // assignment, so the old player's loyalty or setup receipt cannot remain
+      // visible during reconnect or identity replacement. An older cleanup
+      // leaves a newer listener's private state intact.
+      handlers.onPrivateLoyalty?.(null);
+      handlers.onRoleBrief?.(null);
+      handlers.onSetupReceipt?.(null);
+    }
   };
 }
 

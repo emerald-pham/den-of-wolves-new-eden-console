@@ -1131,9 +1131,53 @@ it('ignores every delayed projection callback after unsubscribe', () => {
 
   expect(onPlayer).not.toHaveBeenCalled();
   expect(onSeats).not.toHaveBeenCalled();
-  expect(onPrivateLoyalty).not.toHaveBeenCalled();
-  expect(onSetupReceipt).not.toHaveBeenCalled();
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  expect(onSetupReceipt).toHaveBeenLastCalledWith(null);
   expect(onError).not.toHaveBeenCalled();
+});
+
+it('does not let an old listener cleanup erase a replacement private projection', () => {
+  const first = captureSessionListener();
+  const firstPrivateLoyalty = vi.fn();
+  const firstRoleBrief = vi.fn();
+  const firstSetupReceipt = vi.fn();
+  const firstUnsubscribe = subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty: firstPrivateLoyalty, onRoleBrief: firstRoleBrief,
+    onSetupReceipt: firstSetupReceipt, onError: vi.fn(),
+  });
+  first.callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 }),
+  });
+
+  const second = captureSessionListener();
+  const secondPrivateLoyalty = vi.fn();
+  const secondRoleBrief = vi.fn();
+  const secondSetupReceipt = vi.fn();
+  const secondUnsubscribe = subscribeSessionState('s2', 'u2', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty: secondPrivateLoyalty, onRoleBrief: secondRoleBrief,
+    onSetupReceipt: secondSetupReceipt, onError: vi.fn(),
+  });
+  second.callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'wolf-agent', suspicion: 0 }),
+  });
+
+  firstUnsubscribe();
+  expect(secondPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'wolf-agent', suspicion: 0 });
+  expect(secondRoleBrief).not.toHaveBeenCalled();
+  expect(secondSetupReceipt).not.toHaveBeenCalled();
+  first.callbacks[3]?.({ exists: () => false });
+  expect(secondPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'wolf-agent', suspicion: 0 });
+
+  secondUnsubscribe();
+  expect(secondPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  expect(secondRoleBrief).toHaveBeenLastCalledWith(null);
+  expect(secondSetupReceipt).toHaveBeenLastCalledWith(null);
 });
 
 it('keeps malformed and legacy lifecycle fields safe without throwing or inventing authority', () => {

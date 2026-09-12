@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['080'],
+    implementationPrompts: ['085'],
     implementationProgress: {
-      completed: 111,
+      completed: 114,
       total: 747,
-      percentage: '14.86%',
-      done: 111,
-      partial: 11,
+      percentage: '15.26%',
+      done: 114,
+      partial: 9,
       active: 0,
-      missing: 625,
+      missing: 624,
     },
     changes: [
-      'Facilitators can mark the approximate first Wolf-attack timing as due, resolved, or deferred to Turn 2 from the GM console. The manual marker does not launch combat, advance the turn, or run a client timer. 111 of 747 planned items are complete (14.86%).',
+      'Reconnecting players no longer see another session member’s private role or loyalty details while their own assignment reloads. 114 of 747 planned items are complete (15.26%).',
     ],
   },
   {
