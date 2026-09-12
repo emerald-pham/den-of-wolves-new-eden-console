@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, Player } from '@/types/game';
+import type { GameSession, GmInstance, Player, RoleBrief } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -396,6 +396,76 @@ describe('App', () => {
         's1', 'u1', expect.objectContaining({ sessionSnapshotAuthority: authority }),
       );
     });
+  });
+
+  it('holds a new own brief until the matching player assignment arrives', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const oldPlayer: Player = { ...player, assignedRoleId: 'admiral' };
+    const nextPlayer: Player = { ...player, assignedRoleId: 'executive-officer' };
+    const nextBrief: RoleBrief = {
+      assignmentUid: 'u1',
+      roleId: 'executive-officer',
+      roleName: 'Executive Officer',
+      vesselName: 'AEGIS',
+      text: 'Run AEGIS maintenance.',
+      commonRules: 'Follow the common rules.',
+      setupRevision: 2,
+    };
+    useSessionStore.getState().setIdentity(session, oldPlayer);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => handlers?.onRoleBrief?.(nextBrief));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+
+    act(() => handlers?.onPlayer({ ...oldPlayer, assignedRoleId: 'icebreaker-miner' }));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+
+    act(() => handlers?.onPlayer(nextPlayer));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+
+    act(() => handlers?.onRoleBrief?.(nextBrief));
+    expect(useSessionStore.getState().roleBrief).toEqual(nextBrief);
+  });
+
+  it('clears a pending or displayed brief when assignment authority is lost', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const assignedPlayer: Player = { ...player, assignedRoleId: 'admiral' };
+    const brief: RoleBrief = {
+      assignmentUid: 'u1',
+      roleId: 'admiral',
+      roleName: 'Admiral',
+      vesselName: 'AEGIS',
+      text: 'Coordinate AEGIS.',
+      commonRules: 'Follow the common rules.',
+      setupRevision: 1,
+    };
+    useSessionStore.getState().setIdentity(session, assignedPlayer);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onRoleBrief?.(brief));
+    expect(useSessionStore.getState().roleBrief).toEqual(brief);
+
+    act(() => handlers?.onRoleBrief?.({ ...brief, assignmentUid: 'u2' }));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+
+    act(() => handlers?.onPlayer({ ...assignedPlayer, assignedRoleId: null }));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+
+    act(() => handlers?.onRoleBrief?.(brief));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    act(() => handlers?.onRoleBrief?.(null));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
   });
 
   it('renders cached session state while showing the existing red Offline indicator', async () => {

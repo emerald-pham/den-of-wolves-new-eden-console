@@ -156,6 +156,20 @@ describe('role-private brief boundary', () => {
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/roleBriefs/alice`)));
     await assertFails(getDoc(doc(as('observer'), `${SESSION}/roleBriefs/alice`)));
     await assertFails(getDoc(doc(as('stranger'), `${SESSION}/roleBriefs/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        assignedRoleId: 'icebreaker-miner',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        assignedRoleId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/alice`)));
   });
 
   it('denies listing and every client write for role briefs', async () => {

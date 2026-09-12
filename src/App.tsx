@@ -32,6 +32,7 @@ import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
+import type { RoleBrief as RoleBriefProjection } from '@/types/game';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -72,6 +73,7 @@ function AppRoutes() {
   useEffect(() => {
     if (!sessionId || !playerUid) return;
     let active = true;
+    let pendingRoleBrief: RoleBriefProjection | null = null;
     let unsubscribe: () => void = () => undefined;
     void import('@/lib/firestore').then(({
       sessionSnapshotAuthorityFor,
@@ -89,11 +91,23 @@ function AppRoutes() {
         onPlayer: (next) => {
           const store = useSessionStore.getState();
           store.setMe(next);
-          const currentBrief = store.roleBrief;
+          if (!next.assignedRoleId) {
+            pendingRoleBrief = null;
+            store.setRoleBrief(null);
+            return;
+          }
+          const bufferedBrief = pendingRoleBrief;
+          pendingRoleBrief = null;
           if (
-            !next.assignedRoleId ||
-            (currentBrief && currentBrief.roleId !== next.assignedRoleId)
+            bufferedBrief &&
+            bufferedBrief.assignmentUid === next.uid &&
+            bufferedBrief.roleId === next.assignedRoleId
           ) {
+            store.setRoleBrief(bufferedBrief);
+            return;
+          }
+          const currentBrief = store.roleBrief;
+          if (currentBrief && currentBrief.roleId !== next.assignedRoleId) {
             store.setRoleBrief(null);
           }
         },
@@ -102,11 +116,26 @@ function AppRoutes() {
         onPrivateLoyalty: (next) => useSessionStore.getState().setPrivateLoyalty(next),
         onRoleBrief: (next) => {
           const store = useSessionStore.getState();
-          store.setRoleBrief(
-            next && store.me?.uid === next.assignmentUid && store.me.assignedRoleId === next.roleId
-              ? next
-              : null,
-          );
+          if (!next) {
+            pendingRoleBrief = null;
+            store.setRoleBrief(null);
+            return;
+          }
+          if (store.me?.uid !== next.assignmentUid) {
+            pendingRoleBrief = null;
+            store.setRoleBrief(null);
+            return;
+          }
+          if (store.me.assignedRoleId === next.roleId) {
+            pendingRoleBrief = null;
+            store.setRoleBrief(next);
+            return;
+          }
+          // Firestore can deliver the new private document before the player
+          // projection that authorizes it. Hold the own-UID record until the
+          // matching assignment arrives, while removing any former brief.
+          pendingRoleBrief = next;
+          store.setRoleBrief(null);
         },
         onSetupReceipt: (next) => useSessionStore.getState().setGmSetupReceipt(next),
         onError: () => useSessionStore.getState().setConnection('offline'),
@@ -114,6 +143,7 @@ function AppRoutes() {
     });
     return () => {
       active = false;
+      pendingRoleBrief = null;
       unsubscribe();
     };
   }, [playerUid, sessionId]);
