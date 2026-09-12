@@ -3,13 +3,16 @@ import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
 import {
   applyWolfFleetDamage,
   calculateWolfAttack,
+  CORE_WOLF_TARGET_RING,
   isWolfCalculationReceipt,
   resolveWolfBoarding,
   resolveWolfRange,
   resolveWolfTargeting,
   shiftWolfTargetDie,
   wolfCombatRoster,
+  type FleetCombatState,
   type WolfCombatShip,
+  type WolfFleetTargetId,
   type WolfRandomInt,
 } from './wolfCombatMath';
 import { INITIAL_SHIP_SURVIVORS } from './shipPopulation';
@@ -28,6 +31,13 @@ function samples(values: readonly number[]): WolfRandomInt {
 function firstTurnRoster(): ReturnType<typeof wolfCombatRoster> {
   const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
   return wolfCombatRoster(targeting);
+}
+
+function completeFleetState(): Record<WolfFleetTargetId, FleetCombatState> {
+  return Object.fromEntries(CORE_WOLF_TARGET_RING.map(target => [target, {
+    damage: { damagedSystemIds: [], destroyed: false },
+    population: INITIAL_SHIP_SURVIVORS[target]!,
+  }])) as Record<WolfFleetTargetId, FleetCombatState>;
 }
 
 describe('central Wolf combat math', () => {
@@ -119,6 +129,27 @@ describe('central Wolf combat math', () => {
     expect(boarding[0]).toMatchObject({ boardingParties: 20, securityCasualties: 1, boarderCasualties: 2, damage: 18 });
   });
 
+  it('rolls every selected boarding defence team and caps casualties only at remaining boarders', () => {
+    const transport: WolfCombatShip = {
+      instanceId: 'transport:0', shipId: 'wolf-assault-transport', target: 'aegis',
+      damageTaken: 0, destroyed: false,
+    };
+    const boarding = resolveWolfBoarding(
+      [transport],
+      [{ target: 'aegis', securityTeams: 6 }],
+      samples([0, 3, 3, 3, 3, 3]),
+    );
+    expect(boarding[0]).toMatchObject({
+      boardingParties: 4,
+      securityTeams: 6,
+      rolls: [1, 4, 4, 4, 4, 4],
+      securityCasualties: 1,
+      boarderCasualties: 4,
+      survivingBoardingParties: 0,
+      damage: 0,
+    });
+  });
+
   it('reuses the existing damage deck and survivor-track casualty rules', () => {
     const result = applyWolfFleetDamage('aegis', 2, {
       damage: { damagedSystemIds: [], destroyed: false },
@@ -134,7 +165,8 @@ describe('central Wolf combat math', () => {
     const receipt = calculateWolfAttack({
       requestId: 'attack-1', composition: firstTurnWolfAttackComposition(),
       phase: { ...phase, airspace: { ...phase.airspace, state: 'lifted' } }, now: 2_000,
-      fleetState: { aegis: { damage: { damagedSystemIds: [], destroyed: false }, population: 2_500 } },
+      rangeActions: [], rangeAssignments: [], boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
+      fleetState: completeFleetState(),
       randomInt: () => 0,
     });
     expect(receipt).toMatchObject({
@@ -143,8 +175,8 @@ describe('central Wolf combat math', () => {
     });
     expect(receipt.targeting.rolls).toHaveLength(15);
     expect(receipt.ranges).toEqual([]);
-    expect(receipt.fleetDamage[0]).toMatchObject({ target: 'aegis', amount: 10, population: 750 });
-    expect(receipt.fleetDamage[0]?.draws).toHaveLength(10);
+    expect(receipt.fleetDamage[0]).toMatchObject({ target: 'aegis', amount: 30, population: 750 });
+    expect(receipt.fleetDamage[0]?.draws).toHaveLength(30);
     expect(Object.isFrozen(receipt)).toBe(true);
     expect(Object.isFrozen(receipt.targeting.rolls)).toBe(true);
     expect(isWolfCalculationReceipt(receipt)).toBe(true);
@@ -157,8 +189,48 @@ describe('central Wolf combat math', () => {
       requestId: 'attack-overrun', composition: firstTurnWolfAttackComposition(),
       phase: { ...phase, airspace: { ...phase.airspace, state: 'restricted' } },
       now: Date.parse(phase.openAirspaceEndsAt) + 1,
+      rangeActions: [], rangeAssignments: [], boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
+      fleetState: completeFleetState(),
       randomInt: () => 0,
     });
     expect(receipt.phase).toMatchObject({ phase: 'team', overrun: true, deadlineAt: phase.openAirspaceEndsAt });
+  });
+
+  it('fails closed when an authoritative calculation input is omitted', () => {
+    const phase = startTurnPhase(1, 1_000);
+    const base = {
+      requestId: 'attack-incomplete', composition: firstTurnWolfAttackComposition(), phase,
+      rangeActions: [], rangeAssignments: [], boardingDefence: [{ target: 'aegis' as const, securityTeams: 0 }],
+      fleetState: completeFleetState(), randomInt: () => 0,
+    };
+    expect(() => calculateWolfAttack({ ...base, rangeActions: undefined as never }))
+      .toThrow(/rangeActions must be provided/i);
+    expect(() => calculateWolfAttack({ ...base, boardingDefence: undefined as never }))
+      .toThrow(/boardingDefence must be provided/i);
+    const incompleteFleet = completeFleetState();
+    delete incompleteFleet.aegis;
+    expect(() => calculateWolfAttack({ ...base, fleetState: incompleteFleet as never }))
+      .toThrow(/complete authoritative fleet combat state.*aegis/i);
+  });
+
+  it('keeps caller-owned range assignments mutable while freezing the returned receipt', () => {
+    const phase = startTurnPhase(1, 1_000);
+    const roster = firstTurnRoster();
+    const assignmentTarget = roster[0]!.instanceId;
+    const targetInstanceIds = [assignmentTarget];
+    const assignment = { actionId: 'fixed-medium', targetInstanceIds };
+    const receipt = calculateWolfAttack({
+      requestId: 'attack-assignment-copy', composition: firstTurnWolfAttackComposition(),
+      phase: { ...phase, airspace: { ...phase.airspace, state: 'lifted' } }, now: 2_000,
+      rangeActions: [{ actionId: 'fixed-medium', sourceId: 'test', range: 'medium-range', fixedDamage: 1, maxTargets: 1 }],
+      rangeAssignments: [assignment], boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
+      fleetState: completeFleetState(), randomInt: () => 0,
+    });
+    expect(Object.isFrozen(assignment)).toBe(false);
+    expect(Object.isFrozen(targetInstanceIds)).toBe(false);
+    expect(Object.isFrozen(receipt.ranges[0]?.assignments[0])).toBe(true);
+    expect(Object.isFrozen(receipt.ranges[0]?.assignments[0]?.targetInstanceIds)).toBe(true);
+    targetInstanceIds.push('caller-can-still-edit');
+    expect(assignment.targetInstanceIds).toHaveLength(2);
   });
 });

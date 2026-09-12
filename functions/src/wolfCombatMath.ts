@@ -370,7 +370,14 @@ export function resolveWolfRange(
     receipt: {
       range,
       dice,
-      assignments: assignments.filter(assignment => actionIds.includes(assignment.actionId)),
+      // The returned receipt is frozen below. Clone caller-owned assignments so
+      // freezing that receipt cannot freeze a request object or its target list.
+      assignments: assignments
+        .filter(assignment => actionIds.includes(assignment.actionId))
+        .map(assignment => ({
+          actionId: assignment.actionId,
+          targetInstanceIds: [...assignment.targetInstanceIds],
+        })),
       damageByInstance,
       destroyedInstanceIds,
       destructionDamageByTarget: fleetDamage,
@@ -420,12 +427,14 @@ export function resolveWolfBoarding(
       throw new Error(`Security-team defence is required for ${target}.`);
     }
     requireNonNegativeInteger(chosen.securityTeams, 'securityTeams');
-    const rolls = Array.from({ length: Math.min(chosen.securityTeams, boardingParties) },
+    // Every selected security team rolls. The number of boarders only caps the
+    // casualties they can inflict; it does not remove dice from the defence.
+    const rolls = Array.from({ length: chosen.securityTeams },
       () => boundedRandomInt(random, 6) + 1);
     const securityCasualties = rolls.filter(roll => roll === 1).length;
     const boarderCasualties = Math.min(
       rolls.filter(roll => roll >= 4).length,
-      Math.max(0, boardingParties - securityCasualties),
+      boardingParties,
     );
     const survivingBoardingParties = Math.max(0, boardingParties - boarderCasualties);
     return [{
@@ -553,10 +562,12 @@ export interface WolfAttackCalculationInput {
   readonly phase: TurnPhase;
   readonly now?: number;
   readonly targetingModifiers?: WolfTargetingModifierInput;
-  readonly rangeActions?: readonly WolfRangeAction[];
-  readonly rangeAssignments?: readonly WolfRangeAssignment[];
-  readonly boardingDefence?: readonly WolfBoardingDefence[];
-  readonly fleetState?: Readonly<Partial<Record<WolfFleetTargetId, FleetCombatState>>>;
+  /** Explicitly empty arrays mean this attack has no actions/defence choices. */
+  readonly rangeActions: readonly WolfRangeAction[];
+  readonly rangeAssignments: readonly WolfRangeAssignment[];
+  readonly boardingDefence: readonly WolfBoardingDefence[];
+  /** Every target in the printed ring must have an authoritative state. */
+  readonly fleetState: Readonly<Record<WolfFleetTargetId, FleetCombatState>>;
   readonly randomInt?: WolfRandomInt;
 }
 
@@ -588,13 +599,35 @@ function phaseReceipt(phase: TurnPhase, now: number): WolfPhaseReceipt {
  */
 export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalculationReceipt {
   if (!input.requestId || typeof input.requestId !== 'string') throw new Error('requestId is required.');
+  if (!Array.isArray(input.rangeActions)) {
+    throw new Error('rangeActions must be provided as authoritative input.');
+  }
+  if (!Array.isArray(input.rangeAssignments)) {
+    throw new Error('rangeAssignments must be provided as authoritative input.');
+  }
+  if (!Array.isArray(input.boardingDefence)) {
+    throw new Error('boardingDefence must be provided as authoritative input.');
+  }
+  if (!assertRecord(input.fleetState)) {
+    throw new Error('fleetState must be provided as authoritative input.');
+  }
+  for (const target of CORE_WOLF_TARGET_RING) {
+    const state = input.fleetState[target];
+    if (!assertRecord(state) || !assertRecord(state.damage) ||
+        !Array.isArray(state.damage.damagedSystemIds) ||
+        !state.damage.damagedSystemIds.every(id => typeof id === 'string') ||
+        typeof state.damage.destroyed !== 'boolean') {
+      throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
+    }
+    requireNonNegativeInteger(state.population as number, `${target} population`);
+  }
   const now = input.now ?? Date.now();
   if (!Number.isFinite(now)) throw new Error('now must be a finite server instant.');
   const random = input.randomInt ?? secureRandomInt;
   const phase = phaseReceipt(input.phase, now);
-  const actionIds = input.rangeActions?.map(action => action.actionId) ?? [];
+  const actionIds = input.rangeActions.map(action => action.actionId);
   uniqueStrings(actionIds, 'Wolf range action IDs');
-  if ((input.rangeAssignments ?? []).some(assignment => !actionIds.includes(assignment.actionId))) {
+  if (input.rangeAssignments.some(assignment => !actionIds.includes(assignment.actionId))) {
     throw new Error('A Wolf range assignment names an unknown action.');
   }
   const targeting = resolveWolfTargeting(
@@ -606,12 +639,12 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   let roster = wolfCombatRoster(targeting);
   const ranges: WolfRangeReceipt[] = [];
   for (const range of WOLF_ATTACK_RANGES.map(value => `${value}-range` as WolfCombatRange)) {
-    if (input.rangeActions?.some(action => action.range === range)) {
+    if (input.rangeActions.some(action => action.range === range)) {
       const resolved = resolveWolfRange(
         range,
-        input.rangeActions ?? [],
-        (input.rangeAssignments ?? []).filter(assignment =>
-          input.rangeActions?.some(action => action.range === range && action.actionId === assignment.actionId) ?? false),
+        input.rangeActions,
+        input.rangeAssignments.filter(assignment =>
+          input.rangeActions.some(action => action.range === range && action.actionId === assignment.actionId)),
         roster,
         random,
       );
@@ -619,9 +652,7 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
       ranges.push(resolved.receipt);
     }
   }
-  const boarding = input.boardingDefence
-    ? resolveWolfBoarding(roster, input.boardingDefence, random)
-    : [];
+  const boarding = resolveWolfBoarding(roster, input.boardingDefence, random);
   const survival = resolveSurvivorEffects(roster);
   const damageTotals = damageRecord();
   [...ranges.flatMap(range => Object.entries(range.destructionDamageByTarget)),
@@ -634,8 +665,7 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   const fleetDamage: WolfFleetDamageResult[] = [];
   Object.entries(damageTotals).forEach(([target, amount]) => {
     if (amount < 1) return;
-    const state = input.fleetState?.[target as WolfFleetTargetId];
-    if (!state) return;
+    const state = input.fleetState[target as WolfFleetTargetId];
     const result = applyWolfFleetDamage(target as WolfFleetTargetId, amount, state, random);
     fleetDamage.push({ target: result.target, amount: result.amount, state: result.state, population: result.population, draws: result.draws });
   });
