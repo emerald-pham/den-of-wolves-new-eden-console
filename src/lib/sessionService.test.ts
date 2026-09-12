@@ -74,6 +74,8 @@ const authorityService = await import('./sessionService') as unknown as {
   }) => Promise<unknown>;
   claimSeat: (seatId: string) => Promise<unknown>;
   releaseSeat: (seatId: string, reason: string) => Promise<unknown>;
+  assignRole: (targetUid: string, roleId: string) => Promise<unknown>;
+  releaseRole: (targetUid: string) => Promise<unknown>;
   setFacilitatorResponsibility: (change: {
     responsibility: 'main' | 'assistant';
     mode: 'share' | 'handoff' | 'drop';
@@ -2114,6 +2116,32 @@ describe('authoritative setup and seating wrappers', () => {
       instanceId: 'bridge',
       reason: 'Roster correction',
     });
+  });
+
+  it('routes facilitator role release and reassignment through the named casting callables', async () => {
+    const releaseCall = callableReturning({
+      data: { sessionId: 's1', setupRevision: 5 },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(releaseCall);
+
+    await expect(authorityService.releaseRole('u2')).resolves.toBe('applied');
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'releaseRole');
+    expect(releaseCall).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'bridge', requestId: expect.any(String), targetUid: 'u2',
+    });
+
+    const assignCall = callableReturning({
+      data: { sessionId: 's1', setupRevision: 6 },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(assignCall);
+
+    await expect(authorityService.assignRole('u2', 'admiral')).resolves.toBe('applied');
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignRole');
+    expect(assignCall).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'bridge', requestId: expect.any(String),
+      targetUid: 'u2', roleId: 'admiral',
+    });
+    expect(useSessionStore.getState().session?.setupRevision).toBe(6);
   });
 
   it('maps stale authority CAS failures to a safe stale disposition for every guarded command', async () => {

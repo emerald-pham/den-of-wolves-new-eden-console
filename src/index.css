@@ -1145,6 +1145,129 @@ body {
   font: 0.62rem/1.5 var(--cic-mono);
 }
 
+.gm-casting-board {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--cic-amber-dim);
+  background: color-mix(in srgb, var(--cic-amber) 4%, transparent);
+}
+
+.gm-casting-board__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.gm-casting-board__header h3 {
+  margin: 0.15rem 0 0;
+  color: var(--cic-ink);
+  font: 600 0.9rem/1.25 var(--cic-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gm-casting-board__header > span,
+.gm-casting-board__player > div > span {
+  color: var(--cic-muted);
+  font: 0.66rem/1.4 var(--cic-mono);
+}
+
+.gm-casting-board__list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gm-casting-board__player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.55rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--cic-amber) 18%, transparent);
+}
+
+.gm-casting-board__player > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.gm-casting-board__player strong {
+  overflow: hidden;
+  color: var(--cic-ink);
+  font: 600 0.75rem/1.3 var(--cic-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-casting-board__assign {
+  display: flex;
+  align-items: center;
+  flex: 0 1 32rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.gm-casting-board__assign label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.gm-casting-board__assign select,
+.gm-casting-board__action {
+  min-height: 44px;
+  border: 1px solid var(--cic-amber-dim);
+  background: transparent;
+  color: var(--cic-amber);
+  font: 600 0.62rem/1.2 var(--cic-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gm-casting-board__assign select {
+  min-width: 12rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.gm-casting-board__action {
+  padding: 0.45rem 0.65rem;
+}
+
+.gm-casting-board__restriction {
+  max-width: 25rem;
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.62rem/1.45 var(--cic-mono);
+  letter-spacing: 0.04em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.gm-casting-board__action:hover:not(:disabled),
+.gm-casting-board__action:focus-visible,
+.gm-casting-board__assign select:focus-visible {
+  border-color: var(--cic-amber);
+  color: var(--cic-scream);
+}
+
+.gm-player-roster__note {
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.66rem/1.45 var(--cic-mono);
+}
+
 .gm-player-roster,
 .gm-player-roster__group ul {
   margin: 0;
@@ -3005,6 +3128,11 @@ body {
   .gm-role-group--independent { grid-column: auto; }
   .gm-wolf-role { gap: 0.65rem; }
   .gm-union-role__station { display: block; padding-top: 0.1rem; }
+  .gm-casting-board__header,
+  .gm-casting-board__player { align-items: flex-start; flex-direction: column; }
+  .gm-casting-board__assign { width: 100%; justify-content: stretch; }
+  .gm-casting-board__assign select,
+  .gm-casting-board__action { flex: 1 1 100%; width: 100%; }
   .ship-console__counters { grid-template-columns: 1fr; }
   .ship-resources ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ship-console__privacy-controls { grid-template-columns: 1fr; }

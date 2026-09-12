@@ -30,6 +30,8 @@ import {
 import {
   kickGmInstance,
   kickPlayer,
+  assignRole,
+  releaseRole,
   confirmSetup,
   setDebriefMode,
   setPressEnabled,
@@ -42,6 +44,7 @@ import {
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
   type TurnStartReplayAudience,
+  type CommandDisposition,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -240,6 +243,9 @@ export default function GmConsole() {
   );
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
+  const [castingDraftRoles, setCastingDraftRoles] = useState<Readonly<Record<string, string>>>({});
+  const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
+  const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [clock, setClock] = useState(() => Date.now());
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
@@ -394,6 +400,15 @@ export default function GmConsole() {
     }];
   });
   const connectedPlayerGroups = groupConnectedPlayers(connectedPlayers);
+  const assignedCastingRoleIds = new Set(
+    connectedPlayers
+      .map((player) => player.assignedRoleId)
+      .filter((roleId): roleId is string => typeof roleId === 'string'),
+  );
+  const castingPlayers = connectedPlayers
+    .filter((player) => player.role === 'player')
+    .sort((left, right) =>
+      normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
 
   useLayoutEffect(() => {
     const dradis = dradisRef.current;
@@ -623,6 +638,59 @@ export default function GmConsole() {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm || !local) return <Navigate to="/console" replace />;
+
+  function castingRoleLabel(roleId: string): string {
+    return CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId;
+  }
+
+  function castingRestriction(player: Player): string | null {
+    if (
+      player.activeConsoleRoleId === 'press-officer' ||
+      player.assignedRoleId === 'press-officer' ||
+      player.seatId === 'press-officer'
+    ) {
+      return 'Press station held // release Press on that device before casting.';
+    }
+    if (
+      typeof player.seatId === 'string' &&
+      player.seatId.length > 0 &&
+      player.seatId !== player.assignedRoleId
+    ) {
+      return `Station held // ${castingRoleLabel(player.seatId)} // release it before casting.`;
+    }
+    return null;
+  }
+
+  function availableCastingRoles(player: Player): readonly string[] {
+    if (castingRestriction(player)) return [];
+    return activeRoleIds.filter((roleId) =>
+      roleId === player.assignedRoleId || !assignedCastingRoleIds.has(roleId));
+  }
+
+  async function changeCastingRole(player: Player, roleId: string | null): Promise<void> {
+    setCastingMutationUid(player.uid);
+    setCastingMutationMessage(null);
+    try {
+      const disposition: CommandDisposition = roleId === null
+        ? await releaseRole(player.uid)
+        : await assignRole(player.uid, roleId);
+      setCastingDraftRoles((current) => {
+        const next = { ...current };
+        if (roleId === null) delete next[player.uid];
+        else next[player.uid] = roleId;
+        return next;
+      });
+      setCastingMutationMessage(disposition === 'queued'
+        ? 'CASTING CHANGE PENDING // AWAITING RECONNECTION'
+        : disposition === 'stale'
+          ? 'CASTING CHANGE STALE // REFRESH THE LIVE ROSTER AND RETRY'
+          : `CASTING ${roleId === null ? 'RELEASE' : 'ASSIGNMENT'} ${disposition.toUpperCase()}`);
+    } catch {
+      setCastingMutationMessage('CASTING CHANGE REJECTED // REVIEW THE LIVE ROSTER');
+    } finally {
+      setCastingMutationUid(null);
+    }
+  }
 
   function replaceStagedCounters(next: Readonly<Record<string, StagedCounter>>): void {
     stagedCountersRef.current = next;
@@ -1608,6 +1676,89 @@ export default function GmConsole() {
             <p className="gm-player-roster__hint">
               Kick removes one browser from this session only; it does not block that network or other sessions.
             </p>
+            {currentTurn === 0 && (session.phase === 'lobby' || session.phase === 'casting') && (
+              <section className="gm-casting-board" aria-label="Facilitator casting">
+                <header className="gm-casting-board__header">
+                  <div>
+                    <p className="eyebrow">Facilitator casting</p>
+                    <h3>Assign printed roles</h3>
+                  </div>
+                  <span>{castingPlayers.length} eligible players</span>
+                </header>
+                <p className="gm-player-roster__hint">
+                  Assigning a role clears that player’s device console selection. Releasing a role also opens its canonical station.
+                </p>
+                {castingPlayers.length === 0 ? (
+                  <p className="gm-console__status">No eligible players are connected.</p>
+                ) : (
+                  <ul className="gm-casting-board__list">
+                    {castingPlayers.map((player) => {
+                      const name = normalizeDisplayName(player.displayName);
+                      const options = availableCastingRoles(player);
+                      const restriction = castingRestriction(player);
+                      const draftedRole = castingDraftRoles[player.uid];
+                      const draftRole = draftedRole && options.includes(draftedRole)
+                        ? draftedRole
+                        : options[0] ?? '';
+                      return (
+                        <li className="gm-casting-board__player" key={player.uid}>
+                          <div>
+                            <strong>{name}</strong>
+                            <span>
+                              {player.assignedRoleId
+                                ? `Assigned // ${castingRoleLabel(player.assignedRoleId)}`
+                                : 'Unassigned'}
+                            </span>
+                          </div>
+                          {player.assignedRoleId && !restriction ? (
+                            <button
+                              className="gm-casting-board__action"
+                              type="button"
+                              disabled={castingMutationUid !== null}
+                              onClick={() => void changeCastingRole(player, null)}
+                            >
+                              {castingMutationUid === player.uid ? 'Releasing…' : `Release role from ${name}`}
+                            </button>
+                          ) : restriction ? (
+                            <p className="gm-casting-board__restriction" role="status">
+                              {restriction}
+                            </p>
+                          ) : (
+                            <div className="gm-casting-board__assign">
+                              <label htmlFor={`casting-role-${player.uid}`}>Role for {name}</label>
+                              <select
+                                id={`casting-role-${player.uid}`}
+                                value={draftRole}
+                                disabled={castingMutationUid !== null || options.length === 0}
+                                onChange={(event) => setCastingDraftRoles((current) => ({
+                                  ...current,
+                                  [player.uid]: event.target.value,
+                                }))}
+                              >
+                                {options.map((roleId) => (
+                                  <option key={roleId} value={roleId}>{castingRoleLabel(roleId)}</option>
+                                ))}
+                              </select>
+                              <button
+                                className="gm-casting-board__action"
+                                type="button"
+                                disabled={castingMutationUid !== null || draftRole.length === 0}
+                                onClick={() => void changeCastingRole(player, draftRole)}
+                              >
+                                {castingMutationUid === player.uid ? 'Assigning…' : `Assign role to ${name}`}
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <p className="gm-player-roster__note" role="status" aria-live="polite">
+                  {castingMutationMessage ?? 'Role assignments commit through the authoritative casting service.'}
+                </p>
+              </section>
+            )}
             {connectedPlayerGroups.length === 0 ? (
               <p className="gm-console__status">No connected players.</p>
             ) : (

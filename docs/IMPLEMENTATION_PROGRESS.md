@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**102 / 734 prompts complete (13.90%)**
+**103 / 734 prompts complete (14.03%)**
 
-Status breakdown: **102 done · 18 partial · 614 missing**.
+Status breakdown: **103 done · 17 partial · 614 missing**.
 
 Active prompt: **none**
 
@@ -473,7 +473,7 @@ release classification and evidence.
 | 059 | done | feature | 0.3.5 | `setShipPreference` and `castingCallable.test.ts`. |
 | 060 | done | feature | 0.3.5 | `assignRole` facilitator callable and tests. |
 | 061 | done | feature | 0.3.5 | Role exclusivity policy plus callable denial tests. |
-| 062 | partial | feature | 0.3.5 | `releaseRole` clears assignment/console; seat/craft/private pointer composition remains open. |
+| 062 | done | feature | 0.3.36 | `assignRole` and `releaseRole` reconcile canonical seats, role/console pointers, Press ownership guards, and reciprocal private Friend records before start; normal player seat claims remain authoritative. |
 | 063 | missing | non-feature | — | Role-private brief reader/projection path remains open. |
 | 064 | partial | feature | 0.3.5 | Private loyalty records are written; a complete entitled reader projection remains open. |
 | 065 | done | feature | 0.3.5 | Loyalty suspicion policy and assignment tests cover all listed kinds. |

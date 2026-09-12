@@ -416,6 +416,10 @@ function hasCoreSeat(player: DocumentSnapshot): boolean {
   return typeof seatId === 'string' && seatId.trim().length > 0 && seatId !== 'press-officer';
 }
 
+function hasPressSeat(player: DocumentSnapshot): boolean {
+  return player.get('seatId') === 'press-officer';
+}
+
 function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
   return isActivePlayer(player) && player.get('role') === 'player' &&
     player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreAssignment(player);
@@ -2424,6 +2428,34 @@ export const assignRole = onCall<{
     if (!isActivePlayer(target) || target.get('role') === 'observer') {
       throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
     }
+    if (
+      hasPressState(target) || hasPressSeat(target) ||
+      authority.session.get('pressHolderUid') === assignment.targetUid
+    ) {
+      throw commandError(
+        'failed-precondition',
+        'Release the player\'s Press station before assigning a core role.',
+        'conflict',
+      );
+    }
+    const storedSeatId = target.get('seatId');
+    const targetSeatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+      ? db.doc(`sessions/${assignment.sessionId}/seats/${storedSeatId}`)
+      : undefined;
+    const targetSeat = targetSeatRef ? await tx.get(targetSeatRef) : undefined;
+    if (targetSeatRef) {
+      const canonicalHeldSeat = targetSeat?.exists &&
+        targetSeat.get('roleId') === storedSeatId &&
+        targetSeat.get('status') === 'claimed' &&
+        targetSeat.get('holderUid') === assignment.targetUid;
+      if (!canonicalHeldSeat || storedSeatId !== assignment.roleId) {
+        throw commandError(
+          'failed-precondition',
+          'Release the player\'s current station before assigning a different core role.',
+          'unavailable-service',
+        );
+      }
+    }
     const activeRoleIds = configuredRoleIds(authority.session);
     canonicalSetupForSession(authority.session, activeRoleIds);
     const assignments = players.docs.flatMap((member) => {
@@ -2508,6 +2540,11 @@ export const releaseRole = onCall<{
       tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
       tx.get(targetSecretRef),
     ]);
+    const storedSeatId = target.get('seatId');
+    const targetSeatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+      ? db.doc(`sessions/${release.sessionId}/seats/${storedSeatId}`)
+      : undefined;
+    const targetSeat = targetSeatRef ? await tx.get(targetSeatRef) : undefined;
     let partnerSecretRef: DocumentReference | undefined;
     const partnerUid = privateFriendPartnerUid(targetSecret, release.targetUid);
     if (partnerUid) {
@@ -2517,11 +2554,40 @@ export const releaseRole = onCall<{
     requireCastingWindow(authority.session);
     canonicalSetupForSession(authority.session, configuredRoleIds(authority.session));
     if (!isActivePlayer(target)) throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
+    if (
+      !hasCoreAssignment(target) || hasPressState(target) || hasPressSeat(target) ||
+      authority.session.get('pressHolderUid') === release.targetUid
+    ) {
+      throw commandError(
+        'failed-precondition',
+        'Only a player with an assigned core role can be released through casting.',
+        'conflict',
+      );
+    }
+    if (targetSeatRef && targetSeat) {
+      const assignedRoleId = target.get('assignedRoleId');
+      const roleMatchesSeat = assignedRoleId === null || assignedRoleId === undefined ||
+        assignedRoleId === '' || assignedRoleId === storedSeatId;
+      const canonicalSeat = roleMatchesSeat && targetSeat.get('roleId') === storedSeatId;
+      const targetOwnsSeat = targetSeat.get('status') === 'claimed' &&
+        targetSeat.get('holderUid') === release.targetUid;
+      const openSeat = targetSeat.get('status') === 'open' && targetSeat.get('holderUid') === null;
+      if (!canonicalSeat || (!targetOwnsSeat && !openSeat)) {
+        throw commandError(
+          'failed-precondition',
+          'The player role and station records do not agree; refresh before releasing the role.',
+          'unavailable-service',
+        );
+      }
+    }
     const result = {
       sessionId: release.sessionId,
       setupRevision: setupRevision(authority.session) + 1,
     } satisfies CastingMutationResult;
-    tx.update(target.ref, { assignedRoleId: null, activeConsoleRoleId: null });
+    tx.update(target.ref, { assignedRoleId: null, activeConsoleRoleId: null, seatId: null });
+    if (targetSeatRef && targetSeat?.exists && targetSeat.get('status') === 'claimed') {
+      tx.update(targetSeatRef, { status: 'open', holderUid: null, claimedAt: null });
+    }
     // Role release and loyalty cleanup commit together. Reading the private
     // record above also makes a concurrent assignment retry against this
     // transaction instead of leaving a stale hidden faction behind.
