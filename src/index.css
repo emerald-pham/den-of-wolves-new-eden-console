@@ -1245,6 +1245,16 @@ body {
   padding: 0.45rem 0.65rem;
 }
 
+.gm-casting-board__restriction {
+  max-width: 25rem;
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.62rem/1.45 var(--cic-mono);
+  letter-spacing: 0.04em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .gm-casting-board__action:hover:not(:disabled),
 .gm-casting-board__action:focus-visible,
 .gm-casting-board__assign select:focus-visible {

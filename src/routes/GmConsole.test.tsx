@@ -378,6 +378,41 @@ it('gives the facilitator an authoritative release and reassignment path during 
   expect(assignRole).toHaveBeenCalledWith('u3', 'wing-commander');
 });
 
+it('keeps held core seats and Press stations out of facilitator casting controls', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'casting',
+    currentTurn: 0,
+    activeRoleIds: recommendedRoleIds(8),
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      {
+        uid: 'u4', sessionId: 's1', displayName: 'Seatbound', role: 'player', seatId: 'admiral',
+        assignedRoleId: null, activeConsoleRoleId: null, joinedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        uid: 'u5', sessionId: 's1', displayName: 'Press holder', role: 'player', seatId: null,
+        assignedRoleId: null, activeConsoleRoleId: 'press-officer', joinedAt: '2026-01-01T00:01:00.000Z',
+      },
+    ]);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const casting = await screen.findByRole('region', { name: /facilitator casting/i });
+  expect(within(casting).getByText(/station held.*admiral.*release it before casting/i)).toBeInTheDocument();
+  expect(within(casting).getByText(/press station held.*release press on that device/i)).toBeInTheDocument();
+  expect(within(casting).queryByRole('button', { name: /assign role to seatbound/i })).not.toBeInTheDocument();
+  expect(within(casting).queryByRole('button', { name: /assign role to press holder/i })).not.toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+  expect(releaseRole).not.toHaveBeenCalled();
+});
+
 it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);

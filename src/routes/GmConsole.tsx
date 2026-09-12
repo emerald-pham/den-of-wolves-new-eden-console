@@ -643,7 +643,26 @@ export default function GmConsole() {
     return CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId;
   }
 
+  function castingRestriction(player: Player): string | null {
+    if (
+      player.activeConsoleRoleId === 'press-officer' ||
+      player.assignedRoleId === 'press-officer' ||
+      player.seatId === 'press-officer'
+    ) {
+      return 'Press station held // release Press on that device before casting.';
+    }
+    if (
+      typeof player.seatId === 'string' &&
+      player.seatId.length > 0 &&
+      player.seatId !== player.assignedRoleId
+    ) {
+      return `Station held // ${castingRoleLabel(player.seatId)} // release it before casting.`;
+    }
+    return null;
+  }
+
   function availableCastingRoles(player: Player): readonly string[] {
+    if (castingRestriction(player)) return [];
     return activeRoleIds.filter((roleId) =>
       roleId === player.assignedRoleId || !assignedCastingRoleIds.has(roleId));
   }
@@ -1676,6 +1695,7 @@ export default function GmConsole() {
                     {castingPlayers.map((player) => {
                       const name = normalizeDisplayName(player.displayName);
                       const options = availableCastingRoles(player);
+                      const restriction = castingRestriction(player);
                       const draftedRole = castingDraftRoles[player.uid];
                       const draftRole = draftedRole && options.includes(draftedRole)
                         ? draftedRole
@@ -1690,7 +1710,7 @@ export default function GmConsole() {
                                 : 'Unassigned'}
                             </span>
                           </div>
-                          {player.assignedRoleId ? (
+                          {player.assignedRoleId && !restriction ? (
                             <button
                               className="gm-casting-board__action"
                               type="button"
@@ -1699,6 +1719,10 @@ export default function GmConsole() {
                             >
                               {castingMutationUid === player.uid ? 'Releasing…' : `Release role from ${name}`}
                             </button>
+                          ) : restriction ? (
+                            <p className="gm-casting-board__restriction" role="status">
+                              {restriction}
+                            </p>
                           ) : (
                             <div className="gm-casting-board__assign">
                               <label htmlFor={`casting-role-${player.uid}`}>Role for {name}</label>

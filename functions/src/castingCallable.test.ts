@@ -210,12 +210,77 @@ it('assigns one active role through a facilitator instance and rejects duplicate
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('rejects assigning a player who still holds a different canonical core seat', async () => {
+  mock.target = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: null,
+    activeConsoleRoleId: null,
+    seatId: 'admiral',
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
+    if (ref.path === 'sessions/s1/players') {
+      return { exists: true, docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/seats/admiral') {
+      return snapshot({ roleId: 'admiral', status: 'claimed', holderUid: 'u2' }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(assignRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'assign-held-seat',
+    targetUid: 'u2', roleId: 'icebreaker-miner',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('rejects assigning an active Press holder without touching Press ownership or private state', async () => {
+  mock.session.pressHolderUid = 'u2';
+  mock.target = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: null,
+    activeConsoleRoleId: 'press-officer',
+    seatId: null,
+  };
+
+  await expect(assignRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'assign-press-holder',
+    targetUid: 'u2', roleId: 'icebreaker-miner',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('rejects role release from a non-facilitator actor before reading private state', async () => {
   mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
   await expect(releaseRole.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'release-wrong-actor', targetUid: 'u2',
   }, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['an unassigned player', { connected: true, role: 'player', assignedRoleId: null }],
+  ['an active Press holder', {
+    connected: true, role: 'player', assignedRoleId: null, activeConsoleRoleId: 'press-officer',
+  }],
+])('rejects role release from %s without clearing unrelated state', async (_label, target) => {
+  mock.target = target;
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-invalid', targetUid: 'u2',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
   expect(mock.delete).not.toHaveBeenCalled();
 });
 
