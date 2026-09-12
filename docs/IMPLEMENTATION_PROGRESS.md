@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 737 prompts complete (13.98%)**
+**103 / 739 prompts complete (13.94%)**
 
-Status breakdown: **103 done · 17 partial · 617 missing**.
+Status breakdown: **103 done · 17 partial · 619 missing**.
 
 Active prompt: **none**
 
@@ -1147,6 +1147,8 @@ release classification and evidence.
 | 668 | missing | non-feature | — | Planned [POLISH] prompt: make the Write Mode Off control use the shared button visual and interaction language while preserving current guards, accessible state, responsive behavior, and authorization. |
 | 669 | missing | non-feature | — | Planned [POLISH] prompt: bring the GM DRADIS console to visual and interaction parity with the current ship-console DRADIS reference, with regression proof for all non-GM DRADIS behavior and authority and no broader refactor. |
 | 670 | missing | non-feature | — | Planned [REPAIR] prompt: remove the unwanted additional-GM registration lockout from Role Select and the GM console while preserving server-owned identity, legitimate authorization, existing authority, and focused denial coverage. |
+| 671 | missing | non-feature | — | Owner-requested app-wide and fleet-wide button consistency audit and repair, including both Ship View Privacy toggles; preserve behavior, privacy, authorization, and the accepted non-GM DRADIS experience. |
+| 672 | missing | feature | — | Owner-requested placement of existing right-sidebar shuttle docking history inside main ship consoles, preserving its data authority, access rules, and existing sidebar behavior. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

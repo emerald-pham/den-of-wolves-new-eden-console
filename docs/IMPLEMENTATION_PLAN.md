@@ -2098,7 +2098,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 <!-- BEGIN GENERATED PROMPT CATALOG: plan -->
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 #### Prompt checklist
-#### Execution checklist — all 737 prompts (catalog view)
+#### Execution checklist — all 739 prompts (catalog view)
 - [x] Prompt 001
 - [x] Prompt 002
 - [x] Prompt 003
@@ -2836,6 +2836,8 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 668
 - [ ] Prompt 669
 - [ ] Prompt 670
+- [ ] Prompt 671
+- [ ] Prompt 672
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 - **Prompt 001 — [PRESERVE] Build the canonical rule-source index.** Acceptance: every planned mechanic resolves to a routed reference, with printed component sheets taking precedence over generic guides.
@@ -3595,4 +3597,6 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 668 — [POLISH] Render Write Mode Off as a shared button.** Acceptance: when Write Mode is off, its control is rendered as a shared button whose visual treatment and interaction match the rest of the UI, while preserving the existing write-mode permission and toggle guards, truthful off/on state, accessible name and pressed semantics, visible keyboard focus, minimum touch target, responsive layout, and reduced-motion behavior where applicable. Do not change authorization or write-mode policy.
 - **Prompt 669 — [POLISH] Align the GM DRADIS console with ship-console DRADIS.** Acceptance: within the GM console only, make the DRADIS console visually and interactively match the current non-GM ship-console DRADIS accepted reference, reusing shared components or configuration where practical. Preserve every non-GM ship-console DRADIS appearance, behavior, accessibility, responsive layout, reduced-motion behavior, and server authority contract with regression proof; do not change non-GM DRADIS, authorization, or unrelated GM-console surfaces, and do not perform a broad DRADIS refactor.
 - **Prompt 670 — [REPAIR] Allow authorized additional GMs to register from both surfaces.** Acceptance: after auditing the actual registration blocker, remove the unwanted lockout that prevents an authorized additional GM instance from being added through both the Role Select screen and the GM console. Existing authorized GM/session state, server-owned GM grant and instance identity, existing write/observer authority, stale and unauthorized claim denial, and safe idempotent replay handling remain intact; focused regressions cover both surfaces and prove that the repair does not grant arbitrary privilege or broadly relax authorization.
+- **Prompt 671 — [POLISH] Align buttons across the fleet and application.** Acceptance: Audit button controls across the application and fleet consoles against the existing shared button design conventions, explicitly including Ship View Privacy controls `Hide Resource Stores` and `Hide Unrest and Population`. Repair inconsistent button styling, state presentation, keyboard focus, accessible names and toggle semantics, disabled/pending treatment, and touch targets using shared variants rather than a new visual system. Preserve each control's behavior, privacy settings, permissions, and server authority; preserve the accepted non-GM DRADIS appearance and behavior. Prove representative phone, desktop, short-landscape, and reduced-motion states. Coordinate with Prompt 668 so its Write Mode Off case is not implemented twice.
+- **Prompt 672 — [POLISH] Show shuttle docking history in main ship consoles.** Acceptance: Make the shuttle docking history currently shown in the right sidebar available within the main ship consoles, reusing the existing authoritative history and shared presentation where practical. Preserve chronological ordering, live/reconnect updates, ship/session scoping, privacy and read permissions, and existing docking behavior without introducing client-owned history or duplicate events. Keep the existing sidebar usable unless a separately accepted design changes it. Verify populated, empty, and updated history with accessible readable layout at phone, desktop, and short-landscape sizes, reduced motion, and unchanged non-GM DRADIS behavior.
 <!-- END GENERATED PROMPT CATALOG: plan -->

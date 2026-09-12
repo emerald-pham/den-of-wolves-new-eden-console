@@ -210,6 +210,13 @@
       "language": "Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 independently rebaselines hostile-client and resource-exhaustion controls without blocking P012/P014 or depending on Prompt 666.",
       "source": "IMPLEMENTATION_PLAN.md - Prompt 667 definition",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "671 -> 668",
+      "id": "E-671",
+      "language": "The owner expanded the queued Write Mode Off button consistency request into an application-wide and fleet-wide button audit, explicitly including Ship View Privacy controls. Coordinate the shared case without imposing a hard prerequisite.",
+      "source": "Owner request - application-wide button conventions, 2026-09-11",
+      "type": "related/consumes"
     }
   ],
   "plan": {
@@ -17265,6 +17272,52 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "REPAIR"
+    },
+    {
+      "changeClass": "non-feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Audit button controls across the application and fleet consoles against the existing shared button design conventions, explicitly including Ship View Privacy controls `Hide Resource Stores` and `Hide Unrest and Population`. Repair inconsistent button styling, state presentation, keyboard focus, accessible names and toggle semantics, disabled/pending treatment, and touch targets using shared variants rather than a new visual system. Preserve each control's behavior, privacy settings, permissions, and server authority; preserve the accepted non-GM DRADIS appearance and behavior. Prove representative phone, desktop, short-landscape, and reduced-motion states. Coordinate with Prompt 668 so its Write Mode Off case is not implemented twice.",
+        "title": "Align buttons across the fleet and application."
+      },
+      "description": "Owner-requested app-wide and fleet-wide button consistency audit and repair, including both Ship View Privacy toggles; preserve behavior, privacy, authorization, and the accepted non-GM DRADIS experience.",
+      "evidenceIds": "E-671",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "671",
+      "milestoneHints": "none",
+      "relatedConsumes": "668",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Make the shuttle docking history currently shown in the right sidebar available within the main ship consoles, reusing the existing authoritative history and shared presentation where practical. Preserve chronological ordering, live/reconnect updates, ship/session scoping, privacy and read permissions, and existing docking behavior without introducing client-owned history or duplicate events. Keep the existing sidebar usable unless a separately accepted design changes it. Verify populated, empty, and updated history with accessible readable layout at phone, desktop, and short-landscape sizes, reduced motion, and unchanged non-GM DRADIS behavior.",
+        "title": "Show shuttle docking history in main ship consoles."
+      },
+      "description": "Owner-requested placement of existing right-sidebar shuttle docking history inside main ship consoles, preserving its data authority, access rules, and existing sidebar behavior.",
+      "evidenceIds": "none",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "672",
+      "milestoneHints": "none",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
     }
   ],
   "retiredPromptIds": [
