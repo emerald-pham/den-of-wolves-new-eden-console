@@ -3,10 +3,6 @@ name: Deploy
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - '**/README'
-      - '**/README.*'
   workflow_dispatch:
 
 concurrency:

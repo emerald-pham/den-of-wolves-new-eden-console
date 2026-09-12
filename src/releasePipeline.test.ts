@@ -550,8 +550,6 @@ it('keeps documentation and roadmap checks separate from application jobs and de
   expect(ci).toContain("if: steps.change_scope.outputs.documentation_only == 'true'");
   expect(ci).toContain("if: steps.change_scope.outputs.documentation_only != 'true'");
   expect(ci).not.toContain('implementation-registration');
-  expect(deploy).toContain('paths-ignore:');
-  expect(deploy).toContain("'**/*.md'");
-  expect(deploy).toContain("'**/README'");
-  expect(deploy).toContain("'**/README.*'");
+  expect(deploy).toContain('branches: [main]');
+  expect(deploy).not.toContain('paths-ignore:');
 });
