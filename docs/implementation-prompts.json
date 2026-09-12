@@ -4529,6 +4529,20 @@
       "language": "The server-only Wolf calculation contract generates final targeting dice, applies Commander rerolls and target shifts before the single Command and Control redirect, rolls all range dice before assignments, validates fighter-first Short Range and Battlestation immunity, resolves catalog destruction/survival effects and base boarding defence, then reuses the existing damage deck and survivor track for fleet damage and casualties. A typed calculation receipt records server time, the configured phase deadline/overrun, modifier order, every sample, damage draw and casualty. P427 staged target assignments are deliberately not consumed as final outcomes. The later declaration callable must load authoritative session/preparation state and persist this receipt under commandReceipts; no declaration endpoint or invented per-step deadline is included here.",
       "source": "functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfAttackComposition.ts; functions/src/wolfShipCatalog.ts; functions/src/shipDamage.ts; functions/src/shipPopulation.ts; functions/src/turnZero.ts; authorized routed Wolf Attack derivative (primary Wolf PDF unavailable in current archive)",
       "type": "evidence / partial / related/consumes"
+    },
+    {
+      "direction": "284 -> 286",
+      "id": "E-284-GROUP-PRODUCER",
+      "language": "Fleet-group entitlement requires authoritative fleet-group identity before unknown-system facts can be projected to the correct group. The current code has no fleet-group state; a client-only visibility filter cannot satisfy the acceptance. This records implementation readiness only, not a commit, merge, push, or deployment gate.",
+      "source": "docs/implementation-prompts.json (Prompts 284 and 286); functions/src/index.ts; src/types/game.ts",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "314 -> 140d",
+      "id": "E-314-POD-PRODUCER",
+      "language": "Removing destroyed vessels while keeping escape pods addressable requires the durable catastrophe and pod-capacity record from Prompt 140d. Current destruction paths record ship damage and a ship-destroyed event but do not create escape-pod state; hiding a DRADIS contact alone cannot satisfy the acceptance. This records implementation readiness only, not a commit, merge, push, or deployment gate.",
+      "source": "docs/implementation-prompts.json (Prompts 314 and 140d); functions/src/index.ts; src/types/game.ts",
+      "type": "hard_prompt"
     }
   ],
   "plan": {
@@ -11922,10 +11936,10 @@
         "title": "Redact unknown systems."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-284",
+      "evidenceIds": "E-AUDIT-284;E-284-GROUP-PRODUCER",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "283;006",
+      "hardPromptPrerequisites": "283;006;286",
       "id": "284",
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
@@ -12612,10 +12626,10 @@
         "title": "Remove destroyed ships from navigation."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-314",
+      "evidenceIds": "E-AUDIT-314;E-314-POD-PRODUCER",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "285",
+      "hardPromptPrerequisites": "285;140d",
       "id": "314",
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
