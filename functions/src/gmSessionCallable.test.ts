@@ -242,7 +242,7 @@ describe('elevateToGm', () => {
     player('u2');
     instance('bridge', 'u1');
 
-    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
+    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2', instanceId: 'bridge' })))
       .resolves.toMatchObject({ role: 'gm' });
 
     player('u1', { role: 'player' });
@@ -256,7 +256,7 @@ describe('elevateToGm', () => {
 
     player('u1', { role: 'gm' });
     player('u2', { connected: false });
-    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
+    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2', instanceId: 'bridge' })))
       .rejects.toMatchObject({ code: 'failed-precondition' });
   });
 
@@ -268,6 +268,24 @@ describe('elevateToGm', () => {
     await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
       .rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1/players/u2')).toMatchObject({ role: 'player' });
+  });
+
+  it('binds GM elevation to the exact live browser instance', async () => {
+    session({ ownerUid: 'owner' });
+    player('u1', { role: 'gm' });
+    player('u2');
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/stale', {
+      uid: 'u1', sessionId: 's1', name: 'Stale', deviceLabel: 'Old browser',
+      connected: false, claimedAt: 'old-server-time',
+    });
+
+    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2', instanceId: 'stale' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2', instanceId: 'bridge' })))
+      .resolves.toMatchObject({ targetUid: 'u2', role: 'gm' });
   });
 });
 
@@ -719,6 +737,42 @@ describe('GM registration lock', () => {
     await expect(unlockPressAirspace.run(request({ sessionId: 's1' })))
       .rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1')).toMatchObject({ phase: 'active', currentTurn: 1 });
+  });
+
+  it('binds role-only fleet commands to the exact live browser instance', async () => {
+    const now = Date.now();
+    session({
+      phase: 'active', currentTurn: 1,
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: new Date(now + 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(now + 1_800_000).toISOString(),
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/stale', {
+      uid: 'u1', sessionId: 's1', name: 'Stale', deviceLabel: 'Old browser',
+      connected: false, claimedAt: 'old-server-time',
+    });
+
+    await expect(setFleetRedAlert.run(request({
+      sessionId: 's1', active: true, expectedRevision: 0,
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(setFleetRedAlert.run(request({
+      sessionId: 's1', active: true, expectedRevision: 0, instanceId: 'stale',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(setFleetRedAlert.run(request({
+      sessionId: 's1', active: true, expectedRevision: 0, instanceId: 'bridge',
+    }))).resolves.toMatchObject({ active: true, revision: 1 });
+
+    await expect(unlockPressAirspace.run(request({ sessionId: 's1', instanceId: 'stale' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(unlockPressAirspace.run(request({ sessionId: 's1', instanceId: 'bridge' })))
+      .resolves.toMatchObject({ turnPhase: expect.objectContaining({
+        airspace: expect.objectContaining({ pressAccess: true }),
+      }) });
   });
 
   it('freezes registration mutations during endgame evaluation', async () => {

@@ -24,6 +24,16 @@ export function requireSessionRequest(data: {
   return { sessionId: requiredId(data.sessionId, 'sessionId') };
 }
 
+export function requireAirspaceRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string; instanceId?: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+  };
+}
+
 export function requireMaintenanceRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;
@@ -261,10 +271,12 @@ export function requireSessionSeatRequest(data: {
 export function requireElevationRequest(data: {
   sessionId?: unknown;
   targetUid?: unknown;
-}): { sessionId: string; targetUid: string } {
+  instanceId?: unknown;
+}): { sessionId: string; targetUid: string; instanceId?: string } {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     targetUid: requiredId(data.targetUid, 'targetUid'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
   };
 }
 

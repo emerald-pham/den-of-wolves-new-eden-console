@@ -30,6 +30,17 @@ it('allows a Press airspace command backed by a live server snapshot', async () 
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1' });
 });
 
+it('binds a GM Press airspace command to this browser instance', async () => {
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge', deviceLabel: 'Test browser',
+    claimedAt: '',
+  });
+
+  await unlockPressAirspace();
+
+  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'bridge' });
+});
+
 it('clears a prior turn entity when the accepted Press phase reply is malformed', async () => {
   const phase = {
     turn: 1,

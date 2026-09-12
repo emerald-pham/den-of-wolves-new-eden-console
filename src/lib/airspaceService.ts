@@ -25,9 +25,12 @@ export async function unlockPressAirspace(): Promise<void> {
     store.me?.uid ?? store.gmInstance?.uid,
   );
   const reply = await httpsCallable<
-    { sessionId: string },
+    { sessionId: string; instanceId?: string },
     { turnPhase?: unknown; turnState?: unknown }
-  >(functions(), 'unlockPressAirspace')({ sessionId: store.session.id });
+  >(functions(), 'unlockPressAirspace')({
+    sessionId: store.session.id,
+    ...(store.gmInstance?.id ? { instanceId: store.gmInstance.id } : {}),
+  });
   const phaseClock = turnPhaseState(reply.data.turnPhase);
   const activeSession = useSessionStore.getState().session;
   if (phaseClock && activeSession?.id === store.session.id && isCurrentSessionAuthority(checkpoint)) {

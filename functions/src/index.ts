@@ -69,6 +69,7 @@ import {
   requireShipUnrestRequest,
   requireUnrestDismissalRequest,
   requireSessionRequest,
+  requireAirspaceRequest,
   requireMaintenanceRequest,
   requireSessionCreationRequest,
   requireCastingPreferenceRequest,
@@ -5836,15 +5837,15 @@ export const setWolfAttackWindow = onCall<{
 });
 
 /** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */
-export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request => {
+export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: unknown }>(async request => {
   const uid = requireUid(request.auth);
-  const requestData = requireSessionRequest(request.data ?? {});
+  const requestData = requireAirspaceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const transitionServerTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const player = await tx.get(db.doc(`sessions/${requestData.sessionId}/players/${uid}`));
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-    await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral');
+    await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral', requestData.instanceId);
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('pressEnabled') === false) {
@@ -6828,22 +6829,22 @@ export const releaseSeat = onCall<{
 );
 
 /** Elevate a player to GM. Only an existing GM (or the session owner) may. */
-export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
+export const elevateToGm = onCall<{ sessionId: string; targetUid: string; instanceId?: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, targetUid } = requireElevationRequest(request.data ?? {});
+    const { sessionId, targetUid, instanceId } = requireElevationRequest(request.data ?? {});
     const sessionRef = db.doc('sessions/' + sessionId);
     const callerRef = db.doc('sessions/' + sessionId + '/players/' + uid);
     const targetRef = db.doc('sessions/' + sessionId + '/players/' + targetUid);
-    const callerInstances = db.collection(`sessions/${sessionId}/gmInstances`)
-      .where('uid', '==', uid);
+    const callerInstanceRef = instanceId
+      ? db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)
+      : undefined;
 
     return db.runTransaction(async (tx) => {
-      const [sessionSnap, caller, target, instances] = await Promise.all([
+      const [sessionSnap, caller, target] = await Promise.all([
         tx.get(sessionRef),
         tx.get(callerRef),
         tx.get(targetRef),
-        tx.get(callerInstances),
       ]);
       if (!sessionSnap.exists) throw new HttpsError('not-found', 'No such session.');
       if (!isActivePlayer(caller)) {
@@ -6853,7 +6854,8 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
       if (!owner && caller.get('role') !== 'gm') {
         throw new HttpsError('permission-denied', 'GM only.');
       }
-      if (!owner && !instances.docs.some((instance) => isLiveGmInstance(instance, caller, uid))) {
+      if (!owner && (!callerInstanceRef ||
+        !isLiveGmInstance(await tx.get(callerInstanceRef), caller, uid))) {
         throw new HttpsError('permission-denied', 'Active GM instance required.');
       }
       if (!isActivePlayer(target)) {
@@ -6946,16 +6948,18 @@ async function requireShipCounterAuthority(
 
 async function requireConsoleAuthority(
   tx: Transaction, sessionId: string, player: DocumentSnapshot, targetRole: string,
+  instanceId?: string,
 ): Promise<void> {
   const session = await tx.get(db.doc(`sessions/${sessionId}`));
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
   if (player.get('role') === 'gm') {
-    const instances = await tx.get(
-      db.collection(`sessions/${sessionId}/gmInstances`).where('uid', '==', player.id),
-    );
-    if (!instances.docs.some((instance) => isLiveGmInstance(instance, player, player.id))) {
+    if (!instanceId) {
+      throw new HttpsError('permission-denied', 'Active GM instance required.');
+    }
+    const instance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`));
+    if (!isLiveGmInstance(instance, player, player.id)) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
     // A GM may operate a ship console without selecting a player station, but
@@ -7951,7 +7955,7 @@ export const setFleetRedAlert = onCall<{
     }
     if (player.get('role') === 'gm' && data.instanceId) {
       await requireShipCounterAuthority(tx, data.sessionId, uid, 'aegis', data.instanceId, true);
-    } else await requireConsoleAuthority(tx, data.sessionId, player, 'admiral');
+    } else await requireConsoleAuthority(tx, data.sessionId, player, 'admiral', data.instanceId);
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
