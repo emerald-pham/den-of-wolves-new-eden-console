@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   INITIAL_SHIP_RESOURCES,
+  addResourceAmount,
   canAdjustShipCounter,
   isResourceShipId,
   nextResourceAmount,
@@ -77,6 +78,12 @@ describe('authoritative fleet resources', () => {
     expect(nextResourceAmount(4, 1)).toBe(5);
     expect(nextResourceAmount(0, -1)).toBe(0);
     expect(nextResourceAmount(Number.MAX_SAFE_INTEGER, 1)).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('caps multi-unit production deltas at the safe integer boundary', () => {
+    expect(addResourceAmount(Number.MAX_SAFE_INTEGER, 6)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(addResourceAmount(Number.MAX_SAFE_INTEGER, 15)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(addResourceAmount(4, -6)).toBe(0);
   });
 
   it('holds unrest at seven and raises or respects the GM alert lock', () => {

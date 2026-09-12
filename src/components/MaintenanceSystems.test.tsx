@@ -175,6 +175,7 @@ it('renders Capybara production controls with optional Scrap spending', async ()
   } }));
   expect(screen.getByRole('button', { name: 'Run Water Production' })).toBeEnabled();
   expect(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Water Production' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Skip Water Production' })).toBeEnabled();
 });
 
 it('disables damaged consoles before reactor charge while preserving the damaged Jump Drive control', () => {

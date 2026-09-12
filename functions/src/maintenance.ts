@@ -1,5 +1,5 @@
 import { drawShipDamage, SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
-import type { ShipResourceInventory } from './resources';
+import { addResourceAmount, type ShipResourceInventory } from './resources';
 import { populationChange } from './shipPopulation';
 import { MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { maintenanceOrderFor } from './maintenanceOrder';
@@ -33,6 +33,7 @@ export { MAINTENANCE_ORDERS } from './maintenanceOrder';
 export const emptyMaintenanceCycle = (): MaintenanceCycle => ({ step: 0, revision: 0, results: {}, charges: [], refuelled: [] });
 
 interface ProductionRule {
+  readonly label: string;
   readonly waterCost: number;
   readonly foodYield?: number;
   readonly upgradedFoodYield?: number;
@@ -44,14 +45,16 @@ interface ProductionRule {
 
 const PRODUCTION_RULES: Readonly<Record<string, Readonly<Record<string, ProductionRule>>>> = {
   dione: {
-    hydroponics: { waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
-    'water-reclamation': { waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+    hydroponics: { label: 'Hydroponics', waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
+    'water-reclamation': { label: 'Water Reclamation', waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
   },
   capybara: {
     'advanced-hydroponics': {
+      label: 'Advanced Hydroponics',
       waterCost: 2, foodYield: 6, upgradedFoodYield: 9, scrapFoodYield: 6,
     },
     'water-production': {
+      label: 'Water Production',
       waterCost: 0, waterYield: 6, upgradedWaterYield: 9, scrapWaterYield: 6,
     },
   },
@@ -225,8 +228,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
     }
     if (productionMode === 'skip') {
       cycle.charges = cycleInput.charges.filter(id => id !== consoleId);
-      const label = consoleId === 'hydroponics' ? 'Hydroponics' : 'Water Reclamation';
-      cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label} skipped.`;
+      cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label} skipped.`;
     } else {
       if (damage.damagedSystemIds.includes(consoleId)) throw new Error('Damaged production console cannot be used.');
       const upgraded = input.upgraded?.includes(consoleId) ?? false;
@@ -240,11 +242,10 @@ export function advanceMaintenance(input: MaintenanceInput) {
         resources = {
           ...resources,
           water: resources.water - rule.waterCost,
-          food: resources.food + foodYield + scrapYield,
+          food: addResourceAmount(resources.food, foodYield + scrapYield),
           ...(scrap ? { scrap: (resources.scrap ?? 0) - scrapCost } : {}),
         };
-        const label = shipId === 'capybara' ? 'Advanced Hydroponics' : 'Hydroponics';
-        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label}: spent ${rule.waterCost} water${scrap ? ' and 1 Scrap' : ''}, generated ${foodYield + scrapYield} food.`;
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: spent ${rule.waterCost} water${scrap ? ' and 1 Scrap' : ''}, generated ${foodYield + scrapYield} food.`;
       } else {
         if (rule.waterYield === undefined) throw new Error('Invalid production rule.');
         const waterYield = upgraded && rule.upgradedWaterYield !== undefined ? rule.upgradedWaterYield : rule.waterYield;
@@ -252,11 +253,10 @@ export function advanceMaintenance(input: MaintenanceInput) {
         const scrapYield = scrap ? rule.scrapWaterYield ?? 0 : 0;
         resources = {
           ...resources,
-          water: resources.water + waterYield + scrapYield,
+          water: addResourceAmount(resources.water, waterYield + scrapYield),
           ...(scrap ? { scrap: (resources.scrap ?? 0) - scrapCost } : {}),
         };
-        const label = shipId === 'capybara' ? 'Water Production' : 'Water Reclamation';
-        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label}: generated ${waterYield + scrapYield} water${scrap ? ' after spending 1 Scrap' : ''}.`;
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: generated ${waterYield + scrapYield} water${scrap ? ' after spending 1 Scrap' : ''}.`;
       }
       cycle.charges = cycleInput.charges.filter(id => id !== consoleId);
     }

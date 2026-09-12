@@ -491,6 +491,46 @@ it('resolves Capybara production with optional Scrap exactly once across replay 
   expect(maintenance.session.shipResources).toMatchObject({ capybara: { food: 21, water: 2, scrap: 1 } });
 });
 
+it.each([
+  ['advanced-hydroponics', 'food'],
+  ['water-production', 'water'],
+] as const)('keeps Capybara %s output safe through the callable resource projection', async (productionConsoleId, resource) => {
+  for (const variant of [
+    { suffix: 'base', productionScrap: false, upgraded: false },
+    { suffix: 'scrap', productionScrap: true, upgraded: false },
+    { suffix: 'upgraded-scrap', productionScrap: true, upgraded: true },
+  ]) {
+    const inventory = {
+      ore: 0, fuel: 3, food: resource === 'food' ? Number.MAX_SAFE_INTEGER : 9,
+      water: resource === 'water' ? Number.MAX_SAFE_INTEGER : 4,
+      materials: 0, securityTeams: 2, scrap: variant.productionScrap ? 2 : 0,
+    };
+    const maintenance = {
+      session: {
+        phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
+        maintenanceCycles: {
+          capybara: { step: 6, revision: 0, results: {}, charges: [productionConsoleId], refuelled: [] },
+        },
+        shipResources: { capybara: inventory },
+        shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+        shipUpgrades: variant.upgraded ? { capybara: [productionConsoleId] } : {},
+        shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 20_000 },
+        shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+        unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+      } as Record<string, unknown>,
+      receipts: {}, undo: {}, events: {}, damageDraws: {},
+    };
+    mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+    const result = await runMaintenance.run(request({
+      ...data, shipId: 'capybara', action: 'production', expectedRevision: 0,
+      requestId: `capybara-boundary-${productionConsoleId}-${variant.suffix}`,
+      productionConsoleId, productionScrap: variant.productionScrap,
+    }));
+    expect(result).toMatchObject({ status: 'committed', result: { resources: { [resource]: Number.MAX_SAFE_INTEGER } } });
+    expect(Number.isSafeInteger((maintenance.session.shipResources as Record<string, Record<string, number>>).capybara![resource])).toBe(true);
+  }
+});
+
 it('denies Capybara production when the console is uncharged or damaged without writing', async () => {
   const maintenance = {
     session: {

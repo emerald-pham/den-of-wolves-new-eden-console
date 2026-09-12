@@ -405,6 +405,43 @@ it('resolves Capybara Water Production with its base, Scrap, and upgrade yields'
   expect(upgraded.resources).toMatchObject({ water: 19, scrap: 1 });
 });
 
+it.each([
+  ['advanced-hydroponics', 'food'],
+  ['water-production', 'water'],
+] as const)('clamps Capybara %s base, Scrap, and upgraded output at the safe integer boundary', (productionConsoleId, resource) => {
+  for (const variant of [
+    { productionScrap: false, upgraded: [] as string[] },
+    { productionScrap: true, upgraded: [] as string[] },
+    { productionScrap: true, upgraded: [productionConsoleId] },
+  ]) {
+    const result = advanceMaintenance(input({
+      shipId: 'capybara', action: 'production', productionConsoleId,
+      productionScrap: variant.productionScrap, upgraded: variant.upgraded,
+      cycle: { step: 6, revision: 0, results: {}, charges: [productionConsoleId], refuelled: [] },
+      resources: {
+        ore: 0, fuel: 3, food: resource === 'food' ? Number.MAX_SAFE_INTEGER : 9,
+        water: resource === 'water' ? Number.MAX_SAFE_INTEGER : 4,
+        materials: 0, securityTeams: 2, scrap: variant.productionScrap ? 2 : 0,
+      },
+    }));
+    expect(result.resources[resource]).toBe(Number.MAX_SAFE_INTEGER);
+    expect(Number.isSafeInteger(result.resources[resource])).toBe(true);
+    expect(result.resources.scrap).toBe(variant.productionScrap ? 1 : 0);
+    expect(result.cycle.charges).toEqual([]);
+  }
+});
+
+it.each([
+  ['advanced-hydroponics', 'Advanced Hydroponics'],
+  ['water-production', 'Water Production'],
+] as const)('uses the Capybara console label when skipping %s', (productionConsoleId, label) => {
+  const result = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId, productionMode: 'skip',
+    cycle: { step: 6, revision: 0, results: {}, charges: [productionConsoleId], refuelled: [] },
+  }));
+  expect(result.cycle.results['5']).toBe(`${label} skipped.`);
+});
+
 it('rejects Capybara production without chargeable resources or a usable console', () => {
   const base = input({
     shipId: 'capybara', action: 'production', productionConsoleId: 'advanced-hydroponics', productionScrap: true,

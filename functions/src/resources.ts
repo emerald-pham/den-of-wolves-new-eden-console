@@ -104,6 +104,13 @@ export function nextResourceAmount(current: number, delta: -1 | 1): number {
   return Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, safeCurrent + delta));
 }
 
+/** Apply a bounded ledger delta without ever producing an unsafe persisted value. */
+export function addResourceAmount(current: number, delta: number): number {
+  const safeCurrent = Number.isSafeInteger(current) ? Math.max(0, current) : 0;
+  const safeDelta = Number.isSafeInteger(delta) ? delta : 0;
+  return Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, safeCurrent + safeDelta));
+}
+
 export type UnrestChange =
   | { readonly kind: 'applied'; readonly amount: number }
   | { readonly kind: 'overflow'; readonly amount: 8 }
