@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**172 / 747 prompts complete (23.03%)**
+**173 / 747 prompts complete (23.16%)**
 
-Status breakdown: **172 done · 10 partial · 565 missing**.
+Status breakdown: **173 done · 10 partial · 564 missing**.
 
 Active prompt: **none**
 
@@ -703,7 +703,7 @@ release classification and evidence.
 | 261 | done | non-feature | — | The canonical shuttle registry and shared route preserve Pallas's AEGIS Executive Officer ownership, SESSION START AEGIS dock, Security teams only cargo allowlist, and distinct Coordination/Wolf attack procedures for boarding support, up to 3 rerolls, and fuelled Boarding Action relocation. Focused catalog and route tests verify owner, cargo, dock, operations, and live docking/fuel presentation. The route presents source-aligned configuration; future cargo transfer, boarding resolution, and relocation engines remain owned by separate prompts. The routed Pallas derivative establishes these registration facts, and no primary Pallas PDF inspection is claimed. |
 | 262 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 263 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 264 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 264 | done | non-feature | 0.3.63 | The canonical shared shuttle catalog now registers Maliades as the Dione Engineer's craft, links launch eligibility to Dione's Fighter Bay system, preserves its initial Dione dock, and records the printed three-damage durability, fuelled material repair, Medium target-shift and self-risk rules, and Short attack. Focused catalog and Dione Engineer route tests prove the owner, dock, launch linkage, operations, /shuttles/maliades route, and keyboard-accessible return to the owning Dione Engineer console; the shared return control also covers a materially different Quellon Explorer shuttle owner. Actual local Safari renders at 320x844, 844x390, and 1440x900 showed the long procedures and 44px return control contained without horizontal overflow under reduced motion. This is registration metadata and display only: P192/P397/P453 remain responsible for authoritative launch, durability, and combat resolution. The authorized routed Maliades derivative supplies every accepted fact; the private source index does not preserve a base-game primary PDF, so this closure records a derivative-only source basis and makes no primary visual-verification claim. |
 | 265 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 266 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 267 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

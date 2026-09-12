@@ -11279,7 +11279,9 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.63"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
       "status": "done",

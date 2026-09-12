@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['264'],
+    implementationProgress: {
+      completed: 173,
+      total: 747,
+      percentage: '23.16%',
+      done: 173,
+      partial: 10,
+      active: 0,
+      missing: 564,
+    },
+    changes: [
+      'The Maliades console now records its printed damage, repair, target-shift, and attack procedures and returns crew to the Dione Engineer console through a shared keyboard-accessible link. 173 of 747 planned items are complete (23.16%).',
+    ],
+  },
+  {
+    version: '0.3.62',
     implementationPrompts: ['252'],
     implementationProgress: {
       completed: 169,
