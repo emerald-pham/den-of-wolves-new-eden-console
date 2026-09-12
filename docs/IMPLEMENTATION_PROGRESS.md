@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**119 / 747 prompts complete (15.93%)**
+**120 / 747 prompts complete (16.06%)**
 
-Status breakdown: **119 done · 6 partial · 622 missing**.
+Status breakdown: **120 done · 6 partial · 621 missing**.
 
 Active prompt: **none**
 
@@ -512,7 +512,7 @@ release classification and evidence.
 | 099 | done | non-feature | — | The existing `functions/src/maintenanceCallable.test.ts` late-maintenance case proves valid begin, storage, rations, unrest, riot, reactor, bays, and end requests are denied during lifted Coordination with the stable Team-phase error and no session, event, undo, damage, or receipt writes; the valid bays payload proves phase denial precedes docking/fuelling validation. |
 | 100 | partial | non-feature | — | `functions/src/actionMetadata.ts` now classifies transfer as a Coordination action, with policy tests proving Team-phase denial and Coordination allowance; transfer, scouting, and research callable coverage and the complete gate matrix remain open. |
 | 101 | done | non-feature | — | Existing `beginOpenAirspacePhase` preserves the atomic lifted-phase state and deterministic `airspace-opened-${turn}` event; `src/components/FleetAlert.test.tsx` feeds that committed Firestore-shaped state through the actual `subscribeSessionState` listener callback, renders exactly one accessible `AIRSPACE CONTROL // AIRSPACE OPEN` bulletin, unsubscribes/unmounts, reconnects the listener, and observes the identical single bulletin. Proof-only; no production change. |
-| 102 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 102 | done | non-feature | — | The authoritative `advanceTurn` transaction derives one server-owned next-turn announcement and commits it atomically with `currentTurn` and `turnPhase`, alongside the deterministic member-visible `turn-advanced` event. Focused callable coverage proves one generated announcement/state commit and event identity while ignoring a forged request field; Firestore emulator coverage denies client writes to the combined next-turn state/announcement and the transition event. The atomic commit is the ordering guarantee; no separate timing semantics are introduced. Proof-only; no runtime change. |
 | 103 | done | non-feature | — | Existing next-turn initialization is preserved by the atomic transition in `functions/src/index.ts:597-654` and callable path at `:3217-3271`; `functions/src/turnTransition.ts:8-27` resets turn-scoped charges and shuttle fuel, while `functions/src/maintenanceCallable.test.ts:578-703` covers schedule/expiry and `:792-937` covers overlapping advance/CAS/stale write-free behavior. Proof-only; no runtime change. |
 | 103a | missing | non-feature | — | Planned [NEW] prompt: hide AIRSPACE CLOSED on the turn-advance interstitial, freeze the authoritative deadline until clear/dismiss, resume from preserved remaining time, and cover stale/retry/reconnect/multi-client/accessibility behavior; no production-path evidence has been recorded. Depends on Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. |
 | 104 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

@@ -304,8 +304,16 @@ describe('session header', () => {
   });
 
   it('cannot replay a turn transmission from the client', async () => {
-    await assertFails(updateDoc(doc(as('gm1'), SESSION), {
-      turnStartAnnouncement: { turn: 1, survivorPopulation: 222_500, revision: 1 },
+    const session = doc(as('gm1'), SESSION);
+    await assertFails(updateDoc(session, {
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+      turnStartAnnouncement: { turn: 2, survivorPopulation: 222_500, revision: 1 },
     }));
   });
 
@@ -419,6 +427,15 @@ describe('events', () => {
     await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/events/confetti-1`)));
     await assertFails(setDoc(doc(as('alice'), `${SESSION}/events/confetti-2`), {
       type: 'ship-confetti', shipId: 'aegis',
+    }));
+  });
+
+  it('cannot forge the Coordination completion transition event', async () => {
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/events/turn-advanced-1`), {
+      type: 'turn-advanced',
+      transition: 'coordination-to-next-turn',
+      fromTurn: 1,
+      toTurn: 2,
     }));
   });
 

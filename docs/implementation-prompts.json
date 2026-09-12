@@ -399,6 +399,13 @@
       "language": "The shared action metadata classifies transfer as a Coordination action, and policy tests prove transfer is denied during Team and allowed during Coordination. Transfer, scouting, and research callable coverage remains open, so Prompt 100 stays partial.",
       "source": "functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; authorized source review",
       "type": "evidence"
+    },
+    {
+      "direction": "102 -> M2-COORDINATION-COMPLETION",
+      "id": "E-102-COORDINATION-COMPLETION",
+      "language": "The authoritative advanceTurn transaction derives one server-owned next-turn announcement and commits it atomically with currentTurn and turnPhase, alongside the deterministic member-visible turn-advanced event. Focused callable coverage proves one generated announcement/state commit and event identity while ignoring a forged request field; Firestore emulator coverage denies client writes to the combined next-turn state/announcement and the transition event. The atomic commit is the ordering guarantee; no separate timing semantics are introduced.",
+      "source": "functions/src/index.ts; functions/src/maintenanceCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2848,8 +2855,8 @@
         "acceptance": "one durable message precedes the committed next-turn state and cannot be forged by clients.",
         "title": "Announce Coordination completion."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The authoritative `advanceTurn` transaction derives one server-owned next-turn announcement and commits it atomically with `currentTurn` and `turnPhase`, alongside the deterministic member-visible `turn-advanced` event. Focused callable coverage proves one generated announcement/state commit and event identity while ignoring a forged request field; Firestore emulator coverage denies client writes to the combined next-turn state/announcement and the transition event. The atomic commit is the ordering guarantee; no separate timing semantics are introduced. Proof-only; no runtime change.",
+      "evidenceIds": "E-102-COORDINATION-COMPLETION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2860,7 +2867,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

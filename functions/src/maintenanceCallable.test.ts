@@ -789,6 +789,51 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('commits one server-owned Coordination completion announcement with the next-turn state', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
+  mock.currentTurn = 1;
+  mock.fleetSurvivorPopulationAdjustment = 41;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  const reply = await advanceTurn.run(request({
+    sessionId: 's1',
+    instanceId: 'bridge',
+    expectedTurn: 1,
+    // A client-supplied transmission is ignored; the server derives the
+    // message from the committed next-turn state.
+    turnStartAnnouncement: { turn: 99, survivorPopulation: 1 },
+  }));
+
+  expect(reply).toMatchObject({
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 242_541 },
+    turnPhase: { turn: 2 },
+  });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 242_541 },
+    turnPhase: expect.objectContaining({ turn: 2 }),
+  }));
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/turn-advanced-1',
+    expect.objectContaining({
+      type: 'turn-advanced',
+      transition: 'coordination-to-next-turn',
+      fromTurn: 1,
+      toTurn: 2,
+      revision: 2,
+    }),
+  );
+});
+
 it('expires charged consoles and shuttle fuel when a numbered turn hands off', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
