@@ -21,7 +21,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['262', '270', '271', '272', '275', '282', '283', '285', '287', '403', '416a', '416b', '425'],
+    implementationPrompts: ['403', '282', '275'],
     implementationProgress: {
       completed: 191,
       total: 747,
