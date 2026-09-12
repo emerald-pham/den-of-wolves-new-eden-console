@@ -4347,6 +4347,13 @@
       "language": "The actual GM console guidance was inspected in an offline fixture at 320x844, 1440x900 and 844x390: 14px monospace text, no horizontal overflow, existing 44px controls, reduced motion and keyboard return navigation. The reconciled GM route suite passed 69 tests plus typecheck. This is local implementation, rendered and test evidence; release deployment is reported separately.",
       "source": "src/routes/GmConsole.tsx; src/index.css (gm-console__balance-guidance); src/routes/GmConsole.test.tsx",
       "type": "evidence"
+    },
+    {
+      "direction": "402",
+      "id": "E-402-IMPLEMENTED",
+      "language": "The authoritative startGame transaction creates one typed 33-card away-mission deck from hearts, diamonds, and clubs, omitting 2s/3s, with A=10, numeric face value, and J/Q/K=-5. Server-side cryptographic shuffle is persisted once in private session state, reused across transaction retries and replays, and excluded from public setup/session/event data. The focused mission-deck/start coverage has 46 passing tests and the Firestore rules suite has 67 passing cases; deployment evidence is reported separately.",
+      "source": "functions/src/missionDeck.ts; functions/src/missionDeck.test.ts; functions/src/index.ts (startGame); functions/src/startCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -14443,8 +14450,8 @@
         "acceptance": "three suits omit 2s/3s and use A=10, number face value, and face cards −5 from a server-only shuffled deck.",
         "title": "Build the mission deck."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The authoritative startGame transaction now creates one typed 33-card away-mission deck from hearts, diamonds, and clubs, omitting 2s/3s, with A=10, numeric face value, and J/Q/K=-5. It shuffles with server-side cryptographic randomness, persists the immutable order in server-only session state, reuses it across transaction retries and replays, and excludes the order from public setup/session/event data. Focused deck/start/retry/replay tests and Firestore rules tests cover the production path and deny player and GM access; deployment evidence is reported separately.",
+      "evidenceIds": "E-402-IMPLEMENTED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -14452,10 +14459,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.61"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

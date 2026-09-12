@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['402'],
+    implementationProgress: {
+      completed: 168,
+      total: 747,
+      percentage: '22.49%',
+      done: 168,
+      partial: 7,
+      active: 0,
+      missing: 572,
+    },
+    changes: [
+      'The away-mission foundation now keeps one 33-card mission deck on the server, using the printed card values and a private persisted order. 168 of 747 planned items are complete (22.49%).',
+    ],
+  },
+  {
+    version: '0.3.60',
     implementationPrompts: ['234a'],
     implementationProgress: {
       completed: 167,

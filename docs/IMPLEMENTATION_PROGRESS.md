@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**167 / 747 prompts complete (22.36%)**
+**168 / 747 prompts complete (22.49%)**
 
-Status breakdown: **167 done · 7 partial · 573 missing**.
+Status breakdown: **168 done · 7 partial · 572 missing**.
 
 Active prompt: **none**
 
@@ -843,7 +843,7 @@ release classification and evidence.
 | 399 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 400 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 401 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 402 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 402 | done | non-feature | 0.3.61 | The authoritative startGame transaction now creates one typed 33-card away-mission deck from hearts, diamonds, and clubs, omitting 2s/3s, with A=10, numeric face value, and J/Q/K=-5. It shuffles with server-side cryptographic randomness, persists the immutable order in server-only session state, reuses it across transaction retries and replays, and excludes the order from public setup/session/event data. Focused deck/start/retry/replay tests and Firestore rules tests cover the production path and deny player and GM access; deployment evidence is reported separately. |
 | 403 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 404 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 405 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
