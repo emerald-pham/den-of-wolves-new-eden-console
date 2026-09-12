@@ -303,6 +303,13 @@ it('applies Dione production upgrades and enforces production order without trap
   }));
   expect(upgradedHydroponics.resources).toMatchObject({ food: 5, water: 0 });
 
+  const upgradedWaterReclamation = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation', upgraded: ['water-reclamation'],
+    cycle: { step: 6, revision: 0, results: {}, charges: ['water-reclamation'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  }));
+  expect(upgradedWaterReclamation.resources).toMatchObject({ water: 4 });
+
   const waterFirst = advanceMaintenance(input({
     shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation',
     cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
