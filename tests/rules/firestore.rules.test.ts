@@ -705,6 +705,7 @@ describe('complete server-owned denial matrix', () => {
       SESSION + '/seats/seat1',
       SESSION + '/shipConfetti/aegis',
       SESSION + '/maintenanceUndo/aegis',
+      SESSION + '/craftOwnership/manifest',
       'joinCodes/482109',
       'activeMemberships/alice',
     ];
@@ -730,6 +731,7 @@ describe('complete server-owned denial matrix', () => {
       'gmInstances',
       'secrets',
       'shipConfetti',
+      'craftOwnership',
     ];
 
     for (const name of protectedCollections) {

@@ -11,6 +11,10 @@ import {
   initialShuttleDockingsForRoles,
   initialShuttleVisitsForDockings,
 } from './shuttlecraft';
+import {
+  roleOwnedCraftForRoles,
+  type RoleOwnedCraft,
+} from './craftOwnership';
 
 type ShuttleDocking = ReturnType<typeof initialShuttleDockingsForRoles>[number];
 type ShuttleVisit = ReturnType<typeof initialShuttleVisitsForDockings>[number];
@@ -33,6 +37,8 @@ export interface InitialSessionComposition {
   readonly shipSurvivors: Readonly<Record<string, number>>;
   readonly shuttleDockings: readonly ShuttleDocking[];
   readonly shuttleVisitLog: readonly ShuttleVisit[];
+  /** Server-owned printed role allowlist; no player UID is stored here. */
+  readonly roleOwnedCraft: readonly RoleOwnedCraft[];
 }
 
 /**
@@ -56,5 +62,6 @@ export function initialSessionComposition(
     shipSurvivors,
     shuttleDockings,
     shuttleVisitLog: initialShuttleVisitsForDockings(shuttleDockings),
+    roleOwnedCraft: roleOwnedCraftForRoles(setup.activeRoleIds),
   };
 }

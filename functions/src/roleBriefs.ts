@@ -7,6 +7,8 @@
  * assignment never belong in this projection.
  */
 
+import { ownedCraftIdsForRole } from './craftOwnership';
+
 const COMMON_ROLE_RULES_BASE = [
   'Keep this brief private. Do not show, photograph, or read another player\'s brief.',
   'Each turn has a Team Phase followed by a Coordination Phase. Work with your team during the first phase, then coordinate fleet movement and actions during the second.',
@@ -158,6 +160,8 @@ export interface SerializedRoleBrief {
   readonly vesselName: string;
   readonly text: string;
   readonly commonRules: string;
+  /** Only the craft owned by this printed role enter the private projection. */
+  readonly ownedCraftIds: readonly string[];
   readonly setupRevision: number;
 }
 
@@ -166,10 +170,14 @@ export function serializedRoleBrief(
   assignmentUid: string,
   roleId: string,
   setupRevision: number,
-  options: { readonly capybaraExpansion?: boolean } = {},
+  options: {
+    readonly capybaraExpansion?: boolean;
+    readonly activeRoleIds?: readonly string[];
+  } = {},
 ): SerializedRoleBrief | undefined {
   const content = roleBriefFor(roleId);
   if (!content) return undefined;
+  const activeRoleIds = options.activeRoleIds ?? [roleId];
   return {
     type: 'role-brief',
     sessionId,
@@ -179,6 +187,7 @@ export function serializedRoleBrief(
     commonRules: options.capybaraExpansion === true
       ? COMMON_ROLE_RULES_CAPYBARA
       : COMMON_ROLE_RULES_BASE,
+    ownedCraftIds: ownedCraftIdsForRole(roleId, activeRoleIds),
     setupRevision,
   };
 }

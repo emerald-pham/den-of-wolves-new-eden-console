@@ -33,9 +33,20 @@ describe('role brief projection', () => {
       roleId: 'admiral',
       setupRevision: 4,
       commonRules: COMMON_ROLE_RULES,
+      ownedCraftIds: [],
     }));
     expect(JSON.stringify(record)).not.toContain('wolf-agent');
     expect(serializedRoleBrief('s1', 'alice', 'unknown-role', 4)).toBeUndefined();
+  });
+
+  it('projects only the assigned role’s active craft', () => {
+    const record = serializedRoleBrief('s1', 'alice', 'wing-commander', 4, {
+      activeRoleIds: ['admiral', 'wing-commander'],
+    });
+    expect(record?.ownedCraftIds).toEqual([
+      'starlight', 'fighter-wing-alpha', 'fighter-wing-bravo',
+    ]);
+    expect(record?.ownedCraftIds).not.toContain('pallas');
   });
 
   it('uses the authoritative Capybara common-rules variant when requested by setup', () => {

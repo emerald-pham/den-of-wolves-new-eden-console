@@ -322,6 +322,7 @@ export interface SetupReceipt {
   readonly wolfRule: string;
   readonly selectedWolfRoleIds: readonly RoleId[];
   readonly eligibleRoleIds: readonly RoleId[];
+  readonly roleOwnedCraft?: readonly RoleOwnedCraftRecord[];
   readonly orderedModifiers: readonly unknown[];
   readonly resultCount: number;
   readonly loyaltySource: 'automatic-default' | 'explicit-preserved';
@@ -331,6 +332,12 @@ export interface SetupReceipt {
   readonly actorUid: PlayerId;
   readonly serverTime: string;
   readonly event: string;
+}
+
+export interface RoleOwnedCraftRecord {
+  readonly id: string;
+  readonly kind: 'shuttle' | 'fighter-wing';
+  readonly ownerRoleId: RoleId;
 }
 
 export interface PrivateLoyalty {
@@ -347,6 +354,8 @@ export interface RoleBrief {
   readonly vesselName: string;
   readonly text: string;
   readonly commonRules: string;
+  /** Server-derived craft allowlist for this role only. */
+  readonly ownedCraftIds?: readonly string[];
   readonly setupRevision: number;
 }
 

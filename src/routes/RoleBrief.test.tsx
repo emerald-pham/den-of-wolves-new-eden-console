@@ -19,7 +19,8 @@ beforeEach(() => {
   );
   useSessionStore.getState().setRoleBrief({
     assignmentUid: 'u1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
-    text: 'Coordinate the fleet.', commonRules: 'Keep this brief private.', setupRevision: 1,
+    text: 'Coordinate the fleet.', commonRules: 'Keep this brief private.',
+    ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
   });
 });
 
@@ -36,6 +37,8 @@ it('renders the assigned role brief, common rules, and visible return control', 
 
   expect(screen.getByRole('heading', { name: 'Admiral' })).toBeVisible();
   expect(screen.getByText('Coordinate the fleet.')).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Role-owned craft' })).toBeVisible();
+  expect(screen.getByText('Fighter Wing Alpha')).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Common rules' })).toBeVisible();
   await user.click(screen.getByRole('link', { name: /return to role selection/i }));
   expect(screen.getByText('Role selection')).toBeInTheDocument();
@@ -43,6 +46,23 @@ it('renders the assigned role brief, common rules, and visible return control', 
 
 it('returns to role selection when the local assignment no longer matches', () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, assignedRoleId: null });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Role selection')).toBeInTheDocument();
+});
+
+it('does not render a brief assigned to another player', () => {
+  useSessionStore.getState().setRoleBrief({
+    ...useSessionStore.getState().roleBrief!,
+    assignmentUid: 'other-player',
+  });
   render(
     <MemoryRouter initialEntries={['/brief']}>
       <Routes>

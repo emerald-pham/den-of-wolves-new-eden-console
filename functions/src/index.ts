@@ -131,6 +131,10 @@ import {
 } from './resources';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
 import {
+  roleOwnedCraftManifestForSetup,
+  roleOwnedCraftManifestMatches,
+} from './craftOwnership';
+import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
   deletionDeadline,
@@ -1065,6 +1069,15 @@ export const createSession = onCall<{
           deleteAfter: null,
           deletingAt: null,
         });
+        tx.set(db.doc(`sessions/${sessionRef.id}/craftOwnership/manifest`), {
+          ...roleOwnedCraftManifestForSetup(
+            setup.activeRoleIds,
+            vesselModeForConfiguration(setup),
+          ),
+          setupRevision: 0,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         for (const seat of stableSeats) {
           tx.set(db.doc(`sessions/${sessionRef.id}/seats/${seat.id}`), {
             ...seat,
@@ -1655,6 +1668,10 @@ export const confirmSetup = onCall<{
     for (const visit of initialShuttleVisitsForDockings(nextDockings)) {
       if (!existingVisitShuttles.has(visit.shuttleId)) nextVisits.push(visit);
     }
+    const nextCraftManifest = roleOwnedCraftManifestForSetup(
+      setup.activeRoleIds,
+      vesselModeForConfiguration(setup),
+    );
     const reply = {
       status: 'committed' as const,
       requestId: command.requestId,
@@ -1674,6 +1691,11 @@ export const confirmSetup = onCall<{
       shipJumpStates: nextShipJumpStates,
       shuttleDockings: nextDockings,
       shuttleVisitLog: nextVisits,
+      setupRevision: reply.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`), {
+      ...nextCraftManifest,
       setupRevision: reply.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -2001,6 +2023,7 @@ export const startGame = onCall<{
   const instancesRef = db.collection(`sessions/${start.sessionId}/gmInstances`);
   const seatsRef = db.collection(`sessions/${start.sessionId}/seats`);
   const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
+  const craftOwnershipManifestRef = db.doc(`sessions/${start.sessionId}/craftOwnership/manifest`);
   const markerFingerprint: CommandFingerprint = {
     action: 'start-game',
     sessionId: start.sessionId,
@@ -2012,7 +2035,7 @@ export const startGame = onCall<{
   };
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -2021,6 +2044,7 @@ export const startGame = onCall<{
       tx.get(seatsRef),
       tx.get(secretsRef),
       tx.get(eventRef),
+      tx.get(craftOwnershipManifestRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
@@ -2069,6 +2093,18 @@ export const startGame = onCall<{
       ? configuredRoleIds(authority.session)
       : [];
     const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
+    const expectedCraftManifest = roleOwnedCraftManifestForSetup(
+      lockedSetup.activeRoleIds,
+      vesselModeForConfiguration(lockedSetup),
+    );
+    if (craftOwnershipManifest.exists &&
+        !roleOwnedCraftManifestMatches(craftOwnershipManifest.data(), expectedCraftManifest)) {
+      throw commandError(
+        'failed-precondition',
+        'Start blocked: craft-ownership.',
+        'conflict',
+      );
+    }
     const connectedPlayerDocs = players.docs.filter(isActivePlayer);
     const connectedPlayers = connectedPlayerDocs.map((player) => player.id);
     const activePressHolders = connectedPlayerDocs.filter(isAuthoritativePressHolder);
@@ -2241,6 +2277,7 @@ export const startGame = onCall<{
       selectedWolfRoleIds,
       eligibleRoleIds: [...routineWolf.eligibleRoleIds],
       orderedModifiers: [],
+      roleOwnedCraft: expectedCraftManifest.roleOwnedCraft,
       resultCount: holders.length,
       loyaltySource,
       request: fingerprint,
@@ -2256,7 +2293,10 @@ export const startGame = onCall<{
         holder.uid,
         holder.roleId,
         committedSetupRevision,
-        { capybaraExpansion: lockedSetup.expansion === 'capybara' },
+        {
+          capybaraExpansion: lockedSetup.expansion === 'capybara',
+          activeRoleIds: lockedSetup.activeRoleIds,
+        },
       );
       if (!privateBrief) {
         throw commandError('failed-precondition', 'Start blocked: brief-unavailable.', 'malformed-input');
@@ -2293,6 +2333,14 @@ export const startGame = onCall<{
       payload: { type: 'setup-receipt', ...setupReceipt },
       createdAt: FieldValue.serverTimestamp(),
     });
+    if (!craftOwnershipManifest.exists) {
+      tx.set(craftOwnershipManifestRef, {
+        ...expectedCraftManifest,
+        setupRevision: committedSetupRevision,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     const transition = advanceTurnInTransaction(tx, sessionRef, start.sessionId, authority.session, false, {
       phase: 'active',
@@ -2330,6 +2378,7 @@ export const startGame = onCall<{
         phase: 'active',
         revision: result.setupRevision,
         expectedSetupRevision: start.expectedSetupRevision,
+        craftIds: expectedCraftManifest.roleOwnedCraft.map((craft) => craft.id),
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
@@ -2505,7 +2554,10 @@ export const assignRole = onCall<{
       assignment.targetUid,
       assignment.roleId,
       result.setupRevision,
-      { capybaraExpansion: lockedSetup.expansion === 'capybara' },
+      {
+        capybaraExpansion: lockedSetup.expansion === 'capybara',
+        activeRoleIds: lockedSetup.activeRoleIds,
+      },
     );
     if (!privateBrief) {
       throw commandError('failed-precondition', 'Role assignment rejected: brief-unavailable.', 'malformed-input');

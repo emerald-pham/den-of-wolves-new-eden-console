@@ -23,6 +23,7 @@ import type {
   Player,
   PrivateLoyalty,
   RoleBrief,
+  RoleOwnedCraftRecord,
   Seat,
   SessionSetup,
   SessionChartId,
@@ -140,6 +141,9 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
   const raw = value as Record<string, unknown>;
   const assignmentUid = parseEntityId('player', raw.assignmentUid);
   const roleId = parseEntityId('role', raw.roleId);
+  const ownedCraftIds = raw.ownedCraftIds === undefined
+    ? undefined
+    : parseEntityIdArray('shuttle', raw.ownedCraftIds);
   if (
     raw.type !== 'role-brief' || assignmentUid !== uid ||
     raw.sessionId !== sessionId || !roleId ||
@@ -148,7 +152,8 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
     typeof raw.text !== 'string' || raw.text.trim().length === 0 ||
     typeof raw.commonRules !== 'string' || raw.commonRules.trim().length === 0 ||
     typeof raw.setupRevision !== 'number' ||
-    !Number.isSafeInteger(raw.setupRevision) || raw.setupRevision < 0
+    !Number.isSafeInteger(raw.setupRevision) || raw.setupRevision < 0 ||
+    (raw.ownedCraftIds !== undefined && !ownedCraftIds)
   ) return null;
   return {
     assignmentUid,
@@ -157,8 +162,22 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
     vesselName: raw.vesselName,
     text: raw.text,
     commonRules: raw.commonRules,
+    ...(ownedCraftIds ? { ownedCraftIds } : {}),
     setupRevision: raw.setupRevision,
   };
+}
+
+function roleOwnedCraft(value: unknown): readonly RoleOwnedCraftRecord[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const parsed = value.map((entry) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined;
+    const raw = entry as Record<string, unknown>;
+    const id = parseEntityId('shuttle', raw.id);
+    const ownerRoleId = parseEntityId('role', raw.ownerRoleId);
+    if (!id || !ownerRoleId || (raw.kind !== 'shuttle' && raw.kind !== 'fighter-wing')) return undefined;
+    return { id, ownerRoleId, kind: raw.kind } as RoleOwnedCraftRecord;
+  });
+  return parsed.every((entry): entry is RoleOwnedCraftRecord => entry !== undefined) ? parsed : undefined;
 }
 
 function loyaltyCensus(value: unknown): LoyaltyCensus | null {
@@ -186,6 +205,9 @@ function setupReceipt(value: unknown): SetupReceipt | null {
   const rosterIds = parseEntityIdArray('role', raw.rosterIds);
   const selectedWolfRoleIds = parseEntityIdArray('role', raw.selectedWolfRoleIds);
   const eligibleRoleIds = parseEntityIdArray('role', raw.eligibleRoleIds);
+  const parsedRoleOwnedCraft = raw.roleOwnedCraft === undefined
+    ? undefined
+    : roleOwnedCraft(raw.roleOwnedCraft);
   const actorUid = parseEntityId('player', raw.actorUid);
   if (
     typeof raw.source !== 'string' ||
@@ -195,7 +217,8 @@ function setupReceipt(value: unknown): SetupReceipt | null {
     typeof raw.resultCount !== 'number' ||
     (raw.loyaltySource !== 'automatic-default' && raw.loyaltySource !== 'explicit-preserved') ||
     typeof raw.expectedSetupRevision !== 'number' || typeof raw.committedSetupRevision !== 'number' ||
-    !actorUid || typeof raw.serverTime !== 'string' || typeof raw.event !== 'string'
+    !actorUid || typeof raw.serverTime !== 'string' || typeof raw.event !== 'string' ||
+    (raw.roleOwnedCraft !== undefined && !parsedRoleOwnedCraft)
   ) return null;
   return {
     ...raw,
@@ -203,6 +226,7 @@ function setupReceipt(value: unknown): SetupReceipt | null {
     selectedWolfRoleIds,
     eligibleRoleIds,
     actorUid,
+    ...(parsedRoleOwnedCraft ? { roleOwnedCraft: parsedRoleOwnedCraft } : {}),
   } as unknown as SetupReceipt;
 }
 

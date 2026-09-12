@@ -584,6 +584,17 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   it('projects create, join, and resume composition maps to the locked vessel set', async () => {
     const composition = await composeProductionSession(8);
     const storedSession = read(`sessions/${composition.sessionId}`) as StoredDocument;
+    const ownershipManifest = read(`sessions/${composition.sessionId}/craftOwnership/manifest`) as StoredDocument;
+    expect((ownershipManifest.roleOwnedCraft as Array<Record<string, unknown>>).map(({ id }) => id))
+      .toEqual(expect.arrayContaining([
+        'snn-press-shuttle', 'starlight', 'fighter-wing-alpha', 'fighter-wing-bravo',
+        'highwall', 'endeavour', 'hummingbird', 'chepu', 'pdf-escort-fighter-wing',
+        'wobbly', 'ally',
+      ]));
+    expect(ownershipManifest.roleOwnedCraft).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'macaw' }),
+      expect.objectContaining({ id: 'boa' }),
+    ]));
     const joined = await joinSession.run(request({
       joinCode: storedSession.joinCode as string,
       displayName: 'Late member',
@@ -650,6 +661,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     }, ownerUid)) as Record<string, unknown>;
     expect(expanded.status).toBe('committed');
     const expandedSession = read(sessionPath) as StoredDocument;
+    const expandedOwnership = read(`${sessionPath}/craftOwnership/manifest`) as StoredDocument;
     expect(expandedSession.activeVesselIds).toEqual([
       'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara',
     ]);
@@ -657,6 +669,10 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     expect((expandedSession.shipGalacticCoordinates as Record<string, string>).aegis).toBe('5143');
     expect((expandedSession.shipResources as Record<string, Record<string, number>>).capybara).toMatchObject({ scrap: 3 });
     expect((expandedSession.shipSurvivors as Record<string, number>).capybara).toBe(20_000);
+    expect(expandedOwnership.roleOwnedCraft).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'macaw', ownerRoleId: 'capybara-captain' }),
+      expect.objectContaining({ id: 'boa', ownerRoleId: 'capybara-recycler' }),
+    ]));
     expect(expandedSession.shuttleDockings).toEqual(expect.arrayContaining([
       { shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: 'SESSION START' },
     ]));
@@ -684,12 +700,17 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     }, ownerUid)) as Record<string, unknown>;
     expect(narrowed.status).toBe('committed');
     const narrowedSession = read(sessionPath) as StoredDocument;
+    const narrowedOwnership = read(`${sessionPath}/craftOwnership/manifest`) as StoredDocument;
     expect(narrowedSession.activeVesselIds).toEqual([
       'aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
     ]);
     expect((narrowedSession.shipResources as Record<string, Record<string, number>>).aegis?.fuel).toBe(1);
     expect(narrowedSession.shipResources).not.toHaveProperty('capybara');
     expect(narrowedSession.shipSurvivors).not.toHaveProperty('capybara');
+    expect(narrowedOwnership.roleOwnedCraft).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'macaw' }),
+      expect.objectContaining({ id: 'boa' }),
+    ]));
     expect(narrowedSession.shuttleDockings).toEqual(expect.arrayContaining([
       { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
     ]));
