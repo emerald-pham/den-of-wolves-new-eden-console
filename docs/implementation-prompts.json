@@ -4375,6 +4375,13 @@
       "language": "The authoritative startGame transaction creates one typed 33-card away-mission deck from hearts, diamonds, and clubs, omitting 2s/3s, with A=10, numeric face value, and J/Q/K=-5. Server-side cryptographic shuffle is persisted once in private session state, reused across transaction retries and replays, and excluded from public setup/session/event data. The focused mission-deck/start coverage has 46 passing tests and the Firestore rules suite has 67 passing cases; deployment evidence is reported separately.",
       "source": "functions/src/missionDeck.ts; functions/src/missionDeck.test.ts; functions/src/index.ts (startGame); functions/src/startCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "612",
+      "id": "E-612-RESTORE-PARTIAL",
+      "language": "Ten targeted store, session-service and header tests passed for hydration, persisted-session resume, transient preservation, terminal clearing, offline start rejection and Firestore-cache status. Inspection of persist.merge and useConnectionStatusGrace identifies the missing local-storage stale marker. These focused checks do not claim complete cross-action authorization or rendered-device acceptance; P612 remains partial.",
+      "source": "src/store/useSessionStore.ts (persist.merge); src/store/useSessionStore.test.ts; src/lib/sessionService.test.ts; src/components/AppHeader.tsx (useConnectionStatusGrace); src/components/AppHeader.test.tsx",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -20075,8 +20082,8 @@
         "acceptance": "the last permitted view appears promptly with a stale marker and cannot authorize actions.",
         "title": "Render a persisted snapshot before resume."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-612",
+      "description": "The store immediately rehydrates the saved session and route; transient resume failures preserve the view, while terminal membership denial clears local authority fields. The header marks Firestore-cache snapshots Offline, but local-storage hydration retains unknown freshness and the published connection-light grace behavior, so a dedicated stale-view marker for that restoration is still missing. Preserve the connection-light policy while adding the separate marker and verifying snapshot-only action denial before closure.",
+      "evidenceIds": "E-AUDIT-612;E-612-RESTORE-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "088;089",
@@ -20087,7 +20094,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

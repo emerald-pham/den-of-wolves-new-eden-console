@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **170 / 747 prompts complete (22.76%)**
 
-Status breakdown: **170 done · 9 partial · 568 missing**.
+Status breakdown: **170 done · 10 partial · 567 missing**.
 
 Active prompt: **none**
 
@@ -1086,7 +1086,7 @@ release classification and evidence.
 | 610 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |
 | 611a | missing | non-feature | — | Future CIC typography repair: characterize the exact `CONSOLE ACCESS // WRITE // CREW INCOMPLETE` surface and directly comparable label/readout outliers, then repair only proven token/tracking/casing/contrast/wrapping inconsistencies. No redesign or global type-scale change; require accessibility and responsive evidence at all four supported viewports. |
-| 612 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 612 | partial | non-feature | — | The store immediately rehydrates the saved session and route; transient resume failures preserve the view, while terminal membership denial clears local authority fields. The header marks Firestore-cache snapshots Offline, but local-storage hydration retains unknown freshness and the published connection-light grace behavior, so a dedicated stale-view marker for that restoration is still missing. Preserve the connection-light policy while adding the separate marker and verifying snapshot-only action denial before closure. |
 | 613 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 614 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 615 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
