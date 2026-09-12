@@ -315,6 +315,13 @@
       "language": "Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: each active vessel's persisted shipResources.securityTeams matches the authoritative INITIAL_SHIP_RESOURCES catalog across the production 8-, 19-, and 20-player rows. The existing bidirectional composition test preserves a deliberate lobby resource edit, and startGame locks the prepared state without resetting it.",
       "source": "functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/resources.ts; functions/src/sessionComposition.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "068;069;070;075 -> M1-START-COMPOSITION",
+      "id": "E-075-START",
+      "language": "The single startGame transaction validates the locked roster and craft manifest, preserves prepared stores and any existing Turn 1 state, materializes canonical intact damage and empty maintenance state for every active vessel, initializes inactive fleet alert and empty Press dispatch defaults when absent, composes private Wolf/loyalty state, starts Turn 1 with pursuit 2 and timers, and writes one setup receipt and privacy-safe event. The start callable and production 8-, 19-, and 20-player matrix cover defaults, preservation, replay, and race behavior.",
+      "source": "functions/src/startState.ts; functions/src/index.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; functions/src/shipDamage.ts; functions/src/maintenance.ts; functions/src/pressDispatchState.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2119,8 +2126,8 @@
         "acceptance": "one transaction initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, automatic Wolf/loyalty composition, the setup calculation receipt, and the first event; existing partial start behavior remains a primitive until this full one-GM composition passes.",
         "title": "Start the game atomically."
       },
-      "description": "Version 0.3.13 atomically locks validated setup, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with existing timer/announcement behavior. Complete deck, craft, resource/economy, and alert initialization remains open, so Prompt 075 stays partial.",
-      "evidenceIds": "E-M1-SETUP",
+      "description": "The single startGame transaction now preserves prepared stores and existing Turn 1 state, materializes canonical intact damage and empty maintenance state for each active vessel (repairing malformed legacy cycles before maintenance reads), fills absent inactive fleet-alert and Press-dispatch defaults, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with the existing timer/announcement behavior. The persisted setup is additive and replay-safe; release 0.3.40 records the player-visible repair for legacy sessions that previously could crash when maintenance began.",
+      "evidenceIds": "E-M1-SETUP;E-075-START",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2130,11 +2137,12 @@
       "releaseBoundaries": "none",
       "releases": [
         "0.3.5",
-        "0.3.13"
+        "0.3.13",
+        "0.3.40"
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "M1-SETUP",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

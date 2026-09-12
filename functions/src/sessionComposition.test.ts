@@ -241,6 +241,7 @@ import {
   refreshPresence,
   releaseRole,
   resumeSession,
+  runMaintenance,
   setShipPreference,
   startGame,
 } from './index';
@@ -807,11 +808,19 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       activeRoleIds,
     });
     const storedResources = storedSession.shipResources as Record<string, Record<string, number>>;
+    const storedDamage = storedSession.shipDamage as Record<string, unknown>;
+    const storedMaintenance = storedSession.maintenanceCycles as Record<string, unknown>;
     for (const shipId of storedSession.activeVesselIds as string[]) {
       expect(INITIAL_SHIP_RESOURCES[shipId]).toBeDefined();
       expect(storedResources[shipId]?.securityTeams)
         .toBe(INITIAL_SHIP_RESOURCES[shipId]?.securityTeams);
+      expect(storedDamage[shipId]).toEqual({ damagedSystemIds: [], destroyed: false });
+      expect(storedMaintenance[shipId]).toEqual({
+        step: 0, revision: 0, results: {}, charges: [], refuelled: [],
+      });
     }
+    expect(storedSession.fleetRedAlert).toEqual({ active: false, revision: 0 });
+    expect(storedSession.pressDispatch).toEqual({ dispatches: [], revision: 0 });
     expect((read(`sessions/${sessionId}/gmInstances/bridge-${playerCount}`) as StoredDocument).responsibilities)
       .toEqual(['main', 'assistant']);
 
@@ -941,6 +950,54 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     });
     expect(JSON.stringify(resumed)).not.toMatch(/wolf-agent|selectedWolfRoleIds|fleet-loyalist/);
     expect(resumed).not.toHaveProperty('secrets');
+  });
+
+  it('fills absent Turn 1 state without resetting prepared damage, maintenance, alert, or dispatch state', async () => {
+    const preparedDamage = { aegis: { damagedSystemIds: ['reactor'], destroyed: false } };
+    const preparedMaintenance: Record<string, unknown> = {
+      aegis: { step: 2, revision: 4, results: { '1': 'done' }, charges: ['reactor'], refuelled: [] },
+      icebreaker: null,
+      shepherd: { step: 0 },
+    };
+    const preparedAlert = { active: true, revision: 3, text: 'HOLD POSITION' };
+    const preparedDispatch = { dispatches: [{ id: 'dispatch-1', text: 'SNN // HOLD' }], revision: 2 };
+    const composition = await composeProductionSession(8, {
+      afterAssignments: async ({ sessionId }) => {
+        const sessionPath = `sessions/${sessionId}`;
+        const session = read(sessionPath) as StoredDocument;
+        session.shipDamage = preparedDamage;
+        session.maintenanceCycles = preparedMaintenance;
+        session.fleetRedAlert = preparedAlert;
+        session.pressDispatch = preparedDispatch;
+        mock.documents.set(sessionPath, session);
+      },
+    });
+
+    const storedSession = read(`sessions/${composition.sessionId}`) as StoredDocument;
+    expect(storedSession.shipDamage).toMatchObject({ aegis: preparedDamage.aegis });
+    expect(storedSession.maintenanceCycles).toMatchObject({ aegis: preparedMaintenance.aegis });
+    expect(storedSession.fleetRedAlert).toEqual(preparedAlert);
+    expect(storedSession.pressDispatch).toEqual(preparedDispatch);
+    for (const shipId of (storedSession.activeVesselIds as string[]).filter((id) => id !== 'aegis')) {
+      expect((storedSession.shipDamage as Record<string, unknown>)[shipId]).toEqual({
+        damagedSystemIds: [], destroyed: false,
+      });
+      expect((storedSession.maintenanceCycles as Record<string, unknown>)[shipId]).toEqual({
+        step: 0, revision: 0, results: {}, charges: [], refuelled: [],
+      });
+    }
+
+    await expect(runMaintenance.run(request({
+      sessionId: composition.sessionId,
+      shipId: 'icebreaker',
+      requestId: 'legacy-maintenance-begin',
+      instanceId: 'bridge-8',
+      action: 'begin',
+      expectedRevision: 0,
+    }, composition.ownerUid))).resolves.toMatchObject({
+      status: 'committed', step: 1, revision: 1,
+      cycle: expect.objectContaining({ step: 1, revision: 1 }),
+    });
   });
 });
 

@@ -96,7 +96,7 @@ describe('read-only dependency lookup', () => {
     expect(packet.readiness).toBe('blocked');
     expect(packet.selected.status).toBe('missing');
     const prerequisites = packet.selected.prerequisites as Array<{ id: string; status: string }>;
-    expect(prerequisites.some(({ id, status }) => id === '075' && status === 'partial')).toBe(true);
+    expect(prerequisites.some(({ id, status }) => id === '075' && status === 'done')).toBe(true);
     expect(packet.next).toBe(packet.readyQueue[0]?.prompt ?? null);
     expect(packet.readyQueue.some(({ prompt }) => prompt === packet.selected.prompt)).toBe(false);
   });

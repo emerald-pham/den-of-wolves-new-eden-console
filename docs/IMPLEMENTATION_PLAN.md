@@ -945,13 +945,14 @@ the new high-count or dual-responsibility shape. A rollback may leave additive
 receipt and responsibility fields in place, but must not restore a client that
 can bypass start authority or a server that rerolls an already committed setup.
 
-**Release 0.3.13 non-goals:** do not invent lower-count Capybara substitutions;
+**Release 0.3.13 non-goals at that release boundary:** do not invent lower-count Capybara substitutions;
 enable optional special loyalties; complete Capybara maintenance, Scrap,
 Macaw/Boa, damage, targeting, specialist work, or balance dials; implement a
 later turn or whole-game loop; implement a Wolf attack; or add the deferred
-DRADIS attack visualization. Prompts 055–058, 063–070, the remaining Prompt 075
-initializer breadth, Milestone 2+, Prompt 638 capacity, and Prompt 605a remain
-open unless independently proven by their own acceptance. Prompt 275b Dispatch
+DRADIS attack visualization. Prompts 055–058, 063–070, Milestone 2+, Prompt 638
+capacity, and Prompt 605a remain open unless independently proven by their own
+acceptance. Prompt 075's remaining start-state breadth was later closed by
+E-075-START. Prompt 275b Dispatch
 Desk restoration, Prompt 602a ordinary shuttle return, Prompt 603a mobile ticket
 occupancy, and Prompt 122a Reactor confirmation remain separately scheduled
 regressions and must not be silently folded into setup/start evidence.
@@ -2174,7 +2175,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 072
 - [x] Prompt 073
 - [x] Prompt 074
-- [ ] Prompt 075
+- [x] Prompt 075
 - [x] Prompt 076
 - [ ] Prompt 077
 - [x] Prompt 078

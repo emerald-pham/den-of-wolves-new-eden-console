@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**108 / 747 prompts complete (14.46%)**
+**109 / 747 prompts complete (14.59%)**
 
-Status breakdown: **108 done · 13 partial · 626 missing**.
+Status breakdown: **109 done · 12 partial · 626 missing**.
 
 Active prompt: **none**
 
@@ -485,7 +485,7 @@ release classification and evidence.
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
 | 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; former Prompt 071 readiness evidence remains historical while Prompt 654 is the queued repair for zero/partial-occupancy start. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
-| 075 | partial | feature | 0.3.5, 0.3.13 | Version 0.3.13 atomically locks validated setup, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with existing timer/announcement behavior. Complete deck, craft, resource/economy, and alert initialization remains open, so Prompt 075 stays partial. |
+| 075 | done | feature | 0.3.5, 0.3.13, 0.3.40 | The single startGame transaction now preserves prepared stores and existing Turn 1 state, materializes canonical intact damage and empty maintenance state for each active vessel (repairing malformed legacy cycles before maintenance reads), fills absent inactive fleet-alert and Press-dispatch defaults, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with the existing timer/announcement behavior. The persisted setup is additive and replay-safe; release 0.3.40 records the player-visible repair for legacy sessions that previously could crash when maintenance began. |
 | 076 | done | non-feature | — | Durable start request replay test. |
 | 077 | partial | feature | 0.3.5 | Start initializes fleet pursuit at 2; split-group pursuit remains open. |
 | 078 | done | feature | 0.3.5 | Six-to-eight validation and start configuration lock. |

@@ -105,9 +105,11 @@ progress ledger as work lands; it supersedes this dated summary.
 Prompt 051 consumes release 0.3.12's configuration, stable
 seats, and one-GM staffing to complete authoritative readiness and Turn 1. It
 also completes Prompt 054's automatic Wolf-selection contract and Prompt 071's
-one-GM readiness contract. Prompt 075 gains only the setup/start evidence in
-this slice and remains partial: deck, craft, complete resource/economy, and
-alert initialization retain their own dependencies and proof.
+one-GM readiness contract. Prompt 075 gained only the setup/start evidence in
+this historical slice and was partial at that release boundary: deck, craft,
+complete resource/economy, and alert initialization retained their own
+dependencies and proof. The later atomic start-state closure is recorded
+separately as E-075-START.
 
 The production gaps are part of this repair rather than accepted green
 evidence. Readiness must inspect provisioned seat documents and reciprocal

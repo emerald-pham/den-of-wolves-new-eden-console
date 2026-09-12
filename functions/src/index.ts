@@ -141,6 +141,7 @@ import {
   isPresenceStale,
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import { atomicStartState } from './startState';
 import {
   applyPopulationSteps,
   applyResourceSteps,
@@ -2342,11 +2343,19 @@ export const startGame = onCall<{
       });
     }
 
+    const turnOneState = atomicStartState({
+      activeVesselIds,
+      shipDamage: authority.session.get('shipDamage'),
+      maintenanceCycles: authority.session.get('maintenanceCycles'),
+      fleetRedAlert: authority.session.get('fleetRedAlert'),
+      pressDispatch: authority.session.get('pressDispatch'),
+    });
     const transition = advanceTurnInTransaction(tx, sessionRef, start.sessionId, authority.session, false, {
       phase: 'active',
       configurationLocked: true,
       setupRevision: committedSetupRevision,
       pursuitGroups: { fleet: 2 },
+      ...turnOneState,
     });
     const result = {
       status: 'committed' as const,

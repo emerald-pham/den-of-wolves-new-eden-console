@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['075'],
+    implementationProgress: {
+      completed: 109,
+      total: 747,
+      percentage: '14.59%',
+      done: 109,
+      partial: 12,
+      active: 0,
+      missing: 626,
+    },
+    changes: [
+      'Existing games with incomplete maintenance records now start safely and can continue maintenance without losing prepared ship state. 109 of 747 planned items are complete (14.59%).',
+    ],
+  },
+  {
+    version: '0.3.39',
     implementationPrompts: ['068'],
     implementationProgress: {
       completed: 106,

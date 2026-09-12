@@ -263,6 +263,18 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
   expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.objectContaining({
     phase: 'active', configurationLocked: true, setupRevision: 1, pursuitGroups: { fleet: 2 },
   }));
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  const activeVesselIds = mock.session.activeVesselIds as string[];
+  expect(sessionUpdate).toMatchObject({
+    shipDamage: Object.fromEntries(activeVesselIds.map((shipId) => [shipId, {
+      damagedSystemIds: [], destroyed: false,
+    }])),
+    maintenanceCycles: Object.fromEntries(activeVesselIds.map((shipId) => [shipId, {
+      step: 0, revision: 0, results: {}, charges: [], refuelled: [],
+    }])),
+    fleetRedAlert: { active: false, revision: 0 },
+    pressDispatch: { dispatches: [], revision: 0 },
+  });
   expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/roleBriefs/'))).toHaveLength(8);
   expect(mock.set.mock.calls.some(([ref, payload]) =>
     ref.path === 'sessions/s1/roleBriefs/u2' &&
@@ -273,6 +285,43 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     expect.objectContaining({ path: 'sessionStartRequests/s1_start-1' }),
     expect.objectContaining({ requestId: 'start-1' }),
   );
+});
+
+it('preserves valid state and normalizes malformed maintenance entries while filling absent vessels', async () => {
+  const existingDamage = { aegis: { damagedSystemIds: ['reactor'], destroyed: false } };
+  const existingMaintenance: Record<string, unknown> = {
+    aegis: { step: 2, revision: 4, results: { '1': 'done' }, charges: ['reactor'], refuelled: [] },
+    icebreaker: null,
+    shepherd: { step: 0 },
+  };
+  const existingAlert = { active: true, revision: 3, text: 'HOLD POSITION' };
+  const existingDispatch = { dispatches: [{ id: 'dispatch-1', text: 'SNN // HOLD' }], revision: 2 };
+  mock.session = {
+    ...mock.session,
+    shipDamage: existingDamage,
+    maintenanceCycles: existingMaintenance,
+    fleetRedAlert: existingAlert,
+    pressDispatch: existingDispatch,
+  };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-preserve', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', currentTurn: 1 });
+
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  expect(sessionUpdate).toMatchObject({
+    shipDamage: expect.objectContaining({ aegis: existingDamage.aegis }),
+    maintenanceCycles: expect.objectContaining({ aegis: existingMaintenance.aegis }),
+    fleetRedAlert: existingAlert,
+    pressDispatch: existingDispatch,
+  });
+  const activeVesselIds = mock.session.activeVesselIds as string[];
+  for (const shipId of activeVesselIds.filter((shipId) => shipId !== 'aegis')) {
+    expect(sessionUpdate?.shipDamage?.[shipId]).toEqual({ damagedSystemIds: [], destroyed: false });
+    expect(sessionUpdate?.maintenanceCycles?.[shipId]).toEqual({
+      step: 0, revision: 0, results: {}, charges: [], refuelled: [],
+    });
+  }
 });
 
 it('rejects a start when the persisted craft manifest changes owner, mode, or list before writes', async () => {
