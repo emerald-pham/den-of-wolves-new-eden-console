@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**127 / 747 prompts complete (17.00%)**
+**128 / 747 prompts complete (17.14%)**
 
-Status breakdown: **127 done · 6 partial · 614 missing**.
+Status breakdown: **128 done · 6 partial · 613 missing**.
 
 Active prompt: **none**
 
@@ -1126,7 +1126,7 @@ release classification and evidence.
 | 649 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 650 | missing | non-feature | — | Planned [PROVE] prompt: authoritative pursuit/outcome must drive terminal failure; current client presentation cannot freeze or end play. |
 | 651 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 652 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 652 | done | non-feature | 0.3.49 | FleetTicker now reconciles queue-only authoritative updates without duplicating lifecycle identities. Each queued message is measured against its own copy before it is placed after the visible tail, so rapid automatic, Admiral, and Press updates keep one non-overlapping lane with one screen-reader status surface. Reduced motion remains readable, and the browser geometry matrix covers phone, desktop, and short-landscape viewports plus authoritative replacement. |
 | 652a | missing | non-feature | — | Future ticker regression repair: restore `a91a020`'s continuous-tail baseline so every Red Alert glyph stays fully visible until its painted bounds are outside the viewport. Audit `080457e` and later geometry without reverting unrelated header work; prohibit clipping, fade, truncation, early unmount, remeasurement jump, and overlap across replacement/stand-down/font-load/resize/rotation, with single announcement and reduced-motion proof. |
 | 652b | missing | feature | — | Owner-requested mobile ticker behavior supersedes the earlier optional scroll-threshold experiment: always pin the Press ticker on narrow viewports, allow narrow-only hide/reveal, temporarily expand hidden content for Red Alert or airspace-restriction changes, and refold after notification display. Wide viewports force visible state and remove hiding controls; preserve lifecycle, layout, accessibility, and non-GM DRADIS guarantees. |
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

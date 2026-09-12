@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['652'],
+    implementationProgress: {
+      completed: 128,
+      total: 747,
+      percentage: '17.14%',
+      done: 128,
+      partial: 6,
+      active: 0,
+      missing: 614,
+    },
+    changes: [
+      'Fleet broadcasts now keep each queued message on its own measured lane, so rapid updates do not duplicate or overlap moving copy while urgent notices retain their priority. Reduced-motion screens keep one readable announcement surface. 128 of 747 planned items are complete (17.14%).',
+    ],
+  },
+  {
+    version: '0.3.48',
     implementationPrompts: ['106c'],
     implementationProgress: {
       completed: 125,

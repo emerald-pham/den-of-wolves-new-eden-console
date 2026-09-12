@@ -4099,8 +4099,8 @@
     {
       "direction": "652 -> 106c",
       "id": "E-AUDIT-652",
-      "language": "Ticker overlap prevention consumes the server-authoritative ticker lifecycle.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Prompt 652 closes the client presentation contract on top of the server-authoritative ticker: queue-only updates reconcile once per message identity, each queued copy reserves its measured width, replacements retain visible tails without intersecting tracks, the status surface stays singular, and reduced-motion copy remains readable.",
+      "source": "src/components/FleetTicker.tsx; src/components/FleetTicker.test.tsx; src/components/FleetBroadcast.test.tsx; src/components/FleetAlert.test.tsx; Chrome CDP matrix /tmp/p652-geometry/geometry.json",
       "type": "hard_prompt"
     },
     {
@@ -20758,7 +20758,7 @@
         "acceptance": "when standing/broadcast copy changes, outgoing text drains and queued replacement enters without two strings covering each other; urgent FleetBroadcast precedence and replacement ordering remain intact; rapid updates serialize without duplicate tracks; screen-reader announcements are not duplicated; reduced-motion mode remains readable; and narrow phone, wide desktop, and short landscape layouts show one legible lane with no overlap/clipping.",
         "title": "Prevent FleetTicker messages from overlapping."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "FleetTicker now reconciles queue-only authoritative updates without duplicating lifecycle identities. Each queued message is measured against its own copy before it is placed after the visible tail, so rapid automatic, Admiral, and Press updates keep one non-overlapping lane with one screen-reader status surface. Reduced motion remains readable, and the browser geometry matrix covers phone, desktop, and short-landscape viewports plus authoritative replacement.",
       "evidenceIds": "E-TICKER;E-AUDIT-652",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20767,10 +20767,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.49"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "TICKER-LIFECYCLE",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

@@ -811,7 +811,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 649 | PROVE | missing | 559 | none | none | none | none | none | none | none | E-AUDIT-649 | M13 | Prove Ancient Space Station success. |
 | 650 | PROVE | missing | 560;565;621;622;140c;136;514 | none | none | none | none | none | none | none | E-AUDIT-650 | M13 | Prove authoritative terminal failure and recovery paths. |
 | 651 | PROVE | missing | 641-650 | none | none | none | none | none | none | none | E-AUDIT-651 | M13 | Run the final release-readiness audit. |
-| 652 | EXTEND | missing | 106c | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER;E-AUDIT-652 | none | Prevent FleetTicker messages from overlapping. |
+| 652 | EXTEND | done | 106c | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER;E-AUDIT-652 | none | Prevent FleetTicker messages from overlapping. |
 | 652a | REPAIR | missing | 106c;652 | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Keep every moving ticker glyph visible through its real exit. |
 | 652b | NEW | missing | 106c;603a;652;652a | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Keep the mobile Press ticker pinned with reversible hiding and alert expansion. |
 | 653 | EXTEND | missing | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
@@ -1448,7 +1448,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-648 | hard_prompt | 648 -> 554 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Deep Nebula proof consumes repeat-prevention state. |
 | E-AUDIT-649 | hard_prompt | 649 -> 559 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Station proof consumes Station power. |
 | E-AUDIT-650 | hard_prompt | 650 -> 560;565;621;622;140c;136;514 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Terminal recovery proof consumes failure/closure, attack recovery, mission recovery, evacuation retry, mutiny, and arrest-deadline producers. |
-| E-AUDIT-652 | hard_prompt | 652 -> 106c | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Ticker overlap prevention consumes the server-authoritative ticker lifecycle. |
+| E-AUDIT-652 | hard_prompt | 652 -> 106c | src/components/FleetTicker.tsx; src/components/FleetTicker.test.tsx; src/components/FleetBroadcast.test.tsx; src/components/FleetAlert.test.tsx; Chrome CDP matrix /tmp/p652-geometry/geometry.json | Prompt 652 closes the client presentation contract on top of the server-authoritative ticker: queue-only updates reconcile once per message identity, each queued copy reserves its measured width, replacements retain visible tails without intersecting tracks, the status surface stays singular, and reduced-motion copy remains readable. |
 | E-AUDIT-656 | hard_prompt | 656 -> 034;050 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Launcher routing consumes session resume and established return paths. |
 | E-AUDIT-658 | hard_prompt | 658 -> 030;050 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Seat-change copy consumes authoritative seat claim and return-path context. |
 | E-AUDIT-663 | hard_prompt | 663 -> 106c | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Fleetwide Red Alert presentation consumes server-authoritative ticker lifecycle. |
