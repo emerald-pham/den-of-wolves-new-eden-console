@@ -221,14 +221,14 @@
     {
       "direction": "674 -> 048;049;628",
       "id": "E-674",
-      "language": "The owner requested removing the ship Observer role while retaining read-only GM viewing and confirming scoped writes. Existing read-only entry, ship-change revocation, and GM-instance authority contracts remain related implementation boundaries, not new hard prerequisites.",
+      "language": "The owner requested removing the ship Observer role while retaining read-only GM viewing and confirming scoped writes. Existing read-only entry, ship-change revocation, and GM-instance authority contracts remain related implementation boundaries. Related context is supplemented by the explicit planning prerequisites below; neither adds Git or CI enforcement.",
       "source": "Owner request - GM ship-console observation and confirmed intervention, 2026-09-11",
       "type": "related/consumes"
     },
     {
       "direction": "675 -> 097;098;108",
       "id": "E-675",
-      "language": "The owner requested automatic empty-session pause and corrected restart to resume. Existing exact timer pause, idempotent expiry, and server-time reconnect contracts are related implementation boundaries, not new hard prerequisites.",
+      "language": "The owner requested automatic empty-session pause and corrected restart to resume. Existing exact timer pause, idempotent expiry, and server-time reconnect contracts are related implementation boundaries. Related context is supplemented by the explicit planning prerequisites below; neither adds Git or CI enforcement.",
       "source": "Owner request - disconnect pause and first-rejoin resume, 2026-09-11",
       "type": "related/consumes"
     },
@@ -252,6 +252,48 @@
       "language": "The owner requested random travel to an adjacent map node via blind jump. Locked graph resolution, arrival history, and per-ship knowledge are related contracts; lack of prior destination knowledge must not prevent the blind jump.",
       "source": "Owner request - random adjacent-node blind jumps, 2026-09-11",
       "type": "related/consumes"
+    },
+    {
+      "direction": "670 -> 044;045;046",
+      "id": "E-670-DEPENDENCIES",
+      "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Removing an additional-GM registration lockout consumes authoritative eligibility, unique GM-instance claiming, and invalid-elevation denial; UI changes must not replace those grants.",
+      "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "674 -> 048;049;170;628",
+      "id": "E-674-DEPENDENCIES",
+      "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Unobtrusive GM viewing and scoped intervention consume read-only entry, elevation revocation on ship change, audience-safe vessel projection, and GM-instance authority across privileged commands.",
+      "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "675 -> 034;038;040;097;108",
+      "id": "E-675-DEPENDENCIES",
+      "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Automatic empty-session pause/resume consumes authoritative resume, stale-device expiry, empty-session retention, exact pause/resume time, and authoritative timer hydration.",
+      "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "677 -> 084;284;313;330",
+      "id": "E-677-DEPENDENCIES",
+      "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Per-ship coordinate redaction consumes entitled ship projections, unknown-system redaction, persisted visit/discovery history, and safe discovery-note storage before privacy controls can consume them.",
+      "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "678 -> 328;339;340;677",
+      "id": "E-678-DEPENDENCIES",
+      "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Selective system sharing consumes private scout facts, enforced communication recipient eligibility, and the per-ship knowledge projection supplied by 677; it must not create an alternate knowledge or cross-group disclosure path.",
+      "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "679 -> 281;282;285;294;304;677",
+      "id": "E-679-DEPENDENCIES",
+      "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Blind jumps consume a canonical graph and locked chart, authoritative per-ship origin, working independent ship jump execution, retry-safe committed outcomes, and the per-ship knowledge boundary for undiscovered destinations.",
+      "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
+      "type": "hard_prompt"
     }
   ],
   "plan": {
@@ -17296,10 +17338,10 @@
         "title": "Allow authorized additional GMs to register from both surfaces."
       },
       "description": "Planned [REPAIR] prompt: remove the unwanted additional-GM registration lockout from Role Select and the GM console while preserving server-owned identity, legitimate authorization, existing authority, and focused denial coverage.",
-      "evidenceIds": "none",
+      "evidenceIds": "E-670-DEPENDENCIES",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "044;045;046",
       "id": "670",
       "milestoneHints": "none",
       "relatedConsumes": "none",
@@ -17388,13 +17430,13 @@
         "title": "Replace ship Observer roles with unobtrusive GM viewing and confirmed write access."
       },
       "description": "Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch.",
-      "evidenceIds": "E-674",
+      "evidenceIds": "E-674;E-674-DEPENDENCIES",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "048;049;170;628",
       "id": "674",
       "milestoneHints": "none",
-      "relatedConsumes": "048;049;628",
+      "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
@@ -17411,13 +17453,13 @@
         "title": "Pause an empty session timer and resume when someone rejoins."
       },
       "description": "Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority.",
-      "evidenceIds": "E-675",
+      "evidenceIds": "E-675;E-675-DEPENDENCIES",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "034;038;040;097;108",
       "id": "675",
       "milestoneHints": "none",
-      "relatedConsumes": "097;098;108",
+      "relatedConsumes": "098",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
@@ -17457,13 +17499,13 @@
         "title": "Gate jump-map coordinates by ship knowledge and hide location details."
       },
       "description": "Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates.",
-      "evidenceIds": "E-677",
+      "evidenceIds": "E-677;E-677-DEPENDENCIES",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "084;284;313;330",
       "id": "677",
       "milestoneHints": "none",
-      "relatedConsumes": "084;284;313;328;330",
+      "relatedConsumes": "328",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
@@ -17480,13 +17522,13 @@
         "title": "Transmit scanned system details to all fleet ships or selected ships."
       },
       "description": "Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge.",
-      "evidenceIds": "E-678",
+      "evidenceIds": "E-678;E-678-DEPENDENCIES",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "328;339;340;677",
       "id": "678",
       "milestoneHints": "none",
-      "relatedConsumes": "677;328;330;331;339;340",
+      "relatedConsumes": "330;331",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
@@ -17503,13 +17545,13 @@
         "title": "Allow blind jumps to a random adjacent system."
       },
       "description": "Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge. During the active blind jump, coordinate digits cosmetically scramble through 0–9 twice per second at randomized staggered timing, with reduced-motion and cleanup behavior.",
-      "evidenceIds": "E-679",
+      "evidenceIds": "E-679;E-679-DEPENDENCIES",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "281;282;285;294;304;677",
       "id": "679",
       "milestoneHints": "none",
-      "relatedConsumes": "281;282;283;313;677",
+      "relatedConsumes": "283;313",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",

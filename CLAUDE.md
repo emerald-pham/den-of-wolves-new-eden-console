@@ -34,11 +34,21 @@ system. Keep the workflow proportionate to the risk of the change.
    A dependency check such as
    `npm run coordination:dependencies -- --prompt NNN` is read-only: it reports
    the catalog row and hard prerequisites and does not create a nonce, receipt,
-   or other local proof artifact. A hard prerequisite or unresolved owner
-   decision still blocks the prompt.
+   or other local proof artifact. An unfinished hard prerequisite or unresolved
+   owner decision means the prompt is not yet ready to tackle in the plan;
+   dependency readiness does not block commits, merges, pushes, or deployment.
    When catalog facts change, regenerate the human-readable views with
    `node scripts/generate-prompt-views.mjs`; use `--check` to verify that views
    are current.
+
+   Include each newly queued item in the generated dependency chart and record
+   useful related-work links and explicit hard prerequisites where one item
+   genuinely needs another's functionality. These prerequisites describe
+   implementation order and realistic readiness, not Git or CI enforcement.
+   Do not add commit, merge, push, or deployment gates for them. Reuse existing
+   cheap catalog checks without new enforcement machinery or release delays.
+   If a queue update would disrupt an in-flight final release,
+   prepare it separately and land it after that release settles.
 4. Once a prompt or task is accepted, freeze its scope. Queue unrelated ideas
    for a later task; add work during implementation only when it directly fixes
    a blocking defect in the accepted change. Record the reason for any such
