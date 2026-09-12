@@ -26,7 +26,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { applyShipCounterSteps } from './index';
+import { adjustShipResource, applyShipCounterSteps } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -78,6 +78,21 @@ it('re-evaluates one resource command against the latest count after a transacti
   }));
   expect(mock.update).toHaveBeenNthCalledWith(2, 'sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': 8,
+  }));
+});
+
+it('keeps single and ordered resource commands at the safe upper boundary', async () => {
+  mock.fuel = Number.MAX_SAFE_INTEGER;
+
+  await expect(adjustShipResource.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', resourceId: 'fuel', delta: 1,
+  }))).resolves.toEqual({ amount: Number.MAX_SAFE_INTEGER });
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+    resourceId: 'fuel', steps: [1],
+  }))).resolves.toEqual({ amount: Number.MAX_SAFE_INTEGER, appliedSteps: [1], alertRaised: false });
+  expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.dione.fuel': Number.MAX_SAFE_INTEGER,
   }));
 });
 

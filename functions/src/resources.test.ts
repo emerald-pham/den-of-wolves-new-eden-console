@@ -62,9 +62,21 @@ describe('authoritative fleet resources', () => {
       .every(value => Number.isSafeInteger(value) && value >= 0)).toBe(true);
   });
 
+  it('zeroes malformed present roots, ships, and fields while preserving absent legacy defaults', () => {
+    expect(shipResources(null).aegis).toEqual({
+      ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0,
+    });
+    expect(shipResources({ aegis: null }).aegis).toEqual({
+      ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0,
+    });
+    expect(shipResources({ aegis: { fuel: undefined } }).aegis).toMatchObject({ fuel: 0 });
+    expect(shipResources({}).aegis).toEqual(INITIAL_SHIP_RESOURCES.aegis);
+  });
+
   it('moves resource stock without allowing a negative amount', () => {
     expect(nextResourceAmount(4, 1)).toBe(5);
     expect(nextResourceAmount(0, -1)).toBe(0);
+    expect(nextResourceAmount(Number.MAX_SAFE_INTEGER, 1)).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   it('holds unrest at seven and raises or respects the GM alert lock', () => {

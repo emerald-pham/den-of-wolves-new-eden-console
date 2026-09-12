@@ -58,15 +58,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function storedNumber(stored: Record<string, unknown>, key: string, fallback: number): number {
+  if (!Object.prototype.hasOwnProperty.call(stored, key)) return fallback;
   const value = stored[key];
-  if (value === undefined) return fallback;
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
+function emptyInventory(initial: ShipResourceInventory): ShipResourceInventory {
+  return {
+    ore: 0,
+    fuel: 0,
+    food: 0,
+    water: 0,
+    materials: 0,
+    securityTeams: 0,
+    ...(initial.scrap === undefined ? {} : { scrap: 0 }),
+  };
+}
+
 export function shipResources(value: unknown): ShipResourceInventories {
+  const rootPresent = value !== undefined;
   const storedShips = isRecord(value) ? value : {};
+  const malformedRoot = rootPresent && !isRecord(value);
   return Object.fromEntries(Object.entries(INITIAL_SHIP_RESOURCES).map(([shipId, initial]) => {
-    const stored = isRecord(storedShips[shipId]) ? storedShips[shipId] : {};
+    if (malformedRoot) return [shipId, emptyInventory(initial)];
+    const shipPresent = Object.prototype.hasOwnProperty.call(storedShips, shipId);
+    if (shipPresent && !isRecord(storedShips[shipId])) return [shipId, emptyInventory(initial)];
+    const stored = shipPresent ? storedShips[shipId] as Record<string, unknown> : {};
     const inventory: ShipResourceInventory = {
       ore: storedNumber(stored, 'ore', initial.ore),
       fuel: storedNumber(stored, 'fuel', initial.fuel),
@@ -83,7 +100,8 @@ export function shipResources(value: unknown): ShipResourceInventories {
 }
 
 export function nextResourceAmount(current: number, delta: -1 | 1): number {
-  return Math.max(0, current + delta);
+  const safeCurrent = Number.isSafeInteger(current) ? Math.max(0, current) : 0;
+  return Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, safeCurrent + delta));
 }
 
 export type UnrestChange =

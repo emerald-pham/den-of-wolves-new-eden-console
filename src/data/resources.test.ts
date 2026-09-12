@@ -49,6 +49,16 @@ describe('fleet resources', () => {
     expect(resourcesForShip('capybara', { capybara: { scrap: -1 } })?.scrap).toBe(0);
   });
 
+  it('does not restore stock from malformed root or ship containers', () => {
+    expect(resourcesForShip('aegis', null)).toEqual({
+      ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0,
+    });
+    expect(resourcesForShip('aegis', { aegis: null })).toEqual({
+      ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0,
+    });
+    expect(resourcesForShip('aegis', {})).toEqual(INITIAL_SHIP_RESOURCES.aegis);
+  });
+
   it('normalizes legacy unrest readings to the authoritative 0–10 range', () => {
     expect(shipUnrest({ aegis: -4, capybara: 14 })).toMatchObject({ aegis: 0, capybara: 10 });
   });
