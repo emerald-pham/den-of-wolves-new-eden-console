@@ -1715,7 +1715,7 @@
         "acceptance": "facilitator changes do not orphan seat, role, shuttle, or private-record pointers.",
         "title": "Release and reassign before start."
       },
-      "description": "`releaseRole` clears assignment/console; seat/craft/private pointer composition remains open.",
+      "description": "`assignRole` and `releaseRole` reconcile canonical seats, role/console pointers, Press ownership guards, and reciprocal private Friend records before start; normal player seat claims remain authoritative.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -1725,11 +1725,11 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.5"
+        "0.3.36"
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {

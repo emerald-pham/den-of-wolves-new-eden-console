@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['058'],
+    implementationPrompts: ['062'],
     implementationProgress: {
-      completed: 102,
+      completed: 103,
       total: 734,
-      percentage: '13.90%',
-      done: 102,
-      partial: 18,
+      percentage: '14.03%',
+      done: 103,
+      partial: 17,
       active: 0,
       missing: 614,
     },
     changes: [
-      'Expansion sessions now start with Capybara crew, Scrap, Macaw, and Boa exactly once, while base and no-Capybara sessions keep their vessel data isolated. 102 of 734 implementation prompts are complete (13.90%).',
+      'Facilitators can now release a player’s printed role before game start; the old station opens with role, device, and private links cleaned up, while occupied stations and Press remain protected until their owner releases them. 103 of 734 implementation prompts are complete (14.03%).',
     ],
   },
   {
