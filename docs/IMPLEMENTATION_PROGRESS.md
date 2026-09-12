@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**104 / 746 prompts complete (13.94%)**
+**105 / 746 prompts complete (14.08%)**
 
-Status breakdown: **104 done · 17 partial · 625 missing**.
+Status breakdown: **105 done · 16 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -475,7 +475,7 @@ release classification and evidence.
 | 061 | done | feature | 0.3.5 | Role exclusivity policy plus callable denial tests. |
 | 062 | done | feature | 0.3.36 | `assignRole` and `releaseRole` reconcile canonical seats, role/console pointers, Press ownership guards, and reciprocal private Friend records before start; normal player seat claims remain authoritative. |
 | 063 | done | non-feature | 0.3.37 | Server-owned per-player role briefs include common rules, exact current-assignment reads, lifecycle cleanup, and client authority-order handling. |
-| 064 | partial | feature | 0.3.5 | Private loyalty records are written; a complete entitled reader projection remains open. |
+| 064 | done | feature | 0.3.38 | Each player hydrates only their own loyalty card and suspicion, while an authorized facilitator receives an allowlisted census that stays current across reconnect, demotion, disconnect, release, and removal. |
 | 065 | done | feature | 0.3.5 | Loyalty suspicion policy and assignment tests cover all listed kinds. |
 | 066 | done | feature | 0.3.5 | Reciprocal Friend secret records and privacy test. |
 | 067 | done | feature | 0.3.5 | Android self-disclosure callable and denial test. |

@@ -1849,7 +1849,7 @@
         "acceptance": "each player sees only their loyalty and suspicion while facilitators see the authorized census view.",
         "title": "Deliver private loyalty cards."
       },
-      "description": "Private loyalty records are written; a complete entitled reader projection remains open.",
+      "description": "Each player hydrates only their own loyalty card and suspicion, while an authorized facilitator receives an allowlisted census that stays current across reconnect, demotion, disconnect, release, and removal.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -1859,11 +1859,11 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.5"
+        "0.3.38"
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {

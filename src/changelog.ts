@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['063'],
+    implementationPrompts: ['064'],
     implementationProgress: {
-      completed: 104,
+      completed: 105,
       total: 746,
-      percentage: '13.94%',
-      done: 104,
-      partial: 17,
+      percentage: '14.08%',
+      done: 105,
+      partial: 16,
       active: 0,
       missing: 625,
     },
     changes: [
-      'Players can now open a private brief for their assigned role and common table rules; assignment changes remove the old brief before the new one appears. 104 of 746 planned items are complete (13.94%).',
+      'Players keep their own private loyalty card and suspicion after reconnects, while facilitators can view the authorized loyalty census without exposing private card details. 105 of 746 planned items are complete (14.08%).',
     ],
   },
   {
