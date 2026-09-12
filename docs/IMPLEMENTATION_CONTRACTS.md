@@ -170,6 +170,33 @@ boundary. Evidence is recorded in
 `src/lib/sessionService.test.ts`, and the focused release validation for the
 P522 candidate.
 
+### Prompt 167 — vessel action envelopes and replay
+
+Every vessel-console mutation returns a server-owned envelope with the
+authenticated actor and role, the acting vessel ID, an optional separate
+`hostShipId` for small craft, turn, lifecycle phase, committed domain revision,
+stable client idempotency key, and audit ID. Existing committed domain
+revisions are used where they exist; actions that previously lacked a cursor
+use the transaction-owned `vesselActionRevisions` map. A timestamp, constant,
+or mutable current revision is not substituted for a committed revision.
+
+The server validates authority and the request fingerprint before consulting a
+receipt. A matching receipt returns the original complete envelope and private
+result without rerunning mutation, randomness, or audit creation. A reused
+request ID with a different actor or payload, an incomplete legacy receipt, a
+stale revision, or an invalid phase is rejected according to the action's
+existing contract. The small-ship docking path retains host/GM authority before
+replay but applies the phase gate only to a fresh mutation, so a valid retry
+still returns its committed result after the window advances.
+
+Client request identity survives retries and outbox replay. Stale movement and
+console-lock responses are modeled as stale results and cannot patch a newer
+session snapshot; stale notices are emitted only while the originating session
+and authority checkpoint remain current. Private action results stay out of
+public audit projections. Requests from older clients without a stable request
+identity follow the existing reconcile or fail-closed guidance rather than
+receiving a fabricated idempotency key.
+
 ## 1. Source and ambiguity ledger — Prompt 003
 
 The source map in the plan is authoritative for routing. Printed ship,

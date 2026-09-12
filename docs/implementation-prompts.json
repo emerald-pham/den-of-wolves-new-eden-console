@@ -2,6 +2,13 @@
   "catalogPath": "docs/implementation-prompts.json",
   "evidence": [
     {
+      "direction": "167 -> VESSEL-ACTION-ENVELOPE",
+      "id": "E-AUDIT-167",
+      "language": "Vessel-console mutations now return one server-owned envelope containing the authenticated actor and role, the acting vessel identity (with an optional hostShipId kept separate for small craft), turn and lifecycle phase, the committed domain revision, the stable client idempotency key, and the audit ID. Receipts persist the complete original envelope and private result separately, so authorized retries replay the original outcome without new randomness or audit events; mismatched payloads, actors, stale revisions, malformed legacy receipts, and wrong phases remain denied. Previously unversioned mutations use the transaction-owned vesselActionRevisions map, and clients preserve request identity across retry and outbox paths while stale replies cannot clobber a newer session snapshot. Old requests without identity retain the existing safe reconcile/fail-closed guidance.",
+      "source": "functions/src/vesselActionEnvelope.ts; functions/src/requestGuards.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/fighterWingCallable.test.ts; functions/src/shipCounterBatchCallables.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/maintenanceRollback.test.ts; functions/src/smallShipCallable.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/lib/shipDamageService.ts; src/lib/firestore.ts; src/components/GmStarmapModule.test.tsx; docs/IMPLEMENTATION_CONTRACTS.md Prompt 167 closure",
+      "type": "evidence / authority / release"
+    },
+    {
       "direction": "111 -> RESOURCE-LEDGER-INTEGRITY",
       "id": "E-AUDIT-111",
       "language": "Prompt 111's production resource paths parse ore, fuel, food, water, materials, security teams, and Capybara-only Scrap as nonnegative safe-integer server state. GM-only resource callables apply ordered +/-1 changes transactionally and re-read the latest count after a retry; malformed present values become zero while absent legacy fields retain printed starting stock. Damage cards remain an immutable server-owned deck projection: only known damaged system IDs persist and legacy client-supplied deck order is ignored.",
@@ -8675,8 +8682,8 @@
         "acceptance": "each console result carries actor, vessel, turn, phase, revision, idempotency key, and audit ID.",
         "title": "Standardize vessel action envelopes."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Vessel-console mutations now return one server-owned action envelope with the authenticated actor and role, the acting vessel identity, turn and lifecycle phase, committed domain revision, stable idempotency key, and audit ID. Committed receipts persist the original complete envelope and private result for exact authorized replay without new randomness or audit events; mismatched payloads, actors, malformed legacy receipts, stale revisions, and wrong phases remain denied. Previously unversioned actions use transaction-owned vesselActionRevisions, small craft keeps its own vesselId with an optional hostShipId, and clients preserve request identity while discarding stale replies that could overwrite newer session state. Focused callable, envelope, client retry, stale-session, and GmStarmap tests pass, with independent Terra authority review clearing the reconciled candidate. This closes the envelope contract and does not claim cargo-transfer mechanics owned by Prompts 113 and 377.",
+      "evidenceIds": "E-AUDIT-167",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -8684,10 +8691,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.67"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

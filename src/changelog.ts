@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['167'],
+    implementationProgress: {
+      completed: 180,
+      total: 747,
+      percentage: '24.10%',
+      done: 180,
+      partial: 10,
+      active: 0,
+      missing: 557,
+    },
+    changes: [
+      'Vessel-console actions now return one traceable result with the acting role, vessel, turn, revision, retry identity, and audit reference, so a reconnect or retry preserves the same authoritative outcome. 180 of 747 planned items are complete (24.10%).',
+    ],
+  },
+  {
+    version: '0.3.66',
     implementationPrompts: ['266'],
     implementationProgress: {
       completed: 179,

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**179 / 747 prompts complete (23.96%)**
+**180 / 747 prompts complete (24.10%)**
 
-Status breakdown: **179 done · 10 partial · 558 missing**.
+Status breakdown: **180 done · 10 partial · 557 missing**.
 
 Active prompt: **none**
 
@@ -590,7 +590,7 @@ release classification and evidence.
 | 164 | partial | non-feature | — | Registered shuttle definitions now carry source-aligned cargo type IDs beside their printed cargo strings, and `src/data/shuttles.test.ts` asserts the exact allowlist for every craft with a printed Cargo Transfer rule. The production server still has no cargo-transfer callable or resource-transfer resolver: `functions/src/actionMetadata.ts` only phase-gates a future Coordination action, and `shuttleCargo` is maintenance state. P164 is therefore partial; authoritative transfer enforcement remains deferred to Prompts 113 and 377, which also own dock, manifest, inventory, role, and revision checks. No gameplay release is claimed. |
 | 165 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 166 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 167 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 167 | done | non-feature | 0.3.67 | Vessel-console mutations now return one server-owned action envelope with the authenticated actor and role, the acting vessel identity, turn and lifecycle phase, committed domain revision, stable idempotency key, and audit ID. Committed receipts persist the original complete envelope and private result for exact authorized replay without new randomness or audit events; mismatched payloads, actors, malformed legacy receipts, stale revisions, and wrong phases remain denied. Previously unversioned actions use transaction-owned vesselActionRevisions, small craft keeps its own vesselId with an optional hostShipId, and clients preserve request identity while discarding stale replies that could overwrite newer session state. Focused callable, envelope, client retry, stale-session, and GmStarmap tests pass, with independent Terra authority review clearing the reconciled candidate. This closes the envelope contract and does not claim cargo-transfer mechanics owned by Prompts 113 and 377. |
 | 168 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 169 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 170 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
