@@ -622,7 +622,8 @@ export interface SessionStateHandlers {
   readonly onSeats: (seats: readonly Seat[]) => void;
   readonly onPrivateLoyalty?: (loyalty: PrivateLoyalty | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
-  readonly onLoyaltyCensus?: (census: LoyaltyCensus | null) => void;
+  /** Whether the accepted player projection came from the server. */
+  readonly onPlayerFreshness?: (fresh: boolean) => void;
   readonly onSetupReceipt?: (receipt: SetupReceipt | null) => void;
   readonly onError: () => void;
 }
@@ -678,6 +679,7 @@ export function subscribeSessionState(
         handlers.onKicked();
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         handlers.onPlayer(playerFrom(sessionId, uid, snapshot.data()));
+        handlers.onPlayerFreshness?.(!fromCache);
       } else onError();
     }, onError),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {
@@ -715,21 +717,6 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
-    ...(handlers.onLoyaltyCensus ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/loyaltyCensus/current`),
-      (snapshot) => {
-        if (!subscribed) return;
-        // A cached facilitator projection may outlive a GM demotion. Wait for
-        // a server snapshot so an old private census can never be rendered to
-        // a newly unauthorized member during reconnect.
-        if (snapshot.metadata?.fromCache === true) return;
-        handlers.onLoyaltyCensus?.(snapshot.exists() ? loyaltyCensus(snapshot.data()) : null);
-      },
-      () => {
-        handlers.onLoyaltyCensus?.(null);
-        onError();
-      },
-    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -752,7 +739,34 @@ export function subscribeSessionState(
     subscribed = false;
     unsubscribes.forEach((unsubscribe) => unsubscribe());
     handlers.onRoleBrief?.(null);
-    handlers.onLoyaltyCensus?.(null);
+  };
+}
+
+/**
+ * Subscribe to the facilitator-only census only after the caller has an
+ * authoritative GM projection. A denied read is an expected authorization
+ * race during demotion and must not turn the session transport red.
+ */
+export function subscribeLoyaltyCensus(
+  sessionId: string,
+  onCensus: (census: LoyaltyCensus | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/loyaltyCensus/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onCensus(snapshot.exists() ? loyaltyCensus(snapshot.data()) : null);
+    },
+    () => {
+      if (!subscribed) return;
+      onCensus(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onCensus(null);
   };
 }
 

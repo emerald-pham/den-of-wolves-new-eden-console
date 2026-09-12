@@ -32,7 +32,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => new Date('2026-09-07T12:00:00.000Z') },
 }));
 
-import { assignLoyalty, revealAndroidProof } from './index';
+import { assignLoyalty, releaseRole, revealAndroidProof } from './index';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
   return { exists, id: path.split('/').at(-1), ref: { path }, get: (field: string) => fields[field] };
@@ -140,6 +140,54 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
     },
     result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] },
   });
+});
+
+it('retains a disconnected core loyalty when an unrelated assignment rebuilds the census', async () => {
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: { ...mock.target, connected: false } },
+    { id: 'u3', fields: mock.partner },
+  ];
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: {
+      visibleToUids: ['u2'],
+      payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 },
+    },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'rebuild-with-disconnected-core',
+    targetUid: 'u3', kind: 'android', suspicion: null,
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u3'] });
+
+  const censusWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/loyaltyCensus/current',
+  )?.[1] as { entries: Array<{ uid: string; kind: string }> } | undefined;
+  expect(censusWrite?.entries).toEqual(expect.arrayContaining([
+    { uid: 'u2', kind: 'fleet-loyalist', suspicion: 5 },
+    { uid: 'u3', kind: 'android', suspicion: null },
+  ]));
+});
+
+it('removes a released core loyalty from the rebuilt census', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: {
+      visibleToUids: ['u2'],
+      payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 },
+    },
+  }];
+
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-census-loyalty', targetUid: 'u2',
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3 });
+
+  const censusWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/loyaltyCensus/current',
+  )?.[1] as { entries: Array<{ uid: string }> } | undefined;
+  expect(censusWrite?.entries).toEqual([]);
+  expect(mock.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }));
 });
 
 it('rejects replacing the sole Wolf with Intelligence Agent before any write', async () => {

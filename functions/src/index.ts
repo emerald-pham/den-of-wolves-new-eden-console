@@ -2777,6 +2777,24 @@ function isCanonicalLoyaltyHolder(
     candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
 }
 
+/**
+ * Census membership follows the persisted core role assignment, not transient
+ * presence. A disconnected core player keeps their loyalty until an
+ * authoritative release removes that assignment and secret.
+ */
+function isPersistedCanonicalLoyaltyHolder(
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): boolean {
+  if (!player || !player.exists || player.id !== uid || player.get('role') !== 'player') return false;
+  const assignedRoleId = player.get('assignedRoleId');
+  if (typeof assignedRoleId !== 'string' || !activeRoleIds.includes(assignedRoleId)) return false;
+  return !players.some((candidate) => candidate.id !== uid &&
+    candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
+}
+
 function requireCanonicalLoyaltyHolder(
   player: DocumentSnapshot | undefined,
   uid: string,
@@ -2812,7 +2830,7 @@ function loyaltyCensusEntryFromSecret(
   const uid = secret.id.slice('loyalty-'.length);
   if (!uid || !hasExactPrivateSecretAudience(secret, uid)) return null;
   const holder = players.find((candidate) => candidate.id === uid);
-  const eligibleCoreHolder = isCanonicalLoyaltyHolder(holder, uid, players, activeRoleIds);
+  const eligibleCoreHolder = isPersistedCanonicalLoyaltyHolder(holder, uid, players, activeRoleIds);
   const eligiblePressHolder = Boolean(holder && isActivePlayer(holder) && holder.get('role') === 'player' && hasPressState(holder));
   if (!eligibleCoreHolder && !eligiblePressHolder) return null;
   const payload = secret.get('payload');

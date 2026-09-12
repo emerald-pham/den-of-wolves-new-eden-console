@@ -32,7 +32,7 @@ import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { RoleBrief as RoleBriefProjection } from '@/types/game';
+import type { LoyaltyCensus, RoleBrief as RoleBriefProjection } from '@/types/game';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -75,11 +75,46 @@ function AppRoutes() {
     let active = true;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let unsubscribe: () => void = () => undefined;
+    let unsubscribeLoyaltyCensus: () => void = () => undefined;
+    let censusSubscribed = false;
+    let censusGeneration = 0;
+    let playerProjectionFresh = false;
+    let subscribeLoyaltyCensusFn: (
+      sessionId: string,
+      onCensus: (census: LoyaltyCensus | null) => void,
+    ) => () => void = () => () => undefined;
+    const clearLoyaltyCensus = () => {
+      censusGeneration += 1;
+      censusSubscribed = false;
+      unsubscribeLoyaltyCensus();
+      unsubscribeLoyaltyCensus = () => undefined;
+      useSessionStore.getState().setGmLoyaltyCensus(null);
+    };
+    const currentPlayerMayReadCensus = () => {
+      const state = useSessionStore.getState();
+      return active && playerProjectionFresh && state.session?.id === sessionId &&
+        state.me?.uid === playerUid && state.me.role === 'gm';
+    };
+    const reconcileLoyaltyCensus = () => {
+      if (!currentPlayerMayReadCensus()) {
+        clearLoyaltyCensus();
+        return;
+      }
+      if (censusSubscribed) return;
+      const generation = ++censusGeneration;
+      censusSubscribed = true;
+      unsubscribeLoyaltyCensus = subscribeLoyaltyCensusFn(sessionId, (next) => {
+        if (generation !== censusGeneration || !currentPlayerMayReadCensus()) return;
+        useSessionStore.getState().setGmLoyaltyCensus(next);
+      });
+    };
     void import('@/lib/firestore').then(({
       sessionSnapshotAuthorityFor,
       subscribeSessionState,
+      subscribeLoyaltyCensus,
     }) => {
       if (!active) return;
+      subscribeLoyaltyCensusFn = subscribeLoyaltyCensus;
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
         onSession: (next) => useSessionStore.getState().setSession(next),
@@ -90,6 +125,7 @@ function AppRoutes() {
         },
         onPlayer: (next) => {
           const store = useSessionStore.getState();
+          playerProjectionFresh = false;
           store.setMe(next);
           if (!next.assignedRoleId) {
             pendingRoleBrief = null;
@@ -110,9 +146,16 @@ function AppRoutes() {
               }
             }
           }
-          if (next.role !== 'gm') store.setGmLoyaltyCensus(null);
+          if (next.role !== 'gm') clearLoyaltyCensus();
         },
-        onKicked: () => useSessionStore.getState().disconnect(),
+        onPlayerFreshness: (fresh) => {
+          playerProjectionFresh = fresh;
+          reconcileLoyaltyCensus();
+        },
+        onKicked: () => {
+          clearLoyaltyCensus();
+          useSessionStore.getState().disconnect();
+        },
         onSeats: (next) => useSessionStore.getState().setSeats(next),
         onPrivateLoyalty: (next) => useSessionStore.getState().setPrivateLoyalty(next),
         onRoleBrief: (next) => {
@@ -138,7 +181,6 @@ function AppRoutes() {
           pendingRoleBrief = next;
           store.setRoleBrief(null);
         },
-        onLoyaltyCensus: (next) => useSessionStore.getState().setGmLoyaltyCensus(next),
         onSetupReceipt: (next) => useSessionStore.getState().setGmSetupReceipt(next),
         onError: () => useSessionStore.getState().setConnection('offline'),
       });
@@ -146,6 +188,7 @@ function AppRoutes() {
     return () => {
       active = false;
       pendingRoleBrief = null;
+      clearLoyaltyCensus();
       unsubscribe();
     };
   }, [playerUid, sessionId]);

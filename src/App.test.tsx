@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, Player, RoleBrief } from '@/types/game';
+import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -37,6 +37,7 @@ vi.mock('@/lib/firestore', () => ({
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
+  subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
   subscribeGmInstances: vi.fn((
     _sessionId: string,
     onInstances: (instances: readonly GmInstance[]) => void,
@@ -69,7 +70,11 @@ const {
   selectConsoleRole,
 } =
   await import('@/lib/sessionService');
-const { sessionSnapshotAuthorityFor, subscribeSessionState } = await import('@/lib/firestore');
+const {
+  sessionSnapshotAuthorityFor,
+  subscribeLoyaltyCensus,
+  subscribeSessionState,
+} = await import('@/lib/firestore');
 const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
 
 describe('App', () => {
@@ -101,6 +106,8 @@ describe('App', () => {
     }));
     localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
     vi.mocked(startVersionUpgradeMonitor).mockClear();
+    vi.mocked(subscribeSessionState).mockReset().mockReturnValue(vi.fn());
+    vi.mocked(subscribeLoyaltyCensus).mockReset().mockReturnValue(vi.fn());
     vi.mocked(disconnectFromSession).mockImplementation(async () => {
       useSessionStore.getState().disconnect();
       return 'applied';
@@ -396,6 +403,81 @@ describe('App', () => {
         's1', 'u1', expect.objectContaining({ sessionSnapshotAuthority: authority }),
       );
     });
+  });
+
+  it('keeps ordinary members online without opening the GM-only census listener', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const member = { ...player, role: 'player' as const };
+    useSessionStore.getState().setIdentity(session, member);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => {
+      handlers?.onPlayer(member);
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+
+    expect(subscribeLoyaltyCensus).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().connection).toBe('live');
+  });
+
+  it('starts and tears down the census at authoritative GM promotion and demotion', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    let censusCallback: ((next: LoyaltyCensus | null) => void) | undefined;
+    const censusUnsubscribe = vi.fn();
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    vi.mocked(subscribeLoyaltyCensus).mockImplementation((_sessionId, onCensus) => {
+      censusCallback = onCensus;
+      return censusUnsubscribe;
+    });
+    const member = { ...player, role: 'player' as const };
+    useSessionStore.getState().setIdentity(session, member);
+
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => {
+      handlers?.onPlayer(member);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(subscribeLoyaltyCensus).not.toHaveBeenCalled();
+
+    act(() => {
+      handlers?.onPlayer(player);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(subscribeLoyaltyCensus).toHaveBeenCalledWith('s1', expect.any(Function));
+    act(() => censusCallback?.({
+      revision: 4,
+      entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 7 }],
+    }));
+    expect(useSessionStore.getState().gmLoyaltyCensus).toMatchObject({ revision: 4 });
+
+    act(() => {
+      handlers?.onPlayer(member);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+    act(() => censusCallback?.({
+      revision: 5,
+      entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 99 }],
+    }));
+    expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+
+    unmount();
+    expect(censusUnsubscribe).toHaveBeenCalled();
+    act(() => censusCallback?.({
+      revision: 6,
+      entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 100 }],
+    }));
+    expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
   });
 
   it('holds a new own brief until the matching player assignment arrives', async () => {

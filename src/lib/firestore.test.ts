@@ -29,6 +29,7 @@ const {
   subscribeGmInstances,
   subscribeConnectedPlayers,
   subscribeDamageDraws,
+  subscribeLoyaltyCensus,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -423,12 +424,9 @@ it('hydrates only the current UID role brief and clears it when the assignment i
 it('hydrates the known facilitator census only from server authority and allowlists its fields', () => {
   const { callbacks } = captureSessionListener();
   const onLoyaltyCensus = vi.fn();
-  subscribeSessionState('s1', 'u1', {
-    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
-    onLoyaltyCensus, onError: vi.fn(),
-  });
+  subscribeLoyaltyCensus('s1', onLoyaltyCensus);
 
-  callbacks[3]?.({
+  callbacks[0]?.({
     metadata: { fromCache: true },
     exists: () => true,
     data: () => ({
@@ -438,7 +436,7 @@ it('hydrates the known facilitator census only from server authority and allowli
   });
   expect(onLoyaltyCensus).not.toHaveBeenCalled();
 
-  callbacks[3]?.({
+  callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({
@@ -451,7 +449,7 @@ it('hydrates the known facilitator census only from server authority and allowli
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
   });
 
-  callbacks[3]?.({
+  callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
