@@ -8,6 +8,7 @@ import AirspaceControl from './AirspaceControl';
 import EmergencyTimerPauseControl from './EmergencyTimerPauseControl';
 import FleetBroadcast from './FleetBroadcast';
 import FleetAlertControl from './FleetAlertControl';
+import TurnStartAnnouncement from './TurnStartAnnouncement';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 const firestoreMocks = vi.hoisted(() => ({
   onSnapshot: vi.fn(),
@@ -283,6 +284,84 @@ it('rehydrates the live timer and permitted actions from the same server phase a
   feed(reconnect.sessionListener, liftedSnapshot);
   expect(screen.getByRole('status', { name: 'Airspace open // 18:00 remaining' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Unlock airspace // Press' })).toBeDisabled();
+  reconnect.stop();
+});
+
+it('rehydrates the latest turn transmission after reconnect without replaying its visual effect', () => {
+  vi.useFakeTimers();
+  const listeners: Array<{ path: string; callback: (snapshot: unknown) => void }> = [];
+  firestoreMocks.onSnapshot.mockImplementation((target: { path: string }, callback: (snapshot: unknown) => void) => {
+    listeners.push({ path: target.path, callback });
+    return vi.fn();
+  });
+  const turnOneSnapshot = {
+    name: 'Table',
+    joinCode: '1234',
+    phase: 'active',
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-09T17:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-09T17:20:00.000Z',
+      airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: false },
+    },
+    ownerUid: 'u1',
+    createdAt: '2026-09-09T17:00:00.000Z',
+    updatedAt: '2026-09-09T17:01:00.000Z',
+  };
+  const turnTwoSnapshot = {
+    ...turnOneSnapshot,
+    currentTurn: 2,
+    updatedAt: '2026-09-09T17:06:00.000Z',
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 237_000 },
+    turnPhase: {
+      ...turnOneSnapshot.turnPhase,
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-09T17:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-09T17:25:00.000Z',
+    },
+  };
+  const subscribeToAuthoritativeSession = () => {
+    const start = listeners.length;
+    const stop = subscribeSessionState('s1', 'u1', {
+      onSession: (session) => useSessionStore.getState().setSession(session),
+      onPlayer: vi.fn(),
+      onKicked: vi.fn(),
+      onSeats: vi.fn(),
+      onError: vi.fn(),
+    });
+    const sessionListener = listeners.slice(start).find(({ path }) => path === 'sessions/s1');
+    if (!sessionListener) throw new Error('Expected the session Firestore listener.');
+    return { stop, sessionListener };
+  };
+  const feed = (listener: { callback: (snapshot: unknown) => void }, data: object) => {
+    act(() => listener.callback({
+      metadata: { fromCache: false },
+      exists: () => true,
+      id: 's1',
+      data: () => data,
+    }));
+  };
+
+  const first = subscribeToAuthoritativeSession();
+  feed(first.sessionListener, turnOneSnapshot);
+  const view = render(<TurnStartAnnouncement />);
+  feed(first.sessionListener, turnTwoSnapshot);
+  expect(screen.getByText('TURN 2')).toBeVisible();
+  view.unmount();
+  first.stop();
+  listeners.length = 0;
+
+  const reconnect = subscribeToAuthoritativeSession();
+  feed(reconnect.sessionListener, turnTwoSnapshot);
+  render(<TurnStartAnnouncement />);
+
+  expect(useSessionStore.getState().session).toMatchObject({
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 237_000 },
+    turnPhase: { turn: 2 },
+  });
+  expect(screen.queryByText('TURN 2')).not.toBeInTheDocument();
   reconnect.stop();
 });
 

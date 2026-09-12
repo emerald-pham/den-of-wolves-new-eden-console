@@ -406,6 +406,13 @@
       "language": "The authoritative advanceTurn transaction derives one server-owned next-turn announcement and commits it atomically with currentTurn and turnPhase, alongside the deterministic member-visible turn-advanced event. Focused callable coverage proves one generated announcement/state commit and event identity while ignoring a forged request field; Firestore emulator coverage denies client writes to the combined next-turn state/announcement and the transition event. The atomic commit is the ordering guarantee; no separate timing semantics are introduced.",
       "source": "functions/src/index.ts; functions/src/maintenanceCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "106 -> M2-LIFECYCLE-REPLAY",
+      "id": "E-106-LIFECYCLE-REPLAY",
+      "language": "The authoritative session listener hydrates the latest parsed turn, phase, and announcement snapshot, while TurnStartAnnouncement opens a visual transmission only for a newer live turn or server revision. The production listener integration test drives Turn 1 to Turn 2, confirms one transmission, unsubscribes and reconnects with the same server snapshot, then verifies the current state rehydrates without a duplicate visual effect. Existing announcement timing and event-snapshot replacement tests continue to cover intentional replay and stable server IDs.",
+      "source": "src/lib/firestore.ts; src/components/TurnStartAnnouncement.tsx; src/components/FleetAlert.test.tsx; src/components/TurnStartAnnouncement.test.tsx; src/lib/firestore.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2970,8 +2977,8 @@
         "acceptance": "reconnecting members see the latest relevant turn/phase state without duplicate visual effects.",
         "title": "Replay lifecycle announcements."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The authoritative session listener hydrates the latest parsed turn, phase, and announcement snapshot, while `TurnStartAnnouncement` opens a visual transmission only for a newer live turn or server revision. The production listener integration test drives Turn 1 to Turn 2, confirms one transmission, unsubscribes and reconnects with the same server snapshot, then verifies the current state rehydrates without a duplicate visual effect. Existing announcement timing and event-snapshot replacement tests continue to cover intentional replay and stable server IDs. Proof-only; no runtime change.",
+      "evidenceIds": "E-106-LIFECYCLE-REPLAY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2982,7 +2989,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
