@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**168 / 747 prompts complete (22.49%)**
+**169 / 747 prompts complete (22.62%)**
 
-Status breakdown: **168 done · 7 partial · 572 missing**.
+Status breakdown: **169 done · 7 partial · 571 missing**.
 
 Active prompt: **none**
 
@@ -691,7 +691,7 @@ release classification and evidence.
 | 249 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 250 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 251 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 252 | missing | non-feature | — | Planned [REPAIR] prompt; no production-path evidence has been recorded yet. The owner-revised 8–20 Capybara core target, source-defined substitution matrices, and Press/multiple-GM orthogonality must be composed without relying on stale 19/21 presets. |
+| 252 | done | non-feature | 0.3.62 | Production setup and server projections already enforce immutable base, expansion, and none modes, the exact owner-revised 8–20 roster (19/20 add the full expansion Capybara pair), active-vessel filtering for session state, resources, damage, targeting, and callable authority, and rejection of unsupported lower-count Capybara substitutions. This release repairs the client selectors and projections to consume canonical activeVesselIds, including explicit empty or malformed-present values, while role inference remains limited to absent legacy snapshots. Base/none sessions no longer surface full Capybara in the FleetRoster, GM DRADIS/starmap/resource controls, ShipPlot, or direct ship routes; 19/20 expansion sessions retain it. Press, multiple GM instances, and the separate capybara-small path remain orthogonal. Focused client and session-boundary tests plus local responsive/reduced-motion/keyboard evidence cover the repaired boundary. |
 | 253 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 254 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 255 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

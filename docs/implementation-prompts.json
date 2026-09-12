@@ -1507,6 +1507,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "252 -> 057;058",
+      "id": "E-252-IMPLEMENTED",
+      "language": "Production setup and server projections already enforce immutable base, expansion, and none modes, the exact owner-revised 8–20 roster (19/20 add the full expansion Capybara pair), active-vessel filtering for session state, resources, damage, targeting, and callable authority, and rejection of unsupported lower-count Capybara substitutions. This release repairs the client selectors and projections to consume canonical activeVesselIds, including explicit empty or malformed-present values, while role inference remains limited to absent legacy snapshots. Base/none sessions no longer surface full Capybara in the FleetRoster, GM DRADIS/starmap/resource controls, ShipPlot, or direct ship routes; 19/20 expansion sessions retain it. Press, multiple GM instances, and the separate capybara-small path remain orthogonal. Focused client and session-boundary tests, typecheck, lint, and local Chrome CDP checks cover phone, desktop, short-landscape, keyboard return, reduced motion, and horizontal-overflow behavior.",
+      "source": "functions/src/gameSetup.ts; functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/roleConfiguration.test.ts; functions/src/createSessionCallable.test.ts; functions/src/sessionComposition.test.ts; src/lib/firestore.ts; src/data/roles.ts; src/routes/SessionMode.tsx; src/routes/GmConsole.tsx; src/routes/ShipRoleSelect.tsx; src/routes/ShipConsole.tsx; src/components/ShipPlot.tsx; src/data/fleetFormation.ts; focused tests; /tmp/p252-render/*.png and /tmp/p252-render.json",
+      "type": "evidence"
+    },
+    {
       "direction": "253 -> 252;161;162",
       "id": "E-AUDIT-253",
       "language": "Expansion identity consumes the mode gate and printed vessel data.",
@@ -10950,8 +10957,8 @@
         "acceptance": "repair stale base/Capybara mode and counted-Press preset behavior so immutable configuration replaces, never combines with, the base Capybara across the owner-revised 8–20 core roster, catalogs, targeting, resources, and damage; exact 8–18 substitution matrices remain source/facilitator-defined until recorded. Optional Press and multiple GM instances remain orthogonal to that configuration.",
         "title": "Gate the expansion Capybara."
       },
-      "description": "Planned [REPAIR] prompt; no production-path evidence has been recorded yet. The owner-revised 8–20 Capybara core target, source-defined substitution matrices, and Press/multiple-GM orthogonality must be composed without relying on stale 19/21 presets.",
-      "evidenceIds": "E-AUDIT-252",
+      "description": "Production setup and server projections already enforce immutable base, expansion, and none modes, the exact owner-revised 8–20 roster (19/20 add the full expansion Capybara pair), active-vessel filtering for session state, resources, damage, targeting, and callable authority, and rejection of unsupported lower-count Capybara substitutions. This release repairs the client selectors and projections to consume canonical activeVesselIds, including explicit empty or malformed-present values, while role inference remains limited to absent legacy snapshots. Base/none sessions no longer surface full Capybara in the FleetRoster, GM DRADIS/starmap/resource controls, ShipPlot, or direct ship routes; 19/20 expansion sessions retain it. Press, multiple GM instances, and the separate capybara-small path remain orthogonal. Focused client and session-boundary tests plus local responsive/reduced-motion/keyboard evidence cover the repaired boundary.",
+      "evidenceIds": "E-252-IMPLEMENTED;E-AUDIT-252",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "057;058",
@@ -10959,10 +10966,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.62"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

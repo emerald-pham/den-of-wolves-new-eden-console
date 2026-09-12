@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['252'],
+    implementationProgress: {
+      completed: 169,
+      total: 747,
+      percentage: '22.62%',
+      done: 169,
+      partial: 7,
+      active: 0,
+      missing: 571,
+    },
+    changes: [
+      'Fleet screens now respect the saved base or expansion roster everywhere, so the full Capybara appears only in the 19- and 20-player expansion setup. 169 of 747 planned items are complete (22.62%).',
+    ],
+  },
+  {
+    version: '0.3.61',
     implementationPrompts: ['402'],
     implementationProgress: {
       completed: 168,
