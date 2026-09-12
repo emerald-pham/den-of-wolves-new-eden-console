@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['088'],
+    implementationProgress: {
+      completed: 116,
+      total: 747,
+      percentage: '15.53%',
+      done: 116,
+      partial: 7,
+      active: 0,
+      missing: 624,
+    },
+    changes: [
+      'Facilitator census and Wolf timing displays no longer roll back to an older update during reconnects. 116 of 747 planned items are complete (15.53%).',
+    ],
+  },
+  {
+    version: '0.3.43',
     implementationPrompts: ['086'],
     implementationProgress: {
       completed: 115,

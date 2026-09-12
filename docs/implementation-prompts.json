@@ -359,6 +359,13 @@
       "type": "evidence"
     },
     {
+      "direction": "088 -> M1-SNAPSHOT-ORDER",
+      "id": "E-088-SNAPSHOT-ORDER",
+      "language": "The revisioned facilitator census and Wolf timing listeners accept equal or newer server revisions only for the lifetime of one subscription, so a delayed lower revision cannot replace a newer GM projection. Deletion, malformed data, errors, teardown, and a new subscription preserve the existing clear and lifecycle behavior without adding ordering to unversioned streams.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts",
+      "type": "evidence"
+    },
+    {
       "direction": "086 -> M1-FACILITATOR-PRIVATE",
       "id": "E-086-FACILITATOR-PRIVATE",
       "language": "The existing wolf-assignment secret now hydrates a typed GM-only projection. The facilitator loyalty census accepts bounded optional notes, and an authorized revisioned callable persists, audits, replays, and clears those notes without publishing a member event. Census rebuilds preserve notes for the same current UID and removal patches drop them; callable, lifecycle, client, GM-console, and rules tests cover authorization, stale/replay behavior, teardown, and member denial.",
@@ -2476,15 +2483,15 @@
       "tag": "EXTEND"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "delayed snapshots never overwrite a newer authoritative client projection.",
         "title": "Order snapshots by revision."
       },
-      "description": "Revision parsing exists; universal delayed-snapshot ordering remains open.",
-      "evidenceIds": "none",
+      "description": "Revisioned facilitator census and Wolf timing listeners reject delayed lower revisions for each active subscription while preserving equal updates, clear-on-delete/error behavior, and fresh ordering on re-subscribe.",
+      "evidenceIds": "E-088-SNAPSHOT-ORDER",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2492,10 +2499,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.44"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

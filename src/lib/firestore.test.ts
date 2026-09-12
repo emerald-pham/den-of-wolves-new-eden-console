@@ -459,6 +459,35 @@ it('hydrates the known facilitator census only from server authority and allowli
   expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
 });
 
+it('does not let a delayed older census revision overwrite the newer server projection', () => {
+  const { callbacks } = captureSessionListener();
+  const onCensus = vi.fn();
+  subscribeLoyaltyCensus('s1', onCensus);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'loyalty-census', revision: 8,
+      entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 20 }],
+    }),
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'loyalty-census', revision: 7,
+      entries: [{ uid: 'u3', kind: 'fleet-loyalist', suspicion: 1 }],
+    }),
+  });
+
+  expect(onCensus).toHaveBeenCalledTimes(1);
+  expect(onCensus).toHaveBeenLastCalledWith({
+    revision: 8,
+    entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 20 }],
+  });
+});
+
 it('hydrates the facilitator-only Wolf timing marker and rejects malformed state', () => {
   const { callbacks } = captureSessionListener();
   const onWindow = vi.fn();
@@ -486,6 +515,98 @@ it('hydrates the facilitator-only Wolf timing marker and rejects malformed state
   expect(onWindow).toHaveBeenLastCalledWith(null);
   unsubscribe();
   expect(onWindow).toHaveBeenLastCalledWith(null);
+});
+
+it('does not let a delayed older Wolf timing revision overwrite the newer server marker', () => {
+  const { callbacks } = captureSessionListener();
+  const onWindow = vi.fn();
+  subscribeGmWolfAttackWindow('s1', onWindow);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'deferred', turn: 2, revision: 2 }),
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'due', turn: 1, revision: 1 }),
+  });
+
+  expect(onWindow).toHaveBeenCalledTimes(1);
+  expect(onWindow).toHaveBeenLastCalledWith({ status: 'deferred', turn: 2, revision: 2 });
+});
+
+it('allows equal revision updates, clears deletion, and resets ordering only on a new subscription', () => {
+  const first = captureSessionListener();
+  const onWindow = vi.fn();
+  const unsubscribe = subscribeGmWolfAttackWindow('s1', onWindow);
+
+  first.callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'due', turn: 1, revision: 2 }),
+  });
+  first.callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'resolved', turn: 1, revision: 2 }),
+  });
+  first.callbacks[0]?.({ exists: () => false });
+  first.callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'due', turn: 1, revision: 1 }),
+  });
+  first.callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'deferred', turn: 2, revision: 3 }),
+  });
+  unsubscribe();
+
+  const second = captureSessionListener();
+  subscribeGmWolfAttackWindow('s1', onWindow);
+  second.callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'due', turn: 1, revision: 1 }),
+  });
+
+  expect(onWindow.mock.calls).toEqual([
+    [{ status: 'due', turn: 1, revision: 2 }],
+    [{ status: 'resolved', turn: 1, revision: 2 }],
+    [null],
+    [{ status: 'deferred', turn: 2, revision: 3 }],
+    [null],
+    [{ status: 'due', turn: 1, revision: 1 }],
+  ]);
+});
+
+it('clears a revisioned projection on listener errors without reopening an older revision', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  const errors: Array<(error: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    errors.push(error as (error: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onCensus = vi.fn();
+  subscribeLoyaltyCensus('s1', onCensus);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ type: 'loyalty-census', revision: 4, entries: [] }),
+  });
+  errors[0]?.(new Error('permission denied during demotion'));
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ type: 'loyalty-census', revision: 3, entries: [] }),
+  });
+
+  expect(onCensus.mock.calls).toEqual([[{ revision: 4, entries: [] }], [null]]);
 });
 
 it('hydrates only the typed facilitator Wolf assignment and clears after teardown', () => {

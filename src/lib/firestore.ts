@@ -216,6 +216,22 @@ function wolfAssignment(value: unknown): WolfAssignment | null {
   return { roleIds };
 }
 
+/**
+ * Keep a revisioned projection monotonic for the lifetime of one listener.
+ * Equal revisions still flow through so an equivalent server callback can
+ * refresh its current payload; deletion or malformed state clears the view
+ * without resetting the cursor, because a document revision does not restart
+ * while the subscription remains active.
+ */
+function createMonotonicRevisionGate() {
+  let latestRevision: number | undefined;
+  return (revision: number): boolean => {
+    if (latestRevision !== undefined && revision < latestRevision) return false;
+    latestRevision = revision;
+    return true;
+  };
+}
+
 function setupReceipt(value: unknown): SetupReceipt | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
@@ -825,11 +841,14 @@ export function subscribeLoyaltyCensus(
   onCensus: (census: LoyaltyCensus | null) => void,
 ): Unsubscribe {
   let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/loyaltyCensus/current`),
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
-      onCensus(snapshot.exists() ? loyaltyCensus(snapshot.data()) : null);
+      const census = snapshot.exists() ? loyaltyCensus(snapshot.data()) : null;
+      if (census && !acceptsRevision(census.revision)) return;
+      onCensus(census);
     },
     () => {
       if (!subscribed) return;
@@ -849,11 +868,14 @@ export function subscribeGmWolfAttackWindow(
   onWindow: (window: WolfAttackWindow | null) => void,
 ): Unsubscribe {
   let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfAttackWindow/current`),
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
-      onWindow(snapshot.exists() ? wolfAttackWindow(snapshot.data()) : null);
+      const window = snapshot.exists() ? wolfAttackWindow(snapshot.data()) : null;
+      if (window && !acceptsRevision(window.revision)) return;
+      onWindow(window);
     },
     () => {
       if (!subscribed) return;
