@@ -34,6 +34,57 @@ it('lets the old broadcast leave naturally while its replacement follows on the 
   )).not.toBeInTheDocument();
   expect(cancellationStatus).toBeVisible();
 });
+it('keeps queued identities singular while rapid updates append new tracks', () => {
+  const firstQueued = {
+    id: 'queued-press-1', text: 'SNN // FIRST REPORT', tone: 'normal' as const,
+  };
+  const secondQueued = {
+    id: 'queued-press-2', text: 'SNN // SECOND REPORT', tone: 'normal' as const,
+  };
+  const view = render(<FleetTicker message={alert} queue={[firstQueued]} />);
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${firstQueued.id}"]`,
+  )).toHaveLength(2);
+  expect(view.container.querySelectorAll('[role="status"]')).toHaveLength(1);
+
+  view.rerender(<FleetTicker message={alert} queue={[firstQueued, secondQueued]} />);
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${firstQueued.id}"]`,
+  )).toHaveLength(2);
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${secondQueued.id}"]`,
+  )).toHaveLength(2);
+  expect(view.container.querySelectorAll('[role="status"]')).toHaveLength(1);
+});
+it('does not duplicate a queued identity when its current message is replaced', () => {
+  const queued = {
+    id: 'queued-press-replacement', text: 'SNN // QUEUED REPORT', tone: 'normal' as const,
+  };
+  const replacement = {
+    id: 'replacement-alert', text: 'AEGIS // URGENT UPDATE', tone: 'danger' as const,
+  };
+  const view = render(<FleetTicker message={alert} queue={[queued]} />);
+  view.rerender(<FleetTicker message={replacement} queue={[queued]} />);
+
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${queued.id}"]`,
+  )).toHaveLength(2);
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${replacement.id}"]`,
+  )).toHaveLength(2);
+});
+it('measures each queued identity against its own copy', () => {
+  const queued = {
+    id: 'queued-press-measurement', text: 'SNN // A LONGER QUEUED REPORT', tone: 'normal' as const,
+  };
+  const { container } = render(<FleetTicker message={alert} queue={[queued]} />);
+
+  const probes = [...container.querySelectorAll('.fleet-ticker__probe')];
+  expect(probes).toHaveLength(2);
+  expect(probes.map((probe) => probe.textContent?.trim())).toEqual([
+    `${alert.text} //`, `${queued.text} //`,
+  ]);
+});
 it('plays a finite replacement for exactly its configured passes', () => {
   const view = render(<FleetTicker message={cancelled} />);
   finishMovingPasses(view.container, cancelled.id);

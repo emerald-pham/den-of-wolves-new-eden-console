@@ -63,6 +63,10 @@ function messageSignature(message: FleetMessage | undefined): string {
   ].join('\u0000');
 }
 
+function hasMessageGroup(groups: readonly MovingGroup[], message: FleetMessage | undefined): boolean {
+  return message !== undefined && groups.some((group) => group.message.id === message.id);
+}
+
 function storageKey(message: FleetMessage): string {
   return `fleet-ticker:${message.id}`;
 }
@@ -160,6 +164,7 @@ function MovingMessage({ message, fallback, queue = [] }: {
   const windowRef = useRef<HTMLDivElement>(null);
   const messageProbeRef = useRef<HTMLSpanElement>(null);
   const fallbackProbeRef = useRef<HTMLSpanElement>(null);
+  const queueProbeRefs = useRef(new Map<string, HTMLSpanElement>());
   const groupElements = useRef(new Map<number, HTMLSpanElement>());
   const groupsRef = useRef<readonly MovingGroup[]>([]);
   const activeMessage = useRef<FleetMessage | undefined>(undefined);
@@ -215,7 +220,9 @@ function MovingMessage({ message, fallback, queue = [] }: {
   const probeFor = useCallback((nextMessage: FleetMessage) => (
     messageSignature(nextMessage) === messageSignature(input.current.fallback)
       ? fallbackProbeRef.current
-      : messageProbeRef.current
+      : messageSignature(nextMessage) === messageSignature(input.current.message)
+        ? messageProbeRef.current
+        : queueProbeRefs.current.get(nextMessage.id) ?? null
   ), []);
 
   const relativeRight = useCallback((group: MovingGroup): number => {
@@ -269,22 +276,23 @@ function MovingMessage({ message, fallback, queue = [] }: {
       nextMessage = requestedFallback ?? queue[0];
     }
 
-    if (messageSignature(activeMessage.current) === messageSignature(nextMessage)) {
-      setAnnouncedMessage(nextMessage);
-      setProcessedKey(inputKey);
-      return;
-    }
-
     let nextGroups: readonly MovingGroup[] = groupsRef.current.filter(isOnScreen);
+    const currentChanged = messageSignature(activeMessage.current) !== messageSignature(nextMessage);
     const outgoingMessage = activeMessage.current;
-    activeMessage.current = nextMessage;
-    if (nextMessage || nextGroups.length === 0) {
-      setAnnouncedMessage(nextMessage);
+    if (currentChanged) {
+      activeMessage.current = nextMessage;
+      if (nextMessage || nextGroups.length === 0) {
+        setAnnouncedMessage(nextMessage);
+      } else {
+        setAnnouncedMessage(outgoingMessage);
+      }
     } else {
-      setAnnouncedMessage(outgoingMessage);
+      // Queue-only updates must still be reconciled while the announced
+      // current identity remains stable.
+      setAnnouncedMessage(nextMessage);
     }
 
-    if (nextMessage) {
+    if (nextMessage && !hasMessageGroup(nextGroups, nextMessage)) {
       const geometry = geometryFor(nextMessage, probeFor(nextMessage));
       const completed = readCompletedPasses(nextMessage);
       const passCount = nextMessage.passes === undefined
@@ -292,16 +300,18 @@ function MovingMessage({ message, fallback, queue = [] }: {
         : Math.max(0, nextMessage.passes - completed);
       nextGroups = appendGroups(nextGroups, nextMessage, passCount, geometry);
 
-      if (nextMessage.passes !== undefined && requestedFallback) {
-        const fallbackGeometry = geometryFor(requestedFallback, fallbackProbeRef.current);
-        nextGroups = appendGroups(nextGroups, requestedFallback, 2, fallbackGeometry);
-      }
+    }
+    if (nextMessage?.passes !== undefined && requestedFallback &&
+        !hasMessageGroup(nextGroups, requestedFallback)) {
+      const fallbackGeometry = geometryFor(requestedFallback, fallbackProbeRef.current);
+      nextGroups = appendGroups(nextGroups, requestedFallback, 2, fallbackGeometry);
     }
 
     const queuedAfterCurrent = queue.filter((queuedMessage) =>
-      messageSignature(queuedMessage) !== messageSignature(nextMessage));
+      queuedMessage.id !== nextMessage?.id);
     for (const queuedMessage of queuedAfterCurrent) {
-      const geometry = geometryFor(queuedMessage, messageProbeRef.current);
+      if (hasMessageGroup(nextGroups, queuedMessage)) continue;
+      const geometry = geometryFor(queuedMessage, probeFor(queuedMessage));
       const completed = readCompletedPasses(queuedMessage);
       const passCount = queuedMessage.passes === undefined
         ? 2 : Math.max(0, queuedMessage.passes - completed);
@@ -410,6 +420,16 @@ function MovingMessage({ message, fallback, queue = [] }: {
             <MessageCopy message={fallback} copyRef={fallbackProbeRef} />
           </span>
         )}
+        {queue.map((queuedMessage) => (
+          <span className="fleet-ticker__probe" data-tone={queuedMessage.tone}
+            data-gap={queuedMessage.gap ?? 'standard'} aria-hidden="true"
+            key={queuedMessage.id}>
+            <MessageCopy message={queuedMessage} copyRef={(element) => {
+              if (element) queueProbeRefs.current.set(queuedMessage.id, element);
+              else queueProbeRefs.current.delete(queuedMessage.id);
+            }} />
+          </span>
+        ))}
       </div>
     </aside>
   );
