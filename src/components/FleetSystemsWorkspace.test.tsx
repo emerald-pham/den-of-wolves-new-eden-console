@@ -89,6 +89,31 @@ describe('fleet system reference workspaces', () => {
     expect(screen.queryByRole('link', { name: /open macaw shuttle console/i })).not.toBeInTheDocument();
   });
 
+  it('renders the expansion Capybara identity from its full-ship definition', () => {
+    const ship = SHIPS.find(candidate => candidate.id === 'capybara')!;
+    expect(ship.printedStatistics).toMatchObject({
+      population: 20_000,
+      reactorCapacity: 3,
+      jumpCosts: { short: 3, medium: 6, long: 12 },
+      maintenanceSteps: [1, 2, 3, 4, 5, 6],
+    });
+    expect(ship.maintenance).toEqual({
+      reactor: 3,
+      jump: [3, 6, 12],
+      food: [0, 3, 7, 11],
+      water: [0, 2, 5, 8],
+    });
+
+    const role = ship.roles[0]!;
+    renderWorkspace(<FleetSystemsWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
+
+    const table = screen.getByRole('table', { name: 'Capybara initial ration schedule' });
+    expect(within(table).getByRole('row', { name: /Food/ })).toHaveTextContent(/Food.*0.*3.*7.*11/);
+    expect(within(table).getByRole('row', { name: /Water/ })).toHaveTextContent(/Water.*0.*2.*5.*8/);
+    expect(screen.getByText(/Jump requirement/i)).toHaveTextContent(/Short.*3.*Medium.*6.*Long.*12/i);
+    expect(screen.getByRole('list', { name: 'Capybara maintenance sequence' }).children).toHaveLength(6);
+  });
+
   it('links each role to the real shuttlecraft assigned on its printed sheet', () => {
     const ship = SHIPS.find((candidate) => candidate.id === 'dione')!;
     const role = ship.roles.find((candidate) => candidate.id === 'dione-engineer')!;

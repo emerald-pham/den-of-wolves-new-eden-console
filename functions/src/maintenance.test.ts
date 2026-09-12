@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { advanceMaintenance, MAINTENANCE_ORDERS, type MaintenanceInput } from './maintenance';
+import { advanceMaintenance, MAINTENANCE_ORDERS, MAINTENANCE_RULES, type MaintenanceInput } from './maintenance';
 const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => ({
   shipId: 'aegis', cycle: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
   currentTurn: 1, expectedRevision: 0, action: 'begin', resources: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
@@ -126,6 +126,61 @@ it('halves damaged storage and docked cargo with losses rounded down', () => {
   expect(result.cargo).toEqual({ starlight: { food: 3 }, pallas: { food: 5 } });
   expect(result.cycle.step).toBe(2);
   expect(result.cycle.results['1']).toMatch(/lost/i);
+});
+
+it('applies Capybara Storage to every in-scope store, including Scrap and docked shuttle cargo', () => {
+  const result = advanceMaintenance(input({
+    shipId: 'capybara',
+    action: 'storage',
+    cycle: { step: 1, revision: 0, results: {}, charges: [], refuelled: [] },
+    resources: { ore: 5, fuel: 3, food: 9, water: 4, materials: 3, securityTeams: 2, scrap: 5 },
+    damage: { damagedSystemIds: ['storage'], destroyed: false },
+    dockings: [
+      { shipId: 'capybara', shuttleId: 'macaw' },
+      { shipId: 'capybara', shuttleId: 'boa' },
+    ],
+    cargo: {
+      macaw: { food: 5, scrap: 5 },
+      boa: { scrap: 3 },
+      starlight: { food: 5 },
+    },
+  }));
+
+  expect(result.resources).toEqual({
+    ore: 3, fuel: 2, food: 5, water: 2, materials: 2, securityTeams: 1, scrap: 3,
+  });
+  expect(result.cargo).toEqual({
+    macaw: { food: 3, scrap: 3 },
+    boa: { scrap: 2 },
+    starlight: { food: 5 },
+  });
+});
+
+it('uses the printed Capybara Storage and Reactor policy', () => {
+  expect(MAINTENANCE_RULES.capybara).toEqual({
+    food: [0, 3, 7, 11], water: [0, 2, 5, 8], reactor: 3, damagedPenalty: 3,
+  });
+  const nominal = advanceMaintenance(input({
+    shipId: 'capybara', action: 'reactor',
+    cycle: { step: 5, revision: 0, results: {}, charges: [], refuelled: [] },
+    consoles: ['advanced-hydroponics', 'water-production', 'scrap-refinery'],
+  }));
+  expect(nominal.cycle.charges).toEqual(['advanced-hydroponics', 'water-production', 'scrap-refinery']);
+  expect(() => advanceMaintenance(input({
+    shipId: 'capybara', action: 'reactor',
+    cycle: { step: 5, revision: 0, results: {}, charges: [], refuelled: [] },
+    damage: { damagedSystemIds: ['reactor'], destroyed: false },
+    upgraded: ['reactor'],
+    consoles: ['advanced-hydroponics', 'water-production'],
+  }))).toThrow(/capacity/i);
+  const damagedUpgraded = advanceMaintenance(input({
+    shipId: 'capybara', action: 'reactor',
+    cycle: { step: 5, revision: 0, results: {}, charges: [], refuelled: [] },
+    damage: { damagedSystemIds: ['reactor'], destroyed: false },
+    upgraded: ['reactor'],
+    consoles: ['jump-drive'],
+  }));
+  expect(damagedUpgraded.cycle.charges).toEqual(['jump-drive']);
 });
 it('spends food and water separately and retains both ration bonuses', () => {
   const result = advanceMaintenance(input({ action: 'rations', cycle: { step: 2, revision: 0, results: {}, charges: [], refuelled: [] }, foodLevel: 1, waterLevel: 2 }));

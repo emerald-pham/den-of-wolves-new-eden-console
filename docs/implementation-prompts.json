@@ -4382,6 +4382,20 @@
       "language": "Ten targeted store, session-service and header tests passed for hydration, persisted-session resume, transient preservation, terminal clearing, offline start rejection and Firestore-cache status. Inspection of persist.merge and useConnectionStatusGrace identifies the missing local-storage stale marker. These focused checks do not claim complete cross-action authorization or rendered-device acceptance; P612 remains partial.",
       "source": "src/store/useSessionStore.ts (persist.merge); src/store/useSessionStore.test.ts; src/lib/sessionService.test.ts; src/components/AppHeader.tsx (useConnectionStatusGrace); src/components/AppHeader.test.tsx",
       "type": "evidence"
+    },
+    {
+      "direction": "253 -> 252;161;162",
+      "id": "E-253-VERIFIED",
+      "language": "The existing expansion Capybara full-ship definition supplies 20,000 survivors, three Reactor charges, maintenance steps 1–6, jump costs 3/6/12, and its printed food, water, and population tracks to the client console. Focused definition, printed-population, workspace, and track tests pass; an offline fixture renders the fleet and Captain consoles at 320x844, 1440x900, and 844x390 with reduced motion and no horizontal overflow. The routed private derivative was consulted for source alignment; no lower-count Capybara substitution is claimed and no runtime release was required.",
+      "source": "src/data/vessels/capybara.ts; src/data/vessels/templates.ts; src/data/shipPopulation.ts; src/components/FleetSystemsWorkspace.tsx; src/components/FleetSystemsWorkspace.test.tsx; src/components/PopulationTrack.test.tsx; src/data/printedPopulation.test.ts; /tmp/p253-render/*.png; private routed Capybara derivative reviewed via the source index",
+      "type": "evidence"
+    },
+    {
+      "direction": "254 -> 253;122;125",
+      "id": "E-254-VERIFIED",
+      "language": "The existing shared production paths already apply Capybara Storage loss with floor rounding across the correct stores and docked cargo, and the Reactor uses the Capybara capacity of three with its printed damaged penalty and upgrade interaction. Focused Storage, Reactor, maintenance-rule, and jump-cost tests pass, including damaged and upgraded capacity boundaries and the damaged Jump Drive exception. Server authority remains in the existing shared maintenance callable; no runtime or release change was required.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; src/data/vessels/capybara.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -11003,8 +11017,8 @@
         "acceptance": "20,000 survivors, three charges, steps 1–6, 3/6/12 jump, and its own ration/population tracks render from one full-ship definition.",
         "title": "Complete expansion Capybara identity."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-253",
+      "description": "The existing expansion Capybara full-ship definition already emits the complete printed identity: 20,000 survivors, three Reactor charges, maintenance steps 1–6, jump costs 3/6/12, and the independent ration and population tracks. Focused client definition and rendered-console checks verify those values at phone, desktop, and short-landscape sizes with reduced motion and no horizontal overflow. This closes the identity evidence without a runtime change or a claim for unresolved lower-count Capybara substitutions.",
+      "evidenceIds": "E-253-VERIFIED;E-AUDIT-253",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "252;161;162",
@@ -11015,7 +11029,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -11026,8 +11040,8 @@
         "acceptance": "Storage halves correct stores and the Reactor applies exact charge, damage, and upgrade behavior.",
         "title": "Resolve expansion Capybara Storage and Reactor."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-254",
+      "description": "The existing shared maintenance and jump paths already implement Capybara Storage and Reactor behavior. Focused tests verify floor-rounded losses for every applicable store and docked cargo, nominal three-console charging, damaged and upgraded capacity boundaries, the damaged Jump Drive exception, and 3/6/12 jump costs. This closes the existing production-path evidence without a runtime change or release.",
+      "evidenceIds": "E-254-VERIFIED;E-AUDIT-254",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;122;125",
@@ -11038,7 +11052,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

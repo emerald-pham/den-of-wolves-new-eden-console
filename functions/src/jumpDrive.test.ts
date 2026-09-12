@@ -20,6 +20,10 @@ describe('authoritative jump-drive resolution', () => {
     expect(jumpFuelCost('aegis', 'long', true)).toBe(5);
     expect(jumpFuelCost('shepherd', 'short', false)).toBe(3);
     expect(jumpFuelCost('shepherd', 'short', true)).toBe(2);
+    expect(jumpFuelCost('capybara', 'short', false)).toBe(3);
+    expect(jumpFuelCost('capybara', 'medium', false)).toBe(6);
+    expect(jumpFuelCost('capybara', 'long', false)).toBe(12);
+    expect(jumpFuelCost('capybara', 'long', true)).toBe(11);
 
     const attempt = (overrides: Partial<Parameters<typeof resolveJumpAttempt>[0]> = {}) =>
       resolveJumpAttempt({
