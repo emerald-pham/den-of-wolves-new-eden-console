@@ -300,6 +300,8 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
     ? upgrades.includes('construction-bay')
     : null;
   const fighterWingCounts = shipState?.fighterWingCounts ?? session?.fighterWingCounts;
+  const fighterWings = console.craft.filter((craft) => craft.fighterWing);
+  const fighterWingCombat = fighterWings[0]?.fighterWing?.combat;
 
   return (
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
@@ -341,11 +343,11 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               craft={craft}
               authoritativeDamage={authoritativeDamage}
               constructionBayUpgraded={constructionBayUpgraded}
-              fighterWingCount={fighterWingCounts?.[craft.id]}
+              fighterWingCount={craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined}
               hasServerSnapshot={hasServerSnapshot}
               maintenance={maintenance}
               snapshotLabel={snapshotLabel}
-              fighterCapacity={console.fighterCapacity}
+              fighterCapacity={craft.fighterWing?.capacity ?? console.fighterCapacity}
             />
           ))}
         </div>
@@ -354,12 +356,12 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
           <article className="aegis-doctrine cic-frame">
             <p>Attack phase // Fighter action</p>
             <h3>Medium range</h3>
-            <p>Each fighter may shift one hostile ship’s targeting number by +1 or −1, with 1 and 6 wrapping, or roll one die and deal 1 damage on 5+.</p>
+            <p>{fighterWingCombat?.mediumRange}</p>
           </article>
           <article className="aegis-doctrine cic-frame">
             <p>Attack phase // Fighter action</p>
             <h3>Short range</h3>
-            <p>Roll up to one die per fighter. Deal 1 damage on 3+; one fighter is destroyed for each roll of 1 or 2.</p>
+            <p>{fighterWingCombat?.shortRange} {fighterWingCombat?.lossRule}</p>
           </article>
           <p className="aegis-doctrine__notice">
             Each launched fighter acts at both ranges // assign all short-range damage to hostile fighter wings first

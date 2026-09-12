@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AEGIS_ROLE_CONSOLES } from './aegisConsoles';
+import {
+  AEGIS_FIGHTER_BAY_SYSTEMS,
+  AEGIS_FIGHTER_WING_CAPACITY,
+  AEGIS_FIGHTER_WING_COMBAT,
+  AEGIS_ROLE_CONSOLES,
+  FIGHTER_WING_IDS,
+} from './aegisConsoles';
 import { SHUTTLECRAFT } from './shuttles';
 
 describe('AEGIS role console reference', () => {
@@ -29,7 +35,36 @@ describe('AEGIS role console reference', () => {
     expect(AEGIS_ROLE_CONSOLES['wing-commander'].awayMissionBonus)
       .toEqual({ explore: 3, salvage: 1 });
     expect(AEGIS_ROLE_CONSOLES['wing-commander'].fighterCapacity)
-      .toEqual({ standard: 4, upgraded: 6 });
+      .toEqual(AEGIS_FIGHTER_WING_CAPACITY);
+  });
+
+  it('keeps each fighter wing linked to its own bay, count, cap, and printed combat rules', () => {
+    const wings = AEGIS_ROLE_CONSOLES['wing-commander'].craft
+      .filter((craft) => FIGHTER_WING_IDS.includes(craft.id as typeof FIGHTER_WING_IDS[number]));
+
+    expect(wings).toHaveLength(2);
+    expect(wings.map(({ id }) => id)).toEqual([...FIGHTER_WING_IDS]);
+    expect(wings.map(({ launchSystemId }) => launchSystemId))
+      .toEqual(['fighter-bay-alpha', 'fighter-bay-bravo']);
+    expect(wings.map(({ fighterWing }) => fighterWing?.countId)).toEqual([...FIGHTER_WING_IDS]);
+    expect(wings.map(({ fighterWing }) => fighterWing?.capacity))
+      .toEqual([AEGIS_FIGHTER_WING_CAPACITY, AEGIS_FIGHTER_WING_CAPACITY]);
+    expect(wings.map(({ fighterWing }) => fighterWing?.combat))
+      .toEqual([AEGIS_FIGHTER_WING_COMBAT, AEGIS_FIGHTER_WING_COMBAT]);
+    expect(AEGIS_FIGHTER_BAY_SYSTEMS['fighter-bay-alpha']).toMatchObject({
+      name: 'Fighter Bay Alpha',
+      baseline: expect.stringMatching(/charged.*undamaged.*launch/i),
+      damaged: expect.stringMatching(/cannot launch/i),
+    });
+    expect(AEGIS_FIGHTER_BAY_SYSTEMS['fighter-bay-bravo']).toMatchObject({
+      name: 'Fighter Bay Bravo',
+      baseline: expect.stringMatching(/charged.*undamaged.*launch/i),
+      damaged: expect.stringMatching(/cannot launch/i),
+    });
+    expect(AEGIS_FIGHTER_WING_COMBAT.mediumRange).toMatch(/targeting number.*\+1 or −1.*1 and 6/i);
+    expect(AEGIS_FIGHTER_WING_COMBAT.mediumRange).toMatch(/damage on 5\+/i);
+    expect(AEGIS_FIGHTER_WING_COMBAT.shortRange).toMatch(/one die per fighter.*damage on 3\+/i);
+    expect(AEGIS_FIGHTER_WING_COMBAT.lossRule).toMatch(/destroyed.*1 or 2/i);
   });
 
   it('keeps Starlight registration facts aligned across the shuttle and AEGIS catalogs', () => {

@@ -70,6 +70,11 @@ describe('role-owned craft composition', () => {
     )).toEqual(['ally']);
   });
 
+  it('keeps both AEGIS fighter wings independently owned by the Wing Commander', () => {
+    expect(ownedCraftIdsForRole('wing-commander', ['wing-commander']))
+      .toEqual(['starlight', 'fighter-wing-alpha', 'fighter-wing-bravo']);
+  });
+
   it('rejects a changed owner or mode in the persisted server manifest', () => {
     const expected = roleOwnedCraftManifestForSetup(['admiral', 'wing-commander'], 'base-capybara');
     expect(roleOwnedCraftManifestMatches(expected, expected)).toBe(true);

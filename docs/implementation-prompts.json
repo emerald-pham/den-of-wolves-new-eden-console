@@ -1614,9 +1614,9 @@
     {
       "direction": "262 -> 161;162;165",
       "id": "E-AUDIT-262",
-      "language": "Fighter-wing registration consumes vessel, statistics, and console metadata.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
-      "type": "hard_prompt"
+      "language": "The canonical AEGIS Wing Commander registration keeps Alpha and Bravo as separate fighter wings with independent server count keys, bay launch links, printed capacities, combat reference actions, loss rules, and Wing Commander ownership; P680 remains the authoritative live-count projection and later launch/combat engines remain separate consumers. Prompt 165's universal every-console metadata contract remains a related consumer because these two registrations use their existing typed bay and live-count definitions without needing universal resolver completion.",
+      "source": "src/data/aegisConsoles.ts; src/data/aegisConsoles.test.ts; src/components/AegisConsoleWorkspace.tsx; src/components/AegisConsoleWorkspace.test.tsx; src/routes/ShipConsole.test.tsx; functions/src/fighterWings.ts; functions/src/fighterWings.test.ts; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; authorized routed fighter-wing derivative",
+      "type": "hard_prompt / related/consumes"
     },
     {
       "direction": "263 -> 161;162",
@@ -11321,19 +11321,19 @@
         "acceptance": "each wing retains its own fighters, bay, cap, range actions, loss rules, and Wing Commander ownership.",
         "title": "Register Fighter Wings Alpha and Bravo."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical AEGIS Wing Commander registration keeps Fighter Wing Alpha and Bravo as separate craft with distinct server-owned fighter count keys and Fighter Bay Alpha/Bravo launch links. Typed metadata records the printed standard 4-fighter and Construction Bay-upgraded 6-fighter capacities, medium/short range actions, and fighter-loss rule; focused AEGIS data/component/route, Functions count, ownership, and setup-manifest tests prove the wings remain independent while preserving P680's authoritative count projection. A local rendered review at 320x844, 1440x900, and 844x390 under reduced motion confirmed wrapped combat cards without horizontal overflow and keyboard Enter on the visible 44px View ship consoles link reached the role selector at each size. Later launch, combat, and resupply engines remain separate prompts. The authorized routed fighter-wing derivative supplies every accepted registration fact; the private source index does not preserve a base-game fighter-wing primary PDF, so this closure makes no primary visual-verification claim. Prompt 165 remains a related consumer for universal console completeness; these two registrations use their existing typed bay and live-count definitions without requiring that unrelated universal contract.",
       "evidenceIds": "E-AUDIT-262",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "161;162;165",
+      "hardPromptPrerequisites": "161;162",
       "id": "262",
       "milestoneHints": "M3;M5;M6",
-      "relatedConsumes": "none",
+      "relatedConsumes": "165",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

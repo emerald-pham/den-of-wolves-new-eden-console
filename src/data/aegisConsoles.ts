@@ -8,6 +8,28 @@ export interface AegisShipSystem {
   readonly damaged: string;
 }
 
+export const FIGHTER_WING_IDS = [
+  'fighter-wing-alpha',
+  'fighter-wing-bravo',
+] as const;
+
+export type FighterWingId = typeof FIGHTER_WING_IDS[number];
+
+export interface FighterWingCombat {
+  readonly mediumRange: string;
+  readonly shortRange: string;
+  readonly lossRule: string;
+}
+
+export interface AegisFighterWingRegistration {
+  /** The server-owned fighter count projection this wing uses. */
+  readonly countId: FighterWingId;
+  /** The printed standard and Construction Bay-upgraded wing capacities. */
+  readonly capacity: { readonly standard: 4; readonly upgraded: 6 };
+  /** Printed range actions; combat resolution belongs to later prompts. */
+  readonly combat: FighterWingCombat;
+}
+
 export interface AegisCraft {
   readonly id: string;
   readonly name: string;
@@ -15,12 +37,19 @@ export interface AegisCraft {
   readonly assignment: string;
   /** The ship-system id that controls launch eligibility, when applicable. */
   readonly launchSystemId?: string;
+  readonly fighterWing?: AegisFighterWingRegistration;
 }
 
-export const FIGHTER_WING_IDS = [
-  'fighter-wing-alpha',
-  'fighter-wing-bravo',
-] as const;
+export const AEGIS_FIGHTER_WING_CAPACITY = {
+  standard: 4,
+  upgraded: 6,
+} as const;
+
+export const AEGIS_FIGHTER_WING_COMBAT: FighterWingCombat = {
+  mediumRange: 'Each fighter may shift one hostile ship’s targeting number by +1 or −1, with 1 and 6 wrapping, or roll one die and deal 1 damage on 5+.',
+  shortRange: 'Roll up to one die per fighter. Deal 1 damage on 3+.',
+  lossRule: 'One fighter is destroyed for each roll of 1 or 2.',
+};
 
 const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
@@ -105,6 +134,11 @@ const WING_CRAFT: readonly AegisCraft[] = [
     type: 'Carrier fighter wing',
     assignment: 'Fighter Bay Alpha',
     launchSystemId: 'fighter-bay-alpha',
+    fighterWing: {
+      countId: 'fighter-wing-alpha',
+      capacity: AEGIS_FIGHTER_WING_CAPACITY,
+      combat: AEGIS_FIGHTER_WING_COMBAT,
+    },
   },
   {
     id: 'fighter-wing-bravo',
@@ -112,6 +146,11 @@ const WING_CRAFT: readonly AegisCraft[] = [
     type: 'Carrier fighter wing',
     assignment: 'Fighter Bay Bravo',
     launchSystemId: 'fighter-bay-bravo',
+    fighterWing: {
+      countId: 'fighter-wing-bravo',
+      capacity: AEGIS_FIGHTER_WING_CAPACITY,
+      combat: AEGIS_FIGHTER_WING_COMBAT,
+    },
   },
 ];
 
@@ -159,7 +198,7 @@ export const AEGIS_ROLE_CONSOLES = {
     craft: WING_CRAFT,
     scoutRange: 2,
     awayMissionBonus: { explore: 3, salvage: 1 },
-    fighterCapacity: { standard: 4, upgraded: 6 },
+    fighterCapacity: AEGIS_FIGHTER_WING_CAPACITY,
   },
 } as const;
 
