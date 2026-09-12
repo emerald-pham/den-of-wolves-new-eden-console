@@ -135,6 +135,60 @@ it('rejects stale CAS, inactive targets, and invalid composition', async () => {
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
+it('replaces a prior-turn projection under CAS and replays the Turn 2 request', async () => {
+  await stageWolfAttackPreparation.run(request());
+  session({ currentTurn: 2 });
+  const turnTwoData = {
+    ...baseData,
+    requestId: 'wolf-prep-turn-2',
+    expectedRevision: 1,
+    turn: 2,
+    shipIds: ['wolf-battlestation', 'wolf-battlestation', 'wolf-cruiser'],
+  };
+
+  await expect(stageWolfAttackPreparation.run(request(turnTwoData))).resolves.toEqual(expect.objectContaining({
+    turn: 2,
+    revision: 2,
+    shipIds: turnTwoData.shipIds,
+  }));
+  expect(mock.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({ turn: 2, revision: 2 });
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(stageWolfAttackPreparation.run(request(turnTwoData))).resolves.toEqual(expect.objectContaining({
+    turn: 2,
+    revision: 2,
+  }));
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a future projection and missing or malformed persisted active-vessel tuples', async () => {
+  await stageWolfAttackPreparation.run(request());
+  session({ currentTurn: 2 });
+  await stageWolfAttackPreparation.run(request({
+    ...baseData,
+    requestId: 'wolf-prep-turn-2',
+    expectedRevision: 1,
+    turn: 2,
+    shipIds: ['wolf-battlestation', 'wolf-battlestation', 'wolf-cruiser'],
+  }));
+  session({ currentTurn: 1 });
+  await expect(stageWolfAttackPreparation.run(request({ ...baseData, requestId: 'future-projection', expectedRevision: 2 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  mock.documents.delete('sessions/s1/wolfAttackPreparation/current');
+  session({ currentTurn: 1, activeVesselIds: undefined });
+  await expect(stageWolfAttackPreparation.run(request({ ...baseData, requestId: 'missing-tuple' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  session({ activeVesselIds: ['aegis', 'aegis'] });
+  await expect(stageWolfAttackPreparation.run(request({ ...baseData, requestId: 'duplicate-tuple' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  session({ activeVesselIds: ['aegis', 'not-a-vessel'] });
+  await expect(stageWolfAttackPreparation.run(request({ ...baseData, requestId: 'malformed-tuple' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
 it('requires an active GM, active phase, and current turn', async () => {
   put('sessions/s1/players/u1', { uid: 'u1', role: 'player', connected: true });
   await expect(stageWolfAttackPreparation.run(request())).rejects.toMatchObject({ code: 'permission-denied' });

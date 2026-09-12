@@ -523,6 +523,21 @@ function activeVesselIdsForSession(session: DocumentSnapshot): readonly string[]
   return activeVesselIdsForRoles(configuredRoleIds(session));
 }
 
+/** Wolf preparation must use the persisted setup tuple; role defaults are not authoritative here. */
+function authoritativeActiveVesselIdsForWolfPreparation(session: DocumentSnapshot): readonly string[] {
+  const stored = session.get('activeVesselIds');
+  if (!Array.isArray(stored) || stored.length === 0 ||
+      stored.some((value) => typeof value !== 'string' || !isResourceShipId(value)) ||
+      new Set(stored).size !== stored.length) {
+    throw commandError(
+      'failed-precondition',
+      'The session has no valid persisted active fleet tuple for Wolf preparation.',
+      'invalid-phase',
+    );
+  }
+  return [...stored] as string[];
+}
+
 function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[]): Record<string, number> {
   const stored: Record<string, number> = {};
   if (isRecord(value)) {
@@ -6430,8 +6445,8 @@ export const stageWolfAttackPreparation = onCall<{
       );
     }
     const current = projection.exists ? wolfAttackPreparationState(projection.data()) : undefined;
-    if (current && current.turn !== currentTurn) {
-      throw commandError('failed-precondition', 'The private preparation belongs to another turn.', 'stale-revision');
+    if (current && current.turn > currentTurn) {
+      throw commandError('failed-precondition', 'The private preparation belongs to a future turn.', 'stale-revision');
     }
     const currentRevision = current?.revision ?? 0;
     if (change.expectedRevision !== currentRevision) {
@@ -6441,7 +6456,7 @@ export const stageWolfAttackPreparation = onCall<{
         'stale-revision',
       );
     }
-    const activeVesselIds = activeVesselIdsForSession(session);
+    const activeVesselIds = authoritativeActiveVesselIdsForWolfPreparation(session);
     let validated: Omit<WolfAttackPreparation, 'revision'>;
     try {
       validated = validateWolfAttackPreparation({
