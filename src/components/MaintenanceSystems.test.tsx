@@ -178,6 +178,31 @@ it('renders Capybara production controls with optional Scrap spending', async ()
   expect(screen.getByRole('button', { name: 'Skip Water Production' })).toBeEnabled();
 });
 
+it('renders Capybara\'s single bay with exactly the two docked shuttle choices', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 } },
+    shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { capybara: { step: 6, revision: 3, results: { '5': 'Reactor powered up.' }, charges: [], refuelled: [] } },
+    shuttleDockings: [
+      { shipId: 'capybara', shuttleId: 'macaw', dockedAt: 'SESSION START' },
+      { shipId: 'capybara', shuttleId: 'boa', dockedAt: 'SESSION START' },
+    ],
+  } });
+  render(<MaintenanceSystems name="Capybara" shipId="capybara"
+    systems={[{ id: 'shuttle-bay', name: 'Shuttle Bay', timing: 6 }]}
+    renderSystem={() => null} rations={null} />);
+
+  const refuelling = screen.getByRole('combobox', { name: 'Shuttle Bay refuelling' });
+  expect(refuelling).toBeEnabled();
+  expect(within(refuelling).getAllByRole('option')).toHaveLength(3);
+  expect(within(refuelling).getByRole('option', { name: 'S.A.N.S. Macaw' })).toBeVisible();
+  expect(within(refuelling).getByRole('option', { name: 'S.A.N.S. Boa' })).toBeVisible();
+  await userEvent.selectOptions(refuelling, 'boa');
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed with refuelling' }));
+  expect(run).toHaveBeenCalledWith('capybara', 'bays', 3, { refuels: { 'shuttle-bay': 'boa' } }, undefined);
+});
+
 it('renders Scrap Refinery generate and conversion choices without conflating skip', async () => {
   useSessionStore.setState({ session: {
     ...session,

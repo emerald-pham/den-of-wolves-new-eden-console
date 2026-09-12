@@ -525,6 +525,33 @@ it('refuels only docked shuttles, spends fuel, prevents double refuelling, and e
   expect(advanceMaintenance({ ...base, action: 'end', cycle: omega.cycle, expectedRevision: 2 }).cycle.step).toBe(0);
 });
 
+it.each(['macaw', 'boa'] as const)('applies Capybara\'s single 6♠ bay to one %s and no second choice that turn', (shuttleId) => {
+  const result = advanceMaintenance(input({
+    shipId: 'capybara', action: 'bays',
+    cycle: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: [], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+    dockings: [
+      { shipId: 'capybara', shuttleId: 'macaw' },
+      { shipId: 'capybara', shuttleId: 'boa' },
+    ],
+    fuelled: { macaw: false, boa: false },
+    refuels: { 'shuttle-bay': shuttleId },
+  }));
+
+  expect(result.resources.fuel).toBe(2);
+  expect(result.fuelled).toEqual({ macaw: shuttleId === 'macaw', boa: shuttleId === 'boa' });
+  expect(result.cycle).toMatchObject({ step: 7, refuelled: [shuttleId] });
+  expect(() => advanceMaintenance({
+    ...input({ shipId: 'capybara', action: 'bays', cycle: result.cycle, expectedRevision: result.cycle.revision }),
+    dockings: [
+      { shipId: 'capybara', shuttleId: 'macaw' },
+      { shipId: 'capybara', shuttleId: 'boa' },
+    ],
+    fuelled: result.fuelled,
+    refuels: { 'shuttle-bay': shuttleId === 'macaw' ? 'boa' : 'macaw' },
+  })).toThrow(/action is not available at the current step/i);
+});
+
 it.each(['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'])('completes a %s cycle, including riot damage', shipId => {
   let state = input({ shipId, entropy: 0, population: shipId === 'aegis' ? 2500 : shipId === 'dione' ? 100000 : shipId === 'icebreaker' ? 40000 : ['quellon', 'shepherd'].includes(shipId) ? 30000 : 20000, unrest: 5 });
   const actions = shipId === 'aegis'

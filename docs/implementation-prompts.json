@@ -1592,6 +1592,13 @@
     },
     {
       "direction": "258 -> 253;122;125",
+      "id": "E-258-VERIFIED",
+      "language": "Capybara's rendered 6♠ single Shuttle Bay presents the two configured docked choices, Macaw and Boa, and the existing server-owned maintenance lane spends exactly one fuel for one selected shuttle per turn. Co-location, damaged-bay, phase/turn, active-role, revision-CAS, request-fingerprint, and receipt-replay guards remain authoritative; advanceTurn clears both the maintenance refuel record and shuttleFuelled flags so unused fuel expires at the turn boundary. Focused Capybara maintenance, callable, client, and manifest tests verify either choice, one-bay sequencing, fuel conservation, replay/stale behavior, and the rendered option set without adding a runtime rule or release change.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/index.ts; functions/src/turnTransition.ts; functions/src/turnTransition.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/data/vessels/capybara.ts; functions/src/shipDamage.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; focused Functions and unit tests; /tmp/p258-render-evidence.txt; /tmp/p258-render/capybara-captain-production-320x844.png; /tmp/p258-render/capybara-captain-production-1440x900.png; /tmp/p258-render/capybara-captain-production-844x390.png; authorized routed Capybara expansion derivative",
+      "type": "evidence"
+    },
+    {
+      "direction": "258 -> 253;122;125",
       "id": "E-AUDIT-258",
       "language": "Expansion consoles consume expansion identity and Reactor eligibility.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
@@ -11285,8 +11292,8 @@
         "acceptance": "the single bay fuels exactly one of Macaw or Boa per turn and unused fuel expires.",
         "title": "Resolve Capybara Shuttle Bay choice."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-258",
+      "description": "Capybara's existing generic maintenance bay is the printed single 6♠ Shuttle Bay: its server-owned action accepts one configured Macaw or Boa choice, spends one fuel, and advances beyond the one-bay step so a second shuttle cannot be refuelled that turn. Co-location, damaged-bay, active-role, phase/turn, CAS, request-fingerprint, and receipt replay remain in the shared maintenance callable; advanceTurn expires shuttleFuelled and refuelled state. Focused pure, callable, client, and manifest tests verify both choices, fuel conservation, replay/stale behavior, turn expiry, and the rendered two-option choice without a runtime change.",
+      "evidenceIds": "E-258-VERIFIED;E-AUDIT-258",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;122;125",
@@ -11297,7 +11304,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

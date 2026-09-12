@@ -544,6 +544,51 @@ it('resolves Capybara Scrap Refinery choices through the callable receipt and CA
   });
 });
 
+it('resolves the Capybara single-bay shuttle choice through atomic replay and stale CAS', async () => {
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
+      maintenanceCycles: {
+        capybara: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: [], refuelled: [] },
+      },
+      shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 } },
+      shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 20_000 },
+      shuttleDockings: [
+        { shipId: 'capybara', shuttleId: 'macaw' },
+        { shipId: 'capybara', shuttleId: 'boa' },
+      ],
+      shuttleCargo: {}, shuttleFuelled: { macaw: false, boa: false },
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  const requestData = {
+    ...data, shipId: 'capybara', action: 'bays', expectedRevision: 0,
+    requestId: 'capybara-bay-macaw', refuels: { 'shuttle-bay': 'macaw' },
+  };
+
+  const committed = await runMaintenance.run(request(requestData));
+  expect(committed).toMatchObject({
+    status: 'committed', action: 'bays', committedRevision: 1,
+    cycle: { step: 7, refuelled: ['macaw'] },
+    result: { resources: { fuel: 2 }, fuelled: { macaw: true, boa: false } },
+  });
+  expect(maintenance.session.shuttleFuelled).toEqual({ macaw: true, boa: false });
+
+  const updateCount = mock.update.mock.calls.length;
+  await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
+    status: 'replayed', requestId: 'capybara-bay-macaw',
+  });
+  expect(mock.update.mock.calls.length).toBe(updateCount);
+  await expect(runMaintenance.run(request({
+    ...requestData, requestId: 'capybara-bay-stale', expectedRevision: 0,
+    refuels: { 'shuttle-bay': 'boa' },
+  }))).resolves.toMatchObject({ status: 'stale', currentRevision: 1 });
+  expect(maintenance.session.shipResources).toMatchObject({ capybara: { fuel: 2 } });
+});
+
 it.each([
   ['advanced-hydroponics', 'food'],
   ['water-production', 'water'],
