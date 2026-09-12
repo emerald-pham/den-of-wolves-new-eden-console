@@ -236,6 +236,7 @@ import {
   disconnectFromSession,
   elevateToGm,
   joinSession,
+  kickPlayer,
   loginGmAccess,
   refreshPresence,
   releaseRole,
@@ -970,6 +971,57 @@ describe('Prompt 062 release and reassignment composition', () => {
     expect(read(`sessions/${composition.sessionId}/seats/${composition.activeRoleIds[1]}`)).toMatchObject({
       status: 'claimed', holderUid: composition.coreUids[0],
     });
+  });
+});
+
+describe('Prompt 064 facilitator loyalty census composition', () => {
+  beforeEach(() => mock.reset());
+
+  it('removes a kicked core census entry before the role is reassigned and rebuilt', async () => {
+    const composition = await composeProductionSession(8);
+    const { sessionId, ownerUid, coreUids, activeRoleIds } = composition;
+    const kickedUid = coreUids[0]!;
+    const replacementUid = coreUids[1]!;
+    const currentSession = read(`sessions/${sessionId}`) as StoredDocument;
+    mock.documents.set(`sessions/${sessionId}`, {
+      ...currentSession,
+      phase: 'casting',
+      configurationLocked: false,
+    });
+
+    await expect(kickPlayer.run(request({
+      sessionId, instanceId: 'bridge-8', targetUid: kickedUid,
+    }, ownerUid))).resolves.toEqual({ targetUid: kickedUid });
+    expect((read(`sessions/${sessionId}/loyaltyCensus/current`) as StoredDocument).entries)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ uid: kickedUid })]));
+
+    let setupRevision = (read(`sessions/${sessionId}`) as StoredDocument).setupRevision as number;
+    const released = await releaseRole.run(request({
+      sessionId, instanceId: 'bridge-8', requestId: 'release-kicked-role-replacement', targetUid: replacementUid,
+    }, ownerUid)) as { setupRevision: number };
+    setupRevision = released.setupRevision;
+    const assigned = await assignRole.run(request({
+      sessionId, instanceId: 'bridge-8', requestId: 'assign-kicked-role-replacement',
+      targetUid: replacementUid, roleId: activeRoleIds[0]!,
+    }, ownerUid)) as { setupRevision: number };
+    setupRevision = assigned.setupRevision;
+    const claimed = await claimSeat.run(request({
+      sessionId, seatId: activeRoleIds[0]!, requestId: 'claim-kicked-role-replacement',
+      expectedSetupRevision: setupRevision,
+    }, replacementUid)) as { setupRevision: number };
+    setupRevision = claimed.setupRevision;
+    await expect(assignLoyalty.run(request({
+      sessionId, instanceId: 'bridge-8', requestId: 'loyalty-kicked-role-replacement',
+      targetUid: replacementUid, kind: 'android', suspicion: null,
+    }, ownerUid))).resolves.toMatchObject({ assignedUids: [replacementUid] });
+
+    const census = read(`sessions/${sessionId}/loyaltyCensus/current`) as StoredDocument;
+    expect(census.entries).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ uid: kickedUid }),
+    ]));
+    expect(census.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ uid: replacementUid, kind: 'android', suspicion: null }),
+    ]));
   });
 });
 

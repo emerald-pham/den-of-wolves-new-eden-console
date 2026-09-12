@@ -2483,7 +2483,7 @@ export const assignRole = onCall<{
     }
     const activeRoleIds = configuredRoleIds(authority.session);
     const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
-    const assignments = players.docs.flatMap((member) => {
+    const assignments = players.docs.filter((member) => !isKickedPlayer(member)).flatMap((member) => {
       const roleId = member.get('assignedRoleId');
       return typeof roleId === 'string' ? [{ uid: member.id, roleId }] : [];
     });
@@ -2774,7 +2774,7 @@ function isCanonicalLoyaltyHolder(
   if (typeof assignedRoleId !== 'string' || !activeRoleIds.includes(assignedRoleId)) return false;
   // A loyalty secret must never attach to an ambiguous or stale role holder.
   return !players.some((candidate) => candidate.id !== uid &&
-    candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
+    !isKickedPlayer(candidate) && candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
 }
 
 /**
@@ -2788,10 +2788,10 @@ function isPersistedCanonicalLoyaltyHolder(
   players: readonly DocumentSnapshot[],
   activeRoleIds: readonly string[],
 ): boolean {
-  if (!player || !player.exists || player.id !== uid || player.get('role') !== 'player') return false;
+  if (!player || !player.exists || isKickedPlayer(player) || player.id !== uid || player.get('role') !== 'player') return false;
   const assignedRoleId = player.get('assignedRoleId');
   if (typeof assignedRoleId !== 'string' || !activeRoleIds.includes(assignedRoleId)) return false;
-  return !players.some((candidate) => candidate.id !== uid &&
+  return !players.some((candidate) => candidate.id !== uid && !isKickedPlayer(candidate) &&
     candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
 }
 
@@ -3874,14 +3874,19 @@ async function removePlayer(
   const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
   const targetRef = players.doc(action.targetUid);
   const membershipRef = db.doc(`activeMemberships/${action.targetUid}`);
+  const censusRef = db.doc(`sessions/${action.sessionId}/loyaltyCensus/current`);
+  const secretsRef = db.collection(`sessions/${action.sessionId}/secrets`);
 
   await db.runTransaction(async (tx) => {
-    const [session, caller, instance, target, membership] = await Promise.all([
+    const [session, caller, instance, target, membership, census, playersSnapshot, secrets] = await Promise.all([
       tx.get(sessionRef),
       tx.get(callerRef),
       tx.get(instanceRef),
       tx.get(targetRef),
       tx.get(membershipRef),
+      tx.get(censusRef),
+      tx.get(players),
+      tx.get(secretsRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (
@@ -3913,6 +3918,17 @@ async function removePlayer(
       kickedAt: FieldValue.serverTimestamp(),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
+    if (census.exists) {
+      setLoyaltyCensusFromSecrets(
+        tx,
+        action.sessionId,
+        setupRevision(session),
+        secrets.docs ?? [],
+        playersSnapshot.docs,
+        configuredRoleIds(session),
+        new Map([[action.targetUid, null]]),
+      );
+    }
     if (
       seatRef && seat?.exists && seat.get('status') === 'claimed' &&
       seat.get('holderUid') === action.targetUid
