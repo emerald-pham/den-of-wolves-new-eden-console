@@ -296,6 +296,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "680 -> 178;262;396;449",
+      "id": "E-680-RELATED",
+      "language": "The owner requested live Alpha and Bravo fighter-wing strength and bay status in the shared ship-console presentation. Existing construction-capacity, wing-registration, fighter-state, and launch-eligibility prompts are related implementation boundaries; the queued observability slice must not invent mechanics, duplicate authority, or block on their future completion.",
+      "source": "Owner request - live Alpha and Bravo fighter-wing status, 2026-09-12",
+      "type": "related/consumes"
+    },
+    {
       "direction": "058 -> 069",
       "id": "E-069-START",
       "language": "Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: active vessels receive exact server survivor/resource catalogs, newly active vessels are seeded, removed vessels are filtered, and existing active lobby values are preserved. startGame locks the prepared state without resetting stores. Focused resources, population, create-session, and session-composition tests cover the printed base and expansion values plus these transitions.",
@@ -17569,6 +17576,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "NEW"
+    },
+    {
+      "changeClass": "non-feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "In the shared AEGIS Wing Commander console, Alpha and Bravo each show the authoritative live fighter count and effective capacity from the current session state, replacing the placeholder `Tracked at the table` text; show the printed 4-fighter capacity and the authoritative upgraded capacity only when that source state says the wing is upgraded. Keep wing strength separate from the assigned bay's launch eligibility: each bay's shared system status states its current charge/uncharged state, operational/damaged state, and upgrade state/source when applicable, without implying that bay readiness changes the wing count. Reuse the existing shared ship-console system-status presentation and configuration for both wings, preserve role/session/privacy/authorization boundaries, and update on live snapshots and reconnect. If the authoritative count or status is unavailable or loading, say so plainly without fabricating a value. Remove only the fighter-wing table-tracking placeholder; preserve unrelated shuttle fuel copy and existing combat/launch rules. Prove server-authoritative projections, stale/retry/reconnect behavior, no client-written or cross-wing values, accessible names/live updates/focus, reduced motion, and readable containment at 320×844, 390×844, 1440×900, and 844×390.",
+        "title": "Show authoritative live Alpha and Bravo fighter status."
+      },
+      "description": "Owner-requested fighter-wing observability repair: replace Alpha and Bravo's table-tracking placeholder with authoritative live strength and effective capacity, and align each bay's charge, damage, and upgrade status with the shared ship-console system-status display without inventing values or changing launch/combat rules.",
+      "evidenceIds": "E-680-RELATED",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "680",
+      "milestoneHints": "none",
+      "relatedConsumes": "178;262;396;449",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
     }
   ],
   "retiredPromptIds": [
