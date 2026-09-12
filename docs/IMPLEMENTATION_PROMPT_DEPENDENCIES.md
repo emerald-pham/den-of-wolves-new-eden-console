@@ -242,13 +242,13 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 138a | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Bound maintenance rollback. |
 | 139 | EXTEND | done | none | none | none | none | none | none | none | none | none | M2 | Publish maintenance results by audience. |
 | 140 | PROVE | missing | 114;171;183;194;204;216;224;235;241;242;246;250;571 | none | none | none | none | none | none | none | E-AUDIT-140 | M2 | Run the all-vessel maintenance matrix. |
-| 140a | NEW | missing | 111;164;361 | none | none | none | none | none | none | none | E-AUDIT-140a | M3;M11 | Evacuate survivors by cargo shuttle. |
-| 140b | NEW | missing | 140a | none | none | none | none | none | none | none | E-AUDIT-140b | M3;M11 | Enforce destination population capacity. |
-| 140c | NEW | missing | 140a;140b | none | none | none | none | none | none | none | E-AUDIT-140c | M3;M11 | Make evacuation retry-safe. |
-| 140d | NEW | missing | 131 | none | none | none | none | none | none | none | E-AUDIT-140d | M3;M11 | Create escape pods on ship destruction. |
-| 140e | NEW | missing | 140d | none | none | none | none | none | none | none | E-AUDIT-140e | M3;M11 | Move players into escape state. |
-| 140f | NEW | missing | 140d;361 | none | none | none | none | none | none | none | E-AUDIT-140f | M3;M11 | Preserve retained shuttles. |
-| 140g | NEW | missing | 140d;111 | none | none | none | none | none | none | none | E-AUDIT-140g | M3;M11 | Scavenge destroyed-ship stores. |
+| 140a | NEW | missing | 111;164;361 | none | none | none | none | none | none | none | E-AUDIT-140A | M3;M11 | Evacuate survivors by cargo shuttle. |
+| 140b | NEW | missing | 140a | none | none | none | none | none | none | none | E-AUDIT-140B | M3;M11 | Enforce destination population capacity. |
+| 140c | NEW | missing | 140a;140b | none | none | none | none | none | none | none | E-AUDIT-140C | M3;M11 | Make evacuation retry-safe. |
+| 140d | NEW | missing | 131 | none | none | none | none | none | none | none | E-AUDIT-140D | M3;M11 | Create escape pods on ship destruction. |
+| 140e | NEW | missing | 140d | none | none | none | none | none | none | none | E-AUDIT-140E | M3;M11 | Move players into escape state. |
+| 140f | NEW | missing | 140d;361 | none | none | none | none | none | none | none | E-AUDIT-140F | M3;M11 | Preserve retained shuttles. |
+| 140g | NEW | missing | 140d;111 | none | none | none | none | none | none | none | E-AUDIT-140G | M3;M11 | Scavenge destroyed-ship stores. |
 | 141 | NEW | done | none | none | none | none | none | none | none | none | none | M2 | Define normal airspace. |
 | 142 | NEW | missing | 141;361 | none | none | none | none | none | none | none | E-AUDIT-142 | M2 | Enforce Team Phase docking. |
 | 143 | NEW | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-143 | M2 | Bind shuttle holder and dock. |
@@ -302,8 +302,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 191 | NEW | missing | 119;190 | none | none | none | none | none | none | none | E-AUDIT-191 | M3;M5 | Spend a VIP unrest reroll. |
 | 192 | NEW | missing | 182;264 | none | none | none | none | none | none | none | E-AUDIT-192 | M3;M5 | Gate Dione's Fighter Bay and Maliades. |
 | 193 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-193 | M3;M5 | Complete the Dione Captain workspace. |
-| 193a | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193a | M3;M5 | Complete the Dione Engineer workspace. |
-| 193b | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193b | M3;M5 | Complete the President workspace. |
+| 193a | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193A | M3;M5 | Complete the Dione Engineer workspace. |
+| 193b | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193B | M3;M5 | Complete the President workspace. |
 | 194 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-194 | M3;M5 | Complete Icebreaker identity and maintenance lane. |
 | 195 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-195 | M3;M5 | Resolve Icebreaker Storage. |
 | 196 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-196 | M3;M5 | Resolve the Icebreaker Reactor. |
@@ -314,8 +314,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 201 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-201 | M3;M5 | Audit the Icebreaker Jump Drive. |
 | 202 | NEW | missing | 201 | none | none | none | none | none | none | none | E-AUDIT-202 | M3;M5 | Resolve the Ram Scoop. |
 | 203 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-203 | M3;M5 | Complete the Icebreaker Captain workspace. |
-| 203a | NEW | missing | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203a | M3;M5 | Complete the Icebreaker Engineer workspace. |
-| 203b | NEW | missing | 166;194;265;388 | none | none | none | none | none | none | none | E-AUDIT-203b | M3;M5 | Complete the Miner workspace. |
+| 203a | NEW | missing | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203A | M3;M5 | Complete the Icebreaker Engineer workspace. |
+| 203b | NEW | missing | 166;194;265;388 | none | none | none | none | none | none | none | E-AUDIT-203B | M3;M5 | Complete the Miner workspace. |
 | 204 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-204 | M3;M5 | Complete Shepherd identity and maintenance lane. |
 | 205 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-205 | M3;M5 | Resolve Shepherd Storage. |
 | 206 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-206 | M3;M5 | Resolve the Shepherd Reactor. |
@@ -328,8 +328,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 213 | NEW | missing | 211 | none | none | none | none | none | none | none | E-AUDIT-213 | M3;M5 | Build and use the ECM Device. |
 | 214 | NEW | missing | 211 | none | none | none | none | none | none | none | E-AUDIT-214 | M3;M5 | Build and use the Wolf Agent Detector. |
 | 215 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-215 | M3;M5 | Complete the Shepherd Captain workspace. |
-| 215a | NEW | missing | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215a | M3;M5 | Complete the Shepherd Engineer workspace. |
-| 215b | NEW | missing | 166;204;211;321 | none | none | none | none | none | none | none | E-AUDIT-215b | M3;M5 | Complete the Scientist workspace. |
+| 215a | NEW | missing | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215A | M3;M5 | Complete the Shepherd Engineer workspace. |
+| 215b | NEW | missing | 166;204;211;321 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |
 | 216 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-216 | M3;M5 | Complete Quellon identity and maintenance lane. |
 | 217 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-217 | M3;M5 | Resolve Quellon Storage. |
 | 218 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-218 | M3;M5 | Resolve the Quellon Reactor. |
@@ -338,8 +338,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 221 | NEW | missing | 122;125;216 | none | none | none | none | none | none | none | E-AUDIT-221 | M3;M5 | Resolve both Water Production consoles. |
 | 222 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-222 | M3;M5 | Audit the Quellon Jump Drive. |
 | 223 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-223 | M3;M5 | Complete the Quellon Captain workspace. |
-| 223a | NEW | missing | 166;216;361 | none | none | none | none | none | none | none | E-AUDIT-223a | M3;M5 | Complete the Quellon Engineer workspace. |
-| 223b | NEW | missing | 166;216;269;321 | none | none | none | none | none | none | none | E-AUDIT-223b | M3;M5 | Complete the Explorer workspace. |
+| 223a | NEW | missing | 166;216;361 | none | none | none | none | none | none | none | E-AUDIT-223A | M3;M5 | Complete the Quellon Engineer workspace. |
+| 223b | NEW | missing | 166;216;269;321 | none | none | none | none | none | none | none | E-AUDIT-223B | M3;M5 | Complete the Explorer workspace. |
 | 224 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-224 | M3;M5 | Complete Refinery 124 identity and maintenance lane. |
 | 225 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-225 | M3;M5 | Resolve Refinery 124 Storage. |
 | 226 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-226 | M3;M5 | Resolve the Refinery 124 Reactor. |
@@ -350,8 +350,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 231 | NEW | missing | 182;273 | none | none | none | none | none | none | none | E-AUDIT-231 | M3;M5 | Gate the Refinery Fighter Bay. |
 | 232 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-232 | M3;M5 | Audit the Refinery 124 Jump Drive. |
 | 233 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-233 | M3;M5 | Complete the Refinery 124 Captain workspace. |
-| 233a | NEW | missing | 166;224;361 | none | none | none | none | none | none | none | E-AUDIT-233a | M3;M5 | Complete the Refinery Engineer workspace. |
-| 233b | NEW | missing | 166;224;273 | none | none | none | none | none | none | none | E-AUDIT-233b | M3;M5 | Complete the PDF Colonel workspace. |
+| 233a | NEW | missing | 166;224;361 | none | none | none | none | none | none | none | E-AUDIT-233A | M3;M5 | Complete the Refinery Engineer workspace. |
+| 233b | NEW | missing | 166;224;273 | none | none | none | none | none | none | none | E-AUDIT-233B | M3;M5 | Complete the PDF Colonel workspace. |
 | 234 | EXTEND | missing | 161;162;111;141 | none | none | none | none | none | none | none | E-AUDIT-234 | M3;M5;M6 | Implement shared small-ship rules. |
 | 234a | DECISION | missing | none | none | none | none | none | none | none | none | none | M3;M5;M6 | Apply the extra-role balance dial. |
 | 235 | EXTEND | missing | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-235 | M3;M5;M6 | Complete Gorgoneion identity and maintenance. |
@@ -361,11 +361,11 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 239 | NEW | missing | 234;165 | none | none | none | none | none | none | none | E-AUDIT-239 | M3;M5;M6 | Register the Gorgoneion Missile Array. |
 | 240 | NEW | missing | 234;165 | none | none | none | none | none | none | none | E-AUDIT-240 | M3;M5;M6 | Register the Gorgoneion Force Field Projector. |
 | 241 | NEW | missing | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-241 | M3;M5;M6 | Complete base Capybara identity and maintenance. |
-| 241a | NEW | missing | 234;287-304 | none | none | none | none | none | none | none | E-AUDIT-241a | M3;M5;M6 | Resolve the base Capybara Jump Drive. |
-| 241b | NEW | missing | 241;401 | none | none | none | none | none | none | none | E-AUDIT-241b | M3;M5;M6 | Resolve base Capybara Bulk Haulage. |
-| 241c | NEW | missing | 241;164 | none | none | none | none | none | none | none | E-AUDIT-241c | M3;M5;M6 | Resolve base Capybara Cargo Transfer. |
-| 241d | NEW | missing | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241d | M3;M5;M6 | Resolve base Capybara food and water production. |
-| 241e | NEW | missing | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241e | M3;M5;M6 | Resolve the base Capybara Fuel Processor. |
+| 241a | NEW | missing | 234;287-304 | none | none | none | none | none | none | none | E-AUDIT-241A | M3;M5;M6 | Resolve the base Capybara Jump Drive. |
+| 241b | NEW | missing | 241;401 | none | none | none | none | none | none | none | E-AUDIT-241B | M3;M5;M6 | Resolve base Capybara Bulk Haulage. |
+| 241c | NEW | missing | 241;164 | none | none | none | none | none | none | none | E-AUDIT-241C | M3;M5;M6 | Resolve base Capybara Cargo Transfer. |
+| 241d | NEW | missing | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241D | M3;M5;M6 | Resolve base Capybara food and water production. |
+| 241e | NEW | missing | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241E | M3;M5;M6 | Resolve the base Capybara Fuel Processor. |
 | 242 | NEW | missing | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-242 | M3;M5;M6 | Complete Warrior identity and maintenance. |
 | 243 | NEW | missing | 242;402 | none | none | none | none | none | none | none | E-AUDIT-243 | M3;M5;M6 | Resolve Warrior Reclamator. |
 | 244 | NEW | missing | 234;361 | none | none | none | none | none | none | none | E-AUDIT-244 | M3;M5;M6 | Resolve Warrior Repair Drones. |
@@ -401,7 +401,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 274 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-274 | M3;M5;M6 | Register J.E.U. Wobbly completely. |
 | 275 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-275 | M3;M5;M6 | Register J.E.U. Ally completely. |
 | 275a | EXTEND | done | 004;051 | none | BASE-ROSTER-SETUP;PRESS-CATALOG-AUTHORITY | none | none | none | none | 598;605 | E-275A;E-275A-RELATED | M3;M5;M6 | Restore the optional SNN Independent Press Shuttle. |
-| 275b | REPAIR | missing | 275a | none | none | none | none | PRESS-DESK | POST-CURRENT-DEPENDENCY-SLICE;SEPARATE-RELEASE-0.3.12 | none | E-275B;E-AUDIT-275b | M3;M5;M6 | Recover and restore the SNN Dispatch Desk regression. |
+| 275b | REPAIR | missing | 275a | none | none | none | none | PRESS-DESK | POST-CURRENT-DEPENDENCY-SLICE;SEPARATE-RELEASE-0.3.12 | none | E-275B;E-AUDIT-275B | M3;M5;M6 | Recover and restore the SNN Dispatch Desk regression. |
 | 276 | PRESERVE | missing | 053;166 | none | none | none | none | none | none | none | E-AUDIT-276 | M3;M5;M6 | Assign the Quellon/Refinery Union pair. |
 | 277 | PRESERVE | missing | 053;166 | none | none | none | none | none | none | none | E-AUDIT-277 | M3;M5;M6 | Assign the Shepherd/Icebreaker Union pair. |
 | 278 | EXTEND | missing | 166;234 | none | none | none | none | none | none | none | E-AUDIT-278 | M3;M5;M6 | Build extra-ship Captain workspaces. |
@@ -554,7 +554,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 419 | NEW | missing | 281;283 | none | none | none | none | none | none | none | E-AUDIT-419 | M7 | Encode Unstable Star J. |
 | 420 | NEW | missing | 281;283 | none | none | none | none | none | none | none | E-AUDIT-420 | M7 | Encode Wolf Supply Outpost K. |
 | 421 | NEW | missing | 281;283 | none | none | none | none | none | none | none | E-AUDIT-421 | M7 | Encode Active Wolf Outpost L. |
-| 421a | NEW | missing | 281;283 | none | none | none | none | none | none | none | E-AUDIT-421a | M7 | Encode Active Wolf Fortress M. |
+| 421a | NEW | missing | 281;283 | none | none | none | none | none | none | none | E-AUDIT-421A | M7 | Encode Active Wolf Fortress M. |
 | 422 | PROVE | missing | 401;409;415;410;411;412;414;622 | none | none | none | none | none | none | none | E-AUDIT-422 | M7 | Run the complete away-mission scenario. |
 | 423 | PROVE | missing | 361;367;371;373;352;353;368;377;156;380 | none | none | none | none | none | none | none | E-AUDIT-423 | M7;M6 | Run the shuttle-airspace scenario. |
 | 424 | PROVE | missing | 336;337;328;347;338;339;343;401;409;307 | none | none | none | none | none | none | none | E-AUDIT-424 | M7;M8 | Run the split-fleet exploration scenario. |
@@ -566,12 +566,12 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 430 | NEW | missing | 425;428 | none | none | none | none | none | none | none | E-AUDIT-430 | M9 | Encode expansion targeting. |
 | 431 | NEW | missing | 425;428 | none | none | none | none | none | none | none | E-AUDIT-431 | M9 | Resolve target-number wraparound. |
 | 432 | NEW | missing | 427;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-432 | M9 | Declare the attack atomically. |
-| 432a | EXTEND | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-432a | M9 | Operate the attack from the GM console. |
+| 432a | EXTEND | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-432A | M9 | Operate the attack from the GM console. |
 | 433 | NEW | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433 | M9 | Project attack state by audience. |
-| 433a | NEW | missing | 432;433 | none | none | none | none | WOLF-ATTACK;ATTACK-DRADIS | none | none | E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433a | M9 | Publish a stable DRADIS-ready attack contract. |
-| 433b | EXTEND | missing | 433 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433b | M9 | Resolve choices in affected player consoles. |
+| 433a | NEW | missing | 432;433 | none | none | none | none | WOLF-ATTACK;ATTACK-DRADIS | none | none | E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433A | M9 | Publish a stable DRADIS-ready attack contract. |
+| 433b | EXTEND | missing | 433 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433B | M9 | Resolve choices in affected player consoles. |
 | 434 | NEW | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434 | M9 | Make attack commands retry-safe. |
-| 434a | EXTEND | missing | 432a;434 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434a | M9 | Intervene and recover safely during an attack. |
+| 434a | EXTEND | missing | 432a;434 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434A | M9 | Intervene and recover safely during an attack. |
 | 435 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Commander target rerolls. |
 | 436 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | 435 | E-436;E-WOLF | M9 | Resolve AEGIS Command and Control. |
 | 437 | NEW | missing | 426;428;240 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-437 | M9 | Lock Gorgoneion Force Field timing. |
@@ -607,11 +607,11 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 467 | NEW | missing | 466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-467 | M9 | Apply surviving-boarder damage. |
 | 468 | NEW | missing | 466;280 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-468 | M9 | Resolve Militia Leader defence. |
 | 469 | NEW | missing | 442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-469 | M9 | Resolve Wolf Fighter Wing destruction. |
-| 469a | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469a | M9 | Resolve Assault Transport destruction. |
-| 469b | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469b | M9 | Resolve Wolf Destroyer destruction. |
-| 469c | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469c | M9 | Resolve Wolf Cruiser destruction. |
-| 469d | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469d | M9 | Resolve Strikecarrier destruction. |
-| 469e | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469e | M9 | Resolve Battlestation destruction. |
+| 469a | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469A | M9 | Resolve Assault Transport destruction. |
+| 469b | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469B | M9 | Resolve Wolf Destroyer destruction. |
+| 469c | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469C | M9 | Resolve Wolf Cruiser destruction. |
+| 469d | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469D | M9 | Resolve Strikecarrier destruction. |
+| 469e | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469E | M9 | Resolve Battlestation destruction. |
 | 470 | NEW | missing | 469 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-470 | M9 | Carry surviving Wolf Fighter Wings forward. |
 | 471 | NEW | missing | 469e;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-471 | M9 | Enforce Battlestation Short Range immunity. |
 | 472 | NEW | missing | 469d;470 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-472 | M9 | Apply Strikecarrier wing bonus. |
@@ -628,7 +628,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 483 | NEW | missing | 178;469;396 | none | none | none | none | none | none | none | E-AUDIT-483 | M9 | Rebuild fighters after combat. |
 | 484 | EXTEND | missing | 474;477;482 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-484 | M9 | Publish the complete aftermath. |
 | 485 | REPAIR | missing | 077 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-485 | M10 | Make pursuit authoritative from Turn 1. |
-| 485a | REPAIR | missing | 485 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-485a | M10 | Restore alert-scoped Pursuit Track color. |
+| 485a | REPAIR | missing | 485 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-485A | M10 | Restore alert-scoped Pursuit Track color. |
 | 486 | PROVE | missing | 485;305 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-486 | M10 | Verify the per-turn pursuit rise. |
 | 487 | PROVE | missing | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-487 | M10 | Verify jump-based pursuit reduction. |
 | 488 | PROVE | missing | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-488 | M10 | Verify Ion Nebula threat suppression. |
@@ -647,7 +647,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 501 | NEW | missing | 497 | none | none | none | none | none | none | none | E-AUDIT-501 | M10 | Send Wolf intelligence privately. |
 | 502 | NEW | missing | 497 | none | none | none | none | none | none | none | E-AUDIT-502 | M10 | Resolve suspicion and clue rolls. |
 | 503 | NEW | missing | 497;167 | none | none | none | none | none | none | none | E-AUDIT-503 | M10 | Deliver Wolf action receipts by audience. |
-| 503a | NEW | missing | 497;498 | none | none | none | none | none | none | none | E-AUDIT-503a | M10 | Trigger the hacking overlay from authority. |
+| 503a | NEW | missing | 497;498 | none | none | none | none | none | none | none | E-AUDIT-503A | M10 | Trigger the hacking overlay from authority. |
 | 504 | PROVE | missing | 502;503 | none | none | none | none | none | none | none | E-AUDIT-504 | M10 | Audit suspicion history privately. |
 | 505 | NEW | missing | 280;501 | none | none | none | none | none | none | none | E-AUDIT-505 | M10 | Investigate as the Intelligence Agent. |
 | 506 | PROVE | missing | 505;428 | none | none | none | none | none | none | none | E-AUDIT-506 | M10 | Prove investigation randomness ownership. |
@@ -666,18 +666,18 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 519 | NEW | missing | 515;468 | none | none | none | none | none | none | none | E-AUDIT-519 | M10 | Activate the Militia Leader. |
 | 520 | NEW | missing | 515;456 | none | none | none | none | none | none | none | E-AUDIT-520 | M10 | Activate the PDF Fighter Ace. |
 | 521 | NEW | missing | 515;494 | none | none | none | none | none | none | none | E-AUDIT-521 | M10 | Complete Wolf Commander powers. |
-| 521a | NEW | missing | 521 | none | none | none | none | none | none | none | E-AUDIT-521a | M10 | Resolve the Wolf Commander address. |
-| 521b | DECISION | missing | 521a | none | none | none | none | none | none | none | E-AUDIT-521b | M10 | Resolve Wolf Commander amnesty. |
+| 521a | NEW | missing | 521 | none | none | none | none | none | none | none | E-AUDIT-521A | M10 | Resolve the Wolf Commander address. |
+| 521b | DECISION | missing | 521a | none | none | none | none | none | none | none | E-AUDIT-521B | M10 | Resolve Wolf Commander amnesty. |
 | 522 | REPAIR | missing | 044;045 | none | none | none | none | none | none | none | E-AUDIT-522 | M10 | Model one-facilitator ownership with optional GM lanes. |
 | 523 | DECISION | missing | 522;167 | none | none | none | none | none | none | none | E-AUDIT-523 | M10 | Record facilitator rule calls. |
-| 523a | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523a | M10 | Configure Wolf Attack difficulty. |
-| 523b | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523b | M10 | Configure Crisis difficulty. |
-| 523c | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523c | M10 | Configure emergency-jump severity. |
+| 523a | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523A | M10 | Configure Wolf Attack difficulty. |
+| 523b | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523B | M10 | Configure Crisis difficulty. |
+| 523c | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523C | M10 | Configure emergency-jump severity. |
 | 524 | PROVE | missing | 485;497;522 | none | none | none | none | none | none | none | E-AUDIT-524 | M10 | Run the complete Wolf-and-deduction scenario. |
-| 524a | NEW | missing | 193b | none | none | none | none | none | none | none | E-AUDIT-524a | M10 | Track political capital. |
-| 524b | NEW | missing | 524a | none | none | none | none | none | none | none | E-AUDIT-524b | M10 | Resolve the President's address. |
-| 524c | NEW | missing | 524b | none | none | none | none | none | none | none | E-AUDIT-524c | M10 | Resolve a presidential visit. |
-| 524d | NEW | missing | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524d | M10 | Enforce presidential authority boundaries. |
+| 524a | NEW | missing | 193b | none | none | none | none | none | none | none | E-AUDIT-524A | M10 | Track political capital. |
+| 524b | NEW | missing | 524a | none | none | none | none | none | none | none | E-AUDIT-524B | M10 | Resolve the President's address. |
+| 524c | NEW | missing | 524b | none | none | none | none | none | none | none | E-AUDIT-524C | M10 | Resolve a presidential visit. |
+| 524d | NEW | missing | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524D | M10 | Enforce presidential authority boundaries. |
 | 525 | NEW | missing | 008;522 | none | none | none | none | none | none | none | E-AUDIT-525 | M3;M11;M12 | Create the crisis state machine. |
 | 526 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-526 | M3;M11;M12 | Gate crises by configuration. |
 | 527 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
@@ -905,7 +905,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-677-DEPENDENCIES | hard_prompt | 677 -> 084;284;313;330 | Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11 | Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Per-ship coordinate redaction consumes entitled ship projections, unknown-system redaction, persisted visit/discovery history, and safe discovery-note storage before privacy controls can consume them. |
 | E-678-DEPENDENCIES | hard_prompt | 678 -> 328;339;340;677 | Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11 | Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Selective system sharing consumes private scout facts, enforced communication recipient eligibility, and the per-ship knowledge projection supplied by 677; it must not create an alternate knowledge or cross-group disclosure path. |
 | E-679-DEPENDENCIES | hard_prompt | 679 -> 281;282;285;294;304;677 | Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11 | Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Blind jumps consume a canonical graph and locked chart, authoritative per-ship origin, working independent ship jump execution, retry-safe committed outcomes, and the per-ship knowledge boundary for undiscovered destinations. |
-| E-680-RELATED | related/consumes | 680 -> 178;262;396;449 | Owner request - live Alpha and Bravo fighter-wing status, 2026-09-12 | The owner requested live Alpha and Bravo fighter-wing strength and bay status in the shared ship-console presentation. Existing construction-capacity, wing-registration, fighter-state, and launch-eligibility prompts are related implementation boundaries; the queued observability slice must not invent mechanics, duplicate authority, or block on their future completion. |
+| E-680-RELATED | related/consumes | 680 -> 178;262;396;449 | Owner request and explicit ruling - live Alpha and Bravo fighter-wing status, 2026-09-12 | The owner requested live Alpha and Bravo fighter-wing strength and bay status in the shared ship-console presentation. Existing construction-capacity, wing-registration, fighter-state, and launch-eligibility prompts are related implementation boundaries; the queued observability slice must not invent mechanics, duplicate authority, or block on their future completion. Owner ruling: every new game starts Alpha and Bravo at four fighters each; until combat or repair automation exists, only an active GM may correct a wing count. Capacity remains a separate authoritative Construction Bay value. |
 | E-069-START | evidence | 058 -> 069 | functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/resources.test.ts; functions/src/shipPopulation.test.ts; functions/src/createSessionCallable.test.ts; functions/src/sessionComposition.test.ts | Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: active vessels receive exact server survivor/resource catalogs, newly active vessels are seeded, removed vessels are filtered, and existing active lobby values are preserved. startGame locks the prepared state without resetting stores. Focused resources, population, create-session, and session-composition tests cover the printed base and expansion values plus these transitions. |
 | E-070-START | evidence | 069 -> 070 | functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/resources.ts; functions/src/sessionComposition.test.ts | Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: each active vessel's persisted shipResources.securityTeams matches the authoritative INITIAL_SHIP_RESOURCES catalog across the production 8-, 19-, and 20-player rows. The existing bidirectional composition test preserves a deliberate lobby resource edit, and startGame locks the prepared state without resetting it. |
 | E-075-START | evidence | 068;069;070;075 -> M1-START-COMPOSITION | functions/src/startState.ts; functions/src/index.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; functions/src/shipDamage.ts; functions/src/maintenance.ts; functions/src/pressDispatchState.ts | The single startGame transaction validates the locked roster and craft manifest, preserves prepared stores and any existing Turn 1 state, materializes canonical intact damage and empty maintenance state for every active vessel, initializes inactive fleet alert and empty Press dispatch defaults when absent, composes private Wolf/loyalty state, starts Turn 1 with pursuit 2 and timers, and writes one setup receipt and privacy-safe event. The start callable and production 8-, 19-, and 20-player matrix cover defaults, preservation, replay, and race behavior. |
@@ -948,13 +948,13 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-136 | hard_prompt | 136 -> 135 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mutiny consumes authoritative unrest state; population-zero unrest is a separate consequence and is not a prerequisite. |
 | E-AUDIT-137 | hard_prompt | 137 -> 136 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Replacement-captain recovery consumes the authoritative mutiny state. |
 | E-AUDIT-140 | hard_prompt | 140 -> 114;171;183;194;204;216;224;235;241;242;246;250;571 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The all-vessel matrix needs ordered maintenance plus each core, small-ship, Voyage 33-0, and Capybara maintenance producer. |
-| E-AUDIT-140a | hard_prompt | 140a -> 111;164;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Evacuation transfers need typed ledgers, cargo permissions, and the craft manifest. |
-| E-AUDIT-140b | hard_prompt | 140b -> 140a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Destination capacity is checked within the evacuation transfer contract. |
-| E-AUDIT-140c | hard_prompt | 140c -> 140a;140b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Retry safety composes evacuation transfer and capacity decisions. |
-| E-AUDIT-140d | hard_prompt | 140d -> 131 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Escape pods are created from the authoritative ship-destruction flow. |
-| E-AUDIT-140e | hard_prompt | 140e -> 140d | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Escape state follows durable pod creation. |
-| E-AUDIT-140f | hard_prompt | 140f -> 140d;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Retained craft state follows destruction and the authoritative manifest. |
-| E-AUDIT-140g | hard_prompt | 140g -> 140d;111 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Scavenging follows destruction and typed resource reconciliation. |
+| E-AUDIT-140A | hard_prompt | 140a -> 111;164;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Evacuation transfers need typed ledgers, cargo permissions, and the craft manifest. |
+| E-AUDIT-140B | hard_prompt | 140b -> 140a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Destination capacity is checked within the evacuation transfer contract. |
+| E-AUDIT-140C | hard_prompt | 140c -> 140a;140b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Retry safety composes evacuation transfer and capacity decisions. |
+| E-AUDIT-140D | hard_prompt | 140d -> 131 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Escape pods are created from the authoritative ship-destruction flow. |
+| E-AUDIT-140E | hard_prompt | 140e -> 140d | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Escape state follows durable pod creation. |
+| E-AUDIT-140F | hard_prompt | 140f -> 140d;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Retained craft state follows destruction and the authoritative manifest. |
+| E-AUDIT-140G | hard_prompt | 140g -> 140d;111 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Scavenging follows destruction and typed resource reconciliation. |
 | E-AUDIT-142 | hard_prompt | 142 -> 141;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Team-start docking consumes normal airspace and the craft manifest. |
 | E-AUDIT-143 | hard_prompt | 143 -> 361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Holder and dock identity are fields of the authoritative craft manifest. |
 | E-AUDIT-144 | hard_prompt | 144 -> 141;143 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | A legal shuttle move needs open airspace and holder/dock authority. |
@@ -998,8 +998,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-191 | hard_prompt | 191 -> 119;190 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The VIP reroll consumes the unrest roll and private card ownership. |
 | E-AUDIT-192 | hard_prompt | 192 -> 182;264 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione fighter-bay gating consumes combat registration and Maliades craft identity. |
 | E-AUDIT-193 | hard_prompt | 193 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
-| E-AUDIT-193a | hard_prompt | 193a -> 166;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione Engineer actions consume role binding and Dione identity. |
-| E-AUDIT-193b | hard_prompt | 193b -> 166;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | President actions consume role binding and Dione identity. |
+| E-AUDIT-193A | hard_prompt | 193a -> 166;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione Engineer actions consume role binding and Dione identity. |
+| E-AUDIT-193B | hard_prompt | 193b -> 166;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | President actions consume role binding and Dione identity. |
 | E-AUDIT-194 | hard_prompt | 194 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
 | E-AUDIT-195 | hard_prompt | 195 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-196 | hard_prompt | 196 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
@@ -1010,8 +1010,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-201 | hard_prompt | 201 -> 177;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each vessel jump audit extends the existing AEGIS/common jump contract. |
 | E-AUDIT-202 | hard_prompt | 202 -> 201 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Ram Scoop uses the authoritative Icebreaker jump result. |
 | E-AUDIT-203 | hard_prompt | 203 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
-| E-AUDIT-203a | hard_prompt | 203a -> 166;194;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Icebreaker Engineer actions consume role, vessel, and craft contracts. |
-| E-AUDIT-203b | hard_prompt | 203b -> 166;194;265;388 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Miner workspace consumes role, vessel, Highwall, and mining contracts. |
+| E-AUDIT-203A | hard_prompt | 203a -> 166;194;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Icebreaker Engineer actions consume role, vessel, and craft contracts. |
+| E-AUDIT-203B | hard_prompt | 203b -> 166;194;265;388 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Miner workspace consumes role, vessel, Highwall, and mining contracts. |
 | E-AUDIT-204 | hard_prompt | 204 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
 | E-AUDIT-205 | hard_prompt | 205 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-206 | hard_prompt | 206 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
@@ -1024,8 +1024,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-213 | hard_prompt | 213 -> 211 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Endeavour devices consume research-track state. |
 | E-AUDIT-214 | hard_prompt | 214 -> 211 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Endeavour devices consume research-track state. |
 | E-AUDIT-215 | hard_prompt | 215 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
-| E-AUDIT-215a | hard_prompt | 215a -> 166;204;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shepherd Engineer actions consume role, vessel, and craft contracts. |
-| E-AUDIT-215b | hard_prompt | 215b -> 166;204;211;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Scientist workspace consumes role, vessel, research, and scout-entitlement contracts. |
+| E-AUDIT-215A | hard_prompt | 215a -> 166;204;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shepherd Engineer actions consume role, vessel, and craft contracts. |
+| E-AUDIT-215B | hard_prompt | 215b -> 166;204;211;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Scientist workspace consumes role, vessel, research, and scout-entitlement contracts. |
 | E-AUDIT-216 | hard_prompt | 216 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
 | E-AUDIT-217 | hard_prompt | 217 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-218 | hard_prompt | 218 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
@@ -1034,8 +1034,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-221 | hard_prompt | 221 -> 122;125;216 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Quellon production consumes Reactor eligibility and Quellon identity. |
 | E-AUDIT-222 | hard_prompt | 222 -> 177;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each vessel jump audit extends the existing AEGIS/common jump contract. |
 | E-AUDIT-223 | hard_prompt | 223 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
-| E-AUDIT-223a | hard_prompt | 223a -> 166;216;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Quellon Engineer actions consume role, vessel, and craft contracts. |
-| E-AUDIT-223b | hard_prompt | 223b -> 166;216;269;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Explorer workspace consumes role, vessel, Hummingbird, and scout-entitlement contracts. |
+| E-AUDIT-223A | hard_prompt | 223a -> 166;216;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Quellon Engineer actions consume role, vessel, and craft contracts. |
+| E-AUDIT-223B | hard_prompt | 223b -> 166;216;269;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Explorer workspace consumes role, vessel, Hummingbird, and scout-entitlement contracts. |
 | E-AUDIT-224 | hard_prompt | 224 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
 | E-AUDIT-225 | hard_prompt | 225 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-226 | hard_prompt | 226 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
@@ -1046,8 +1046,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-231 | hard_prompt | 231 -> 182;273 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Refinery fighter-bay gating consumes combat registration and the PDF wing identity. |
 | E-AUDIT-232 | hard_prompt | 232 -> 177;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each vessel jump audit extends the existing AEGIS/common jump contract. |
 | E-AUDIT-233 | hard_prompt | 233 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
-| E-AUDIT-233a | hard_prompt | 233a -> 166;224;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Refinery Engineer actions consume role, vessel, and craft contracts. |
-| E-AUDIT-233b | hard_prompt | 233b -> 166;224;273 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | PDF Colonel workspace consumes role, vessel, and Escort Wing contracts. |
+| E-AUDIT-233A | hard_prompt | 233a -> 166;224;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Refinery Engineer actions consume role, vessel, and craft contracts. |
+| E-AUDIT-233B | hard_prompt | 233b -> 166;224;273 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | PDF Colonel workspace consumes role, vessel, and Escort Wing contracts. |
 | E-AUDIT-234 | hard_prompt | 234 -> 161;162;111;141 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship rules consume vessel/ledger definitions and normal airspace. |
 | E-AUDIT-235 | hard_prompt | 235 -> 234;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship identity lanes consume shared small-ship rules and printed vessel data. |
 | E-AUDIT-236 | hard_prompt | 236 -> 234;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship jump lanes consume small-ship identity and the common jump contract. |
@@ -1056,11 +1056,11 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-239 | hard_prompt | 239 -> 234;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship combat registration consumes shared small-ship and console metadata. |
 | E-AUDIT-240 | hard_prompt | 240 -> 234;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship combat registration consumes shared small-ship and console metadata. |
 | E-AUDIT-241 | hard_prompt | 241 -> 234;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship identity lanes consume shared small-ship rules and printed vessel data. |
-| E-AUDIT-241a | hard_prompt | 241a -> 234;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship jump lanes consume small-ship identity and the common jump contract. |
-| E-AUDIT-241b | hard_prompt | 241b -> 241;401 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Bulk haulage consumes Capybara identity and mission eligibility. |
-| E-AUDIT-241c | hard_prompt | 241c -> 241;164 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara cargo transfer consumes Capybara identity and cargo permissions. |
-| E-AUDIT-241d | hard_prompt | 241d -> 241;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara production consumes identity and Reactor eligibility. |
-| E-AUDIT-241e | hard_prompt | 241e -> 241;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara fuel processing consumes identity and Reactor eligibility. |
+| E-AUDIT-241A | hard_prompt | 241a -> 234;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship jump lanes consume small-ship identity and the common jump contract. |
+| E-AUDIT-241B | hard_prompt | 241b -> 241;401 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Bulk haulage consumes Capybara identity and mission eligibility. |
+| E-AUDIT-241C | hard_prompt | 241c -> 241;164 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara cargo transfer consumes Capybara identity and cargo permissions. |
+| E-AUDIT-241D | hard_prompt | 241d -> 241;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara production consumes identity and Reactor eligibility. |
+| E-AUDIT-241E | hard_prompt | 241e -> 241;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara fuel processing consumes identity and Reactor eligibility. |
 | E-AUDIT-242 | hard_prompt | 242 -> 234;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Warrior identity consumes shared small-ship and printed vessel data. |
 | E-AUDIT-243 | hard_prompt | 243 -> 242;402 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Warrior salvage consumes Warrior identity and the mission deck. |
 | E-AUDIT-244 | hard_prompt | 244 -> 234;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship repair actions consume small-ship identity and craft authority. |
@@ -1095,7 +1095,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-273 | hard_prompt | 273 -> 161;162;262 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | PDF wing registration consumes vessel and fighter-wing contracts. |
 | E-AUDIT-274 | hard_prompt | 274 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
 | E-AUDIT-275 | hard_prompt | 275 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
-| E-AUDIT-275b | hard_prompt | 275b -> 275a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dispatch Desk restoration consumes the optional Press station contract. |
+| E-AUDIT-275B | hard_prompt | 275b -> 275a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dispatch Desk restoration consumes the optional Press station contract. |
 | E-AUDIT-276 | hard_prompt | 276 -> 053;166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Union assignment consumes the configured Union substitution and role binding. |
 | E-AUDIT-277 | hard_prompt | 277 -> 053;166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Union assignment consumes the configured Union substitution and role binding. |
 | E-AUDIT-278 | hard_prompt | 278 -> 166;234 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Extra-ship Captain workspaces consume role binding and small-ship rules. |
@@ -1227,7 +1227,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-419 | hard_prompt | 419 -> 281;283 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mission-system entries consume the canonical graph and code registry. |
 | E-AUDIT-420 | hard_prompt | 420 -> 281;283 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mission-system entries consume the canonical graph and code registry. |
 | E-AUDIT-421 | hard_prompt | 421 -> 281;283 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mission-system entries consume the canonical graph and code registry. |
-| E-AUDIT-421a | hard_prompt | 421a -> 281;283 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mission-system entries consume the canonical graph and code registry. |
+| E-AUDIT-421A | hard_prompt | 421a -> 281;283 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mission-system entries consume the canonical graph and code registry. |
 | E-AUDIT-422 | hard_prompt | 422 -> 401;409;415;410;411;412;414;622 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Away-mission proof composes eligibility, totals, reward custody, bonus/failure branches, overrun custody, and mission reconnect. |
 | E-AUDIT-423 | hard_prompt | 423 -> 361;367;371;373;352;353;368;377;156;380 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shuttle-airspace proof composes manifest, arrival, parking, attack parking, transit/contact presentation, retarget, transfer, reopen, and conflict reconciliation. |
 | E-AUDIT-424 | hard_prompt | 424 -> 336;337;328;347;338;339;343;401;409;307 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Split-fleet proof composes split/roster state, scouting, jump, privacy, communications, scout taxi, mission eligibility/totals, and group-isolated pursuit. |
@@ -1238,12 +1238,12 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-430 | hard_prompt | 430 -> 425;428 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Targeting consumes Wolf catalog and centralized combat math. |
 | E-AUDIT-431 | hard_prompt | 431 -> 425;428 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Targeting consumes Wolf catalog and centralized combat math. |
 | E-AUDIT-432 | hard_prompt | 432 -> 427;428 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Atomic attack declaration consumes prepared composition and combat math. |
-| E-AUDIT-432a | hard_prompt | 432a -> 432 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | GM attack operation consumes the declared attack state. |
+| E-AUDIT-432A | hard_prompt | 432a -> 432 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | GM attack operation consumes the declared attack state. |
 | E-AUDIT-433 | hard_prompt | 433 -> 432 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Audience projection consumes declared attack state. |
-| E-AUDIT-433a | hard_prompt | 433a -> 432;433 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The stable DRADIS attack contract consumes declared and projected attack state. |
-| E-AUDIT-433b | hard_prompt | 433b -> 433 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Affected-console choices consume audience-safe attack projection. |
+| E-AUDIT-433A | hard_prompt | 433a -> 432;433 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The stable DRADIS attack contract consumes declared and projected attack state. |
+| E-AUDIT-433B | hard_prompt | 433b -> 433 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Affected-console choices consume audience-safe attack projection. |
 | E-AUDIT-434 | hard_prompt | 434 -> 432 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Attack retry safety consumes atomic declaration. |
-| E-AUDIT-434a | hard_prompt | 434a -> 432a;434 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Intervention consumes GM operation and retry-safe attack state. |
+| E-AUDIT-434A | hard_prompt | 434a -> 432a;434 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Intervention consumes GM operation and retry-safe attack state. |
 | E-AUDIT-437 | hard_prompt | 437 -> 426;428;240 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Force-field timing consumes composition/math and the registered projector. |
 | E-AUDIT-438 | hard_prompt | 438 -> 432;428 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Range resolution consumes declared attack and combat math. |
 | E-AUDIT-439 | hard_prompt | 439 -> 432;428 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Range resolution consumes declared attack and combat math. |
@@ -1277,11 +1277,11 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-467 | hard_prompt | 467 -> 466 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Boarder damage follows security defence. |
 | E-AUDIT-468 | hard_prompt | 468 -> 466;280 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Militia defence consumes boarding defence and replacement-role identity. |
 | E-AUDIT-469 | hard_prompt | 469 -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
-| E-AUDIT-469a | hard_prompt | 469a -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
-| E-AUDIT-469b | hard_prompt | 469b -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
-| E-AUDIT-469c | hard_prompt | 469c -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
-| E-AUDIT-469d | hard_prompt | 469d -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
-| E-AUDIT-469e | hard_prompt | 469e -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
+| E-AUDIT-469A | hard_prompt | 469a -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
+| E-AUDIT-469B | hard_prompt | 469b -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
+| E-AUDIT-469C | hard_prompt | 469c -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
+| E-AUDIT-469D | hard_prompt | 469d -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
+| E-AUDIT-469E | hard_prompt | 469e -> 442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf-ship destruction consumes range-specific destruction effects. |
 | E-AUDIT-470 | hard_prompt | 470 -> 469 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Surviving fighters follow Wolf-fighter destruction. |
 | E-AUDIT-471 | hard_prompt | 471 -> 469e;442 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Battlestation immunity consumes its destruction branch and combat effects. |
 | E-AUDIT-472 | hard_prompt | 472 -> 469d;470 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Strikecarrier bonus consumes destruction and surviving fighters. |
@@ -1298,7 +1298,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-483 | hard_prompt | 483 -> 178;469;396 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Fighter rebuilding consumes construction, destruction, and wing state. |
 | E-AUDIT-484 | hard_prompt | 484 -> 474;477;482 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Complete aftermath consumes result, casualties, and repairs. |
 | E-AUDIT-485 | hard_prompt | 485 -> 077 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Authoritative pursuit starts from the server-owned initial pursuit. |
-| E-AUDIT-485a | hard_prompt | 485a -> 485 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Pursuit color consumes authoritative pursuit state. |
+| E-AUDIT-485A | hard_prompt | 485a -> 485 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Pursuit color consumes authoritative pursuit state. |
 | E-AUDIT-486 | hard_prompt | 486 -> 485;305 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Per-turn pursuit rise consumes authority and transition logic. |
 | E-AUDIT-487 | hard_prompt | 487 -> 485;306 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Jump reduction consumes pursuit and chart-depth calculation. |
 | E-AUDIT-488 | hard_prompt | 488 -> 485;306 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Pursuit exceptions consume authoritative pursuit calculation. |
@@ -1315,7 +1315,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-501 | hard_prompt | 501 -> 497 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf actions consume one-action-per-turn authorization. |
 | E-AUDIT-502 | hard_prompt | 502 -> 497 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf actions consume one-action-per-turn authorization. |
 | E-AUDIT-503 | hard_prompt | 503 -> 497;167 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf receipts consume action authorization and action envelopes. |
-| E-AUDIT-503a | hard_prompt | 503a -> 497;498 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Hacking overlay consumes authorized Wolf action and sabotage state. |
+| E-AUDIT-503A | hard_prompt | 503a -> 497;498 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Hacking overlay consumes authorized Wolf action and sabotage state. |
 | E-AUDIT-504 | hard_prompt | 504 -> 502;503 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Suspicion history consumes clue results and receipts. |
 | E-AUDIT-505 | hard_prompt | 505 -> 280;501 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Investigation consumes replacement-role identity and private Wolf intelligence. |
 | E-AUDIT-506 | hard_prompt | 506 -> 505;428 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Investigation randomness consumes investigator action and server randomness. |
@@ -1330,18 +1330,18 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-519 | hard_prompt | 519 -> 515;468 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Militia activation consumes replacement role and defence behavior. |
 | E-AUDIT-520 | hard_prompt | 520 -> 515;456 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Fighter Ace activation consumes replacement role and PDF launch. |
 | E-AUDIT-521 | hard_prompt | 521 -> 515;494 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf Commander powers consume replacement role and attack dial. |
-| E-AUDIT-521a | hard_prompt | 521a -> 521 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Commander address consumes Commander powers. |
-| E-AUDIT-521b | hard_prompt | 521b -> 521a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Commander amnesty consumes the address state. |
+| E-AUDIT-521A | hard_prompt | 521a -> 521 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Commander address consumes Commander powers. |
+| E-AUDIT-521B | hard_prompt | 521b -> 521a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Commander amnesty consumes the address state. |
 | E-AUDIT-522 | hard_prompt | 522 -> 044;045 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Facilitator ownership consumes eligibility and GM instance authority. |
 | E-AUDIT-523 | hard_prompt | 523 -> 522;167 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Facilitator calls consume ownership and action envelopes. |
-| E-AUDIT-523a | hard_prompt | 523a -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
-| E-AUDIT-523b | hard_prompt | 523b -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
-| E-AUDIT-523c | hard_prompt | 523c -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
+| E-AUDIT-523A | hard_prompt | 523a -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
+| E-AUDIT-523B | hard_prompt | 523b -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
+| E-AUDIT-523C | hard_prompt | 523c -> 522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Difficulty configuration consumes facilitator ownership. |
 | E-AUDIT-524 | hard_prompt | 524 -> 485;497;522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wolf/deduction proof composes pursuit, Wolf actions, and facilitator ownership. |
-| E-AUDIT-524a | hard_prompt | 524a -> 193b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Political capital consumes the President workspace. |
-| E-AUDIT-524b | hard_prompt | 524b -> 524a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | President address consumes political capital. |
-| E-AUDIT-524c | hard_prompt | 524c -> 524b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Presidential visit consumes the address. |
-| E-AUDIT-524d | hard_prompt | 524d -> 524c;044 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Presidential authority boundaries consume visit and eligibility. |
+| E-AUDIT-524A | hard_prompt | 524a -> 193b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Political capital consumes the President workspace. |
+| E-AUDIT-524B | hard_prompt | 524b -> 524a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | President address consumes political capital. |
+| E-AUDIT-524C | hard_prompt | 524c -> 524b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Presidential visit consumes the address. |
+| E-AUDIT-524D | hard_prompt | 524d -> 524c;044 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Presidential authority boundaries consume visit and eligibility. |
 | E-AUDIT-525 | hard_prompt | 525 -> 008;522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Crisis state machine consumes lifecycle state and facilitator ownership. |
 | E-AUDIT-526 | hard_prompt | 526 -> 525 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Crisis configuration consumes the crisis state machine. |
 | E-AUDIT-527 | hard_prompt | 527 -> 525 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each crisis delivery consumes the crisis state machine. |

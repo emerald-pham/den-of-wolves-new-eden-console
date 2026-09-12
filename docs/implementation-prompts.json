@@ -298,8 +298,8 @@
     {
       "direction": "680 -> 178;262;396;449",
       "id": "E-680-RELATED",
-      "language": "The owner requested live Alpha and Bravo fighter-wing strength and bay status in the shared ship-console presentation. Existing construction-capacity, wing-registration, fighter-state, and launch-eligibility prompts are related implementation boundaries; the queued observability slice must not invent mechanics, duplicate authority, or block on their future completion.",
-      "source": "Owner request - live Alpha and Bravo fighter-wing status, 2026-09-12",
+      "language": "The owner requested live Alpha and Bravo fighter-wing strength and bay status in the shared ship-console presentation. Existing construction-capacity, wing-registration, fighter-state, and launch-eligibility prompts are related implementation boundaries; the queued observability slice must not invent mechanics, duplicate authority, or block on their future completion. Owner ruling: every new game starts Alpha and Bravo at four fighters each; until combat or repair automation exists, only an active GM may correct a wing count. Capacity remains a separate authoritative Construction Bay value.",
+      "source": "Owner request and explicit ruling - live Alpha and Bravo fighter-wing status, 2026-09-12",
       "type": "related/consumes"
     },
     {
@@ -598,49 +598,49 @@
     },
     {
       "direction": "140a -> 111;164;361",
-      "id": "E-AUDIT-140a",
+      "id": "E-AUDIT-140A",
       "language": "Evacuation transfers need typed ledgers, cargo permissions, and the craft manifest.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "140b -> 140a",
-      "id": "E-AUDIT-140b",
+      "id": "E-AUDIT-140B",
       "language": "Destination capacity is checked within the evacuation transfer contract.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "140c -> 140a;140b",
-      "id": "E-AUDIT-140c",
+      "id": "E-AUDIT-140C",
       "language": "Retry safety composes evacuation transfer and capacity decisions.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "140d -> 131",
-      "id": "E-AUDIT-140d",
+      "id": "E-AUDIT-140D",
       "language": "Escape pods are created from the authoritative ship-destruction flow.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "140e -> 140d",
-      "id": "E-AUDIT-140e",
+      "id": "E-AUDIT-140E",
       "language": "Escape state follows durable pod creation.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "140f -> 140d;361",
-      "id": "E-AUDIT-140f",
+      "id": "E-AUDIT-140F",
       "language": "Retained craft state follows destruction and the authoritative manifest.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "140g -> 140d;111",
-      "id": "E-AUDIT-140g",
+      "id": "E-AUDIT-140G",
       "language": "Scavenging follows destruction and typed resource reconciliation.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -948,14 +948,14 @@
     },
     {
       "direction": "193a -> 166;183",
-      "id": "E-AUDIT-193a",
+      "id": "E-AUDIT-193A",
       "language": "Dione Engineer actions consume role binding and Dione identity.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "193b -> 166;183",
-      "id": "E-AUDIT-193b",
+      "id": "E-AUDIT-193B",
       "language": "President actions consume role binding and Dione identity.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -1032,14 +1032,14 @@
     },
     {
       "direction": "203a -> 166;194;361",
-      "id": "E-AUDIT-203a",
+      "id": "E-AUDIT-203A",
       "language": "Icebreaker Engineer actions consume role, vessel, and craft contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "203b -> 166;194;265;388",
-      "id": "E-AUDIT-203b",
+      "id": "E-AUDIT-203B",
       "language": "Miner workspace consumes role, vessel, Highwall, and mining contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -1130,14 +1130,14 @@
     },
     {
       "direction": "215a -> 166;204;361",
-      "id": "E-AUDIT-215a",
+      "id": "E-AUDIT-215A",
       "language": "Shepherd Engineer actions consume role, vessel, and craft contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "215b -> 166;204;211;321",
-      "id": "E-AUDIT-215b",
+      "id": "E-AUDIT-215B",
       "language": "Scientist workspace consumes role, vessel, research, and scout-entitlement contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -1200,14 +1200,14 @@
     },
     {
       "direction": "223a -> 166;216;361",
-      "id": "E-AUDIT-223a",
+      "id": "E-AUDIT-223A",
       "language": "Quellon Engineer actions consume role, vessel, and craft contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "223b -> 166;216;269;321",
-      "id": "E-AUDIT-223b",
+      "id": "E-AUDIT-223B",
       "language": "Explorer workspace consumes role, vessel, Hummingbird, and scout-entitlement contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -1284,14 +1284,14 @@
     },
     {
       "direction": "233a -> 166;224;361",
-      "id": "E-AUDIT-233a",
+      "id": "E-AUDIT-233A",
       "language": "Refinery Engineer actions consume role, vessel, and craft contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "233b -> 166;224;273",
-      "id": "E-AUDIT-233b",
+      "id": "E-AUDIT-233B",
       "language": "PDF Colonel workspace consumes role, vessel, and Escort Wing contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -1354,35 +1354,35 @@
     },
     {
       "direction": "241a -> 234;287-304",
-      "id": "E-AUDIT-241a",
+      "id": "E-AUDIT-241A",
       "language": "Small-ship jump lanes consume small-ship identity and the common jump contract.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "241b -> 241;401",
-      "id": "E-AUDIT-241b",
+      "id": "E-AUDIT-241B",
       "language": "Bulk haulage consumes Capybara identity and mission eligibility.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "241c -> 241;164",
-      "id": "E-AUDIT-241c",
+      "id": "E-AUDIT-241C",
       "language": "Capybara cargo transfer consumes Capybara identity and cargo permissions.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "241d -> 241;122;125",
-      "id": "E-AUDIT-241d",
+      "id": "E-AUDIT-241D",
       "language": "Capybara production consumes identity and Reactor eligibility.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "241e -> 241;122;125",
-      "id": "E-AUDIT-241e",
+      "id": "E-AUDIT-241E",
       "language": "Capybara fuel processing consumes identity and Reactor eligibility.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -1627,7 +1627,7 @@
     },
     {
       "direction": "275b -> 275a",
-      "id": "E-AUDIT-275b",
+      "id": "E-AUDIT-275B",
       "language": "Dispatch Desk restoration consumes the optional Press station contract.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -2551,7 +2551,7 @@
     },
     {
       "direction": "421a -> 281;283",
-      "id": "E-AUDIT-421a",
+      "id": "E-AUDIT-421A",
       "language": "Mission-system entries consume the canonical graph and code registry.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -2628,7 +2628,7 @@
     },
     {
       "direction": "432a -> 432",
-      "id": "E-AUDIT-432a",
+      "id": "E-AUDIT-432A",
       "language": "GM attack operation consumes the declared attack state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -2642,14 +2642,14 @@
     },
     {
       "direction": "433a -> 432;433",
-      "id": "E-AUDIT-433a",
+      "id": "E-AUDIT-433A",
       "language": "The stable DRADIS attack contract consumes declared and projected attack state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "433b -> 433",
-      "id": "E-AUDIT-433b",
+      "id": "E-AUDIT-433B",
       "language": "Affected-console choices consume audience-safe attack projection.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -2663,7 +2663,7 @@
     },
     {
       "direction": "434a -> 432a;434",
-      "id": "E-AUDIT-434a",
+      "id": "E-AUDIT-434A",
       "language": "Intervention consumes GM operation and retry-safe attack state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -2901,35 +2901,35 @@
     },
     {
       "direction": "469a -> 442",
-      "id": "E-AUDIT-469a",
+      "id": "E-AUDIT-469A",
       "language": "Wolf-ship destruction consumes range-specific destruction effects.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "469b -> 442",
-      "id": "E-AUDIT-469b",
+      "id": "E-AUDIT-469B",
       "language": "Wolf-ship destruction consumes range-specific destruction effects.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "469c -> 442",
-      "id": "E-AUDIT-469c",
+      "id": "E-AUDIT-469C",
       "language": "Wolf-ship destruction consumes range-specific destruction effects.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "469d -> 442",
-      "id": "E-AUDIT-469d",
+      "id": "E-AUDIT-469D",
       "language": "Wolf-ship destruction consumes range-specific destruction effects.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "469e -> 442",
-      "id": "E-AUDIT-469e",
+      "id": "E-AUDIT-469E",
       "language": "Wolf-ship destruction consumes range-specific destruction effects.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -3048,7 +3048,7 @@
     },
     {
       "direction": "485a -> 485",
-      "id": "E-AUDIT-485a",
+      "id": "E-AUDIT-485A",
       "language": "Pursuit color consumes authoritative pursuit state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -3167,7 +3167,7 @@
     },
     {
       "direction": "503a -> 497;498",
-      "id": "E-AUDIT-503a",
+      "id": "E-AUDIT-503A",
       "language": "Hacking overlay consumes authorized Wolf action and sabotage state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -3272,14 +3272,14 @@
     },
     {
       "direction": "521a -> 521",
-      "id": "E-AUDIT-521a",
+      "id": "E-AUDIT-521A",
       "language": "Commander address consumes Commander powers.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "521b -> 521a",
-      "id": "E-AUDIT-521b",
+      "id": "E-AUDIT-521B",
       "language": "Commander amnesty consumes the address state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -3300,21 +3300,21 @@
     },
     {
       "direction": "523a -> 522",
-      "id": "E-AUDIT-523a",
+      "id": "E-AUDIT-523A",
       "language": "Difficulty configuration consumes facilitator ownership.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "523b -> 522",
-      "id": "E-AUDIT-523b",
+      "id": "E-AUDIT-523B",
       "language": "Difficulty configuration consumes facilitator ownership.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "523c -> 522",
-      "id": "E-AUDIT-523c",
+      "id": "E-AUDIT-523C",
       "language": "Difficulty configuration consumes facilitator ownership.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -3328,28 +3328,28 @@
     },
     {
       "direction": "524a -> 193b",
-      "id": "E-AUDIT-524a",
+      "id": "E-AUDIT-524A",
       "language": "Political capital consumes the President workspace.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "524b -> 524a",
-      "id": "E-AUDIT-524b",
+      "id": "E-AUDIT-524B",
       "language": "President address consumes political capital.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "524c -> 524b",
-      "id": "E-AUDIT-524c",
+      "id": "E-AUDIT-524C",
       "language": "Presidential visit consumes the address.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
       "direction": "524d -> 524c;044",
-      "id": "E-AUDIT-524d",
+      "id": "E-AUDIT-524D",
       "language": "Presidential authority boundaries consume visit and eligibility.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
@@ -7655,7 +7655,7 @@
         "title": "Evacuate survivors by cargo shuttle."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140a",
+      "evidenceIds": "E-AUDIT-140A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "111;164;361",
@@ -7678,7 +7678,7 @@
         "title": "Enforce destination population capacity."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140b",
+      "evidenceIds": "E-AUDIT-140B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140a",
@@ -7701,7 +7701,7 @@
         "title": "Make evacuation retry-safe."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140c",
+      "evidenceIds": "E-AUDIT-140C",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140a;140b",
@@ -7724,7 +7724,7 @@
         "title": "Create escape pods on ship destruction."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140d",
+      "evidenceIds": "E-AUDIT-140D",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "131",
@@ -7747,7 +7747,7 @@
         "title": "Move players into escape state."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140e",
+      "evidenceIds": "E-AUDIT-140E",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140d",
@@ -7770,7 +7770,7 @@
         "title": "Preserve retained shuttles."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140f",
+      "evidenceIds": "E-AUDIT-140F",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140d;361",
@@ -7793,7 +7793,7 @@
         "title": "Scavenge destroyed-ship stores."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140g",
+      "evidenceIds": "E-AUDIT-140G",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140d;111",
@@ -9039,7 +9039,7 @@
         "title": "Complete the Dione Engineer workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-193a",
+      "evidenceIds": "E-AUDIT-193A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;183",
@@ -9062,7 +9062,7 @@
         "title": "Complete the President workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-193b",
+      "evidenceIds": "E-AUDIT-193B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;183",
@@ -9315,7 +9315,7 @@
         "title": "Complete the Icebreaker Engineer workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-203a",
+      "evidenceIds": "E-AUDIT-203A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;194;361",
@@ -9338,7 +9338,7 @@
         "title": "Complete the Miner workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-203b",
+      "evidenceIds": "E-AUDIT-203B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;194;265;388",
@@ -9637,7 +9637,7 @@
         "title": "Complete the Shepherd Engineer workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-215a",
+      "evidenceIds": "E-AUDIT-215A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;204;361",
@@ -9660,7 +9660,7 @@
         "title": "Complete the Scientist workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-215b",
+      "evidenceIds": "E-AUDIT-215B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;204;211;321",
@@ -9867,7 +9867,7 @@
         "title": "Complete the Quellon Engineer workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-223a",
+      "evidenceIds": "E-AUDIT-223A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;216;361",
@@ -9890,7 +9890,7 @@
         "title": "Complete the Explorer workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-223b",
+      "evidenceIds": "E-AUDIT-223B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;216;269;321",
@@ -10143,7 +10143,7 @@
         "title": "Complete the Refinery Engineer workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-233a",
+      "evidenceIds": "E-AUDIT-233A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;224;361",
@@ -10166,7 +10166,7 @@
         "title": "Complete the PDF Colonel workspace."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-233b",
+      "evidenceIds": "E-AUDIT-233B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;224;273",
@@ -10396,7 +10396,7 @@
         "title": "Resolve the base Capybara Jump Drive."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241a",
+      "evidenceIds": "E-AUDIT-241A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;287-304",
@@ -10419,7 +10419,7 @@
         "title": "Resolve base Capybara Bulk Haulage."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241b",
+      "evidenceIds": "E-AUDIT-241B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;401",
@@ -10442,7 +10442,7 @@
         "title": "Resolve base Capybara Cargo Transfer."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241c",
+      "evidenceIds": "E-AUDIT-241C",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;164",
@@ -10465,7 +10465,7 @@
         "title": "Resolve base Capybara food and water production."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241d",
+      "evidenceIds": "E-AUDIT-241D",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;122;125",
@@ -10488,7 +10488,7 @@
         "title": "Resolve the base Capybara Fuel Processor."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241e",
+      "evidenceIds": "E-AUDIT-241E",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;122;125",
@@ -11318,7 +11318,7 @@
         "title": "Recover and restore the SNN Dispatch Desk regression."
       },
       "description": "Owner-reported regression: the SNN Dispatch Desk is not working. A dedicated follow-on release must recover the last working implementation from git history and restore the complete route/model/callable/rules/UI/reconnect/audit path. The enabled claimed Press Officer must be able to use the desk during Turn Zero because it is explicitly excluded from generic Turn Zero restrictions. Add chronological failing end-to-end regression, authority, bridge/audience, accessibility, mobile/landscape/reduced-motion, and CIC evidence; classify it as a feature with its own version only when that repair release is reserved. Do not fold it into 0.3.12 or count Press as core.",
-      "evidenceIds": "E-275B;E-AUDIT-275b",
+      "evidenceIds": "E-275B;E-AUDIT-275B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "275a",
@@ -14837,7 +14837,7 @@
         "title": "Encode Active Wolf Fortress M."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-421a",
+      "evidenceIds": "E-AUDIT-421A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15113,7 +15113,7 @@
         "title": "Operate the attack from the GM console."
       },
       "description": "Planned [EXTEND] one-GM GM-console declare/advance/pause/inspect/resume prompt; no playable attack control composition exists yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-432a",
+      "evidenceIds": "E-WOLF;E-AUDIT-432A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432",
@@ -15159,7 +15159,7 @@
         "title": "Publish a stable DRADIS-ready attack contract."
       },
       "description": "Planned [NEW] stable DRADIS-ready attack endpoint/event schema, privacy, reconnect, and projection contract; no attack visualization is implied.",
-      "evidenceIds": "E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433a",
+      "evidenceIds": "E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;433",
@@ -15182,7 +15182,7 @@
         "title": "Resolve choices in affected player consoles."
       },
       "description": "Planned [EXTEND] affected-player-console choices/results prompt; existing consoles do not yet resolve a playable attack.",
-      "evidenceIds": "E-WOLF;E-AUDIT-433b",
+      "evidenceIds": "E-WOLF;E-AUDIT-433B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433",
@@ -15228,7 +15228,7 @@
         "title": "Intervene and recover safely during an attack."
       },
       "description": "Planned [EXTEND] reasoned CAS/idempotent danger-confirmed intervention/recovery/audit prompt; no composed attack override path exists yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-434a",
+      "evidenceIds": "E-WOLF;E-AUDIT-434A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432a;434",
@@ -16056,7 +16056,7 @@
         "title": "Resolve Assault Transport destruction."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469a",
+      "evidenceIds": "E-AUDIT-469A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -16079,7 +16079,7 @@
         "title": "Resolve Wolf Destroyer destruction."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469b",
+      "evidenceIds": "E-AUDIT-469B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -16102,7 +16102,7 @@
         "title": "Resolve Wolf Cruiser destruction."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469c",
+      "evidenceIds": "E-AUDIT-469C",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -16125,7 +16125,7 @@
         "title": "Resolve Strikecarrier destruction."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469d",
+      "evidenceIds": "E-AUDIT-469D",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -16148,7 +16148,7 @@
         "title": "Resolve Battlestation destruction."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469e",
+      "evidenceIds": "E-AUDIT-469E",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -16539,7 +16539,7 @@
         "title": "Restore alert-scoped Pursuit Track color."
       },
       "description": "Future pursuit-color repair: restore `0215488`'s normal ship/faction treatment outside authoritative Red Alert and use danger red only while the shared alert is active; `0d64e25` records the always-danger departure. Preserve countdown, values, split-fleet scope, terminal text, reconnect/stand-down/reduced-motion truth, and do not claim P485's broader server-owned pursuit acceptance.",
-      "evidenceIds": "E-PRESENTATION;E-AUDIT-485a",
+      "evidenceIds": "E-PRESENTATION;E-AUDIT-485A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485",
@@ -16976,7 +16976,7 @@
         "title": "Trigger the hacking overlay from authority."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-503a",
+      "evidenceIds": "E-AUDIT-503A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497;498",
@@ -17413,7 +17413,7 @@
         "title": "Resolve the Wolf Commander address."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-521a",
+      "evidenceIds": "E-AUDIT-521A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "521",
@@ -17436,7 +17436,7 @@
         "title": "Resolve Wolf Commander amnesty."
       },
       "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-521b",
+      "evidenceIds": "E-AUDIT-521B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "521a",
@@ -17505,7 +17505,7 @@
         "title": "Configure Wolf Attack difficulty."
       },
       "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-523a",
+      "evidenceIds": "E-AUDIT-523A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522",
@@ -17528,7 +17528,7 @@
         "title": "Configure Crisis difficulty."
       },
       "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-523b",
+      "evidenceIds": "E-AUDIT-523B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522",
@@ -17551,7 +17551,7 @@
         "title": "Configure emergency-jump severity."
       },
       "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-523c",
+      "evidenceIds": "E-AUDIT-523C",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522",
@@ -17597,7 +17597,7 @@
         "title": "Track political capital."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524a",
+      "evidenceIds": "E-AUDIT-524A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "193b",
@@ -17620,7 +17620,7 @@
         "title": "Resolve the President's address."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524b",
+      "evidenceIds": "E-AUDIT-524B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524a",
@@ -17643,7 +17643,7 @@
         "title": "Resolve a presidential visit."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524c",
+      "evidenceIds": "E-AUDIT-524C",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524b",
@@ -17666,7 +17666,7 @@
         "title": "Enforce presidential authority boundaries."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524d",
+      "evidenceIds": "E-AUDIT-524D",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524c;044",
@@ -21443,10 +21443,10 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "In the shared AEGIS Wing Commander console, Alpha and Bravo each show the authoritative live fighter count and effective capacity from the current session state, replacing the placeholder `Tracked at the table` text; show the printed 4-fighter capacity and the authoritative upgraded capacity only when that source state says the wing is upgraded. Keep wing strength separate from the assigned bay's launch eligibility: each bay's shared system status states its current charge/uncharged state, operational/damaged state, and upgrade state/source when applicable, without implying that bay readiness changes the wing count. Reuse the existing shared ship-console system-status presentation and configuration for both wings, preserve role/session/privacy/authorization boundaries, and update on live snapshots and reconnect. If the authoritative count or status is unavailable or loading, say so plainly without fabricating a value. Remove only the fighter-wing table-tracking placeholder; preserve unrelated shuttle fuel copy and existing combat/launch rules. Prove server-authoritative projections, stale/retry/reconnect behavior, no client-written or cross-wing values, accessible names/live updates/focus, reduced motion, and readable containment at 320×844, 390×844, 1440×900, and 844×390.",
+        "acceptance": "In the shared AEGIS Wing Commander console, Alpha and Bravo each show the authoritative live fighter count and effective capacity from the current session state, replacing the placeholder `Tracked at the table` text; show the printed 4-fighter capacity and the authoritative upgraded capacity only when that source state says the wing is upgraded. Keep wing strength separate from the assigned bay's launch eligibility: each bay's shared system status states its current charge/uncharged state, operational/damaged state, and upgrade state/source when applicable, without implying that bay readiness changes the wing count. Reuse the existing shared ship-console system-status presentation and configuration for both wings, preserve role/session/privacy/authorization boundaries, and update on live snapshots and reconnect. If the authoritative count or status is unavailable or loading, say so plainly without fabricating a value. Remove only the fighter-wing table-tracking placeholder; preserve unrelated shuttle fuel copy and existing combat/launch rules. Prove server-authoritative projections, stale/retry/reconnect behavior, no client-written or cross-wing values, accessible names/live updates/focus, reduced motion, and readable containment at 320×844, 390×844, 1440×900, and 844×390. New sessions initialize Alpha and Bravo at four fighters each; only an active GM may manually correct a wing count until combat or repair automation exists, and count must remain separate from capacity and bay state.",
         "title": "Show authoritative live Alpha and Bravo fighter status."
       },
-      "description": "Owner-requested fighter-wing observability repair: replace Alpha and Bravo's table-tracking placeholder with authoritative live strength and effective capacity, and align each bay's charge, damage, and upgrade status with the shared ship-console system-status display without inventing values or changing launch/combat rules.",
+      "description": "Owner-requested fighter-wing observability repair: replace Alpha and Bravo's table-tracking placeholder with authoritative live strength and effective capacity, and align each bay's charge, damage, and upgrade status with the shared ship-console system-status display without inventing values or changing launch/combat rules. New sessions initialize Alpha and Bravo at four fighters each; only an active GM may manually correct count until combat or repair automation exists, while capacity remains sourced separately.",
       "evidenceIds": "E-680-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
