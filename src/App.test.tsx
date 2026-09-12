@@ -423,9 +423,33 @@ describe('App', () => {
     act(() => handlers?.onRoleBrief?.(nextBrief));
     expect(useSessionStore.getState().roleBrief).toBeNull();
 
-    act(() => handlers?.onPlayer({ ...oldPlayer, assignedRoleId: 'icebreaker-miner' }));
-    expect(useSessionStore.getState().roleBrief).toBeNull();
+    act(() => handlers?.onPlayer(nextPlayer));
+    expect(useSessionStore.getState().roleBrief).toEqual(nextBrief);
+  });
 
+  it('drops a buffered brief when the player projection changes again first', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const oldPlayer: Player = { ...player, assignedRoleId: 'admiral' };
+    const nextPlayer: Player = { ...player, assignedRoleId: 'executive-officer' };
+    const nextBrief: RoleBrief = {
+      assignmentUid: 'u1',
+      roleId: 'executive-officer',
+      roleName: 'Executive Officer',
+      vesselName: 'AEGIS',
+      text: 'Run AEGIS maintenance.',
+      commonRules: 'Follow the common rules.',
+      setupRevision: 2,
+    };
+    useSessionStore.getState().setIdentity(session, oldPlayer);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onRoleBrief?.(nextBrief));
+    act(() => handlers?.onPlayer({ ...oldPlayer, assignedRoleId: 'icebreaker-miner' }));
     act(() => handlers?.onPlayer(nextPlayer));
     expect(useSessionStore.getState().roleBrief).toBeNull();
 
