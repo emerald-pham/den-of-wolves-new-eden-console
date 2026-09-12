@@ -86,13 +86,6 @@
       "type": "sequence / release-boundary"
     },
     {
-      "direction": "425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645",
-      "id": "E-WOLF",
-      "language": "Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645.",
-      "source": "IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding",
-      "type": "sequence"
-    },
-    {
       "direction": "351, 353-360 -> 433a",
       "id": "E-433A",
       "language": "Prompts 351 and 353-360 consume the stable 433a contract only after it exists.",
@@ -2690,13 +2683,6 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "428 -> 425;426",
-      "id": "E-AUDIT-428",
-      "language": "Combat math consumes Wolf catalog and composition.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
-      "type": "hard_prompt"
-    },
-    {
       "direction": "429 -> 425;428",
       "id": "E-AUDIT-429",
       "language": "Targeting consumes Wolf catalog and centralized combat math.",
@@ -4522,6 +4508,27 @@
       "language": "Fifteen existing focused unit tests passed at integration base 6a4a581, whose affected code is identical to this documentation candidate: poisoned nested projection fields are stripped; crew and held roles stay scoped; observer route denies non-GMs; observer read/write toggles and reset are verified. Existing protected-path rules deny all client serverState access and unassigned loyalty reads, including GM; the unchanged rules and rule tests already passed all 68 checks in the prepared 0.3.69 integration. Documentation reconciliation only, no new runtime or deployment claim.",
       "source": "src/lib/shipStateProjection.ts and .test.ts; src/routes/ShipConsole.tsx and .test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645",
+      "id": "E-WOLF",
+      "language": "Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645.",
+      "source": "IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding",
+      "type": "sequence"
+    },
+    {
+      "direction": "428 -> 425;426",
+      "id": "E-AUDIT-428",
+      "language": "Combat math consumes Wolf catalog and composition.",
+      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "428 -> 432",
+      "id": "E-428-COMBAT-MATH",
+      "language": "The server-only Wolf calculation contract generates final targeting dice, applies Commander rerolls and target shifts before the single Command and Control redirect, rolls all range dice before assignments, validates fighter-first Short Range and Battlestation immunity, resolves catalog destruction/survival effects and base boarding defence, then reuses the existing damage deck and survivor track for fleet damage and casualties. A typed calculation receipt records server time, the configured phase deadline/overrun, modifier order, every sample, damage draw and casualty. P427 staged target assignments are deliberately not consumed as final outcomes. The later declaration callable must load authoritative session/preparation state and persist this receipt under commandReceipts; no declaration endpoint or invented per-step deadline is included here.",
+      "source": "functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfAttackComposition.ts; functions/src/wolfShipCatalog.ts; functions/src/shipDamage.ts; functions/src/shipPopulation.ts; functions/src/turnZero.ts; authorized routed Wolf Attack derivative (primary Wolf PDF unavailable in current archive)",
+      "type": "evidence / partial / related/consumes"
     }
   ],
   "plan": {
@@ -15389,8 +15396,8 @@
         "acceptance": "target selection, dice, modifier order, phase deadlines, damage, and casualties are server-generated/validated, recorded in a calculation receipt, and impossible to submit as outcomes.",
         "title": "Centralize combat math and randomness."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-428",
+      "description": "Implemented the server-only Wolf combat calculation contract. Final targeting rolls one bounded server die per card, applies Commander rerolls and target shifts before the one Command and Control redirect, and never consumes P427 private staged target assignments. Range dice are generated before assignments, Short Range fighter priority and Battlestation immunity are validated, catalog destruction/survival effects and boarding defence are resolved, and the existing damage deck plus survivor track produce fleet damage/casualty draws. Every server sample, modifier order, phase deadline/overrun marker, damage draw, and casualty is returned in one typed calculation receipt. A deployed callable still needs to load server session/preparation state and persist this receipt under commandReceipts at the later attack declaration boundary (Prompt 432); this candidate deliberately does not duplicate P427 ownership or invent that declaration policy.",
+      "evidenceIds": "E-WOLF;E-AUDIT-428;E-428-COMBAT-MATH",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "425;426",
@@ -15401,7 +15408,7 @@
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

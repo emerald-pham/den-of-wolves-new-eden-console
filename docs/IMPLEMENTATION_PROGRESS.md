@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **197 / 747 prompts complete (26.37%)**
 
-Status breakdown: **197 done · 15 partial · 535 missing**.
+Status breakdown: **197 done · 16 partial · 534 missing**.
 
 Active prompt: **none**
 
@@ -876,7 +876,7 @@ release classification and evidence.
 | 425 | done | non-feature | — | Implemented a typed server-safe catalog for the six routed Wolf ship cards. Each Fighter Wing, Assault Transport, Destroyer, Cruiser, Fleet Strikecarrier, and Battlestation entry declares its printed capacity, all three range-specific destruction outcomes, survival effect, and return rule; Battlestation short range is an explicit damage immunity. Focused invariants cover the complete card set, capacities, every range, survival effects, return rules, and unknown IDs. The authorized routed Wolf Attack derivative supplies the explicit card facts, while the current archive lacks the Wolf primary PDF; no primary-PDF visual verification is claimed. This data-only slice does not add attack resolution, targeting, GM controls, lifecycle behavior, or player-facing flow. |
 | 426 | done | non-feature | — | Server-side scheduled-attack composition rules now build the exact first-turn roster of ten fighter wings and five assault transports, and validate later scheduled rosters against inclusive 15–24 damage capacity using the canonical Wolf ship catalog. Unknown cards, invalid turns, wrong first-turn substitutions and out-of-range totals are rejected; returned rosters and counts are immutable snapshots. This is the composition policy layer for private GM staging in Prompt 427, not a new public submission or attack-declaration endpoint. Encounter-triggered compositions and the Commander attack dial remain their separately planned contracts. |
 | 427 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 428 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 428 | partial | non-feature | — | Implemented the server-only Wolf combat calculation contract. Final targeting rolls one bounded server die per card, applies Commander rerolls and target shifts before the one Command and Control redirect, and never consumes P427 private staged target assignments. Range dice are generated before assignments, Short Range fighter priority and Battlestation immunity are validated, catalog destruction/survival effects and boarding defence are resolved, and the existing damage deck plus survivor track produce fleet damage/casualty draws. Every server sample, modifier order, phase deadline/overrun marker, damage draw, and casualty is returned in one typed calculation receipt. A deployed callable still needs to load server session/preparation state and persist this receipt under commandReceipts at the later attack declaration boundary (Prompt 432); this candidate deliberately does not duplicate P427 ownership or invent that declaration policy. |
 | 429 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 430 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 431 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
