@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['255', '256'],
+    implementationProgress: {
+      completed: 182,
+      total: 747,
+      percentage: '24.36%',
+      done: 182,
+      partial: 10,
+      active: 0,
+      missing: 555,
+    },
+    changes: [
+      'Capybara crews can now run Advanced Hydroponics and Water Production with optional Scrap boosts, protected by the same charge, damage, upgrade, retry, and authority rules as the rest of maintenance. 182 of 747 planned items are complete (24.36%).',
+    ],
+  },
+  {
+    version: '0.3.67',
     implementationPrompts: ['167'],
     implementationProgress: {
       completed: 180,

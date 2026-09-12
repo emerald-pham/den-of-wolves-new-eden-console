@@ -1563,6 +1563,20 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "255 -> 253;122;125",
+      "id": "E-255-VERIFIED",
+      "language": "Capybara Advanced Hydroponics is now a server-authoritative step-6 production action: it consumes two water for six food, optionally spends one Scrap for six additional food, applies the upgrade yield once, rejects uncharged or damaged consoles, and preserves charge, revision, owner, phase, CAS, and exact replay behavior. The productionScrap choice is included in the callable allowlist and request fingerprint, and Skip consumes only the selected console charge without spending Scrap.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/index.ts; src/lib/maintenanceService.ts; src/lib/maintenanceService.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; focused Functions and unit tests; Terra review of d80c6ae84e6c8460440b86a17b68d65f6ca4beef; /tmp/p255-render-evidence.txt; /tmp/p255-render/capybara-captain-production-production-320x844.png; /tmp/p255-render/capybara-captain-production-production-1440x900.png; /tmp/p255-render/capybara-captain-production-production-844x390.png",
+      "type": "evidence"
+    },
+    {
+      "direction": "256 -> 253;122;125",
+      "id": "E-256-VERIFIED",
+      "language": "Capybara Water Production is now a server-authoritative step-6 production action: it generates six water, optionally spends one Scrap for six additional water, applies the upgrade yield once, rejects uncharged or damaged consoles, and preserves charge, revision, owner, phase, CAS, and exact replay behavior. The productionScrap choice is included in the callable allowlist and request fingerprint, and Skip consumes only the selected console charge without spending Scrap.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/index.ts; src/lib/maintenanceService.ts; src/lib/maintenanceService.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; focused Functions and unit tests; Terra review of d80c6ae84e6c8460440b86a17b68d65f6ca4beef; /tmp/p255-render-evidence.txt; /tmp/p255-render/capybara-captain-production-production-320x844.png; /tmp/p255-render/capybara-captain-production-production-1440x900.png; /tmp/p255-render/capybara-captain-production-production-844x390.png",
+      "type": "evidence"
+    },
+    {
       "direction": "257 -> 253;122;125",
       "id": "E-AUDIT-257",
       "language": "Expansion consoles consume expansion identity and Reactor eligibility.",
@@ -11086,8 +11100,8 @@
         "acceptance": "two water makes six food, optional one Scrap adds six, and upgrade/damage states apply once.",
         "title": "Resolve Capybara Advanced Hydroponics."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-255",
+      "description": "Capybara Advanced Hydroponics is a server-authoritative step-6 production action that consumes two water for six food, optionally spends one Scrap for six additional food, applies the upgrade yield once, and rejects uncharged or damaged consoles. Request fingerprints include the Scrap choice for exact replay, and Skip consumes only the selected console charge. Focused callable, maintenance, client-service, and rendered console evidence covers resource, charge, damage, owner, phase, CAS, and retry behavior.",
+      "evidenceIds": "E-255-VERIFIED;E-AUDIT-255",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;122;125",
@@ -11095,10 +11109,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.68"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11109,8 +11125,8 @@
         "acceptance": "six water plus an optional six for one Scrap is transactional and unavailable when uncharged or damaged.",
         "title": "Resolve Capybara Water Production."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-256",
+      "description": "Capybara Water Production is a server-authoritative step-6 production action that generates six water, optionally spends one Scrap for six additional water, applies the upgrade yield once, and rejects uncharged or damaged consoles. Request fingerprints include the Scrap choice for exact replay, and Skip consumes only the selected console charge. Focused callable, maintenance, client-service, and rendered console evidence covers resource, charge, damage, owner, phase, CAS, and retry behavior.",
+      "evidenceIds": "E-256-VERIFIED;E-AUDIT-256",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;122;125",
@@ -11118,10 +11134,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.68"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

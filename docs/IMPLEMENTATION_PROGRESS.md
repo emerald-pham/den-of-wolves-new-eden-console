@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**180 / 747 prompts complete (24.10%)**
+**182 / 747 prompts complete (24.36%)**
 
-Status breakdown: **180 done · 10 partial · 557 missing**.
+Status breakdown: **182 done · 10 partial · 555 missing**.
 
 Active prompt: **none**
 
@@ -694,8 +694,8 @@ release classification and evidence.
 | 252 | done | non-feature | 0.3.62 | Production setup and server projections already enforce immutable base, expansion, and none modes, the exact owner-revised 8–20 roster (19/20 add the full expansion Capybara pair), active-vessel filtering for session state, resources, damage, targeting, and callable authority, and rejection of unsupported lower-count Capybara substitutions. This release repairs the client selectors and projections to consume canonical activeVesselIds, including explicit empty or malformed-present values, while role inference remains limited to absent legacy snapshots. Base/none sessions no longer surface full Capybara in the FleetRoster, GM DRADIS/starmap/resource controls, ShipPlot, or direct ship routes; 19/20 expansion sessions retain it. Press, multiple GM instances, and the separate capybara-small path remain orthogonal. Focused client and session-boundary tests plus local responsive/reduced-motion/keyboard evidence cover the repaired boundary. |
 | 253 | done | non-feature | — | The existing expansion Capybara full-ship definition already emits the complete printed identity: 20,000 survivors, three Reactor charges, maintenance steps 1–6, jump costs 3/6/12, and the independent ration and population tracks. Focused client definition and rendered-console checks verify those values at phone, desktop, and short-landscape sizes with reduced motion and no horizontal overflow. This closes the identity evidence without a runtime change or a claim for unresolved lower-count Capybara substitutions. |
 | 254 | done | non-feature | — | The existing shared maintenance and jump paths already implement Capybara Storage and Reactor behavior. Focused tests verify floor-rounded losses for every applicable store and docked cargo, nominal three-console charging, damaged and upgraded capacity boundaries, the damaged Jump Drive exception, and 3/6/12 jump costs. This closes the existing production-path evidence without a runtime change or release. |
-| 255 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 256 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 255 | done | non-feature | 0.3.68 | Capybara Advanced Hydroponics is a server-authoritative step-6 production action that consumes two water for six food, optionally spends one Scrap for six additional food, applies the upgrade yield once, and rejects uncharged or damaged consoles. Request fingerprints include the Scrap choice for exact replay, and Skip consumes only the selected console charge. Focused callable, maintenance, client-service, and rendered console evidence covers resource, charge, damage, owner, phase, CAS, and retry behavior. |
+| 256 | done | non-feature | 0.3.68 | Capybara Water Production is a server-authoritative step-6 production action that generates six water, optionally spends one Scrap for six additional water, applies the upgrade yield once, and rejects uncharged or damaged consoles. Request fingerprints include the Scrap choice for exact replay, and Skip consumes only the selected console charge. Focused callable, maintenance, client-service, and rendered console evidence covers resource, charge, damage, owner, phase, CAS, and retry behavior. |
 | 257 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 258 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 259 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
