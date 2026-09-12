@@ -81,6 +81,7 @@ import {
   requireAndroidDisclosureRequest,
   requireFacilitatorResponsibilityRequest,
   requireGameStartRequest,
+  requireAwayMissionCardDealRequest,
   requireSessionSeatRequest,
   requireUid,
   requireSetupConfirmationRequest,
@@ -208,6 +209,13 @@ import {
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import type { LifecyclePhase } from './lifecycle';
+import {
+  allocateMissionCards,
+  awayMissionCraftForRole,
+  awayMissionHandId,
+  missionDeckDealtCount,
+  type AwayMissionParticipantSnapshot,
+} from './awayMissionCards';
 import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
 import {
   commandReceiptDisposition,
@@ -3073,6 +3081,235 @@ export const startGame = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     }));
     return result;
+  });
+});
+
+type AwayMissionDealReply = Readonly<{
+  status: 'committed' | 'replayed' | 'stale';
+  sessionId: string;
+  requestId: string;
+  missionId: string;
+  participantCount: number;
+  expectedSetupRevision: number;
+  currentSetupRevision?: number;
+}>;
+
+function isAwayMissionDealReply(value: unknown, sessionId: string): value is AwayMissionDealReply {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const reply = value as Record<string, unknown>;
+  return reply.sessionId === sessionId &&
+    (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
+    typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
+    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) > 0 &&
+    Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
+    (reply.currentSetupRevision === undefined ||
+      (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
+}
+
+/** Deal one private initial card to an explicitly selected away-mission roster. */
+export const dealPrivateInitialCards = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  missionId?: unknown;
+  participantUids?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = requireAwayMissionCardDealRequest(request.data ?? {});
+  const markerRef = commandReceiptRef(command.sessionId, command.requestId);
+  const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-cards-dealt-${command.requestId}`);
+  const playersRef = db.collection(`sessions/${command.sessionId}/players`);
+  const craftOwnershipManifestRef = db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`);
+  const missionDeckRef = db.doc(`sessions/${command.sessionId}/serverState/missionDeck`);
+  const missionRef = db.doc(
+    `sessions/${command.sessionId}/serverState/awayMissions/instances/${command.missionId}`,
+  );
+  const markerFingerprint: CommandFingerprint = {
+    action: 'deal-private-initial-cards',
+    sessionId: command.sessionId,
+    requestId: command.requestId,
+    actorUid: uid,
+    instanceId: command.instanceId,
+    expectedRevision: command.expectedSetupRevision,
+    payload: {
+      missionId: command.missionId,
+      participantUids: command.participantUids,
+    },
+  };
+
+  return db.runTransaction(async (tx) => {
+    const [marker, authority, players, craftOwnershipManifest, missionDeckSnapshot, missionSnapshot, eventSnapshot] =
+      await Promise.all([
+        tx.get(markerRef),
+        requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+        tx.get(playersRef),
+        tx.get(craftOwnershipManifestRef),
+        tx.get(missionDeckRef),
+        tx.get(missionRef),
+        tx.get(eventRef),
+      ]);
+    await rejectForeignLegacyM1Command(
+      tx,
+      command.sessionId,
+      command.requestId,
+      'away-mission-deal',
+      [eventRef.path],
+    );
+    if (!marker.exists && eventSnapshot.exists) rejectLegacyEventReplay('away-mission-deal');
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'away-mission-deal')) {
+      const result = marker.get('result');
+      if (!isAwayMissionDealReply(result, command.sessionId)) {
+        throw commandError('failed-precondition', 'This away-mission deal has no replayable result.', 'conflict');
+      }
+      return { ...result, status: 'replayed' as const };
+    }
+
+    const currentSetupRevision = setupRevision(authority.session);
+    if (currentSetupRevision !== command.expectedSetupRevision) {
+      const reply: AwayMissionDealReply = {
+        status: 'stale',
+        sessionId: command.sessionId,
+        requestId: command.requestId,
+        missionId: command.missionId,
+        participantCount: command.participantUids.length,
+        expectedSetupRevision: command.expectedSetupRevision,
+        currentSetupRevision,
+      };
+      tx.set(markerRef, {
+        fingerprint: markerFingerprint,
+        result: reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
+    }
+    if (authority.session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission cards require an active game.',
+        'invalid-phase',
+      );
+    }
+    const activeRoleIds = sessionActiveRoleIds(authority.session);
+    const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
+    const expectedCraftManifest = roleOwnedCraftManifestForSetup(
+      lockedSetup.activeRoleIds,
+      vesselModeForConfiguration(lockedSetup),
+    );
+    if (!craftOwnershipManifest.exists ||
+        !roleOwnedCraftManifestMatches(craftOwnershipManifest.data(), expectedCraftManifest)) {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission deal blocked: craft-ownership.',
+        'conflict',
+      );
+    }
+
+    if (missionSnapshot.exists) {
+      throw commandError(
+        'failed-precondition',
+        'That away-mission identity already has a dealt hand.',
+        'conflict',
+      );
+    }
+
+    const playersByUid = new Map(players.docs.map((player) => [player.id, player]));
+    const participants: AwayMissionParticipantSnapshot[] = [];
+    for (const participantUid of command.participantUids) {
+      const player = playersByUid.get(participantUid);
+      const roleId = player?.get('assignedRoleId');
+      const sourceCraftIds = typeof roleId === 'string' ? awayMissionCraftForRole(roleId) : [];
+      const manifestCraftIds = typeof roleId === 'string'
+        ? expectedCraftManifest.roleOwnedCraft
+          .filter((craft) => craft.ownerRoleId === roleId)
+          .map((craft) => craft.id)
+        : [];
+      if (!player || !isActivePlayer(player) || player.get('role') !== 'player' ||
+          typeof roleId !== 'string' || !activeRoleIds.includes(roleId) ||
+          sourceCraftIds.length === 0 ||
+          sourceCraftIds.some((craftId) => !manifestCraftIds.includes(craftId))) {
+        throw commandError(
+          'failed-precondition',
+          `Selected participant ${participantUid} is not an eligible away-mission craft owner.`,
+          'conflict',
+        );
+      }
+      participants.push({
+        uid: participantUid,
+        roleId,
+        craftIds: [...sourceCraftIds],
+      });
+    }
+
+    const persistedDeck = missionDeckSnapshot.exists
+      ? parseMissionDeckState(missionDeckSnapshot.data())
+      : null;
+    if (!persistedDeck) {
+      throw commandError('failed-precondition', 'Away-mission deal blocked: mission-deck.', 'conflict');
+    }
+    const dealtCount = missionDeckDealtCount(missionDeckSnapshot.data(), persistedDeck.order.length);
+    if (dealtCount === null) {
+      throw commandError('failed-precondition', 'Away-mission deal blocked: mission-deck cursor.', 'conflict');
+    }
+    const allocations = allocateMissionCards(persistedDeck, dealtCount, participants);
+    if (allocations === null) {
+      throw commandError(
+        'failed-precondition',
+        'The away-mission deck is depleted for this participant selection.',
+        'conflict',
+      );
+    }
+
+    const reply: AwayMissionDealReply = {
+      status: 'committed',
+      sessionId: command.sessionId,
+      requestId: command.requestId,
+      missionId: command.missionId,
+      participantCount: participants.length,
+      expectedSetupRevision: command.expectedSetupRevision,
+    };
+    tx.set(missionRef, {
+      schemaVersion: 1,
+      missionId: command.missionId,
+      requestId: command.requestId,
+      actorUid: uid,
+      participantSnapshots: participants,
+      handIds: participants.map((participant) => awayMissionHandId(command.missionId, participant.uid)),
+      cardIds: allocations.map(({ card }) => card.id),
+      dealtFrom: dealtCount,
+      dealtThrough: dealtCount + allocations.length,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    for (const allocation of allocations) {
+      const handId = awayMissionHandId(command.missionId, allocation.participant.uid);
+      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHands/${handId}`), {
+        type: 'away-mission-hand',
+        sessionId: command.sessionId,
+        handId,
+        missionId: command.missionId,
+        participantUid: allocation.participant.uid,
+        cardId: allocation.card.id,
+        rank: allocation.card.rank,
+        suit: allocation.card.suit,
+        value: allocation.card.value,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    tx.update(missionDeckRef, {
+      dealtCount: dealtCount + allocations.length,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'mission-cards-dealt',
+      payload: {},
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(markerRef, {
+      fingerprint: markerFingerprint,
+      result: reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });
 

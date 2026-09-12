@@ -777,6 +777,37 @@ it('keeps the authoritative mission deck server-only, including from GMs', async
   }
 });
 
+it('keeps away-mission hands private to the participant and current GMs', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `${SESSION}/awayMissionHands/mission-1-alice`), {
+      type: 'away-mission-hand',
+      sessionId: 's1',
+      missionId: 'mission-1',
+      participantUid: 'alice',
+      cardId: 'A♥',
+      rank: 'A',
+      suit: 'hearts',
+      value: 10,
+    });
+    await setDoc(doc(db, `${SESSION}/players/gm2`), {
+      uid: 'gm2', role: 'gm', connected: true,
+    });
+  });
+
+  const handPath = `${SESSION}/awayMissionHands/mission-1-alice`;
+  await assertSucceeds(getDoc(doc(as('alice'), handPath)));
+  await assertSucceeds(getDoc(doc(as('gm1'), handPath)));
+  await assertFails(getDoc(doc(as('bob'), handPath)));
+  await assertFails(getDocs(collection(as('alice'), `${SESSION}/awayMissionHands`)));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+  });
+  await assertFails(getDoc(doc(as('gm1'), handPath)));
+  await assertSucceeds(getDoc(doc(as('gm2'), handPath)));
+});
+
 describe('complete server-owned denial matrix', () => {
   it('denies direct lifecycle and retention changes from both players and GMs', async () => {
     for (const uid of ['alice', 'gm1']) {

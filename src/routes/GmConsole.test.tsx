@@ -527,16 +527,16 @@ it('shows the 3D starmap only inside the GM console and follows the organiser ch
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
+  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, chartId: 'C' });
   renderConsole();
 
   const gmMap = await screen.findByRole('region', { name: /gm starmap/i });
   expect(within(gmMap).getByRole('region', { name: '3D starmap' })).toBeInTheDocument();
   expect(within(gmMap).getByText(/FLEET FIX \/\/ 0000/i)).toBeInTheDocument();
-  expect(within(gmMap).getByRole('button', { name: 'Chart A' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(gmMap).getByText('Chart C // labelled overlay')).toBeInTheDocument();
+  expect(within(gmMap).queryByRole('group', { name: 'Organiser chart' })).not.toBeInTheDocument();
   expect(within(gmMap).getAllByRole('button', { name: /system /i })).toHaveLength(22);
 
-  await user.click(within(gmMap).getByRole('button', { name: 'Chart C' }));
-  expect(within(gmMap).getByRole('button', { name: 'Chart C' })).toHaveAttribute('aria-pressed', 'true');
   expect(within(gmMap).getByRole('button', { name: /system 8378.*deep nebula/i })).toBeInTheDocument();
 
   await user.click(within(gmMap).getByRole('button', { name: /system 8378.*deep nebula/i }));

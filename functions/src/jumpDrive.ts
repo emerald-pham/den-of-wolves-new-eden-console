@@ -1,3 +1,5 @@
+import { jumpDistanceBetween } from './starChartGraph';
+
 export const JUMP_INTEGRITY_LOCKOUT_MS = 60 * 60 * 1000;
 
 export type JumpLength = 'short' | 'medium' | 'long';
@@ -63,33 +65,6 @@ export type JumpAttemptResult =
     readonly transition: JumpTransition;
   };
 
-const PRINTED_SYSTEMS = new Set([
-  '0000', '5143', '1413', '9997', '6837', '0488', '6931', '4454',
-  '4753', '1096', '6964', '2580', '3068', '0853', '6943', '6798',
-  '8378', '1964', '1380', '1836', '0408', '4888',
-]);
-
-const STAR_CHART_CONNECTIONS: readonly (readonly [string, string])[] = [
-  ['0000', '5143'], ['0000', '1413'],
-  ['5143', '9997'], ['5143', '6837'],
-  ['1413', '6837'], ['1413', '0488'],
-  ['9997', '6931'], ['6837', '0488'], ['6837', '6931'], ['6837', '4454'],
-  ['0488', '4454'], ['6931', '4454'], ['6931', '4753'], ['6931', '1096'],
-  ['4454', '1096'], ['4454', '6964'], ['4753', '1096'], ['4753', '3068'],
-  ['4753', '2580'], ['1096', '3068'], ['1096', '0853'], ['1096', '6964'],
-  ['6964', '0853'], ['6964', '6943'], ['2580', '6798'], ['3068', '6798'],
-  ['3068', '8378'], ['3068', '0853'], ['0853', '8378'], ['0853', '1964'],
-  ['6943', '1964'], ['6798', '1380'], ['6798', '1836'], ['8378', '1836'],
-  ['8378', '0408'], ['8378', '1964'], ['1964', '0408'], ['1964', '4888'],
-  ['1380', '1836'], ['0408', '4888'],
-];
-
-const NEIGHBORS = new Map<string, string[]>();
-for (const [from, to] of STAR_CHART_CONNECTIONS) {
-  NEIGHBORS.set(from, [...(NEIGHBORS.get(from) ?? []), to]);
-  NEIGHBORS.set(to, [...(NEIGHBORS.get(to) ?? []), from]);
-}
-
 const JUMP_COSTS: Readonly<Record<string, readonly [number, number, number]>> = {
   aegis: [2, 3, 6],
   dione: [2, 4, 8],
@@ -100,27 +75,11 @@ const JUMP_COSTS: Readonly<Record<string, readonly [number, number, number]>> = 
   'refinery-124': [2, 4, 8],
 };
 
-function distanceBetween(origin: string, destination: string): number | null {
-  if (!PRINTED_SYSTEMS.has(origin) || !PRINTED_SYSTEMS.has(destination)) return null;
-  if (origin === destination) return 0;
-  const queue: Array<readonly [string, number]> = [[origin, 0]];
-  const visited = new Set([origin]);
-  while (queue.length > 0) {
-    const [coordinate, distance] = queue.shift()!;
-    for (const neighbor of NEIGHBORS.get(coordinate) ?? []) {
-      if (neighbor === destination) return distance + 1;
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        queue.push([neighbor, distance + 1]);
-      }
-    }
-  }
-  return null;
-}
-
 export function jumpLengthBetween(origin: string, destination: string): JumpLength | null {
-  const distance = distanceBetween(origin, destination);
+  const distance = jumpDistanceBetween(origin, destination);
   if (distance === null || distance === 0) return null;
+  // CORE_RULES defines edge-based lengths but leaves the numeric bands unresolved;
+  // retain the existing product policy until the printed boundary is decided.
   return distance === 1 ? 'short' : distance === 2 ? 'medium' : 'long';
 }
 

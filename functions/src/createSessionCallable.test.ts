@@ -116,6 +116,11 @@ it.each([
   const sessionWrite = mock.set.mock.calls.find(([ref]) =>
     (ref as { path: string }).path === 'sessions/generated-session',
   )?.[1] as Record<string, unknown> | undefined;
+  const expectedCoordinates = Object.fromEntries(
+    reply.session.setup.activeVesselIds.map((shipId: string) => [shipId, '0000']),
+  );
+  expect(reply.session.shipGalacticCoordinates).toEqual(expectedCoordinates);
+  expect(sessionWrite?.shipGalacticCoordinates).toEqual(expectedCoordinates);
   expect(reply.session).toMatchObject({ playerCount, expansion, capybaraEnabled });
   expect(reply.session.setup).toMatchObject({ playerCount, expansion, capybaraEnabled });
   expect(sessionWrite).toMatchObject({
@@ -820,4 +825,39 @@ it('backfills canonical metadata on a retained legacy seat without touching its 
     expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
     expect.objectContaining({ status: expect.anything(), holderUid: expect.anything() }),
   );
+});
+
+it.each(['A', 'B', 'C'] as const)('confirms chart %s through a facilitator and refuses chart changes after lock', async (chartId) => {
+  const activeRoleIds = recommendedRoleIds(8);
+  let locked = false;
+  let facilitator = true;
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot({
+      phase: locked ? 'active' : 'casting', configurationLocked: locked, setupRevision: 0,
+      playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+      dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+    });
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: facilitator ? 'gm' : 'player' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+  const command = request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `chart-${chartId}`,
+    expectedSetupRevision: 0, playerCount: 8, chartId, expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  });
+  await expect(confirmSetup.run(command)).resolves.toMatchObject({ status: 'committed' });
+  expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({ chartId, setup: expect.objectContaining({ chartId }) }));
+  mock.update.mockClear();
+  mock.set.mockClear();
+  locked = true;
+  await expect(confirmSetup.run(command)).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  locked = false;
+  facilitator = false;
+  await expect(confirmSetup.run(command)).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });

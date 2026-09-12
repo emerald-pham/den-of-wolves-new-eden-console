@@ -22,7 +22,7 @@ export default defineShuttle({
     {
       name: 'Fuelled repair',
       phase: 'Coordination',
-      effect: 'When fuelled, repair or scrap consoles on a second ship.',
+      effect: 'When fuelled, repair consoles on a second ship.',
     },
     {
       name: 'Boarding defence',

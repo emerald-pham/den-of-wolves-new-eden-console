@@ -60,3 +60,23 @@ it('keeps an enabled toggle from plotting Capybara outside the canonical expansi
   expect(within(screen.getByRole('region', { name: 'GM starmap' }))
     .queryByRole('option', { name: 'Capybara' })).not.toBeInTheDocument();
 });
+
+
+it('follows authoritative chart changes instead of keeping a local overlay selection', () => {
+  const { rerender } = render(<GmStarmapModule session={{ ...session, chartId: 'B' }} />);
+  expect(screen.getByText('Chart B // labelled overlay')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /system 6798.*active wolf fortress/i })).toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: 'Organiser chart' })).not.toBeInTheDocument();
+
+  rerender(<GmStarmapModule session={{ ...session, chartId: 'C' }} />);
+  expect(screen.getByText('Chart C // labelled overlay')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /system 6798.*ancient jump ring/i })).toBeInTheDocument();
+
+  rerender(<GmStarmapModule session={{ ...session, chartId: 'C', setup: {
+    playerCount: 8, chartId: 'B', expansion: 'base', turnLimit: 8,
+    dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false,
+    wolfCultEnabled: false, activeRoleIds: ['admiral'], activeVesselIds: ['aegis'],
+  } }} />);
+  expect(screen.getByText('Chart B // labelled overlay')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /system 6798.*active wolf fortress/i })).toBeInTheDocument();
+});

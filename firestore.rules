@@ -101,6 +101,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Away-mission hands are private projections. The participant may read
+      // only their own hand, while any currently connected GM may facilitate
+      // the mission. Checking current role here deliberately revokes a former
+      // GM and admits a newly authorized GM without a stale audience snapshot.
+      match /awayMissionHands/{handId} {
+        allow get: if isMember(sessionId)
+          && resource.data.sessionId == sessionId
+          && resource.data.participantUid is string
+          && (resource.data.participantUid == uid() || isGm(sessionId));
+        allow list, write: if false;
+      }
+
       // A role brief is a server-owned per-UID projection. The assignment on
       // the current player record is part of the read boundary, so a stale
       // former assignment cannot be hydrated after release or reassignment.

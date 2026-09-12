@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { STAR_CHART_CONNECTIONS, STAR_CHART_COORDINATES, neighborsForCoordinate } from './starChartGraph';
+import {
+  jumpDistanceBetween,
+  STAR_CHART_CONNECTIONS,
+  STAR_CHART_COORDINATES,
+  neighborsForCoordinate,
+} from './starChartGraph';
 
 it('returns exactly the source adjacency for every printed system', () => {
   const expected: Record<string, readonly string[]> = {
@@ -42,4 +47,39 @@ it('protects exported topology and returned adjacency against consumer mutation'
   expect(Reflect.set(STAR_CHART_CONNECTIONS, '0', ['0101', '0000'])).toBe(false);
   expect(Reflect.set(STAR_CHART_COORDINATES, '0', '0101')).toBe(false);
   expect(neighborsForCoordinate('0000')).toEqual(before);
+});
+
+it('matches every printed shortest route distance from the start system', () => {
+  const expectedDistances: Record<string, number> = {
+    '0000': 0,
+    '5143': 1,
+    '1413': 1,
+    '9997': 2,
+    '6837': 2,
+    '0488': 2,
+    '6931': 3,
+    '4454': 3,
+    '4753': 4,
+    '1096': 4,
+    '6964': 4,
+    '2580': 5,
+    '3068': 5,
+    '0853': 5,
+    '6943': 5,
+    '6798': 6,
+    '8378': 6,
+    '1964': 6,
+    '1380': 7,
+    '1836': 7,
+    '0408': 7,
+    '4888': 7,
+  };
+
+  expect(Object.keys(expectedDistances).sort()).toEqual([...STAR_CHART_COORDINATES].sort());
+  for (const [coordinate, distance] of Object.entries(expectedDistances)) {
+    expect(jumpDistanceBetween('0000', coordinate)).toBe(distance);
+    expect(jumpDistanceBetween(coordinate, '0000')).toBe(distance);
+  }
+  expect(jumpDistanceBetween('0101', '0000')).toBeNull();
+  expect(jumpDistanceBetween('0000', '0101')).toBeNull();
 });

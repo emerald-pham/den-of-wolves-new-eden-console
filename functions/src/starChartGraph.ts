@@ -79,3 +79,22 @@ const neighborsByCoordinate = new Map(STAR_CHART_COORDINATES.map(coordinate => [
 export function neighborsForCoordinate(coordinate: string): readonly string[] | undefined {
   return neighborsByCoordinate.get(coordinate);
 }
+
+/** Return the shortest route length in canonical chart edges, or null if either coordinate is unprinted. */
+export function jumpDistanceBetween(origin: string, destination: string): number | null {
+  if (!neighborsByCoordinate.has(origin) || !neighborsByCoordinate.has(destination)) return null;
+  if (origin === destination) return 0;
+
+  const queue: Array<readonly [string, number]> = [[origin, 0]];
+  const visited = new Set([origin]);
+  for (let index = 0; index < queue.length; index += 1) {
+    const [coordinate, distance] = queue[index]!;
+    for (const neighbor of neighborsForCoordinate(coordinate) ?? []) {
+      if (neighbor === destination) return distance + 1;
+      if (visited.has(neighbor)) continue;
+      visited.add(neighbor);
+      queue.push([neighbor, distance + 1]);
+    }
+  }
+  return null;
+}

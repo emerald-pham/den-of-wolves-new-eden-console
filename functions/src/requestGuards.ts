@@ -303,6 +303,41 @@ export function requireGameStartRequest(data: {
   };
 }
 
+export function requireAwayMissionCardDealRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  missionId?: unknown;
+  participantUids?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  missionId: string;
+  participantUids: string[];
+} {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  if (!Array.isArray(data.participantUids) || data.participantUids.length === 0 || data.participantUids.length > 33) {
+    throw new HttpsError('invalid-argument', 'participantUids must contain between 1 and 33 selected participants.');
+  }
+  const participantUids = data.participantUids.map((value) => requiredId(value, 'participantUids entry'));
+  if (new Set(participantUids).size !== participantUids.length) {
+    throw new HttpsError('invalid-argument', 'participantUids must not contain duplicates.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+    missionId: requiredId(data.missionId, 'missionId'),
+    participantUids,
+  };
+}
+
 export function requireSessionSeatRequest(data: {
   sessionId?: unknown;
   seatId?: unknown;

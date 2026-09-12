@@ -127,6 +127,34 @@ describe('fleet shuttlebays', () => {
     ]);
   });
 
+  it('keeps Condor printed recharge and full cargo distinct from Black Sheep', () => {
+    const condor = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'condor');
+    const blackSheep = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'black-sheep');
+    expect(condor).toMatchObject({
+      operator: 'Proxima',
+      captainRoleId: 'quellon-engineer',
+      cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
+      initialDocking: { shipId: 'quellon', dockedAt: 'SESSION START' },
+    });
+    expect(condor?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Recharge',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/fuelled.*charge one console.*immediate maintenance effect resolves immediately/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence',
+        phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+    ]);
+    expect(blackSheep).toMatchObject({
+      captainRoleId: 'shepherd-engineer',
+      initialDocking: { shipId: 'shepherd', dockedAt: 'SESSION START' },
+    });
+  });
+
   it('keeps Philia registration facts distinct across repair, dismantle, docking, and ownership', () => {
     const philia = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'philia');
     expect(philia).toMatchObject({
@@ -149,6 +177,33 @@ describe('fleet shuttlebays', () => {
         effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
       }),
     ]);
+  });
+
+  it('keeps Ally registration facts distinct from copied Chacau and Philia text', () => {
+    const ally = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'ally');
+    expect(ally).toMatchObject({
+      captainRoleId: 'joint-engineering-shepherd-icebreaker',
+      availability: 'gm-controlled',
+      cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
+    });
+    expect(ally?.initialDocking).toBeUndefined();
+    expect(ally?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Repair', phase: 'Coordination',
+        effect: expect.stringMatching(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i),
+      }),
+      expect.objectContaining({
+        name: 'Fuelled repair', phase: 'Coordination',
+        effect: expect.stringMatching(/fuelled.*repair consoles on a second ship/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence', phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+    ]);
+    expect(ally?.operations.find(({ name }) => name === 'Fuelled repair')?.effect)
+      .not.toMatch(/repair or scrap/i);
   });
 
   it('keeps Blacksmith registration facts distinct across repair, dismantle, docking, and ownership', () => {
@@ -176,6 +231,40 @@ describe('fleet shuttlebays', () => {
     expect(blacksmith?.operations[1]?.effect).not.toMatch(/scrap/i);
   });
 
+  it('keeps Chacau repair, permission, fuel, cargo, docking, and ownership distinct from Philia', () => {
+    const chacau = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'chacau');
+    const philia = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'philia');
+    expect(chacau).toMatchObject({
+      operator: 'Gliese',
+      captainRoleId: 'refinery-124-engineer',
+      cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
+      initialDocking: { shipId: 'refinery-124', dockedAt: 'SESSION START' },
+    });
+    expect(chacau?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Repair',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i),
+      }),
+      expect.objectContaining({
+        name: 'Fuelled repair',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/fuelled.*repair consoles on a second ship/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence',
+        phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+    ]);
+    expect(chacau?.operations[1]?.effect).not.toMatch(/scrap/i);
+    expect(philia).toMatchObject({
+      captainRoleId: 'dione-engineer',
+      initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
+    });
+  });
+
   it('keeps Black Sheep recharge attached to the Shepherd Engineer rather than Condor', () => {
     const blackSheep = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'black-sheep');
     const condor = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'condor');
@@ -200,6 +289,35 @@ describe('fleet shuttlebays', () => {
       captainRoleId: 'quellon-engineer',
       initialDocking: { shipId: 'quellon', dockedAt: 'SESSION START' },
     });
+  });
+
+  it('keeps Chepu security cargo and boarding relocation attached to the PDF Colonel', () => {
+    const chepu = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'chepu');
+
+    expect(chepu).toMatchObject({
+      operator: 'Gliese',
+      captainRoleId: 'refinery-124-pdf-colonel',
+      cargoTransferTypes: ['securityTeams'],
+      cargoTransfer: 'Security teams only',
+      initialDocking: { shipId: 'refinery-124', dockedAt: 'SESSION START' },
+    });
+    expect(chepu?.operations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'Cargo transfer',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/security teams.*to and from ships.*Chepu.*docked/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence',
+        phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+      expect.objectContaining({
+        name: 'Fuelled redeployment',
+        phase: 'Wolf attack',
+        effect: expect.stringMatching(/fuelled.*chosen ship.*start of the Boarding Action step/i),
+      }),
+    ]));
   });
 
   it('starts the independently crewed and shipboard shuttlecraft docked with their home ships', () => {

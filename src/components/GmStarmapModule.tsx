@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ORIGIN_GALACTIC_COORDINATE, SHIPS } from '@/data/ships';
 import { activeFleetShipIds } from '@/data/roles';
-import type { StarChartId } from '@/data/starChart';
 import type { GameSession } from '@/types/game';
 import { moveShipToLocation } from '@/lib/sessionService';
 import Starmap, { type StarmapFleetMarker } from './Starmap';
@@ -12,11 +11,10 @@ interface Props {
 
 /**
  * GM-only adapter for the reusable map instrument. It reads the authoritative
- * fleet coordinate snapshot but keeps chart choice and node selection local
- * until the session has an explicit shared chart-selection field.
+ * fleet coordinate snapshot and selected setup chart. Only node selection is local.
  */
 export default function GmStarmapModule({ session }: Props) {
-  const [chart, setChart] = useState<StarChartId>('A');
+  const chart = session.setup?.chartId ?? session.chartId ?? 'A';
   const [selectedCoordinate, setSelectedCoordinate] = useState(ORIGIN_GALACTIC_COORDINATE);
   const [selectedShipId, setSelectedShipId] = useState('aegis');
   const [moving, setMoving] = useState(false);
@@ -100,7 +98,6 @@ export default function GmStarmapModule({ session }: Props) {
       </div>
       <Starmap
         chart={chart}
-        onChartChange={setChart}
         selectedCoordinate={selectedCoordinate}
         onSystemSelect={setSelectedCoordinate}
         fleetMarkers={fleetMarkers}

@@ -1670,22 +1670,22 @@
     {
       "direction": "270 -> 161;162",
       "id": "E-AUDIT-270",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Condor registration preserves the Quellon Engineer owner, Quellon initial dock, full six-resource cargo, fuelled one-console recharge, and boarding support as Condor behavior distinct from the Black Sheep; route and manifest proof present configuration while later recharge and boarding engines remain separate consumers.",
+      "source": "src/data/vessels/condor.ts; src/data/vessels/black-sheep.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Condor derivative",
       "type": "hard_prompt"
     },
     {
       "direction": "271 -> 161;162",
       "id": "E-AUDIT-271",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Chacau registration preserves the Refinery 124 Engineer owner, Refinery 124 initial dock, full six-resource cargo, repair with permissioned dismantling, and fuelled second-ship repair despite copied Philia wording; route and manifest proof present configuration while repair, cargo, dismantling, recharge, and boarding engines remain separate consumers.",
+      "source": "src/data/vessels/chacau.ts; src/data/vessels/philia.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Chacau derivative",
       "type": "hard_prompt"
     },
     {
       "direction": "272 -> 161;162",
       "id": "E-AUDIT-272",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Chepu registration preserves its PDF Colonel owner, Refinery 124 dock, security-team cargo, boarding support, and fuelled Boarding Action relocation; the routed shuttle derivative leaves mission participation and numeric bonus unresolved.",
+      "source": "src/data/vessels/chepu.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Chepu derivative",
       "type": "hard_prompt"
     },
     {
@@ -1705,8 +1705,8 @@
     {
       "direction": "275 -> 161;162",
       "id": "E-AUDIT-275",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Ally registration preserves the Joint Engineering Union craft's six-resource cargo envelope, permissioned repair/dismantle, fuelled repair-only second-ship rule, boarding support, existing Shepherd/Icebreaker Union pairing, and facilitator-set initial docking; route proof presents the corrected source-aligned copy without claiming mechanic execution.",
+      "source": "src/data/vessels/ally.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/shuttlecraft.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; browser render fixture at 320x844, 1440x900, and 844x390 under reduced motion; authorized routed Ally derivative",
       "type": "hard_prompt"
     },
     {
@@ -4430,6 +4430,62 @@
       "id": "E-281-SHARED-GRAPH",
       "language": "The routed private exploration derivative adjacency table was compared against every one of the 22 systems and 40 edges. Explicit per-system tests verify complete adjacency sets, unknown/prototype-name coordinate rejection and mutation resistance. Existing client star-chart and server navigation tests pass against the shared module; Functions build and client typecheck pass. This consolidates existing topology without changing player-facing values, coordinate acceptance or authorization; no primary chart visual inspection is claimed.",
       "source": "functions/src/starChartGraph.ts; functions/src/starChartGraph.test.ts; functions/src/navigation.ts; functions/src/navigation.test.ts; src/data/starChart.ts; src/data/starChart.test.ts",
+      "type": "evidence"
+    },
+    {
+      "direction": "425 -> 426",
+      "id": "E-425-WOLF-CATALOG",
+      "language": "Prompt 425 now has a typed server-safe catalog for all six routed Wolf ship cards. Fighter Wing, Assault Transport, Destroyer, Cruiser, Fleet Strikecarrier, and Battlestation each declare capacity, all three range-specific destruction outcomes, survival effect, and return rule; Battlestation short range is represented as an explicit damage immunity. Focused catalog tests cover the six-card set, capacities, every range, survival effects, return rules, and unknown-ID rejection. The authorized routed Wolf Attack derivative provides these explicit facts, but the current archive does not contain the Wolf primary PDF, so no primary-PDF visual verification is claimed. No attack resolver, targeting priority, GM dial, lifecycle behavior, or player-facing flow is encoded.",
+      "source": "functions/src/wolfShipCatalog.ts; functions/src/wolfShipCatalog.test.ts; authorized routed Wolf Attack derivative (primary Wolf PDF unavailable in current archive)",
+      "type": "evidence"
+    },
+    {
+      "direction": "403",
+      "id": "E-403-IMPLEMENTED",
+      "language": "dealPrivateInitialCards accepts an explicit facilitator-selected participant list, validates each active player against the source-defined capable craft-role allowlist, records an immutable mission snapshot in server-only state, and atomically allocates one contiguous P402 deck card per participant. Each hand is written to a dedicated private projection readable only by its participant or a currently connected GM; former GMs, unrelated participants, client writes, public card values, and public participant snapshots remain denied. Shared command receipts make same-request retries replay without drawing again; a mission identity cannot be redealt under another request and a depleted cursor fails before writes. Focused allocation/callable coverage passes 8 tests and the Firestore rules suite passes 68 cases. The current source and product model do not define a destination/location or Mission Leader lifecycle, so P403 records the gap and defers those validations rather than claiming them.",
+      "source": "functions/src/awayMissionCards.ts; functions/src/awayMissionCards.test.ts; functions/src/index.ts (dealPrivateInitialCards); functions/src/awayMissionCallable.test.ts; functions/src/requestGuards.ts; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed away-mission derivative via the private source index",
+      "type": "evidence"
+    },
+    {
+      "direction": "416a",
+      "id": "E-416A-SOURCE-PARTIAL",
+      "language": "The typed catalog encodes Ice Asteroids B as a poor six-card mission with two opportunities: exploration 17 for 6 water, and mining 24/30 for 8 water plus a critical +1 material bonus. The routed source does not establish a B-specific trait-bonus value or score-failure consequence, so both fields remain explicit unresolved values and must fail closed in future resolution. The focused catalog suite passes 4 tests plus typecheck; no dealing, resolution, player-facing flow, or release is claimed.",
+      "source": "src/data/missionCards.ts; src/data/missionCards.test.ts",
+      "type": "evidence"
+    },
+    {
+      "direction": "416b",
+      "id": "E-416B-SOURCE-PARTIAL",
+      "language": "The typed catalog encodes Rare Element Moon C as a poor six-card mission with two opportunities: mining/exploration 20 for 2 minerals, and science 25 for the Endeavour to cross out 1 research box of the player's choice. The routed source inventory does not preserve a primary mission-card PDF, and its derivative does not establish a C-specific trait-bonus value or score-failure consequence. Those fields remain explicit unresolved gaps rather than inferred defaults, so Prompt 416b is partial; mission dealing and resolution remain deferred.",
+      "source": "src/data/missionCards.ts; src/data/missionCards.test.ts",
+      "type": "evidence"
+    },
+    {
+      "direction": "287 -> 288",
+      "id": "E-287-GRAPH-CONSOLIDATION",
+      "language": "Jump classification now consumes the canonical immutable star-chart graph rather than a duplicate server edge list. The shortest route helper is checked against all 22 printed coordinates from 0000 in both directions, and unprinted 0101 is rejected. Existing product mapping remains one edge short, two edges medium, and three or more edges long. The routed CORE_RULES source defines these lengths as jumps along chart edges but supplies no numeric short/medium/long boundaries, so Prompt 287 remains partial pending an owner decision on those cutoffs. No jump authorization, fuel profile, fleet-group state, or combat behavior changed.",
+      "source": "functions/src/starChartGraph.ts; functions/src/starChartGraph.test.ts; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; authorized routed CORE_RULES derivative via private source index (numeric length boundaries absent)",
+      "type": "evidence"
+    },
+    {
+      "direction": "282 -> 281",
+      "id": "E-282-SESSION-CHART",
+      "language": "Focused GM map and composed GM route tests verify authoritative B/C selection, updated snapshots, setup-over-legacy precedence and absence of an independent selector. Four focused existing/new callable cases cover facilitator-only A/B/C setup selection and the existing lock. Actual Chrome fixture with production starmap CSS at320x844,1440x900,844x390 under reduced motion shows Chart B, complete wrapping and no horizontal overflow; the shared44px Back to role selection link receives focus and Enter reaches its parent at every size. These are offline rendered checks, not live mutation proof. Production change is display derivation only; source chart selection remains in existing confirmSetup.",
+      "source": "src/components/GmStarmapModule.tsx; src/components/GmStarmapModule.test.tsx; src/routes/GmConsole.test.tsx; functions/src/createSessionCallable.test.ts; functions/src/index.ts (confirmSetup/requireCastingWindow); /tmp/p282-render/*.png",
+      "type": "evidence"
+    },
+    {
+      "direction": "283 -> 281;282",
+      "id": "E-283-VERIFIED",
+      "language": "All 63 labelled coordinate/chart combinations were compared against the authorized routed chart table, with full site names checked against the mission headings (including I.C.S.S. Athena Survivors). One source-derived matrix regression verifies codes, full titles, hostile L/M categories and N/O/P candidate flags; existing topology/candidate tests and start/unknown lookups also pass. This is test and catalog evidence for the existing lookup, with no new runtime, version or primary-PDF visual-inspection claim.",
+      "source": "src/data/starChart.ts (siteForCoordinate); src/data/starChart.test.ts; src/components/GmStarmapModule.tsx; authorized routed exploration source table and mission headings",
+      "type": "evidence"
+    },
+    {
+      "direction": "285 -> authoritative per-ship position",
+      "id": "E-285-POSITION",
+      "language": "Focused checks passed for all three supported session modes (base, none and Capybara), confirming exactly one 0000 starting coordinate per active vessel in both storage and response. Sequential independent relocations preserve other ships and the previous input map. The existing jump callable check proves one atomic destination and transition write with fuel/charge changes under a transaction retry. Six selected tests passed, plus Functions typecheck. The routed private exploration table identifies 0000 as START. Tests and roadmap only; no runtime, version, UI, new permission or deployment change.",
+      "source": "functions/src/index.ts; functions/src/sessionComposition.ts; functions/src/createSessionCallable.test.ts; functions/src/navigation.test.ts; functions/src/jumpCallable.test.ts",
       "type": "evidence"
     }
   ],
@@ -11451,7 +11507,7 @@
         "acceptance": "full printed cargo and fuelled recharge remain Condor behavior, not a Black Sheep alias.",
         "title": "Register Condor completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Closed as a source-aligned registration and proof update. The canonical Condor definition preserves the Quellon Engineer owner, SESSION START Quellon dock, security teams/ore/fuel/food/water/materials cargo, fuelled one-console recharge with immediate maintenance effects, and Wolf attack boarding support, distinct from Black Sheep's Shepherd ownership and dock. Focused data, server-owned-craft, manifest, and route tests verify the configuration and keyboard parent return. Routed Condor derivative evidence establishes these facts; no primary Condor PDF inspection is claimed. Later recharge and boarding execution remain owned by P386 and P462.",
       "evidenceIds": "E-AUDIT-270",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11463,7 +11519,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11474,7 +11530,7 @@
         "acceptance": "actual cargo, repair, dismantle, permission, second-ship fuel rule, owner, dock, and route survive copied Philia text.",
         "title": "Register Chacau completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Closed as a source-aligned registration and player-facing copy repair. The canonical Chacau definition preserves the Refinery 124 Engineer owner, SESSION START Refinery 124 dock, security teams/ore/fuel/food/water/materials cargo, repair of up to 2 consoles with permission-gated dismantling, fuelled repair on a second ship, and docked-ship boarding support; the fuelled procedure no longer inherits Philia's scrap wording. Focused data, server-owned-craft, manifest, route, and keyboard tests verify the distinct registration. Routed Chacau derivative evidence establishes these facts; no primary Chacau PDF inspection is claimed. Later cargo, repair, permissioned dismantling, recharge, and boarding execution remain owned by P377, P383, P385, P386, and P462.",
       "evidenceIds": "E-AUDIT-271",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11486,7 +11542,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11497,7 +11553,7 @@
         "acceptance": "security cargo, boarding support, fuelled relocation, owner, dock, mission bonuses, and route are typed.",
         "title": "Register Chepu completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical Chepu registration preserves the Refinery 124 PDF Colonel owner, SESSION START Refinery 124 dock, security-teams-only cargo, boarding support, and fuelled movement to a chosen ship at the start of Boarding Action. Focused data, server craft-ownership, manifest, and route tests verify these facts and keyboard return to the parent console. The routed REFERENCE_ONLY_SHUTTLES derivative establishes the listed cargo, boarding, relocation, owner, and dock facts, but its away-mission bonus summary does not state whether Chepu may contribute or what numeric bonus applies; no preserved Chepu primary artifact is available in the authorized source index. P272 remains partial pending an authoritative mission-participation/bonus decision; later cargo transfer, boarding, relocation, and mission engines remain separate prompts.",
       "evidenceIds": "E-AUDIT-272",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11509,7 +11565,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -11566,7 +11622,7 @@
         "acceptance": "cargo, repair, dismantle, permission, and fuel rule belong to Ally despite copied Chacau/Philia text.",
         "title": "Register J.E.U. Ally completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical J.E.U. Ally registration preserves the six-resource cargo envelope, permissioned repair/dismantle, fuelled repair on a second ship only, boarding support, existing Shepherd/Icebreaker Union pairing, and facilitator-set initial docking. The copied fuel text now reads repair-only, matching the routed source; focused shuttle data, Functions ownership, and route tests cover the corrected operation envelope and keyboard-accessible return to the J.E.U. parent. A local browser fixture at 320x844, 1440x900, and 844x390 under reduced motion showed the long Ally procedures and visible parent link contained, readable, and keyboard reachable. This is registration metadata and display only: later cargo, repair, dismantle, boarding, and fuel resolution engines remain separate prompts. The authorized routed Ally derivative establishes every accepted fact, while the private source index does not preserve an Ally primary PDF; the derivative also leaves the initial docking host facilitator-set, so no host choice is invented or claimed as primary visual verification.",
       "evidenceIds": "E-AUDIT-275",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11578,7 +11634,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11777,8 +11833,8 @@
         "acceptance": "only a facilitator chooses once before start and every later code lookup uses that chart.",
         "title": "Select and lock chart A, B, or C."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-282",
+      "description": "The GM starmap now derives its overlay from the canonical session setup chart, falling back to the legacy session chart and the established A default only when setup is absent. It no longer offers an independent local chart selector. Existing facilitator-only confirmSetup owns A/B/C choice before configuration locks; new focused tests verify each choice, rejection after lock, and non-facilitator denial. Every current labelled-map lookup follows that authoritative selection, including fresh snapshots and setup precedence. No callable authorization, setup locking or chart topology was changed.",
+      "evidenceIds": "E-282-SESSION-CHART;E-AUDIT-282",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281",
@@ -11789,7 +11845,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11800,8 +11856,8 @@
         "acceptance": "a coordinate returns the selected chart's title/code, including L/M threats and N/O/P candidates.",
         "title": "Resolve system codes by chart."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-283",
+      "description": "The existing coordinate lookup returns the correct selected-chart code and full site title for all 21 labelled systems on charts A, B and C. Source-table checks cover all 63 assignments, including L/M hostile sites and N/O/P candidates, and preserve the full Athena mission title where the chart table abbreviates it. The start and unprinted 0101 coordinate return no site. P282 supplies the authoritative session chart to the current GM lookup consumer; this closes lookup evidence without adding discovery permissions or mission execution.",
+      "evidenceIds": "E-283-VERIFIED;E-AUDIT-283",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;282",
@@ -11812,7 +11868,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11846,8 +11902,8 @@
         "acceptance": "every active ship has one authoritative arrived coordinate or explicit transition state.",
         "title": "Model per-ship position."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-285",
+      "description": "Every ship in the canonical active roster receives an explicit starting coordinate in both the stored session and creation reply. Existing authoritative relocation and jump transactions change only the selected ship position; other ships retain their own coordinates. A successful jump atomically stores its arrived destination and identified transition record alongside its resource changes. This verifies the current immediate-arrival model; the transition record is event metadata, not a separate in-transit authority state. Fleet groups and later jump eligibility rules remain separate prompts.",
+      "evidenceIds": "E-AUDIT-285;E-285-POSITION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281",
@@ -11858,7 +11914,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11892,8 +11948,8 @@
         "acceptance": "the server classifies legal routes as short, medium, or long using the selected printed topology.",
         "title": "Calculate jump distance."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-287",
+      "description": "The server jump classifier now uses the canonical immutable star-chart graph and validates shortest paths for all 22 printed coordinates from 0000 in both directions, while preserving the existing one-edge-short, two-edge-medium, three-or-more-edge-long product policy. The routed CORE_RULES source confirms edge-based measurement but gives no numeric short/medium/long boundaries, so Prompt 287 remains partial pending that owner decision. Unknown 0101 remains outside the printed graph; no jump authorization, fuel profile, fleet-group state, or combat behavior changed.",
+      "evidenceIds": "E-AUDIT-287;E-287-GRAPH-CONSOLIDATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;285",
@@ -11904,7 +11960,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14562,8 +14618,8 @@
         "acceptance": "each participant receives one card readable only by that participant and facilitators.",
         "title": "Deal private initial cards."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-403",
+      "description": "Implemented the narrow facilitator-recorded away-mission foundation. dealPrivateInitialCards validates an explicit participant UID list against the current active roster and the source-defined capable craft roles, records an immutable mission participant snapshot in server-only state, deals the next cards from the P402 deck cursor in one transaction, and writes one private hand per participant. Hand reads are limited by current connected membership plus participant identity or current GM role; client writes, public card values, and public participant snapshots remain denied. Same-request replay is deterministic, mission identities cannot be redealt under a different request, and depletion fails before writes. The routed source and current product model do not supply a server-side destination/location or Mission Leader lifecycle, so those validations remain explicitly deferred to the mission-eligibility work rather than inferred here.",
+      "evidenceIds": "E-AUDIT-403;E-403-IMPLEMENTED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "402",
@@ -14574,7 +14630,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -14884,8 +14940,8 @@
         "acceptance": "every opportunity, difficulty, critical threshold, trait bonus, failure, and reward matches the mission card.",
         "title": "Encode Ice Asteroids B."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The typed catalog now encodes Ice Asteroids B as a poor six-card mission with two opportunities: exploration 17 for 6 water, and mining 24/30 for 8 water plus a critical +1 material bonus. The authorized routed source inventory does not preserve a primary mission-card PDF, and its derivative does not establish a B-specific trait-bonus value or score-failure consequence. Those fields remain explicit unresolved gaps rather than inferred defaults, so Prompt 416a is partial; mission dealing and resolution remain deferred.",
+      "evidenceIds": "E-416A-SOURCE-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -14896,7 +14952,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -14907,8 +14963,8 @@
         "acceptance": "every opportunity, difficulty, critical threshold, trait bonus, failure, and reward matches the mission card.",
         "title": "Encode Rare Element Moon C."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The typed catalog now encodes Rare Element Moon C as a poor six-card mission with two opportunities: mining/exploration 20 for 2 minerals, and science 25 for the Endeavour to cross out 1 research box of the player's choice. The authorized routed source inventory does not preserve a primary mission-card PDF, and its derivative does not establish a C-specific trait-bonus value or score-failure consequence. Those fields remain explicit unresolved gaps rather than inferred defaults, so Prompt 416b is partial; mission dealing and resolution remain deferred.",
+      "evidenceIds": "E-416B-SOURCE-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -14919,7 +14975,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -15229,8 +15285,8 @@
         "acceptance": "Fighter Wing, Assault Transport, Destroyer, Cruiser, Strikecarrier, and Battlestation capacities/effects match every range and return rule.",
         "title": "Define the Wolf ship catalog."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF",
+      "description": "Implemented a typed server-safe catalog for the six routed Wolf ship cards. Each Fighter Wing, Assault Transport, Destroyer, Cruiser, Fleet Strikecarrier, and Battlestation entry declares its printed capacity, all three range-specific destruction outcomes, survival effect, and return rule; Battlestation short range is an explicit damage immunity. Focused invariants cover the complete card set, capacities, every range, survival effects, return rules, and unknown IDs. The authorized routed Wolf Attack derivative supplies the explicit card facts, while the current archive lacks the Wolf primary PDF; no primary-PDF visual verification is claimed. This data-only slice does not add attack resolution, targeting, GM controls, lifecycle behavior, or player-facing flow.",
+      "evidenceIds": "E-WOLF;E-425-WOLF-CATALOG",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -15241,7 +15297,7 @@
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

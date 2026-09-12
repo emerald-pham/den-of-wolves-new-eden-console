@@ -38,6 +38,11 @@ describe('role-owned craft composition', () => {
     ])).toEqual(['macaw']);
   });
 
+  it('keeps Condor owned by the Quellon Engineer', () => {
+    expect(ownedCraftIdsForRole('quellon-engineer', ['quellon-engineer']))
+      .toEqual(['condor']);
+  });
+
   it('keeps Blacksmith owned by the Icebreaker Engineer', () => {
     expect(ownedCraftIdsForRole('icebreaker-engineer', ['icebreaker-engineer']))
       .toEqual(['blacksmith']);
@@ -46,6 +51,23 @@ describe('role-owned craft composition', () => {
   it('keeps Black Sheep owned by the Shepherd Engineer', () => {
     expect(ownedCraftIdsForRole('shepherd-engineer', ['shepherd-engineer']))
       .toEqual(['black-sheep']);
+  });
+
+  it('keeps Chacau owned by the Refinery 124 Engineer', () => {
+    expect(ownedCraftIdsForRole('refinery-124-engineer', ['refinery-124-engineer']))
+      .toEqual(['chacau']);
+  });
+
+  it('keeps Chepu owned by the Refinery 124 PDF Colonel', () => {
+    expect(ownedCraftIdsForRole('refinery-124-pdf-colonel', ['refinery-124-pdf-colonel']))
+      .toEqual(['chepu', 'pdf-escort-fighter-wing']);
+  });
+
+  it('keeps Ally with the Shepherd / Icebreaker Union Engineer pairing', () => {
+    expect(ownedCraftIdsForRole(
+      'joint-engineering-shepherd-icebreaker',
+      ['joint-engineering-shepherd-icebreaker'],
+    )).toEqual(['ally']);
   });
 
   it('rejects a changed owner or mode in the persisted server manifest', () => {

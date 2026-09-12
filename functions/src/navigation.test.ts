@@ -22,6 +22,15 @@ describe('authoritative ship navigation', () => {
     });
 
     expect(result.coordinates).toEqual({ aegis: '5143', dione: '0000', shepherd: '5143' });
+    const secondMove = applyShipNavigationMove({
+      shipId: 'dione', destination: '1413',
+      now: new Date('2026-09-07T13:05:09.000Z'),
+      coordinates: result.coordinates, logs: result.logs,
+      shipNames: { aegis: 'AEGIS', dione: 'Dione', shepherd: 'Shepherd' },
+    });
+    expect(secondMove.coordinates).toEqual({ aegis: '5143', dione: '1413', shepherd: '5143' });
+    expect(result.coordinates).toEqual({ aegis: '5143', dione: '0000', shepherd: '5143' });
+
     expect(result.logs.aegis?.[0]).toMatchObject({
       type: 'self-jump', origin: '0000', destination: '5143', navigationalError: true,
       stardate: '2026.250.130409',
