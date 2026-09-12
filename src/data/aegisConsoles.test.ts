@@ -6,6 +6,7 @@ import {
   AEGIS_ROLE_CONSOLES,
   FIGHTER_WING_IDS,
 } from './aegisConsoles';
+import { EXECUTIVE_SYSTEMS } from './roleProcedures';
 import { SHUTTLECRAFT } from './shuttles';
 
 describe('AEGIS role console reference', () => {
@@ -15,6 +16,8 @@ describe('AEGIS role console reference', () => {
       'Shuttle Bay Zeta', 'Shuttle Bay Omega', 'Jump Drive', 'Construction Bay',
     ]);
     expect(JSON.stringify(AEGIS_ROLE_CONSOLES.admiral.systems)).not.toMatch(/[♥♦♣♠]|"card"/);
+    expect(AEGIS_ROLE_CONSOLES.admiral.systems.every(({ consoleMetadataKey }) =>
+      typeof consoleMetadataKey === 'string')).toBe(true);
     expect(AEGIS_ROLE_CONSOLES.admiral.jumpCosts).toEqual({ short: 2, medium: 3, long: 6 });
     expect(AEGIS_ROLE_CONSOLES.admiral.reactorCapacity).toBe(5);
     expect(AEGIS_ROLE_CONSOLES.admiral.maintenanceSteps).toHaveLength(7);
@@ -23,6 +26,13 @@ describe('AEGIS role console reference', () => {
       water: [0, 2, 3, 6],
       bonuses: [0, 3, 6, 9],
     });
+  });
+
+  it('keeps Executive Officer combat consoles linked to server metadata without card leakage', () => {
+    expect(EXECUTIVE_SYSTEMS).toHaveLength(5);
+    expect(EXECUTIVE_SYSTEMS.every(({ consoleMetadataKey }) =>
+      typeof consoleMetadataKey === 'string' && consoleMetadataKey.startsWith('aegis:'))).toBe(true);
+    expect(JSON.stringify(EXECUTIVE_SYSTEMS)).not.toMatch(/[♥♦♣♠]|"card"/);
   });
 
   it('assigns only Starlight and the two fighter wings to the Wing Commander', () => {
@@ -61,6 +71,8 @@ describe('AEGIS role console reference', () => {
       baseline: expect.stringMatching(/charged.*undamaged.*launch/i),
       damaged: expect.stringMatching(/cannot launch/i),
     });
+    expect(Object.values(AEGIS_FIGHTER_BAY_SYSTEMS).every(({ consoleMetadataKey }) =>
+      typeof consoleMetadataKey === 'string')).toBe(true);
     expect(AEGIS_FIGHTER_WING_COMBAT.mediumRange).toMatch(/targeting number.*\+1 or −1.*1 and 6/i);
     expect(AEGIS_FIGHTER_WING_COMBAT.mediumRange).toMatch(/damage on 5\+/i);
     expect(AEGIS_FIGHTER_WING_COMBAT.shortRange).toMatch(/one die per fighter.*damage on 3\+/i);

@@ -58,9 +58,9 @@ const ROLE_PROCEDURES: Readonly<Record<string, readonly RoleProcedure[]>> = {
 };
 
 export const EXECUTIVE_SYSTEMS = [
-  { id: 'command-and-control', name: 'Command and Control', effect: 'After targeting, redirect one Wolf ship to AEGIS. Upgraded: at the end of the attack, choose up to one ship to take 1 less damage. If damaged: cannot be used.' },
-  { id: 'fighter-bay-alpha', name: 'Fighter Bay Alpha', effect: 'While charged, launch a fighter wing. If damaged: cannot launch fighters.' },
-  { id: 'fighter-bay-bravo', name: 'Fighter Bay Bravo', effect: 'While charged, launch a fighter wing. If damaged: cannot launch fighters.' },
-  { id: 'missile-launchers', name: 'Missile Launchers', effect: 'Charged: long range deals 2 damage to one target; medium range rolls 4 dice, each 5+ deals 1 damage to a different target. Upgraded: +1 long-range damage and +1 medium-range die. If damaged: unusable.' },
-  { id: 'point-defence-lasers', name: 'Point Defence Lasers', effect: 'Charged: roll 2 dice at medium range, each 4+ deals 1 damage to a different target; short range rolls 2 dice, each 2+ deals 1 damage to a different target. Upgraded: +1 target. If damaged: unusable.' },
+  { id: 'command-and-control', name: 'Command and Control', effect: 'After targeting, redirect one Wolf ship to AEGIS. Upgraded: at the end of the attack, choose up to one ship to take 1 less damage. If damaged: cannot be used.', consoleMetadataKey: 'aegis:command-and-control' },
+  { id: 'fighter-bay-alpha', name: 'Fighter Bay Alpha', effect: 'While charged, launch a fighter wing. If damaged: cannot launch fighters.', consoleMetadataKey: 'aegis:fighter-bay-alpha' },
+  { id: 'fighter-bay-bravo', name: 'Fighter Bay Bravo', effect: 'While charged, launch a fighter wing. If damaged: cannot launch fighters.', consoleMetadataKey: 'aegis:fighter-bay-bravo' },
+  { id: 'missile-launchers', name: 'Missile Launchers', effect: 'Charged: long range deals 2 damage to one target; medium range rolls 4 dice, each 5+ deals 1 damage to a different target. Upgraded: +1 long-range damage and +1 medium-range die. If damaged: unusable.', consoleMetadataKey: 'aegis:missile-launchers' },
+  { id: 'point-defence-lasers', name: 'Point Defence Lasers', effect: 'Charged: roll 2 dice at medium range, each 4+ deals 1 damage to a different target; short range rolls 2 dice, each 2+ deals 1 damage to a different target. Upgraded: +1 target. If damaged: unusable.', consoleMetadataKey: 'aegis:point-defence-lasers' },
 ];

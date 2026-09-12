@@ -30,6 +30,8 @@ describe('shared vessel templates', () => {
       expect(SHIP_POPULATION_TRACKS[ship.id]).toEqual(ship.populationTrack);
       expect(SHIP_SPECIFICATIONS[ship.id]).toEqual(ship.specifications);
       expect(INITIAL_SHIP_SURVIVORS[ship.id]).toBe(ship.initialSurvivors);
+      expect(ship.systems?.every((system) =>
+        system.consoleMetadataKey === `${ship.id}:${system.id}`)).toBe(true);
     }
   });
 

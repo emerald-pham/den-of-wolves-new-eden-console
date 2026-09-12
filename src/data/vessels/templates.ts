@@ -51,6 +51,8 @@ export interface ShipSystem {
   readonly name: string;
   readonly effect: string;
   readonly timing?: 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
+  /** Stable server lookup key; card identities remain server-only. */
+  readonly consoleMetadataKey?: string;
 }
 
 export interface Ship extends ShipIdentity {
@@ -98,7 +100,15 @@ export function defineShip(
     maintenanceSteps: Array.from({ length: maintenanceStepCount }, (_, index) => index + 1) as MaintenanceStep[],
   };
   return {
-    workspace: 'scaffold', ...definition, printedStatistics,
+    workspace: 'scaffold',
+    ...definition,
+    ...(definition.systems === undefined ? {} : {
+      systems: definition.systems.map((system) => ({
+        ...system,
+        consoleMetadataKey: system.consoleMetadataKey ?? `${definition.id}:${system.id}`,
+      })),
+    }),
+    printedStatistics,
     roles: definition.roles.map((role) => ({ ...role, shipId: definition.id })),
   };
 }

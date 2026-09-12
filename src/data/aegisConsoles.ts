@@ -6,6 +6,8 @@ export interface AegisShipSystem {
   readonly baseline: string;
   readonly upgraded?: string;
   readonly damaged: string;
+  /** Stable server lookup key; card identities remain server-only. */
+  readonly consoleMetadataKey?: string;
 }
 
 export const FIGHTER_WING_IDS = [
@@ -121,6 +123,13 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   },
 ];
 
+const withConsoleMetadataKey = <T extends { readonly id: string }>(system: T) => ({
+  ...system,
+  consoleMetadataKey: `aegis:${system.id}`,
+});
+
+const ADMIRAL_SYSTEMS_WITH_METADATA: readonly AegisShipSystem[] = ADMIRAL_SYSTEMS.map(withConsoleMetadataKey);
+
 const WING_CRAFT: readonly AegisCraft[] = [
   {
     id: 'starlight',
@@ -155,7 +164,7 @@ const WING_CRAFT: readonly AegisCraft[] = [
 ];
 
 /** Shared ship-system descriptions used by the Wing Commander flight cards. */
-export const AEGIS_FIGHTER_BAY_SYSTEMS: Readonly<Record<string, AegisShipSystem>> = {
+const AEGIS_FIGHTER_BAY_SYSTEMS_SOURCE: Readonly<Record<string, AegisShipSystem>> = {
   'fighter-bay-alpha': {
     id: 'fighter-bay-alpha',
     name: 'Fighter Bay Alpha',
@@ -174,9 +183,14 @@ export const AEGIS_FIGHTER_BAY_SYSTEMS: Readonly<Record<string, AegisShipSystem>
   },
 };
 
+export const AEGIS_FIGHTER_BAY_SYSTEMS: Readonly<Record<string, AegisShipSystem>> =
+  Object.fromEntries(Object.entries(AEGIS_FIGHTER_BAY_SYSTEMS_SOURCE).map(([id, system]) => [
+    id, withConsoleMetadataKey(system),
+  ]));
+
 export const AEGIS_ROLE_CONSOLES = {
   admiral: {
-    systems: ADMIRAL_SYSTEMS,
+    systems: ADMIRAL_SYSTEMS_WITH_METADATA,
     jumpCosts: { short: 2, medium: 3, long: 6 },
     reactorCapacity: 5,
     maintenanceSteps: [
