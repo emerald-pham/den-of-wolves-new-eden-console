@@ -36,6 +36,22 @@ service cloud.firestore {
       return secretId == 'wolf-assignment' || secretId.matches('setup-receipt-.*');
     }
 
+    function isAssignedRoleBrief(sessionId, briefUid) {
+      return isMember(sessionId)
+        && briefUid == uid()
+        && resource.data.type == 'role-brief'
+        && resource.data.sessionId == sessionId
+        && resource.data.assignmentUid == uid()
+        && resource.data.visibleToUids.size() == 1
+        && resource.data.visibleToUids[0] == uid()
+        && resource.data.roleId is string
+        && resource.data.text is string
+        && resource.data.commonRules is string
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.assignedRoleId == resource.data.roleId;
+    }
+
     match /sessions/{sessionId} {
       // Joining by code goes through the callable function, so session headers
       // never need to be exposed to strangers or enumerable from the client.
@@ -83,6 +99,14 @@ service cloud.firestore {
           && uid() in resource.data.visibleToUids
           && (!isGmPrivateSecret(secretId) || isGm(sessionId));
         allow write: if false;
+      }
+
+      // A role brief is a server-owned per-UID projection. The assignment on
+      // the current player record is part of the read boundary, so a stale
+      // former assignment cannot be hydrated after release or reassignment.
+      match /roleBriefs/{briefUid} {
+        allow get: if isAssignedRoleBrief(sessionId, briefUid);
+        allow list, write: if false;
       }
 
       match /events/{eventId} {

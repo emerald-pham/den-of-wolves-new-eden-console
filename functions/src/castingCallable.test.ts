@@ -197,6 +197,13 @@ it('assigns one active role through a facilitator instance and rejects duplicate
     expect.objectContaining({ path: 'sessions/s1/players/u2' }),
     { assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: null },
   );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/roleBriefs/u2' }),
+    expect.objectContaining({
+      type: 'role-brief', assignmentUid: 'u2', visibleToUids: ['u2'],
+      roleId: 'icebreaker-miner', commonRules: expect.any(String),
+    }),
+  );
 
   mock.update.mockClear();
   mock.players = [
@@ -325,6 +332,9 @@ it('releases a role and replays a completed release request', async () => {
   );
   expect(mock.delete).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+  );
+  expect(mock.delete).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/roleBriefs/u2' }),
   );
 
   mock.update.mockClear();

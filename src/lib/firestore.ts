@@ -21,6 +21,7 @@ import type {
   PopulationAlert,
   Player,
   PrivateLoyalty,
+  RoleBrief,
   Seat,
   SessionSetup,
   SessionChartId,
@@ -130,6 +131,32 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
     kind: payload.kind,
     suspicion: payload.suspicion,
     ...(partnerUid ? { partnerUid } : {}),
+  };
+}
+
+function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const assignmentUid = parseEntityId('player', raw.assignmentUid);
+  const roleId = parseEntityId('role', raw.roleId);
+  if (
+    raw.type !== 'role-brief' || assignmentUid !== uid ||
+    raw.sessionId !== sessionId || !roleId ||
+    typeof raw.roleName !== 'string' || raw.roleName.trim().length === 0 ||
+    typeof raw.vesselName !== 'string' || raw.vesselName.trim().length === 0 ||
+    typeof raw.text !== 'string' || raw.text.trim().length === 0 ||
+    typeof raw.commonRules !== 'string' || raw.commonRules.trim().length === 0 ||
+    typeof raw.setupRevision !== 'number' ||
+    !Number.isSafeInteger(raw.setupRevision) || raw.setupRevision < 0
+  ) return null;
+  return {
+    assignmentUid,
+    roleId,
+    roleName: raw.roleName,
+    vesselName: raw.vesselName,
+    text: raw.text,
+    commonRules: raw.commonRules,
+    setupRevision: raw.setupRevision,
   };
 }
 
@@ -574,6 +601,7 @@ export interface SessionStateHandlers {
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
   readonly onPrivateLoyalty?: (loyalty: PrivateLoyalty | null) => void;
+  readonly onRoleBrief?: (brief: RoleBrief | null) => void;
   readonly onSetupReceipt?: (receipt: SetupReceipt | null) => void;
   readonly onError: () => void;
 }
@@ -649,6 +677,23 @@ export function subscribeSessionState(
       },
       onError,
     )] : []),
+    ...(handlers.onRoleBrief ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
+      (snapshot) => {
+        if (!subscribed) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onRoleBrief?.(
+          snapshot.exists() ? roleBrief(snapshot.data(), sessionId, uid) : null,
+        );
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onRoleBrief?.(null);
+        }
+        onError();
+      },
+    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -670,6 +715,7 @@ export function subscribeSessionState(
   return () => {
     subscribed = false;
     unsubscribes.forEach((unsubscribe) => unsubscribe());
+    handlers.onRoleBrief?.(null);
   };
 }
 

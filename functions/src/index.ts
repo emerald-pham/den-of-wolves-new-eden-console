@@ -119,6 +119,7 @@ import {
   vesselModeForConfiguration,
   type LoyaltyKind,
 } from './gameSetup';
+import { serializedRoleBrief } from './roleBriefs';
 import {
   INITIAL_SHIP_RESOURCES,
   canAdjustShipCounter,
@@ -2248,6 +2249,17 @@ export const startGame = onCall<{
       event: 'game-started',
     } as const;
     for (const holder of holders) {
+      const privateBrief = serializedRoleBrief(
+        start.sessionId,
+        holder.uid,
+        holder.roleId,
+        committedSetupRevision,
+        { capybaraExpansion: lockedSetup.expansion === 'capybara' },
+      );
+      if (!privateBrief) {
+        throw commandError('failed-precondition', 'Start blocked: brief-unavailable.', 'malformed-input');
+      }
+      tx.set(db.doc(`sessions/${start.sessionId}/roleBriefs/${holder.uid}`), privateBrief);
       if (loyaltySource === 'automatic-default') {
         const assignment = loyaltyAssignments[holder.uid];
         if (!assignment) throw commandError('failed-precondition', 'Start blocked: loyalties-missing-result.', 'unavailable-service');
@@ -2457,7 +2469,7 @@ export const assignRole = onCall<{
       }
     }
     const activeRoleIds = configuredRoleIds(authority.session);
-    canonicalSetupForSession(authority.session, activeRoleIds);
+    const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
     const assignments = players.docs.flatMap((member) => {
       const roleId = member.get('assignedRoleId');
       return typeof roleId === 'string' ? [{ uid: member.id, roleId }] : [];
@@ -2475,7 +2487,18 @@ export const assignRole = onCall<{
       sessionId: assignment.sessionId,
       setupRevision: setupRevision(authority.session) + 1,
     } satisfies CastingMutationResult;
+    const privateBrief = serializedRoleBrief(
+      assignment.sessionId,
+      assignment.targetUid,
+      assignment.roleId,
+      result.setupRevision,
+      { capybaraExpansion: lockedSetup.expansion === 'capybara' },
+    );
+    if (!privateBrief) {
+      throw commandError('failed-precondition', 'Role assignment rejected: brief-unavailable.', 'malformed-input');
+    }
     tx.update(target.ref, { assignedRoleId: assignment.roleId, activeConsoleRoleId: null });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/roleBriefs/${assignment.targetUid}`), privateBrief);
     tx.update(sessionRef, {
       phase: 'casting',
       setupRevision: result.setupRevision,
@@ -2509,6 +2532,7 @@ export const releaseRole = onCall<{
   const eventRef = db.doc(`sessions/${release.sessionId}/events/${release.requestId}`);
   const receiptRef = commandReceiptRef(release.sessionId, release.requestId);
   const targetSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${release.targetUid}`);
+  const targetBriefRef = db.doc(`sessions/${release.sessionId}/roleBriefs/${release.targetUid}`);
   const fingerprint: CommandFingerprint = {
     action: 'release-role',
     sessionId: release.sessionId,
@@ -2588,6 +2612,7 @@ export const releaseRole = onCall<{
     if (targetSeatRef && targetSeat?.exists && targetSeat.get('status') === 'claimed') {
       tx.update(targetSeatRef, { status: 'open', holderUid: null, claimedAt: null });
     }
+    tx.delete(targetBriefRef);
     // Role release and loyalty cleanup commit together. Reading the private
     // record above also makes a concurrent assignment retry against this
     // transaction instead of leaving a stale hidden faction behind.

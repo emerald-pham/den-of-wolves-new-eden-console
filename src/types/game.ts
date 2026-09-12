@@ -339,6 +339,17 @@ export interface PrivateLoyalty {
   readonly partnerUid?: PlayerId;
 }
 
+/** Server-owned role-private projection for the authenticated player only. */
+export interface RoleBrief {
+  readonly assignmentUid: PlayerId;
+  readonly roleId: RoleId;
+  readonly roleName: string;
+  readonly vesselName: string;
+  readonly text: string;
+  readonly commonRules: string;
+  readonly setupRevision: number;
+}
+
 export interface ShuttleDocking {
   readonly shuttleId: ShuttleId;
   readonly shipId: VesselId;

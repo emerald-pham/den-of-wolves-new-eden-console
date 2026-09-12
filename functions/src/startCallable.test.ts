@@ -255,6 +255,12 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
   expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.objectContaining({
     phase: 'active', configurationLocked: true, setupRevision: 1, pursuitGroups: { fleet: 2 },
   }));
+  expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/roleBriefs/'))).toHaveLength(8);
+  expect(mock.set.mock.calls.some(([ref, payload]) =>
+    ref.path === 'sessions/s1/roleBriefs/u2' &&
+    payload?.type === 'role-brief' && payload.assignmentUid === 'u2' &&
+    payload.visibleToUids?.length === 1 && payload.visibleToUids[0] === 'u2',
+  )).toBe(true);
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessionStartRequests/s1_start-1' }),
     expect.objectContaining({ requestId: 'start-1' }),

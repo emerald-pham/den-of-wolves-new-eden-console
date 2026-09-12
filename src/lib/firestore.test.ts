@@ -378,6 +378,48 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
   }));
 });
 
+it('hydrates only the current UID role brief and clears it when the assignment is invalidated', () => {
+  const { callbacks } = captureSessionListener();
+  const onPlayer = vi.fn();
+  const onRoleBrief = vi.fn();
+  const unsubscribe = subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer, onKicked: vi.fn(), onSeats: vi.fn(),
+    onRoleBrief, onError: vi.fn(),
+  });
+
+  callbacks[1]?.({
+    exists: () => true,
+    get: (field: string) => field === 'connected' ? true : undefined,
+    data: () => ({ role: 'player', assignedRoleId: 'admiral' }),
+  });
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'role-brief', sessionId: 's1', assignmentUid: 'u1', roleId: 'admiral',
+      roleName: 'Admiral', vesselName: 'AEGIS', text: 'Coordinate the fleet.',
+      commonRules: 'Keep this private.', setupRevision: 2,
+    }),
+  });
+  expect(onRoleBrief).toHaveBeenCalledWith(expect.objectContaining({
+    assignmentUid: 'u1', roleId: 'admiral', setupRevision: 2,
+  }));
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'role-brief', sessionId: 's1', assignmentUid: 'u2', roleId: 'admiral',
+      roleName: 'Admiral', vesselName: 'AEGIS', text: 'Foreign.',
+      commonRules: 'Keep this private.', setupRevision: 2,
+    }),
+  });
+  expect(onRoleBrief).toHaveBeenLastCalledWith(null);
+
+  unsubscribe();
+  expect(onRoleBrief).toHaveBeenLastCalledWith(null);
+});
+
 it('drops malformed player identities from private loyalty and setup receipt projections', () => {
   const { callbacks } = captureSessionListener();
   const onPrivateLoyalty = vi.fn();

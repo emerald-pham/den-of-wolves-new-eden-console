@@ -31,6 +31,7 @@ export default function RoleSelect() {
   const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const roleBrief = useSessionStore((state) => state.roleBrief);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const seats = useSessionStore((state) => state.seats);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
@@ -316,6 +317,19 @@ export default function RoleSelect() {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {me.assignedRoleId && roleBrief && roleBrief.roleId === me.assignedRoleId && (
+        <section className="role-brief-link cic-frame" aria-label="Private role brief">
+          <div>
+            <p className="eyebrow">Private assignment</p>
+            <h2>Your role brief is ready</h2>
+            <p>Read your assigned role and common rules on this device.</p>
+          </div>
+          <button className="cic-action-button" type="button" onClick={() => navigate('/brief')}>
+            Open private brief
+          </button>
         </section>
       )}
 

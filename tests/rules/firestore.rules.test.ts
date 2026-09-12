@@ -61,6 +61,7 @@ beforeEach(async () => {
       role: 'player',
       displayName: 'Alice',
       seatId: null,
+      assignedRoleId: 'admiral',
       connected: true,
     });
     await setDoc(doc(db, `${SESSION}/players/gm1`), {
@@ -112,6 +113,30 @@ beforeEach(async () => {
       visibleToUids: ['gm1'],
       payload: { type: 'setup-receipt', source: 'routine-start' },
     });
+    await setDoc(doc(db, `${SESSION}/roleBriefs/alice`), {
+      type: 'role-brief',
+      sessionId: 's1',
+      assignmentUid: 'alice',
+      visibleToUids: ['alice'],
+      roleId: 'admiral',
+      roleName: 'Admiral',
+      vesselName: 'AEGIS',
+      text: 'Coordinate AEGIS.',
+      commonRules: 'Keep this private.',
+      setupRevision: 1,
+    });
+    await setDoc(doc(db, `${SESSION}/roleBriefs/bob`), {
+      type: 'role-brief',
+      sessionId: 's1',
+      assignmentUid: 'bob',
+      visibleToUids: ['bob'],
+      roleId: 'icebreaker-miner',
+      roleName: 'Miner',
+      vesselName: 'Icebreaker',
+      text: 'Mine materials.',
+      commonRules: 'Keep this private.',
+      setupRevision: 1,
+    });
     await setDoc(doc(db, `${SESSION}/damageDraws/draw1`), {
       shipId: 'aegis',
       card: '10♥',
@@ -123,6 +148,24 @@ beforeEach(async () => {
 });
 
 const as = (uid: string) => env.authenticatedContext(uid).firestore();
+
+describe('role-private brief boundary', () => {
+  it('lets a player read only their current assigned brief', async () => {
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/bob`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/roleBriefs/alice`)));
+    await assertFails(getDoc(doc(as('observer'), `${SESSION}/roleBriefs/alice`)));
+    await assertFails(getDoc(doc(as('stranger'), `${SESSION}/roleBriefs/alice`)));
+  });
+
+  it('denies listing and every client write for role briefs', async () => {
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/roleBriefs`)));
+    const own = doc(as('alice'), `${SESSION}/roleBriefs/alice`);
+    await assertFails(setDoc(own, { type: 'role-brief' }));
+    await assertFails(updateDoc(own, { text: 'forged' }));
+    await assertFails(deleteDoc(own));
+  });
+});
 
 describe('session header', () => {
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {

@@ -31,6 +31,7 @@ import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPre
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
+import RoleBrief from '@/routes/RoleBrief';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -85,10 +86,28 @@ function AppRoutes() {
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           store.setConnection(fresh ? 'live' : 'offline');
         },
-        onPlayer: (next) => useSessionStore.getState().setMe(next),
+        onPlayer: (next) => {
+          const store = useSessionStore.getState();
+          store.setMe(next);
+          const currentBrief = store.roleBrief;
+          if (
+            !next.assignedRoleId ||
+            (currentBrief && currentBrief.roleId !== next.assignedRoleId)
+          ) {
+            store.setRoleBrief(null);
+          }
+        },
         onKicked: () => useSessionStore.getState().disconnect(),
         onSeats: (next) => useSessionStore.getState().setSeats(next),
         onPrivateLoyalty: (next) => useSessionStore.getState().setPrivateLoyalty(next),
+        onRoleBrief: (next) => {
+          const store = useSessionStore.getState();
+          store.setRoleBrief(
+            next && store.me?.uid === next.assignmentUid && store.me.assignedRoleId === next.roleId
+              ? next
+              : null,
+          );
+        },
         onSetupReceipt: (next) => useSessionStore.getState().setGmSetupReceipt(next),
         onError: () => useSessionStore.getState().setConnection('offline'),
       });
@@ -149,6 +168,7 @@ function AppRoutes() {
             <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
+              <Route path="/brief" element={<RoleBrief />} />
               <Route path="/gm" element={<GmConsole />} />
               <Route path="/console" element={<SessionMode mode="console" />} />
               <Route path="/press" element={<SessionMode mode="press" />} />

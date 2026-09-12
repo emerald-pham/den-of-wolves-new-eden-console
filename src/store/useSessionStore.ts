@@ -6,6 +6,7 @@ import type {
   GmInstance,
   Player,
   PrivateLoyalty,
+  RoleBrief,
   Seat,
   SetupReceipt,
   TurnStartReplay,
@@ -266,6 +267,7 @@ interface SessionState {
   gmAccessAuthenticatedAt: number | null;
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
+  roleBrief: RoleBrief | null;
   gmSetupReceipt: SetupReceipt | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
@@ -283,6 +285,7 @@ interface SessionState {
   clearGmAccess: () => void;
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
   setPrivateLoyalty: (loyalty: PrivateLoyalty | null) => void;
+  setRoleBrief: (brief: RoleBrief | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
@@ -303,6 +306,7 @@ const initial = {
   gmAccessAuthenticatedAt: null,
   turnStartReplay: null,
   privateLoyalty: null,
+  roleBrief: null,
   gmSetupReceipt: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
@@ -313,7 +317,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -337,7 +341,7 @@ export const useSessionStore = create<SessionState>()(
     (set, get) => ({
       ...initial,
       setSession: (session) => set({ session }),
-      setIdentity: (session, me) => set({ session, me }),
+      setIdentity: (session, me) => set({ session, me, roleBrief: null }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
@@ -347,6 +351,7 @@ export const useSessionStore = create<SessionState>()(
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
       setPrivateLoyalty: (privateLoyalty) => set({ privateLoyalty }),
+      setRoleBrief: (roleBrief) => set({ roleBrief }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
@@ -371,6 +376,7 @@ export const useSessionStore = create<SessionState>()(
           gmInstance: null,
           turnStartReplay: null,
           privateLoyalty: null,
+          roleBrief: null,
           gmSetupReceipt: null,
           mode: null,
           lastRoute: null,
