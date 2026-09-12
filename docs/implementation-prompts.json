@@ -17196,6 +17196,52 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "PROVE"
+    },
+    {
+      "changeClass": "non-feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "when Write Mode is off, its control is rendered as a shared button whose visual treatment and interaction match the rest of the UI, while preserving the existing write-mode permission and toggle guards, truthful off/on state, accessible name and pressed semantics, visible keyboard focus, minimum touch target, responsive layout, and reduced-motion behavior where applicable. Do not change authorization or write-mode policy.",
+        "title": "Render Write Mode Off as a shared button."
+      },
+      "description": "Planned [POLISH] prompt: make the Write Mode Off control use the shared button visual and interaction language while preserving current guards, accessible state, responsive behavior, and authorization.",
+      "evidenceIds": "none",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "668",
+      "milestoneHints": "none",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
+    },
+    {
+      "changeClass": "non-feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "within the GM console only, make the DRADIS console visually and interactively match the current non-GM ship-console DRADIS accepted reference, reusing shared components or configuration where practical. Preserve every non-GM ship-console DRADIS appearance, behavior, accessibility, responsive layout, reduced-motion behavior, and server authority contract with regression proof; do not change non-GM DRADIS, authorization, or unrelated GM-console surfaces, and do not perform a broad DRADIS refactor.",
+        "title": "Align the GM DRADIS console with ship-console DRADIS."
+      },
+      "description": "Planned [POLISH] prompt: bring the GM DRADIS console to visual and interaction parity with the current ship-console DRADIS reference, with regression proof for all non-GM DRADIS behavior and authority and no broader refactor.",
+      "evidenceIds": "none",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "669",
+      "milestoneHints": "none",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
     }
   ],
   "retiredPromptIds": [

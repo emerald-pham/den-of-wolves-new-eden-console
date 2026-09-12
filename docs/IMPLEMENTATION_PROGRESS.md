@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 734 prompts complete (14.03%)**
+**103 / 736 prompts complete (13.99%)**
 
-Status breakdown: **103 done · 17 partial · 614 missing**.
+Status breakdown: **103 done · 17 partial · 616 missing**.
 
 Active prompt: **none**
 
@@ -1144,6 +1144,8 @@ release classification and evidence.
 | 665 | done | non-feature | — | Completed as non-feature coordination governance: durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, role-specific model floors, and reconciled exact-SHA release evidence recorded by the coordination gate. |
 | 666 | done | non-feature | — | Completed [EXTEND] tooling provides the shared compact/full/JSON dispatcher, full parity/cycle/typed-evidence/readiness validation, authority/main/milestone/evidence and relevant-coordination fingerprints, atomic ignored receipt integrity, begin/amend/validate gates, exact P012/P014 legacy refresh, CI/guidance drift checks, and a repeatable `npm run coordination:dependencies:measure -- --entry <id>` fixture. Strict issuance uses a worktree-only random nonce with a ledger commitment and exact digest; authoritative validation consumes it once for the canonical partial-to-done transition, preserves the predecessor lineage without the nonce, and rejects deletion, post-done recreation, replay, mismatch, half-write, or repeat consumption. Current measured content is 24 lines / 2,541 bytes versus 670 lines / 51,297 bytes for the complete view; a representative 25-iteration run took 0.159 ms compact versus 3.498 ms full wall time. |
 | 667 | missing | non-feature | — | Planned [PROVE] security-governance prompt: codify trusted contributors but untrusted-until-reviewed output, retain mandatory independent review, inventory and map the existing Firebase Hosting CDN, reCAPTCHA Enterprise App Check, Firestore enforcement, callable instance cap, and join-code/throttle controls, and route any demonstrated runtime gap to a separately registered feature rather than duplicate or speculative security expansion. |
+| 668 | missing | non-feature | — | Planned [POLISH] prompt: make the Write Mode Off control use the shared button visual and interaction language while preserving current guards, accessible state, responsive behavior, and authorization. |
+| 669 | missing | non-feature | — | Planned [POLISH] prompt: bring the GM DRADIS console to visual and interaction parity with the current ship-console DRADIS reference, with regression proof for all non-GM DRADIS behavior and authority and no broader refactor. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

@@ -829,6 +829,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable and machine-checked across coordination lifecycle. |
 | 666 | EXTEND | done | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
 | 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Runtime threat-model rebaseline: session-code compromise and DDoS. |
+| 668 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Render Write Mode Off as a shared button. |
+| 669 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Align the GM DRADIS console with ship-console DRADIS. |
 
 ## Explicit sequence rules
 
