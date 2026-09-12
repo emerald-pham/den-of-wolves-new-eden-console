@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**134 / 746 prompts complete (17.96%)**
+**135 / 747 prompts complete (18.07%)**
 
-Status breakdown: **134 done · 7 partial · 605 missing**.
+Status breakdown: **135 done · 7 partial · 605 missing**.
 
 Active prompt: **none**
 
@@ -1156,6 +1156,7 @@ release classification and evidence.
 | 677 | missing | feature | — | Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates. |
 | 678 | missing | feature | — | Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge. |
 | 679 | missing | feature | — | Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge. During the active blind jump, coordinate digits cosmetically scramble through 0–9 twice per second at randomized staggered timing, with reduced-motion and cleanup behavior. |
+| 680 | done | non-feature | 0.3.47 | Owner-requested fighter-wing observability repair: replace Alpha and Bravo's table-tracking placeholder with authoritative live strength and effective capacity, and align each bay's charge, damage, and upgrade status with the shared ship-console system-status display without inventing values or changing launch/combat rules. New sessions initialize Alpha and Bravo at four fighters each; only an active GM may manually correct count until combat or repair automation exists, while capacity remains sourced separately. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes
