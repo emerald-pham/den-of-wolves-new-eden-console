@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['262', '270', '271', '272', '275', '282', '283', '285', '287', '403', '416a', '416b', '425'],
+    implementationProgress: {
+      completed: 191,
+      total: 747,
+      percentage: '25.57%',
+      done: 191,
+      partial: 14,
+      active: 0,
+      missing: 542,
+    },
+    changes: [
+      'Mission setup now supports private starting cards for selected participants.',
+      'The GM star map follows the session chart. Chacau and Ally correctly describe fuelled second-ship repairs, and AEGIS fighter-wing references use each wing’s own capacity and combat details.',
+      '191 of 747 planned items are complete (25.57%).',
+    ],
+  },
+  {
+    version: '0.3.68',
     implementationPrompts: ['255', '256'],
     implementationProgress: {
       completed: 182,
