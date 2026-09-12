@@ -2428,7 +2428,10 @@ export const assignRole = onCall<{
     if (!isActivePlayer(target) || target.get('role') === 'observer') {
       throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
     }
-    if (hasPressState(target) || hasPressSeat(target) || target.get('activeConsoleRoleId') === 'press-officer') {
+    if (
+      hasPressState(target) || hasPressSeat(target) ||
+      authority.session.get('pressHolderUid') === assignment.targetUid
+    ) {
       throw commandError(
         'failed-precondition',
         'Release the player\'s Press station before assigning a core role.',
@@ -2551,7 +2554,10 @@ export const releaseRole = onCall<{
     requireCastingWindow(authority.session);
     canonicalSetupForSession(authority.session, configuredRoleIds(authority.session));
     if (!isActivePlayer(target)) throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
-    if (!hasCoreAssignment(target) || hasPressState(target) || hasPressSeat(target)) {
+    if (
+      !hasCoreAssignment(target) || hasPressState(target) || hasPressSeat(target) ||
+      authority.session.get('pressHolderUid') === release.targetUid
+    ) {
       throw commandError(
         'failed-precondition',
         'Only a player with an assigned core role can be released through casting.',

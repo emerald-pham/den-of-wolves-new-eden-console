@@ -260,6 +260,32 @@ it('rejects assigning an active Press holder without touching Press ownership or
   expect(mock.delete).not.toHaveBeenCalled();
 });
 
+it('rejects casting a target named by the session Press holder pointer even if the player snapshot is stale', async () => {
+  mock.session.pressHolderUid = 'u2';
+  mock.target = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: null,
+    activeConsoleRoleId: null,
+    seatId: null,
+  };
+
+  await expect(assignRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'assign-stale-press-owner',
+    targetUid: 'u2', roleId: 'icebreaker-miner',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-stale-press-owner', targetUid: 'u2',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('rejects role release from a non-facilitator actor before reading private state', async () => {
   mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
   await expect(releaseRole.run(request({
