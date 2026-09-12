@@ -2,7 +2,7 @@ import type { ConsoleRole, ConsoleShipId } from '@/data/roles';
 import type { ShipResourceInventory } from '@/data/resources';
 import type { ShipPopulationTrack } from '@/data/shipPopulation';
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
-import type { RoleId, ShuttleId, VesselId } from '@/types/identifiers';
+import type { RoleId, ShuttleId, SupplementalVesselId, VesselId } from '@/types/identifiers';
 
 export type ShipOrigin = 'earth' | 'colonies';
 
@@ -59,6 +59,26 @@ export function defineShip(
     workspace: 'scaffold', ...definition,
     roles: definition.roles.map((role) => ({ ...role, shipId: definition.id })),
   };
+}
+
+export type SupplementalVesselKind = 'small-ship' | 'voyage';
+export type SupplementalVesselAvailability = 'base-small' | 'approaching-vessel';
+
+/**
+ * Identity-only registrations for optional vessels whose gameplay is owned by
+ * later prompts. Keeping them separate from full fleet ships prevents an
+ * unimplemented small ship from receiving ship resources or a player seat.
+ */
+export interface SupplementalVessel extends ShipIdentity {
+  readonly id: SupplementalVesselId;
+  readonly kind: SupplementalVesselKind;
+  readonly availability: SupplementalVesselAvailability;
+}
+
+export type RegisteredVessel = Ship | SupplementalVessel;
+
+export function defineSupplementalVessel(definition: SupplementalVessel): SupplementalVessel {
+  return { ...definition };
 }
 
 export type ShuttleCapability = 'newspaper-confetti' | 'press-dispatches';

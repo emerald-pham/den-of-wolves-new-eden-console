@@ -45,6 +45,14 @@ export type MissionId = EntityId<'mission'>;
 export type AttackId = EntityId<'attack'>;
 export type EventId = EntityId<'event'>;
 
+/** Stable IDs for optional small ships and the approaching Voyage vessel. */
+export type SupplementalVesselId =
+  | 'gorgoneion'
+  | 'capybara-small'
+  | 'warrior'
+  | 'vulcan'
+  | 'voyage-33-0';
+
 export interface EntityIdByKind {
   readonly session: SessionId;
   readonly player: PlayerId;

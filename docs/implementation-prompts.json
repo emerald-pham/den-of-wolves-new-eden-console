@@ -765,6 +765,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "161 -> VESSEL-REGISTRATION",
+      "id": "E-AUDIT-161",
+      "language": "The typed vessel catalog registers six core ships, four optional base small ships, the Voyage 33-0 approaching vessel, and a separate expansion Capybara identity. The base small-ship Capybara and expansion Capybara cannot be selected together; optional registrations stay outside the core session roster until their gameplay prompts land.",
+      "source": "src/data/vessels/templates.ts; src/data/vessels/gorgoneion.ts; src/data/vessels/capybara-small.ts; src/data/vessels/warrior.ts; src/data/vessels/vulcan.ts; src/data/vessels/voyage-33-0.ts; src/data/ships.ts; src/data/vesselTemplates.test.ts",
+      "type": "evidence"
+    },
+    {
       "direction": "162 -> 161",
       "id": "E-AUDIT-162",
       "language": "Printed statistics belong to a registered vessel definition.",
@@ -8302,8 +8309,8 @@
         "acceptance": "six core ships, four base small ships, Voyage 33-0, and expansion Capybara have distinct stable definitions.",
         "title": "Register every vessel variant."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The typed vessel catalog now registers the six core ships, four optional base small ships (Gorgoneion, base-game Capybara, Warrior, and Vulcan), the Voyage 33-0 approaching-vessel identity, and the separate expansion Capybara definition. Base small-ship Capybara uses a distinct stable ID and mode-gated lookup so it cannot be mixed with the expansion ship; optional registrations remain outside the core session roster until their gameplay prompts land. Focused vessel-template tests prove distinct identities, central lookup, and Capybara mode isolation. Proof-only; no player release.",
+      "evidenceIds": "E-AUDIT-161",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -8314,7 +8321,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

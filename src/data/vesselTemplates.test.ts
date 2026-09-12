@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { defineShip, defineShuttle } from './vessels/templates';
 import { rolesForShip } from './roles';
-import { SHIPS } from './ships';
+import {
+  ALL_VESSEL_DEFINITIONS,
+  CORE_SHIPS,
+  findVessel,
+  findVesselForMode,
+  SHIPS,
+  SMALL_SHIPS,
+  VOYAGE_33_0,
+} from './ships';
 import { INITIAL_SHIP_RESOURCES } from './resources';
 import { INITIAL_SHIP_SURVIVORS, SHIP_POPULATION_TRACKS, SHIP_SPECIFICATIONS } from './shipPopulation';
 import { SHUTTLECRAFT, dockingForShuttle } from './shuttles';
@@ -39,6 +47,30 @@ describe('shared vessel templates', () => {
 
   it('keeps damage cards and suits out of the client vessel catalog', () => {
     expect(JSON.stringify(SHIPS)).not.toMatch(/[♥♦♣♠]|damageDeck|"card"/);
+  });
+
+  it('registers every optional vessel as a distinct identity without adding it to core setup', () => {
+    expect(CORE_SHIPS).toHaveLength(6);
+    expect(SMALL_SHIPS.map((vessel) => vessel.id)).toEqual([
+      'gorgoneion', 'capybara-small', 'warrior', 'vulcan',
+    ]);
+    expect(VOYAGE_33_0.id).toBe('voyage-33-0');
+    expect(VOYAGE_33_0.kind).toBe('voyage');
+    expect(new Set(ALL_VESSEL_DEFINITIONS.map((vessel) => vessel.id)).size)
+      .toBe(ALL_VESSEL_DEFINITIONS.length);
+    expect(SHIPS).not.toContain(VOYAGE_33_0);
+    expect(findVessel('gorgoneion')).toBe(SMALL_SHIPS[0]);
+  });
+
+  it('keeps the base small-ship Capybara separate from expansion Capybara', () => {
+    expect(findVessel('capybara-small')?.name).toBe('Capybara');
+    expect(findVessel('capybara')?.name).toBe('Capybara');
+    expect(findVessel('capybara-small')?.id).not.toBe(findVessel('capybara')?.id);
+    expect(findVesselForMode('capybara-small', 'base-capybara')?.id).toBe('capybara-small');
+    expect(findVesselForMode('capybara', 'expansion-capybara')?.id).toBe('capybara');
+    expect(findVesselForMode('capybara-small', 'expansion-capybara')).toBeUndefined();
+    expect(findVesselForMode('capybara', 'base-capybara')).toBeUndefined();
+    expect(findVesselForMode('capybara', 'none')).toBeUndefined();
   });
 
   it('does not inherit press equipment or initial docking into another shuttle', () => {

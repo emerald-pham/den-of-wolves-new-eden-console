@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**131 / 747 prompts complete (17.54%)**
+**132 / 747 prompts complete (17.67%)**
 
-Status breakdown: **131 done · 6 partial · 610 missing**.
+Status breakdown: **132 done · 6 partial · 609 missing**.
 
 Active prompt: **none**
 
@@ -584,7 +584,7 @@ release classification and evidence.
 | 158 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 159 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 160 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 161 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 161 | done | non-feature | — | The typed vessel catalog now registers the six core ships, four optional base small ships (Gorgoneion, base-game Capybara, Warrior, and Vulcan), the Voyage 33-0 approaching-vessel identity, and the separate expansion Capybara definition. Base small-ship Capybara uses a distinct stable ID and mode-gated lookup so it cannot be mixed with the expansion ship; optional registrations remain outside the core session roster until their gameplay prompts land. Focused vessel-template tests prove distinct identities, central lookup, and Capybara mode isolation. Proof-only; no player release. |
 | 162 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 163 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 164 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

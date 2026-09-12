@@ -269,7 +269,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 158 | NEW | missing | 154 | none | none | none | none | none | none | none | E-AUDIT-158 | M2 | Reconnect during restricted airspace. |
 | 159 | PROVE | missing | 140;145;156;373 | none | none | none | none | none | none | none | E-AUDIT-159 | M2 | Run the start-to-airspace scenario. |
 | 160 | PROVE | missing | none | none | none | none | 001-159:status,red-test,decision,proof | none | none | none | E-160-AUDIT | M2 | Publish the foundation regression matrix. |
-| 161 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M3;M5 | Register every vessel variant. |
+| 161 | PRESERVE | done | none | none | none | none | none | none | none | none | E-AUDIT-161 | M3;M5 | Register every vessel variant. |
 | 162 | PRESERVE | missing | 161 | none | none | none | none | none | none | none | E-AUDIT-162 | M3;M5 | Encode printed vessel statistics. |
 | 163 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M3;M5 | Register the optional sixth resource. |
 | 164 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-164 | M3;M5 | Encode cargo permissions. |
@@ -972,6 +972,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-157 | hard_prompt | 157 -> 145 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Attack overrun behavior extends the authoritative attack lock. |
 | E-AUDIT-158 | hard_prompt | 158 -> 154 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Reconnect during restriction consumes the authoritative airspace state. |
 | E-AUDIT-159 | hard_prompt | 159 -> 140;145;156;373 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The start-to-airspace proof composes the vessel matrix, attack lock, movement reopening, and actual craft parking producer. |
+| E-AUDIT-161 | evidence | 161 -> VESSEL-REGISTRATION | src/data/vessels/templates.ts; src/data/vessels/gorgoneion.ts; src/data/vessels/capybara-small.ts; src/data/vessels/warrior.ts; src/data/vessels/vulcan.ts; src/data/vessels/voyage-33-0.ts; src/data/ships.ts; src/data/vesselTemplates.test.ts | The typed vessel catalog registers six core ships, four optional base small ships, the Voyage 33-0 approaching vessel, and a separate expansion Capybara identity. The base small-ship Capybara and expansion Capybara cannot be selected together; optional registrations stay outside the core session roster until their gameplay prompts land. |
 | E-AUDIT-162 | hard_prompt | 162 -> 161 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Printed statistics belong to a registered vessel definition. |
 | E-AUDIT-164 | hard_prompt | 164 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Cargo permissions are typed by registered vessels and their printed statistics. |
 | E-AUDIT-165 | hard_prompt | 165 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Console metadata is attached to registered vessel and printed-system definitions. |
