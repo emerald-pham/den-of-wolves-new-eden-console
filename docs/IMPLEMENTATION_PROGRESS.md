@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**173 / 747 prompts complete (23.16%)**
+**174 / 747 prompts complete (23.29%)**
 
-Status breakdown: **173 done · 10 partial · 564 missing**.
+Status breakdown: **174 done · 10 partial · 563 missing**.
 
 Active prompt: **none**
 
@@ -1059,7 +1059,7 @@ release classification and evidence.
 | 588 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 589 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 589a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 589b | missing | non-feature | — | Future [REPAIR]: the authenticated-session waiver solely owns the exact human-first regulation body `Be bold. Remember the human on the other side.` Preserve title/eyebrow, lifetime, checkbox/focus semantics, reconnect, privacy/audit, and GM-expiry distinction; do not duplicate the live sentence into debrief or rewrite historical changelog evidence. |
+| 589b | done | non-feature | — | The authenticated-session waiver now solely owns the exact human-first body Be bold. Remember the human on the other side. Existing title, eyebrow, checkboxes, focus handling, review delay, local 24-hour lifetime and session wiring are preserved. Component and session integration tests pass; actual rendered four-viewport checks confirm complete accessible text, 14px monospaced body, 44px checkbox targets, no horizontal overflow and reduced motion. |
 | 590 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 591 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 592 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

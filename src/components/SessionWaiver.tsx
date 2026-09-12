@@ -18,7 +18,7 @@ const REGULATIONS = [
     id: 'human-on-the-other-side',
     title: 'REMEMBER THE HUMAN ON THE OTHER SIDE',
     eyebrow: 'OUT-OF-CHARACTER / TABLE RULE',
-    copy: "We're all playing roles, but remember there's another human on the other side. You'll have to debrief and say hi with them when the game is over anyways, even if they are your enemy in the present moment.",
+    copy: 'Be bold. Remember the human on the other side.',
   },
 ] as const;
 

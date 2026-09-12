@@ -4396,6 +4396,13 @@
       "language": "The existing shared production paths already apply Capybara Storage loss with floor rounding across the correct stores and docked cargo, and the Reactor uses the Capybara capacity of three with its printed damaged penalty and upgrade interaction. Focused Storage, Reactor, maintenance-rule, and jump-cost tests pass, including damaged and upgraded capacity boundaries and the damaged Jump Drive exception. Server authority remains in the existing shared maintenance callable; no runtime or release change was required.",
       "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; src/data/vessels/capybara.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "589b -> session waiver",
+      "id": "E-589B-VERIFIED",
+      "language": "The sole production change is the regulation body. Fifty-nine focused component, storage and App tests passed. Chrome rendered the real SessionWaiver at 320x844,390x844,1440x900,844x390 with reduced motion: one exact StaticText accessibility node, complete wrapping, 14px/21.7px body font, 44px checkbox labels and no horizontal overflow. Native Space/Tab checkboxes and Enter confirmation after the existing ten-second delay reached the fixture continuation. No shared authority, acknowledgement persistence, GM-expiry, debrief or historical release copy changed.",
+      "source": "src/components/SessionWaiver.tsx; src/components/SessionWaiver.test.tsx; src/lib/sessionWaiver.test.ts; src/App.test.tsx; /tmp/p589b-render/*.png",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -19468,8 +19475,8 @@
         "acceptance": "the human-first regulation body is owned only by the authenticated-session waiver and is exactly `Be bold. Remember the human on the other side.` with that casing and punctuation. Preserve the gate's title/eyebrow, acknowledgement lifetime, checkbox and focus semantics, reconnect/resume behavior, audit/privacy boundary, and distinction from GM access expiry; do not duplicate the live sentence into debrief or rewrite historical changelog evidence. Prove exact accessible copy and complete responsive text at 320×844, 390×844, 1440×900, and 844×390.",
         "title": "Simplify the authenticated-session waiver's human-first copy."
       },
-      "description": "Future [REPAIR]: the authenticated-session waiver solely owns the exact human-first regulation body `Be bold. Remember the human on the other side.` Preserve title/eyebrow, lifetime, checkbox/focus semantics, reconnect, privacy/audit, and GM-expiry distinction; do not duplicate the live sentence into debrief or rewrite historical changelog evidence.",
-      "evidenceIds": "E-PRESENTATION",
+      "description": "The authenticated-session waiver now solely owns the exact human-first body Be bold. Remember the human on the other side. Existing title, eyebrow, checkboxes, focus handling, review delay, local 24-hour lifetime and session wiring are preserved. Component and session integration tests pass; actual rendered four-viewport checks confirm complete accessible text, 14px monospaced body, 44px checkbox targets, no horizontal overflow and reduced motion.",
+      "evidenceIds": "E-589B-VERIFIED;E-PRESENTATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -19480,7 +19487,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "PRESENTATION-INDEPENDENT",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

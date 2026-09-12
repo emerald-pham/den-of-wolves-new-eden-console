@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SessionWaiver from './SessionWaiver';
 
@@ -18,11 +18,12 @@ describe('SessionWaiver', () => {
     expect(screen.getByRole('article', {
       name: /CIC authorized personnel may hide resource counts/i,
     })).toHaveTextContent(/not compelled to share.*may lie about resource counts.*jump coordinates/i);
-    expect(screen.getByRole('article', {
+    const humanRegulation = screen.getByRole('article', {
       name: /remember the human on the other side/i,
-    })).toHaveTextContent(
-      "We're all playing roles, but remember there's another human on the other side. You'll have to debrief and say hi with them when the game is over anyways, even if they are your enemy in the present moment.",
-    );
+    });
+    expect(within(humanRegulation).getByText('Be bold. Remember the human on the other side.', {
+      exact: true,
+    })).toBeVisible();
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getAllByRole('checkbox').every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Acknowledge regulations and continue' })).toBeDisabled();
