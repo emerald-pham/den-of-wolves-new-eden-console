@@ -280,6 +280,34 @@ export interface WolfAttackPreparation {
   readonly notes: string;
 }
 
+/** GM-only summary of an atomically declared Wolf attack. Hidden preparation,
+ * targeting samples, and calculation receipts never cross this boundary. */
+export interface WolfAttackDeclarationState {
+  readonly status: 'declared';
+  readonly turn: number;
+  readonly revision: number;
+  readonly preparationRevision: number;
+  readonly currentStep: 'targeting';
+  readonly deadlineAt: string;
+  readonly airspaceLocked: true;
+  readonly parkedCraftIds: readonly string[];
+}
+
+/** Public callable receipt for the GM declaration control. */
+export interface WolfAttackDeclarationResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'wolf-attack-declaration';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly currentStep: 'targeting';
+  readonly deadlineAt: string;
+  readonly airspaceLocked: true;
+  readonly parkedCraftCount: number;
+  readonly announcementId: string;
+}
+
 /** The shared real-time window that starts with every numbered turn. */
 export interface TurnPhase {
   readonly turn: number;

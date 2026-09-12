@@ -158,6 +158,19 @@ service cloud.firestore {
         }
       }
 
+      // Declaration state keeps the composition, unresolved stage receipt,
+      // and parked-craft snapshot available to facilitators only. Members
+      // receive the allowlisted declaration event instead.
+      match /wolfAttackState/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if projectionId == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
       // Mission decks contain the authoritative shuffled order. They are
       // server-only state, including from connected GM devices.
       match /serverState/{document=**} {

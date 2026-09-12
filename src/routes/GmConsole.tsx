@@ -47,6 +47,7 @@ import {
   extendAirspaceWindow,
   setWolfAttackWindow,
   stageWolfAttackPreparation,
+  declareWolfAttack as declareWolfAttackCommand,
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
   type TurnStartReplayAudience,
@@ -77,6 +78,7 @@ import type {
   Player,
   SessionEvent,
   WolfAttackPreparation,
+  WolfAttackDeclarationState,
   WolfAttackPreparationModifierId,
   WolfAttackTargetMode,
   WolfAttackWindow,
@@ -291,11 +293,14 @@ export default function GmConsole() {
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
   const [wolfAttackPreparation, setWolfAttackPreparationState] = useState<WolfAttackPreparation | null>(null);
+  const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
+  const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
+  const [wolfDeclarationMessage, setWolfDeclarationMessage] = useState<string | null>(null);
   const [wolfPreparationMode, setWolfPreparationMode] = useState<WolfAttackTargetMode>('manual');
   const [wolfPreparationCounts, setWolfPreparationCounts] = useState<Readonly<Record<string, string>>>(() => ({
     'wolf-fighter-wing': '10',
@@ -440,6 +445,12 @@ export default function GmConsole() {
       : [];
   });
   const wolfPreparationRevision = wolfAttackPreparation?.revision ?? 0;
+  const wolfDeclarationAvailable = Boolean(
+    local && wolfAttackWindow?.status === 'due' && wolfWindowTurn === currentTurn &&
+    wolfAttackPreparation?.turn === currentTurn && wolfPreparationRevision > 0 &&
+    wolfAttackState === null && currentPhase?.airspace.state === 'lifted' &&
+    currentPhase.timerPause === undefined,
+  );
   const wolfPreparationTargetOptions = activeShipIds.filter((shipId) =>
     ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'].includes(shipId),
   );
@@ -566,6 +577,7 @@ export default function GmConsole() {
       subscribeDamageDraws,
       subscribeGmInstances,
       subscribeGmWolfAttackPreparation,
+      subscribeGmWolfAttackState,
       subscribeGmWolfAttackWindow,
       subscribeGmWolfAssignment,
       subscribeSessionEvents,
@@ -593,6 +605,11 @@ export default function GmConsole() {
       const stopWolfAttackPreparation = subscribeGmWolfAttackPreparation(
         sessionId,
         (next) => setWolfAttackPreparationState((current) =>
+          current && next && next.revision < current.revision ? current : next),
+      );
+      const stopWolfAttackState = subscribeGmWolfAttackState(
+        sessionId,
+        (next) => setWolfAttackState((current) =>
           current && next && next.revision < current.revision ? current : next),
       );
       const stopWolfAssignment = subscribeGmWolfAssignment(
@@ -627,6 +644,7 @@ export default function GmConsole() {
         stopInstances();
         stopWolfAttackWindow();
         stopWolfAttackPreparation();
+        stopWolfAttackState();
         stopWolfAssignment();
         stopEvents();
         stopDamageDraws();
@@ -638,6 +656,7 @@ export default function GmConsole() {
       unsubscribe();
       setWolfAssignment(null);
       setWolfAttackPreparationState(null);
+      setWolfAttackState(null);
     };
   }, [isGm, sessionId]);
 
@@ -1229,6 +1248,23 @@ export default function GmConsole() {
     }
   }
 
+  async function declareCurrentWolfAttack(): Promise<void> {
+    if (!wolfDeclarationAvailable || wolfDeclarationMutation) return;
+    setWolfDeclarationMutation(true);
+    setWolfDeclarationMessage(null);
+    try {
+      const result = await declareWolfAttackCommand(wolfPreparationRevision);
+      setWolfDeclarationMessage(
+        `Declared // Turn ${result.turn} // targeting step // airspace locked // ` +
+        `${result.parkedCraftCount} craft parked`,
+      );
+    } catch {
+      setWolfDeclarationMessage('Declaration rejected // refresh the live GM state and retry.');
+    } finally {
+      setWolfDeclarationMutation(false);
+    }
+  }
+
   async function saveCensusNote(targetUid: string): Promise<void> {
     if (!loyaltyCensus || censusNoteMutationUid !== null) return;
     setCensusNoteMutationUid(targetUid);
@@ -1622,7 +1658,20 @@ export default function GmConsole() {
                 >
                   {wolfPreparationMutation ? 'Saving private draft…' : 'Save private attack draft'}
                 </button>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={!wolfDeclarationAvailable || wolfDeclarationMutation}
+                  onClick={() => void declareCurrentWolfAttack()}
+                >
+                  {wolfDeclarationMutation ? 'Declaring Wolf attack…' : 'Declare Wolf attack'}
+                </button>
               </div>
+              <p className="gm-console__status" role="status" aria-live="polite">
+                Declaration // {wolfAttackState
+                  ? `committed // Turn ${wolfAttackState.turn} // ${wolfAttackState.currentStep} // deadline ${wolfAttackState.deadlineAt}`
+                  : wolfDeclarationMessage ?? 'waiting for a due timing marker and saved private draft'}
+              </p>
             </section>
           </section>
           <EmergencyTimerPauseControl

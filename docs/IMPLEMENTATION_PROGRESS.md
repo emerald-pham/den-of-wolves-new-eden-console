@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **199 / 747 prompts complete (26.64%)**
 
-Status breakdown: **199 done · 17 partial · 531 missing**.
+Status breakdown: **199 done · 18 partial · 530 missing**.
 
 Active prompt: **none**
 
@@ -880,7 +880,7 @@ release classification and evidence.
 | 429 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 430 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 431 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 432 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 432 | partial | non-feature | — | Partial production-path implementation: the server-only declareWolfAttack callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, and authoritative active target configuration; it then validates every represented shuttle's active-host docking and fighter-wing bay state, rejecting missing, malformed, duplicate, inactive-host, or in-transit craft before any write. A valid snapshot atomically locks airspace, resolves the due timing marker, stores a GM-only targeting-stage calculation receipt and preparation snapshot, and emits one allowlisted member announcement. P428 targeting uses server-owned samples at declaration with the printed base d6 ring or the configured expansion Capybara d8 ring (7 selects Capybara and 8 rerolls); range, boarding, damage, and casualty outcomes remain deferred until later action prompts. Nearest-host relocation is not attempted: craft requiring relocation or an unresolved P146 tie deny the declaration until the P373/P146 movement policy exists. |
 | 432a | missing | non-feature | — | Planned [EXTEND] one-GM GM-console declare/advance/pause/inspect/resume prompt; no playable attack control composition exists yet. |
 | 433 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 433a | missing | non-feature | — | Planned [NEW] stable DRADIS-ready attack endpoint/event schema, privacy, reconnect, and projection contract; no attack visualization is implied. |

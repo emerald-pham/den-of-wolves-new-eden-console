@@ -34,6 +34,7 @@ const {
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmWolfAttackPreparation,
+  subscribeGmWolfAttackState,
   subscribeGmWolfAttackWindow,
   subscribeGmWolfAssignment,
   subscribeSessionEvents,
@@ -819,6 +820,44 @@ it('hydrates the facilitator-only Wolf preparation and keeps revisions monotonic
   expect(onPreparation).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 2, targetMode: 'pre-rolled' }));
   unsubscribe();
   expect(onPreparation).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only the safe GM declaration summary and keeps its revision monotonic', () => {
+  const { callbacks } = captureSessionListener();
+  const onState = vi.fn();
+  const unsubscribe = subscribeGmWolfAttackState('s1', onState);
+
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    data: () => ({ status: 'declared', turn: 1, revision: 1, preparationRevision: 2,
+      currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
+      parkedCraftIds: ['starlight'], calculationReceipt: { hidden: true }, preparation: { notes: 'hidden' } }),
+  });
+  expect(onState).not.toHaveBeenCalled();
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'declared', turn: 1, revision: 2, preparationRevision: 2,
+      currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
+      parkedCraftIds: ['starlight'], calculationReceipt: { hidden: true }, preparation: { notes: 'hidden' } }),
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'declared', turn: 1, revision: 1, preparationRevision: 2,
+      currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
+      parkedCraftIds: ['starlight'] }),
+  });
+
+  expect(onState).toHaveBeenCalledTimes(1);
+  expect(onState).toHaveBeenLastCalledWith({
+    status: 'declared', turn: 1, revision: 2, preparationRevision: 2,
+    currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z',
+    airspaceLocked: true, parkedCraftIds: ['starlight'],
+  });
+  unsubscribe();
+  expect(onState).toHaveBeenLastCalledWith(null);
 });
 
 it('does not let a delayed older Wolf timing revision overwrite the newer server marker', () => {

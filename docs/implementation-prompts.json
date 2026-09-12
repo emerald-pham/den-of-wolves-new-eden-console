@@ -4564,6 +4564,13 @@
       "language": "The server-only printed-capacity table covers all seven current full damage-deck vessels. Both addShipDamage and maintenance riot exhaustion use the shared destruction transition, persist one stable damage-destroyed record containing only podCapacity derived from printed crew plus passengers, and leave survivors, resources, and retained craft untouched. Already-destroyed retries return the terminal result without a new revision or catastrophe event. Small/base variants and Voyage 33-0 remain explicitly unresolved because their routed sheets do not provide an independent crew/passenger capacity and those paths have no damage-deck transaction. Focused destruction, callable, maintenance, and event-parser tests pass; no player release is claimed.",
       "source": "functions/src/shipDestruction.ts; functions/src/shipDestruction.test.ts; functions/src/index.ts addShipDamage/runMaintenance; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; authorized routed REFERENCE_ONLY_SHIPS.md",
       "type": "evidence / partial"
+    },
+    {
+      "direction": "432 -> 427;428;429;430",
+      "id": "E-432-DECLARATION",
+      "language": "The declaration callable is a server-owned atomic boundary: it rechecks the live GM/session/phase/preparation CAS and active target configuration, consumes P427 private preparation and P428 targeting-stage math, selects the printed base d6 ring or expansion Capybara d8 ring, locks the existing turn airspace, validates every represented shuttle's authoritative active-host docking plus fighter-wing bay state, snapshots only after that parking check succeeds, resolves the due marker, persists a GM-only stage receipt/state plus audit, and writes one member-safe announcement in the same transaction. Shared command receipts make exact retries replay without new writes; client outcome fields, wrong actors, stale preparation, inactive target rings, malformed deadlines, missing or malformed docking rows, and in-transit craft fail closed without writes. No nearest-host relocation is attempted: a craft requiring relocation or an unresolved P146 tie remains a denied declaration until the P373/P146 owners provide that movement policy; range/boarding/damage/casualty stages remain later action owners.",
+      "source": "functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackPreparation.ts; functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; /tmp/p432-render-evidence.txt",
+      "type": "evidence / authority / related/consumes"
     }
   ],
   "plan": {
@@ -15523,19 +15530,19 @@
         "acceptance": "a GM-console declaration commits attack state, airspace lock, parked craft, current step/deadline, calculation receipt, and one announcement together.",
         "title": "Declare the attack atomically."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-432",
+      "description": "Partial production-path implementation: the server-only declareWolfAttack callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, and authoritative active target configuration; it then validates every represented shuttle's active-host docking and fighter-wing bay state, rejecting missing, malformed, duplicate, inactive-host, or in-transit craft before any write. A valid snapshot atomically locks airspace, resolves the due timing marker, stores a GM-only targeting-stage calculation receipt and preparation snapshot, and emits one allowlisted member announcement. P428 targeting uses server-owned samples at declaration with the printed base d6 ring or the configured expansion Capybara d8 ring (7 selects Capybara and 8 rerolls); range, boarding, damage, and casualty outcomes remain deferred until later action prompts. Nearest-host relocation is not attempted: craft requiring relocation or an unresolved P146 tie deny the declaration until the P373/P146 movement policy exists.",
+      "evidenceIds": "E-WOLF;E-AUDIT-432;E-432-DECLARATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "427;428",
       "id": "432",
       "milestoneHints": "M9",
-      "relatedConsumes": "none",
+      "relatedConsumes": "146;373;429;430",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

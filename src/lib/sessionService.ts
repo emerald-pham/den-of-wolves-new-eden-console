@@ -13,6 +13,7 @@ import type {
   WolfAttackPreparation,
   WolfAttackPreparationModifierId,
   WolfAttackPreparationTargetAssignment,
+  WolfAttackDeclarationResult,
   WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
@@ -2156,6 +2157,35 @@ function wolfAttackPreparationReply(value: unknown): WolfAttackPreparation | nul
   };
 }
 
+function wolfAttackDeclarationReply(value: unknown): WolfAttackDeclarationResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  if (
+    (reply.status !== 'committed' && reply.status !== 'replayed') ||
+    reply.type !== 'wolf-attack-declaration' || typeof reply.sessionId !== 'string' ||
+    typeof reply.requestId !== 'string' ||
+    !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+    !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+    reply.currentStep !== 'targeting' || typeof reply.deadlineAt !== 'string' ||
+    reply.airspaceLocked !== true ||
+    !Number.isSafeInteger(reply.parkedCraftCount) || (reply.parkedCraftCount as number) < 0 ||
+    typeof reply.announcementId !== 'string' || !reply.announcementId
+  ) return null;
+  return {
+    status: reply.status,
+    type: 'wolf-attack-declaration',
+    sessionId: reply.sessionId,
+    requestId: reply.requestId,
+    turn: reply.turn as number,
+    revision: reply.revision as number,
+    currentStep: 'targeting',
+    deadlineAt: reply.deadlineAt,
+    airspaceLocked: true,
+    parkedCraftCount: reply.parkedCraftCount as number,
+    announcementId: reply.announcementId,
+  };
+}
+
 /** Mark the approximate first Wolf-attack window from an active GM console. */
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,
@@ -2222,6 +2252,34 @@ export async function stageWolfAttackPreparation(
   try {
     const reply = wolfAttackPreparationReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf-attack preparation.');
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit the GM's atomic Wolf declaration after the private draft is saved. */
+export async function declareWolfAttack(expectedRevision: number): Promise<WolfAttackDeclarationResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before declaring the Wolf attack.');
+  }
+  requireFreshSessionAuthority('Reconnect before declaring the Wolf attack.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedRevision,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'declareWolfAttack');
+  try {
+    const reply = wolfAttackDeclarationReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Wolf-attack declaration.');
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
   } catch (cause) {

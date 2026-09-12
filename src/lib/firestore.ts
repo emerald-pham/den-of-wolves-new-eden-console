@@ -44,6 +44,7 @@ import type {
   WolfAttackPreparationModifierId,
   WolfAttackTargetMode,
   WolfAttackPreparationTargetAssignment,
+  WolfAttackDeclarationState,
   WolfAttackWindow,
   WolfAssignment,
 } from '@/types/game';
@@ -379,6 +380,32 @@ function wolfAttackPreparation(value: unknown): WolfAttackPreparation | null {
     targetAssignments,
     modifiers,
     notes: state.notes,
+  };
+}
+
+function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const state = value as Record<string, unknown>;
+  const parkedCraftIds = Array.isArray(state.parkedCraftIds)
+    ? state.parkedCraftIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  if (
+    state.status !== 'declared' || state.currentStep !== 'targeting' || state.airspaceLocked !== true ||
+    !Number.isSafeInteger(state.turn) || (state.turn as number) < 1 ||
+    !Number.isSafeInteger(state.revision) || (state.revision as number) < 1 ||
+    !Number.isSafeInteger(state.preparationRevision) || (state.preparationRevision as number) < 1 ||
+    typeof state.deadlineAt !== 'string' || !state.deadlineAt ||
+    !Array.isArray(state.parkedCraftIds) || parkedCraftIds.length !== state.parkedCraftIds.length
+  ) return null;
+  return {
+    status: 'declared',
+    turn: state.turn as number,
+    revision: state.revision as number,
+    preparationRevision: state.preparationRevision as number,
+    currentStep: 'targeting',
+    deadlineAt: state.deadlineAt,
+    airspaceLocked: true,
+    parkedCraftIds,
   };
 }
 
@@ -1159,6 +1186,33 @@ export function subscribeGmWolfAttackPreparation(
     subscribed = false;
     unsubscribe();
     onPreparation(null);
+  };
+}
+
+/** Subscribe to the facilitator-only declaration summary. The parser omits
+ * the private preparation, target samples, and calculation receipt. */
+export function subscribeGmWolfAttackState(
+  sessionId: string,
+  onState: (state: WolfAttackDeclarationState | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfAttackState/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const state = snapshot.exists() ? wolfAttackDeclarationState(snapshot.data()) : null;
+      if (state && !acceptsRevision(state.revision)) return;
+      onState(state);
+    },
+    () => {
+      if (subscribed) onState(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onState(null);
   };
 }
 

@@ -690,6 +690,28 @@ export function requireWolfAttackPreparationRequest(data: {
   };
 }
 
+/** A GM declaration CAS binds to the private P427 preparation revision. */
+export function requireWolfAttackDeclarationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive preparation revision.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 /** A facilitator's private census annotation is revisioned and clearable. */
 export function requireFacilitatorCensusNoteRequest(data: {
   sessionId?: unknown;

@@ -4,6 +4,7 @@ import {
   applyWolfFleetDamage,
   calculateWolfAttack,
   CORE_WOLF_TARGET_RING,
+  EXPANDED_WOLF_TARGET_RING,
   isWolfCalculationReceipt,
   resolveWolfBoarding,
   resolveWolfRange,
@@ -62,6 +63,15 @@ describe('central Wolf combat math', () => {
     expect(shiftWolfTargetDie(1, -1)).toBe(6);
     expect(shiftWolfTargetDie(6, 1)).toBe(1);
     expect(shiftWolfTargetDie(1, 7)).toBe(2);
+  });
+
+  it('uses expansion d8 result 7 for Capybara and rerolls result 8', () => {
+    const composition = firstTurnWolfAttackComposition();
+    const random = samples([6, 7, 0, ...Array.from({ length: 20 }, () => 0)]);
+    const targeting = resolveWolfTargeting(composition, {}, EXPANDED_WOLF_TARGET_RING, random);
+
+    expect(targeting.rolls[0]).toMatchObject({ initialDie: 7, target: 'capybara' });
+    expect(targeting.rolls[1]).toMatchObject({ initialDie: 1, target: 'aegis', printedRerolls: [8] });
   });
 
   it('rolls range dice on the server, then requires a target for every generated hit', () => {

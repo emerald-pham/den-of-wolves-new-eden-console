@@ -269,6 +269,27 @@ describe('session header', () => {
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackPreparation`)));
   });
 
+  it('keeps the declared Wolf attack state and calculation receipt GM-only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackState/current`), {
+        type: 'wolf-attack-state',
+        status: 'declared',
+        currentStep: 'targeting',
+        calculationReceipt: { targeting: [{ initialDie: 6 }] },
+        preparation: { notes: 'private' },
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackState/current/audit/declaration-1`), {
+        type: 'wolf-attack-declaration', actorUid: 'gm1',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/wolfAttackState/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/wolfAttackState/current`)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackState/current/audit`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/wolfAttackState/current/audit`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/wolfAttackState/current`), { status: 'forged' }));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackState`)));
+  });
+
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);

@@ -54,6 +54,7 @@ import {
   requireEmergencyTimerPauseRequest,
   requireWolfAttackWindowRequest,
   requireWolfAttackPreparationRequest,
+  requireWolfAttackDeclarationRequest,
   requireFacilitatorCensusNoteRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
@@ -102,6 +103,7 @@ import {
   type JumpTransition,
 } from './jumpDrive';
 import { deriveRoutineWolfAssignment } from './wolfAssignment';
+import { scheduledWolfAttackComposition } from './wolfAttackComposition';
 import { expireTurnScopedResources } from './turnTransition';
 import {
   DEFAULT_ACTIVE_ROLE_IDS,
@@ -142,6 +144,7 @@ import {
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
+  roleOwnedCraftForRoles,
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
 } from './craftOwnership';
@@ -163,6 +166,7 @@ import { atomicStartState } from './startState';
 import {
   fighterWingCapacity,
   fighterWingCounts,
+  type FighterWingCountState,
   type FighterWingId,
 } from './fighterWings';
 import {
@@ -224,6 +228,16 @@ import {
   wolfAttackPreparationState,
   type WolfAttackPreparation,
 } from './wolfAttackPreparation';
+import {
+  WOLF_ATTACK_DECLARATION_STEP,
+  type WolfAttackStageState,
+} from './wolfAttackDeclaration';
+import {
+  CORE_WOLF_TARGET_RING,
+  EXPANDED_WOLF_TARGET_RING,
+  resolveWolfTargeting,
+  type WolfTargetRing,
+} from './wolfCombatMath';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -704,6 +718,129 @@ function publicShuttleDockings(
         !active.has(entry.shipId)) return [];
     return [{ shuttleId: entry.shuttleId, shipId: entry.shipId, dockedAt: entry.dockedAt }];
   });
+}
+
+type WolfAttackParkingSnapshot = Readonly<{
+  parkedCraftIds: readonly string[];
+  parkedShuttleDockings: readonly PublicShuttleDocking[];
+}>;
+
+/**
+ * A declaration may snapshot the current parking arrangement only when every
+ * represented craft is already in a server-known location. Projection helpers
+ * intentionally drop malformed rows for player reads; declaration authority
+ * must reject those rows instead of silently treating them as parked.
+ */
+function requireWolfAttackParking(
+  session: DocumentSnapshot,
+  activeVesselIds: readonly string[],
+  activeRoleIds: readonly string[],
+): WolfAttackParkingSnapshot {
+  const ownedCraft = roleOwnedCraftForRoles(activeRoleIds);
+  const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
+  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds);
+  // The locked vessel roster represents every shuttle initially docked with
+  // an active ship, while the role catalog adds optional Union craft that need
+  // an explicit authoritative docking before declaration.
+  const expectedShuttleIds = new Set([
+    ...initialDockings.map((docking) => docking.shuttleId),
+    ...expectedShuttles.map((craft) => craft.id),
+  ]);
+  const source = session.get('shuttleDockings') === undefined
+    ? initialDockings
+    : session.get('shuttleDockings');
+  if (!Array.isArray(source)) {
+    throw commandError(
+      'failed-precondition',
+      'The Wolf attack cannot be declared while craft parking is incomplete.',
+      'conflict',
+    );
+  }
+
+  const activeHosts = new Set(activeVesselIds);
+  const seen = new Set<string>();
+  const parkedShuttleDockings: PublicShuttleDocking[] = [];
+  for (const entry of source) {
+    if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
+        !expectedShuttleIds.has(entry.shuttleId) || seen.has(entry.shuttleId) ||
+        typeof entry.shipId !== 'string' || !activeHosts.has(entry.shipId) ||
+        typeof entry.dockedAt !== 'string' || entry.dockedAt.trim().length === 0 ||
+        entry.inTransit === true || entry.transit === true ||
+        entry.status === 'in-transit' || entry.state === 'in-transit' ||
+        entry.dockingState === 'in-transit') {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot be declared while craft parking is incomplete.',
+        'conflict',
+      );
+    }
+    seen.add(entry.shuttleId);
+    parkedShuttleDockings.push({
+      shuttleId: entry.shuttleId,
+      shipId: entry.shipId,
+      dockedAt: entry.dockedAt,
+    });
+  }
+  if (seen.size !== expectedShuttleIds.size ||
+      [...expectedShuttleIds].some((shuttleId) => !seen.has(shuttleId))) {
+    throw commandError(
+      'failed-precondition',
+      'The Wolf attack cannot be declared while craft parking is incomplete.',
+      'conflict',
+    );
+  }
+
+  const rawVisitLog = session.get('shuttleVisitLog');
+  if (rawVisitLog !== undefined) {
+    if (!Array.isArray(rawVisitLog)) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot be declared while craft parking is incomplete.',
+        'conflict',
+      );
+    }
+    const latestVisit = new Map<string, 'docked' | 'departed'>();
+    for (const entry of rawVisitLog) {
+      if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
+          !expectedShuttleIds.has(entry.shuttleId) ||
+          (entry.action !== 'docked' && entry.action !== 'departed')) {
+        throw commandError(
+          'failed-precondition',
+          'The Wolf attack cannot be declared while craft parking is incomplete.',
+          'conflict',
+        );
+      }
+      latestVisit.set(entry.shuttleId, entry.action);
+    }
+    if ([...latestVisit.values()].some((action) => action === 'departed')) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot be declared while craft parking is incomplete.',
+        'conflict',
+      );
+    }
+  }
+
+  const fighterWings = ownedCraft.filter((craft) => craft.kind === 'fighter-wing');
+  const rawWingCounts = session.get('fighterWingCounts');
+  if (fighterWings.length > 0) {
+    const parsedWingCounts = fighterWingCounts(rawWingCounts);
+    if (rawWingCounts === undefined || fighterWings.some((craft) => {
+      const wing = parsedWingCounts[craft.id as FighterWingId] as FighterWingCountState | undefined;
+      return wing === undefined;
+    })) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot be declared while fighter-wing bay state is incomplete.',
+        'conflict',
+      );
+    }
+  }
+
+  return {
+    parkedCraftIds: ownedCraft.map((craft) => craft.id),
+    parkedShuttleDockings,
+  };
 }
 
 function publicShuttleVisitLog(
@@ -1855,6 +1992,24 @@ async function rejectForeignLegacyM1Command(
   const allowed = new Set(allowedPaths);
   const refs = legacyM1CommandRefs(sessionId, requestId);
   const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
+  if (snapshots.some((snapshot, index) => snapshot.exists && !allowed.has(refs[index]!.path))) {
+    throw commandError(
+      'failed-precondition',
+      `This ${label} request id is already bound to a legacy command. ${REQUEST_RECOVERY_GUIDANCE}`,
+      'conflict',
+    );
+  }
+}
+
+async function rejectForeignLegacyM1CommandBeforeReplay(
+  sessionId: string,
+  requestId: string,
+  label: string,
+  allowedPaths: readonly string[],
+): Promise<void> {
+  const allowed = new Set(allowedPaths);
+  const refs = legacyM1CommandRefs(sessionId, requestId);
+  const snapshots = await Promise.all(refs.map((ref) => ref.get()));
   if (snapshots.some((snapshot, index) => snapshot.exists && !allowed.has(refs[index]!.path))) {
     throw commandError(
       'failed-precondition',
@@ -6493,6 +6648,365 @@ export const stageWolfAttackPreparation = onCall<{
   });
 
   return result;
+});
+
+type WolfAttackDeclarationResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-attack-declaration';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  currentStep: typeof WOLF_ATTACK_DECLARATION_STEP;
+  deadlineAt: string;
+  airspaceLocked: true;
+  parkedCraftCount: number;
+  announcementId: string;
+}>;
+
+function isWolfAttackDeclarationResult(value: unknown): value is WolfAttackDeclarationResult {
+  if (!isRecord(value)) return false;
+  return value.status === 'committed' &&
+    value.type === 'wolf-attack-declaration' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
+    typeof value.requestId === 'string' && value.requestId.length > 0 &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    value.currentStep === WOLF_ATTACK_DECLARATION_STEP &&
+    typeof value.deadlineAt === 'string' && Number.isFinite(Date.parse(value.deadlineAt)) &&
+    value.airspaceLocked === true &&
+    Number.isSafeInteger(value.parkedCraftCount) && (value.parkedCraftCount as number) >= 0 &&
+    typeof value.announcementId === 'string' && value.announcementId.length > 0;
+}
+
+type WolfAttackDeclarationInputs = Readonly<{
+  phase: ActiveTurnPhase;
+  preparation: WolfAttackPreparation;
+  window: WolfAttackWindow;
+  parkedCraftIds: readonly string[];
+  parkedShuttleDockings: readonly PublicShuttleDocking[];
+  targetRing: WolfTargetRing;
+}>;
+
+function wolfAttackActiveVesselIds(session: DocumentSnapshot): readonly string[] {
+  const stored = session.get('activeVesselIds');
+  if (!Array.isArray(stored) || stored.length === 0 ||
+      stored.some((value) => typeof value !== 'string' || !isResourceShipId(value)) ||
+      new Set(stored).size !== stored.length) {
+    throw commandError(
+      'failed-precondition',
+      'The persisted active fleet configuration is missing or malformed.',
+      'conflict',
+    );
+  }
+  return [...stored] as string[];
+}
+
+function validateWolfAttackDeclaration(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  instance: DocumentSnapshot,
+  preparationProjection: DocumentSnapshot,
+  windowProjection: DocumentSnapshot,
+  stateProjection: DocumentSnapshot,
+  eventProjection: DocumentSnapshot,
+  auditProjection: DocumentSnapshot,
+  uid: string,
+  expectedRevision: number,
+): WolfAttackDeclarationInputs {
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(instance, player, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  requireActiveGameplayPhase(session);
+  if (session.get('phase') !== 'active' || session.get('configurationLocked') !== true) {
+    throw commandError(
+      'failed-precondition',
+      'Declare a Wolf attack only after the live game configuration has started.',
+      'invalid-phase',
+    );
+  }
+  if (stateProjection.exists) {
+    throw commandError('failed-precondition', 'A Wolf attack is already declared for this session.', 'conflict');
+  }
+  if (eventProjection.exists || auditProjection.exists) {
+    rejectLegacyEventReplay('Wolf attack declaration');
+  }
+  const phase = turnPhaseState(session.get('turnPhase'));
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  if (!phase || phase.turn !== currentTurn || currentTurn < 1) {
+    throw commandError('failed-precondition', 'No current server turn phase is available.', 'invalid-phase');
+  }
+  if (phase.timerPause || phase.airspace.state !== 'lifted') {
+    throw commandError(
+      'failed-precondition',
+      'Declare the attack during the live open-airspace window.',
+      'invalid-phase',
+    );
+  }
+  const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
+  if (!Number.isFinite(deadlineMs) || Date.now() >= deadlineMs) {
+    throw commandError('failed-precondition', 'The configured airspace deadline has passed.', 'invalid-phase');
+  }
+  const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
+  if (!window || window.status !== 'due' || window.turn !== currentTurn) {
+    throw commandError(
+      'failed-precondition',
+      'Mark the current Wolf-attack timing window due before declaring it.',
+      'invalid-phase',
+    );
+  }
+  const preparation = preparationProjection.exists
+    ? wolfAttackPreparationState(preparationProjection.data())
+    : undefined;
+  if (!preparation || preparation.revision !== expectedRevision || preparation.turn !== currentTurn) {
+    throw commandError(
+      'failed-precondition',
+      'The private Wolf-attack preparation is stale or missing. Refresh the live GM draft.',
+      'stale-revision',
+    );
+  }
+  try {
+    // P427 already validates this shape. Recheck the authoritative snapshot at
+    // declaration so a malformed or legacy projection cannot become combat state.
+    scheduledWolfAttackComposition(currentTurn, preparation.shipIds);
+  } catch (error) {
+    throw commandError(
+      'failed-precondition',
+      error instanceof Error ? error.message : 'The private attack composition is invalid.',
+      'conflict',
+    );
+  }
+  const activeVesselIds = wolfAttackActiveVesselIds(session);
+  if (CORE_WOLF_TARGET_RING.some((shipId) => !activeVesselIds.includes(shipId))) {
+    throw commandError(
+      'failed-precondition',
+      'The base Wolf target ring is incomplete in the active fleet configuration.',
+      'conflict',
+    );
+  }
+  const targetRing: WolfTargetRing = activeVesselIds.includes('capybara')
+    ? EXPANDED_WOLF_TARGET_RING
+    : CORE_WOLF_TARGET_RING;
+  requireSmallShipsDockedAtBoundary(session, 'Wolf attack');
+  const activeRoleIds = sessionActiveRoleIds(session);
+  const parking = requireWolfAttackParking(session, activeVesselIds, activeRoleIds);
+  return { phase, preparation, window, ...parking, targetRing };
+}
+
+function wolfTargetingStageReceipt(
+  turn: number,
+  preparation: WolfAttackPreparation,
+  declaredAt: string,
+  targetRing: WolfTargetRing,
+): Record<string, unknown> {
+  const composition = scheduledWolfAttackComposition(turn, preparation.shipIds);
+  // P427's modifier vocabulary intentionally does not contain final roster
+  // indexes. Keep those staged choices private and let the later targeting
+  // command apply P428's typed modifier order after the affected players act.
+  const targeting = resolveWolfTargeting(
+    composition,
+    {},
+    targetRing,
+    (upperBound) => randomInt(upperBound),
+  );
+  return {
+    type: 'wolf-combat-calculation-stage',
+    version: 1,
+    turn,
+    step: WOLF_ATTACK_DECLARATION_STEP,
+    generatedAt: declaredAt,
+    composition: {
+      shipIds: [...composition.shipIds],
+      counts: { ...composition.counts },
+      damageCapacity: composition.damageCapacity,
+    },
+    targeting,
+  };
+}
+
+/** Atomically begin the server-owned Wolf attack lifecycle. */
+export const declareWolfAttack = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw)) {
+    const allowed = new Set(['sessionId', 'instanceId', 'requestId', 'expectedRevision']);
+    if (Object.keys(raw).some((key) => !allowed.has(key))) {
+      throw new HttpsError('invalid-argument', 'Declaration outcomes are server generated.');
+    }
+  }
+  const declaration = requireWolfAttackDeclarationRequest(raw ?? {});
+  const sessionRef = db.doc(`sessions/${declaration.sessionId}`);
+  const playerRef = db.doc(`sessions/${declaration.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${declaration.sessionId}/gmInstances/${declaration.instanceId}`);
+  const preparationRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackPreparation/current`);
+  const windowRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackWindow/current`);
+  const stateRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current`);
+  const auditRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current/audit/${declaration.requestId}`);
+  const receiptRef = commandReceiptRef(declaration.sessionId, declaration.requestId);
+  const eventRef = db.doc(`sessions/${declaration.sessionId}/events/wolf-attack-${declaration.requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'declare-wolf-attack',
+    sessionId: declaration.sessionId,
+    requestId: declaration.requestId,
+    actorUid: uid,
+    instanceId: declaration.instanceId,
+    expectedRevision: declaration.expectedRevision,
+    payload: {},
+  };
+
+  const [preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
+    preflightWindow, preflightState, preflightReceipt, preflightAudit, preflightEvent] = await Promise.all([
+    sessionRef.get(), playerRef.get(), instanceRef.get(), preparationRef.get(),
+    windowRef.get(), stateRef.get(), receiptRef.get(), auditRef.get(), eventRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  await rejectForeignLegacyM1CommandBeforeReplay(
+    declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
+  );
+  const preflightReplay = replayBoundCommand(
+    preflightReceipt, fingerprint, isWolfAttackDeclarationResult, 'Wolf attack declaration',
+  );
+  if (preflightReplay) return preflightReplay;
+  const preflight = validateWolfAttackDeclaration(
+    preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
+    preflightWindow, preflightState, preflightEvent, preflightAudit, uid,
+    declaration.expectedRevision,
+  );
+  const declaredAt = new Date().toISOString();
+  const calculationReceipt = wolfTargetingStageReceipt(
+    preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing,
+  );
+  const announcementId = `wolf-attack-${declaration.requestId}`;
+  const result: WolfAttackDeclarationResult = {
+    status: 'committed',
+    type: 'wolf-attack-declaration',
+    sessionId: declaration.sessionId,
+    requestId: declaration.requestId,
+    turn: preflight.phase.turn,
+    revision: 1,
+    currentStep: WOLF_ATTACK_DECLARATION_STEP,
+    deadlineAt: preflight.phase.openAirspaceEndsAt,
+    airspaceLocked: true,
+    parkedCraftCount: preflight.parkedCraftIds.length,
+    announcementId,
+  };
+
+  return db.runTransaction(async tx => {
+    const [session, player, instance, preparation, window, state, receipt, audit, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(preparationRef),
+      tx.get(windowRef), tx.get(stateRef), tx.get(receiptRef), tx.get(auditRef), tx.get(eventRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
+    );
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfAttackDeclarationResult, 'Wolf attack declaration');
+    if (replay) return replay;
+    if (!isLiveGmInstance(instance, player, uid)) {
+      throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+    }
+    const inputs = validateWolfAttackDeclaration(
+      session, player, instance, preparation, window, state, event, audit, uid,
+      declaration.expectedRevision,
+    );
+    if (inputs.phase.turn !== preflight.phase.turn ||
+        inputs.phase.openAirspaceEndsAt !== preflight.phase.openAirspaceEndsAt ||
+        inputs.window.revision !== preflight.window.revision ||
+        inputs.preparation.revision !== preflight.preparation.revision ||
+        JSON.stringify(inputs.targetRing) !== JSON.stringify(preflight.targetRing)) {
+      throw commandError(
+        'failed-precondition',
+        'The live attack preparation changed while the declaration was being committed.',
+        'stale-revision',
+      );
+    }
+
+    const lockedPhase = {
+      ...inputs.phase,
+      airspace: { ...inputs.phase.airspace, state: 'restricted' as const, tickerActive: true },
+    };
+    const turnState = phaseTransitionTurnState(session, lockedPhase);
+    const fleetTicker = publishSessionFleetTicker(declaration.sessionId, session, {
+      source: 'automatic',
+      priority: FLEET_TICKER_PRIORITIES.airspace,
+      text: FLEET_TICKER_COPY.airspaceClosed,
+      tone: 'normal',
+      gap: 'long',
+      sourceId: `wolf-attack:${inputs.phase.turn}`,
+    }, declaredAt);
+    const stageState: WolfAttackStageState = {
+      type: 'wolf-attack-state',
+      status: 'declared',
+      turn: inputs.phase.turn,
+      revision: 1,
+      preparationRevision: inputs.preparation.revision,
+      currentStep: WOLF_ATTACK_DECLARATION_STEP,
+      deadlineAt: inputs.phase.openAirspaceEndsAt,
+      airspaceLocked: true,
+      parkedCraftIds: [...inputs.parkedCraftIds],
+      parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
+      calculationReceipt,
+      preparation: inputs.preparation,
+      actorUid: uid,
+      declaredAt,
+      announcementId,
+    };
+    const nextWindow: WolfAttackWindow = {
+      status: 'resolved',
+      turn: inputs.window.turn,
+      revision: inputs.window.revision + 1,
+    };
+    tx.update(sessionRef, {
+      turnPhase: lockedPhase,
+      ...(turnState ? { turnState } : {}),
+      fleetTicker,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, {
+      type: 'wolf-attack-declaration',
+      action: 'declared',
+      turn: stageState.turn,
+      revision: stageState.revision,
+      preparationRevision: stageState.preparationRevision,
+      actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(windowRef, { ...nextWindow, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'wolf-attack-declared',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: declaration.sessionId,
+        actorUid: uid,
+        actorRoleId: null,
+        turn: stageState.turn,
+        phase: 'active',
+        type: 'wolf-attack-declared',
+        requestId: declaration.requestId,
+        revision: stageState.revision,
+        serverTime: declaredAt,
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        status: stageState.status,
+        currentStep: stageState.currentStep,
+        deadlineAt: stageState.deadlineAt,
+        airspace: 'locked',
+        parkedCraftCount: stageState.parkedCraftIds.length,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
 });
 
 /** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */

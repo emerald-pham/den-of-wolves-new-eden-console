@@ -30,6 +30,7 @@ vi.mock('@/lib/sessionService', () => ({
   extendAirspaceWindow: vi.fn(),
   setWolfAttackWindow: vi.fn(),
   stageWolfAttackPreparation: vi.fn(),
+  declareWolfAttack: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
@@ -43,17 +44,18 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
   subscribeGmWolfAttackWindow: vi.fn(),
   subscribeGmWolfAttackPreparation: vi.fn(),
+  subscribeGmWolfAttackState: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, setEmergencyTimerPaused,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 
 const local = {
@@ -107,6 +109,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAttackPreparation).mockImplementation((_sessionId, onPreparation) => {
     onPreparation(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState(null);
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
@@ -1700,6 +1706,66 @@ it('stages a private card and target draft through the GM-only preparation panel
     turn: 1,
     targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }],
   }), 0));
+});
+
+it('activates the GM declaration control with Enter after the due window and draft are live', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    currentTurn: 1,
+    activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: new Date(Date.now() - 1_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
+    onWindow({ status: 'due', turn: 1, revision: 3 });
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackPreparation).mockImplementation((_sessionId, onPreparation) => {
+    onPreparation({
+      turn: 1,
+      revision: 4,
+      shipIds: ['wolf-fighter-wing'],
+      targetMode: 'manual',
+      targetAssignments: [],
+      modifiers: [],
+      notes: 'ready',
+    });
+    return vi.fn();
+  });
+  vi.mocked(declareWolfAttack).mockResolvedValue({
+    status: 'committed',
+    type: 'wolf-attack-declaration',
+    sessionId: 's1',
+    requestId: 'declare-ui',
+    turn: 1,
+    revision: 1,
+    currentStep: 'targeting',
+    deadlineAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+    airspaceLocked: true,
+    parkedCraftCount: 2,
+    announcementId: 'wolf-attack-declare-ui',
+  });
+  renderConsole();
+
+  const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
+  const declare = within(preparation).getByRole('button', { name: 'Declare Wolf attack' });
+  expect(declare).toBeEnabled();
+  declare.focus();
+  await user.keyboard('{Enter}');
+
+  await waitFor(() => expect(declareWolfAttack).toHaveBeenCalledWith(4));
+  expect(preparation).toHaveTextContent(/declared \/\/ turn 1 \/\/ targeting step \/\/ airspace locked \/\/ 2 craft parked/i);
 });
 
 it('requires three deliberate clicks to pause and resume the emergency timer', async () => {

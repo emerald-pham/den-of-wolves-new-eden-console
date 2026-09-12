@@ -14,7 +14,10 @@ import { turnPhaseState, type TurnPhase } from './turnZero';
 export const CORE_WOLF_TARGET_RING = [
   'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124',
 ] as const;
-export type WolfFleetTargetId = typeof CORE_WOLF_TARGET_RING[number];
+/** Expansion targeting adds the full Capybara as the seventh printed target.
+ * The d8's eighth face is handled as a server reroll before this ring maps it. */
+export const EXPANDED_WOLF_TARGET_RING = [...CORE_WOLF_TARGET_RING, 'capybara'] as const;
+export type WolfFleetTargetId = typeof EXPANDED_WOLF_TARGET_RING[number];
 export type WolfTargetRing = readonly WolfFleetTargetId[];
 
 export const WOLF_ATTACK_STEPS = [
@@ -112,6 +115,8 @@ export interface WolfTargetingRollReceipt {
   readonly shiftedDie?: number;
   readonly finalDie: number;
   readonly target: WolfFleetTargetId;
+  readonly printedRerolls?: readonly number[];
+  readonly commanderPrintedRerolls?: readonly number[];
   readonly modifiers: readonly ('commander-reroll' | 'target-shift' | 'command-and-control-redirect')[];
 }
 
@@ -142,6 +147,17 @@ export function resolveWolfTargeting(
   random: WolfRandomInt = secureRandomInt,
 ): WolfTargetingReceipt {
   targetRingIsValid(ring);
+  const expansionRing = ring.includes('capybara');
+  const dieUpperBound = expansionRing ? 8 : ring.length;
+  const rollConfiguredDie = (): { readonly die: number; readonly printedRerolls: readonly number[] } => {
+    const printedRerolls: number[] = [];
+    let die = boundedRandomInt(random, dieUpperBound) + 1;
+    while (expansionRing && die === 8) {
+      printedRerolls.push(die);
+      die = boundedRandomInt(random, dieUpperBound) + 1;
+    }
+    return { die, printedRerolls };
+  };
   const rerollIndexes = modifiers.commanderRerollIndexes ?? [];
   validateRosterIndexes(rerollIndexes, composition.shipIds.length, 'Commander rerolls');
   const redirectIndex = modifiers.commandAndControlRedirectIndex;
@@ -156,9 +172,10 @@ export function resolveWolfTargeting(
   });
   const rerolls = new Set(rerollIndexes);
   const rolls = composition.shipIds.map((shipId, rosterIndex): WolfTargetingRollReceipt => {
-    const initialDie = boundedRandomInt(random, ring.length) + 1;
-    const rerollDie = rerolls.has(rosterIndex)
-      ? boundedRandomInt(random, ring.length) + 1 : undefined;
+    const initial = rollConfiguredDie();
+    const initialDie = initial.die;
+    const commanderReroll = rerolls.has(rosterIndex) ? rollConfiguredDie() : undefined;
+    const rerollDie = commanderReroll?.die;
     const shiftedDie = targetShifts[String(rosterIndex)] === undefined
       ? undefined
       : shiftWolfTargetDie(rerollDie ?? initialDie, targetShifts[String(rosterIndex)]!, ring);
@@ -177,6 +194,9 @@ export function resolveWolfTargeting(
       ...(shiftedDie === undefined ? {} : { shiftedDie }),
       finalDie,
       target: redirectIndex === rosterIndex ? 'aegis' : wolfTargetForDie(finalDie, ring),
+      ...(initial.printedRerolls.length === 0 ? {} : { printedRerolls: initial.printedRerolls }),
+      ...(commanderReroll && commanderReroll.printedRerolls.length > 0
+        ? { commanderPrintedRerolls: commanderReroll.printedRerolls } : {}),
       modifiers: modifiersApplied,
     };
   });
@@ -657,11 +677,18 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   const damageTotals = damageRecord();
   [...ranges.flatMap(range => Object.entries(range.destructionDamageByTarget)),
     ...Object.entries(survival.fleetDamage)].forEach(([target, amount]) => {
-    if (CORE_WOLF_TARGET_RING.includes(target as WolfFleetTargetId)) {
-      addFleetDamage(damageTotals, target as WolfFleetTargetId, amount as number);
+    if ((CORE_WOLF_TARGET_RING as readonly string[]).includes(target)) {
+      addFleetDamage(damageTotals, target as typeof CORE_WOLF_TARGET_RING[number], amount as number);
     }
   });
-  boarding.forEach(result => addFleetDamage(damageTotals, result.target, result.damage));
+  boarding.forEach(result => {
+    // The current calculation entry point resolves the base six-ship fleet.
+    // Expansion targeting has its own ring and later damage contract; do not
+    // turn an unconfigured Capybara fleet state into an implicit crash here.
+    if ((CORE_WOLF_TARGET_RING as readonly string[]).includes(result.target)) {
+      addFleetDamage(damageTotals, result.target as typeof CORE_WOLF_TARGET_RING[number], result.damage);
+    }
+  });
   const fleetDamage: WolfFleetDamageResult[] = [];
   Object.entries(damageTotals).forEach(([target, amount]) => {
     if (amount < 1) return;
