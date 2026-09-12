@@ -308,6 +308,13 @@
       "language": "Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: active vessels receive exact server survivor/resource catalogs, newly active vessels are seeded, removed vessels are filtered, and existing active lobby values are preserved. startGame locks the prepared state without resetting stores. Focused resources, population, create-session, and session-composition tests cover the printed base and expansion values plus these transitions.",
       "source": "functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/resources.test.ts; functions/src/shipPopulation.test.ts; functions/src/createSessionCallable.test.ts; functions/src/sessionComposition.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "069 -> 070",
+      "id": "E-070-START",
+      "language": "Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: each active vessel's persisted shipResources.securityTeams matches the authoritative INITIAL_SHIP_RESOURCES catalog across the production 8-, 19-, and 20-player rows. The existing bidirectional composition test preserves a deliberate lobby resource edit, and startGame locks the prepared state without resetting it.",
+      "source": "functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/resources.ts; functions/src/sessionComposition.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2013,8 +2020,8 @@
         "acceptance": "each active ship begins with its printed authoritative team count.",
         "title": "Initialize security teams."
       },
-      "description": "Security/resource primitives exist; roster-wide start initialization is open.",
-      "evidenceIds": "none",
+      "description": "Prompt 058's create/confirm composition persists the authoritative securityTeams catalog for every active vessel across the production 8-, 19-, and 20-player rows; deliberate lobby resource edits remain preserved and startGame does not reset prepared stores.",
+      "evidenceIds": "E-070-START",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2025,7 +2032,7 @@
       "releases": [],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

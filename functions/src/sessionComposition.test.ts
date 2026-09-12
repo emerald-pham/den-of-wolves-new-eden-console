@@ -245,6 +245,7 @@ import {
   startGame,
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
+import { INITIAL_SHIP_RESOURCES } from './resources';
 
 type CompositionCount = 8 | 19 | 20;
 
@@ -805,6 +806,12 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       pursuitGroups: { fleet: 2 },
       activeRoleIds,
     });
+    const storedResources = storedSession.shipResources as Record<string, Record<string, number>>;
+    for (const shipId of storedSession.activeVesselIds as string[]) {
+      expect(INITIAL_SHIP_RESOURCES[shipId]).toBeDefined();
+      expect(storedResources[shipId]?.securityTeams)
+        .toBe(INITIAL_SHIP_RESOURCES[shipId]?.securityTeams);
+    }
     expect((read(`sessions/${sessionId}/gmInstances/bridge-${playerCount}`) as StoredDocument).responsibilities)
       .toEqual(['main', 'assistant']);
 

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**107 / 747 prompts complete (14.32%)**
+**108 / 747 prompts complete (14.46%)**
 
-Status breakdown: **107 done · 14 partial · 626 missing**.
+Status breakdown: **108 done · 13 partial · 626 missing**.
 
 Active prompt: **none**
 
@@ -481,7 +481,7 @@ release classification and evidence.
 | 067 | done | feature | 0.3.5 | Android self-disclosure callable and denial test. |
 | 068 | done | feature | 0.3.39 | Server-owned start composition derives every represented shuttle and fighter wing from the locked printed-role roster, validates the manifest before start, and exposes only each holder's active craft in their private role brief. |
 | 069 | done | non-feature | 0.3.35 | Prompt 058's create/confirm composition initializes exact active-vessel survivor/resource maps, preserves deliberate lobby edits on reconfiguration, seeds newly active vessels, and filters removed vessels; startGame locks the prepared state without resetting stores. |
-| 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
+| 070 | done | non-feature | — | Prompt 058's create/confirm composition persists the authoritative securityTeams catalog for every active vessel across the production 8-, 19-, and 20-player rows; deliberate lobby resource edits remain preserved and startGame does not reset prepared stores. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
 | 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; former Prompt 071 readiness evidence remains historical while Prompt 654 is the queued repair for zero/partial-occupancy start. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
