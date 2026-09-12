@@ -3,6 +3,7 @@ import {
   hasActiveTurnTimer,
   turnPhaseReadout,
   turnPhaseState,
+  turnStateForPhaseContext,
   turnStateState,
 } from './turnPhase';
 
@@ -86,5 +87,29 @@ describe('persisted turn entity', () => {
       startedAt: '2026-09-07T12:00:00.000Z',
       endsAt: '2026-09-07T12:05:00.000Z',
     })).toBeUndefined();
+  });
+
+  it('rejects a valid-shaped entity that does not match the current phase context', () => {
+    const currentPhase = {
+      ...phase,
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-07T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-07T12:20:00.000Z',
+      airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: false },
+    };
+    const state = {
+      currentTurn: 2,
+      maxTurn: 7,
+      phase: 'coordination' as const,
+      phaseRevision: 2,
+      startedAt: currentPhase.teamPhaseEndsAt,
+      endsAt: currentPhase.openAirspaceEndsAt,
+    };
+
+    expect(turnStateForPhaseContext(state, currentPhase, 2, 7)).toEqual(state);
+    expect(turnStateForPhaseContext({ ...state, currentTurn: 3 }, currentPhase, 2, 7)).toBeUndefined();
+    expect(turnStateForPhaseContext(state, currentPhase, 2, 6)).toBeUndefined();
+    expect(turnStateForPhaseContext({ ...state, endsAt: currentPhase.teamPhaseEndsAt }, currentPhase, 2, 7)).toBeUndefined();
+    expect(turnStateForPhaseContext({ ...state, startedAt: '2026-09-07T12:00:00.000Z' }, currentPhase, 2, 7)).toBeUndefined();
   });
 });

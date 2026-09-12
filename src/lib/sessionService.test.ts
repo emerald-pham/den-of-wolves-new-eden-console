@@ -1119,6 +1119,76 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.shuttleFuelled).toEqual({ starlight: false });
   });
 
+  it('clears a prior turn entity when the accepted phase reply is partial or mismatched', async () => {
+    const priorTurnState = {
+      currentTurn: 1,
+      maxTurn: 7 as const,
+      phase: 'team' as const,
+      phaseRevision: 1,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-01-01T00:05:00.000Z',
+    };
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 1,
+      turnLimit: 7,
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: priorTurnState.endsAt,
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+      turnState: priorTurnState,
+    });
+    const callable = callableReturning({
+      data: {
+        currentTurn: 1,
+        turnPhase: {
+          turn: 1,
+          teamPhaseEndsAt: priorTurnState.endsAt,
+          openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+          airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+        },
+        turnState: {
+          ...priorTurnState,
+          phase: 'coordination',
+          startedAt: '2026-01-01T00:04:00.000Z',
+          endsAt: '2026-01-01T00:20:00.000Z',
+        },
+      },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await advanceTurn();
+
+    expect(useSessionStore.getState().session?.turnPhase?.airspace.state).toBe('lifted');
+    expect(useSessionStore.getState().session?.turnState).toBeUndefined();
+
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      turnState: priorTurnState,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        currentTurn: 1,
+        turnPhase: {
+          turn: 1,
+          teamPhaseEndsAt: priorTurnState.endsAt,
+          openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+          airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        },
+      },
+    }));
+
+    await advanceTurn();
+
+    expect(useSessionStore.getState().session?.turnState).toBeUndefined();
+  });
+
   it('skips the Turn 1 fullscreen transmission and clears stale announcement state', async () => {
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
@@ -1162,6 +1232,14 @@ describe('GM instance commands', () => {
         openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
         airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
       },
+      turnState: {
+        currentTurn: 2,
+        maxTurn: 7,
+        phase: 'team',
+        phaseRevision: 3,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        endsAt: '2026-01-01T00:05:00.000Z',
+      },
     });
     useSessionStore.getState().setConnection('live');
     vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
@@ -1184,11 +1262,20 @@ describe('GM instance commands', () => {
     useSessionStore.getState().setSession({
       ...session,
       currentTurn: 2,
+      turnLimit: 7,
       turnPhase: {
         turn: 2,
         teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
         openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
         airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+      turnState: {
+        currentTurn: 2,
+        maxTurn: 7,
+        phase: 'team',
+        phaseRevision: 3,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        endsAt: '2026-01-01T00:05:00.000Z',
       },
     });
     const callable = callableReturning({
@@ -1198,6 +1285,14 @@ describe('GM instance commands', () => {
           teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
           openAirspaceEndsAt: '2026-01-01T00:25:00.000Z',
           airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        },
+        turnState: {
+          currentTurn: 2,
+          maxTurn: 7,
+          phase: 'team',
+          phaseRevision: 3,
+          startedAt: '2026-01-01T00:00:00.000Z',
+          endsAt: '2026-01-01T00:10:00.000Z',
         },
       },
     });
@@ -1214,6 +1309,14 @@ describe('GM instance commands', () => {
       teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
       openAirspaceEndsAt: '2026-01-01T00:25:00.000Z',
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    });
+    expect(useSessionStore.getState().session?.turnState).toEqual({
+      currentTurn: 2,
+      maxTurn: 7,
+      phase: 'team',
+      phaseRevision: 3,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-01-01T00:10:00.000Z',
     });
   });
 

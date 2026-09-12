@@ -9,7 +9,7 @@ const mock = vi.hoisted(() => ({
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
-  turnPhase: undefined as unknown, turnState: undefined as unknown, pressDispatch: undefined as unknown,
+  turnPhase: undefined as unknown, turnState: undefined as unknown, turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   race: undefined as {
     attempts: number;
     ready: Promise<void>;
@@ -133,6 +133,7 @@ vi.mock('firebase-admin/firestore', () => ({
           const baseVersion = race.version;
           const snapshot = {
             currentTurn: mock.currentTurn,
+            turnLimit: mock.turnLimit,
             turnPhase: mock.turnPhase,
             turnState: mock.turnState,
             turnStartAnnouncement: mock.turnStartAnnouncement,
@@ -231,6 +232,7 @@ beforeEach(() => {
   mock.turnStartAnnouncement = undefined;
   mock.turnPhase = undefined;
   mock.turnState = undefined;
+  mock.turnLimit = 6;
   mock.race = undefined;
   mock.pressDispatch = undefined;
   mock.pressEnabled = true;
@@ -263,6 +265,7 @@ beforeEach(() => {
         : {
           shipDamage: mock.damage,
           currentTurn: mock.currentTurn,
+          turnLimit: mock.turnLimit,
           maintenanceCycles: mock.maintenanceCycles,
           shuttleFuelled: mock.shuttleFuelled,
           shipSurvivors: mock.shipSurvivors,
@@ -1285,6 +1288,7 @@ it('keeps the persisted turn entity aligned with a phase boundary and timer upda
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
   mock.currentTurn = 2;
+  mock.turnLimit = 7;
   mock.turnPhase = {
     turn: 2,
     teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -1324,6 +1328,8 @@ it('keeps the persisted turn entity aligned with a phase boundary and timer upda
     ...mock.turnState as Record<string, unknown>,
     phase: 'coordination',
     phaseRevision: 4,
+    startedAt: '2026-09-06T12:05:00.000Z',
+    endsAt: '2026-09-06T12:20:00.000Z',
   };
   mock.update.mockClear();
   await expect(extendAirspaceWindow.run(request({

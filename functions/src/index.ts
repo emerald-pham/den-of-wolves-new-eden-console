@@ -173,6 +173,7 @@ import {
   pauseActiveTurnPhase,
   resumePausedTurnPhase,
   startTurnPhase,
+  turnStateForPhaseContext,
   turnStateForPhase,
   turnStateState,
   turnPhaseState,
@@ -829,18 +830,40 @@ function nextTurnState(
 ): ActiveTurnState | undefined {
   const maxTurn = sessionTurnLimit(session);
   if (!maxTurn) return undefined;
-  const current = turnStateState(session.get('turnState'));
+  const current = turnStateForPhaseContext(
+    session.get('turnState'),
+    turnPhaseState(session.get('turnPhase')),
+    sessionTurn(session.get('currentTurn')),
+    maxTurn,
+  );
   const phaseRevision = current && current.currentTurn < phase.turn
     ? current.phaseRevision + 1
     : 1;
   return turnStateForPhase(phase, maxTurn, phaseRevision, startedAt);
 }
 
+function sessionTurnState(
+  session: DocumentSnapshot,
+  phase: ActiveTurnPhase | undefined,
+): ActiveTurnState | undefined {
+  return turnStateForPhaseContext(
+    session.get('turnState'),
+    phase,
+    sessionTurn(session.get('currentTurn')),
+    sessionTurnLimit(session),
+  );
+}
+
 function updatedTurnState(
   session: DocumentSnapshot,
   phase: ActiveTurnPhase,
 ): ActiveTurnState | undefined {
-  const current = turnStateState(session.get('turnState'));
+  const current = turnStateForPhaseContext(
+    session.get('turnState'),
+    turnPhaseState(session.get('turnPhase')),
+    sessionTurn(session.get('currentTurn')),
+    sessionTurnLimit(session),
+  );
   if (!current || current.currentTurn !== phase.turn) return undefined;
   return updateTurnStateForPhase(phase, current);
 }
@@ -852,6 +875,15 @@ function phaseTransitionTurnState(
 ): ActiveTurnState | undefined {
   const current = updatedTurnState(session, phase);
   if (current) return current;
+  const previous = turnStateForPhaseContext(
+    session.get('turnState'),
+    turnPhaseState(session.get('turnPhase')),
+    sessionTurn(session.get('currentTurn')),
+    sessionTurnLimit(session),
+  );
+  if (previous && previous.currentTurn === phase.turn) {
+    return updateTurnStateForPhase(phase, previous);
+  }
   const maxTurn = sessionTurnLimit(session);
   if (!maxTurn || phase.airspace.state !== 'lifted') return undefined;
   return turnStateForPhase(phase, maxTurn, 2, phase.teamPhaseEndsAt);
@@ -3803,7 +3835,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 
     const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
     const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
-    const turnState = turnStateState(sessionSnap.get('turnState'));
+    const turnState = sessionTurnState(sessionSnap, phaseClock);
     const activeRoleIds = sessionActiveRoleIds(sessionSnap);
     const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
     const activeVesselIds = setup.activeVesselIds;
@@ -3990,7 +4022,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
-  const turnState = turnStateState(sessionSnap.get('turnState'));
+  const turnState = sessionTurnState(sessionSnap, phaseClock);
   const activeRoleIds = sessionActiveRoleIds(sessionSnap);
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
@@ -5147,7 +5179,7 @@ export const beginOpenAirspacePhase = onCall<{
       throw commandError('failed-precondition', 'The airspace-closed timer is still active.', 'invalid-phase');
     }
     if (phase.airspace.state === 'lifted') {
-      const turnState = turnStateState(session.get('turnState'));
+      const turnState = sessionTurnState(session, phase);
       return { turnPhase: phase, ...(turnState ? { turnState } : {}) };
     }
     const turnPhase = {
@@ -5256,7 +5288,7 @@ export const setEmergencyTimerPaused = onCall<{
     }
     const currentlyPaused = phase.timerPause !== undefined;
     if (currentlyPaused === requestData.paused) {
-      const turnState = turnStateState(session.get('turnState'));
+      const turnState = sessionTurnState(session, phase);
       return { turnPhase: phase, ...(turnState ? { turnState } : {}) };
     }
 
@@ -5496,14 +5528,20 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
       return { turnPhase, ...(turnState ? { turnState } : {}) };
     }
     if (phase.airspace.state !== 'restricted' || phase.airspace.pressAccess) {
-      return { turnPhase: phase };
+      const turnState = sessionTurnState(session, phase);
+      return { turnPhase: phase, ...(turnState ? { turnState } : {}) };
     }
     const turnPhase = {
       ...phase,
       airspace: { ...phase.airspace, pressAccess: true },
     };
-    tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
-    return { turnPhase };
+    const turnState = sessionTurnState(session, turnPhase);
+    tx.update(sessionRef, {
+      turnPhase,
+      ...(turnState ? { turnState } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { turnPhase, ...(turnState ? { turnState } : {}) };
   });
 });
 

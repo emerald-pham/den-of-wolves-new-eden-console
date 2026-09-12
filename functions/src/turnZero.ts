@@ -77,6 +77,30 @@ export function turnStateState(value: unknown): TurnState | undefined {
   };
 }
 
+/** Accept a turn entity only when it matches the authoritative phase context. */
+export function turnStateForPhaseContext(
+  value: unknown,
+  phase: TurnPhase | undefined,
+  currentTurn: unknown,
+  maxTurn: unknown,
+): TurnState | undefined {
+  const turnState = turnStateState(value);
+  if (
+    !turnState || !phase ||
+    typeof currentTurn !== 'number' || !Number.isSafeInteger(currentTurn) || currentTurn < 1 ||
+    (maxTurn !== 6 && maxTurn !== 7 && maxTurn !== 8) ||
+    phase.turn !== currentTurn ||
+    turnState.currentTurn !== currentTurn ||
+    turnState.maxTurn !== maxTurn ||
+    turnState.phase !== phaseForAirspace(phase.airspace.state) ||
+    turnState.endsAt !== (phase.airspace.state === 'lifted'
+      ? phase.openAirspaceEndsAt
+      : phase.teamPhaseEndsAt) ||
+    (turnState.phase === 'coordination' && turnState.startedAt !== phase.teamPhaseEndsAt)
+  ) return undefined;
+  return turnState;
+}
+
 /** Build the turn entity from an already-authoritative phase transition. */
 export function turnStateForPhase(
   phase: TurnPhase,

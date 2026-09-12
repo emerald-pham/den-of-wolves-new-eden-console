@@ -153,6 +153,36 @@ it('defaults a legacy resume reply with no Press toggle to enabled', async () =>
   expect(response.session.pressEnabled).toBe(true);
 });
 
+it('omits a valid-shaped turn entity when it disagrees with the current phase or configured limit', async () => {
+  prepareResume(
+    { status: 'open', holderUid: null },
+    {},
+    {
+      phase: 'active',
+      currentTurn: 2,
+      turnLimit: 7,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+      turnState: {
+        currentTurn: 2,
+        maxTurn: 8,
+        phase: 'coordination',
+        phaseRevision: 2,
+        startedAt: '2026-01-01T00:05:00.000Z',
+        endsAt: '2026-01-01T00:20:00.000Z',
+      },
+    },
+  );
+
+  const response = await resumeSession.run(request('s1')) as { session: Record<string, unknown> };
+
+  expect(response.session).not.toHaveProperty('turnState');
+});
+
 it('returns only operational fields when legacy root maps contain hidden-shaped fields', async () => {
   prepareResume(
     { status: 'open', holderUid: null },

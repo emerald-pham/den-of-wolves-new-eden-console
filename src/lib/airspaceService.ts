@@ -1,7 +1,12 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
-import { turnPhaseState, turnStateState } from './turnPhase';
+import {
+  turnLimitForSession,
+  turnPhaseState,
+  turnStateForPhaseContext,
+  replaceTurnStateOnPhase,
+} from './turnPhase';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
@@ -24,13 +29,14 @@ export async function unlockPressAirspace(): Promise<void> {
     { turnPhase?: unknown; turnState?: unknown }
   >(functions(), 'unlockPressAirspace')({ sessionId: store.session.id });
   const phaseClock = turnPhaseState(reply.data.turnPhase);
-  const turnState = turnStateState(reply.data.turnState);
   const activeSession = useSessionStore.getState().session;
   if (phaseClock && activeSession?.id === store.session.id && isCurrentSessionAuthority(checkpoint)) {
-    useSessionStore.getState().setSession({
-      ...activeSession,
-      turnPhase: phaseClock,
-      ...(turnState ? { turnState } : {}),
-    });
+    const turnState = turnStateForPhaseContext(
+      reply.data.turnState,
+      phaseClock,
+      activeSession.currentTurn,
+      turnLimitForSession(activeSession),
+    );
+    useSessionStore.getState().setSession(replaceTurnStateOnPhase(activeSession, phaseClock, turnState));
   }
 }

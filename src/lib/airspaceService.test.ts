@@ -30,6 +30,41 @@ it('allows a Press airspace command backed by a live server snapshot', async () 
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1' });
 });
 
+it('clears a prior turn entity when the accepted Press phase reply is malformed', async () => {
+  const phase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+    openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+    airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: false },
+  };
+  useSessionStore.getState().setSession({
+    id: 'turn-state-clear', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1',
+    currentTurn: 1, turnLimit: 7, turnPhase: phase,
+    turnState: {
+      currentTurn: 1, maxTurn: 7, phase: 'team', phaseRevision: 1,
+      startedAt: '2026-01-01T00:00:00.000Z', endsAt: phase.teamPhaseEndsAt,
+    },
+    createdAt: '', updatedAt: '',
+  });
+  useSessionStore.getState().setMe({
+    uid: 'u1', sessionId: 'turn-state-clear', displayName: 'GM', role: 'gm',
+    seatId: null, joinedAt: '',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  mocks.call.mockResolvedValue({ data: {
+    turnPhase: {
+      ...phase,
+      airspace: { ...phase.airspace, state: 'restricted', pressAccess: true },
+    },
+    turnState: { currentTurn: 1, maxTurn: 7, phase: 'team' },
+  } });
+
+  await unlockPressAirspace();
+
+  expect(useSessionStore.getState().session?.turnState).toBeUndefined();
+});
+
 it('rejects a Press airspace command backed only by cached session state', async () => {
   useSessionStore.getState().setSessionSnapshotFreshness('cache');
   await expect(unlockPressAirspace()).rejects.toThrow(/live session state/i);

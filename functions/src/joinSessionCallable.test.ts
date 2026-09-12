@@ -112,6 +112,38 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
   });
 });
 
+it('omits a valid-shaped turn entity when it disagrees with the current phase or configured limit', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one', phase: 'active', currentTurn: 2, turnLimit: 7,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+      turnState: {
+        currentTurn: 2,
+        maxTurn: 8,
+        phase: 'coordination',
+        phaseRevision: 2,
+        startedAt: '2026-01-01T00:05:00.000Z',
+        endsAt: '2026-01-01T00:20:00.000Z',
+      },
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
+
+  expect(response.session).not.toHaveProperty('turnState');
+});
+
 it('returns only the public session projection when the persisted root has private-shaped fields', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);

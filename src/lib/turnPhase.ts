@@ -26,6 +26,52 @@ export function turnStateState(value: unknown): TurnState | undefined {
   };
 }
 
+/** Accept a turn entity only when it matches the authoritative phase context. */
+export function turnStateForPhaseContext(
+  value: unknown,
+  phase: TurnPhase | undefined,
+  currentTurn: unknown,
+  maxTurn: unknown,
+): TurnState | undefined {
+  const turnState = turnStateState(value);
+  if (
+    !turnState || !phase ||
+    typeof currentTurn !== 'number' || !Number.isSafeInteger(currentTurn) || currentTurn < 1 ||
+    (maxTurn !== 6 && maxTurn !== 7 && maxTurn !== 8) ||
+    phase.turn !== currentTurn ||
+    turnState.currentTurn !== currentTurn ||
+    turnState.maxTurn !== maxTurn ||
+    turnState.phase !== (phase.airspace.state === 'lifted' ? 'coordination' : 'team') ||
+    turnState.endsAt !== (phase.airspace.state === 'lifted'
+      ? phase.openAirspaceEndsAt
+      : phase.teamPhaseEndsAt) ||
+    (turnState.phase === 'coordination' && turnState.startedAt !== phase.teamPhaseEndsAt)
+  ) return undefined;
+  return turnState;
+}
+
+export function turnLimitForSession(
+  session: Pick<GameSession, 'turnLimit' | 'setup'>,
+): 6 | 7 | 8 | undefined {
+  if (session.turnLimit === 6 || session.turnLimit === 7 || session.turnLimit === 8) {
+    return session.turnLimit;
+  }
+  const nested = session.setup?.turnLimit;
+  return nested === 6 || nested === 7 || nested === 8 ? nested : undefined;
+}
+
+/** Replace the optional projection without retaining a stale prior entity. */
+export function replaceTurnStateOnPhase(
+  session: GameSession,
+  phase: TurnPhase,
+  turnState: TurnState | undefined,
+): GameSession {
+  const nextSession = { ...session, turnPhase: phase };
+  if (turnState === undefined) delete nextSession.turnState;
+  else nextSession.turnState = turnState;
+  return nextSession;
+}
+
 function record(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

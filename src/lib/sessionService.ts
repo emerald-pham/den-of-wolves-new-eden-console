@@ -27,7 +27,12 @@ import {
   requireFreshSessionAuthority,
   type SessionAuthorityCheckpoint,
 } from './sessionMutationAuthority';
-import { turnPhaseState, turnStateState } from './turnPhase';
+import {
+  turnLimitForSession,
+  turnPhaseState,
+  turnStateForPhaseContext,
+  replaceTurnStateOnPhase,
+} from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
 import {
   commandErrorCode,
@@ -1586,17 +1591,20 @@ function applyTurnAdvanceReply(
     Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0,
   );
   const phaseClock = turnPhaseState(reply.turnPhase);
-  const turnState = turnStateState(reply.turnState);
   if (
     activeSession?.id !== sessionId || !Number.isSafeInteger(reply.currentTurn) ||
     reply.currentTurn < 0 || !authorityCheckpointIsCurrent(checkpoint)
   ) return;
+  const turnState = turnStateForPhaseContext(
+    reply.turnState,
+    phaseClock,
+    reply.currentTurn,
+    turnLimitForSession(activeSession),
+  );
   const nextSession = {
     ...activeSession,
     currentTurn: reply.currentTurn,
     ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
-    ...(phaseClock ? { turnPhase: phaseClock } : {}),
-    ...(turnState ? { turnState } : {}),
     ...(reply.maintenanceCycles
       ? { maintenanceCycles: reply.maintenanceCycles }
       : {}),
@@ -1605,7 +1613,9 @@ function applyTurnAdvanceReply(
       : {}),
   };
   if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
-  useSessionStore.getState().setSession(nextSession);
+  useSessionStore.getState().setSession(
+    phaseClock ? replaceTurnStateOnPhase(nextSession, phaseClock, turnState) : nextSession,
+  );
 }
 
 export async function advanceTurn({
@@ -1736,14 +1746,15 @@ export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void
   try {
     const reply = await call({ sessionId: store.session.id, expectedTurn });
     const phaseClock = turnPhaseState(reply.data.turnPhase);
-    const turnState = turnStateState(reply.data.turnState);
     const activeSession = useSessionStore.getState().session;
     if (phaseClock && activeSession?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
-      useSessionStore.getState().setSession({
-        ...activeSession,
-        turnPhase: phaseClock,
-        ...(turnState ? { turnState } : {}),
-      });
+      const turnState = turnStateForPhaseContext(
+        reply.data.turnState,
+        phaseClock,
+        activeSession.currentTurn,
+        turnLimitForSession(activeSession),
+      );
+      useSessionStore.getState().setSession(replaceTurnStateOnPhase(activeSession, phaseClock, turnState));
     }
   } catch (cause) {
     // A concurrent GM advance intentionally makes an already-scheduled handoff stale.
@@ -1785,14 +1796,15 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
       window,
     });
     const phaseClock = turnPhaseState(reply.data.turnPhase);
-    const turnState = turnStateState(reply.data.turnState);
     const activeSession = useSessionStore.getState().session;
     if (phaseClock && activeSession?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
-      useSessionStore.getState().setSession({
-        ...activeSession,
-        turnPhase: phaseClock,
-        ...(turnState ? { turnState } : {}),
-      });
+      const turnState = turnStateForPhaseContext(
+        reply.data.turnState,
+        phaseClock,
+        activeSession.currentTurn,
+        turnLimitForSession(activeSession),
+      );
+      useSessionStore.getState().setSession(replaceTurnStateOnPhase(activeSession, phaseClock, turnState));
     }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
@@ -1822,14 +1834,15 @@ export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
   try {
     const reply = await call(payload);
     const phaseClock = turnPhaseState(reply.data.turnPhase);
-    const turnState = turnStateState(reply.data.turnState);
     const activeSession = useSessionStore.getState().session;
     if (phaseClock && activeSession?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
-      useSessionStore.getState().setSession({
-        ...activeSession,
-        turnPhase: phaseClock,
-        ...(turnState ? { turnState } : {}),
-      });
+      const turnState = turnStateForPhaseContext(
+        reply.data.turnState,
+        phaseClock,
+        activeSession.currentTurn,
+        turnLimitForSession(activeSession),
+      );
+      useSessionStore.getState().setSession(replaceTurnStateOnPhase(activeSession, phaseClock, turnState));
     }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));

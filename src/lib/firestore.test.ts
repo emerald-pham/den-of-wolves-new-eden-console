@@ -96,6 +96,12 @@ it('hydrates the complete turn entity only when its server fields are valid', ()
     ...sessionData(8),
     currentTurn: 2,
     turnLimit: 7,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
     turnState: {
       currentTurn: 2,
       maxTurn: 7,
@@ -115,7 +121,34 @@ it('hydrates the complete turn entity only when its server fields are valid', ()
   });
   expect(sessionFrom('malformed-turn-state-session', {
     ...sessionData(8),
+    currentTurn: 2,
+    turnLimit: 7,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
     turnState: { currentTurn: 1, maxTurn: 7, phase: 'team' },
+  }).turnState).toBeUndefined();
+  expect(sessionFrom('mismatched-turn-state-session', {
+    ...sessionData(8),
+    currentTurn: 2,
+    turnLimit: 7,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+    turnState: {
+      currentTurn: 2,
+      maxTurn: 8,
+      phase: 'coordination',
+      phaseRevision: 2,
+      startedAt: '2026-01-01T00:05:00.000Z',
+      endsAt: '2026-01-01T00:20:00.000Z',
+    },
   }).turnState).toBeUndefined();
 });
 

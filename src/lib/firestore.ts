@@ -57,7 +57,7 @@ import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resource
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
-import { turnPhaseState, turnStateState } from './turnPhase';
+import { turnPhaseState, turnStateForPhaseContext } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
 import { useSessionStore } from '@/store/useSessionStore';
 import { parseMaintenanceCycle } from './shipStateProjection';
@@ -627,11 +627,17 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
-  const turnState = turnStateState(data.turnState);
   const playerCount = Number.isSafeInteger(data.playerCount) && data.playerCount >= 8 && data.playerCount <= 20
     ? data.playerCount as number
     : undefined;
   const setup = sessionSetup(data.setup);
+  const currentTurn = Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 0
+    ? data.currentTurn as number
+    : 1;
+  const maxTurn = data.turnLimit === 6 || data.turnLimit === 7 || data.turnLimit === 8
+    ? data.turnLimit
+    : setup?.turnLimit;
+  const turnState = turnStateForPhaseContext(data.turnState, phaseClock, currentTurn, maxTurn);
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
@@ -668,7 +674,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     name: data.name as string,
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
-    currentTurn: Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 0 ? data.currentTurn as number : 1,
+    currentTurn,
     ...(playerCount === undefined ? {} : { playerCount }),
     ...(data.chartId === 'A' || data.chartId === 'B' || data.chartId === 'C'
       ? { chartId: data.chartId } : {}),
