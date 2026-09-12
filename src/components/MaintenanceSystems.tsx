@@ -59,7 +59,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const maintenanceRollbackHelpId = `${shipId}-maintenance-rollback-phase-help`;
   const blocked = !access.writable || pending || !session || !me || connection !== 'live' || turnZeroLocked;
   const disabled = (at: number) => blocked || step !== at ||
-    (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7);
+    (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7) ||
+    (shipId === 'aegis' && at === 7 && cycle?.results['7'] !== undefined);
   const execute = async (action: string, choices: MaintenanceChoices = {}) => {
     if (blocked || busy.current) return;
     busy.current = true; setPending(true); setError('');
@@ -69,6 +70,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   };
   const ship = SHIPS.find(candidate => candidate.id === shipId);
   const schedule = ship?.maintenance ?? { ...AEGIS_ROLE_CONSOLES.admiral.rations, reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity };
+  const printedStepCount = ship?.printedStatistics.maintenanceSteps.length ?? 6;
   const chargeable = [...systems, ...(shipId === 'aegis' ? EXECUTIVE_SYSTEMS : [])].filter(system =>
     !['storage', 'reactor'].includes(system.id) && !system.id.startsWith('shuttle-bay') && !system.id.startsWith('armoured-hull'));
   const bays = systems.filter(system => system.timing === 6 || system.timing === 7);
@@ -76,7 +78,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
   const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));
-  const labels = ['Storage', 'Rations', 'Unrest check', 'Riot check', 'Reactor', bays.length > 1 ? 'Shuttle Bay Zeta / Omega' : 'Shuttle Bay'];
+  const endDisabled = blocked || step !== 7 ||
+    (shipId === 'aegis' && cycle?.results['7'] === undefined && damage?.destroyed !== true);
+  const labels = [
+    'Storage', 'Rations', 'Unrest check', 'Riot check', 'Reactor',
+    ...(printedStepCount >= 6 ? [bays.length > 1 ? 'Shuttle Bay Zeta' : 'Shuttle Bay'] : []),
+    ...(printedStepCount >= 7 ? ['Shuttle Bay Omega'] : []),
+  ];
   return <div className="maintenance-systems">
     <section className="maintenance-systems__cycle" aria-label={`${name} maintenance cycle`}>
       <h3>Maintenance cycle</h3>
@@ -94,6 +102,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {
           const step = index + 1;
+          const baysForStep = systems.filter(system => system.timing === step);
           return <li key={step} aria-current={cycle?.step === step ? 'step' : undefined}>
             <div className="maintenance-systems__step"><span>{step}</span><strong>{label}</strong></div>
             {step === 1 && <button className="cic-action-button" disabled={disabled(1)} onClick={() => void execute('storage')}>Check storage</button>}
@@ -115,7 +124,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             {step === 4 && <p>Roll 1d6. Below current unrest causes a riot: draw and apply 1 damage card.</p>}
             {step === 4 && <button className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
             {step === 5 && <p>Charge consoles with the reactor, then resolve the consoles marked 5 when charged.</p>}
-            <div className="aegis-system-grid">{systems.filter(system => system.timing === step || (step === 6 && system.timing === 7)).map(renderSystem)}</div>
+            <div className="aegis-system-grid">{systems.filter(system => system.timing === step).map(renderSystem)}</div>
             {step === 5 && <>
               <p>Unused charge is lost when the reactor powers up. Choose up to {capacity} consoles.</p>
               <fieldset disabled={disabled(5)} className="maintenance-controls"><legend>Consoles to charge // {consoles.length}/{capacity}</legend>
@@ -128,8 +137,9 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                 <button className="cic-action-button" onClick={() => void execute('reactor', { consoles })}>Power up reactor</button>
               </fieldset>
             </>}
-            {step === 6 && <fieldset disabled={disabled(6)} className="maintenance-controls"><legend>Refuel docked shuttles // 1 fuel each</legend>
-              {bays.map(bay => <label key={bay.id}>{bay.name}
+            {(step === 6 || (step === 7 && shipId === 'aegis' && cycle?.results['7'] === undefined)) && <fieldset
+              disabled={disabled(step) || (shipId === 'aegis' && step === 7 && damage?.destroyed === true)} className="maintenance-controls"><legend>Refuel {baysForStep.map(bay => bay.name).join(' / ') || 'docked shuttles'} // 1 fuel each</legend>
+              {baysForStep.map(bay => <label key={bay.id}>{bay.name}
                 <select aria-label={`${bay.name} refuelling`} disabled={damage?.damagedSystemIds.includes(bay.id)} value={refuels[bay.id] ?? ''}
                   onChange={event => setRefuels(previous => ({ ...previous, [bay.id]: event.target.value }))}>
                   <option value="">Do not refuel</option>
@@ -150,7 +160,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           </li>;
         })}
       </ol>
-      <button className="cic-action-button" disabled={disabled(7)} onClick={() => void execute('end')}>End maintenance cycle</button>
+      <button className="cic-action-button" disabled={endDisabled} onClick={() => void execute('end')}>End maintenance cycle</button>
       {cycle?.results['7'] && <p role="status">{cycle.results['7']}</p>}
       {me?.role === 'gm' && <div className="maintenance-controls" aria-label="GM damage controls">
         <span id={maintenanceRollbackHelpId} className="turn-start-announcement__sr">

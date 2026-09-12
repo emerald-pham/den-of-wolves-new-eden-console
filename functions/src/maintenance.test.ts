@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { advanceMaintenance, type MaintenanceInput } from './maintenance';
+import { advanceMaintenance, MAINTENANCE_ORDERS, type MaintenanceInput } from './maintenance';
 const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => ({
   shipId: 'aegis', cycle: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
   currentTurn: 1, expectedRevision: 0, action: 'begin', resources: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
@@ -46,6 +46,13 @@ const REACTOR_CAPACITY_MATRIX: ReadonlyArray<{
     eligibleConsoles: ['advanced-hydroponics', 'water-production', 'scrap-refinery', 'jump-drive'],
   },
 ];
+
+it('registers each implemented full vessel maintenance lane from its printed sequence', () => {
+  expect(MAINTENANCE_ORDERS.aegis).toEqual(['storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'bays']);
+  for (const shipId of ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'] as const) {
+    expect(MAINTENANCE_ORDERS[shipId]).toEqual(['storage', 'rations', 'unrest', 'riot', 'reactor', 'bays']);
+  }
+});
 
 it('starts once and rejects stale commands and out-of-order steps', () => {
   const started = advanceMaintenance(input());
@@ -96,6 +103,7 @@ it('allows only one maintenance cycle per turn', () => {
 
 it('retains the server-owned start time and records completion time', () => {
   const completed = advanceMaintenance(input({
+    shipId: 'dione',
     action: 'end', expectedRevision: 7, now: '2026-09-06T12:04:00.000Z',
     cycle: {
       step: 7, revision: 7, results: {}, charges: [], refuelled: [],
@@ -235,17 +243,22 @@ it('refuels only docked shuttles, spends fuel, prevents double refuelling, and e
   expect(result.cycle.step).toBe(7);
   expect(() => advanceMaintenance({ ...base, dockings: [] })).toThrow(/docked/);
   expect(() => advanceMaintenance({ ...base, refuels: { 'shuttle-bay-zeta': 'starlight', 'shuttle-bay-omega': 'starlight' } })).toThrow(/once/);
-  expect(advanceMaintenance({ ...base, action: 'end', cycle: result.cycle, expectedRevision: 1 }).cycle.step).toBe(0);
+  const omega = advanceMaintenance({ ...base, action: 'bays', cycle: result.cycle, expectedRevision: 1, refuels: {} });
+  expect(omega.cycle).toMatchObject({ step: 7, revision: 2, results: { '7': expect.stringContaining('Shuttle Bay Omega') } });
+  expect(advanceMaintenance({ ...base, action: 'end', cycle: omega.cycle, expectedRevision: 2 }).cycle.step).toBe(0);
 });
 
 it.each(['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'])('completes a %s cycle, including riot damage', shipId => {
   let state = input({ shipId, entropy: 0, population: shipId === 'aegis' ? 2500 : shipId === 'dione' ? 100000 : shipId === 'icebreaker' ? 40000 : ['quellon', 'shepherd'].includes(shipId) ? 30000 : 20000, unrest: 5 });
-  for (const action of ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'end']) {
+  const actions = shipId === 'aegis'
+    ? ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'bays', 'end']
+    : ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'end'];
+  for (const action of actions) {
     const result = advanceMaintenance({ ...state, action, foodLevel: 0, waterLevel: 0, consoles: [], refuels: {} });
     state = { ...state, ...result, expectedRevision: result.cycle.revision };
   }
   expect(state.cycle.step).toBe(0);
-  expect(state.cycle.revision).toBe(8);
+  expect(state.cycle.revision).toBe(shipId === 'aegis' ? 9 : 8);
   expect(state.damage.damagedSystemIds.length).toBeGreaterThan(0);
 });
 it('allows ending a maintenance cycle when a riot destroys the ship', () => {

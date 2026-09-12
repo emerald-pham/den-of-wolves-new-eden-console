@@ -2,6 +2,7 @@ import { drawShipDamage, SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipD
 import type { ShipResourceInventory } from './resources';
 import { populationChange } from './shipPopulation';
 import { MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
+import { maintenanceOrderFor } from './maintenanceOrder';
 
 export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
@@ -26,6 +27,7 @@ export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water:
   'refinery-124': { food: [0,3,7,11], water: [0,2,5,8], reactor: 4, damagedPenalty: 3 },
   capybara: { food: [0,3,7,11], water: [0,2,5,8], reactor: 3, damagedPenalty: 3 },
 };
+export { MAINTENANCE_ORDERS } from './maintenanceOrder';
 export const emptyMaintenanceCycle = (): MaintenanceCycle => ({ step: 0, revision: 0, results: {}, charges: [], refuelled: [] });
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -82,11 +84,17 @@ export function advanceMaintenance(input: MaintenanceInput) {
   const cycleInput = parseMaintenanceCycle(input.cycle);
   if (!cycleInput) throw new Error('Malformed maintenance cycle.');
   const rules = MAINTENANCE_RULES[shipId];
-  if (!rules) throw new Error('Unknown maintenance ship.');
+  const order = maintenanceOrderFor(shipId);
+  if (!rules || !order) throw new Error('Unknown maintenance ship.');
   if (input.damage.destroyed && action !== 'end') throw new Error('This ship is destroyed.');
   if (input.expectedRevision !== cycleInput.revision) throw new Error('Maintenance changed. Refresh before proceeding.');
-  const steps: Record<string, number> = { begin: 0, storage: 1, rations: 2, unrest: 3, riot: 4, reactor: 5, bays: 6, end: 7 };
-  if (steps[action] === undefined || steps[action] !== cycleInput.step) throw new Error('This action is not available at the current step.');
+  const aegisOmegaComplete = shipId === 'aegis' && cycleInput.step === 7 && cycleInput.results['7'] !== undefined;
+  const expectedAction = cycleInput.step === 0
+    ? 'begin'
+    : aegisOmegaComplete || (input.damage.destroyed && cycleInput.step === 7)
+      ? 'end'
+      : order[cycleInput.step - 1] ?? (cycleInput.step === order.length + 1 ? 'end' : undefined);
+  if (expectedAction !== action) throw new Error('This action is not available at the current step.');
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
     throw new Error('Maintenance can only be done once per turn.');
   }
@@ -165,8 +173,13 @@ export function advanceMaintenance(input: MaintenanceInput) {
     const refuels = input.refuels ?? {};
     const chosen = Object.values(refuels).filter(Boolean);
     if (new Set(chosen).size !== chosen.length) throw new Error('Refuel each shuttle only once per cycle.');
+    if (chosen.some(shuttle => cycleInput.refuelled.includes(shuttle))) throw new Error('Refuel each shuttle only once per cycle.');
     if (chosen.length > resources.fuel) throw new Error('Insufficient fuel to refuel these shuttles.');
     const bays = SHIP_DAMAGE_DECKS[shipId]!.filter(c => c.systemId.startsWith('shuttle-bay')).map(c => c.systemId);
+    const currentBays = shipId === 'aegis'
+      ? [cycleInput.step === 6 ? 'shuttle-bay-zeta' : 'shuttle-bay-omega']
+      : bays;
+    if (Object.keys(refuels).some(bay => !currentBays.includes(bay))) throw new Error('Unknown or out-of-order shuttle bay.');
     for (const [bay, shuttle] of Object.entries(refuels)) {
       if (!bays.includes(bay)) throw new Error('Unknown shuttle bay.');
       if (!shuttle) continue;
@@ -175,13 +188,19 @@ export function advanceMaintenance(input: MaintenanceInput) {
       fuelled[shuttle] = true;
     }
     resources = { ...resources, fuel: resources.fuel - chosen.length };
-    cycle.refuelled = chosen;
-    cycle.results['6'] = chosen.length ? `Refuelled: ${chosen.join(', ')}. Spent ${chosen.length} fuel.` : 'Shuttle bays powered up. No shuttles refuelled.';
+    cycle.refuelled = [...cycleInput.refuelled, ...chosen];
+    const bayName = currentBays[0] === 'shuttle-bay-omega' ? 'Shuttle Bay Omega' : currentBays[0] === 'shuttle-bay-zeta' ? 'Shuttle Bay Zeta' : 'Shuttle Bay';
+    cycle.results[String(cycleInput.step)] = chosen.length
+      ? `${bayName}: refuelled ${chosen.join(', ')}. Spent ${chosen.length} fuel.`
+      : `${bayName} powered up. No shuttles refuelled.`;
   }
-  cycle.step = action === 'end' ? 0 : damage.destroyed ? 7 : cycle.step + 1;
+  cycle.step = action === 'end' ? 0
+    : damage.destroyed ? 7
+      : shipId === 'aegis' && cycleInput.step === 7 ? 7
+        : cycle.step + 1;
   if (action === 'end') {
     cycle.completedAt = input.now;
-    cycle.results['7'] = 'Maintenance cycle complete.';
+    if (cycle.results['7'] === undefined) cycle.results['7'] = 'Maintenance cycle complete.';
   }
   return { cycle, resources, damage, unrest, population, cargo, fuelled, damageDraw };
 }

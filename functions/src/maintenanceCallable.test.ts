@@ -512,19 +512,20 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
 
   await step('reactor', 5, { consoles: ['jump-drive'] });
   await step('bays', 6, { refuels: { 'shuttle-bay-zeta': 'starlight' } });
-  await step('end', 7);
+  await step('bays', 7, { refuels: {}, requestId: 'maintenance-bays-omega' });
+  await step('end', 8);
 
   const session = maintenance.session;
   expect((session.shipResources as Record<string, Record<string, number>>).aegis)
     .toMatchObject({ food: 1, water: 1, fuel: 1 });
   expect(session.maintenanceCycles).toMatchObject({
-    aegis: expect.objectContaining({ step: 0, revision: 8, charges: ['jump-drive'], refuelled: ['starlight'] }),
+    aegis: expect.objectContaining({ step: 0, revision: 9, charges: ['jump-drive'], refuelled: ['starlight'] }),
   });
   expect(session.shuttleFuelled).toEqual({ starlight: true, pallas: false });
   expect(session.shipDamage).toEqual({
     aegis: { damagedSystemIds: ['storage', 'fighter-bay-alpha'], destroyed: false },
   });
-  expect(Object.keys(maintenance.receipts)).toHaveLength(9);
+  expect(Object.keys(maintenance.receipts)).toHaveLength(10);
   const riotReceipt = maintenance.receipts[`sessions/s1/maintenanceRequests/${committed.requestId}`]!;
   const riotEvent = maintenance.events[`sessions/s1/events/maintenance-${committed.requestId}`]!;
   expect(riotReceipt).toMatchObject({
