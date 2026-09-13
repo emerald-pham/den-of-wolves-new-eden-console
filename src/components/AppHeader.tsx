@@ -222,7 +222,7 @@ export default function AppHeader() {
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(element);
     const mutationObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(measure);
-    mutationObserver?.observe(element, { childList: true, subtree: true, attributes: true });
+    mutationObserver?.observe(element, { childList: true });
     return () => {
       observer?.disconnect();
       mutationObserver?.disconnect();
@@ -256,7 +256,7 @@ export default function AppHeader() {
   // These status rows can appear after the first header measurement. Refresh
   // the shared reservation immediately after each row changes so short role
   // routes keep their title below the complete header.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = header.current;
     if (!element) return;
     document.documentElement.style.setProperty(
