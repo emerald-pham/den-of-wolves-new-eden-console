@@ -3483,7 +3483,7 @@ body {
 .private-loyalty-panel__eyebrow {
   margin: 0;
   color: var(--cic-amber);
-  font: 0.62rem/1.4 var(--cic-mono);
+  font: 0.875rem/1.4 var(--cic-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -3499,7 +3499,7 @@ body {
 .private-loyalty-panel__note {
   margin: 0;
   color: var(--cic-muted);
-  font: 0.65rem/1.45 var(--cic-mono);
+  font: 0.875rem/1.45 var(--cic-mono);
 }
 .private-loyalty-panel__suspicion,
 .private-loyalty-panel__partner { color: var(--cic-ink); }
