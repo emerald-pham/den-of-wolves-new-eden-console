@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**251 / 751 prompts complete (33.42%)**
+**254 / 751 prompts complete (33.82%)**
 
-Status breakdown: **251 done · 21 partial · 479 missing**.
+Status breakdown: **254 done · 21 partial · 476 missing**.
 
 Active prompt: **none**
 
