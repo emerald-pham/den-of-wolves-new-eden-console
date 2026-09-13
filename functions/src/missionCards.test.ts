@@ -3,8 +3,11 @@ import {
   ABANDONED_EXPLORER_OUTPOST_D,
   ABANDONED_REFUELLING_STATION_F,
   CANONICAL_MISSION_CARDS,
+  DERELICT_RESEARCH_VESSEL_H,
   ICSS_ATHENA_SURVIVORS_E,
   ICE_ASTEROIDS_B,
+  ION_NEBULA_I,
+  LEVEL_5_SURVIVABLE_PLANET_G,
   LICHEN_COVERED_ASTEROIDS_A,
   missionCardForCode,
   RARE_ELEMENT_MOON_C,
@@ -19,15 +22,19 @@ describe('server-owned canonical away mission cards', () => {
       ABANDONED_EXPLORER_OUTPOST_D,
       ICSS_ATHENA_SURVIVORS_E,
       ABANDONED_REFUELLING_STATION_F,
+      LEVEL_5_SURVIVABLE_PLANET_G,
+      DERELICT_RESEARCH_VESSEL_H,
+      ION_NEBULA_I,
     ]);
-    expect(CANONICAL_MISSION_CARDS).toHaveLength(6);
+    expect(CANONICAL_MISSION_CARDS).toHaveLength(9);
     for (const card of CANONICAL_MISSION_CARDS) {
-      expect(card.category).toMatch(/poor|neutral/);
-      expect(card.cardsDealt).toBe(6);
+      expect(card.category).toMatch(/poor|neutral|hostile/);
+      expect([6, 8]).toContain(card.cardsDealt);
       expect(card.opportunities).toHaveLength(card.opportunityCount);
     }
     expect(CANONICAL_MISSION_CARDS.slice(0, 3).every((card) => card.category === 'poor')).toBe(true);
-    expect(CANONICAL_MISSION_CARDS.slice(3).every((card) => card.category === 'neutral')).toBe(true);
+    expect(CANONICAL_MISSION_CARDS.slice(3, 8).every((card) => card.category === 'neutral')).toBe(true);
+    expect(ION_NEBULA_I.category).toBe('hostile');
   });
 
   it('encodes Lichen-Covered Asteroids A opportunities and rewards', () => {
@@ -235,6 +242,152 @@ describe('server-owned canonical away mission cards', () => {
     });
   });
 
+  it('encodes Level 5 Survivable Planet G and its pursuit exception', () => {
+    expect(LEVEL_5_SURVIVABLE_PLANET_G).toMatchObject({
+      code: 'G',
+      name: 'Level 5 Survivable Planet',
+      category: 'neutral',
+      cardsDealt: 8,
+      opportunityCount: 3,
+      siteRules: { pursuit: { kind: 'jumpDoesNotReduce', scope: 'group' }, hazards: [] },
+      opportunities: [
+        {
+          id: 'G-1',
+          traits: ['searchAndRescue'],
+          difficulty: 17,
+          criticalThreshold: null,
+          reward: { success: { food: 20 }, successEffects: [], criticalBonus: null },
+        },
+        {
+          id: 'G-2',
+          traits: ['engineering'],
+          difficulty: 17,
+          criticalThreshold: null,
+          reward: { success: { water: 20 }, successEffects: [], criticalBonus: null },
+        },
+        {
+          id: 'G-3',
+          traits: ['salvage'],
+          difficulty: 24,
+          criticalThreshold: 30,
+          reward: {
+            success: { materials: 6 },
+            successEffects: [],
+            criticalEffects: [{ kind: 'upgradeConsoles', target: 'any', amount: 1 }],
+            criticalBonus: null,
+          },
+        },
+      ],
+    });
+  });
+
+  it('encodes Derelict Research Vessel H science rewards', () => {
+    expect(DERELICT_RESEARCH_VESSEL_H).toMatchObject({
+      code: 'H',
+      name: 'Derelict Research Vessel',
+      category: 'neutral',
+      cardsDealt: 8,
+      opportunityCount: 3,
+      siteRules: { pursuit: null, hazards: [] },
+      opportunities: [
+        {
+          id: 'H-1',
+          traits: ['salvage'],
+          difficulty: 17,
+          criticalThreshold: null,
+          reward: { success: { materials: 6, fuel: 4 }, successEffects: [], criticalBonus: null },
+        },
+        {
+          id: 'H-2',
+          traits: ['science'],
+          difficulty: 17,
+          criticalThreshold: null,
+          reward: {
+            success: {},
+            successEffects: [{
+              kind: 'crossOutResearchBoxes',
+              target: 'endeavour',
+              amount: 2,
+              selection: 'choice',
+            }],
+            criticalBonus: null,
+          },
+        },
+        {
+          id: 'H-3',
+          traits: ['science'],
+          difficulty: 28,
+          criticalThreshold: null,
+          reward: {
+            success: {},
+            successEffects: [{
+              kind: 'unlockResearch',
+              target: 'endeavour',
+              amount: 1,
+              selection: 'choice',
+            }],
+            criticalBonus: null,
+          },
+        },
+      ],
+    });
+  });
+
+  it('encodes Ion Nebula I hazards, pursuit suppression, and local rewards', () => {
+    expect(ION_NEBULA_I).toMatchObject({
+      code: 'I',
+      name: 'Ion Nebula',
+      category: 'hostile',
+      cardsDealt: 8,
+      opportunityCount: 3,
+      siteRules: {
+        pursuit: { kind: 'doesNotRiseWhilePresent', scope: 'group' },
+        hazards: [{ kind: 'maintenanceDamage', threshold: 3, scope: 'group' }],
+      },
+      opportunities: [
+        {
+          id: 'I-1',
+          traits: ['engineering'],
+          difficulty: 17,
+          criticalThreshold: null,
+          reward: {
+            success: {},
+            successEffects: [{ kind: 'removeNebulaDamage', scope: 'group' }],
+            criticalBonus: null,
+          },
+        },
+        {
+          id: 'I-2',
+          traits: ['engineering'],
+          difficulty: 17,
+          criticalThreshold: null,
+          reward: {
+            success: {},
+            successEffects: [{ kind: 'noFuelOnNebulaExit', scope: 'group' }],
+            criticalBonus: null,
+          },
+        },
+        {
+          id: 'I-3',
+          traits: ['science'],
+          difficulty: 28,
+          criticalThreshold: null,
+          reward: {
+            success: {},
+            successEffects: [{
+              kind: 'unlockNamedResearch',
+              target: 'endeavour',
+              research: ['ecm', 'jumpDrive'],
+              selection: 'fixed',
+            }],
+            criticalBonus: null,
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(ION_NEBULA_I)).not.toMatch(/\d{4}/);
+  });
+
   it('represents generic bonus and failure rules without inventing card-specific effects', () => {
     for (const card of CANONICAL_MISSION_CARDS) {
       for (const opportunity of card.opportunities) {
@@ -262,6 +415,9 @@ describe('server-owned canonical away mission cards', () => {
     expect(missionCardForCode('D')).toBe(ABANDONED_EXPLORER_OUTPOST_D);
     expect(missionCardForCode('E')).toBe(ICSS_ATHENA_SURVIVORS_E);
     expect(missionCardForCode('F')).toBe(ABANDONED_REFUELLING_STATION_F);
+    expect(missionCardForCode('G')).toBe(LEVEL_5_SURVIVABLE_PLANET_G);
+    expect(missionCardForCode('H')).toBe(DERELICT_RESEARCH_VESSEL_H);
+    expect(missionCardForCode('I')).toBe(ION_NEBULA_I);
     expect(missionCardForCode('unknown')).toBeUndefined();
   });
 });

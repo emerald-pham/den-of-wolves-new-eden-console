@@ -7,7 +7,7 @@
  * calculate totals, or resolve a mission.
  */
 
-export const CANONICAL_MISSION_CARD_CODES = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+export const CANONICAL_MISSION_CARD_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const;
 export type CanonicalMissionCardCode = typeof CANONICAL_MISSION_CARD_CODES[number];
 
 export type MissionOpportunityTrait =
@@ -79,10 +79,63 @@ export interface MissionUpgradeOrRepairConsolesEffect {
   readonly selection: 'choice';
 }
 
+export interface MissionUpgradeConsolesEffect {
+  readonly kind: 'upgradeConsoles';
+  readonly target: 'any';
+  readonly amount: 1;
+}
+
+export interface MissionUnlockResearchEffect {
+  readonly kind: 'unlockResearch';
+  readonly target: 'endeavour';
+  readonly amount: 1;
+  readonly selection: 'choice';
+}
+
+export interface MissionUnlockNamedResearchEffect {
+  readonly kind: 'unlockNamedResearch';
+  readonly target: 'endeavour';
+  readonly research: readonly ['ecm', 'jumpDrive'];
+  readonly selection: 'fixed';
+}
+
+export interface MissionRemoveNebulaDamageEffect {
+  readonly kind: 'removeNebulaDamage';
+  readonly scope: 'group';
+}
+
+export interface MissionNoFuelOnNebulaExitEffect {
+  readonly kind: 'noFuelOnNebulaExit';
+  readonly scope: 'group';
+}
+
 export type MissionRewardEffect =
   | MissionCrossOutResearchBoxesEffect
   | MissionExploreStarSystemsEffect
-  | MissionUpgradeOrRepairConsolesEffect;
+  | MissionUpgradeOrRepairConsolesEffect
+  | MissionUpgradeConsolesEffect
+  | MissionUnlockResearchEffect
+  | MissionUnlockNamedResearchEffect
+  | MissionRemoveNebulaDamageEffect
+  | MissionNoFuelOnNebulaExitEffect;
+
+export interface MissionPursuitRule {
+  readonly kind: 'jumpDoesNotReduce' | 'doesNotRiseWhilePresent';
+  readonly scope: 'group';
+}
+
+export interface MissionMaintenanceHazard {
+  readonly kind: 'maintenanceDamage';
+  readonly threshold: 3;
+  readonly scope: 'group';
+}
+
+export interface MissionSiteRules {
+  /** Printed pursuit exception, if the system has one. */
+  readonly pursuit: MissionPursuitRule | null;
+  /** Printed environmental hazards that apply while the group is present. */
+  readonly hazards: readonly MissionMaintenanceHazard[];
+}
 
 export interface MissionReward {
   /** The reward on an ordinary success. */
@@ -91,6 +144,8 @@ export interface MissionReward {
   readonly successEffects: readonly MissionRewardEffect[];
   /** Additional reward granted when the critical threshold is met. */
   readonly criticalBonus: MissionRewardAmounts | null;
+  /** Non-resource effects granted when the critical threshold is met. */
+  readonly criticalEffects?: readonly MissionRewardEffect[];
 }
 
 export interface MissionOpportunity {
@@ -109,9 +164,10 @@ export interface MissionOpportunity {
 export interface MissionCardDefinition {
   readonly code: CanonicalMissionCardCode;
   readonly name: string;
-  readonly category: 'poor' | 'neutral';
-  readonly cardsDealt: 6;
+  readonly category: 'poor' | 'neutral' | 'hostile';
+  readonly cardsDealt: 6 | 8;
   readonly opportunityCount: 2 | 3;
+  readonly siteRules: MissionSiteRules;
   readonly opportunities: readonly MissionOpportunity[];
 }
 
@@ -136,6 +192,7 @@ export const LICHEN_COVERED_ASTEROIDS_A: MissionCardDefinition = {
   category: 'poor',
   cardsDealt: 6,
   opportunityCount: 2,
+  siteRules: { pursuit: null, hazards: [] },
   opportunities: [
     {
       id: 'A-1',
@@ -166,6 +223,7 @@ export const ICE_ASTEROIDS_B: MissionCardDefinition = {
   category: 'poor',
   cardsDealt: 6,
   opportunityCount: 2,
+  siteRules: { pursuit: null, hazards: [] },
   opportunities: [
     {
       id: 'B-1',
@@ -200,6 +258,7 @@ export const RARE_ELEMENT_MOON_C: MissionCardDefinition = {
   category: 'poor',
   cardsDealt: 6,
   opportunityCount: 2,
+  siteRules: { pursuit: null, hazards: [] },
   opportunities: [
     {
       id: 'C-1',
@@ -239,6 +298,7 @@ export const ABANDONED_EXPLORER_OUTPOST_D: MissionCardDefinition = {
   category: 'neutral',
   cardsDealt: 6,
   opportunityCount: 3,
+  siteRules: { pursuit: null, hazards: [] },
   opportunities: [
     {
       id: 'D-1',
@@ -288,6 +348,7 @@ export const ICSS_ATHENA_SURVIVORS_E: MissionCardDefinition = {
   category: 'neutral',
   cardsDealt: 6,
   opportunityCount: 3,
+  siteRules: { pursuit: null, hazards: [] },
   opportunities: [
     {
       id: 'E-1',
@@ -337,6 +398,7 @@ export const ABANDONED_REFUELLING_STATION_F: MissionCardDefinition = {
   category: 'neutral',
   cardsDealt: 6,
   opportunityCount: 3,
+  siteRules: { pursuit: null, hazards: [] },
   opportunities: [
     {
       id: 'F-1',
@@ -383,6 +445,175 @@ export const ABANDONED_REFUELLING_STATION_F: MissionCardDefinition = {
   ],
 };
 
+export const LEVEL_5_SURVIVABLE_PLANET_G: MissionCardDefinition = {
+  code: 'G',
+  name: 'Level 5 Survivable Planet',
+  category: 'neutral',
+  cardsDealt: 8,
+  opportunityCount: 3,
+  siteRules: {
+    pursuit: { kind: 'jumpDoesNotReduce', scope: 'group' },
+    hazards: [],
+  },
+  opportunities: [
+    {
+      id: 'G-1',
+      description: 'Forage the abundant food from the surface.',
+      traits: ['searchAndRescue'],
+      difficulty: 17,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { food: 20 }, successEffects: [], criticalBonus: null },
+    },
+    {
+      id: 'G-2',
+      description: 'Filter and store fresh water from the lakes.',
+      traits: ['engineering'],
+      difficulty: 17,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { water: 20 }, successEffects: [], criticalBonus: null },
+    },
+    {
+      id: 'G-3',
+      description: 'Salvage from the abandoned colony’s buildings and systems.',
+      traits: ['salvage'],
+      difficulty: 24,
+      criticalThreshold: 30,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: { materials: 6 },
+        successEffects: [],
+        criticalEffects: [{ kind: 'upgradeConsoles', target: 'any', amount: 1 }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
+export const DERELICT_RESEARCH_VESSEL_H: MissionCardDefinition = {
+  code: 'H',
+  name: 'Derelict Research Vessel',
+  category: 'neutral',
+  cardsDealt: 8,
+  opportunityCount: 3,
+  siteRules: { pursuit: null, hazards: [] },
+  opportunities: [
+    {
+      id: 'H-1',
+      description: 'While old and derelict there are some salvageable materials here.',
+      traits: ['salvage'],
+      difficulty: 17,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { materials: 6, fuel: 4 }, successEffects: [], criticalBonus: null },
+    },
+    {
+      id: 'H-2',
+      description: 'Download research notes.',
+      traits: ['science'],
+      difficulty: 17,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{
+          kind: 'crossOutResearchBoxes',
+          target: 'endeavour',
+          amount: 2,
+          selection: 'choice',
+        }],
+        criticalBonus: null,
+      },
+    },
+    {
+      id: 'H-3',
+      description: 'Download and decrypt their research data cores.',
+      traits: ['science'],
+      difficulty: 28,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{
+          kind: 'unlockResearch',
+          target: 'endeavour',
+          amount: 1,
+          selection: 'choice',
+        }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
+export const ION_NEBULA_I: MissionCardDefinition = {
+  code: 'I',
+  name: 'Ion Nebula',
+  category: 'hostile',
+  cardsDealt: 8,
+  opportunityCount: 3,
+  siteRules: {
+    pursuit: { kind: 'doesNotRiseWhilePresent', scope: 'group' },
+    hazards: [{ kind: 'maintenanceDamage', threshold: 3, scope: 'group' }],
+  },
+  opportunities: [
+    {
+      id: 'I-1',
+      description: 'Construct lightning rods to dissipate the energy.',
+      traits: ['engineering'],
+      difficulty: 17,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{ kind: 'removeNebulaDamage', scope: 'group' }],
+        criticalBonus: null,
+      },
+    },
+    {
+      id: 'I-2',
+      description: 'Harness the nebula’s energy for fuel.',
+      traits: ['engineering'],
+      difficulty: 17,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{ kind: 'noFuelOnNebulaExit', scope: 'group' }],
+        criticalBonus: null,
+      },
+    },
+    {
+      id: 'I-3',
+      description: 'Study the nebula’s unique physics.',
+      traits: ['science'],
+      difficulty: 28,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{
+          kind: 'unlockNamedResearch',
+          target: 'endeavour',
+          research: ['ecm', 'jumpDrive'],
+          selection: 'fixed',
+        }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
 export const CANONICAL_MISSION_CARDS: readonly MissionCardDefinition[] = [
   LICHEN_COVERED_ASTEROIDS_A,
   ICE_ASTEROIDS_B,
@@ -390,6 +621,9 @@ export const CANONICAL_MISSION_CARDS: readonly MissionCardDefinition[] = [
   ABANDONED_EXPLORER_OUTPOST_D,
   ICSS_ATHENA_SURVIVORS_E,
   ABANDONED_REFUELLING_STATION_F,
+  LEVEL_5_SURVIVABLE_PLANET_G,
+  DERELICT_RESEARCH_VESSEL_H,
+  ION_NEBULA_I,
 ];
 
 export function missionCardForCode(

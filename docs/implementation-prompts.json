@@ -4566,6 +4566,27 @@
       "type": "evidence / source / catalog"
     },
     {
+      "direction": "418",
+      "id": "E-418-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Level 5 Survivable Planet G as a neutral eight-card mission with three opportunities: search & rescue 17 for 20 food; engineering 17 for 20 water; and salvage 24/30 for 6 materials plus a critical upgrade of 1 console. The site metadata preserves the printed exception that the jump does not reduce the Pursuit Track. No unprinted population mutation is invented; every opportunity records card-level trait-bonus absence, the generic contributing-shuttle rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed rewards.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "418a",
+      "id": "E-418A-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Derelict Research Vessel H as a neutral eight-card mission with three opportunities: salvage 17 for 6 materials and 4 strytium fuel; science 17 for the Endeavour to cross out 2 research boxes of choice; and science 28 to fully unlock 1 research of choice on the Endeavour. The source prints no independent site hazard or pursuit exception, so none is added. Every opportunity records card-level trait-bonus absence, the generic contributing-shuttle rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed rewards.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "418b",
+      "id": "E-418B-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Ion Nebula I as a hostile eight-card mission with three engineering/science opportunities at 17, 17, and 28. Site metadata preserves the printed group-local hazard of ship damage on a 3+ during maintenance and the group-local rule that pursuit does not rise while present. Rewards remove that hazard, remove fuel consumption when jumping out, and unlock the fixed ECM and Jump Drive research pair; no chart coordinates or resolver are introduced. Every opportunity records card-level trait-bonus absence, the generic contributing-shuttle rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed rewards.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
       "direction": "287 -> 288",
       "id": "E-287-GRAPH-CONSOLIDATION",
       "language": "Jump classification now consumes the canonical immutable star-chart graph rather than a duplicate server edge list. The shortest route helper is checked against all 22 printed coordinates from 0000 in both directions, and unprinted 0101 is rejected. Existing product mapping remains one edge short, two edges medium, and three or more edges long. The routed CORE_RULES source defines these lengths as jumps along chart edges but supplies no numeric short/medium/long boundaries, so Prompt 287 remains partial pending an owner decision on those cutoffs. No jump authorization, fuel profile, fleet-group state, or combat behavior changed.",
@@ -15561,8 +15582,8 @@
         "acceptance": "exact mission, population/reward effects, and no-pursuit-reduction exception resolve together.",
         "title": "Encode Level 5 Survivable Planet G."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-418",
+      "description": "The server-owned catalog now encodes Level 5 Survivable Planet G from the authorized local v1.1 primary print review: three eight-card opportunities, search & rescue 17 for 20 food, engineering 17 for 20 water, and salvage 24/30 for 6 materials plus critical upgrade 1 console. Site metadata preserves the printed no-pursuit-reduction jump exception without inventing a population mutation or resolver. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions typecheck pass; mission dealing and resolution remain separate prompts.",
+      "evidenceIds": "E-AUDIT-418;E-418-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15573,7 +15594,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15584,8 +15605,8 @@
         "acceptance": "exact science opportunities, upgrades/devices, hazards, failures, and rewards resolve once.",
         "title": "Encode Derelict Research Vessel H."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The server-owned catalog now encodes Derelict Research Vessel H from the authorized local v1.1 primary print review: three eight-card opportunities, salvage 17 for 6 materials and 4 fuel, science 17 for crossing out 2 Endeavour research boxes of choice, and science 28 for fully unlocking 1 Endeavour research of choice. The primary site card prints no separate hazard or pursuit exception, so no such effect is invented. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions typecheck pass; mission dealing and resolution remain separate prompts.",
+      "evidenceIds": "E-418A-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -15596,7 +15617,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15607,8 +15628,8 @@
         "acceptance": "exact mission, environmental damage, pursuit suppression, and penalty-removal rewards stay group-local.",
         "title": "Encode Ion Nebula I."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The server-owned catalog now encodes Ion Nebula I from the authorized local v1.1 primary print review: three eight-card opportunities at engineering 17, engineering 17, and science 28. Site metadata preserves the group-local 3+ maintenance damage hazard and group-local pursuit suppression; the three printed rewards remove nebula damage, remove fuel use when jumping out, and unlock fixed ECM plus Jump Drive research. No chart coordinates or mission resolver is introduced. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions typecheck pass; mission dealing and resolution remain separate prompts.",
+      "evidenceIds": "E-418B-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -15619,7 +15640,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
