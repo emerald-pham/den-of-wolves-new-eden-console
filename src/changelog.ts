@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [313, 337],
+    implementationProgress: {
+      completed: 217,
+      total: 750,
+      percentage: '28.93%',
+      done: 217,
+      partial: 25,
+      active: 0,
+      missing: 508,
+    },
+    changes: [
+      'Each ship keeps its discovered-system history through setup changes and reconnects, with private navigation cleared when your role changes.',
+      'Operational player lists are limited to your current fleet group, while authorized GMs retain the full roster.',
+      '217 of 750 planned items are complete (28.93%).',
+    ],
+  },
+  {
+    version: '0.3.79',
     implementationPrompts: [245],
     implementationProgress: {
       completed: 217,
@@ -34,6 +52,24 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'The Warrior Captain’s private briefing explains when Salvage Drones would be used and plainly says attack damage tracking and salvage rolls are not available yet.',
       '217 of 750 planned items are complete (28.93%).',
+    ],
+  },
+  {
+    version: '0.3.78',
+    implementationPrompts: [361],
+    implementationProgress: {
+      completed: 216,
+      total: 750,
+      percentage: '28.80%',
+      done: 216,
+      partial: 23,
+      active: 0,
+      missing: 511,
+    },
+    changes: [
+      'Shuttle and fighter-wing starting manifests now keep each enabled craft tied to its printed owner, mode, and authoritative host, while moved dockings survive setup edits and reconnects.',
+      'Union craft with an unresolved initial docking stay disabled until the GM records an explicit current host.',
+      '216 of 750 planned items are complete (28.80%).',
     ],
   },
   {
