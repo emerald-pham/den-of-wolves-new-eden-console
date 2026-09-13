@@ -1610,7 +1610,7 @@ export function subscribeSessionState(
       },
     )] : []),
     ...(handlers.onFacilitatorRuleCall ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/facilitatorRuleCalls/recipients/${uid}`),
+      doc(database, `sessions/${sessionId}/facilitatorRuleCalls/recipient-${uid}`),
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
@@ -1950,7 +1950,7 @@ export function subscribeGmFacilitatorRuleCall(
   let subscribed = true;
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
-    doc(db(), `sessions/${sessionId}/facilitatorRuleCalls/gm/current`),
+    doc(db(), `sessions/${sessionId}/facilitatorRuleCalls/gm-current`),
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const call = snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId) : null;

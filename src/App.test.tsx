@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { ArbourVision, CommissarPurgeAuthority, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
+import type { ArbourVision, CommissarPurgeAuthority, FacilitatorRuleCall, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -432,6 +432,41 @@ describe('App', () => {
     expect(useSessionStore.getState().connection).toBe('live');
   });
 
+  it('rebinds the private facilitator-call listener across same-UID authority changes', async () => {
+    const handlers: Array<Parameters<typeof subscribeSessionState>[2]> = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers.push(nextHandlers);
+      return vi.fn();
+    });
+    const member = { ...player, role: 'player' as const };
+    const call: FacilitatorRuleCall = {
+      sessionId: 's1', callId: 'call-1', revision: 1,
+      ambiguity: 'Question', source: 'Reference', decision: 'Decision',
+      audience: 'selected-player', recipientUid: 'u1', actorUid: 'gm1',
+      createdAt: '2026-01-01T00:00:00.000Z', label: 'FACILITATOR RULE CALL',
+    };
+    useSessionStore.getState().setIdentity(session, member);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toHaveLength(1));
+
+    act(() => handlers[0]?.onFacilitatorRuleCall?.(call));
+    expect(useSessionStore.getState().facilitatorRuleCall).toEqual(call);
+
+    act(() => handlers[0]?.onPlayer?.({ ...member, role: 'gm' }));
+    expect(useSessionStore.getState().facilitatorRuleCall).toBeNull();
+    act(() => handlers[0]?.onFacilitatorRuleCall?.(call));
+    expect(useSessionStore.getState().facilitatorRuleCall).toBeNull();
+    await waitFor(() => expect(handlers).toHaveLength(2));
+
+    act(() => handlers[1]?.onPlayer?.(member));
+    await waitFor(() => expect(handlers).toHaveLength(3));
+    act(() => handlers[1]?.onFacilitatorRuleCall?.(call));
+    expect(useSessionStore.getState().facilitatorRuleCall).toBeNull();
+    act(() => handlers[2]?.onFacilitatorRuleCall?.(call));
+    expect(useSessionStore.getState().facilitatorRuleCall).toEqual(call);
+    unmount();
+  });
+
   it.each([true, false])('retains own discovery regardless of GM denial listener order (%s)', async (ownFirst) => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
@@ -597,14 +632,14 @@ describe('App', () => {
 
   it('starts and tears down the census at authoritative GM promotion and demotion', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
-    let censusCallback: ((next: LoyaltyCensus | null) => void) | undefined;
+    const censusCallbacks: Array<(next: LoyaltyCensus | null) => void> = [];
     const censusUnsubscribe = vi.fn();
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
       handlers = nextHandlers;
       return vi.fn();
     });
     vi.mocked(subscribeLoyaltyCensus).mockImplementation((_sessionId, onCensus) => {
-      censusCallback = onCensus;
+      censusCallbacks.push(onCensus);
       return censusUnsubscribe;
     });
     const member = { ...player, role: 'player' as const };
@@ -637,8 +672,10 @@ describe('App', () => {
       handlers?.onPlayer(player);
       handlers?.onPlayerFreshness?.(true);
     });
+    await waitFor(() => expect(subscribeSessionState).toHaveBeenCalledTimes(2));
+    act(() => handlers?.onPlayerFreshness?.(true));
     expect(subscribeLoyaltyCensus).toHaveBeenCalledWith('s1', expect.any(Function));
-    act(() => censusCallback?.({
+    act(() => censusCallbacks.at(-1)?.({
       revision: 4,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 7 }],
     }));
@@ -678,7 +715,7 @@ describe('App', () => {
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
-    act(() => censusCallback?.({
+    act(() => censusCallbacks.at(-1)?.({
       revision: 5,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 99 }],
     }));
@@ -688,7 +725,7 @@ describe('App', () => {
 
     unmount();
     expect(censusUnsubscribe).toHaveBeenCalled();
-    act(() => censusCallback?.({
+    act(() => censusCallbacks.at(-1)?.({
       revision: 6,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 100 }],
     }));

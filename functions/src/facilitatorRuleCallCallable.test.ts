@@ -84,13 +84,13 @@ it('records a GM-only ruling in durable history and audit without a public event
     status: 'committed', sessionId: 's1', callId: 'call-1', revision: 1,
     audience: 'gm-only', label: 'FACILITATOR RULE CALL', actorUid: 'u1',
   });
-  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/gm/current')).toMatchObject({
+  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/gm-current')).toMatchObject({
     type: 'facilitator-rule-call', audience: 'gm-only', revision: 1,
   });
-  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/history/call-1')).toMatchObject({
+  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/history-call-1')).toMatchObject({
     type: 'facilitator-rule-call', decision: baseData.decision,
   });
-  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/audit/call-1')).toMatchObject({
+  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/audit-call-1')).toMatchObject({
     type: 'facilitator-rule-call-audit', actorUid: 'u1',
   });
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
@@ -100,12 +100,12 @@ it('writes only the selected player projection for a private audience', async ()
   await expect(authorFacilitatorRuleCall.run(request({
     ...baseData, requestId: 'call-2', audience: 'selected-player', recipientUid: 'u2',
   }))).resolves.toMatchObject({ audience: 'selected-player', recipientUid: 'u2' });
-  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/recipients/u2')).toMatchObject({
+  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/recipient-u2')).toMatchObject({
     type: 'facilitator-rule-call', audience: 'selected-player',
     recipientUid: 'u2', visibleToUids: ['u2'],
   });
-  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/recipients/u2')).not.toHaveProperty('actorUid');
-  expect(mock.documents.has('sessions/s1/facilitatorRuleCalls/recipients/u1')).toBe(false);
+  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/recipient-u2')).not.toHaveProperty('actorUid');
+  expect(mock.documents.has('sessions/s1/facilitatorRuleCalls/recipient-u1')).toBe(false);
 });
 
 it('replays exactly, links supersession, and rejects wrong actor or stale revision', async () => {
@@ -120,7 +120,7 @@ it('replays exactly, links supersession, and rejects wrong actor or stale revisi
     ...baseData, requestId: 'call-2', expectedRevision: 1, audience: 'selected-player', recipientUid: 'u2',
     supersedesCallId: 'call-1', decision: 'Use the next movement step instead.',
   }))).resolves.toMatchObject({ status: 'committed', revision: 2, supersedesCallId: 'call-1' });
-  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/history/call-1'))
+  expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/history-call-1'))
     .toMatchObject({ supersededByCallId: 'call-2' });
 
   await expect(authorFacilitatorRuleCall.run(request({ ...baseData, requestId: 'wrong-actor' }, 'u2')))
@@ -140,4 +140,34 @@ it('rejects a closed session and an inactive selected recipient before writes', 
     ...baseData, requestId: 'inactive', audience: 'selected-player', recipientUid: 'u2',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect([...mock.documents.keys()].filter((path) => path.includes('facilitatorRuleCalls'))).toHaveLength(0);
+});
+
+it.each([
+  {
+    name: 'an invalid revision',
+    fields: {
+      type: 'facilitator-rule-call', sessionId: 's1', callId: 'old', revision: 'one',
+      ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+      actorUid: 'u1', label: 'FACILITATOR RULE CALL', createdAt: 'server-time',
+    },
+  },
+  {
+    name: 'an invalid supersession pointer',
+    fields: {
+      type: 'facilitator-rule-call', sessionId: 's1', callId: 'old', revision: 1,
+      ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+      actorUid: 'u1', label: 'FACILITATOR RULE CALL', createdAt: 'server-time',
+      supersedesCallId: 42,
+    },
+  },
+])('fails closed without writes when current projection has $name', async ({ fields }) => {
+  put('sessions/s1/facilitatorRuleCalls/gm-current', fields);
+  const before = new Map(mock.documents);
+  await expect(authorFacilitatorRuleCall.run(request({
+    ...baseData, requestId: 'malformed-current', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+  expect(mock.documents).toEqual(before);
 });

@@ -239,10 +239,34 @@ service cloud.firestore {
 
     function isCurrentFacilitatorRuleCall(sessionId, recipientUid) {
       return isEligibleFacilitatorRuleRecipient(sessionId, recipientUid)
+        && resource.data.keys().hasOnly([
+          'type', 'sessionId', 'callId', 'revision', 'ambiguity', 'source', 'decision',
+          'audience', 'recipientUid', 'label', 'visibleToUids'
+        ])
+        && resource.data.keys().hasAll([
+          'type', 'sessionId', 'callId', 'revision', 'ambiguity', 'source', 'decision',
+          'audience', 'recipientUid', 'label', 'visibleToUids'
+        ])
         && resource.data.type == 'facilitator-rule-call'
         && resource.data.sessionId == sessionId
+        && resource.data.callId is string
+        && resource.data.callId.size() > 0
+        && resource.data.revision is int
+        && resource.data.revision > 0
+        && resource.data.ambiguity is string
+        && resource.data.ambiguity.size() > 0
+        && resource.data.ambiguity.size() <= 240
+        && resource.data.source is string
+        && resource.data.source.size() > 0
+        && resource.data.source.size() <= 240
+        && resource.data.decision is string
+        && resource.data.decision.size() > 0
+        && resource.data.decision.size() <= 500
         && resource.data.audience == 'selected-player'
+        && resource.data.recipientUid is string
         && resource.data.recipientUid == uid()
+        && resource.data.label == 'FACILITATOR RULE CALL'
+        && resource.data.visibleToUids is list
         && resource.data.visibleToUids.size() == 1
         && resource.data.visibleToUids[0] == uid();
     }
@@ -446,21 +470,16 @@ service cloud.firestore {
 
       // Facilitator rule calls have separate GM history/current and exact
       // selected-player projections. They never enter the public event feed.
-      match /facilitatorRuleCalls/gm/{projectionId} {
-        allow get: if projectionId == 'current' && isGm(sessionId) &&
-          resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId;
-        allow list, write: if false;
-      }
-
-      match /facilitatorRuleCalls/recipients/{recipientUid} {
-        allow get: if (resource == null && isEligibleFacilitatorRuleRecipient(sessionId, recipientUid))
-          || isCurrentFacilitatorRuleCall(sessionId, recipientUid);
-        allow list, write: if false;
-      }
-
-      match /facilitatorRuleCalls/{collectionId}/{callId} {
-        allow get, list: if (collectionId == 'history' || collectionId == 'audit') && isGm(sessionId);
+      match /facilitatorRuleCalls/{documentId} {
+        allow get: if documentId == 'gm-current' && isGm(sessionId) &&
+          resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId
+          || (documentId.matches('recipient-.*') &&
+            ((resource == null && isEligibleFacilitatorRuleRecipient(sessionId, uid())) ||
+              isCurrentFacilitatorRuleCall(sessionId, uid())))
+          || (isGm(sessionId) &&
+            (documentId.matches('history-.*') || documentId.matches('audit-.*')));
         allow write: if false;
+        allow list: if false;
       }
 
       // Hummingbird's server dice and pending allocation are private to the

@@ -92,7 +92,6 @@ function playerAuthorityKey(player: Player | null | undefined): string | undefin
   return undefined;
 }
 
-
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
@@ -103,6 +102,8 @@ function AppRoutes() {
   const playerRole = me?.role;
   const playerAuthority = playerAuthorityKey(me);
   const playerListenerGeneration = useRef(0);
+  const playerListenerIdentity = useRef('');
+  const appRoutesMounted = useRef(false);
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
@@ -118,6 +119,11 @@ function AppRoutes() {
       : shuttleHost ?? 'aegis';
 
   useEffect(() => {
+    appRoutesMounted.current = true;
+    return () => { appRoutesMounted.current = false; };
+  }, []);
+
+  useEffect(() => {
     if (session && isSessionRoute(location.pathname)) {
       setLastRoute(location.pathname);
     }
@@ -126,8 +132,14 @@ function AppRoutes() {
   useEffect(() => {
     if (!sessionId || !playerUid) return;
     let active = true;
-    const listenerGeneration = ++playerListenerGeneration.current;
-    const callbackCurrent = () => active && playerListenerGeneration.current === listenerGeneration;
+    const identity = `${sessionId}:${playerUid}`;
+    const listenerGeneration = playerListenerIdentity.current === identity
+      ? playerListenerGeneration.current
+      : ++playerListenerGeneration.current;
+    playerListenerIdentity.current = identity;
+    const listenerAuthorityKey = playerAuthority;
+    const callbackCurrent = () => appRoutesMounted.current &&
+      playerListenerGeneration.current === listenerGeneration;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
     let wolfCultAuthorityGeneration = 0;
@@ -188,7 +200,7 @@ function AppRoutes() {
     };
     const currentPlayerMayReadCensus = () => {
       const state = useSessionStore.getState();
-      return active && playerProjectionFresh && state.session?.id === sessionId &&
+      return callbackCurrent() && playerProjectionFresh && state.session?.id === sessionId &&
         state.me?.uid === playerUid && state.me.role === 'gm';
     };
     const reconcileLoyaltyCensus = () => {
@@ -293,6 +305,9 @@ function AppRoutes() {
             : '';
           const nextWolfCultIdentity = `${next.uid}:${next.role}:${next.assignedRoleId ?? ''}:${next.replacementRoleId ?? ''}`;
           const nextEntitlement = playerEntitlementKey(next);
+          if (playerAuthorityKey(next) !== listenerAuthorityKey) {
+            store.setFacilitatorRuleCall(null);
+          }
           playerProjectionFresh = false;
           store.setMe(next);
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
@@ -463,6 +478,7 @@ function AppRoutes() {
         onFacilitatorRuleCall: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (playerAuthorityKey(store.me) !== listenerAuthorityKey) return;
           if (
             !next ||
             store.me?.role !== 'player' ||
@@ -536,6 +552,7 @@ function AppRoutes() {
       pendingArbourVision = null;
       arbourVisionBlocked = true;
       useSessionStore.getState().setArbourVision(null);
+      useSessionStore.getState().setFacilitatorRuleCall(null);
       unsubscribe();
     };
   }, [playerAuthority, playerRole, playerUid, sessionId]);

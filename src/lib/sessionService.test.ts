@@ -38,6 +38,7 @@ const {
   setDebriefMode,
   setGmControlsLocked,
   advanceTurn,
+  authorFacilitatorRuleCall,
   startGame,
   replayTurnStartAnnouncement,
   beginOpenAirspacePhase,
@@ -2394,6 +2395,49 @@ describe('same-uid cross-session delayed callable matrix', () => {
 
     expect(useSessionStore.getState().session).toEqual(sessionB);
   });
+
+  it('hydrates a facilitator rule call only while the original GM instance remains current', async () => {
+    const sessionA = enterSessionA();
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+    const authoring = authorFacilitatorRuleCall({
+      ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+    });
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const payload = (pending.callable.mock.calls[0] as unknown[] | undefined)?.[0] as { requestId: string };
+    pending.resolve({
+      status: 'committed', sessionId: sessionA.id, callId: payload.requestId, revision: 1,
+      ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+      actorUid: 'u1', createdAt: '2026-09-11T12:00:00.000Z', label: 'FACILITATOR RULE CALL',
+    });
+    await expect(authoring).resolves.toBe('applied');
+    expect(useSessionStore.getState().gmFacilitatorRuleCall?.callId).toBe(payload.requestId);
+  });
+
+  it.each(['demotion', 'instance swap'] as const)(
+    'discards a deferred facilitator rule-call response after GM %s', async (change) => {
+      const sessionA = enterSessionA();
+      const pending = pendingCallable();
+      vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+      const authoring = authorFacilitatorRuleCall({
+        ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+      });
+      await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+      const payload = (pending.callable.mock.calls[0] as unknown[] | undefined)?.[0] as { requestId: string };
+      if (change === 'demotion') {
+        useSessionStore.getState().setIdentity(sessionA, { ...playerFor(sessionA.id), role: 'player' });
+      } else {
+        useSessionStore.getState().setGmInstance(gmFor(sessionA.id, 'gm-swapped'));
+      }
+      pending.resolve({
+        status: 'committed', sessionId: sessionA.id, callId: payload.requestId, revision: 1,
+        ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+        actorUid: 'u1', createdAt: '2026-09-11T12:00:00.000Z', label: 'FACILITATOR RULE CALL',
+      });
+      await expect(authoring).resolves.toBe('applied');
+      expect(useSessionStore.getState().gmFacilitatorRuleCall).toBeNull();
+    },
+  );
 });
 
 it('sends population changes and acknowledgement with the GM instance', async () => {

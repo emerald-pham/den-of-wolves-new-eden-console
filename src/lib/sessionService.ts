@@ -255,6 +255,22 @@ function wolfCommanderAuthorityCheckpointIsCurrent(
     store.me?.replacementRoleId === 'wolf-commander' && authorityCheckpointIsCurrent(checkpoint);
 }
 
+function facilitatorRuleCallAuthorityCheckpointIsCurrent(
+  sessionId: string,
+  instanceId: string,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+  allowConnecting = false,
+): boolean {
+  const store = useSessionStore.getState();
+  return store.session?.id === sessionId &&
+    store.me?.sessionId === sessionId &&
+    store.me.role === 'gm' &&
+    store.gmInstance?.sessionId === sessionId &&
+    store.gmInstance.uid === store.me.uid &&
+    store.gmInstance.id === instanceId &&
+    authorityCheckpointIsCurrent(checkpoint, allowConnecting);
+}
+
 function isCleanupCommand(command: PendingCommand): boolean {
   return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
@@ -315,6 +331,15 @@ function applyCommandResult(
 ): void {
   if (!isCleanupCommand(command) && !authorityCheckpointIsCurrent(checkpoint, allowConnecting)) return;
   const store = useSessionStore.getState();
+  if (
+    command.kind === 'authorFacilitatorRuleCall' &&
+    !facilitatorRuleCallAuthorityCheckpointIsCurrent(
+      command.payload.sessionId,
+      command.payload.instanceId,
+      checkpoint,
+      allowConnecting,
+    )
+  ) return;
   if (command.kind === 'logoutGmAccess') {
     store.clearGmAccess();
     if (store.gmInstance?.id === command.payload.instanceId) {
@@ -1478,7 +1503,9 @@ export async function authorFacilitatorRuleCall(
     Partial<Pick<FacilitatorRuleCall, 'recipientUid' | 'supersedesCallId'>>,
 ): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) {
+  if (!store.session || store.me?.role !== 'gm' ||
+      !store.gmInstance || store.gmInstance.sessionId !== store.session.id ||
+      store.gmInstance.uid !== store.me.uid) {
     throw new Error('An active GM instance is required before recording a rule call.');
   }
   return sendOrQueue({

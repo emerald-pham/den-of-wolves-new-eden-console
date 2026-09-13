@@ -5514,6 +5514,37 @@ function isFacilitatorRuleCallResult(
     result.label === 'FACILITATOR RULE CALL';
 }
 
+function isStoredFacilitatorRuleCall(value: unknown, sessionId: string): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  const allowedKeys = new Set([
+    'type', 'sessionId', 'callId', 'revision', 'ambiguity', 'source', 'decision',
+    'audience', 'recipientUid', 'actorUid', 'label', 'supersedesCallId', 'createdAt',
+  ]);
+  if (keys.some((key) => !allowedKeys.has(key))) return false;
+  const createdAt = record.createdAt;
+  const hasStoredTimestamp = typeof createdAt === 'string'
+    ? createdAt.length > 0
+    : typeof createdAt === 'object' && createdAt !== null &&
+      typeof (createdAt as { toMillis?: unknown }).toMillis === 'function';
+  return record.type === 'facilitator-rule-call' && record.sessionId === sessionId &&
+    typeof record.callId === 'string' && record.callId.length > 0 &&
+    Number.isSafeInteger(record.revision) && (record.revision as number) >= 1 &&
+    typeof record.ambiguity === 'string' && record.ambiguity.length > 0 && record.ambiguity.length <= 240 &&
+    typeof record.source === 'string' && record.source.length > 0 && record.source.length <= 240 &&
+    typeof record.decision === 'string' && record.decision.length > 0 && record.decision.length <= 500 &&
+    (record.audience === 'gm-only' || record.audience === 'selected-player') &&
+    (record.audience === 'gm-only'
+      ? record.recipientUid === undefined
+      : typeof record.recipientUid === 'string' && record.recipientUid.length > 0) &&
+    typeof record.actorUid === 'string' && record.actorUid.length > 0 &&
+    record.label === 'FACILITATOR RULE CALL' && hasStoredTimestamp &&
+    (record.supersedesCallId === undefined ||
+      (typeof record.supersedesCallId === 'string' && record.supersedesCallId.length > 0 &&
+        record.supersedesCallId !== record.callId));
+}
+
 /** Record one durable facilitator ruling without publishing a public event. */
 export const authorFacilitatorRuleCall = onCall<{
   sessionId?: unknown;
@@ -5529,15 +5560,15 @@ export const authorFacilitatorRuleCall = onCall<{
 }>(async request => {
   const uid = requireUid(request.auth);
   const call = requireFacilitatorRuleCallRequest(request.data ?? {});
-  const currentRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/gm/current`);
-  const historyRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history/${call.requestId}`);
-  const auditRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/audit/${call.requestId}`);
+  const currentRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/gm-current`);
+  const historyRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history-${call.requestId}`);
+  const auditRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/audit-${call.requestId}`);
   const receiptRef = commandReceiptRef(call.sessionId, call.requestId);
   const supersededRef = call.supersedesCallId
-    ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history/${call.supersedesCallId}`)
+    ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history-${call.supersedesCallId}`)
     : null;
   const recipientRef = call.recipientUid
-    ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/recipients/${call.recipientUid}`)
+    ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/recipient-${call.recipientUid}`)
     : null;
   const fingerprint: CommandFingerprint = {
     action: 'author-facilitator-rule-call',
@@ -5566,6 +5597,9 @@ export const authorFacilitatorRuleCall = onCall<{
       tx.get(auditRef),
     ]);
     await rejectForeignLegacyM1Command(tx, call.sessionId, call.requestId, 'facilitator rule call', []);
+    if (current.exists && !isStoredFacilitatorRuleCall(current.data(), call.sessionId)) {
+      throw commandError('failed-precondition', 'The facilitator rule-call projection is malformed.', 'malformed-input');
+    }
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -5577,12 +5611,7 @@ export const authorFacilitatorRuleCall = onCall<{
     if (authority.session.get('phase') === 'closed' || authority.session.get('phase') === 'retained-empty') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
-    const currentRevision = current.exists && current.get('type') === 'facilitator-rule-call' &&
-      Number.isSafeInteger(current.get('revision')) && (current.get('revision') as number) >= 1
-      ? current.get('revision') as number : 0;
-    if (current.exists && current.get('type') !== 'facilitator-rule-call') {
-      throw commandError('failed-precondition', 'The facilitator rule-call projection is malformed.', 'malformed-input');
-    }
+    const currentRevision = current.exists ? current.get('revision') as number : 0;
     if (currentRevision !== call.expectedRevision) {
       throw commandError(
         'failed-precondition',
@@ -5675,7 +5704,7 @@ export const authorFacilitatorRuleCall = onCall<{
         superseded.get('recipientUid') !== call.recipientUid) {
       const previousRecipientUid = superseded.get('recipientUid');
       if (typeof previousRecipientUid === 'string') {
-        tx.delete(db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/recipients/${previousRecipientUid}`));
+        tx.delete(db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/recipient-${previousRecipientUid}`));
       }
     }
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
