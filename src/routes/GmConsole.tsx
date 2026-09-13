@@ -2388,7 +2388,7 @@ export default function GmConsole() {
               </section>
             )}
             {(session.phase === 'briefing' || session.phase === 'active') && (
-              <section className="gm-casting-board" aria-label="Facilitator replacement roles">
+              <section className="gm-casting-board gm-casting-board--replacement" aria-label="Facilitator replacement roles">
                 <header className="gm-casting-board__header">
                   <div>
                     <p className="eyebrow">Live adjudication</p>

@@ -1386,6 +1386,17 @@ body {
   color: var(--cic-scream);
 }
 
+.gm-casting-board--replacement .gm-casting-board__header > span,
+.gm-casting-board--replacement .gm-player-roster__hint,
+.gm-casting-board--replacement .gm-player-roster__note {
+  font-size: 0.875rem;
+}
+
+.gm-casting-board--replacement .gm-casting-board__assign select,
+.gm-casting-board--replacement .gm-casting-board__action {
+  font-size: 1rem;
+}
+
 .gm-player-roster__note {
   margin: 0;
   color: var(--cic-muted);
