@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type {
+  ArbourVision,
   GameSession,
   GmInstance,
   LoyaltyCensus,
@@ -200,6 +201,20 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'authorArbourVision';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedRevision: number;
+        readonly targetUid: string;
+        readonly kind: ArbourVision['kind'];
+        readonly text: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'claimSeat';
       readonly payload: {
         readonly sessionId: string;
@@ -283,6 +298,8 @@ interface SessionState {
   privateLoyalty: PrivateLoyalty | null;
   roleBrief: RoleBrief | null;
   gmLoyaltyCensus: LoyaltyCensus | null;
+  arbourVision: ArbourVision | null;
+  gmArbourVision: ArbourVision | null;
   gmSetupReceipt: SetupReceipt | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
@@ -302,6 +319,8 @@ interface SessionState {
   setPrivateLoyalty: (loyalty: PrivateLoyalty | null) => void;
   setRoleBrief: (brief: RoleBrief | null) => void;
   setGmLoyaltyCensus: (census: LoyaltyCensus | null) => void;
+  setArbourVision: (vision: ArbourVision | null) => void;
+  setGmArbourVision: (vision: ArbourVision | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
@@ -324,6 +343,8 @@ const initial = {
   privateLoyalty: null,
   roleBrief: null,
   gmLoyaltyCensus: null,
+  arbourVision: null,
+  gmArbourVision: null,
   gmSetupReceipt: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
@@ -334,7 +355,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'gmSetupReceipt' | 'arbourVision' | 'gmArbourVision' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -358,7 +379,7 @@ export const useSessionStore = create<SessionState>()(
     (set, get) => ({
       ...initial,
       setSession: (session) => set({ session }),
-      setIdentity: (session, me) => set({ session, me, roleBrief: null }),
+      setIdentity: (session, me) => set({ session, me, roleBrief: null, arbourVision: null, gmArbourVision: null }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
@@ -370,6 +391,8 @@ export const useSessionStore = create<SessionState>()(
       setPrivateLoyalty: (privateLoyalty) => set({ privateLoyalty }),
       setRoleBrief: (roleBrief) => set({ roleBrief }),
       setGmLoyaltyCensus: (gmLoyaltyCensus) => set({ gmLoyaltyCensus }),
+      setArbourVision: (arbourVision) => set({ arbourVision }),
+      setGmArbourVision: (gmArbourVision) => set({ gmArbourVision }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
@@ -396,6 +419,8 @@ export const useSessionStore = create<SessionState>()(
           privateLoyalty: null,
           roleBrief: null,
           gmLoyaltyCensus: null,
+          arbourVision: null,
+          gmArbourVision: null,
           gmSetupReceipt: null,
           mode: null,
           lastRoute: null,

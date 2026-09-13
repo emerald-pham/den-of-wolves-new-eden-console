@@ -4713,6 +4713,20 @@
       "type": "evidence / verified / authority / hard_prompt / related/consumes"
     },
     {
+      "direction": "511 -> 495;522",
+      "id": "E-AUDIT-511",
+      "language": "Universal Arbour calls consume the authoritative private loyalty assignment and the live facilitator lease; no automated clue producer or public event path is implied.",
+      "source": "IMPLEMENTATION_PLAN.md - Prompt 511 definition; routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md; routed REFERENCE_ONLY_FACILITATION.md",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "511",
+      "id": "E-511-ARBOUR-VISIONS",
+      "language": "The facilitator can publish one labeled FACILITATOR CALL for the current Universal Arbour loyalty holder through a lease-checked, revisioned, shared-receipt callable. Server projections keep the call private to the GM and current recipient, revoke the recipient path when the canonical loyalty census changes, and write no public event. Exact retries replay without a second write; wrong actor, stale revision, malformed text, closed session, non-Arbour recipient, direct client reads, and direct client writes fail closed. The recipient-only RoleBrief and GM authoring panel are rendered through production components with readable typography, 44px controls, no horizontal overflow, reduced motion, and a working keyboard return path at 320x844, 844x390, and 1440x900. Focused callable, lifecycle, client, and rules checks pass alongside the affected loyalty/session regressions.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/arbourVisionCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/sessionService.ts; src/store/useSessionStore.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/App.tsx; src/App.test.tsx; src/index.css; focused tests 148/148 plus functions regressions 126/126; npm run typecheck; functions npm run build; targeted eslint; rendered production-component fixture geometry and screenshots captured 320x844, 844x390, 1440x900 with reduced motion",
+      "type": "evidence / production-path / authority / privacy"
+    },
+    {
       "direction": "241 -> CAPYBARA-IDENTITY-MAINTENANCE",
       "id": "E-241-VERIFIED",
       "language": "The existing shared small-ship production path closes base Capybara identity and maintenance: the typed supplemental vessel is the base-small Capybara with 2,000 survivors, 1/1/2 jump costs, two reactor charges, and steps 1–4, while the server-owned rules apply the same identity and printed host food/water table. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; a focused production-path regression proves Capybara remains distinct from Warrior and Vulcan while borrowing its host ration costs. The full expansion Capybara remains a separate identity, and named Capybara systems stay deferred to 241b–241e.",
@@ -17868,11 +17882,11 @@
         "acceptance": "facilitator-authored location, danger, or suspicion content is private and labeled as a call.",
         "title": "Deliver Universal Arbour visions."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The live GM can author a labeled FACILITATOR CALL for the current Universal Arbour loyalty holder through a lease-checked, revisioned callable with shared replay receipt and private audit. The GM projection and recipient RoleBrief are server-filtered, revoked when the canonical loyalty census changes, and never emitted as a public event. Focused callable/client/rules/lifecycle checks and rendered production-component evidence cover the private path and responsive accessibility behavior.",
+      "evidenceIds": "E-AUDIT-511;E-511-ARBOUR-VISIONS",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "495;522",
       "id": "511",
       "milestoneHints": "M10",
       "relatedConsumes": "none",
@@ -17880,7 +17894,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

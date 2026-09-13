@@ -42,6 +42,7 @@ import {
   setGmControlsLocked,
   setFacilitatorResponsibility,
   setFacilitatorCensusNote,
+  authorUniversalArbourVision,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -86,6 +87,7 @@ import type {
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfAssignment,
+  ArbourVision,
 } from '@/types/game';
 import { isWireSafeEntityId } from '@/types/identifiers';
 import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
@@ -309,6 +311,12 @@ export default function GmConsole() {
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
+  const [arbourVisionTargetUid, setArbourVisionTargetUid] = useState('');
+  const [arbourVisionKind, setArbourVisionKind] = useState<ArbourVision['kind']>('location');
+  const [arbourVisionText, setArbourVisionText] = useState('');
+  const [arbourVisionMutation, setArbourVisionMutation] = useState(false);
+  const [arbourVisionMessage, setArbourVisionMessage] = useState<string | null>(null);
+  const gmArbourVision = useSessionStore((state) => state.gmArbourVision);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
@@ -614,6 +622,7 @@ export default function GmConsole() {
       subscribeGmWolfAttackState,
       subscribeGmWolfAttackWindow,
       subscribeGmWolfAssignment,
+      subscribeGmArbourVision,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -656,6 +665,12 @@ export default function GmConsole() {
         sessionId,
         setWolfAssignment,
       );
+      const stopArbourVision = typeof subscribeGmArbourVision === 'function'
+        ? subscribeGmArbourVision(sessionId, (next) => {
+          setArbourVisionMessage(null);
+          useSessionStore.getState().setGmArbourVision(next);
+        })
+        : () => undefined;
       const stopEvents = subscribeSessionEvents(
         sessionId,
         setEvents,
@@ -696,6 +711,7 @@ export default function GmConsole() {
         stopWolfAttackPreparation();
         stopWolfAttackState();
         stopWolfAssignment();
+        stopArbourVision();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -706,6 +722,7 @@ export default function GmConsole() {
       active = false;
       unsubscribe();
       setWolfAssignment(null);
+      useSessionStore.getState().setGmArbourVision(null);
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
       setAllPlayers([]);
@@ -717,6 +734,26 @@ export default function GmConsole() {
       (loyaltyCensus?.entries ?? []).map((entry) => [entry.uid, entry.note ?? '']),
     ));
   }, [loyaltyCensus?.entries, loyaltyCensus?.revision]);
+
+  const arbourVisionRecipients = useMemo(
+    () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'universal-arbour') ?? [],
+    [loyaltyCensus?.entries],
+  );
+  const arbourVisionRecipientUids = useMemo(
+    () => arbourVisionRecipients.map((entry) => entry.uid),
+    [arbourVisionRecipients],
+  );
+
+  useEffect(() => {
+    if (arbourVisionRecipientUids.length === 0) {
+      setArbourVisionTargetUid('');
+      return;
+    }
+    setArbourVisionTargetUid((current) =>
+      arbourVisionRecipientUids.includes(current)
+        ? current
+        : arbourVisionRecipientUids[0]!);
+  }, [arbourVisionRecipientUids]);
 
   useEffect(() => {
     if (!wolfAttackPreparation) return;
@@ -1378,6 +1415,31 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setCensusNoteMutationUid(null);
+    }
+  }
+
+  async function saveArbourVision(): Promise<void> {
+    if (!arbourVisionTargetUid || !arbourVisionText.trim() || arbourVisionMutation) return;
+    setArbourVisionMutation(true);
+    setArbourVisionMessage(null);
+    try {
+      const disposition = await authorUniversalArbourVision(
+        arbourVisionTargetUid,
+        arbourVisionKind,
+        arbourVisionText,
+      );
+      setArbourVisionMessage(
+        disposition === 'queued'
+          ? 'FACILITATOR CALL QUEUED // awaiting reconnection'
+          : disposition === 'stale'
+            ? 'CALL STALE // refresh the private vision and retry'
+            : `FACILITATOR CALL ${disposition.toUpperCase()}`,
+      );
+      if (disposition === 'applied') setArbourVisionText('');
+    } catch {
+      setArbourVisionMessage('CALL REJECTED // active facilitator authority required');
+    } finally {
+      setArbourVisionMutation(false);
     }
   }
 
@@ -2560,6 +2622,65 @@ export default function GmConsole() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {isGm && (
+            <section className="gm-console__module cic-frame gm-arbour-vision" aria-label="Universal Arbour facilitator call">
+              <h2 className="gm-console__section-title">Universal Arbour // facilitator call</h2>
+              <p className="gm-player-roster__hint">
+                Write one private call for the current Universal Arbour holder. The recipient sees the category and your text in their private brief.
+              </p>
+              {arbourVisionRecipients.length === 0 ? (
+                <p className="gm-console__status">No current Universal Arbour holder is projected.</p>
+              ) : (
+                <div className="gm-arbour-vision__form">
+                  <label htmlFor="arbour-vision-recipient">Recipient</label>
+                  <select
+                    id="arbour-vision-recipient"
+                    value={arbourVisionTargetUid}
+                    disabled={arbourVisionMutation}
+                    onChange={(event) => setArbourVisionTargetUid(event.target.value)}
+                  >
+                    {arbourVisionRecipients.map((entry) => (
+                      <option key={entry.uid} value={entry.uid}>{entry.uid}</option>
+                    ))}
+                  </select>
+                  <label htmlFor="arbour-vision-kind">Call type</label>
+                  <select
+                    id="arbour-vision-kind"
+                    value={arbourVisionKind}
+                    disabled={arbourVisionMutation}
+                    onChange={(event) => setArbourVisionKind(event.target.value as ArbourVision['kind'])}
+                  >
+                    <option value="location">Location</option>
+                    <option value="danger">Danger</option>
+                    <option value="suspicion">Suspicion</option>
+                  </select>
+                  <label htmlFor="arbour-vision-text">Facilitator call</label>
+                  <textarea
+                    id="arbour-vision-text"
+                    value={arbourVisionText}
+                    maxLength={240}
+                    rows={3}
+                    disabled={arbourVisionMutation}
+                    onChange={(event) => setArbourVisionText(event.target.value)}
+                  />
+                  <button
+                    className="gm-census-note__save"
+                    type="button"
+                    disabled={arbourVisionMutation || !arbourVisionText.trim()}
+                    onClick={() => void saveArbourVision()}
+                  >
+                    {arbourVisionMutation ? 'Publishing…' : 'Publish private call'}
+                  </button>
+                  <p className="gm-player-roster__note" role="status" aria-live="polite">
+                    {arbourVisionMessage ?? (gmArbourVision
+                      ? `Current call // revision ${gmArbourVision.revision} // ${gmArbourVision.recipientUid}`
+                      : 'No facilitator call published yet.')}
+                  </p>
                 </div>
               )}
             </section>

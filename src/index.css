@@ -1664,6 +1664,57 @@ body {
   color: var(--cic-scream);
 }
 
+.gm-arbour-vision__form {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 42rem;
+}
+
+.gm-arbour-vision__form label {
+  color: var(--cic-amber);
+  font: 0.7rem/1.3 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-arbour-vision__form select,
+.gm-arbour-vision__form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 16px/1.4 var(--cic-mono);
+}
+
+.gm-arbour-vision__form textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.gm-arbour-vision__form button {
+  min-height: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.65rem 0.8rem;
+  white-space: normal;
+}
+
+.role-brief__rules--arbour-vision {
+  border-color: var(--cic-amber-dim);
+}
+
+.role-brief__rules--arbour-vision .eyebrow {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  color: var(--cic-amber);
+  font: 0.7rem/1.4 var(--cic-mono);
+}
+
 .gm-console {
   width: 100%;
   max-width: none;
@@ -5666,3 +5717,33 @@ body {
 .gm-chart-setup .gm-role-preset select { width: 100%; min-width: 0; font-size: 1rem; }
 .gm-chart-setup .gm-role-setup__note { font-size: 0.875rem; overflow-wrap: anywhere; }
 .gm-chart-setup .cic-action-button { min-height: 44px; font-size: 1rem; white-space: normal; }
+
+.gm-arbour-vision .gm-player-roster__hint,
+.gm-arbour-vision .gm-player-roster__note {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.gm-arbour-vision button {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.role-brief__rules--arbour-vision .eyebrow {
+  font-size: 12px;
+}
+
+.role-brief__rules--arbour-vision h2 {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.role-brief__rules--arbour-vision > p:last-child {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.role-brief-screen .session-mode__back,
+.role-brief-screen .role-brief__return {
+  font-size: 14px;
+}

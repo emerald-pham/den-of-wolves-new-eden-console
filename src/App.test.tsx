@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt } from '@/types/game';
+import type { ArbourVision, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -721,6 +721,29 @@ describe('App', () => {
     expect(useSessionStore.getState().roleBrief).toBeNull();
     act(() => handlers?.onRoleBrief?.(null));
     expect(useSessionStore.getState().roleBrief).toBeNull();
+  });
+
+  it('holds an Arbour call until private loyalty arrives and clears it on loyalty loss', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+      text: 'There is danger at the relay.', label: 'FACILITATOR CALL',
+    };
+    const arbourPlayer: Player = { ...player, role: 'player', assignedRoleId: 'admiral' };
+    useSessionStore.getState().setIdentity(session, arbourPlayer);
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => handlers?.onArbourVision?.(vision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+    act(() => handlers?.onPrivateLoyalty?.(null));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
   });
 
   it('renders cached session state while showing the existing red Offline indicator', async () => {

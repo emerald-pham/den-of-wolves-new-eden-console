@@ -46,6 +46,7 @@ vi.mock('@/lib/sessionService', () => ({
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
   setFacilitatorCensusNote: vi.fn(),
+  authorUniversalArbourVision: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -58,6 +59,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfAttackPreparation: vi.fn(),
   subscribeGmWolfAttackState: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
+  subscribeGmArbourVision: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
@@ -69,10 +71,10 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, authorUniversalArbourVision, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmArbourVision, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -139,6 +141,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
     onAssignment(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmArbourVision).mockImplementation((_sessionId, onVision) => {
+    onVision(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -227,6 +233,27 @@ it('renders and saves facilitator notes and hydrates the hidden Wolf assignment'
   await user.click(within(census).getByRole('button', { name: 'Save note' }));
   expect(setFacilitatorCensusNote).toHaveBeenCalledWith('u2', 'Watch the transfer window');
   expect(await screen.findByRole('region', { name: 'Private Wolf assignment' })).toHaveTextContent('Admiral');
+});
+
+it('authorizes a labeled private Universal Arbour call from the GM console', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 7,
+    entries: [{ uid: 'u2', kind: 'universal-arbour', suspicion: 10 }],
+  });
+  vi.mocked(authorUniversalArbourVision).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Universal Arbour facilitator call' });
+  await user.selectOptions(within(panel).getByLabelText('Call type'), 'danger');
+  await user.type(within(panel).getByLabelText('Facilitator call'), 'There is danger at the relay.');
+  await user.click(within(panel).getByRole('button', { name: 'Publish private call' }));
+  expect(authorUniversalArbourVision).toHaveBeenCalledWith(
+    'u2', 'danger', 'There is danger at the relay.',
+  );
+  expect(await within(panel).findByRole('status')).toHaveTextContent(/facilitator call applied/i);
 });
 
 it('returns to role selection', async () => {

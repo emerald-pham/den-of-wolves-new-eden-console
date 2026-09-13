@@ -35,7 +35,7 @@ import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection } from '@/types/game';
+import type { ArbourVision, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -119,6 +119,7 @@ function AppRoutes() {
     const listenerGeneration = ++playerListenerGeneration.current;
     const callbackCurrent = () => active && playerListenerGeneration.current === listenerGeneration;
     let pendingRoleBrief: RoleBriefProjection | null = null;
+    let pendingArbourVision: ArbourVision | null = null;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
     let unsubscribe: () => void = () => undefined;
@@ -248,6 +249,10 @@ function AppRoutes() {
               useSessionStore.getState().setSession(stripNavigationProjection(current));
             }
           }
+          if (previousEntitlement !== nextEntitlement) {
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+          }
           const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
           if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
@@ -292,7 +297,31 @@ function AppRoutes() {
           useSessionStore.getState().disconnect();
         },
         onSeats: (next) => { if (callbackCurrent()) useSessionStore.getState().setSeats(next); },
-        onPrivateLoyalty: (next) => { if (callbackCurrent()) useSessionStore.getState().setPrivateLoyalty(next); },
+        onPrivateLoyalty: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          store.setPrivateLoyalty(next);
+          if (next?.kind === 'universal-arbour') {
+            if (pendingArbourVision) {
+              store.setArbourVision(pendingArbourVision);
+              pendingArbourVision = null;
+            }
+          } else {
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+          }
+        },
+        onArbourVision: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if (!next || store.privateLoyalty?.kind !== 'universal-arbour') {
+            pendingArbourVision = next;
+            store.setArbourVision(null);
+            return;
+          }
+          pendingArbourVision = null;
+          store.setArbourVision(next);
+        },
         onRoleBrief: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();

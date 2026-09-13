@@ -31,6 +31,8 @@ export default function RoleBrief() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const brief = useSessionStore((state) => state.roleBrief);
+  const privateLoyalty = useSessionStore((state) => state.privateLoyalty);
+  const arbourVision = useSessionStore((state) => state.arbourVision);
 
   if (
     !session || !me || !brief ||
@@ -50,6 +52,14 @@ export default function RoleBrief() {
         <p className="role-brief__eyebrow">Assigned role // {brief.vesselName}</p>
         <h1 id="role-brief-title">{brief.roleName}</h1>
         <p className="role-brief__copy">{brief.text}</p>
+
+        {privateLoyalty?.kind === 'universal-arbour' && arbourVision && (
+          <section className="role-brief__rules role-brief__rules--arbour-vision" aria-labelledby="arbour-vision-title">
+            <p className="eyebrow">{arbourVision.label}</p>
+            <h2 id="arbour-vision-title">Universal Arbour vision // {arbourVision.kind}</h2>
+            <p>{arbourVision.text}</p>
+          </section>
+        )}
 
         {(brief.ownedCraftIds?.length ?? 0) > 0 && (
           <section className="role-brief__rules" aria-labelledby="role-brief-craft-title">
