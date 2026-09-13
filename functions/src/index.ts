@@ -2741,7 +2741,7 @@ export const confirmSetup = onCall<{
     const currentActiveVesselIds = activeVesselIdsForSession(authority.session);
     const storedDockings = authority.session.get('shuttleDockings');
     const rawCurrentDockings = Array.isArray(storedDockings)
-      ? storedDockings as Array<{ shuttleId: string; shipId: string }>
+      ? storedDockings as Array<typeof INITIAL_SHUTTLE_DOCKINGS[number]>
       : initialShuttleDockingsForRoles(currentRoleIds);
     // Validate the persisted tuple before projection filtering can hide a
     // moved craft whose current host is being removed from the next roster.
