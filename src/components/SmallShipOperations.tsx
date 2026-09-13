@@ -111,7 +111,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
       ) : (
         <>
           <p role="status">Docked with {SHIPS.find((ship) => ship.id === currentHost)?.name ?? currentHost} // host stores fund rations</p>
-          {step === 0 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('begin')}>Begin small-ship cycle // Turn {currentTurn}</button>}
+          {step === 0 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('begin')}>Begin small-ship cycle // Cycle {currentTurn}</button>}
           {step === 1 && <fieldset disabled={pending} className="maintenance-controls"><legend>Step 1 // Rations</legend>
             <label>Food<select aria-label={`${vessel.name} food ration`} value={foodLevel} onChange={(event) => setFoodLevel(Number(event.target.value))}>{RATION_NAMES.map((name, index) => <option key={name} value={index}>{name} // {rules.food[index]}</option>)}</select></label>
             <label>Water<select aria-label={`${vessel.name} water ration`} value={waterLevel} onChange={(event) => setWaterLevel(Number(event.target.value))}>{RATION_NAMES.map((name, index) => <option key={name} value={index}>{name} // {rules.water[index]}</option>)}</select></label>

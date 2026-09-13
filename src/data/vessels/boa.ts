@@ -17,7 +17,7 @@ export default defineShuttle({
     {
       name: 'Recycling',
       phase: 'Coordination',
-      effect: 'When fuelled, trade 6 food, water, or ore; 3 materials; or 6 fuel for 1 scrap, up to twice per turn.',
+      effect: 'When fuelled, trade 6 food, water, or ore; 3 materials; or 6 fuel for 1 scrap, up to twice per cycle.',
     },
     {
       name: 'Reclamation',

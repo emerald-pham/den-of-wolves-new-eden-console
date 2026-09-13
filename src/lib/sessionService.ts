@@ -2705,7 +2705,7 @@ export async function advanceTurn({
   readonly requestId?: string;
 } = {}): Promise<void> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the turn.');
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the cycle.');
   requireFreshSessionAuthority();
   await ensureSignedIn();
   const expectedTurn = store.session.currentTurn ?? 1;
@@ -2740,13 +2740,13 @@ export async function advanceTurn({
   }
 }
 
-/** Start the Turn 1 demo when this browser is the session's only connected player. */
+/** Start the Cycle 1 demo when this browser is the session's only connected player. */
 export async function startSinglePlayerDemo(): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session) throw new Error('Join a session before starting the demo.');
   requireFreshSessionAuthority('Reconnect before starting the demo.');
   if (store.session.currentTurn !== 0) {
-    throw new Error('The single-player demo is only available from Turn 0.');
+    throw new Error('The single-player demo is only available from Cycle 0.');
   }
   const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
@@ -2763,14 +2763,14 @@ export async function startSinglePlayerDemo(): Promise<void> {
   }
 }
 
-/** Replay the latest turn transmission locally or across the connected fleet. */
+/** Replay the latest cycle transmission locally or across the connected fleet. */
 export async function replayTurnStartAnnouncement(audience: TurnStartReplayAudience): Promise<void> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) throw new Error('Claim GM before replaying a turn transmission.');
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before replaying a cycle transmission.');
   const currentTurn = store.session.currentTurn ?? 1;
   const current = store.session.turnStartAnnouncement;
   if (!current || current.turn !== currentTurn || currentTurn < 1) {
-    throw new Error('No current turn transmission is available to replay.');
+    throw new Error('No current cycle transmission is available to replay.');
   }
 
   if (audience === 'gm') {

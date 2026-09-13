@@ -85,7 +85,7 @@ export default function ShuttleConsoleTemplate({
           className="shuttle-console__workspace"
           telemetry={<>
             <div><dt>Shuttle location</dt><dd>{location}</dd></div>
-            <div><dt>Fuel state</dt><dd>{fuelled ? 'Fuelled this turn' : 'Unfuelled'}</dd></div>
+            <div><dt>Fuel state</dt><dd>{fuelled ? 'Fuelled this cycle' : 'Unfuelled'}</dd></div>
             {shuttle.cargoTransfer && <div><dt>Cargo transfer</dt><dd>{shuttle.cargoTransfer}</dd></div>}
           </>}>
           <div className="console-workspace__status">

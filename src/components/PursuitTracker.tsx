@@ -46,7 +46,7 @@ export default function PursuitTracker({
     : status === 'critical'
       ? 'CRITICAL // WOLF FORCES CLOSING'
       : currentTurn < 1
-        ? 'STANDBY // TURN 0'
+        ? 'STANDBY // CYCLE 0'
         : `TRACKED // ${pursuitScore} OF ${MAX_PURSUIT}`;
 
   return (
@@ -75,7 +75,7 @@ export default function PursuitTracker({
           <strong>{pursuitScore} / {MAX_PURSUIT}</strong>
         </p>
         <p className="pursuit-tracker__metric">
-          <span>Turn load // </span>
+          <span>Cycle load // </span>
           <strong>+{turnLoad}</strong>
         </p>
         <p className="pursuit-tracker__metric pursuit-tracker__metric--map">

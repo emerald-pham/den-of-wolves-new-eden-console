@@ -28,14 +28,14 @@ it('announces a real mounted event and clears it when the event leaves', () => {
     <LiveChangeRegion
       as="p"
       changeKey="turn:s1:2:1"
-      message="Fleet transmission for Turn 2."
+      message="Fleet transmission for Cycle 2."
       politeness="assertive"
       announceInitial
     />,
   );
   const region = view.container.querySelector('[role="status"]')!;
 
-  expect(region).toHaveTextContent('Fleet transmission for Turn 2.');
+  expect(region).toHaveTextContent('Fleet transmission for Cycle 2.');
   expect(region).toHaveAttribute('aria-live', 'assertive');
 
   view.rerender(

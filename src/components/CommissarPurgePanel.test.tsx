@@ -81,7 +81,7 @@ it('lets the replacement select a consented active ship and submit the purge wit
   expect(applyCommissarPurge).toHaveBeenCalledWith('icebreaker');
 });
 
-it('shows a plain unavailable state after the once-per-turn receipt is present', async () => {
+it('shows a plain unavailable state after the once-per-cycle receipt is present', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected session fixture.');
   useSessionStore.getState().setIdentity({
@@ -100,6 +100,6 @@ it('shows a plain unavailable state after the once-per-turn receipt is present',
     return authority;
   });
   render(<CommissarPurgePanel shipId="icebreaker" />);
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/already used its purge this turn/i));
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/already used its purge this cycle/i));
   expect(screen.getByRole('button', { name: /purge survivors/i })).toBeDisabled();
 });

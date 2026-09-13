@@ -149,7 +149,7 @@ it('opens Ally with its Shepherd / Icebreaker Union envelope and returns by keyb
   expect(screen.getByRole('heading', { name: 'U.S. Ally' })).toBeInTheDocument();
   expect(screen.getByText('Shepherd / Icebreaker Engineer // Captain')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(/in transit/i);
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
@@ -478,7 +478,7 @@ it('opens Blacksmith on its Icebreaker Engineer route with its repair and cargo 
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
     /docked.*icebreaker/i,
   );
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
@@ -523,7 +523,7 @@ it('opens Black Sheep on its Shepherd Engineer route with the owned recharge env
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
     /docked.*shepherd/i,
   );
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Recharge' })).toBeInTheDocument();
@@ -563,7 +563,7 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
   expect(screen.getByRole('heading', { name: 'G.S. Chacau' })).toBeInTheDocument();
   expect(screen.getByText('Engineer // Captain')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(/docked.*refinery 124/i);
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
@@ -632,7 +632,7 @@ it('opens Philia on its Dione Engineer route with its repair and cargo envelope'
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
     /docked.*dione/i,
   );
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
@@ -672,7 +672,7 @@ it('opens Pallas on its Executive Officer route with its security and boarding e
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
     /docked.*aegis/i,
   );
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams only')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Cargo transfer' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
@@ -707,7 +707,7 @@ it('opens Chepu on its PDF Colonel route with its security and boarding envelope
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
     /docked.*refinery 124/i,
   );
-  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(screen.getByText('Security teams only')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Cargo transfer' })).toBeInTheDocument();
   expect(screen.getByText(/security teams.*to and from ships.*Chepu.*docked/i)).toBeInTheDocument();

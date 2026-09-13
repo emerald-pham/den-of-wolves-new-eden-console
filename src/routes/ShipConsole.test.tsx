@@ -780,7 +780,7 @@ it('freezes ship gameplay controls while showing the final-turn evaluation state
   );
 
   expect(screen.getByText(
-    /final turn complete.*endgame evaluation in progress.*gameplay controls are frozen/i,
+    /final cycle complete.*endgame evaluation in progress.*gameplay controls are frozen/i,
   )).toHaveAttribute('role', 'status');
   expect(screen.getByRole('button', { name: /engage icn console lock/i })).toBeDisabled();
 });

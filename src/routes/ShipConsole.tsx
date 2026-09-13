@@ -419,7 +419,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <p className="ship-console__description">{ship.description}</p>
         {session.phase === 'debrief' && (
           <p className="ship-console__status" role="status">
-            Final turn complete // Endgame evaluation in progress. Gameplay controls are frozen.
+            Final cycle complete // Endgame evaluation in progress. Gameplay controls are frozen.
           </p>
         )}
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />

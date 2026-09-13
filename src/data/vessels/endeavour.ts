@@ -15,12 +15,12 @@ export default defineShuttle({
     {
       name: 'Long-range sensors',
       phase: 'Coordination',
-      effect: 'Ask a facilitator to scout one system each turn, regardless of range.',
+      effect: 'Ask a facilitator to scout one system each cycle, regardless of range.',
     },
     {
       name: 'Upgrades',
       phase: 'Coordination',
-      effect: 'Upgrade up to 2 consoles per turn, paying each target ship’s next material cost; when fuelled, upgrade 2 additional consoles.',
+      effect: 'Upgrade up to 2 consoles per cycle, paying each target ship’s next material cost; when fuelled, upgrade 2 additional consoles.',
     },
     {
       name: 'Away missions',

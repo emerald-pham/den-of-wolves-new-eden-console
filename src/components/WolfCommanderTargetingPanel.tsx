@@ -112,7 +112,7 @@ export default function WolfCommanderTargetingPanel({
           <p className="eyebrow">Private Wolf action</p>
           <h2 id="wolf-commander-panel-title">Targeting dice</h2>
         </div>
-        {view && <span className="wolf-commander-panel__revision">Turn {view.turn} // Rev {view.revision}</span>}
+        {view && <span className="wolf-commander-panel__revision">Cycle {view.turn} // Rev {view.revision}</span>}
       </header>
       <p className="wolf-commander-panel__guidance">
         Choose each die at most once. Rerolls resolve before AEGIS Command and Control; printed Capybara 8 rerolls are automatic and separate.

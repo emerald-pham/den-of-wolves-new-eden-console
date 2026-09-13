@@ -620,7 +620,7 @@ it('lets the active GM reset the code of conduct checklist from the GM Console',
   window.removeEventListener(SESSION_WAIVER_RESET_EVENT, resetEvent);
 });
 
-it('keeps Turn 0 Skip separate while routing production start through Setup', async () => {
+it('keeps Cycle 0 Skip separate while routing production start through Setup', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
@@ -633,25 +633,25 @@ it('keeps Turn 0 Skip separate while routing production start through Setup', as
   });
   renderConsole();
 
-  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
-  expect(within(turnControls).getByText(/Turn 0 \/\/ ordinary production start/)).toBeInTheDocument();
-  const skipButton = within(turnControls).getByRole('button', { name: /skip to turn 1/i });
-  expect(within(turnControls).queryByRole('button', { name: 'Advance to Turn 1' })).not.toBeInTheDocument();
+  const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
+  expect(within(turnControls).getByText(/Cycle 0 \/\/ ordinary production start/)).toBeInTheDocument();
+  const skipButton = within(turnControls).getByRole('button', { name: /skip to cycle 1/i });
+  expect(within(turnControls).queryByRole('button', { name: 'Advance to Cycle 1' })).not.toBeInTheDocument();
 
   await user.click(skipButton);
   expect(advanceTurn).not.toHaveBeenCalled();
   expect(skipButton).toHaveClass('cic-action-button--confirm');
-  expect(skipButton).toHaveTextContent('ARE YOU SURE? // Skip to Turn 1');
+  expect(skipButton).toHaveTextContent('ARE YOU SURE? // Skip to Cycle 1');
   await user.click(skipButton);
 
   expect(advanceTurn).toHaveBeenCalledOnce();
   expect(advanceTurn).toHaveBeenCalledWith({ skipTurnStartAnnouncement: true });
-  await waitFor(() => expect(within(turnControls).getByText('Turn 1')).toBeInTheDocument());
-  expect(within(turnControls).queryByRole('button', { name: /skip to turn 1/i }))
+  await waitFor(() => expect(within(turnControls).getByText('Cycle 1')).toBeInTheDocument());
+  expect(within(turnControls).queryByRole('button', { name: /skip to cycle 1/i }))
     .not.toBeInTheDocument();
 });
 
-it('keeps Advance and Skip available for every numbered turn', async () => {
+it('keeps Advance and Skip available for every numbered cycle', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
@@ -661,19 +661,19 @@ it('keeps Advance and Skip available for every numbered turn', async () => {
   vi.mocked(advanceTurn).mockResolvedValue(undefined);
   renderConsole();
 
-  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
-  const advance = within(turnControls).getByRole('button', { name: 'Advance to Turn 3' });
-  const skip = within(turnControls).getByRole('button', { name: 'Skip to Turn 3' });
+  const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
+  const advance = within(turnControls).getByRole('button', { name: 'Advance to Cycle 3' });
+  const skip = within(turnControls).getByRole('button', { name: 'Skip to Cycle 3' });
   expect(advance).toBeEnabled();
   expect(skip).toBeEnabled();
 
   await user.click(skip);
   expect(advanceTurn).not.toHaveBeenCalled();
   expect(within(turnControls).getByRole('button', {
-    name: 'ARE YOU SURE? // Skip to Turn 3',
+    name: 'ARE YOU SURE? // Skip to Cycle 3',
   })).toBeVisible();
   await user.click(within(turnControls).getByRole('button', {
-    name: 'ARE YOU SURE? // Skip to Turn 3',
+    name: 'ARE YOU SURE? // Skip to Cycle 3',
   }));
 
   expect(advanceTurn).toHaveBeenCalledWith({ skipTurnStartAnnouncement: true });
@@ -693,7 +693,7 @@ it('offers local and shared replay controls for the current turn transmission', 
   vi.mocked(replayTurnStartAnnouncement).mockResolvedValue(undefined);
   renderConsole();
 
-  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
   const gmOnly = within(turnControls).getByRole('button', {
     name: /replay last transmission \/\/ gm only/i,
   });
@@ -1930,7 +1930,7 @@ it('exposes ordinary production start and retires caller-controlled Wolf assignm
   const start = screen.getByRole('button', { name: /start production/i });
   expect(start).toBeEnabled();
   await user.click(start);
-  expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' })).toBeInTheDocument();
 });
 
 it('commits ordinary production only on the second click and renders the private receipt', async () => {
@@ -1947,10 +1947,10 @@ it('commits ordinary production only on the second click and renders the private
   const start = screen.getByRole('button', { name: /start production/i });
   await user.click(start);
   expect(startGame).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' }));
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' }));
 
   expect(startGame).toHaveBeenCalledOnce();
-  expect(await screen.findByText(/Start committed \/\/ Turn 1/)).toBeInTheDocument();
+  expect(await screen.findByText(/Start committed \/\/ Cycle 1/)).toBeInTheDocument();
   const receipt = await screen.findByRole('region', { name: /production start receipt/i });
   expect(receipt).toHaveTextContent(/Source/);
   expect(receipt).toHaveTextContent(/routine-start/);
@@ -1958,7 +1958,7 @@ it('commits ordinary production only on the second click and renders the private
   expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ 1 \/\/ 8 private cards/);
   expect(receipt).toHaveTextContent(/Press input/);
   expect(receipt).toHaveTextContent(/Setup revisions/);
-  expect(screen.getByRole('button', { name: /skip to turn 1/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /skip to cycle 1/i })).toBeInTheDocument();
 });
 
 it('stacks production receipt fields at the narrowest phone breakpoint', () => {
@@ -1982,7 +1982,7 @@ it('shows pending production state and ignores a second submit while the callabl
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   await user.click(screen.getByRole('button', { name: /start production/i }));
-  const confirm = screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' });
+  const confirm = screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' });
   await user.click(confirm);
   expect(await screen.findByText(/Start pending \/\/ validating/i)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /starting production/i })).toBeDisabled();
@@ -1990,7 +1990,7 @@ it('shows pending production state and ignores a second submit while the callabl
   await user.click(screen.getByRole('button', { name: /starting production/i }));
   expect(startGame).toHaveBeenCalledOnce();
   resolveStart?.(productionReply());
-  expect(await screen.findByText(/Start committed \/\/ Turn 1/)).toBeInTheDocument();
+  expect(await screen.findByText(/Start committed \/\/ Cycle 1/)).toBeInTheDocument();
 });
 
 it('renders structured stale and replayed start dispositions and cancels confirmation on Escape', async () => {
@@ -2008,9 +2008,9 @@ it('renders structured stale and replayed start dispositions and cancels confirm
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   await user.click(screen.getByRole('button', { name: /start production/i }));
   fireEvent.keyDown(document, { key: 'Escape' });
-  expect(screen.queryByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' })).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /start production/i }));
-  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' }));
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' }));
   expect(await screen.findByText(/Start stale \/\/ setup revision 1 superseded/i)).toBeInTheDocument();
   expect(startGame).toHaveBeenCalledOnce();
 });
@@ -2027,10 +2027,10 @@ it('shows a replayed production receipt without changing the Skip control', asyn
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   await user.click(screen.getByRole('button', { name: /start production/i }));
-  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' }));
-  expect(await screen.findByText(/Start replayed \/\/ the existing Turn 1 result was preserved/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' }));
+  expect(await screen.findByText(/Start replayed \/\/ the existing Cycle 1 result was preserved/i)).toBeInTheDocument();
   expect(await screen.findByRole('region', { name: /production start receipt/i })).toHaveTextContent(/replayed/i);
-  expect(screen.getByRole('button', { name: /skip to turn 1/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /skip to cycle 1/i })).toBeInTheDocument();
 });
 
 it('toggles Capybara off for the session and removes its perspective', async () => {
@@ -2156,12 +2156,12 @@ it('shows endgame evaluation and removes GM advance controls after the final tur
   streamInstances([local]);
   renderConsole();
 
-  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
   expect(turnControls).toHaveTextContent(
-    /final turn complete.*endgame evaluation active.*advance and skip controls are disabled/i,
+    /final cycle complete.*endgame evaluation active.*advance and skip controls are disabled/i,
   );
-  expect(within(turnControls).queryByRole('button', { name: /advance to turn/i })).not.toBeInTheDocument();
-  expect(within(turnControls).queryByRole('button', { name: /skip to turn/i })).not.toBeInTheDocument();
+  expect(within(turnControls).queryByRole('button', { name: /advance to cycle/i })).not.toBeInTheDocument();
+  expect(within(turnControls).queryByRole('button', { name: /skip to cycle/i })).not.toBeInTheDocument();
   expect(advanceTurn).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: /lock gm registration/i })).toBeDisabled();
   await userEvent.setup().click(screen.getByRole('button', { name: /^setup$/i }));
@@ -2209,11 +2209,11 @@ it('requires a deliberate second GM advance while either phase timer is active',
   vi.mocked(advanceTurn).mockResolvedValue(undefined);
   renderConsole();
 
-  expect(screen.getByText('Turn 3')).toBeVisible();
-  await user.click(screen.getByRole('button', { name: 'Advance to Turn 4' }));
+  expect(screen.getByText('Cycle 3')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Advance to Cycle 4' }));
   expect(advanceTurn).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Turn 4' })).toBeVisible();
-  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Turn 4' }));
+  expect(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Cycle 4' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Cycle 4' }));
   expect(advanceTurn).toHaveBeenCalledOnce();
   expect(advanceTurn).toHaveBeenCalledWith({ overridePhaseTimer: true });
 });
@@ -2306,9 +2306,9 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
     .mockResolvedValueOnce({ status: 'resolved', turn: 1, revision: 2 });
   renderConsole();
 
-  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
   expect(turnControls).toHaveTextContent(/wolf-attack timing \/\/ planned/i);
-  expect(turnControls).toHaveTextContent(/no automatic attack, combat resolution, or turn advance/i);
+  expect(turnControls).toHaveTextContent(/no automatic attack, combat resolution, or cycle advance/i);
   const mark = within(turnControls).getByRole('button', { name: 'Mark timing due' });
   expect(mark).toBeEnabled();
 
@@ -2316,12 +2316,12 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
   expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 0);
   const resolve = await within(turnControls).findByRole('button', { name: 'Resolve timing' });
   expect(resolve).toBeEnabled();
-  expect(turnControls).toHaveTextContent(/wolf-attack timing \/\/ due \/\/ turn 1 \/\/ revision 1/i);
+  expect(turnControls).toHaveTextContent(/wolf-attack timing \/\/ due \/\/ cycle 1 \/\/ revision 1/i);
 
   await user.click(resolve);
   expect(setWolfAttackWindow).toHaveBeenLastCalledWith('resolved', 1);
   await waitFor(() => expect(turnControls).toHaveTextContent(
-    /wolf-attack timing \/\/ resolved \/\/ turn 1 \/\/ revision 2/i,
+    /wolf-attack timing \/\/ resolved \/\/ cycle 1 \/\/ revision 2/i,
   ));
 });
 
@@ -2421,7 +2421,7 @@ it('activates the GM declaration control with Enter after the due window and dra
   await user.keyboard('{Enter}');
 
   await waitFor(() => expect(declareWolfAttack).toHaveBeenCalledWith(4));
-  expect(preparation).toHaveTextContent(/declared \/\/ turn 1 \/\/ targeting step \/\/ airspace locked \/\/ 2 craft parked/i);
+  expect(preparation).toHaveTextContent(/declared \/\/ cycle 1 \/\/ targeting step \/\/ airspace locked \/\/ 2 craft parked/i);
   expect(declarationStatus).toHaveAttribute('aria-live', 'polite');
 });
 

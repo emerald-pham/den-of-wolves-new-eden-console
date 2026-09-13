@@ -85,7 +85,7 @@ export default function CommissarPurgePanel({ shipId }: { readonly shipId: strin
       <p className="commissar-purge__eyebrow">Commissar // survivor purge</p>
       <h2>{captain ? `Captain consent // ${targetName}` : 'Captain consent required'}</h2>
       <p className="commissar-purge__guidance">
-        The Commissar removes one printed survivor-track step, then reduces unrest by 1. Each ship can use this once per turn.
+        The Commissar removes one printed survivor-track step, then reduces unrest by 1. Each ship can use this once per cycle.
       </p>
       {commissar && (
         <label className="commissar-purge__target">
@@ -106,9 +106,9 @@ export default function CommissarPurgePanel({ shipId }: { readonly shipId: strin
       )}
       <p className="commissar-purge__status" role="status">
         {currentTurn < 1
-          ? 'Awaiting Turn 1.'
+          ? 'Awaiting Cycle 1.'
           : usedThisTurn
-            ? `${targetName} has already used its purge this turn.`
+            ? `${targetName} has already used its purge this cycle.`
             : consented
               ? `Consent recorded for ${targetName} at vessel revision ${revision}.`
               : `Waiting for ${targetName} captain consent.`}

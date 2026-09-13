@@ -121,7 +121,7 @@ export function facilitatorQueueFor(state: FacilitatorQueueState): readonly Faci
     } else if (state.phase === 'casting') {
       items.push({
         id: 'prepare-production', label: 'Prepare production',
-        detail: 'Resolve the server-reported setup requirements before advancing to Turn 1.',
+        detail: 'Resolve the server-reported setup requirements before advancing to Cycle 1.',
         state: 'waiting',
       });
     }
@@ -138,7 +138,7 @@ export function facilitatorQueueFor(state: FacilitatorQueueState): readonly Faci
   if (state.wolfAttackStatus === 'due') {
     items.push({
       id: 'resolve-wolf-timing', label: 'Resolve Wolf-attack timing',
-      detail: 'Record the facilitator timing decision before continuing the turn.',
+      detail: 'Record the facilitator timing decision before continuing the cycle.',
       state: 'attention',
     });
   }
@@ -146,24 +146,24 @@ export function facilitatorQueueFor(state: FacilitatorQueueState): readonly Faci
   if (state.currentTurn >= 1 && state.turnPhase === 'complete') {
     items.push(state.currentTurn < state.maxTurn
       ? {
-        id: 'advance-turn', label: `Advance to Turn ${state.currentTurn + 1}`,
-        detail: 'The current shared phase has ended; the server owns the next turn transition.',
+        id: 'advance-turn', label: `Advance to Cycle ${state.currentTurn + 1}`,
+        detail: 'The current shared phase has ended; the server owns the next cycle transition.',
         state: 'action',
       }
       : {
-        id: 'evaluate-endgame', label: 'Evaluate the final turn',
-        detail: 'The final turn is complete; review the outcome before enabling debrief.',
+        id: 'evaluate-endgame', label: 'Evaluate the final cycle',
+        detail: 'The final cycle is complete; review the outcome before enabling debrief.',
         state: 'attention',
       });
   } else if (state.currentTurn >= 1 && state.turnPhase !== undefined) {
     items.push({
-      id: 'current-phase', label: `Turn ${state.currentTurn} // ${state.turnPhase === 'team' ? 'Team Time' : 'Open Airspace'}`,
+      id: 'current-phase', label: `Cycle ${state.currentTurn} // ${state.turnPhase === 'team' ? 'Team Time' : 'Open Airspace'}`,
       detail: 'Monitor the shared phase and use the authoritative controls when an intervention is required.',
       state: 'waiting',
     });
   } else if (state.currentTurn >= 1) {
     items.push({
-      id: 'reconcile-phase', label: `Turn ${state.currentTurn} // awaiting phase state`,
+      id: 'reconcile-phase', label: `Cycle ${state.currentTurn} // awaiting phase state`,
       detail: 'Reconnect or refresh the authoritative session projection before taking action.',
       state: 'waiting',
     });

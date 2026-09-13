@@ -83,7 +83,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Reactor',
     station: 'Maintenance // 5',
     timing: 5,
-    baseline: 'Charge up to 5 consoles for this turn.',
+    baseline: 'Charge up to 5 consoles for this cycle.',
     upgraded: 'Charge 6 consoles.',
     damaged: 'Charge 2 consoles.',
   },

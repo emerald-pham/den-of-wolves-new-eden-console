@@ -66,10 +66,10 @@ export default function VulcanAdditionalLabourPanel() {
     <section className="role-brief__rules vulcan-labour-panel" aria-labelledby="vulcan-labour-title">
       <h2 id="vulcan-labour-title">Additional Labour</h2>
       <p>During Coordination, spend one charged console to charge one permitted console on another active ship.</p>
-      <p role="status">Remaining uses this turn: {sourceCharges.length} // {sourceState?.hostShipId ? `docked with ${sourceState.hostShipId}` : 'dock the Vulcan first'}</p>
+      <p role="status">Remaining uses this cycle: {sourceCharges.length} // {sourceState?.hostShipId ? `docked with ${sourceState.hostShipId}` : 'dock the Vulcan first'}</p>
       {!sourceState && <p role="status">Vulcan state is unavailable. Reconnect to the session.</p>}
       {sourceState && sourceState.cycle.step !== 5 && <p role="status">Finish Vulcan maintenance before using Additional Labour.</p>}
-      {sourceState && sourceState.cycle.step === 5 && sourceState.cycle.turn !== session.currentTurn && <p role="status">The charged consoles belong to another turn.</p>}
+      {sourceState && sourceState.cycle.step === 5 && sourceState.cycle.turn !== session.currentTurn && <p role="status">The charged consoles belong to another cycle.</p>}
       {ready && targetShips.length === 0 && <p role="status">No active fleet ship can receive a console charge.</p>}
       {ready && targetShips.length > 0 && (
         <fieldset className="maintenance-controls" disabled={pending || !coordination}>
@@ -97,7 +97,7 @@ export default function VulcanAdditionalLabourPanel() {
             {pending ? 'Charging…' : `Use Additional Labour // ${sourceCharges.length} left`}
           </button>
           {!coordination && <p role="status">Additional Labour is available during Coordination Phase.</p>}
-          {targetAlreadyCharged && <p role="status">That console is already charged this turn.</p>}
+          {targetAlreadyCharged && <p role="status">That console is already charged this cycle.</p>}
           {damaged && <p role="status">That console is damaged and cannot be charged.</p>}
           {status && <p role="status">{status}</p>}
           {error && <p role="alert">{error}</p>}

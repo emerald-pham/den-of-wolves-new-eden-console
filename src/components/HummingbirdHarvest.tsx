@@ -123,7 +123,7 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
         </div>
       )}
       {!unavailable && resolved && visibleHarvest && (
-        <p role="status">Resolved this turn // {visibleHarvest.food} food and {visibleHarvest.water} water added to Hummingbird cargo.</p>
+        <p role="status">Resolved this cycle // {visibleHarvest.food} food and {visibleHarvest.water} water added to Hummingbird cargo.</p>
       )}
       {error && <p className="hummingbird-harvest__error" role="alert">{error}</p>}
     </section>

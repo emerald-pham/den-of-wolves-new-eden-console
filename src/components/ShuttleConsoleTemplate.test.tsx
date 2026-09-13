@@ -68,6 +68,6 @@ it('renders a printed shuttle’s operational sheet through the shared ship work
   expect(within(workspace).getByText(/within 3 jumps of quellon/i)).toBeInTheDocument();
   expect(within(workspace).getByText(/resource harvesting/i)).toBeInTheDocument();
   expect(within(workspace).getAllByText('Airspace open')).toHaveLength(2);
-  expect(within(workspace).getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(within(workspace).getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(within(workspace).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
 });

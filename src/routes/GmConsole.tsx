@@ -549,7 +549,7 @@ export default function GmConsole() {
     currentPhase.timerPause === undefined,
   );
   const wolfDeclarationAnnouncement = wolfAttackState
-    ? `Declaration // committed // Turn ${wolfAttackState.turn} // ${wolfAttackState.currentStep} // deadline ${wolfAttackState.deadlineAt}`
+    ? `Declaration // committed // Cycle ${wolfAttackState.turn} // ${wolfAttackState.currentStep} // deadline ${wolfAttackState.deadlineAt}`
     : wolfDeclarationMessage ?? 'Declaration // waiting for a due timing marker and saved private draft';
   const wolfDeclarationAnnouncementKey = wolfAttackState
     ? `state:${wolfAttackState.turn}:${wolfAttackState.revision}:${wolfAttackState.currentStep}:${wolfAttackState.deadlineAt}`
@@ -1761,8 +1761,8 @@ export default function GmConsole() {
         setStartMutationState(reply.status === 'replayed' ? 'replayed' : 'committed');
         setStartMutationMessage(
           reply.status === 'replayed'
-            ? 'Start replayed // the existing Turn 1 result was preserved.'
-            : 'Start committed // Turn 1, pursuit 2, and private setup are live.',
+            ? 'Start replayed // the existing Cycle 1 result was preserved.'
+            : 'Start committed // Cycle 1, pursuit 2, and private setup are live.',
         );
       }
     } catch (cause) {
@@ -1847,7 +1847,7 @@ export default function GmConsole() {
     try {
       const result = await declareWolfAttackCommand(wolfPreparationRevision);
       setWolfDeclarationMessage(
-        `Declared // Turn ${result.turn} // targeting step // airspace locked // ` +
+        `Declared // Cycle ${result.turn} // targeting step // airspace locked // ` +
         `${result.parkedCraftCount} craft parked`,
       );
     } catch {
@@ -2096,9 +2096,9 @@ export default function GmConsole() {
               )}
             </ol>
           </section>
-          <section className="gm-console__module cic-frame" aria-label="Turn controls">
-            <h2 className="gm-console__section-title">Turn control</h2>
-            <p className="gm-console__status">Turn {currentTurn}</p>
+          <section className="gm-console__module cic-frame" aria-label="Cycle controls">
+            <h2 className="gm-console__section-title">Cycle control</h2>
+            <p className="gm-console__status">Cycle {currentTurn}</p>
             {confirmTurnOverride && activeTurnTimer && (
               <p className="gm-turn-control__override" role="alert">
                 ARE YOU SURE? // ACTIVE PHASE TIMER WILL BE OVERRIDDEN
@@ -2107,11 +2107,11 @@ export default function GmConsole() {
             <div className="gm-turn-control__actions">
               {endgameEvaluation ? (
                 <p className="gm-console__status" role="status">
-                  Final turn complete // Endgame evaluation active. Advance and skip controls are disabled.
+                  Final cycle complete // Endgame evaluation active. Advance and skip controls are disabled.
                 </p>
               ) : currentTurn === 0 ? (
                 <p className="gm-console__status" role="status">
-                  Turn 0 // ordinary production start is available in Setup.
+                  Cycle 0 // ordinary production start is available in Setup.
                 </p>
               ) : (
                 <button
@@ -2121,10 +2121,10 @@ export default function GmConsole() {
                   onClick={requestTurnAdvance}
                 >
                   {advancingTurn
-                    ? `Advancing to Turn ${currentTurn + 1}…`
+                    ? `Advancing to Cycle ${currentTurn + 1}…`
                     : confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer)
-                      ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
-                      : `Advance to Turn ${currentTurn + 1}`}
+                      ? `ARE YOU SURE? // Advance to Cycle ${currentTurn + 1}`
+                      : `Advance to Cycle ${currentTurn + 1}`}
                 </button>
               )}
               {!endgameEvaluation && <button
@@ -2134,10 +2134,10 @@ export default function GmConsole() {
                 onClick={requestTurnSkip}
               >
                 {skippingTurn
-                  ? `Skipping to Turn ${currentTurn + 1}…`
+                  ? `Skipping to Cycle ${currentTurn + 1}…`
                   : confirmTurnSkip
-                    ? `ARE YOU SURE? // Skip to Turn ${currentTurn + 1}`
-                    : `Skip to Turn ${currentTurn + 1}`}
+                    ? `ARE YOU SURE? // Skip to Cycle ${currentTurn + 1}`
+                    : `Skip to Cycle ${currentTurn + 1}`}
               </button>}
               <button
                 className="cic-action-button"
@@ -2198,10 +2198,10 @@ export default function GmConsole() {
               <p className="gm-console__status">
                 Wolf-attack timing // {wolfWindowStatus === 'planned'
                   ? 'planned // facilitator action required'
-                  : `${wolfWindowStatus} // Turn ${wolfWindowTurn} // revision ${wolfWindowRevision}`}
+                  : `${wolfWindowStatus} // Cycle ${wolfWindowTurn} // revision ${wolfWindowRevision}`}
               </p>
               <p className="gm-console__hint">
-                Approximate facilitator marker // no automatic attack, combat resolution, or turn advance.
+                Approximate facilitator marker // no automatic attack, combat resolution, or cycle advance.
               </p>
               <p className="gm-console__hint gm-console__balance-guidance">
                 Extra-role balance // For each extra role introduced, consider roughly 3 additional
@@ -2231,14 +2231,14 @@ export default function GmConsole() {
                   disabled={!wolfWindowDeferAvailable || wolfWindowMutation !== null}
                   onClick={() => void changeWolfAttackWindow('deferred')}
                 >
-                  {wolfWindowMutation === 'deferred' ? 'Deferring to Turn 2…' : 'Defer to Turn 2'}
+                  {wolfWindowMutation === 'deferred' ? 'Deferring to Cycle 2…' : 'Defer to Cycle 2'}
                 </button>
               </div>
             </section>
             <section className="gm-wolf-preparation" aria-label="Private Wolf attack preparation">
               <p className="gm-console__status">
                 Private attack draft // {wolfAttackPreparation
-                  ? `Turn ${wolfAttackPreparation.turn} // revision ${wolfAttackPreparation.revision}`
+                  ? `Cycle ${wolfAttackPreparation.turn} // revision ${wolfAttackPreparation.revision}`
                   : 'no revision saved'}
               </p>
               <p className="gm-console__hint">
@@ -2246,7 +2246,7 @@ export default function GmConsole() {
                 dice, damage, and casualties remain separate server actions.
               </p>
               <fieldset className="gm-wolf-preparation__fieldset">
-                <legend>Eligible Wolf cards // Turn {currentTurn}</legend>
+                <legend>Eligible Wolf cards // Cycle {currentTurn}</legend>
                 <div className="gm-wolf-preparation__cards">
                   {WOLF_PREPARATION_CARD_TYPES.map(({ id, label }) => (
                     <label className="gm-wolf-preparation__field" key={id}>
@@ -3078,7 +3078,7 @@ export default function GmConsole() {
                   >
                     {startMutationMessage ?? (
                       currentTurn !== 0
-                        ? 'Start unavailable // this session has already left Turn 0.'
+                        ? 'Start unavailable // this session has already left Cycle 0.'
                         : session.phase !== 'casting'
                           ? 'Start blocked // confirm the locked roster before production start.'
                           : 'Ready // validate the live roster, reciprocal seats, vessels, loyalty, and GM staffing.'
@@ -3093,8 +3093,8 @@ export default function GmConsole() {
                     {startingGame
                       ? 'Starting production // awaiting server receipt…'
                       : confirmGameStart
-                        ? 'ARE YOU SURE? // ADVANCE TO TURN 1'
-                      : 'Start production // Advance to Turn 1'}
+                        ? 'ARE YOU SURE? // ADVANCE TO CYCLE 1'
+                      : 'Start production // Advance to Cycle 1'}
                   </button>
                   {setupReceipt && (
                     <section className="gm-start-receipt" aria-label="Production start receipt">
@@ -3768,7 +3768,7 @@ export default function GmConsole() {
                     : event.type === 'maintenance'
                       ? `${event.shipName} // Maintenance cycle ${event.action === 'begin' ? 'started' : 'completed'}`
                       : event.type === 'timer-pause'
-                        ? `${event.reason === 'empty-session' ? 'Session timer' : 'Emergency timer'} // ${event.action === 'paused' ? 'paused' : 'resumed'} // Turn ${event.turn} // ${event.window} // ${event.actorName}`
+                        ? `${event.reason === 'empty-session' ? 'Session timer' : 'Emergency timer'} // ${event.action === 'paused' ? 'paused' : 'resumed'} // Cycle ${event.turn} // ${event.window} // ${event.actorName}`
                         : event.type === 'android-proof-disclosed'
                           ? 'Android proof disclosed to the fleet'
                           : event.type === 'crisis-state'

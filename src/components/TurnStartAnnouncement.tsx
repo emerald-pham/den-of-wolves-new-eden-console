@@ -64,7 +64,7 @@ function FleetTransmission({
   const survivorPopulation = new Intl.NumberFormat('en-US').format(
     showsPopulationLoss ? Math.max(0, transmission.survivorPopulation - 1) : transmission.survivorPopulation,
   );
-  const transitionLabel = `TURN ${transmission.turn - 1} → TURN ${transmission.turn}`;
+  const transitionLabel = `CYCLE ${transmission.turn - 1} → CYCLE ${transmission.turn}`;
   const sequenceLabel = `${String(slide + 1).padStart(2, '0')} / ${String(slideCount).padStart(2, '0')}`;
 
   useEffect(() => {
@@ -108,7 +108,7 @@ function FleetTransmission({
 
   const message = !isFirstTurn ? (
     slide === 0
-      ? <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
+      ? <p className="turn-start-announcement__turn">CYCLE {transmission.turn}</p>
       : slide === 1
         ? <p className="turn-start-announcement__message">AIRSPACE CLOSED</p>
         : slide === 2
@@ -117,7 +117,7 @@ function FleetTransmission({
   ) : slide === 0 ? (
     <p className="turn-start-announcement__message">Iris Authentication Confirmed</p>
   ) : slide === 1 ? (
-    <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
+    <p className="turn-start-announcement__turn">CYCLE {transmission.turn}</p>
   ) : slide === 2 ? (
     <p className="turn-start-announcement__message">THE WOLVES DESTROYED YOUR HOMES.</p>
   ) : slide === 3 ? (
@@ -137,7 +137,7 @@ function FleetTransmission({
       <Intrusion
         variant="fleet"
         state={transmissionState}
-        overlines={['FLEET TRANSMISSION // TURN INITIALIZATION', 'FLEET STATUS // STAND BY']}
+        overlines={['FLEET TRANSMISSION // CYCLE INITIALIZATION', 'FLEET STATUS // STAND BY']}
       >
         <div
           className="turn-start-announcement__console cic-frame"
@@ -247,7 +247,7 @@ export default function TurnStartAnnouncement() {
         as="p"
         className="turn-start-announcement__sr"
         changeKey={transmissionKey}
-        message={activeTransmission ? `Fleet transmission for Turn ${activeTransmission.turn}.` : ''}
+        message={activeTransmission ? `Fleet transmission for Cycle ${activeTransmission.turn}.` : ''}
         politeness="assertive"
         announceInitial
       />

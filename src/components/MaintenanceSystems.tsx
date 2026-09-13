@@ -142,8 +142,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           if (!confirmBegin) { setConfirmBegin(true); return; }
           setConfirmBegin(false);
           void execute('begin');
-        }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Turn ${currentTurn}`}</button>
-      {awaitingMaintenanceStart && <p role="status">Maintenance begins on Turn 1</p>}
+        }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Cycle ${currentTurn}`}</button>
+      {awaitingMaintenanceStart && <p role="status">Maintenance begins on Cycle 1</p>}
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

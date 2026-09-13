@@ -31,7 +31,7 @@ it.each(['aegis', 'capybara'])('keeps %s controls visible and only unlocks the c
   expect(screen.getByRole('button', { name: 'Check storage' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'End maintenance cycle' })).toBeDisabled();
-  await userEvent.click(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 1' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 1' }));
   expect(run).not.toHaveBeenCalled();
   const confirm = screen.getByRole('button', { name: 'ARE YOU SURE?' });
   expect(confirm).toHaveStyle({ color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' });
@@ -39,7 +39,7 @@ it.each(['aegis', 'capybara'])('keeps %s controls visible and only unlocks the c
   expect(run).toHaveBeenCalledWith(shipId, 'begin', 0, {}, undefined);
   act(() => useSessionStore.setState({ session: { ...session, maintenanceCycles: { [shipId]: { step: 1, revision: 1, results: {}, charges: [], refuelled: [] } } } }));
   expect(screen.getByRole('button', { name: 'Check storage' })).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 1' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 1' })).toBeDisabled();
   expect(screen.getByRole('combobox', { name: 'Food ration level' })).toBeDisabled();
   run.mockClear();
   await userEvent.click(screen.getByRole('button', { name: 'Check storage' }));
@@ -56,18 +56,18 @@ it('keeps completed maintenance locked until the GM advances the turn', () => {
   } });
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
 
-  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 4' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 4' })).toBeDisabled();
 
   act(() => useSessionStore.setState({ session: { ...useSessionStore.getState().session!, currentTurn: 5 } }));
-  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 5' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 5' })).toBeEnabled();
 });
 
 it('holds player maintenance controls during Turn 0 while GM setup is underway', () => {
   useSessionStore.setState({ session: { ...session, currentTurn: 0 } });
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
 
-  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 0' })).toBeDisabled();
-  expect(screen.getByRole('status')).toHaveTextContent('Maintenance begins on Turn 1');
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 0' })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('Maintenance begins on Cycle 1');
 });
 it('presents every maintenance command as a boxed CIC action', () => {
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
@@ -496,7 +496,7 @@ it('resets start confirmation when the ship or turn changes and on blur', async 
   expect(screen.queryByRole('button', { name: 'ARE YOU SURE?' })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: /Begin Maintenance/ }));
   act(() => useSessionStore.setState({ session: { ...session, currentTurn: 2 } }));
-  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 2' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 2' })).toBeEnabled();
   await userEvent.click(screen.getByRole('button', { name: /Begin Maintenance/ }));
   await userEvent.tab();
   expect(screen.queryByRole('button', { name: 'ARE YOU SURE?' })).not.toBeInTheDocument();

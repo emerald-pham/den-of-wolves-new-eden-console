@@ -463,7 +463,7 @@ export default function AppHeader() {
             {singlePlayerDemoAvailable && (
               <section className="settings-dialog__demo" aria-labelledby="single-player-demo-title">
                 <h3 id="single-player-demo-title">Single-player demo</h3>
-                <p>Start the Turn One demo for this session.</p>
+                <p>Start the Cycle One demo for this session.</p>
                 <button
                   className="settings-dialog__gm-access-button cic-action-button"
                   type="button"

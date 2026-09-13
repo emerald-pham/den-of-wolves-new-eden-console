@@ -32,13 +32,13 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   }));
 
   expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
-  expect(screen.getByText('TURN 0 → TURN 1')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 0 → CYCLE 1')).toBeInTheDocument();
   expect(screen.getByText('TRANSMISSION 01 / 07')).toBeInTheDocument();
-  expect(screen.queryByText('TURN 1')).not.toBeInTheDocument();
+  expect(screen.queryByText('CYCLE 1')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
-  expect(screen.getByText('TURN 1')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 1')).toBeInTheDocument();
   expect(screen.getByText('TRANSMISSION 02 / 07')).toBeInTheDocument();
   expect(screen.queryByText('Iris Authentication Confirmed')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
@@ -118,8 +118,8 @@ it('announces the next airspace state, survivors, and objective on every turn af
     },
   }));
 
-  expect(screen.getByText('TURN 2')).toBeInTheDocument();
-  expect(screen.getByText('TURN 1 → TURN 2')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 2')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 1 → CYCLE 2')).toBeInTheDocument();
   expect(screen.getByText('TRANSMISSION 01 / 04')).toBeInTheDocument();
   expect(screen.getByRole('status', { name: /Airspace closed/, hidden: true }))
     .toHaveTextContent('05:00');
@@ -173,11 +173,11 @@ it('eases the current beat out before the next transmission beat enters', () => 
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS - TURN_START_EXIT_MS - 1));
   expect(slide).toHaveAttribute('data-motion', 'in');
-  expect(screen.getByText('TURN 2')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 2')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(1));
   expect(slide).toHaveAttribute('data-motion', 'out');
-  expect(screen.getByText('TURN 2')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 2')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_EXIT_MS));
   expect(screen.getByText('AIRSPACE CLOSED')).toBeInTheDocument();
@@ -203,7 +203,7 @@ it('replays a server revision of the current transmission without advancing the 
   }));
 
   expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
-  expect(screen.getByText('TURN 0 → TURN 1')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 0 → CYCLE 1')).toBeInTheDocument();
 });
 
 it('replays a GM-only local transmission and clears the local trigger when it completes', () => {
@@ -223,7 +223,7 @@ it('replays a GM-only local transmission and clears the local trigger when it co
   }));
 
   expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
-  expect(screen.getByText('TURN 0 → TURN 1')).toBeInTheDocument();
+  expect(screen.getByText('CYCLE 0 → CYCLE 1')).toBeInTheDocument();
   for (const duration of [
     TURN_START_SLIDE_MS,
     TURN_START_SLIDE_MS,
