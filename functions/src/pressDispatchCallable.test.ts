@@ -290,13 +290,17 @@ it('restores the current-turn ATC baseline after the last Press dispatch is dism
     airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
   };
   mock.fleetTicker = {
-    revision: 1, nextSequence: 1, replayCursor: 1,
+    revision: 2, nextSequence: 2, replayCursor: 2,
     current: {
       id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
       text: 'SNN // First report', tone: 'normal', gap: 'long', sourceId: 'dispatch-1',
       createdAt: '2026-09-06T12:00:00.000Z',
     },
-    queued: [], draining: [], dismissed: [],
+    queued: [{
+      id: 's1:fleet-ticker:2', sequence: 2, source: 'automatic', priority: 40,
+      text: 'AIRSPACE CLOSED', tone: 'normal', gap: 'long', sourceId: 'airspace:1:restricted',
+      createdAt: '2026-09-06T12:00:00.000Z',
+    }], draining: [], dismissed: [],
   };
 
   await dismissPressDispatch.run(request({

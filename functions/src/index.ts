@@ -14991,7 +14991,12 @@ export const dismissPressDispatch = onCall<{
       data.dispatchId,
       serverTime,
     );
-    const fleetTicker = fleetTickerBaseline(data.sessionId, session, dismissedTicker, serverTime);
+    const fleetTicker = fleetTickerBaseline(
+      data.sessionId,
+      session,
+      retireAirspaceFleetTicker(dismissedTicker, serverTime),
+      serverTime,
+    );
     tx.update(ref, { pressDispatch, fleetTicker, updatedAt: FieldValue.serverTimestamp() });
     writeFleetTickerAudit(tx, data.sessionId, 'dismiss', fleetTicker, data.dispatchId, serverTime);
     if (receiptRef && fingerprint) {
