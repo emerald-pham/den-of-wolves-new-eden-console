@@ -1633,6 +1633,7 @@ async function reconcileReturningSeat(
   sessionId: string,
   uid: string,
   player: DocumentSnapshot,
+  canonicalSeatIds: readonly string[],
 ): Promise<ReturningSeat> {
   const storedSeatId = player.get('seatId');
   if (storedSeatId === null || storedSeatId === undefined) {
@@ -1644,6 +1645,12 @@ async function reconcileReturningSeat(
 
   const seatRef = db.doc('sessions/' + sessionId + '/seats/' + storedSeatId);
   const seat = await tx.get(seatRef);
+  if (!seat.exists && canonicalSeatIds.includes(storedSeatId)) {
+    // Canonical setup hydration may be repairing this role-keyed seat in the
+    // same transaction. Preserve a validated pointer and apply its claim only
+    // after hydration has materialized the missing document.
+    return { seatId: storedSeatId, clearPointer: false, claimSeat: true };
+  }
   if (
     seat.exists &&
     seat.get('status') === 'claimed' &&
@@ -7610,7 +7617,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       }
       const clearStaleMembership = membership.exists && !membershipActive;
       const returningSeat = player.exists
-        ? await reconcileReturningSeat(tx, sessionId, uid, player)
+        ? await reconcileReturningSeat(tx, sessionId, uid, player, sessionActiveRoleIds(sessionDoc))
         : null;
       const setup = await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
       if (clearStaleMembership) tx.delete(membershipRef);
@@ -7887,7 +7894,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     // Read the returning seat before setup hydration can write canonical seat
     // fields. The claim itself is applied immediately after hydration below so
     // this transaction never performs a read after its first write.
-    const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
+    const returningSeat = await reconcileReturningSeat(
+      tx, sessionId, uid, currentPlayer, sessionActiveRoleIds(currentSession),
+    );
     const setup = await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
     if (clearStaleMembership) tx.delete(membershipRef);
     const group = ensureInitialFleetGroup(

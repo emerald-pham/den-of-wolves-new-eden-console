@@ -23,6 +23,7 @@ const mock = vi.hoisted(() => {
     set: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    enforceReadOrder: false,
     Timestamp: MockTimestamp,
   };
 });
@@ -38,12 +39,29 @@ vi.mock('firebase-admin/firestore', () => ({
       path,
       doc: (id = 'generated-session') => ({ path: `${path}/${id}` }),
     }),
-    runTransaction: (callback: (tx: unknown) => unknown) => callback({
-      get: mock.get,
-      set: mock.set,
-      update: mock.update,
-      delete: mock.delete,
-    }),
+    runTransaction: (callback: (tx: unknown) => unknown) => {
+      let writeStarted = false;
+      return callback({
+        get: (...args: unknown[]) => {
+          if (mock.enforceReadOrder && writeStarted) {
+            throw new Error('Firestore transactions require all reads to be executed before all writes.');
+          }
+          return mock.get(...args);
+        },
+        set: (...args: unknown[]) => {
+          writeStarted = true;
+          return mock.set(...args);
+        },
+        update: (...args: unknown[]) => {
+          writeStarted = true;
+          return mock.update(...args);
+        },
+        delete: (...args: unknown[]) => {
+          writeStarted = true;
+          return mock.delete(...args);
+        },
+      });
+    },
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
   Timestamp: mock.Timestamp,
@@ -88,6 +106,7 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.update.mockReset();
   mock.delete.mockReset();
+  mock.enforceReadOrder = false;
 });
 
 it('records an allowed code attempt before looking up the code', async () => {
@@ -125,6 +144,47 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
   await expect(joinSession.run(request(joinCode))).resolves.toMatchObject({
     session: { id: 's1', joinCode },
   });
+});
+
+it('reclaims a canonical missing seat after setup hydration without clearing its pointer', async () => {
+  mock.enforceReadOrder = true;
+  const activeRoleIds = [...recommendedRoleIds(8)];
+  const playerFields = {
+    uid: 'u1', sessionId: 's1', displayName: 'Returning player', role: 'player',
+    seatId: activeRoleIds[0], activeConsoleRoleId: null, fleetGroupId: 'fleet-1',
+  };
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one', phase: 'lobby', playerCount: 8, activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds), chartId: 'A',
+      expansion: 'base', turnLimit: 8, dioneEnabled: false, capybaraEnabled: true,
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot(playerFields);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    player: { seatId: activeRoleIds[0] },
+  });
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: `sessions/s1/seats/${activeRoleIds[0]}` }),
+    expect.objectContaining({ status: 'open', holderUid: null }),
+  );
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: `sessions/s1/seats/${activeRoleIds[0]}` }),
+    expect.objectContaining({ status: 'claimed', holderUid: 'u1' }),
+  );
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u1' }),
+    expect.objectContaining({ seatId: null }),
+  );
 });
 
 it('persists the Turn 0 ATC bulletin when joining an existing empty stream', async () => {

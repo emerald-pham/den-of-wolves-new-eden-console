@@ -27,7 +27,10 @@ import {
 
 const repositoryDirectory = resolve(new URL('..', import.meta.url).pathname);
 const firebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
-const evidencePath = process.env.P638_EVIDENCE_PATH ?? '/tmp/p638-capacity-rehearsal.json';
+const scenario = process.argv.includes('--scenario=core') || process.argv.includes('--scenario') && process.argv[process.argv.indexOf('--scenario') + 1] === 'core'
+  ? 'core-one-gm-no-press' : 'press-multi-gm';
+const expandedScenario = scenario === 'press-multi-gm';
+const evidencePath = process.env.P638_EVIDENCE_PATH ?? `/tmp/p638-capacity-rehearsal-${scenario}.json`;
 const projectId = 'dow-new-eden-console';
 
 function assert(condition, message) {
@@ -173,10 +176,11 @@ async function main() {
       slot: Math.round((ports.firestore - 8080) / 10),
     },
     scenario: {
+      id: scenario,
       corePlayerCount: 20,
       expansion: 'capybara',
-      facilitatorCount: 2,
-      pressHolderCount: 1,
+      facilitatorCount: expandedScenario ? 2 : 1,
+      pressHolderCount: expandedScenario ? 1 : 0,
     },
     results: {},
   };
@@ -219,13 +223,17 @@ async function main() {
     assert(firstJoin.session.fleetTicker.current.sourceId !== 'turn-zero',
       'A fresh join still exposed the retired legacy Turn 0 source id.');
 
-    const press = await createContext('press', ports);
-    contexts.push(press);
-    await call(press, 'joinSession', { joinCode, displayName: 'P638 press' });
+    let press;
+    let extraGm;
+    if (expandedScenario) {
+      press = await createContext('press', ports);
+      contexts.push(press);
+      await call(press, 'joinSession', { joinCode, displayName: 'P638 press' });
 
-    const extraGm = await createContext('gm-2', ports);
-    contexts.push(extraGm);
-    await call(extraGm, 'joinSession', { joinCode, displayName: 'P638 second GM' });
+      extraGm = await createContext('gm-2', ports);
+      contexts.push(extraGm);
+      await call(extraGm, 'joinSession', { joinCode, displayName: 'P638 second GM' });
+    }
 
     const extraCore = await createContext('extra-core', ports);
     contexts.push(extraCore);
@@ -239,14 +247,16 @@ async function main() {
       name: 'P638 Bridge',
       deviceLabel: 'P638 emulator rehearsal',
     });
-    await call(owner, 'elevateToGm', { sessionId, targetUid: extraGm.uid });
-    await call(extraGm, 'loginGmAccess', { password: 'bananasplit' });
-    await call(extraGm, 'claimGmInstance', {
-      sessionId,
-      instanceId: 'p638-observer',
-      name: 'P638 Observer',
-      deviceLabel: 'P638 emulator rehearsal',
-    });
+    if (expandedScenario) {
+      await call(owner, 'elevateToGm', { sessionId, targetUid: extraGm.uid });
+      await call(extraGm, 'loginGmAccess', { password: 'bananasplit' });
+      await call(extraGm, 'claimGmInstance', {
+        sessionId,
+        instanceId: 'p638-observer',
+        name: 'P638 Observer',
+        deviceLabel: 'P638 emulator rehearsal',
+      });
+    }
 
     const setup = await call(owner, 'confirmSetup', {
       sessionId,
@@ -290,10 +300,12 @@ async function main() {
       setupRevision = seat.setupRevision;
     }
 
-    await call(press, 'refreshPresence', {
-      sessionId,
-      activeConsoleRoleId: 'press-officer',
-    });
+    if (expandedScenario) {
+      await call(press, 'refreshPresence', {
+        sessionId,
+        activeConsoleRoleId: 'press-officer',
+      });
+    }
 
     const foreign = await createContext('foreign', ports);
     contexts.push(foreign);
@@ -316,7 +328,8 @@ async function main() {
     const ownerPlayersListener = listenToCollection(owner, `${sessionPath}/players`);
     const gmInstancesListener = listenToCollection(owner, `${sessionPath}/gmInstances`);
     listeners.push(ownerPlayersListener, gmInstancesListener);
-    await waitFor(() => sessionListeners.every((listener) => listener.count > 0), '20 client session listener snapshots');
+    const expectedSessionListenerCount = expandedScenario ? 23 : 21;
+    await waitFor(() => sessionListeners.every((listener) => listener.count > 0), `${expectedSessionListenerCount} client session listener snapshots`);
     await waitFor(() => ownerPlayersListener.count > 0 && gmInstancesListener.count > 0, 'player and GM listener snapshots');
     assertListenersHealthy(listeners);
 
@@ -333,36 +346,40 @@ async function main() {
     );
     await call(extraCore, 'disconnectFromSession', { sessionId });
 
-    const startRequests = [
-      {
-        sessionId,
-        instanceId: 'p638-bridge',
-        requestId: `p638-start-owner-${randomUUID()}`,
-        expectedSetupRevision: setupRevision,
-      },
-      {
-        sessionId,
-        instanceId: 'p638-observer',
-        requestId: `p638-start-gm2-${randomUUID()}`,
-        expectedSetupRevision: setupRevision,
-      },
-    ];
-    const startResults = await Promise.allSettled([
-      call(owner, 'startGame', startRequests[0]),
-      call(extraGm, 'startGame', startRequests[1]),
-    ]);
-    const fulfilledStarts = startResults.filter((result) => result.status === 'fulfilled').map((result) => result.value);
-    assert(fulfilledStarts.length === 2, 'The concurrent authorized start did not return two callable results.');
-    const committedStart = fulfilledStarts.find((result) => result.status === 'committed');
-    const staleStart = fulfilledStarts.find((result) => result.status === 'stale');
-    assert(committedStart && staleStart, 'Concurrent authorized GMs did not produce one committed and one stale start.');
+    const ownerStartRequest = {
+      sessionId,
+      instanceId: 'p638-bridge',
+      requestId: `p638-start-owner-${randomUUID()}`,
+      expectedSetupRevision: setupRevision,
+    };
+    let committedStart;
+    let staleStart;
+    if (expandedScenario) {
+      const startResults = await Promise.allSettled([
+        call(owner, 'startGame', ownerStartRequest),
+        call(extraGm, 'startGame', {
+          sessionId,
+          instanceId: 'p638-observer',
+          requestId: `p638-start-gm2-${randomUUID()}`,
+          expectedSetupRevision: setupRevision,
+        }),
+      ]);
+      const fulfilledStarts = startResults.filter((result) => result.status === 'fulfilled').map((result) => result.value);
+      assert(fulfilledStarts.length === 2, 'The concurrent authorized start did not return two callable results.');
+      committedStart = fulfilledStarts.find((result) => result.status === 'committed');
+      staleStart = fulfilledStarts.find((result) => result.status === 'stale');
+      assert(committedStart && staleStart, 'Concurrent authorized GMs did not produce one committed and one stale start.');
+    } else {
+      committedStart = await call(owner, 'startGame', ownerStartRequest);
+      assert(committedStart.status === 'committed', 'The one-GM authorized start did not commit.');
+    }
     assert(committedStart.currentTurn === 1, 'The committed 20-player start did not enter Turn 1.');
     assert(committedStart.setupReceipt?.playerCount === 20, 'Start receipt did not record playerCount 20.');
     assert(committedStart.setupReceipt?.wolfCount === 2, '20-player start did not record two Wolves.');
-    assert(committedStart.setupReceipt?.pressEligibility?.claimed === true,
-      'Start receipt did not record the claimed Press holder.');
-    assert(committedStart.setupReceipt?.excludedGmCount === 2,
-      'Start receipt did not exclude both authorized GM instances.');
+    assert(committedStart.setupReceipt?.pressEligibility?.claimed === expandedScenario,
+      'Start receipt Press eligibility did not match the rehearsal scenario.');
+    assert(committedStart.setupReceipt?.excludedGmCount === (expandedScenario ? 2 : 1),
+      'Start receipt did not exclude the expected facilitator instances.');
 
     await waitFor(() => sessionListeners.every((listener) => listener.count >= 2), 'start convergence across all client listeners');
     assertListenersHealthy(listeners);
@@ -389,10 +406,10 @@ async function main() {
     const coreRecords = playerRecords.filter((player) => activeRoleIds.includes(player.assignedRoleId) && player.connected === true);
     const pressRecords = playerRecords.filter((player) => player.activeConsoleRoleId === 'press-officer' && player.connected === true);
     assert(coreRecords.length === 20, `Expected 20 connected core records, found ${coreRecords.length}.`);
-    assert(pressRecords.length === 1, `Expected one claimed Press record, found ${pressRecords.length}.`);
-    assert(playerRecords.filter((player) => player.role === 'gm' && player.connected === true).length === 2,
-      'The player listener did not converge on both live GM instances.');
-    assert(gmInstancesListener.lastData.length === 2, 'The GM listener did not converge on two instances.');
+    assert(pressRecords.length === (expandedScenario ? 1 : 0), `Expected ${expandedScenario ? 'one claimed Press' : 'no'} Press record, found ${pressRecords.length}.`);
+    const connectedGmCount = playerRecords.filter((player) => player.role === 'gm' && player.connected === true).length;
+    assert(connectedGmCount === (expandedScenario ? 2 : 1), 'The player listener did not converge on the expected GM instances.');
+    assert(gmInstancesListener.lastData.length === (expandedScenario ? 2 : 1), 'The GM listener did not converge on the expected instances.');
 
     const initialScrapCommand = {
       sessionId,
@@ -422,32 +439,49 @@ async function main() {
       delta: 1,
       expectedRevision: 1,
     };
-    const concurrentActions = await Promise.all([
-      call(owner, 'adjustShipResource', {
+    let concurrentActionResult = 'single-GM commit';
+    if (expandedScenario) {
+      const concurrentActions = await Promise.all([
+        call(owner, 'adjustShipResource', {
+          ...concurrentActionBase,
+          instanceId: 'p638-bridge',
+          requestId: `p638-concurrent-owner-${randomUUID()}`,
+        }),
+        call(extraGm, 'adjustShipResource', {
+          ...concurrentActionBase,
+          instanceId: 'p638-observer',
+          requestId: `p638-concurrent-gm2-${randomUUID()}`,
+        }),
+      ]);
+      assert(concurrentActions.filter((result) => result.status === 'stale').length === 1,
+        'Concurrent GM actions did not produce exactly one stale receipt.');
+      assert(concurrentActions.filter((result) => result.status !== 'stale' && result.revision === 2).length === 1,
+        'Concurrent GM actions did not produce exactly one committed revision 2.');
+      concurrentActionResult = 'one-commit-one-stale';
+    } else {
+      const secondAction = await call(owner, 'adjustShipResource', {
         ...concurrentActionBase,
         instanceId: 'p638-bridge',
-        requestId: `p638-concurrent-owner-${randomUUID()}`,
-      }),
-      call(extraGm, 'adjustShipResource', {
-        ...concurrentActionBase,
-        instanceId: 'p638-observer',
-        requestId: `p638-concurrent-gm2-${randomUUID()}`,
-      }),
-    ]);
-    assert(concurrentActions.filter((result) => result.status === 'stale').length === 1,
-      'Concurrent GM actions did not produce exactly one stale receipt.');
-    assert(concurrentActions.filter((result) => result.status !== 'stale' && result.revision === 2).length === 1,
-      'Concurrent GM actions did not produce exactly one committed revision 2.');
+        requestId: `p638-second-owner-${randomUUID()}`,
+      });
+      assert(secondAction.revision === 2, 'The one-GM second resource action did not commit revision 2.');
+    }
     await waitFor(() => sessionListeners.every((listener) => listener.count >= 3), 'action convergence across all client listeners');
 
     const tickerBeforeHeartbeat = (await readDoc(owner, sessionPath)).data()?.fleetTicker;
-    const heartbeatResults = await Promise.all([
+    const heartbeatOperations = [
       ...coreContexts.map((context) => call(context, 'refreshPresence', { sessionId })),
       call(owner, 'refreshPresence', { sessionId, instanceId: 'p638-bridge' }),
-      call(extraGm, 'refreshPresence', { sessionId, instanceId: 'p638-observer' }),
-      call(press, 'refreshPresence', { sessionId, activeConsoleRoleId: 'press-officer' }),
-    ]);
-    assert(heartbeatResults.length === 23, 'The 20-core, Press, and two-GM heartbeat fanout was incomplete.');
+    ];
+    if (expandedScenario) {
+      heartbeatOperations.push(
+        call(extraGm, 'refreshPresence', { sessionId, instanceId: 'p638-observer' }),
+        call(press, 'refreshPresence', { sessionId, activeConsoleRoleId: 'press-officer' }),
+      );
+    }
+    const heartbeatResults = await Promise.all(heartbeatOperations);
+    const expectedHeartbeatCount = expandedScenario ? 23 : 21;
+    assert(heartbeatResults.length === expectedHeartbeatCount, 'The rehearsal heartbeat fanout was incomplete.');
     const tickerAfterHeartbeat = (await readDoc(owner, sessionPath)).data()?.fleetTicker;
     assert(JSON.stringify(tickerAfterHeartbeat) === JSON.stringify(tickerBeforeHeartbeat),
       'A normal heartbeat authored a duplicate Turn 0 ATC bulletin.');
@@ -461,31 +495,36 @@ async function main() {
     'A core player did not retain role and seat across disconnect/resume.');
     await waitFor(() => sessionListeners.every((listener) => listener.count >= 4), 'reconnect convergence across all client listeners');
 
-    const resumedPress = await call(press, 'resumeSession', { sessionId });
-    assert(resumedPress.player?.activeConsoleRoleId === 'press-officer', 'Press did not retain its independent role across resume.');
+    if (expandedScenario) {
+      const resumedPress = await call(press, 'resumeSession', { sessionId });
+      assert(resumedPress.player?.activeConsoleRoleId === 'press-officer', 'Press did not retain its independent role across resume.');
+    }
     const finalSession = (await readDoc(owner, sessionPath)).data();
     assert(finalSession.phase === 'active' && finalSession.currentTurn === 1, 'The rehearsal session did not remain in active Turn 1.');
     assert(finalSession.activeRoleIds?.length === 20 && !finalSession.activeRoleIds.includes('press-officer'),
-      'The final session core roster was changed by Press occupancy.');
-    assert(finalSession.activeVesselIds?.includes('capybara') && !finalSession.activeVesselIds.includes('snn-press-shuttle'),
-      'The final core vessel math changed when Press was claimed.');
+      'The final session core roster was changed by optional occupancy.');
+    assert(finalSession.activeVesselIds?.includes('capybara') &&
+      (!expandedScenario || !finalSession.activeVesselIds.includes('snn-press-shuttle')),
+    'The final core vessel math changed when optional Press was claimed.');
 
     evidence.status = 'passed';
     evidence.results = {
       freshJoinTurnZeroSource: 'turn-zero-atc',
       connectedCoreRecords: coreRecords.length,
       connectedPressRecords: pressRecords.length,
-      connectedGmRecords: 2,
+      connectedGmRecords: expandedScenario ? 2 : 1,
       activeRoleCount: finalSession.activeRoleIds.length,
       activeVesselIds: finalSession.activeVesselIds,
       wolfCount: committedStart.setupReceipt.wolfCount,
       pressClaimed: committedStart.setupReceipt.pressEligibility.claimed,
-      startRace: ['committed', 'stale'],
-      resourceAction: { committedRevision: committedAction.revision, staleRevision: staleAction.currentRevision, concurrent: 'one-commit-one-stale' },
+      startRace: expandedScenario ? ['committed', 'stale'] : ['committed'],
+      resourceAction: { committedRevision: committedAction.revision, staleRevision: staleAction.currentRevision, concurrent: concurrentActionResult },
       heartbeatCallCount: heartbeatResults.length,
       listenerCount: sessionListeners.length,
-      listenerConvergence: '20 session listeners plus player and GM collections',
-      reconnect: 'core role/seat and Press role retained',
+      listenerConvergence: expandedScenario
+        ? '23 session listeners plus two collection subscriptions'
+        : '21 session listeners plus two collection subscriptions',
+      reconnect: expandedScenario ? 'core role/seat and Press role retained' : 'core role/seat retained',
       privacy: 'GM Wolf read allowed; core Wolf and foreign-loyalty reads denied; public listeners contained no private loyalty/Wolf payload',
       denials: { gmSeatDenial, foreignResumeDenial, foreignReadDenial, extraCoreStartDenial, coreWolfDenial, coreOtherLoyaltyDenial },
       remainingLimits: ['local emulator rehearsal; no production capacity or 60-client claim', 'full Capybara vertical mechanics remain Prompt 584'],

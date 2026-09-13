@@ -91,6 +91,7 @@ function prepareResume(
   sessionFields: Readonly<Record<string, unknown>> = {},
   navigationFields: Readonly<Record<string, unknown>> = {},
   navigationExists = false,
+  seatExists = true,
 ) {
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
   const sessionData = {
@@ -115,6 +116,7 @@ function prepareResume(
     joinedAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
     ...playerFields,
   };
+  const storedSeatId = typeof playerData.seatId === 'string' ? playerData.seatId : null;
   const player = snapshot(playerData);
 
   mock.update.mockImplementation((ref: { path: string }, update: unknown) => {
@@ -132,7 +134,9 @@ function prepareResume(
     if (path === 'sessions/s1/players/u1') return player;
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
-    if (path === 'sessions/s1/seats/seat-1') return snapshot(seat);
+    if (storedSeatId !== null && path === `sessions/s1/seats/${storedSeatId}`) {
+      return snapshot(seat, seatExists);
+    }
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') {
       const navigation = snapshot(navigationFields, navigationExists);
@@ -520,6 +524,44 @@ it('reads the returning seat before canonical resume writes begin', async () => 
   await expect(resumeSession.run(request('s1'))).resolves.toMatchObject({
     player: { seatId: 'seat-1' },
   });
+});
+
+it('reclaims a canonical missing seat after setup hydration without clearing its pointer', async () => {
+  mock.enforceReadOrder = true;
+  const activeRoleIds = [...recommendedRoleIds(8)];
+  prepareResume(
+    {},
+    { seatId: activeRoleIds[0] },
+    {
+      playerCount: 8,
+      chartId: 'A',
+      expansion: 'base',
+      turnLimit: 8,
+      dioneEnabled: false,
+      capybaraEnabled: true,
+      activeRoleIds,
+      activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    },
+    {},
+    false,
+    false,
+  );
+
+  await expect(resumeSession.run(request('s1'))).resolves.toMatchObject({
+    player: { seatId: activeRoleIds[0] },
+  });
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: `sessions/s1/seats/${activeRoleIds[0]}` }),
+    expect.objectContaining({ status: 'open', holderUid: null }),
+  );
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: `sessions/s1/seats/${activeRoleIds[0]}` }),
+    expect.objectContaining({ status: 'claimed', holderUid: 'u1' }),
+  );
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u1' }),
+    expect.objectContaining({ seatId: null }),
+  );
 });
 
 it('rejects a session that closes after the initial read but before resume commits', async () => {
