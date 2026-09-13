@@ -22232,7 +22232,9 @@
       "milestoneHints": "none",
       "relatedConsumes": "098",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.94"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
       "status": "done",

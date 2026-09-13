@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [675],
+    implementationProgress: {
+      completed: 235,
+      total: 751,
+      percentage: '31.29%',
+      done: 235,
+      partial: 25,
+      active: 0,
+      missing: 491,
+    },
+    changes: [
+      'Fleet clocks pause when everyone disconnects and continue from the remaining time when someone returns.',
+      'Deliberate emergency pauses still require the GM to resume them.',
+      '235 of 751 planned items are complete (31.29%).',
+    ],
+  },
+  {
+    version: '0.3.93',
     implementationPrompts: [673],
     implementationProgress: {
       completed: 234,
