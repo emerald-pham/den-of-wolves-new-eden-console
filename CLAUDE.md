@@ -248,6 +248,11 @@ than hardcoding a version in source, tests, or docs. Deployment changes must
 preserve the short-lived Workload Identity Federation path and must not add a
 service-account key.
 
+Patch versions stop at `99`: after `0.x.99`, increment the minor version and
+reset the patch to zero (`0.3.99` → `0.4.0`). Never issue `0.x.100` or higher.
+If an existing release has already exceeded that limit, use the next minor
+version with patch zero for the next release; preserve published release history.
+
 Only the product owner authorizes `0.9.x` and `1.0.0`. A `1.0.0` release
 requires the complete 20-player set, an end-to-end gameplay loop, and a clear
 implemented game end; role count or placeholder screens alone do not qualify.
