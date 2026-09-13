@@ -219,7 +219,7 @@ it('never paints a stale queued ATC state from a cached snapshot', () => {
     },
   });
   render(<FleetBroadcast />);
-  const props = (renderTicker.mock.calls[0] as unknown[])[0] as { queue: { text: string }[] };
-  expect(props.queue[0].text).toBe('AIRSPACE CONTROL // AIRSPACE CLOSED');
+  const props = (renderTicker.mock.calls[0] as unknown[])[0] as { message: { text: string } };
+  expect(props.message.text).toBe('AIRSPACE CONTROL // AIRSPACE CLOSED');
   expect(JSON.stringify(props)).not.toMatch(/AIRSPACE OPEN|OLD LOCKDOWN COPY/);
 });

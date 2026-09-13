@@ -160,11 +160,13 @@ export default function FleetBroadcast() {
       ? displayFleetTickerMessage(authoritativeTicker.current) : undefined;
     const queue = authoritativeTicker.queued.filter(isCurrentAirspace)
       .map((entry) => displayFleetTickerMessage(entry));
-    if (streamMessage || queue.length > 0) {
+    const visibleMessage = streamMessage ?? queue[0];
+    const visibleQueue = streamMessage ? queue : queue.slice(1);
+    if (visibleMessage) {
       return <FleetBroadcastSurface
-        {...(streamMessage ? { message: streamMessage } : {})}
-        {...(queue.length > 0 ? { queue } : {})}
-        fallback={queue[0] ?? awaitingDispatch}
+        message={visibleMessage}
+        {...(visibleQueue.length > 0 ? { queue: visibleQueue } : {})}
+        fallback={visibleQueue[0] ?? awaitingDispatch}
       />;
     }
     return <FleetBroadcastSurface message={awaitingDispatch} />;
