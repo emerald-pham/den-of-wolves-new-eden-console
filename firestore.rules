@@ -626,6 +626,16 @@ service cloud.firestore {
         }
       }
 
+      // Religious Zealotry outcomes are explicit facilitator decisions. They
+      // retain a private current record and request history; no member may
+      // enumerate, read, or write the response or its rationale.
+      match /zealotryResponses/{documentId} {
+        allow get: if isGm(sessionId) && resource.data.type == 'zealotry-response' &&
+          resource.data.sessionId == sessionId &&
+          (documentId == 'current' || documentId.matches('history-.*') || documentId.matches('audit-.*'));
+        allow list, write: if false;
+      }
+
       // Mission decks contain the authoritative shuffled order. They are
       // server-only state, including from connected GM devices.
       match /serverState/{document=**} {

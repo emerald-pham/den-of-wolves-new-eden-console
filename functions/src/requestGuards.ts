@@ -19,6 +19,7 @@ import {
 } from './wolfAttackPreparation';
 import { isReplacementEligibilityReason } from './replacementRoles';
 import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
+import { parseZealotryResponseInput, type ZealotryResponseAction } from './zealotryResponse';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1263,6 +1264,56 @@ export function requireCrisisTransitionRequest(data: {
     configurationOverride,
     ...(diseaseOutbreak ? { diseaseOutbreak } : {}),
   };
+}
+
+/** A GM records the source-approved response to a debated Religious Zealotry crisis. */
+export function requireZealotryResponseRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  actions?: unknown;
+  customResponse?: unknown;
+  rationale?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  crisisId: string;
+  actions: readonly ZealotryResponseAction[];
+  customResponse?: string;
+  rationale: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive crisis revision.');
+  }
+  const crisisId = requiredText(data.crisisId, 'crisisId', 80);
+  if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
+    throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
+  }
+  try {
+    const response = parseZealotryResponseInput({
+      actions: data.actions,
+      customResponse: data.customResponse,
+      rationale: data.rationale,
+    });
+    return {
+      ...requireGmInstanceRequest(data),
+      requestId: requiredId(data.requestId, 'requestId'),
+      expectedRevision: data.expectedRevision as number,
+      crisisId,
+      actions: response.actions,
+      ...(response.customResponse === undefined ? {} : { customResponse: response.customResponse }),
+      rationale: response.rationale,
+    };
+  } catch (cause) {
+    throw new HttpsError(
+      'invalid-argument',
+      cause instanceof Error ? cause.message : 'The Zealotry response is not valid.',
+    );
+  }
 }
 
 export function requireShipAvailabilityRequest(data: {

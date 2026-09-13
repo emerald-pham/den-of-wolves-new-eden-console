@@ -39,6 +39,7 @@ const {
   subscribeGmWolfAttackWindow,
   subscribeGmWolfAssignment,
   subscribeGmFacilitatorRuleCall,
+  subscribeGmZealotryResponse,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -1101,6 +1102,42 @@ it('hydrates the known facilitator census only from server authority and allowli
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
   });
   expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only a valid private Zealotry response and never exposes census identities', () => {
+  const { callbacks } = captureSessionListener();
+  const onResponse = vi.fn();
+  const unsubscribe = subscribeGmZealotryResponse('s1', onResponse);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-1',
+      crisisRevision: 3, state: 'debated', revision: 2,
+      actions: ['pressure', 'investigate'],
+      customResponse: 'Keep the response informal.',
+      rationale: 'Private context.', loyaltyCensusRevision: 9,
+      actorUid: 'u1', censusEntries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
+    }),
+  });
+  expect(onResponse).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', crisisId: 'zealotry-1', crisisRevision: 3,
+    revision: 2, actions: ['pressure', 'investigate'], loyaltyCensusRevision: 9,
+  }));
+  expect(onResponse.mock.lastCall?.[0]).not.toHaveProperty('censusEntries');
+
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({
+      type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-1',
+      crisisRevision: 3, state: 'debated', revision: 1,
+      actions: ['pressure', 'pressure'], rationale: '', loyaltyCensusRevision: 9,
+    }),
+  });
+  expect(onResponse).toHaveBeenLastCalledWith(null);
+  unsubscribe();
+  expect(onResponse).toHaveBeenLastCalledWith(null);
 });
 
 it('does not let a delayed older census revision overwrite the newer server projection', () => {

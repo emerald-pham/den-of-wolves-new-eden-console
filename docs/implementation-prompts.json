@@ -5040,6 +5040,13 @@
       "language": "Prompt 674 is implemented: the selectable ship Observer role is removed, an eligible GM can quietly inspect a ship console read only, and a shared two-step red confirmation grants only the selected ship and captured live GM instance. Confirmation binds session, uid, instance, lease token, and ship; cancellation and identity changes do not grant access; queued cleanup revokes after pending grants and stale instance reclaim deletes the old private grant. The server requires the canonical claimedAt lease token for every grant mutation and compares it unconditionally. Focused ShipConsole (91), GM callable and request-guard (84), typecheck, Functions build, lint, and diff checks pass; responsive rendered checks cover phone, landscape, desktop, and reduced motion; Terra review cleared exact candidate 3a11b7d8772cd0f5b5c363ab1be0b9a2f43c529e.",
       "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/gmSessionCallable.test.ts; functions/src/requestGuards.test.ts; src/lib/sessionService.ts; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/routes/ShipRoleSelect.tsx; src/routes/ShipRoleSelect.test.tsx; Terra review 3a11b7d8772cd0f5b5c363ab1be0b9a2f43c529e",
       "type": "evidence / authority / privacy / release"
+    },
+    {
+      "direction": "533 -> production path",
+      "id": "E-533-VERIFIED",
+      "language": "Prompt 533 is implemented as a GM-only authoritative Zealotry response record at the debated crisis revision. The callable accepts source-approved action combinations or a bounded custom response, binds the current crisis and GM instance with a request fingerprint, CAS/replay receipt, and durable history, links only the current loyalty-census revision or explicit absence, and emits no public event or automatic loyalty/suspicion effect. The GM console provides an accessible response panel, while Firestore rules deny member reads, lists, and client writes.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/zealotryResponse.ts; functions/src/zealotryResponseCallable.test.ts; src/types/crisis.ts; src/lib/sessionService.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/store/useSessionStore.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; focused validation; rendered review",
+      "type": "evidence/verified"
     }
   ],
   "plan": {
@@ -18824,8 +18831,8 @@
         "acceptance": "leave, pressure, investigate, or arrest is recorded as an explicit facilitator outcome linked to the social-deduction loop.",
         "title": "Resolve zealotry responses."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-533",
+      "description": "The facilitator can record an explicit private Religious Zealotry outcome at the current debated crisis revision using any non-empty unique subset of leave, pressure, investigate, and arrest, a bounded custom response, or both. The response links only the authoritative social-deduction census revision when present (or records its absence), preserves request history and replay authority, and keeps rationale, publication, binding-law handling, and automatic loyalty or suspicion effects separate.",
+      "evidenceIds": "E-AUDIT-533;E-533-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "532",
@@ -18836,7 +18843,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {

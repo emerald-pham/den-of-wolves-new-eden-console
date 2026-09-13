@@ -51,6 +51,7 @@ vi.mock('@/lib/sessionService', () => ({
   authorUniversalArbourVision: vi.fn(),
   authorFacilitatorRuleCall: vi.fn(),
   transitionCrisis: vi.fn(),
+  recordZealotryResponse: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -67,6 +68,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmArbourVision: vi.fn(),
   subscribeGmFacilitatorRuleCall: vi.fn(),
   subscribeGmCrisisState: vi.fn(),
+  subscribeGmZealotryResponse: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
@@ -78,10 +80,10 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, recordZealotryResponse, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -168,6 +170,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
     onState(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmZealotryResponse).mockImplementation((_sessionId, onResponse) => {
+    onResponse(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -354,6 +360,35 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
     { crisisKind: 'presidential-election', configurationOverride: 'Alternate decision maker agreed at this table.' },
   ));
   expect(await within(panel).findByRole('status')).toHaveTextContent(/crisis transition committed/i);
+});
+
+it('records a private source-approved Zealotry response only at the debated stage', async () => {
+  const user = userEvent.setup();
+  const debatedZealotry: CrisisStateProjection = {
+    sessionId: 's1', crisisId: 'zealotry-1', state: 'debated', revision: 3,
+    title: 'Religious zealotry', details: 'The movement is growing.', crisisKind: 'religious-zealotry',
+  };
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    onState(debatedZealotry);
+    return vi.fn();
+  });
+  vi.mocked(recordZealotryResponse).mockResolvedValue('applied');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await screen.findByRole('region', { name: 'Crisis state machine' });
+  act(() => useSessionStore.getState().setGmCrisisState(debatedZealotry));
+  const panel = await screen.findByRole('region', { name: 'Private Religious Zealotry response' });
+  await user.click(within(panel).getByRole('checkbox', { name: 'Pressure' }));
+  await user.click(within(panel).getByRole('checkbox', { name: 'Investigate' }));
+  await user.type(within(panel).getByRole('textbox', { name: 'Custom Religious Zealotry response' }), 'Keep it informal.');
+  await user.type(within(panel).getByRole('textbox', { name: 'Private Religious Zealotry rationale' }), 'No automatic suspicion change.');
+  await user.click(within(panel).getByRole('button', { name: 'Record private response' }));
+
+  await waitFor(() => expect(recordZealotryResponse).toHaveBeenCalledWith(
+    ['pressure', 'investigate'], 'Keep it informal.', 'No automatic suspicion change.',
+  ));
+  expect(await within(panel).findByRole('status')).toHaveTextContent(/recorded privately.*publication and law handling remain separate/i);
 });
 
 it('withholds the private crisis stream until the fresh manifest confirms this instance', async () => {

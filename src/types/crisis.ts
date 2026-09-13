@@ -62,6 +62,24 @@ export const CRISIS_KIND_LABELS: Readonly<Record<CrisisKind, string>> = {
   'presidential-election': 'Presidential Election',
 };
 
+export const ZEALOTRY_RESPONSE_ACTIONS = ['leave', 'pressure', 'investigate', 'arrest'] as const;
+export type ZealotryResponseAction = (typeof ZEALOTRY_RESPONSE_ACTIONS)[number];
+
+/** Facilitator-only explicit response; it carries census context, never census identities. */
+export interface ZealotryResponse {
+  readonly sessionId: SessionId;
+  readonly crisisId: string;
+  readonly crisisRevision: number;
+  readonly state: 'debated';
+  readonly revision: number;
+  readonly actions: readonly ZealotryResponseAction[];
+  readonly customResponse?: string;
+  readonly rationale: string;
+  readonly loyaltyCensusRevision: number | null;
+  readonly actorUid?: string;
+  readonly updatedAt?: string;
+}
+
 /** Member-readable report; no facilitator notes or hidden decisions. */
 export interface CrisisReport {
   readonly sessionId: string;

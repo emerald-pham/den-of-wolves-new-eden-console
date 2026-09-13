@@ -65,6 +65,7 @@ import {
   requireFacilitatorRuleCallRequest,
   isCanonicalRequestId,
   requireCrisisTransitionRequest,
+  requireZealotryResponseRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -256,6 +257,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
+import { parseStoredZealotryResponse, type ZealotryResponseAction } from './zealotryResponse';
 import { diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
@@ -5781,6 +5783,40 @@ type CrisisTransitionResult = Readonly<{
   title: string;
 }>;
 
+type ZealotryResponseResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  crisisRevision: number;
+  revision: number;
+  actions: readonly ZealotryResponseAction[];
+  customResponse?: string;
+  rationale: string;
+  loyaltyCensusRevision: number | null;
+  label: 'ZEALOTRY RESPONSE';
+}>;
+
+function isZealotryResponseResult(value: unknown, sessionId: string): value is ZealotryResponseResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  const parsed = parseStoredZealotryResponse({
+    type: 'zealotry-response',
+    sessionId: result.sessionId,
+    crisisId: result.crisisId,
+    crisisRevision: result.crisisRevision,
+    state: 'debated',
+    revision: result.revision,
+    actions: result.actions,
+    customResponse: result.customResponse,
+    rationale: result.rationale,
+    loyaltyCensusRevision: result.loyaltyCensusRevision,
+    actorUid: typeof result.actorUid === 'string' ? result.actorUid : 'result-actor',
+    instanceId: typeof result.instanceId === 'string' ? result.instanceId : 'result-instance',
+  });
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && parsed !== null && result.label === 'ZEALOTRY RESPONSE';
+}
+
 function isCrisisTransitionResult(value: unknown, sessionId: string): value is CrisisTransitionResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
@@ -6010,6 +6046,144 @@ export const transitionCrisis = onCall<{
         createdAt: FieldValue.serverTimestamp(),
       }));
     }
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Record the facilitator's explicit source-approved response to Zealotry. */
+export const recordZealotryResponse = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  actions?: unknown;
+  customResponse?: unknown;
+  rationale?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const response = requireZealotryResponseRequest(request.data ?? {});
+  const currentCrisisRef = db.doc(`sessions/${response.sessionId}/crisisState/current`);
+  const currentResponseRef = db.doc(`sessions/${response.sessionId}/zealotryResponses/current`);
+  const historyRef = db.doc(`sessions/${response.sessionId}/zealotryResponses/history-${response.requestId}`);
+  const auditRef = db.doc(`sessions/${response.sessionId}/zealotryResponses/audit-${response.requestId}`);
+  const censusRef = db.doc(`sessions/${response.sessionId}/loyaltyCensus/current`);
+  const receiptRef = commandReceiptRef(response.sessionId, response.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'record-zealotry-response',
+    sessionId: response.sessionId,
+    requestId: response.requestId,
+    actorUid: uid,
+    instanceId: response.instanceId,
+    expectedRevision: response.expectedRevision,
+    payload: {
+      crisisId: response.crisisId,
+      actions: response.actions,
+      ...(response.customResponse === undefined ? {} : { customResponse: response.customResponse }),
+      rationale: response.rationale,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<ZealotryResponseResult> => {
+    const [authority, crisisSnapshot, currentResponseSnapshot, censusSnapshot, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, response.sessionId, uid, response.instanceId),
+      tx.get(currentCrisisRef),
+      tx.get(currentResponseRef),
+      tx.get(censusRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, response.sessionId, response.requestId, 'Zealotry response', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is ZealotryResponseResult => isZealotryResponseResult(value, response.sessionId),
+      'Zealotry response',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Zealotry response');
+    requireActiveGameplayPhase(authority.session);
+
+    if (!crisisSnapshot.exists || crisisSnapshot.get('type') !== 'crisis-state' ||
+        crisisSnapshot.get('sessionId') !== response.sessionId ||
+        crisisSnapshot.get('crisisId') !== response.crisisId ||
+        crisisSnapshot.get('crisisKind') !== 'religious-zealotry' ||
+        crisisSnapshot.get('state') !== 'debated' ||
+        crisisSnapshot.get('revision') !== response.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'Record a response only for the current debated Religious Zealotry crisis.',
+        'stale-revision',
+      );
+    }
+    if (!Number.isSafeInteger(crisisSnapshot.get('revision')) ||
+        (crisisSnapshot.get('revision') as number) < 1) {
+      throw commandError('failed-precondition', 'The current crisis projection is malformed.', 'malformed-input');
+    }
+
+    const priorResponse = currentResponseSnapshot.exists
+      ? parseStoredZealotryResponse(currentResponseSnapshot.data())
+      : null;
+    if (currentResponseSnapshot.exists && (!priorResponse || priorResponse.sessionId !== response.sessionId)) {
+      throw commandError('failed-precondition', 'The current Zealotry response projection is malformed.', 'malformed-input');
+    }
+    const censusRevision = censusSnapshot.exists
+      ? Number.isSafeInteger(censusSnapshot.get('revision')) && (censusSnapshot.get('revision') as number) >= 0 &&
+        storedLoyaltyCensusEntries(censusSnapshot) !== null
+        ? censusSnapshot.get('revision') as number
+        : null
+      : null;
+    if (censusSnapshot.exists && censusRevision === null) {
+      throw commandError('failed-precondition', 'The social-deduction census is malformed; refresh before retrying.', 'malformed-input');
+    }
+    const revision = (priorResponse?.revision ?? 0) + 1;
+    const result: ZealotryResponseResult = {
+      status: 'committed',
+      sessionId: response.sessionId,
+      crisisId: response.crisisId,
+      crisisRevision: response.expectedRevision,
+      revision,
+      actions: response.actions,
+      ...(response.customResponse === undefined ? {} : { customResponse: response.customResponse }),
+      rationale: response.rationale,
+      loyaltyCensusRevision: censusRevision,
+      label: 'ZEALOTRY RESPONSE',
+    };
+    const projection = {
+      type: 'zealotry-response',
+      sessionId: response.sessionId,
+      crisisId: response.crisisId,
+      crisisRevision: response.expectedRevision,
+      state: 'debated' as const,
+      revision,
+      actions: response.actions,
+      ...(response.customResponse === undefined ? {} : { customResponse: response.customResponse }),
+      rationale: response.rationale,
+      loyaltyCensusRevision: censusRevision,
+      actorUid: uid,
+      instanceId: response.instanceId,
+      label: 'ZEALOTRY RESPONSE' as const,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(currentResponseRef, projection);
+    tx.set(historyRef, { ...projection, requestId: response.requestId, createdAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, {
+      type: 'zealotry-response',
+      action: 'record',
+      sessionId: response.sessionId,
+      crisisId: response.crisisId,
+      crisisRevision: response.expectedRevision,
+      revision,
+      requestId: response.requestId,
+      actions: response.actions,
+      ...(response.customResponse === undefined ? {} : { customResponse: response.customResponse }),
+      rationale: response.rationale,
+      loyaltyCensusRevision: censusRevision,
+      actorUid: uid,
+      instanceId: response.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

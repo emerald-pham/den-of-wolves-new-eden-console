@@ -67,7 +67,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import { parseDiseaseOutbreak, isCrisisKind, type CrisisReport, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
+import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -920,6 +920,41 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
     crisisKind: isCrisisKind(raw.crisisKind) ? raw.crisisKind : (isCrisisKind(raw.crisisId) ? raw.crisisId : 'custom'),
     configurationOverride: typeof raw.configurationOverride === 'string' ? raw.configurationOverride : '',
     ...(disease ? { diseaseOutbreak: disease } : {}),
+    ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
+  };
+}
+
+function zealotryResponse(value: unknown, sessionId: string): ZealotryResponse | null {
+  const raw = recordValue(value);
+  const parsedSessionId = parseEntityId('session', raw?.sessionId ?? sessionId);
+  const crisisSessionId = parseEntityId('session', sessionId);
+  const crisisRevision = nonNegativeInteger(raw?.crisisRevision);
+  const revision = nonNegativeInteger(raw?.revision);
+  if (!raw || !parsedSessionId || !crisisSessionId || parsedSessionId !== crisisSessionId ||
+      raw.type !== 'zealotry-response' || typeof raw.crisisId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) || raw.state !== 'debated' ||
+      crisisRevision === undefined || crisisRevision < 1 || revision === undefined ||
+      revision < 1 || !Array.isArray(raw.actions) ||
+      raw.actions.length > ZEALOTRY_RESPONSE_ACTIONS.length ||
+      raw.actions.some((action) => !(ZEALOTRY_RESPONSE_ACTIONS as readonly string[]).includes(String(action))) ||
+      new Set(raw.actions).size !== raw.actions.length ||
+      (raw.customResponse !== undefined &&
+        (typeof raw.customResponse !== 'string' || raw.customResponse.trim().length === 0 || raw.customResponse.length > 1000)) ||
+      typeof raw.rationale !== 'string' || raw.rationale.length > 2000 ||
+      (!Number.isSafeInteger(raw.loyaltyCensusRevision) && raw.loyaltyCensusRevision !== null) ||
+      (typeof raw.loyaltyCensusRevision === 'number' && raw.loyaltyCensusRevision < 0) ||
+      (raw.actorUid !== undefined && !parseEntityId('player', raw.actorUid))) return null;
+  return {
+    sessionId: parsedSessionId,
+    crisisId: raw.crisisId,
+    crisisRevision,
+    state: 'debated',
+    revision,
+    actions: raw.actions as ZealotryResponse['actions'],
+    ...(typeof raw.customResponse === 'string' ? { customResponse: raw.customResponse } : {}),
+    rationale: raw.rationale,
+    loyaltyCensusRevision: raw.loyaltyCensusRevision as number | null,
+    ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
     ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
   };
 }
@@ -2690,6 +2725,37 @@ export function subscribeGmCrisisState(
     subscribed = false;
     unsubscribe();
     onState(null);
+  };
+}
+
+/** Subscribe to the facilitator-only current Zealotry response. */
+export function subscribeGmZealotryResponse(
+  sessionId: string,
+  onResponse: (response: ZealotryResponse | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/zealotryResponses/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const response = snapshot.exists() ? zealotryResponse(snapshot.data(), sessionId) : null;
+      if (response && !acceptsRevision(response.revision)) return;
+      onResponse(response);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        onResponse(null);
+        return;
+      }
+      onResponse(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onResponse(null);
   };
 }
 

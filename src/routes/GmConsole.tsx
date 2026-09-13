@@ -47,6 +47,7 @@ import {
   authorUniversalArbourVision,
   authorFacilitatorRuleCall,
   transitionCrisis,
+  recordZealotryResponse,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -94,7 +95,16 @@ import type {
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
-import { CRISIS_KINDS, CRISIS_KIND_LABELS, isCrisisKind, nextCrisisStates, type CrisisKind, type CrisisStateName } from '@/types/crisis';
+import {
+  CRISIS_KINDS,
+  CRISIS_KIND_LABELS,
+  ZEALOTRY_RESPONSE_ACTIONS,
+  isCrisisKind,
+  nextCrisisStates,
+  type CrisisKind,
+  type CrisisStateName,
+  type ZealotryResponseAction,
+} from '@/types/crisis';
 import { isWireSafeEntityId } from '@/types/identifiers';
 import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
 
@@ -340,6 +350,7 @@ export default function GmConsole() {
   const [ruleCallMessage, setRuleCallMessage] = useState<string | null>(null);
   const gmFacilitatorRuleCall = useSessionStore((state) => state.gmFacilitatorRuleCall);
   const gmCrisisState = useSessionStore((state) => state.gmCrisisState);
+  const gmZealotryResponse = useSessionStore((state) => state.gmZealotryResponse);
   const [crisisIdDraft, setCrisisIdDraft] = useState('crisis-1');
   const [crisisTitleDraft, setCrisisTitleDraft] = useState('');
   const [crisisDetailsDraft, setCrisisDetailsDraft] = useState('');
@@ -350,6 +361,11 @@ export default function GmConsole() {
   const [crisisOverrideDraft, setCrisisOverrideDraft] = useState('');
   const [crisisMutationState, setCrisisMutationState] = useState<CrisisStateName | null>(null);
   const [crisisMessage, setCrisisMessage] = useState<string | null>(null);
+  const [zealotryActionsDraft, setZealotryActionsDraft] = useState<ZealotryResponseAction[]>([]);
+  const [zealotryCustomDraft, setZealotryCustomDraft] = useState('');
+  const [zealotryRationaleDraft, setZealotryRationaleDraft] = useState('');
+  const [zealotryMutation, setZealotryMutation] = useState(false);
+  const [zealotryMessage, setZealotryMessage] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
@@ -658,6 +674,7 @@ export default function GmConsole() {
     let crisisSubscribed = false;
     let stopInstances: () => void = () => undefined;
     let stopCrisisState: () => void = () => undefined;
+    let stopZealotryResponse: () => void = () => undefined;
     let unsubscribe: () => void = () => undefined;
     // A persisted projection is not fresh GM authority. Hold no crisis data
     // while the callable-backed manifest proves this exact instance.
@@ -685,6 +702,8 @@ export default function GmConsole() {
       verifiedCrisisAuthorityKey.current = null;
       stopCrisisState();
       stopCrisisState = () => undefined;
+      stopZealotryResponse();
+      stopZealotryResponse = () => undefined;
       stopInstances();
       stopInstances = () => undefined;
       setInstances([]);
@@ -693,6 +712,7 @@ export default function GmConsole() {
       setCrisisMessage(null);
       const store = useSessionStore.getState();
       store.setGmCrisisState(null);
+      store.setGmZealotryResponse(null);
       if (
         store.session?.id === sessionId &&
         store.gmInstance?.id === localInstanceId
@@ -715,6 +735,7 @@ export default function GmConsole() {
       subscribeGmArbourVision,
       subscribeGmFacilitatorRuleCall,
       subscribeGmCrisisState,
+      subscribeGmZealotryResponse,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -767,6 +788,19 @@ export default function GmConsole() {
                 message: 'The facilitator crisis projection could not be refreshed.',
               });
               revokeAuthority();
+            })
+            : () => undefined;
+          stopZealotryResponse = typeof subscribeGmZealotryResponse === 'function'
+            ? subscribeGmZealotryResponse(sessionId, (response) => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              useSessionStore.getState().setGmZealotryResponse(response);
+              if (response) {
+                setZealotryActionsDraft([...response.actions]);
+                setZealotryCustomDraft(response.customResponse ?? '');
+                setZealotryRationaleDraft(response.rationale);
+              }
+              setZealotryMessage(null);
             })
             : () => undefined;
         },
@@ -867,6 +901,7 @@ export default function GmConsole() {
         stopArbourVision();
         stopFacilitatorRuleCall();
         stopCrisisState();
+        stopZealotryResponse();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -883,11 +918,13 @@ export default function GmConsole() {
       verifiedCrisisAuthorityKey.current = null;
       unsubscribe();
       stopCrisisState();
+      stopZealotryResponse();
       setWolfAssignment(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
       useSessionStore.getState().setGmFacilitatorRuleCall(null);
       useSessionStore.getState().setGmCrisisState(null);
+      useSessionStore.getState().setGmZealotryResponse(null);
       setCrisisMutationState(null);
       setCrisisMessage(null);
       setWolfAttackPreparationState(null);
@@ -1476,6 +1513,57 @@ export default function GmConsole() {
         currentCrisisAuthorityKey() === authorityKey &&
         verifiedCrisisAuthorityKey.current === authorityKey
       ) setCrisisMutationState(null);
+    }
+  }
+
+  function toggleZealotryAction(action: ZealotryResponseAction): void {
+    setZealotryActionsDraft((current) => current.includes(action)
+      ? current.filter((candidate) => candidate !== action)
+      : [...current, action]);
+  }
+
+  async function saveZealotryResponse(): Promise<void> {
+    const crisis = useSessionStore.getState().gmCrisisState;
+    if (zealotryMutation || !crisis || crisis.crisisKind !== 'religious-zealotry' || crisis.state !== 'debated') {
+      setZealotryMessage('Record a response only while the Religious Zealotry crisis is debated.');
+      return;
+    }
+    const customResponse = zealotryCustomDraft.trim();
+    if (zealotryActionsDraft.length === 0 && !customResponse) {
+      setZealotryMessage('Choose a source action or enter a custom response.');
+      return;
+    }
+    const authorityKey = currentCrisisAuthorityKey();
+    if (!authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) {
+      setZealotryMessage('Live GM authority is still being verified; retry when the manifest is current.');
+      return;
+    }
+    setZealotryMutation(true);
+    setZealotryMessage(null);
+    try {
+      const disposition = await recordZealotryResponse(
+        zealotryActionsDraft,
+        customResponse,
+        zealotryRationaleDraft,
+      );
+      if (currentCrisisAuthorityKey() !== authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      setZealotryMessage(
+        disposition === 'queued'
+          ? 'Zealotry response queued // waiting for the live facilitator connection.'
+          : 'Zealotry response recorded privately // publication and law handling remain separate.',
+      );
+    } catch (cause) {
+      if (currentCrisisAuthorityKey() !== authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      const error = normalizeCommandError(cause);
+      setZealotryMessage(
+        error.kind === 'stale-revision'
+          ? 'Crisis changed // review the current debated state and retry.'
+          : 'Zealotry response rejected // the server did not commit this record.',
+      );
+    } finally {
+      if (currentCrisisAuthorityKey() === authorityKey && verifiedCrisisAuthorityKey.current === authorityKey) {
+        setZealotryMutation(false);
+      }
     }
   }
 
@@ -2263,6 +2351,64 @@ export default function GmConsole() {
                 ? `Next allowed state${nextCrisisStates(gmCrisisState).length === 1 ? '' : 's'}: ${nextCrisisStates(gmCrisisState).join(', ')}`
                 : 'Start with a facilitator-authored draft.')}
             </p>
+            {gmCrisisState?.crisisKind === 'religious-zealotry' && gmCrisisState.state === 'debated' && (
+              <section className="gm-zealotry-response" aria-label="Private Religious Zealotry response">
+                <h3 className="gm-console__section-title">Private Zealotry response</h3>
+                <p className="gm-console__hint">
+                  Record the facilitator&apos;s source-approved response for this debated crisis. This stays GM-only;
+                  publication and any binding law announcement are separate decisions.
+                </p>
+                <fieldset className="gm-zealotry-response__choices">
+                  <legend>Response ideas (choose any combination)</legend>
+                  {ZEALOTRY_RESPONSE_ACTIONS.map((action) => (
+                    <label key={action} className="gm-zealotry-response__choice">
+                      <input
+                        type="checkbox"
+                        checked={zealotryActionsDraft.includes(action)}
+                        disabled={zealotryMutation}
+                        onChange={() => toggleZealotryAction(action)}
+                      />
+                      <span>{action[0]!.toUpperCase() + action.slice(1)}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                  <span>Custom response (optional)</span>
+                  <textarea
+                    rows={2}
+                    maxLength={1000}
+                    value={zealotryCustomDraft}
+                    disabled={zealotryMutation}
+                    onChange={(event) => setZealotryCustomDraft(event.target.value)}
+                    aria-label="Custom Religious Zealotry response"
+                  />
+                </label>
+                <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                  <span>Private rationale (optional)</span>
+                  <textarea
+                    rows={2}
+                    maxLength={2000}
+                    value={zealotryRationaleDraft}
+                    disabled={zealotryMutation}
+                    onChange={(event) => setZealotryRationaleDraft(event.target.value)}
+                    aria-label="Private Religious Zealotry rationale"
+                  />
+                </label>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={zealotryMutation || (zealotryActionsDraft.length === 0 && !zealotryCustomDraft.trim())}
+                  onClick={() => void saveZealotryResponse()}
+                >
+                  {zealotryMutation ? 'Recording response…' : 'Record private response'}
+                </button>
+                <p className="gm-console__status" role="status" aria-live="polite">
+                  {zealotryMessage ?? (gmZealotryResponse
+                    ? `Recorded response // revision ${gmZealotryResponse.revision} // census context ${gmZealotryResponse.loyaltyCensusRevision ?? 'absent'}`
+                    : 'No private response recorded for this crisis revision.')}
+                </p>
+              </section>
+            )}
           </section>
           <EmergencyTimerPauseControl
             phase={currentPhase}

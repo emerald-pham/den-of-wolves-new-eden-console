@@ -5881,6 +5881,33 @@ body {
 .gm-crisis select,
 .gm-crisis textarea { min-width: 0; width: 100%; }
 .gm-crisis .gm-console__hint { font-size: 0.75rem; line-height: 1.5; }
+.gm-zealotry-response {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--cic-ink) 28%, transparent);
+}
+.gm-zealotry-response__choices {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.65rem 0.8rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--cic-ink) 28%, transparent);
+}
+.gm-zealotry-response__choices legend { padding: 0 0.35rem; }
+.gm-zealotry-response__choice {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.75rem;
+}
+.gm-crisis .gm-zealotry-response__choice input[type='checkbox'] {
+  width: 1.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+}
 
 .crisis-report {
   width: min(48rem, calc(100% - 2rem));

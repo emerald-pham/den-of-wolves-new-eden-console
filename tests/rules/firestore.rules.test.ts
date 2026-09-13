@@ -683,6 +683,33 @@ describe('crisis state boundary', () => {
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/crisisState`)));
     await assertFails(setDoc(doc(as('gm1'), `${SESSION}/crisisState/current`), { forged: true }));
   });
+
+  it('keeps Zealotry responses and their audit history private to connected GMs', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      const fields = {
+        type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-1',
+        state: 'debated', crisisRevision: 3, revision: 1,
+        actions: ['pressure', 'investigate'], rationale: 'Private rationale',
+        loyaltyCensusRevision: 4,
+      };
+      await setDoc(doc(db, `${SESSION}/zealotryResponses/current`), fields);
+      await setDoc(doc(db, `${SESSION}/zealotryResponses/history-response-1`), fields);
+      await setDoc(doc(db, `${SESSION}/zealotryResponses/audit-response-1`), fields);
+    });
+    for (const documentId of ['current', 'history-response-1', 'audit-response-1']) {
+      await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/zealotryResponses/${documentId}`)));
+      await assertFails(getDoc(doc(as('alice'), `${SESSION}/zealotryResponses/${documentId}`)));
+      await assertFails(getDoc(doc(as('observer'), `${SESSION}/zealotryResponses/${documentId}`)));
+      await assertFails(setDoc(doc(as('gm1'), `${SESSION}/zealotryResponses/${documentId}`), { forged: true }));
+    }
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/zealotryResponses`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/zealotryResponses/current`), { forged: true }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/zealotryResponses/current`)));
+  });
 });
 
 describe('Hummingbird harvest boundary', () => {
