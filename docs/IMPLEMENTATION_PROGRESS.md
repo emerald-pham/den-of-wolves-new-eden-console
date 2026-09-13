@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**225 / 750 prompts complete (30.00%)**
+**226 / 750 prompts complete (30.13%)**
 
-Status breakdown: **225 done · 25 partial · 500 missing**.
+Status breakdown: **226 done · 25 partial · 499 missing**.
 
 Active prompt: **none**
 
@@ -1036,7 +1036,7 @@ release classification and evidence.
 | 564 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 565 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 566 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 567 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 567 | done | non-feature | — | Reverified the shipped none, base-capybara, and expansion-capybara configuration boundary. Canonical setup selects one mode, rejects unsupported roster substitutions and incomplete expansion pairs, and locks mode changes from casting onward. Retired legacy toggles cannot bypass setup. Distinct vessel definitions, active-vessel filtering, and direct-route guards keep the base extra and crewed expansion separate; supported 19/20-player expansion sessions retain their full ship. Current production code and existing setup, catalog, selector, and route regressions passed in the 0.3.86 validation and deployed workflow. This is evidence closeout only; no new gameplay or rendered UI is claimed, and lower-count expansion substitutions remain governed by Prompt 252. |
 | 568 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 569 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 570 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

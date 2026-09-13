@@ -4837,6 +4837,20 @@
       "language": "The production audit found no authoritative Team Time visit or Host reroll grant/consumption path. ShipConsole visiting is console browsing; shuttle visit logs describe docking. The owner has been asked who confirms a Host visit; no answer or policy is inferred. CAS, replay, and consent storage are implementation work after the gameplay confirmation policy is defined.",
       "source": "src/routes/ShipConsole.tsx; functions/src/index.ts; docs/implementation-prompts.json",
       "type": "evidence / decision_owner / missing-producer"
+    },
+    {
+      "direction": "567 -> 252",
+      "id": "E-567-DEPENDENCY",
+      "language": "Reverification consumes the implemented immutable Capybara mode and active-vessel boundary in Prompt 252, including its existing owner-revised supported roster limits.",
+      "source": "docs/implementation-prompts.json; functions/src/gameSetup.ts",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "567 -> CAPYBARA-MODE-PROOF",
+      "id": "E-567-VERIFIED",
+      "language": "At deployed 04d64e52040a4b1c400e1b609de29ff1634b666e, reviewed canonical setup, casting mode lock, active lifecycle rejection, retired toggle denial, distinct vessel definitions and direct-route filtering. Existing tests cover mode mapping, unsupported/incomplete expansion tuples, no-write casting changes, same-mode retry, full expansion presentation and rejected base/disabled routes. The final 2274-test run and successful Deploy 34740082082 include these unchanged sources; current main differs only by documentation. Private expansion provenance and both complementary artifact checksums were checked; the product-owner roster restriction remains explicit rather than being presented as a printed limitation. No new runtime, capacity or rendered review claim.",
+      "source": "functions/src/gameSetup.ts; functions/src/gameSetup.test.ts; functions/src/index.ts; functions/src/createSessionCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/data/vesselTemplates.test.ts; src/routes/ShipConsole.test.tsx; src/routes/ShipRoleSelect.test.tsx; src/routes/GmConsole.test.tsx; src/components/ShipPlot.test.tsx; https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/34740082082",
+      "type": "evidence / verified / production-path"
     }
   ],
   "plan": {
@@ -19386,8 +19400,8 @@
         "acceptance": "base-only, base extras, or crewed expansion remains immutable and no route/catalog conflates the two Capybaras.",
         "title": "Reverify Capybara mode selection."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-567",
+      "description": "Reverified the shipped none, base-capybara, and expansion-capybara configuration boundary. Canonical setup selects one mode, rejects unsupported roster substitutions and incomplete expansion pairs, and locks mode changes from casting onward. Retired legacy toggles cannot bypass setup. Distinct vessel definitions, active-vessel filtering, and direct-route guards keep the base extra and crewed expansion separate; supported 19/20-player expansion sessions retain their full ship. Current production code and existing setup, catalog, selector, and route regressions passed in the 0.3.86 validation and deployed workflow. This is evidence closeout only; no new gameplay or rendered UI is claimed, and lower-count expansion substitutions remain governed by Prompt 252.",
+      "evidenceIds": "E-567-DEPENDENCY;E-567-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "252",
@@ -19398,7 +19412,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
