@@ -346,6 +346,29 @@ describe('private projection listener bootstrap', () => {
     await assertFails(getDoc(doc(as('press'), `${SESSION}/wolfCultIntelligence/cult`)));
     await assertFails(getDocs(collection(as('alice'), `${SESSION}/arbourVisions`)));
 
+    // A former holder cannot keep reading a stale server projection merely
+    // because the authority pointer has not yet been backfilled.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/secrets/loyalty-alice`), {
+        'payload.kind': 'fleet-loyalist',
+      });
+      await updateDoc(doc(db, `${SESSION}/secrets/loyalty-cult`), {
+        'payload.kind': 'wolf-agent',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertFails(getDoc(doc(as('cult'), `${SESSION}/wolfCultIntelligence/cult`)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/secrets/loyalty-alice`), {
+        'payload.kind': 'universal-arbour',
+      });
+      await updateDoc(doc(db, `${SESSION}/secrets/loyalty-cult`), {
+        'payload.kind': 'wolf-cult',
+      });
+    });
+
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
       await setDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`), {

@@ -75,11 +75,30 @@ service cloud.firestore {
     // carry the same exact audience tuple. Once the authority pointer exists,
     // callers use the strict authority check above.
     function isLegacyWolfCultHolder(sessionId, intelligenceUid) {
+      let secretId = 'loyalty-' + uid();
       return isMember(sessionId)
         && intelligenceUid == uid()
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
         ).data.role == 'player'
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.connected == true
+        && exists(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        )
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.visibleToUids.size() == 1
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.visibleToUids[0] == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.payload.type == 'loyalty'
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.payload.kind == 'wolf-cult'
         // The projection itself is server-write-only and addressed by the
         // authenticated UID, so the legacy branch can authorize the absent
         // listener without dereferencing resource.data.
@@ -124,11 +143,30 @@ service cloud.firestore {
     }
 
     function isLegacyArbourHolder(sessionId, visionUid) {
+      let secretId = 'loyalty-' + uid();
       return isMember(sessionId)
         && visionUid == uid()
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
         ).data.role == 'player'
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.connected == true
+        && exists(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        )
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.visibleToUids.size() == 1
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.visibleToUids[0] == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.payload.type == 'loyalty'
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
+        ).data.payload.kind == 'universal-arbour'
         && visionUid == uid();
     }
 
