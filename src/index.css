@@ -4430,7 +4430,8 @@ body {
 
 @media (max-width: 42rem), (max-height: 42rem) {
   .role-select,
-  .session-mode {
+  .session-mode,
+  .fleet-roster {
     padding-top: max(
       clamp(6rem, 14vh, 9rem),
       calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 1rem)
