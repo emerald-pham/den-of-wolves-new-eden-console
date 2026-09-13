@@ -8,6 +8,7 @@ const port = Number(process.env.TICKER_SMOKE_PORT ?? 4179);
 const appUrl = `http://${host}:${port}/`;
 const artifactDirectory = process.env.TICKER_SMOKE_ARTIFACT_DIR
   ?? path.join('/tmp', 'fleet-ticker-smoke');
+const AWAITING_DISPATCH_TEXT = 'AIRSPACE CONTROL // AWAITING DISPATCH';
 const PRESS_TEXT = 'SNN // CURRENT SERVER BROADCAST';
 const AIRSPACE_OPEN_TEXT = 'AIRSPACE CONTROL // AIRSPACE OPEN';
 const RED_ALERT_TEXT = 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS';
@@ -144,6 +145,24 @@ const sourceFixtures = Object.fromEntries([
   },
 }, '/console')]));
 
+sourceFixtures['expired-stand-down'] = persistedFixture({
+  ...session,
+  fleetTicker: {
+    ...session.fleetTicker,
+    current: {
+      ...session.fleetTicker.current,
+      source: 'automatic', sourceId: 'red-alert:2', priority: 80,
+      text: STAND_DOWN_TEXT, passCount: 2, expiresAt: '2026-01-01T00:00:00.000Z',
+    },
+  },
+}, '/console');
+sourceFixtures['empty-stream'] = persistedFixture({
+  ...session,
+  fleetTicker: { ...session.fleetTicker, revision: 12, current: null },
+  // Deliberately stale legacy copy must not reappear while the stream is empty.
+  pressDispatch: { revision: 1, dispatches: [{ id: 'old-press', text: 'OLD DISMISSED NEWS' }] },
+}, '/console');
+
 function startVite() {
   const output = [];
   const child = spawn(
@@ -179,32 +198,7 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
     undefined,
     { timeout: 15_000 },
   );
-  await page.waitForFunction((expected) => {
-    const ticker = document.querySelector('.fleet-ticker');
-    const frame = ticker?.querySelector('.fleet-ticker__window')?.getBoundingClientRect();
-    if (!ticker || !frame) return false;
-    const tickerBounds = ticker.getBoundingClientRect();
-    const viewport = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
-    const tickerStyle = getComputedStyle(ticker);
-    const frameStyle = getComputedStyle(ticker.querySelector('.fleet-ticker__window'));
-    const intersectsViewport = (bounds) => bounds.right > viewport.left &&
-      bounds.left < viewport.right && bounds.bottom > viewport.top && bounds.top < viewport.bottom;
-    if (!intersectsViewport(tickerBounds) || !intersectsViewport(frame) ||
-        tickerStyle.display === 'none' || tickerStyle.visibility === 'hidden' ||
-        Number(tickerStyle.opacity) <= 0 || frameStyle.display === 'none' ||
-        frameStyle.visibility === 'hidden' || Number(frameStyle.opacity) <= 0) return false;
-    return [...ticker.querySelectorAll('.fleet-ticker__copy, .fleet-ticker__message')]
-      .filter((element) => !element.closest('.fleet-ticker__probe'))
-      .some((element) => {
-        const bounds = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        return element.textContent?.includes(expected) &&
-          bounds.width > 0 && bounds.height > 0 && style.visibility === 'visible' && style.display !== 'none' && Number(style.opacity) > 0 &&
-          bounds.right > frame.left && bounds.left < frame.right &&
-          bounds.bottom > frame.top && bounds.top < frame.bottom;
-      });
-  }, expectedText, { timeout: 5_000 });
-  const snapshot = await page.evaluate((expected) => {
+  const snapshotHandle = await page.waitForFunction((expected) => {
     const ticker = document.querySelector('.fleet-ticker');
     const frame = ticker?.querySelector('.fleet-ticker__window');
     const status = ticker?.querySelector('[role="status"]');
@@ -233,6 +227,7 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
             bounds.top < frameBounds.bottom;
         })
       : false;
+    if (!viewportVisible || !paintedText) return false;
     return {
       fontStatus: document.fonts?.status ?? 'unavailable',
       fontPatchInstalled: Boolean(window.__tickerSmokeFontPatch),
@@ -245,7 +240,9 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
       overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
       motion: document.querySelector('[data-motion]')?.dataset.motion ?? null,
     };
-  }, expectedText);
+  }, expectedText, { timeout: 5_000 });
+  const snapshot = await snapshotHandle.jsonValue();
+  await snapshotHandle.dispose();
 
   if (!snapshot.ticker || !snapshot.viewportVisible || !snapshot.paintedText || !snapshot.tickerBounds ||
       snapshot.tickerBounds.width <= 0 || snapshot.tickerBounds.height <= 0) {
@@ -341,6 +338,9 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
     await page.goto(`${appUrl}${scenario === 'turn-zero' ? '#/roles' : '#/ships/aegis'}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(100);
     await assertTicker(page, `${label}/initial`, fontMode, reducedMotion, expectedText);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await assertTicker(page, `${label}/scrolled`, fontMode, reducedMotion, expectedText);
+    await page.evaluate(() => window.scrollTo(0, 0));
 
     if (scenario === 'turn-zero') {
       await page.evaluate(() => sessionStorage.setItem('ticker-smoke-transition', 'turn-one'));
@@ -366,6 +366,8 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
         ['red-alert', RED_ALERT_TEXT],
         ['stand-down', STAND_DOWN_TEXT],
         ['press-return', PRESS_TEXT],
+        ['empty-stream', AWAITING_DISPATCH_TEXT],
+        ['expired-stand-down', AWAITING_DISPATCH_TEXT],
       ]) {
         await page.evaluate((value) => sessionStorage.setItem('ticker-smoke-transition', value), transition);
         await page.reload({ waitUntil: 'domcontentloaded' });
@@ -394,7 +396,7 @@ try {
       for (const reducedMotion of [false, true]) {
         const viewports = scenario === 'turn-zero'
           ? [{ width: 320, height: 844 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]
-          : [{ width: 390, height: 844 }, { width: 1440, height: 900 }];
+          : [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }];
         for (const viewport of viewports) {
           await runCase(fontMode, reducedMotion, viewport, scenario);
           console.log(`Ticker browser smoke passed: ${scenario}/${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`);

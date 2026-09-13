@@ -52,7 +52,7 @@ function ReconnectedPhaseSurface() {
 
 it('runs the Admiral command, waits for authority, then offers stand down', async () => {
   render(<><FleetAlertControl /><FleetBroadcast /></>);
-  expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
+  expect(screen.getByRole('status', { name: 'AIRSPACE CONTROL // AWAITING DISPATCH' })).toBeVisible();
   expect(screen.getByRole('region', { name: 'FLEETWIDE RED ALERT' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
@@ -434,7 +434,7 @@ it('lists the game and web app credits when the finale is live', () => {
   })).toBeVisible();
 });
 
-it('drains finale credits before clearing the lane and replays only on a new revision', () => {
+it('drains finale credits into the waiting ticker and replays only on a new revision', () => {
   const firstId = 's1:finale-credits:1';
   const credits = 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM';
   act(() => useSessionStore.getState().setSession({
@@ -453,7 +453,8 @@ it('drains finale credits before clearing the lane and replays only on a new rev
     ...useSessionStore.getState().session!,
     debriefMode: { active: false, revision: 2 },
   }));
-  expect(screen.getByRole('status', { name: credits })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'AIRSPACE CONTROL // AWAITING DISPATCH' })).toBeVisible();
+  outgoing.forEach((group) => expect(group).toBeInTheDocument());
   outgoing.forEach((group) => fireEvent.animationEnd(group));
   expect(screen.queryByRole('status', { name: credits })).not.toBeInTheDocument();
 
@@ -488,7 +489,7 @@ it('keeps the last press copy moving until it clears the ticker window', () => {
   view.container.querySelectorAll<HTMLElement>(
     '.fleet-ticker__group[data-message-id="s1:press-dispatch:1"]',
   ).forEach((group) => fireEvent.animationEnd(group));
-  expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
+  expect(screen.getByRole('status', { name: 'AIRSPACE CONTROL // AWAITING DISPATCH' })).toBeVisible();
 });
 
 it('shows every active press dispatch on the fleet ticker', () => {

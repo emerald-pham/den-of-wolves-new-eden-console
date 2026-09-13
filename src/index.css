@@ -482,7 +482,7 @@ body {
 /* Shared app chrome -------------------------------------------------- */
 
 .app-header {
-  position: absolute;
+  position: fixed;
   top: max(0.75rem, env(safe-area-inset-top));
   right: max(0.75rem, env(safe-area-inset-right));
   left: max(0.75rem, env(safe-area-inset-left));
@@ -4475,6 +4475,7 @@ body {
 
 @media (max-width: 48rem) {
   .app-header {
+    position: absolute;
     flex-wrap: wrap;
   }
 

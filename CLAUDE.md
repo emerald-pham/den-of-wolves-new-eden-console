@@ -224,8 +224,13 @@ The news ticker has three player-facing sources: Air Traffic Control for
 airspace open/closed status, Press for published news, and Aegis for Red Alert
 and Stand Down. Preserve each source's authoritative state and displayed
 identity. ATC bulletins yield to newer Press or Aegis copy; active Press news
-returns after an Aegis interruption without reviving dismissed news. Cover
-these source transitions in the ticker tests.
+returns after an Aegis interruption without reviving dismissed news. When no
+news remains, ATC provides the standing bulletin from the current server state.
+The ticker stays visible on every joined screen, including Turn 0 before role
+selection, empty projections, and after dismissal or Stand Down. A neutral
+`AIRSPACE CONTROL // AWAITING DISPATCH` readout preserves the instrument while
+a server dispatch is arriving; it must not guess open/closed status or replay
+old news. Cover these source transitions in the ticker tests.
 
 The initial server projection is also release-critical: a freshly joined member
 must see `AIRSPACE CONTROL // TURN 0 // STANDING BY` from the moment a lobby is

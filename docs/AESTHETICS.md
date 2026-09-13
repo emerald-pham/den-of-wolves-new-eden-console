@@ -1273,7 +1273,8 @@ truncation, early unmount, or remeasurement to erase any visible lettering;
 the outgoing group retains its exact position and constant linear speed while
 the queued group remains behind its tail.
 
-Prompts 652b and 652c keep the Press ticker pinned at the top on narrow
+The shared header stays pinned on wide and landscape screens so scrolling
+cannot hide the ticker. Prompts 652b and 652c keep the Press ticker pinned at the top on narrow
 viewports from the first paint through scrolling, with the exact block reserved
 below the safe-area and header chrome. Prompt 652b's shipped hide/reveal and
 temporary alert-expansion behavior is historical; Prompt 652c supersedes it with
@@ -1428,7 +1429,12 @@ bulletin. During the closed window it reads `AIRSPACE CONTROL // AIRSPACE
 CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN
 THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.`; during the
 open window it reads `AIRSPACE CONTROL // AIRSPACE OPEN`. The closed bulletin
-loops until AEGIS or the Press sends newer broadcast copy. It never carries the
+yields while AEGIS or the Press sends newer broadcast copy. When that news ends,
+ATC supplies the standing bulletin using the current server airspace state.
+The ticker remains visible on every joined screen, including Turn 0 before role
+selection. While a server dispatch is arriving, the neutral `AIRSPACE CONTROL //
+AWAITING DISPATCH` readout keeps the instrument present without replaying old
+news or guessing an open/closed state. It never carries the
 countdown or adds a second ticker row, so the ticker keeps its compact measured
 height. The DRADIS instrument and Airspace Control bulletin must not say
 `AIRSPACE OPEN` until the shared server state has actually lifted the

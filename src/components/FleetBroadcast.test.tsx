@@ -64,11 +64,13 @@ it('passes the authoritative current identity and queued precedence to the ticke
   const props = (renderTicker.mock.calls[0] as unknown[] | undefined)?.[0] as {
     message?: { id: string; pressText?: string; serverAuthoritative?: boolean };
     queue?: readonly { id: string; serverAuthoritative?: boolean }[];
+    fallback?: { id: string; serverAuthoritative?: boolean };
   };
   expect(props.message).toMatchObject({
     id: 's1:fleet-ticker:3', serverAuthoritative: true,
   });
   expect(props.message).not.toHaveProperty('pressText');
+  expect(props.fallback).toEqual(props.queue?.[0]);
   expect(props.queue).toMatchObject([
     { id: 's1:fleet-ticker:2', serverAuthoritative: true },
   ]);
@@ -155,5 +157,17 @@ it('does not resurrect legacy copy after an authoritative stream is empty', () =
 
   render(<FleetBroadcast />);
   const props = (renderTicker.mock.calls[0] as unknown[] | undefined)?.[0] as Record<string, unknown>;
-  expect(props).toBeUndefined();
+  expect(props.message).toMatchObject({
+    text: 'AIRSPACE CONTROL // AWAITING DISPATCH',
+  });
+  expect(JSON.stringify(props)).not.toContain('OLD COPY');
+});
+
+
+it('keeps a neutral ticker present before the first server dispatch arrives', () => {
+  render(<FleetBroadcast />);
+  const props = (renderTicker.mock.calls[0] as unknown[])[0] as {
+    message: { text: string };
+  };
+  expect(props.message.text).toBe('AIRSPACE CONTROL // AWAITING DISPATCH');
 });

@@ -162,6 +162,14 @@ export default function FleetBroadcast() {
     : undefined;
   const standingMessage = emergencyPauseBulletin ?? airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
+  // Keep the shared instrument present while a server projection is arriving.
+  // This status never reconstructs dismissed news or guesses an airspace state.
+  const awaitingDispatch = {
+    id: `${session.id}:awaiting-fleet-dispatch`,
+    text: sourceBulletin('AIRSPACE CONTROL', 'AWAITING DISPATCH'),
+    tone: 'normal' as const,
+    gap: 'long' as const,
+  };
   const authoritativeTicker = fleetTickerState(session.fleetTicker);
   if (session.fleetTicker && authoritativeTicker.revision > 0) {
     const streamMessage = authoritativeTicker.current
@@ -172,9 +180,10 @@ export default function FleetBroadcast() {
       return <FleetBroadcastSurface
         {...(streamMessage ? { message: streamMessage } : {})}
         {...(queue.length > 0 ? { queue } : {})}
+        fallback={queue[0] ?? awaitingDispatch}
       />;
     }
-    return null;
+    return <FleetBroadcastSurface message={awaitingDispatch} />;
   }
   if (debriefMode.active) {
     return <FleetBroadcastSurface message={{
@@ -185,7 +194,7 @@ export default function FleetBroadcast() {
   }
   if (!alert || alert.revision === 0) {
     return <FleetBroadcastSurface
-      {...(standingMessage ? { message: standingMessage } : {})}
+      message={standingMessage ?? awaitingDispatch}
     />;
   }
   return <FleetBroadcastSurface message={{
@@ -197,5 +206,5 @@ export default function FleetBroadcast() {
     ...(alert.active
       ? (dispatchText ? { pressText: dispatchText } : {})
       : { passes: 2 }),
-  }} {...(standingMessage ? { fallback: standingMessage } : {})} />;
+  }} fallback={standingMessage ?? awaitingDispatch} />;
 }
