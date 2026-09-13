@@ -51,11 +51,12 @@ export function isCrisisKind(value: unknown): value is CrisisKind {
 export function crisisConfigurationBlocker(kind: CrisisKind, configuration: {
   readonly presidentEnabled: boolean;
   readonly universalArbourEnabled: boolean;
+  readonly wolfCultEnabled: boolean;
 }): string | null {
   if (kind === 'presidential-election' && !configuration.presidentEnabled) {
     return 'This crisis requires the President role. Record a facilitator override to adapt it.';
   }
-  if (kind === 'religious-zealotry' && !configuration.universalArbourEnabled) {
+  if (kind === 'religious-zealotry' && !configuration.universalArbourEnabled && !configuration.wolfCultEnabled) {
     return 'This crisis requires Universal Arbour loyalties. Record a facilitator override to adapt it.';
   }
   return null;

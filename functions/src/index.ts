@@ -5491,6 +5491,7 @@ export const transitionCrisis = onCall<{
     const blocker = crisisConfigurationBlocker(crisisKind, {
       presidentEnabled: authority.session.get('dioneEnabled') !== false && Array.isArray(activeRoles) && activeRoles.includes('dione-president'),
       universalArbourEnabled: authority.session.get('universalArbourEnabled') === true,
+      wolfCultEnabled: authority.session.get('wolfCultEnabled') === true,
     });
     if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !configurationOverride) {
       throw commandError('failed-precondition', blocker, 'conflict');

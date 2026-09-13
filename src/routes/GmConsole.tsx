@@ -2161,7 +2161,7 @@ export default function GmConsole() {
               </select>
             </label>
             <p className="gm-console__hint">
-              Presidential Election requires the President role. Religious Zealotry requires Universal Arbour loyalties.
+              Presidential Election requires the President role. Religious Zealotry requires the Universal Arbour or Wolf Cult configuration.
               Other crisis kinds may be used without the President. Record a private override to adapt an incompatible crisis.
             </p>
             <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">

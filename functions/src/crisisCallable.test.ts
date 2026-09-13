@@ -270,3 +270,14 @@ it('retires a delivered report when a closed crisis is replaced by a fresh draft
   await transitionCrisis.run(request({ ...baseData, requestId: 'replacement', expectedRevision: 6, crisisId: 'another-crisis', crisisKind: 'custom' }));
   expect(mock.documents.has('sessions/s1/crisisReports/current')).toBe(false);
 });
+
+it('accepts the alternative Wolf Cult configuration and rechecks it before Zealotry delivery', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false, wolfCultEnabled: true });
+  const input = { ...baseData, crisisId: 'zealotry-1', crisisKind: 'religious-zealotry' };
+  await expect(transitionCrisis.run(request(input))).resolves.toMatchObject({ state: 'draft' });
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false, wolfCultEnabled: false });
+  const delivered = { ...input, requestId: 'cult-delivery', expectedRevision: 1, state: 'delivered' };
+  await expect(transitionCrisis.run(request(delivered))).rejects.toMatchObject({ code: 'failed-precondition' });
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false, wolfCultEnabled: true });
+  await expect(transitionCrisis.run(request(delivered))).resolves.toMatchObject({ state: 'delivered' });
+});
