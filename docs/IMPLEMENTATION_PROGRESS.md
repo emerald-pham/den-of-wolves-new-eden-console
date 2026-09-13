@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**262 / 751 prompts complete (34.89%)**
+**263 / 751 prompts complete (35.02%)**
 
-Status breakdown: **262 done · 21 partial · 468 missing**.
+Status breakdown: **263 done · 21 partial · 467 missing**.
 
 Active prompt: **none**
 
@@ -1074,7 +1074,7 @@ release classification and evidence.
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 602 | partial | feature | 0.3.25 | 0.3.25 restores compact Finale presentation geometry: the decorative ball is placed in a safe top-right gap so the existing Back to roles and Settings controls remain reachable; focused CSS geometry coverage and the authorized-GM enable/retract service-path test preserve the existing route and authority behavior. Universal every-route return proof, route activation coverage, and full rendered viewport evidence remain open. |
-| 602a | missing | non-feature | — | Owner-reported shuttle return regression: ordinary shuttle consoles currently receive no `returnTo`; only Press, Joint Engineering, and GM special cases have exits. A dedicated repair must audit route/catalog/docking authority and history, restore prior working behavior if found, resolve one deterministic entitled associated-ship target without client guessing, and preserve session/seat/role/shuttle state. Prove deep link, reconnect, browser Back/Forward, denial/fallback, mobile/short-landscape, 44px keyboard/screen-reader, nonoverlap, and reduced-motion behavior without changing Press/Union/GM return semantics. |
+| 602a | done | feature | 0.3.104 | Audited the original shuttle roster, Union and Press route history and the restored generic owner return in 0a110375. All ordinary shuttles use canonical captain-role association and route helpers rather than treating a visiting dock as permission to another ship. The return now falls back to role selection when the authoritative fleet no longer permits the owning ship. Explicit accessible names exclude the decorative CSS arrow. Tests cover every ordinary shuttle, deep-link denial and route replacement, keyboard return, Back/Forward, rehydrated docking updates, unchanged held identity and queued commands, plus existing Press/Union/GM exits. Actual source-component renders cover ordinary, fallback and special exits at 320, 390, 844 and 1440 pixel widths in normal/reduced motion, with visible focus, at least 44px targets, containment and no title overlap. This closes the dedicated shuttle repair only; universal navigation Prompt 602 remains open. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 603a | done | feature | 0.3.15 | Shared measured session-header padding now applies to Role Select and session-mode routes at max-width 42rem or max-height 42rem, while a higher-specificity shared ship-role rule preserves DRADIS clearance at 320×844, 390×844, and 844×390 without changing the absolute scrolling header or adding a route-specific ticket. The red/green static cascade test, focused suites, and checked-in CDP DOMRect evidence cover every rendered Role Select region, derived nonintersection, connected-player variants, simulated safe areas, role-control keyboard focus/order, absolute-header scroll-away, settings, wrapped reduced-motion FleetBroadcast, and 44px touch targets. Evidence is local rendered review, not live-Firebase or deployed proof. |
 | 604 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

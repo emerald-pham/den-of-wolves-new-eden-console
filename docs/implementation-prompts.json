@@ -20481,14 +20481,14 @@
       "tag": "PROVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "audit current `ShuttleConsole`, `ShuttleConsoleTemplate`, shuttle/role/docking catalogs, route policy, tests, responsive styles, and the history around `d259cb0`, `9009807`, `dced782`, and `3299767`; if a prior generic return exists, preserve it as the design baseline. Every entitled ordinary shuttle console exposes one explicit visible return to its deterministic associated ship console, resolved from authoritative docking/association state and canonical route helpers rather than a client guess. If no entitled target exists, return safely to the established role-selection parent instead of inventing a ship. Navigation preserves session, seat, active console, shuttle state, and pending authoritative work; it does not release authority or mutate gameplay. Direct deep links, reconnect hydration, browser Back/Forward, and route replacement converge on the same permitted target without loops or cross-ship access. Preserve Press's `Back to Independent Stations`, Joint Engineering's Union return, and GM leave behavior as distinct cases. The control has an exact accessible name, visible focus, at least 44px target, screen-reader semantics, and nonoverlapping placement on mobile and short landscape; reduced motion removes decorative transition only. Add chronological route/entitlement/state/reconnect/history regression tests and real viewport proof before marking the universal Prompt 602 complete.",
         "title": "Restore shuttle-to-associated-ship return navigation."
       },
-      "description": "Owner-reported shuttle return regression: ordinary shuttle consoles currently receive no `returnTo`; only Press, Joint Engineering, and GM special cases have exits. A dedicated repair must audit route/catalog/docking authority and history, restore prior working behavior if found, resolve one deterministic entitled associated-ship target without client guessing, and preserve session/seat/role/shuttle state. Prove deep link, reconnect, browser Back/Forward, denial/fallback, mobile/short-landscape, 44px keyboard/screen-reader, nonoverlap, and reduced-motion behavior without changing Press/Union/GM return semantics.",
+      "description": "Audited the original shuttle roster, Union and Press route history and the restored generic owner return in 0a110375. All ordinary shuttles use canonical captain-role association and route helpers rather than treating a visiting dock as permission to another ship. The return now falls back to role selection when the authoritative fleet no longer permits the owning ship. Explicit accessible names exclude the decorative CSS arrow. Tests cover every ordinary shuttle, deep-link denial and route replacement, keyboard return, Back/Forward, rehydrated docking updates, unchanged held identity and queued commands, plus existing Press/Union/GM exits. Actual source-component renders cover ordinary, fallback and special exits at 320, 390, 844 and 1440 pixel widths in normal/reduced motion, with visible focus, at least 44px targets, containment and no title overlap. This closes the dedicated shuttle repair only; universal navigation Prompt 602 remains open.",
       "evidenceIds": "E-602A;E-RETURN-REPAIR-SEQUENCE",
       "hardContract": "AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT",
       "hardMilestone": "none",
@@ -20497,10 +20497,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.104"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "RETURN-REPAIR",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['602a'],
+    implementationProgress: {
+      completed: 263,
+      total: 751,
+      percentage: '35.02%',
+      done: 263,
+      partial: 21,
+      active: 0,
+      missing: 467,
+    },
+    changes: [
+      'Shuttle return controls lead to your owning console or safely return to role selection if that ship is unavailable, while preserving your role and queued actions.',
+      '263 of 751 planned items are complete (35.02%).',
+    ],
+  },
+  {
+    version: '0.3.103',
     implementationPrompts: [530],
     implementationProgress: {
       completed: 262,
