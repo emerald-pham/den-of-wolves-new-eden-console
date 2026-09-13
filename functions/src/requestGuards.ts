@@ -1283,6 +1283,23 @@ export function requireGmControlsLockRequest(data: {
   };
 }
 
+export function requireGmShipConsoleWriteGrantRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  shipId?: unknown;
+  enabled?: unknown;
+}): { sessionId: string; instanceId: string; shipId: string; enabled: boolean } {
+  if (typeof data.enabled !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'enabled must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    enabled: data.enabled,
+  };
+}
+
 export function requireDebriefModeRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
@@ -1301,11 +1318,13 @@ export function requireShipConfettiRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;
   roleId?: unknown;
-}): { sessionId: string; shipId: string; roleId: string } {
+  instanceId?: unknown;
+}): { sessionId: string; shipId: string; roleId: string; instanceId?: string } {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     shipId: requiredId(data.shipId, 'shipId'),
     roleId: requiredId(data.roleId, 'roleId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
   };
 }
 

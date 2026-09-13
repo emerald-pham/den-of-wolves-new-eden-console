@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  grantShip: 'aegis',
   gmInstanceOwners: {} as Record<string, string>,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
   shuttleFuelled: {} as Record<string, boolean>,
@@ -100,6 +101,7 @@ vi.mock('firebase-admin/firestore', () => ({
                   connected: true,
                   claimedAt: { toMillis: () => Date.now() },
                   lastSeenAt: { toMillis: () => Date.now() },
+                  shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
                 } as Record<string, unknown>;
                 return { exists: true, get: (key: string) => fields[key] };
               }
@@ -207,6 +209,7 @@ vi.mock('firebase-admin/firestore', () => ({
                       connected: true,
                       claimedAt: { toMillis: () => Date.now() },
                       lastSeenAt: { toMillis: () => Date.now() },
+                      shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
                     }
                 : {
                     ...snapshot,
@@ -286,6 +289,7 @@ beforeEach(() => {
   advanceRequestSequence = 0;
   mock.role = 'gm';
   mock.owner = 'u1';
+  mock.grantShip = 'aegis';
   mock.gmInstanceOwners = {};
   mock.connected = true;
   mock.damage = {};
@@ -359,6 +363,7 @@ beforeEach(() => {
             connected: true,
             claimedAt: { toMillis: () => Date.now() },
             lastSeenAt: { toMillis: () => Date.now() },
+                      shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
           }
         : {
           phase: mock.phase,
@@ -450,6 +455,7 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
 });
 
 it('resolves Dione production atomically with authoritative resources, charge consumption, replay, and stale CAS', async () => {
+  mock.grantShip = 'dione';
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1,
@@ -496,6 +502,7 @@ it('resolves Dione production atomically with authoritative resources, charge co
 });
 
 it('resolves Capybara production with optional Scrap exactly once across replay and stale CAS', async () => {
+  mock.grantShip = 'capybara';
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
@@ -534,6 +541,7 @@ it('resolves Capybara production with optional Scrap exactly once across replay 
 });
 
 it('resolves Capybara Scrap Refinery choices through the callable receipt and CAS boundary', async () => {
+  mock.grantShip = 'capybara';
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
@@ -587,6 +595,7 @@ it('resolves Capybara Scrap Refinery choices through the callable receipt and CA
 });
 
 it('resolves the Capybara single-bay shuttle choice through atomic replay and stale CAS', async () => {
+  mock.grantShip = 'capybara';
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
@@ -635,6 +644,7 @@ it.each([
   ['advanced-hydroponics', 'food'],
   ['water-production', 'water'],
 ] as const)('keeps Capybara %s output safe through the callable resource projection', async (productionConsoleId, resource) => {
+  mock.grantShip = 'capybara';
   for (const variant of [
     { suffix: 'base', productionScrap: false, upgraded: false },
     { suffix: 'scrap', productionScrap: true, upgraded: false },
@@ -672,6 +682,7 @@ it.each([
 });
 
 it('denies Capybara production when the console is uncharged or damaged without writing', async () => {
+  mock.grantShip = 'capybara';
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
@@ -702,6 +713,7 @@ it('denies Capybara production when the console is uncharged or damaged without 
 });
 
 it('uses the server-owned Dione upgrade and rejects damaged production consoles', async () => {
+  mock.grantShip = 'dione';
   mock.maintenanceCycles = {
     dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },
   };
@@ -723,6 +735,7 @@ it('uses the server-owned Dione upgrade and rejects damaged production consoles'
 });
 
 it('records a Dione skip choice before allowing the next production console', async () => {
+  mock.grantShip = 'dione';
   mock.maintenanceCycles = {
     dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
   };
@@ -748,6 +761,7 @@ it('records a Dione skip choice before allowing the next production console', as
 });
 
 it('rejects Dione production when the session has disabled Dione', async () => {
+  mock.grantShip = 'dione';
   mock.dioneEnabled = false;
   mock.maintenanceCycles = {
     dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },
@@ -2311,6 +2325,7 @@ it('records and rolls back successive steps while restoring spent supplies', asy
     'sessions/s1/gmInstances/bridge': {
       uid: 'u1', connected: true,
       claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
+            shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
     },
     'sessions/s1/events/pre-existing': { type: 'historical-maintenance', revision: 0 },
   };
@@ -2440,6 +2455,7 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   records['sessions/s1/gmInstances/bridge'] = {
     uid: 'u2', connected: true,
     claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
+    shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
   };
   mock.owner = 'u2';
   mock.update.mockClear();
@@ -2454,6 +2470,7 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   records['sessions/s1/gmInstances/bridge'] = {
     uid: 'u1', connected: true,
     claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
+    shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
   };
   mock.update.mockClear();
   mock.set.mockClear();

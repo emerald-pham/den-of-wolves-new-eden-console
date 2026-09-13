@@ -794,6 +794,11 @@ export interface GmInstance {
   readonly responsibility?: 'main' | 'assistant';
   /** Normalized responsibility projection; legacy singular data remains readable. */
   readonly responsibilities?: readonly ('main' | 'assistant')[];
+  /** Optional server-owned write target for the current observer visit. */
+  readonly shipConsoleWriteGrant?: {
+    readonly shipId: VesselId;
+    readonly grantedAt: Timestamp;
+  };
   readonly claimedAt: Timestamp;
 }
 

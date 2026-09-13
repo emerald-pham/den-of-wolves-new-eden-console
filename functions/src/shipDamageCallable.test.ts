@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  grantShip: 'aegis',
   damage: {} as Record<string, unknown>, retry: false,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
@@ -33,6 +34,7 @@ function request(data: Record<string, unknown>, uid = 'u1') {
 beforeEach(() => {
   mock.role = 'gm';
   mock.owner = 'u1';
+  mock.grantShip = 'aegis';
   mock.connected = true;
   mock.damage = {};
   mock.retry = false;
@@ -47,7 +49,7 @@ beforeEach(() => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
+        ? { uid: mock.owner, connected: true, lastSeenAt: new Date(), shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() } }
         : {
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
           shipDamage: mock.damage,
@@ -227,7 +229,7 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
+        ? { uid: mock.owner, connected: true, lastSeenAt: new Date(), shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() } }
         : {
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
           shipDamage: mock.damage,
@@ -245,12 +247,14 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
 
 it.each([['aegis', 2000], ['dione', 95000], ['icebreaker', 37000], ['shepherd', 28000], ['quellon', 28000], ['refinery-124', 18500], ['capybara', 18500]])(
   'moves %s survivors down its printed track on ordinary damage', async (shipId, population) => {
+    mock.grantShip = shipId;
     mock.randomInt.mockReturnValue(0);
     await addShipDamage.run(request({ ...data, shipId }));
     expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ [`shipSurvivors.${shipId}`]: population }));
   },
 );
 it.each(['aegis', 'capybara'])('repairs all %s damage and restores its deck without restoring casualties', async shipId => {
+  mock.grantShip = shipId;
   const { repairAllShipDamage } = await import('./index');
   mock.damage = { [shipId]: { damagedSystemIds: ['reactor'], destroyed: true } };
   await repairAllShipDamage.run(request({ ...data, shipId }));

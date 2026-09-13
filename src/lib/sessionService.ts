@@ -1760,6 +1760,42 @@ export async function listGmInstances(): Promise<readonly GmInstance[]> {
   return (await call({ sessionId: session.id })).data.instances;
 }
 
+/** Set the current browser's server-owned ship-console write target. */
+export async function setGmShipConsoleWriteGrant(
+  shipId: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+    throw new Error('An active GM instance is required for ship-console write access.');
+  }
+  requireFreshSessionAuthority();
+  await ensureSignedIn();
+  const instanceId = store.gmInstance.id;
+  const call = httpsCallable<{
+    sessionId: string; instanceId: string; shipId: string; enabled: boolean;
+  }, { enabled: boolean; shipId?: string }>(functions(), 'setGmShipConsoleWriteGrant');
+  const result = (await call({
+    sessionId: store.session.id, instanceId, shipId, enabled,
+  })).data;
+  const current = useSessionStore.getState();
+  if (current.gmInstance?.id === instanceId && result.enabled === true) {
+    current.setGmInstance({
+      ...current.gmInstance,
+      shipConsoleWriteGrant: { shipId: result.shipId ?? shipId, grantedAt: new Date().toISOString() },
+    });
+  } else if (
+    current.gmInstance?.id === instanceId &&
+    current.gmInstance.shipConsoleWriteGrant?.shipId === shipId &&
+    result.enabled === false
+  ) {
+    const withoutGrant = { ...current.gmInstance };
+    delete withoutGrant.shipConsoleWriteGrant;
+    current.setGmInstance(withoutGrant);
+  }
+  return result.enabled === true;
+}
+
 export async function getSessionPresence(): Promise<{ connectedPlayers: number }> {
   await ensureSignedIn();
   const session = useSessionStore.getState().session;
@@ -1839,10 +1875,13 @@ export async function reconcileGmAuthority(): Promise<void> {
     : undefined;
   const instances = await listGmInstances();
   if (!authorityCheckpointIsCurrent(checkpoint, true)) return;
-  if (!instances.some((instance) => instance.id === remembered.id)) {
+  const current = instances.find((instance) => instance.id === remembered.id);
+  if (!current) {
     useSessionStore.getState().setGmInstance(null);
     useSessionStore.getState().setMode(null);
     useSessionStore.getState().setLastRoute('/roles');
+  } else {
+    useSessionStore.getState().setGmInstance(current);
   }
 }
 
@@ -3055,7 +3094,10 @@ export async function popShipConfetti(shipId: string, roleId: string): Promise<C
   return sendOrQueue({
     id: commandId(),
     kind: 'popShipConfetti',
-    payload: { sessionId: store.session.id, shipId, roleId },
+    payload: {
+      sessionId: store.session.id, shipId, roleId,
+      ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+    },
     createdAt: new Date().toISOString(),
   });
 }

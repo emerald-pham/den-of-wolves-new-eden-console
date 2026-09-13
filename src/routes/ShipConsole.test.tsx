@@ -13,6 +13,7 @@ vi.mock('@/lib/sessionService', () => ({
   buildFighter: vi.fn(),
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn(),
+  setGmShipConsoleWriteGrant: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -27,6 +28,7 @@ vi.mock('@/lib/vipCardService', () => ({ drawVipCard: vi.fn(), transferVipCard: 
 
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
+const { setGmShipConsoleWriteGrant } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
 const { buildFighter } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
@@ -50,6 +52,8 @@ beforeEach(() => {
       activeConsoleRoleId: roleId,
     });
   });
+  vi.mocked(setGmShipConsoleWriteGrant).mockReset();
+  vi.mocked(setGmShipConsoleWriteGrant).mockImplementation(async (_shipId, enabled) => enabled);
   vi.mocked(subscribeShipConfetti).mockReset();
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   vi.mocked(subscribeDamageDraws).mockReset();

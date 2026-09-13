@@ -81,7 +81,10 @@ const aliceFields = { role: 'player', connected: true, activeConsoleRoleId: 'dio
 const bobFields = { role: 'player', connected: true, activeConsoleRoleId: 'dione-president' };
 const vipHostFields = { role: 'player', connected: true, activeConsoleRoleId: null, replacementRoleId: 'vip-host' };
 const otherReplacementFields = { role: 'player', connected: true, activeConsoleRoleId: null, replacementRoleId: 'comms-officer' };
-const gmInstanceFields = { uid: 'gm1', connected: true, claimedAt: new Date(), lastSeenAt: new Date() };
+const gmInstanceFields = {
+  uid: 'gm1', connected: true, claimedAt: new Date(), lastSeenAt: new Date(),
+  shipConsoleWriteGrant: { shipId: 'dione', grantedAt: new Date() },
+};
 
 function request(data: Record<string, unknown>, uid = 'gm1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;

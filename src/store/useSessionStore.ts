@@ -321,6 +321,7 @@ export type PendingCommand = (
         readonly sessionId: string;
         readonly shipId: string;
         readonly roleId: string;
+        readonly instanceId?: string;
       };
       readonly createdAt: string;
     }

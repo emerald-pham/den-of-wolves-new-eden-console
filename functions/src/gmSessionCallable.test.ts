@@ -130,6 +130,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 
 import {
   claimGmInstance,
+  setGmShipConsoleWriteGrant,
   elevateToGm,
   loginGmAccess,
   logoutGmAccess,
@@ -169,7 +170,7 @@ function player(uid: string, fields: StoredDocument = {}) {
   });
 }
 
-function instance(id: string, uid: string) {
+function instance(id: string, uid: string, fields: StoredDocument = {}) {
   put('sessions/s1/gmInstances/' + id, {
     uid,
     sessionId: 's1',
@@ -178,6 +179,7 @@ function instance(id: string, uid: string) {
     connected: true,
     claimedAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString(),
+    ...fields,
   });
 }
 
@@ -294,6 +296,108 @@ describe('elevateToGm', () => {
 });
 
 describe('GM instance ownership', () => {
+  it('binds ship-console write access to the live browser instance and target ship', async () => {
+    session({ activeVesselIds: ['aegis', 'dione'] });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+    }))).resolves.toEqual({ enabled: true, shipId: 'aegis' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }),
+    });
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: false,
+    }))).resolves.toEqual({ enabled: false });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }),
+    });
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: false,
+    }))).resolves.toEqual({ enabled: false });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ shipConsoleWriteGrant: null });
+  });
+
+  it.each([
+    ['foreign instance', { uid: 'u2' }, 'u1'],
+    ['expired instance', { connected: false }, 'u1'],
+  ] as const)('rejects a %s before changing the grant', async (_label, fields, uid) => {
+    session({ activeVesselIds: ['aegis'] });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/bridge', { ...read('sessions/s1/gmInstances/bridge'), ...fields });
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+    }, uid))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('shipConsoleWriteGrant');
+  });
+
+  it('rejects a grant for an inactive ship without a write', async () => {
+    session({ activeVesselIds: ['aegis'] });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: true,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('shipConsoleWriteGrant');
+  });
+
+  it('keeps sibling browser grants isolated by instance and ship', async () => {
+    session({ activeVesselIds: ['aegis', 'dione'] });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    instance('tablet', 'u1');
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+    }))).resolves.toEqual({ enabled: true, shipId: 'aegis' });
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: true,
+    }))).resolves.toEqual({ enabled: true, shipId: 'dione' });
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: false,
+    }))).resolves.toEqual({ enabled: false });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }),
+    });
+    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({ shipConsoleWriteGrant: null });
+  });
+
+  it('projects each GM browser grant only to its owning browser', async () => {
+    session({ activeVesselIds: ['aegis', 'dione'] });
+    player('u1', { role: 'gm' });
+    player('u2', { role: 'gm' });
+    instance('bridge', 'u1');
+    instance('tablet', 'u2');
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'),
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
+    });
+    put('sessions/s1/gmInstances/tablet', {
+      ...read('sessions/s1/gmInstances/tablet'),
+      shipConsoleWriteGrant: { shipId: 'dione', grantedAt: new Date().toISOString() },
+    });
+
+    const forBridge = await listGmInstances.run(request({ sessionId: 's1' }, 'u1'));
+    expect(forBridge.instances).toEqual([
+      expect.objectContaining({ id: 'bridge', shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }) }),
+      expect.objectContaining({ id: 'tablet' }),
+    ]);
+    expect(forBridge.instances[1]).not.toHaveProperty('shipConsoleWriteGrant');
+    const forTablet = await listGmInstances.run(request({ sessionId: 's1' }, 'u2'));
+    expect(forTablet.instances).toEqual([
+      expect.objectContaining({ id: 'bridge' }),
+      expect.objectContaining({ id: 'tablet', shipConsoleWriteGrant: expect.objectContaining({ shipId: 'dione' }) }),
+    ]);
+    expect(forTablet.instances[0]).not.toHaveProperty('shipConsoleWriteGrant');
+  });
+
   it('returns a safe stale receipt when facilitator revision changed before saving', async () => {
     session({ phase: 'lobby', currentTurn: 0, setupRevision: 5, configurationLocked: false });
     player('u1', { role: 'gm' });
@@ -773,7 +877,9 @@ describe('GM registration lock', () => {
       },
     });
     player('u1', { role: 'gm' });
-    instance('bridge', 'u1');
+    instance('bridge', 'u1', {
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
+    });
     put('sessions/s1/gmInstances/stale', {
       uid: 'u1', sessionId: 's1', name: 'Stale', deviceLabel: 'Old browser',
       connected: false, claimedAt: 'old-server-time',
@@ -804,7 +910,9 @@ describe('GM registration lock', () => {
     try {
       session({ phase: 'active', currentTurn: 1 });
       player('u1', { role: 'gm' });
-      instance('bridge', 'u1');
+      instance('bridge', 'u1', {
+        shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: startedAt.toISOString() },
+      });
       instance('old-tab', 'u1');
       put('sessions/s1/gmInstances/bridge', {
         ...read('sessions/s1/gmInstances/bridge'),

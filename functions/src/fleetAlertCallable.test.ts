@@ -31,7 +31,7 @@ beforeEach(() => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
       : { phase: mock.phase, currentTurn: mock.currentTurn, fleetRedAlert: { revision: mock.revision, active: mock.active, ...(mock.raisedAt ? { raisedAt: mock.raisedAt } : {}) }, turnPhase: mock.turnPhase };
-    return { exists: mock.exists, get: (key: string) => fields[key] };
+    return { exists: mock.exists, id: path.includes('/players/') ? 'u1' : 's1', get: (key: string) => fields[key] };
   });
 });
 it('lets the active Admiral raise and cancel the shared warning', async () => {
@@ -73,13 +73,16 @@ it('allows an entitled Admiral at Turn 0 and still checks the GM instance', asyn
   await expect(setFleetRedAlert.run(request())).resolves.toMatchObject({ revision: 1 });
   mock.role = 'gm';
   const previous = mock.get.getMockImplementation()!;
-  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')
+  mock.get.mockImplementation(async (path: string) => {
+    return path.includes('/gmInstances/')
     ? { exists: true, get: (key: string) => ({
-        uid: 'u1', connected: true,
+      uid: 'u1', connected: true,
         claimedAt: { toMillis: () => Date.now() },
         lastSeenAt: { toMillis: () => Date.now() },
+        shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
       } as Record<string, unknown>)[key] }
-    : previous(path));
+    : previous(path);
+  });
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>))
     .resolves.toMatchObject({ revision: 1 });
 });
@@ -134,9 +137,27 @@ it('lets a verified GM observer command the Admiral console without claiming it'
         uid: 'u1', connected: true,
         claimedAt: { toMillis: () => Date.now() },
         lastSeenAt: { toMillis: () => Date.now() },
+        shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
       } as Record<string, unknown>)[key] }
     : previous(path));
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>)).resolves.toMatchObject({ revision: 1 });
+});
+
+it('rejects a GM fleet alert when the scoped grant belongs to another ship', async () => {
+  mock.role = 'gm'; mock.post = '';
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')
+    ? { exists: true, get: (key: string) => ({
+        uid: 'u1', connected: true,
+        claimedAt: { toMillis: () => Date.now() },
+        lastSeenAt: { toMillis: () => Date.now() },
+        shipConsoleWriteGrant: { shipId: 'dione', grantedAt: new Date().toISOString() },
+      } as Record<string, unknown>)[key] }
+    : previous(path));
+
+  await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('stores custom warning text in uppercase under Admiral authority', async () => {

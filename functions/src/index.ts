@@ -50,6 +50,7 @@ import {
   requireGmAccessLogoutRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
+  requireGmShipConsoleWriteGrantRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
@@ -6882,6 +6883,7 @@ function gmInstanceFrom(
   id: string,
   data: FirebaseFirestore.DocumentData,
   projectLegacySingle = false,
+  projectShipConsoleWriteGrant = true,
 ) {
   const responsibilities = Array.isArray(data.responsibilities)
     ? ['main', 'assistant'].filter((responsibility) => data.responsibilities.includes(responsibility))
@@ -6897,6 +6899,15 @@ function gmInstanceFrom(
     ...(responsibilities.length > 0 ? { responsibilities } : {}),
     ...(data.responsibility === 'main' || data.responsibility === 'assistant'
       ? { responsibility: data.responsibility } : {}),
+    ...(projectShipConsoleWriteGrant && data.shipConsoleWriteGrant && typeof data.shipConsoleWriteGrant === 'object' &&
+      !Array.isArray(data.shipConsoleWriteGrant) &&
+      typeof data.shipConsoleWriteGrant.shipId === 'string'
+      ? {
+        shipConsoleWriteGrant: {
+          shipId: data.shipConsoleWriteGrant.shipId,
+          grantedAt: isoOf(data.shipConsoleWriteGrant.grantedAt),
+        },
+      } : {}),
     claimedAt: isoOf(data.claimedAt),
   };
 }
@@ -7047,6 +7058,55 @@ export const claimGmInstance = onCall<{
   return { instance: gmInstanceFrom(claim.sessionId, instance.id, instance.data() ?? {}) };
 });
 
+/** Grant or revoke one browser-scoped ship-console write target. */
+export const setGmShipConsoleWriteGrant = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  shipId?: unknown;
+  enabled?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const grant = requireGmShipConsoleWriteGrantRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${grant.sessionId}`);
+  const playerRef = db.doc(`sessions/${grant.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${grant.sessionId}/gmInstances/${grant.instanceId}`);
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isLiveGmInstance(instance, player, uid)) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (!isResourceShipId(grant.shipId) ||
+        !activeVesselIdsForSession(session).includes(grant.shipId)) {
+      throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
+    }
+    if (!grant.enabled) {
+      const current = instance.get('shipConsoleWriteGrant');
+      if (isRecord(current) && current.shipId === grant.shipId) {
+        tx.update(instanceRef, { shipConsoleWriteGrant: null });
+      }
+      return;
+    }
+    tx.update(instanceRef, {
+      shipConsoleWriteGrant: {
+        shipId: grant.shipId,
+        grantedAt: FieldValue.serverTimestamp(),
+      },
+    });
+  });
+
+  const instance = await instanceRef.get();
+  const current = instance.get('shipConsoleWriteGrant');
+  const enabled = grant.enabled && isRecord(current) && current.shipId === grant.shipId;
+  return {
+    enabled,
+    ...(enabled ? { shipId: grant.shipId } : {}),
+  };
+});
+
 /** Return every active GM browser instance to a session member. */
 export const listGmInstances = onCall<{ sessionId?: string }>(async (request) => {
   const uid = requireUid(request.auth);
@@ -7063,7 +7123,13 @@ export const listGmInstances = onCall<{ sessionId?: string }>(async (request) =>
     // in Firestore while a vanished browser's lease expires, but they must not
     // count toward locked-table recovery or appear as handoff targets.
     instances: liveInstances.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data() ?? {}, liveInstances.length === 1)),
+      gmInstanceFrom(
+        sessionId,
+        instance.id,
+        instance.data() ?? {},
+        liveInstances.length === 1,
+        instance.get('uid') === uid,
+      )),
   };
 });
 
@@ -7567,7 +7633,9 @@ export const jumpShip = onCall<{
   let integrityRoll: number | undefined;
 
   return db.runTransaction(async (tx) => {
-    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, false);
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, false, true,
+    );
     const session = await tx.get(sessionRef);
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
@@ -7780,7 +7848,7 @@ export const setShipConsoleLock = onCall<{
 
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
-      tx, change.sessionId, uid, change.shipId, change.instanceId, false,
+      tx, change.sessionId, uid, change.shipId, change.instanceId, false, true,
     );
     const session = await tx.get(sessionRef);
     const player = await tx.get(playerRef);
@@ -9313,7 +9381,7 @@ export const applyRolePreset = onCall<{
 
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
 export const popShipConfetti = onCall<{
-  sessionId?: string; shipId?: string; roleId?: string; requestId?: string;
+  sessionId?: string; shipId?: string; roleId?: string; requestId?: string; instanceId?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const activation = requireShipConfettiRequest(request.data ?? {});
@@ -9331,16 +9399,26 @@ export const popShipConfetti = onCall<{
   const approvalRef = db.doc(`sessions/${activation.sessionId}/shipConfettiApprovals/${shipId}`);
   const connectedPlayersQuery = db.collection(`sessions/${activation.sessionId}/players`)
     .where('connected', '==', true);
+  const instanceRef = activation.instanceId
+    ? db.doc(`sessions/${activation.sessionId}/gmInstances/${activation.instanceId}`)
+    : null;
 
   const status = await db.runTransaction(async (tx): Promise<'fired' | 'awaiting-officer'> => {
-    const [session, player, approval, connectedPlayers] = await Promise.all([
+    const [session, player, approval, connectedPlayers, instance] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(approvalRef),
       tx.get(connectedPlayersQuery),
+      instanceRef ? tx.get(instanceRef) : null,
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (player.get('role') === 'gm' && (
+      !activation.instanceId || !instance || !isLiveGmInstance(instance, player, uid) ||
+      !hasGmShipConsoleWriteGrant(instance, shipId)
+    )) {
+      throw new HttpsError('permission-denied', 'Select this ship for GM write access first.');
+    }
     requireActiveGameplayPhase(session);
 
     if (shipId !== 'snn-press-shuttle' && !activeVesselIdsForSession(session).includes(shipId)) {
@@ -10501,6 +10579,7 @@ async function requireShipCounterAuthority(
   shipId: string,
   instanceId?: string,
   gmOnly = false,
+  requireScopedGmGrant = false,
 ): Promise<void> {
   if (!isResourceShipId(shipId)) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
   const [player, session] = await Promise.all([
@@ -10522,6 +10601,9 @@ async function requireShipCounterAuthority(
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
+    if (requireScopedGmGrant && !hasGmShipConsoleWriteGrant(instance, shipId)) {
+      throw new HttpsError('permission-denied', 'Select this ship for GM write access first.');
+    }
     return;
   }
   const ownRole = player.get('activeConsoleRoleId');
@@ -10534,6 +10616,14 @@ async function requireShipCounterAuthority(
       roleShipId(ownRole) !== shipId) {
     throw new HttpsError('permission-denied', 'An active role aboard this ship is required.');
   }
+}
+
+function hasGmShipConsoleWriteGrant(
+  instance: DocumentSnapshot,
+  shipId: string,
+): boolean {
+  const grant = instance.get('shipConsoleWriteGrant');
+  return isRecord(grant) && grant.shipId === shipId;
 }
 
 async function requireConsoleAuthority(
@@ -10556,8 +10646,11 @@ async function requireConsoleAuthority(
     if (!isLiveGmInstance(instance, player, player.id)) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
-    // A GM may operate a ship console without selecting a player station, but
-    // the named browser lease remains the authority boundary for the command.
+    const targetShip = shipForRole(targetRole);
+    if (!targetShip || !activeVesselIdsForSession(session).includes(targetShip) ||
+        !hasGmShipConsoleWriteGrant(instance, targetShip)) {
+      throw new HttpsError('permission-denied', 'Select this ship for GM write access first.');
+    }
     return;
   }
   if (player.get('role') !== 'gm' &&
@@ -11039,7 +11132,7 @@ export const addShipDamage = onCall<{
   const eventId = `damage-${identity.requestId}`;
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
-      tx, change.sessionId, uid, change.shipId, change.instanceId, true,
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -12796,7 +12889,9 @@ async function requireMaintenanceAuthority(
     isJointEngineeringRoleAvailable(activeRoleIds, ownRoleId) &&
     jointEngineeringShipsForRole(ownRoleId).includes(shipId);
   if (!joint && !replacementVipHost) {
-    await requireShipCounterAuthority(tx, sessionId, uid, shipId, instanceId);
+    await requireShipCounterAuthority(
+      tx, sessionId, uid, shipId, instanceId, false, player.get('role') === 'gm',
+    );
   }
   if (consoleRoleId && player.get('role') !== 'gm') {
     if (replacementVipHost) {
@@ -13359,6 +13454,11 @@ export const transferVipCard = onCall<{
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
       throw new HttpsError('permission-denied', 'Join the session before transferring a VIP card.');
     }
+    if (player.get('role') === 'gm') {
+      await requireShipCounterAuthority(
+        tx, data.sessionId, uid, 'dione', data.instanceId, false, true,
+      );
+    }
     if (!isActivePlayer(target) || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'The target player is not connected.', 'conflict');
     }
@@ -13444,9 +13544,7 @@ export const setFleetRedAlert = onCall<{
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
       throw new HttpsError('permission-denied', 'Only the active AEGIS Admiral may command a fleet red alert.');
     }
-    if (player.get('role') === 'gm' && data.instanceId) {
-      await requireShipCounterAuthority(tx, data.sessionId, uid, 'aegis', data.instanceId, true);
-    } else await requireConsoleAuthority(tx, data.sessionId, player, 'admiral', data.instanceId);
+    await requireConsoleAuthority(tx, data.sessionId, player, 'admiral', data.instanceId);
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
@@ -13683,7 +13781,9 @@ export const repairAllShipDamage = onCall<{
     identity.expectedRevision ?? null, { shipId: change.shipId },
   );
   return db.runTransaction(async tx => {
-    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true, true,
+    );
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
@@ -13781,7 +13881,9 @@ export const rollbackMaintenance = onCall<{
   const eventId = `maintenance-rollback-${change.requestId}`;
   return db.runTransaction(async tx => {
     const authority = await requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId);
-    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true, true,
+    );
     const prior = await tx.get(requestRef);
     const replay = maintenanceRollbackReceiptReply(prior, fingerprint);
     if (replay) return replay;

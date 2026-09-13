@@ -16,6 +16,7 @@ import { shuttlebayForShip } from '@/data/shuttles';
 import {
   popShipConfetti,
   selectConsoleRole,
+  setGmShipConsoleWriteGrant,
   setShipConsoleLock,
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
@@ -64,6 +65,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
   const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
   const [observerWrite, setObserverWrite] = useState(false);
+  const [observerWritePending, setObserverWritePending] = useState(false);
+  const grantedShipId = useSessionStore((state) => state.gmInstance?.shipConsoleWriteGrant?.shipId);
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
   // The base ship route is also a valid return path after a player has
@@ -125,7 +128,17 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     void Promise.resolve(selectConsoleRole(consoleRole.id)).catch(() => undefined);
   }, [canClaimConsoleRole, consoleRole, observer, visiting]);
 
-  useEffect(() => setObserverWrite(false), [ship?.id, observer]);
+  useEffect(() => {
+    setObserverWrite(observer && grantedShipId === ship?.id);
+    setObserverWritePending(false);
+  }, [ship?.id, observer, grantedShipId]);
+
+  useEffect(() => {
+    if (!observer || !ship?.id || !gmInstanceId) return;
+    return () => {
+      void Promise.resolve(setGmShipConsoleWriteGrant(ship.id, false)).catch(() => undefined);
+    };
+  }, [gmInstanceId, observer, ship?.id]);
 
   useEffect(() => {
     setHideResources(false);
@@ -224,6 +237,20 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       // The shared interception notice reports races and connectivity failures.
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function toggleObserverWrite(): Promise<void> {
+    if (!ship?.id || !gmInstanceId || observerWritePending) return;
+    const enabled = !observerWrite;
+    setObserverWritePending(true);
+    try {
+      const granted = await setGmShipConsoleWriteGrant(ship.id, enabled);
+      setObserverWrite(granted);
+    } catch {
+      setObserverWrite(false);
+    } finally {
+      setObserverWritePending(false);
     }
   }
 
@@ -436,7 +463,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               type="button"
               aria-label="Observer write mode"
               aria-pressed={observerWrite}
-              onClick={() => setObserverWrite((current) => !current)}
+              disabled={observerWritePending}
+              onClick={() => void toggleObserverWrite()}
             >
               Read / Write // {observerWrite ? 'Write' : 'Read'}
             </button>
