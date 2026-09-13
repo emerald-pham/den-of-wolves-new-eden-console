@@ -49,6 +49,8 @@ export function navigationState(value: unknown, activeVesselIds: readonly string
   const coordinates = isRecord(raw.shipGalacticCoordinates) ? raw.shipGalacticCoordinates : {};
   const logs = isRecord(raw.shipNavigationLogs) ? raw.shipNavigationLogs : {};
   return {
+    // Keep a malformed current fix for the movement authority to reject with
+    // its integrity guard; player projections sanitize it to the origin below.
     shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((shipId) => [
       shipId,
       typeof coordinates[shipId] === 'string' ? coordinates[shipId] : INITIAL_COORDINATE,
