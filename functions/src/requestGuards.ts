@@ -18,7 +18,7 @@ import {
   type WolfAttackTargetMode,
 } from './wolfAttackPreparation';
 import { isReplacementEligibilityReason } from './replacementRoles';
-import { isCrisisState, type CrisisStateName } from './crisisState';
+import { isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1161,6 +1161,8 @@ export function requireCrisisTransitionRequest(data: {
   state?: unknown;
   title?: unknown;
   details?: unknown;
+  crisisKind?: unknown;
+  configurationOverride?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
@@ -1170,6 +1172,8 @@ export function requireCrisisTransitionRequest(data: {
   state: CrisisStateName;
   title: string;
   details: string;
+  crisisKind: CrisisKind;
+  configurationOverride: string;
 } {
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
@@ -1189,6 +1193,10 @@ export function requireCrisisTransitionRequest(data: {
   if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
     throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
   }
+  const crisisKind = data.crisisKind ?? (isCrisisKind(crisisId) ? crisisId : 'custom');
+  if (!isCrisisKind(crisisKind)) throw new HttpsError('invalid-argument', 'Unknown crisis kind.');
+  const configurationOverride = data.configurationOverride === undefined || data.configurationOverride === ''
+    ? '' : requiredText(data.configurationOverride, 'configurationOverride', 1000);
   return {
     ...requireGmInstanceRequest(data),
     requestId: requiredId(data.requestId, 'requestId'),
@@ -1197,6 +1205,8 @@ export function requireCrisisTransitionRequest(data: {
     state: data.state,
     title,
     details,
+    crisisKind,
+    configurationOverride,
   };
 }
 

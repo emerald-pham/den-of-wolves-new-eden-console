@@ -171,3 +171,22 @@ it('starts a new draft only after the prior crisis is closed', async () => {
     details: 'A facilitator-authored note.',
   });
 });
+
+it('blocks a President-dependent crisis when the President role is excluded', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: ['dione-captain'] });
+  await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'presidential-election' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/President/i) });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('blocks Religious Zealotry without Universal Arbour unless the facilitator records an override', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false });
+  await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'religious-zealotry' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/Universal Arbour/i) });
+  expect(mock.set).not.toHaveBeenCalled();
+  await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'religious-zealotry', configurationOverride: 'Facilitator adapts this crisis for the table.' })))
+    .resolves.toMatchObject({ status: 'committed' });
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({
+    crisisKind: 'religious-zealotry', configurationOverride: 'Facilitator adapts this crisis for the table.',
+  });
+});

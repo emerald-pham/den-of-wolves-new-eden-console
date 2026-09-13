@@ -37,3 +37,26 @@ export function canTransitionCrisis(
 ): boolean {
   return from === undefined ? to === 'draft' : CRISIS_TRANSITIONS[from].includes(to);
 }
+
+export const CRISIS_KINDS = [
+  'custom', 'approaching-vessel', 'disease-outbreak', 'religious-zealotry',
+  'civil-unrest', 'presidential-election',
+] as const;
+export type CrisisKind = (typeof CRISIS_KINDS)[number];
+export function isCrisisKind(value: unknown): value is CrisisKind {
+  return typeof value === 'string' && (CRISIS_KINDS as readonly string[]).includes(value);
+}
+
+/** Configuration requirements, not automatic crisis consequences. */
+export function crisisConfigurationBlocker(kind: CrisisKind, configuration: {
+  readonly presidentEnabled: boolean;
+  readonly universalArbourEnabled: boolean;
+}): string | null {
+  if (kind === 'presidential-election' && !configuration.presidentEnabled) {
+    return 'This crisis requires the President role. Record a facilitator override to adapt it.';
+  }
+  if (kind === 'religious-zealotry' && !configuration.universalArbourEnabled) {
+    return 'This crisis requires Universal Arbour loyalties. Record a facilitator override to adapt it.';
+  }
+  return null;
+}

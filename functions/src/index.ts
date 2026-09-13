@@ -253,7 +253,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { canTransitionCrisis, isCrisisState, type CrisisStateName } from './crisisState';
+import { canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   availableVipCards,
@@ -5389,6 +5389,8 @@ export const transitionCrisis = onCall<{
   state?: unknown;
   title?: unknown;
   details?: unknown;
+  crisisKind?: unknown;
+  configurationOverride?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
@@ -5410,6 +5412,8 @@ export const transitionCrisis = onCall<{
       state: crisis.state,
       title: crisis.title,
       details: crisis.details,
+      ...(request.data?.crisisKind === undefined ? {} : { crisisKind: crisis.crisisKind }),
+      ...(request.data?.configurationOverride === undefined ? {} : { configurationOverride: crisis.configurationOverride }),
     },
   };
 
@@ -5469,6 +5473,18 @@ export const transitionCrisis = onCall<{
         throw commandError('failed-precondition', 'Crisis content is fixed after draft creation.', 'conflict');
       }
     }
+    if (current.exists && !replacingClosedCrisis && (
+      crisis.crisisKind !== (current.get('crisisKind') ?? (isCrisisKind(previousCrisisId) ? previousCrisisId : 'custom')) ||
+      crisis.configurationOverride !== (current.get('configurationOverride') ?? '')
+    )) throw commandError('failed-precondition', 'Crisis configuration is fixed after draft creation.', 'conflict');
+    const activeRoles = authority.session.get('activeRoleIds') ?? DEFAULT_ACTIVE_ROLE_IDS;
+    const blocker = crisisConfigurationBlocker(crisis.crisisKind, {
+      presidentEnabled: authority.session.get('dioneEnabled') !== false && Array.isArray(activeRoles) && activeRoles.includes('dione-president'),
+      universalArbourEnabled: authority.session.get('universalArbourEnabled') === true,
+    });
+    if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !crisis.configurationOverride) {
+      throw commandError('failed-precondition', blocker, 'conflict');
+    }
     const revision = currentRevision + 1;
     const result: CrisisTransitionResult = {
       status: 'committed',
@@ -5486,6 +5502,8 @@ export const transitionCrisis = onCall<{
       revision,
       title: crisis.title,
       details: crisis.details,
+      crisisKind: crisis.crisisKind,
+      configurationOverride: crisis.configurationOverride,
       actorUid: uid,
       instanceId: crisis.instanceId,
       updatedAt: FieldValue.serverTimestamp(),
@@ -5499,6 +5517,8 @@ export const transitionCrisis = onCall<{
       revision,
       title: crisis.title,
       details: crisis.details,
+      crisisKind: crisis.crisisKind,
+      configurationOverride: crisis.configurationOverride,
       actorUid: uid,
       instanceId: crisis.instanceId,
       createdAt: FieldValue.serverTimestamp(),
