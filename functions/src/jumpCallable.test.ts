@@ -317,6 +317,12 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
     code: 'failed-precondition',
     message: expect.stringMatching(/coordination phase/i),
   });
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'restricted-movement', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/coordination phase/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
 });

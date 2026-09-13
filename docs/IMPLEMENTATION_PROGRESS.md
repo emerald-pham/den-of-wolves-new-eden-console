@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **212 / 750 prompts complete (28.27%)**
 
-Status breakdown: **212 done · 20 partial · 518 missing**.
+Status breakdown: **212 done · 22 partial · 516 missing**.
 
 Active prompt: **none**
 
@@ -568,9 +568,9 @@ release classification and evidence.
 | 142 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 143 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 144 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 145 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 145 | partial | non-feature | — | Partial production boundary: `declareWolfAttack` validates complete shuttle docking and fighter-wing state, atomically restricts `turnPhase.airspace`, and records every parked craft/docking snapshot; `moveShipToLocation` and `jumpShip` reject the restricted phase. The declaration does not relocate craft to nearest hosts or resolve equal-distance ties, so P146 and the P373 nearest-host contract remain genuine blockers. |
 | 146 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
-| 147 | missing | non-feature | — | Preserved [NEW] prompt: the typed shuttle and craft catalogs contain role ownership and operational procedures, but the current production surface has no attack declaration, battle-table action, or attack projection to filter. `functions/src/index.ts` exposes only the facilitator timing marker `setWolfAttackWindow`, and `src/routes/GmConsole.tsx` explicitly keeps that marker free of automatic attack or combat resolution. The missing attack foundation belongs to Prompts 432/432a (declaration and lifecycle) with audience projection in Prompt 433; Fighter Bay launch authorization remains Prompt 449. Keep this prompt missing until a real attack action consumes the printed combat-capability catalog; do not close it with metadata alone or invent combat resolution or nearest-host tie policy. |
+| 147 | partial | non-feature | — | Partial production boundary: the P432 declaration now validates and snapshots all represented parked craft, including fighter-wing bay state, and the restricted phase blocks ordinary movement. The current typed craft catalog has no printed combat-capability field, battle-table attack action, or audience-safe attack projection, so P147 cannot close until the P433-related combat surface consumes that catalog. Do not infer battle eligibility from parked status or craft kind, and do not add combat resolution or nearest-host tie policy here. |
 | 148 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 149 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 150 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

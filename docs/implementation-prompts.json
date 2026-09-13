@@ -102,8 +102,8 @@
     {
       "direction": "147 -> 432;433",
       "id": "E-147-RELATED",
-      "language": "Prompt 147 remains pending until the atomic attack declaration and audience-safe permitted-action projection exist; its capability filter must consume those future combat surfaces without adding combat resolution or nearest-host policy.",
-      "source": "IMPLEMENTATION_PLAN.md - Prompt 147 definition and Wolf attack engine sequence",
+      "language": "P432 now atomically declares the attack, requires every represented craft to have valid parked docking or fighter-wing state, and records the parked snapshot, but it still has no typed printed-combat capability flag, battle-table attack action, or audience-safe attack projection. P147 remains partial pending those consumers; nearest-host movement and tie policy stay separate.",
+      "source": "functions/src/index.ts; functions/src/craftOwnership.ts; functions/src/shuttlecraft.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; src/data/shuttles.ts; authorized routed REFERENCE_ONLY_WOLF_ATTACKS.md - The sequence; IMPLEMENTATION_PLAN.md - Prompt 147 definition",
       "type": "related/consumes"
     },
     {
@@ -697,8 +697,8 @@
     {
       "direction": "145 -> 141",
       "id": "E-AUDIT-145",
-      "language": "Wolf locking extends the existing normal airspace contract.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "P432 now fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts airspace and snapshots all parked craft; ordinary movement and jump callables reject the restricted phase. Relocation to nearest hosts and equal-distance ties remain unresolved under P146/P373.",
+      "source": "functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/jumpCallable.test.ts; functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_WOLF_ATTACKS.md - The sequence",
       "type": "hard_prompt"
     },
     {
@@ -8484,7 +8484,7 @@
         "acceptance": "extend the existing authoritative airspace/turn primitives so declaring an attack blocks ordinary movement and begins server-owned parking for every shuttle without weakening current restrictions.",
         "title": "Lock airspace for a Wolf attack."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Partial production boundary: `declareWolfAttack` validates complete shuttle docking and fighter-wing state, atomically restricts `turnPhase.airspace`, and records every parked craft/docking snapshot; `moveShipToLocation` and `jumpShip` reject the restricted phase. The declaration does not relocate craft to nearest hosts or resolve equal-distance ties, so P146 and the P373 nearest-host contract remain genuine blockers.",
       "evidenceIds": "E-AUDIT-145",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8496,7 +8496,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -8530,7 +8530,7 @@
         "acceptance": "extend current typed craft/docking catalogs so only printed combat-capable shuttles and fighter wings appear in attack actions; all others remain parked.",
         "title": "Restrict battle-table craft."
       },
-      "description": "Preserved [NEW] prompt: the typed shuttle and craft catalogs contain role ownership and operational procedures, but the current production surface has no attack declaration, battle-table action, or attack projection to filter. `functions/src/index.ts` exposes only the facilitator timing marker `setWolfAttackWindow`, and `src/routes/GmConsole.tsx` explicitly keeps that marker free of automatic attack or combat resolution. The missing attack foundation belongs to Prompts 432/432a (declaration and lifecycle) with audience projection in Prompt 433; Fighter Bay launch authorization remains Prompt 449. Keep this prompt missing until a real attack action consumes the printed combat-capability catalog; do not close it with metadata alone or invent combat resolution or nearest-host tie policy.",
+      "description": "Partial production boundary: the P432 declaration now validates and snapshots all represented parked craft, including fighter-wing bay state, and the restricted phase blocks ordinary movement. The current typed craft catalog has no printed combat-capability field, battle-table attack action, or audience-safe attack projection, so P147 cannot close until the P433-related combat surface consumes that catalog. Do not infer battle eligibility from parked status or craft kind, and do not add combat resolution or nearest-host tie policy here.",
       "evidenceIds": "E-147-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8542,7 +8542,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
