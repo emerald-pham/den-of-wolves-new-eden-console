@@ -188,3 +188,48 @@ it.each(['comms-officer', 'wolf-commander'])('atomically replaces former ship di
   expect(JSON.stringify(write?.[1])).not.toContain('5143');
   expect(mock.target.assignedRoleId).toBe('dione-captain');
 });
+
+it('rejects an extra-ship replacement when only small-ship state names a vessel', async () => {
+  mock.session = { ...mock.session, activeVesselIds: undefined, smallShipStates: { gorgoneion: {} } };
+  mock.eligibility = { eligible: true, reason: 'late', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-small-state-only',
+    targetUid: 'player-1', replacementRoleId: 'gorgoneion-captain', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects an extra-ship replacement when the persisted vessel tuple is malformed', async () => {
+  mock.session = { ...mock.session, activeVesselIds: ['aegis', 'aegis'], smallShipStates: { gorgoneion: {} } };
+  mock.eligibility = { eligible: true, reason: 'removed', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-malformed-tuple',
+    targetUid: 'player-1', replacementRoleId: 'gorgoneion-captain', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('allows an extra-ship replacement only when its vessel is in the persisted tuple', async () => {
+  mock.session = { ...mock.session, activeVesselIds: ['aegis', 'gorgoneion'] };
+  mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-valid-vessel',
+    targetUid: 'player-1', replacementRoleId: 'gorgoneion-captain', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).resolves.toMatchObject({ status: 'committed', replacementRoleId: 'gorgoneion-captain' });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
+    { replacementRoleId: 'gorgoneion-captain', activeConsoleRoleId: null, seatId: null },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/roleBriefs/player-1' }),
+    expect.objectContaining({ roleId: 'gorgoneion-captain', visibleToUids: ['player-1'] }),
+  );
+});

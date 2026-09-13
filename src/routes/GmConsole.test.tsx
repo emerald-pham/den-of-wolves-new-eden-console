@@ -425,7 +425,12 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
-    activeRoleIds: ['admiral'], expansion: 'base', smallShipStates: {},
+    activeRoleIds: ['admiral'], expansion: 'base', smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: null, dockingRevision: 0,
+        population: 1000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
   });
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -447,6 +452,7 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   renderConsole();
 
   const panel = await screen.findByRole('region', { name: 'Facilitator replacement roles' });
+  expect(within(panel).queryByRole('option', { name: /Gorgoneion Captain/i })).not.toBeInTheDocument();
   await user.selectOptions(within(panel).getByLabelText('Player record'), 'u2');
   const record = within(panel).getByRole('button', { name: 'Record eligibility' });
   record.focus();

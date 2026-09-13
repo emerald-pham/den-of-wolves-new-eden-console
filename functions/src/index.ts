@@ -23,6 +23,7 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
+import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
 import { mayClaimGmInstance } from './gmControlsLock';
@@ -4153,10 +4154,13 @@ function replacementRevision(snapshot: DocumentSnapshot): number {
 }
 
 function replacementVesselIds(session: DocumentSnapshot): readonly string[] {
-  const configured = activeVesselIdsForSession(session);
-  const smallShipStates = session.get('smallShipStates');
-  const smallShips = isRecord(smallShipStates) ? Object.keys(smallShipStates) : [];
-  return [...new Set([...configured, ...smallShips])];
+  const persisted = session.get('activeVesselIds');
+  if (!Array.isArray(persisted) || persisted.length === 0 ||
+      persisted.some((value) => !isWireSafeEntityId(value)) ||
+      new Set(persisted).size !== persisted.length) {
+    return [];
+  }
+  return [...persisted] as string[];
 }
 
 function replacementRoleIsOccupied(

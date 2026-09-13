@@ -557,10 +557,7 @@ export default function GmConsole() {
   const replacementCandidates = allPlayers
     .filter((player) => player.role === 'player' && !player.replacementRoleId)
     .sort((left, right) => normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
-  const replacementVesselIds = new Set([
-    ...(session?.activeVesselIds ?? []),
-    ...Object.keys(session?.smallShipStates ?? {}),
-  ]);
+  const replacementVesselIds = new Set(session?.activeVesselIds ?? []);
   const replacementRoles = REPLACEMENT_ROLE_CATALOG.filter((role) =>
     (!role.baseVesselOnly || session?.expansion !== 'capybara') &&
     (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
