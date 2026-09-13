@@ -110,7 +110,7 @@ function useConnectionStatusGrace(
     lastPlayerActivityAt.current = null;
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const becameOffline = previousStatus.current !== 'red' && status === 'red';
     const gainedCachedSession = !previousHasCachedSession.current && hasCachedSession;
     previousStatus.current = status;
