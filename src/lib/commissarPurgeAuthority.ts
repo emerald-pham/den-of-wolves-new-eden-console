@@ -16,4 +16,3 @@ export function commissarPurgeAuthorityIsCurrent(
     ? 'admiral' : `${authority.shipId}-captain`;
   return authority.captainRoleId === expectedCaptainRole;
 }
-
