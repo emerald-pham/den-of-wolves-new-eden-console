@@ -205,6 +205,19 @@ specific values. A facilitator call is not a deterministic rule result: it
 must be recorded as an explicit decision with the source, scope, actor, reason,
 and resulting state.
 
+### Split-fleet clock policy — Prompt 107
+
+The product owner selected shared timing on 2026-09-13: every fleet group uses
+one authoritative session turn and phase clock. The session owns phase
+boundaries, pauses, extensions, and advancement. Splitting or rejoining never
+creates, resets, pauses, extends, or advances a separate group clock.
+
+A timing projection conveys only the shared clock. It grants no access to
+another group's location, pursuit, roster, contacts, or communications. Group
+projections and action authorization must enforce those boundaries separately.
+This is a product-owner policy decision; it does not establish printed-source
+clock semantics or prove the unfinished split-fleet runtime contracts.
+
 ### Decisions and blocked items
 
 | ID | Source evidence | Decision or block | Implementation consequence |

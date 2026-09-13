@@ -4886,6 +4886,13 @@
       "language": "Failing-first coverage reproduced same-UID promotion without listener restart, cached organiser hydration, and privileged browser persistence. Role changes now rebind the session listener; generation checks reject former callbacks and terminal GM read errors block late snapshots. A shared privacy helper strips every organiser navigation field on save and legacy restore while preserving only the own-player projection. Focused App, Firestore, store and rendered component tests cover recovery and privacy; existing server projection tests prove different ships retain their own visited coordinates. Chrome component fixtures at 320x844 reduced motion, 1440x900 normal motion and 844x390 reduced motion showed all 22 GM coordinate attributes and only the known origin for the ship, with no page overflow. Phone keyboard selection reached all 22 GM nodes and the enlarged selected-fix readout. Existing compact 11px nodes and phone crowding are unchanged; no layout improvement or live gameplay mutation is claimed. Independent Terra review cleared the authority changes and the storage repair. Future scan and sharing producers remain governed by their own prompts.",
       "source": "src/App.tsx; src/App.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/navigationPrivacy.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts; src/components/GmStarmapModule.test.tsx; src/components/Starmap.test.tsx; functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; firestore.rules",
       "type": "evidence / regression / privacy / reconnect / rendered"
+    },
+    {
+      "direction": "107 -> 151;286;336;337;348;350",
+      "id": "E-107-OWNER-CLOCK",
+      "language": "The product owner selected a shared turn and phase clock for every fleet group. One server-owned session clock governs phase boundaries, pauses, extensions, and advancement. Group creation and rejoin preserve that clock; timing alone grants no cross-group location, pursuit, roster, contact, or communication visibility. Decision closure does not claim completed split-fleet runtime isolation.",
+      "source": "Product-owner response in project completion takeover task, 2026-09-13; docs/IMPLEMENTATION_CONTRACTS.md - Split-fleet clock policy",
+      "type": "owner / decision / related/consumes"
     }
   ],
   "plan": {
@@ -7548,19 +7555,19 @@
         "acceptance": "one recorded policy governs whether groups share phase windows; no group learns forbidden location state.",
         "title": "Decide split-fleet clock semantics."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Product owner decided on 2026-09-13 that all split fleet groups share one authoritative session turn and phase clock. Splitting or rejoining does not start, pause, reset, extend, or advance a separate group clock. Clock projections contain timing only and must not reveal another group’s location, pursuit, roster, contacts, or communications. This closes the timing-policy decision only; group-local isolation and split/rejoin implementation remain their own open prompts.",
+      "evidenceIds": "E-107-OWNER-CLOCK",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
       "id": "107",
       "milestoneHints": "M2",
-      "relatedConsumes": "none",
+      "relatedConsumes": "151;286;336;337;348;350",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
