@@ -113,6 +113,20 @@ beforeEach(async () => {
       visibleToUids: ['press'],
       payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 },
     });
+    await setDoc(doc(db, `${SESSION}/secrets/loyalty-alice-friend`), {
+      visibleToUids: ['alice'],
+      payload: {
+        type: 'loyalty', kind: 'friend', suspicion: 0,
+        partnerUid: 'press', partnerRoleId: 'press-officer',
+      },
+    });
+    await setDoc(doc(db, `${SESSION}/secrets/loyalty-press-friend`), {
+      visibleToUids: ['press'],
+      payload: {
+        type: 'loyalty', kind: 'friend', suspicion: 0,
+        partnerUid: 'alice', partnerRoleId: 'admiral',
+      },
+    });
     await setDoc(doc(db, `${SESSION}/secrets/setup-receipt-start-1`), {
       visibleToUids: ['gm1'],
       payload: { type: 'setup-receipt', source: 'routine-start' },
@@ -968,6 +982,14 @@ describe('secrets', () => {
     await assertFails(getDoc(doc(as('stranger'), `${SESSION}/secrets/loyalty-press`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/setup-receipt-start-1`)));
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/sec1`)));
+  });
+
+  it('keeps reciprocal Friend cards private to their exact holders', async () => {
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-alice-friend`)));
+    await assertSucceeds(getDoc(doc(as('press'), `${SESSION}/secrets/loyalty-press-friend`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/secrets/loyalty-alice-friend`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-press-friend`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/loyalty-alice-friend`)));
   });
 
   it('denies every client write', async () => {

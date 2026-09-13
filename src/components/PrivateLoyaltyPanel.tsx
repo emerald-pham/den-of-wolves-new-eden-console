@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PrivateLoyalty } from '@/types/game';
+import { findConsoleRole } from '@/data/roles';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
@@ -28,6 +29,13 @@ function isCurrentAndroidCard(
   // The object identity is the assignment cursor. A replacement card with
   // equal-looking fields must not inherit a delayed disclosure result.
   return current === dispatched && current.kind === 'android' && dispatched.kind === 'android';
+}
+
+function partnerLabel(loyalty: PrivateLoyalty): string | undefined {
+  if (loyalty.kind === 'friend' && loyalty.partnerRoleId) {
+    return findConsoleRole(loyalty.partnerRoleId)?.name ?? loyalty.partnerRoleId;
+  }
+  return loyalty.partnerUid;
 }
 
 /** The current browser's private setup card; never accepts another player's id. */
@@ -85,8 +93,10 @@ export default function PrivateLoyaltyPanel() {
         <p className="private-loyalty-panel__suspicion">
           Suspicion // {loyalty.suspicion === null ? 'unassigned' : loyalty.suspicion}
         </p>
-        {loyalty.partnerUid && (
-          <p className="private-loyalty-panel__partner">Partner assignment // {loyalty.partnerUid}</p>
+        {partnerLabel(loyalty) && (
+          <p className="private-loyalty-panel__partner">
+            {loyalty.kind === 'friend' ? 'Friend trust // partner role' : 'Partner assignment'} // {partnerLabel(loyalty)}
+          </p>
         )}
         {loyalty.kind === 'android' && (loyalty.proofRevealed ? (
           <p className="private-loyalty-panel__proof" role="status">

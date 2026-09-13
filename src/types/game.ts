@@ -613,6 +613,8 @@ export interface PrivateLoyalty {
   readonly kind: string;
   readonly suspicion: number | null;
   readonly partnerUid?: PlayerId;
+  /** Server-authored role named by a reciprocal Friend card. */
+  readonly partnerRoleId?: RoleId;
   /** Server-owned marker after the Android holder voluntarily discloses proof. */
   readonly proofRevealed?: boolean;
 }

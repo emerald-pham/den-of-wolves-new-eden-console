@@ -159,6 +159,9 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
   const partnerUid = payload.partnerUid === undefined || payload.partnerUid === null
     ? undefined
     : parseEntityId('player', payload.partnerUid);
+  const partnerRoleId = payload.partnerRoleId === undefined || payload.partnerRoleId === null
+    ? undefined
+    : parseEntityId('role', payload.partnerRoleId);
   const proofMarker = payload.proofRevealed;
   if (payload.kind === 'android' && (
     payload.type !== 'loyalty' || payload.suspicion !== null ||
@@ -167,12 +170,14 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
   if (typeof payload.kind !== 'string' ||
       (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
       (payload.partnerUid !== undefined && payload.partnerUid !== null && !partnerUid) ||
+      (payload.partnerRoleId !== undefined && payload.partnerRoleId !== null && !partnerRoleId) ||
       (proofMarker !== undefined && typeof proofMarker !== 'boolean') ||
       (payload.kind === 'android' && proofMarker === false)) return null;
   return {
     kind: payload.kind,
     suspicion: payload.suspicion,
     ...(partnerUid ? { partnerUid } : {}),
+    ...(partnerRoleId ? { partnerRoleId } : {}),
     ...(payload.kind === 'android' && proofMarker === true ? { proofRevealed: true } : {}),
   };
 }

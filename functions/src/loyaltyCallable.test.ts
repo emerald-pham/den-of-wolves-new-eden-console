@@ -628,7 +628,16 @@ it('pairs Friends by writing reciprocal private records and rejects malformed su
   }))).resolves.toMatchObject({ assignedUids: ['u2', 'u3'] });
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u3' }),
-    expect.objectContaining({ visibleToUids: ['u3'] }),
+    expect.objectContaining({
+      visibleToUids: ['u3'],
+      payload: expect.objectContaining({ partnerUid: 'u2', partnerRoleId: 'icebreaker-miner' }),
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({
+      payload: expect.objectContaining({ partnerUid: 'u3', partnerRoleId: 'admiral' }),
+    }),
   );
 
   mock.set.mockClear();

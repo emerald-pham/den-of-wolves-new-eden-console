@@ -194,3 +194,15 @@ it('gives a new Android identity independent pending feedback and ignores the ol
   await act(async () => newReply.resolve({ disclosed: true }));
   expect(screen.getByRole('status')).toHaveTextContent(/Android proof disclosed/i);
 });
+
+it('shows a Friend partner by the server-authored role on the private card', () => {
+  useSessionStore.getState().setPrivateLoyalty({
+    kind: 'friend', suspicion: 0, partnerUid: 'hidden-partner-uid', partnerRoleId: 'admiral',
+  });
+
+  render(<PrivateLoyaltyPanel />);
+
+  const panel = screen.getByRole('region', { name: /private loyalty card/i });
+  expect(panel).toHaveTextContent('Friend trust // partner role // Admiral');
+  expect(panel).not.toHaveTextContent('hidden-partner-uid');
+});

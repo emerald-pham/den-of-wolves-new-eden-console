@@ -754,6 +754,27 @@ it('hydrates only the current UID role brief and clears it when the assignment i
   expect(onRoleBrief).toHaveBeenLastCalledWith(null);
 });
 
+it('hydrates a reciprocal Friend role without exposing the partner UID to unrelated projections', () => {
+  const { callbacks } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    exists: () => true,
+    get: () => ({
+      type: 'loyalty', kind: 'friend', suspicion: 0,
+      partnerUid: 'u2', partnerRoleId: 'admiral',
+    }),
+  });
+
+  expect(onPrivateLoyalty).toHaveBeenCalledWith({
+    kind: 'friend', suspicion: 0, partnerUid: 'u2', partnerRoleId: 'admiral',
+  });
+});
+
 it('hydrates the known facilitator census only from server authority and allowlists its fields', () => {
   const { callbacks } = captureSessionListener();
   const onLoyaltyCensus = vi.fn();

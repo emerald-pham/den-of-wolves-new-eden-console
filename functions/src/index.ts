@@ -5213,13 +5213,21 @@ export const assignLoyalty = onCall<{
         kind,
         suspicion: validSuspicion,
         ...(assignment.partnerUid ? { partnerUid: assignment.partnerUid } : {}),
+        ...(kind === 'friend' && partner && typeof partner.get('assignedRoleId') === 'string'
+          ? { partnerRoleId: partner.get('assignedRoleId') }
+          : {}),
       },
       createdAt: FieldValue.serverTimestamp(),
     });
     if (assignment.partnerUid && partnerSecretRef) {
       tx.set(partnerSecretRef, {
         visibleToUids: [assignment.partnerUid],
-        payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: assignment.targetUid },
+        payload: {
+          type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: assignment.targetUid,
+          ...(typeof target.get('assignedRoleId') === 'string'
+            ? { partnerRoleId: target.get('assignedRoleId') }
+            : {}),
+        },
         createdAt: FieldValue.serverTimestamp(),
       });
     }
