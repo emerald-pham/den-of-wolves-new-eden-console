@@ -28,6 +28,7 @@ import { projectShipState } from '@/lib/shipStateProjection';
 import type { Player, DamageDraw } from '@/types/game';
 import DioneVipCards from '@/components/DioneVipCards';
 import CommissarPurgePanel from '@/components/CommissarPurgePanel';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
 const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
@@ -69,6 +70,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [observerWrite, setObserverWrite] = useState(false);
   const [observerWritePending, setObserverWritePending] = useState(false);
   const [observerWriteConfirm, setObserverWriteConfirm] = useState<GmShipConsoleWriteGrantAuthority | null>(null);
+  const observerWriteDialogRef = useRef<HTMLElement | null>(null);
   const observerWriteConfirmRef = useRef<HTMLButtonElement | null>(null);
   const observerWriteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const observerWriteCommandRef = useRef<Promise<void>>(Promise.resolve());
@@ -167,7 +169,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   function dismissObserverWriteConfirmation(): void {
     setObserverWriteConfirm(null);
-    observerWriteTriggerRef.current?.focus();
   }
 
   useEffect(() => {
@@ -203,15 +204,14 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     ship?.id,
   ]);
 
-  useEffect(() => {
-    if (!observerWriteConfirm) return;
-    observerWriteConfirmRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dismissObserverWriteConfirmation();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [observerWriteConfirm]);
+  useDialogFocus({
+    open: observerWriteConfirm !== null,
+    dialogRef: observerWriteDialogRef,
+    restoreRef: observerWriteTriggerRef,
+    initialFocusRef: observerWriteConfirmRef,
+    onEscape: dismissObserverWriteConfirmation,
+    dialogKey: observerWriteConfirm?.instanceId ?? null,
+  });
 
   useEffect(() => {
     const authority = observer ? captureObserverWriteAuthority() : null;
@@ -584,6 +584,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         {observer && observerWriteConfirm && (
           <div className="gm-write-confirm-backdrop" role="presentation" onClick={dismissObserverWriteConfirmation}>
             <section
+              ref={observerWriteDialogRef}
               className="gm-write-confirm cic-frame"
               role="alertdialog"
               aria-modal="true"

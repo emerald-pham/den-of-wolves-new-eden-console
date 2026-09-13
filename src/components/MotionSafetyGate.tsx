@@ -9,6 +9,7 @@ import {
   MotionPreferenceProvider,
   setMotionOverride,
 } from '@/lib/motionPreference';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 export interface MotionSafetyGateProps {
   readonly children: ReactNode;
@@ -21,35 +22,7 @@ interface MotionSafetyPromptProps {
 function MotionSafetyPrompt({ onChoose }: MotionSafetyPromptProps) {
   const dialog = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    const getFocusableControls = () => [...(dialog.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-    ) ?? [])];
-    getFocusableControls()[0]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const controls = getFocusableControls();
-      if (controls.length === 0) return;
-      const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
-      const nextIndex = event.shiftKey
-        ? (currentIndex <= 0 ? controls.length - 1 : currentIndex - 1)
-        : (currentIndex === controls.length - 1 ? 0 : currentIndex + 1);
-      event.preventDefault();
-      controls[nextIndex]?.focus();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (previouslyFocused?.isConnected) previouslyFocused.focus();
-    };
-  }, []);
+  useDialogFocus({ open: true, dialogRef: dialog });
 
   return (
     <div className="motion-safety-backdrop" data-motion-safety-gate="true">

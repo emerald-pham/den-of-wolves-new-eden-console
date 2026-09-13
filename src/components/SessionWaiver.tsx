@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SESSION_WAIVER_CONFIRM_DELAY_MS } from '@/lib/sessionWaiver';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 const REGULATIONS = [
   {
@@ -34,35 +35,7 @@ export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
   const confirmationReady = allRegulationsAcknowledged && remainingMs <= 0;
   const remainingSeconds = Math.ceil(remainingMs / 1_000);
 
-  useEffect(() => {
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    const getFocusableControls = () => [...(dialog.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-    ) ?? [])];
-    getFocusableControls()[0]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const controls = getFocusableControls();
-      if (controls.length === 0) return;
-      const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
-      const nextIndex = event.shiftKey
-        ? (currentIndex <= 0 ? controls.length - 1 : currentIndex - 1)
-        : (currentIndex === controls.length - 1 ? 0 : currentIndex + 1);
-      event.preventDefault();
-      controls[nextIndex]?.focus();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      if (previouslyFocused?.isConnected) previouslyFocused.focus();
-    };
-  }, []);
+  useDialogFocus({ open: true, dialogRef: dialog });
 
   useEffect(() => {
     const startedAt = Date.now();

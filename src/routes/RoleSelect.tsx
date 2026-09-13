@@ -14,6 +14,7 @@ import {
   type ConsoleMode,
 } from '@/store/useSessionStore';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 const MODES: readonly {
   mode: ConsoleMode;
@@ -73,40 +74,16 @@ export default function RoleSelect() {
     };
   }, [controlsLocked, isGm, session?.id]);
 
-  useEffect(() => {
-    if (!interventionSeatId) {
-      interventionTriggerRef.current?.focus();
-      return;
-    }
-    const dialog = interventionDialogRef.current;
-    if (!dialog) return;
-    interventionReasonRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setInterventionSeatId(null);
-        setInterventionReason('');
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = [...dialog.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href]',
-      )];
-      if (focusable.length === 0) return;
-      const first = focusable.at(0);
-      const last = focusable.at(-1);
-      if (!first || !last) return;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    dialog.addEventListener('keydown', onKeyDown);
-    return () => dialog.removeEventListener('keydown', onKeyDown);
-  }, [interventionSeatId]);
+  useDialogFocus({
+    open: interventionSeatId !== null,
+    dialogRef: interventionDialogRef,
+    restoreRef: interventionTriggerRef,
+    initialFocusRef: interventionReasonRef,
+    onEscape: () => {
+      setInterventionSeatId(null);
+      setInterventionReason('');
+    },
+  });
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm && me.activeConsoleRoleId) {

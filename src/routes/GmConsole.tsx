@@ -63,6 +63,7 @@ import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
 import { facilitatorQueueFor } from '@/lib/facilitatorQueue';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import {
   resetSessionWaiver,
@@ -413,11 +414,15 @@ export default function GmConsole() {
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
+  const capybaraDialogRef = useRef<HTMLElement>(null);
+  const capybaraTriggerRef = useRef<HTMLButtonElement>(null);
   const [draftCapybaraEnabled, setDraftCapybaraEnabled] = useState(
     () => session?.capybaraEnabled !== false,
   );
   const [changingDione, setChangingDione] = useState(false);
   const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
+  const dioneDialogRef = useRef<HTMLElement>(null);
+  const dioneTriggerRef = useRef<HTMLButtonElement>(null);
   const [draftDioneEnabled, setDraftDioneEnabled] = useState(
     () => session?.dioneEnabled !== false,
   );
@@ -435,7 +440,6 @@ export default function GmConsole() {
   const [pressMutationMessage, setPressMutationMessage] = useState<string | null>(null);
   const pressTriggerRef = useRef<HTMLButtonElement>(null);
   const pressDialogRef = useRef<HTMLElement>(null);
-  const restorePressTriggerFocus = useRef(false);
   const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
   const [skippingTurn, setSkippingTurn] = useState(false);
@@ -1096,62 +1100,7 @@ export default function GmConsole() {
   }, [serverWolfCultEnabled]);
 
   useEffect(() => {
-    if (pendingPressEnabled === null) {
-      if (restorePressTriggerFocus.current) {
-        restorePressTriggerFocus.current = false;
-        pressTriggerRef.current?.focus();
-      }
-      return;
-    }
-    const dialog = pressDialogRef.current;
-    if (!dialog) return;
-    const focusableElements = () => [...dialog.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
-    )];
-    const focusFirst = () => {
-      const first = focusableElements()[0];
-      if (first) first.focus();
-      else dialog.focus();
-    };
-    const onFocusIn = (event: FocusEvent) => {
-      if (!dialog.contains(event.target as Node)) focusFirst();
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        restorePressTriggerFocus.current = true;
-        setPendingPressEnabled(null);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = focusableElements();
-      if (focusable.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = focusable[0]!;
-      const last = focusable[focusable.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    focusFirst();
-    document.addEventListener('focusin', onFocusIn);
-    dialog.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('focusin', onFocusIn);
-      dialog.removeEventListener('keydown', onKeyDown);
-    };
-  }, [pendingPressEnabled]);
-
-  useEffect(() => {
     if (!endgameEvaluation || pendingPressEnabled === null) return;
-    restorePressTriggerFocus.current = false;
     setPendingPressEnabled(null);
   }, [endgameEvaluation, pendingPressEnabled]);
 
@@ -1215,6 +1164,36 @@ export default function GmConsole() {
     setConfirmAirspaceExtension(null);
     if (currentTurn !== 0) setConfirmGameStart(false);
   }, [activeAirspaceWindow, currentTurn]);
+
+  const activeConfirmation = pendingCapybaraEnabled !== null
+    ? 'capybara'
+    : pendingDioneEnabled !== null
+      ? 'dione'
+      : pendingPressEnabled !== null
+        ? 'press'
+        : null;
+  const activeConfirmationDialog = activeConfirmation === 'capybara'
+    ? capybaraDialogRef
+    : activeConfirmation === 'dione'
+      ? dioneDialogRef
+      : pressDialogRef;
+  const activeConfirmationTrigger = activeConfirmation === 'capybara'
+    ? capybaraTriggerRef
+    : activeConfirmation === 'dione'
+      ? dioneTriggerRef
+      : pressTriggerRef;
+  useDialogFocus({
+    open: activeConfirmation !== null,
+    dialogRef: activeConfirmationDialog,
+    restoreRef: activeConfirmationTrigger,
+    onEscape: activeConfirmation === 'press'
+      ? closePressDialog
+      : () => {
+        setPendingCapybaraEnabled(null);
+        setPendingDioneEnabled(null);
+      },
+    dialogKey: activeConfirmation,
+  });
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm || !local) return <Navigate to="/console" replace />;
@@ -1489,7 +1468,6 @@ export default function GmConsole() {
       );
     } finally {
       setChangingPress(false);
-      restorePressTriggerFocus.current = true;
       setPendingPressEnabled(null);
     }
   }
@@ -1502,7 +1480,6 @@ export default function GmConsole() {
   }
 
   function closePressDialog(): void {
-    restorePressTriggerFocus.current = true;
     setPendingPressEnabled(null);
   }
 
@@ -2847,6 +2824,7 @@ export default function GmConsole() {
                   type="button"
                   aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
                   aria-pressed={capybaraEnabled}
+                  ref={capybaraTriggerRef}
                   disabled={changingCapybara || capybaraQueued}
                   onClick={() => setPendingCapybaraEnabled(!capybaraEnabled)}
                 >
@@ -2857,6 +2835,7 @@ export default function GmConsole() {
                   type="button"
                   aria-label={`Turn Dione ${dioneEnabled ? 'off' : 'on'}`}
                   aria-pressed={dioneEnabled}
+                  ref={dioneTriggerRef}
                   disabled={changingDione || dioneQueued}
                   onClick={() => setPendingDioneEnabled(!dioneEnabled)}
                 >
@@ -3812,6 +3791,7 @@ export default function GmConsole() {
           onMouseDown={() => setPendingCapybaraEnabled(null)}
         >
           <section
+            ref={capybaraDialogRef}
             className="settings-dialog cic-frame"
             role="alertdialog"
             aria-modal="true"
@@ -3851,6 +3831,7 @@ export default function GmConsole() {
           onMouseDown={() => setPendingDioneEnabled(null)}
         >
           <section
+            ref={dioneDialogRef}
             className="settings-dialog cic-frame"
             role="alertdialog"
             aria-modal="true"

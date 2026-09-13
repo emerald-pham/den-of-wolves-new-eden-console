@@ -571,6 +571,26 @@ it('focuses the dialog, closes it with Escape, and restores settings focus', asy
   expect(settings).toHaveFocus();
 });
 
+it('keeps focus in settings when a browser-level focus move escapes the modal', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  const dialog = screen.getByRole('dialog', { name: /session settings/i });
+  const close = within(dialog).getByRole('button', { name: /close settings/i });
+  const escapeTarget = document.createElement('button');
+  escapeTarget.type = 'button';
+  document.body.append(escapeTarget);
+
+  escapeTarget.focus();
+  expect(close).toHaveFocus();
+  await user.keyboard('{Tab}');
+  expect(document.activeElement).toBeInstanceOf(HTMLElement);
+  expect(dialog).toContainElement(document.activeElement as HTMLElement);
+
+  escapeTarget.remove();
+});
+
 it('releases this browser GM role from settings', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance({

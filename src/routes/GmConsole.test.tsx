@@ -2037,6 +2037,21 @@ it('toggles Capybara off for the session and removes its perspective', async () 
   await user.click(screen.getByRole('button', { name: /turn capybara off/i }));
 
   expect(setCapybaraEnabled).not.toHaveBeenCalled();
+  const trigger = screen.getByRole('button', { name: /turn capybara off/i });
+  const dialog = screen.getByRole('alertdialog', { name: /change convoy manifest/i });
+  expect(dialog).toHaveTextContent(/remove capybara/i);
+  const cancel = within(dialog).getByRole('button', { name: /cancel convoy change/i });
+  const confirm = within(dialog).getByRole('button', { name: /confirm remove capybara/i });
+  expect(cancel).toHaveFocus();
+  await user.tab();
+  expect(confirm).toHaveFocus();
+  await user.tab();
+  expect(cancel).toHaveFocus();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('alertdialog', { name: /change convoy manifest/i })).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+
+  await user.click(trigger);
   expect(screen.getByRole('alertdialog', { name: /change convoy manifest/i }))
     .toHaveTextContent(/remove capybara/i);
   await user.click(screen.getByRole('button', { name: /confirm remove capybara/i }));

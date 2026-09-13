@@ -19,6 +19,7 @@ import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
 
 const CONNECTION_STATUS_GRACE_MS = 30_000;
@@ -304,36 +305,15 @@ export default function AppHeader() {
     setConfirmDisconnect(false);
     setSettingsOpen(false);
     setChangelogOpen(false);
-    queueMicrotask(() => settingsButton.current?.focus());
   }
 
-  useEffect(() => {
-    if (!settingsOpen) return;
-    closeButton.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeSettings();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const controls = [...(dialog.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-      ) ?? [])];
-      if (controls.length === 0) return;
-      const first = controls[0];
-      const last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen]);
+  useDialogFocus({
+    open: settingsOpen,
+    dialogRef: dialog,
+    restoreRef: settingsButton,
+    initialFocusRef: closeButton,
+    onEscape: closeSettings,
+  });
 
   useEffect(() => {
     if (!settingsOpen || !sessionId || disconnectQueued) {
