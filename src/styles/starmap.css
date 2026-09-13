@@ -194,6 +194,12 @@
   opacity: 0.7;
 }
 
+/* The isolated ship viewport keeps the sweep above its background but behind
+   every map layer, including the transformed scene and its labels. */
+.starmap--ship .starmap__scanline {
+  z-index: -1;
+}
+
 .starmap__scene {
   position: absolute;
   top: 7%;

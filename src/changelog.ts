@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [676],
+    implementationProgress: {
+      completed: 231,
+      total: 751,
+      percentage: '30.76%',
+      done: 231,
+      partial: 25,
+      active: 0,
+      missing: 495,
+    },
+    changes: [
+      'The ship navigation map’s moving scanline now passes behind markers and labels, keeping them clear.',
+      '231 of 751 planned items are complete (30.76%).',
+    ],
+  },
+  {
+    version: '0.3.89',
     implementationPrompts: [681],
     implementationProgress: {
       completed: 229,

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**230 / 751 prompts complete (30.63%)**
+**231 / 751 prompts complete (30.76%)**
 
-Status breakdown: **230 done · 25 partial · 496 missing**.
+Status breakdown: **231 done · 25 partial · 495 missing**.
 
 Active prompt: **none**
 
@@ -1155,7 +1155,7 @@ release classification and evidence.
 | 673 | missing | feature | — | Owner-requested addition of the existing galactic orientation compass to ship navigation jump maps, preserving the reference compass, map interactions, coordinate meaning, and jump authority. |
 | 674 | missing | feature | — | Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch. |
 | 675 | missing | feature | — | Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority. |
-| 676 | missing | non-feature | — | Owner-requested jump-map layering repair: render the scanline under other map elements while preserving animation, map behavior, accessibility, and other console rendering. |
+| 676 | done | feature | 0.3.90 | The ship navigation map now paints its decorative sweep behind the complete map scene and viewport overlays within the existing isolated, clipped viewport. The override is scoped to ship maps, leaving GM maps and other DRADIS instruments unchanged. Existing animation timing, pointer pass-through, and both OS and app reduced-motion controls are preserved. Real Chromium rendering at 320x844, 1440x900, and 844x390 confirms the current-ship marker paints above a deliberately aligned scanline, no horizontal page overflow, unchanged clipping, and continuing normal-motion sweep. Sixty focused component/style checks pass; this is a layering-only change with no coordinate, selection, or jump-authority mutation. |
 | 677 | missing | feature | — | Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates. |
 | 678 | missing | feature | — | Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge. |
 | 679 | missing | feature | — | Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge. During the active blind jump, coordinate digits cosmetically scramble through 0–9 twice per second at randomized staggered timing, with reduced-motion and cleanup behavior. |
