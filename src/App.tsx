@@ -36,6 +36,7 @@ import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
+import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
@@ -329,6 +330,12 @@ function AppRoutes() {
           }
           if (next.role === 'gm') {
             store.setFacilitatorRuleCall(null);
+          } else {
+            store.setGmAwayMissionHandPointers([]);
+          }
+          if (next.role !== 'player') {
+            store.setAwayMissionHandPointer(null);
+            store.setAwayMissionHand(null);
           }
           if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
             const current = useSessionStore.getState().session;
@@ -379,6 +386,9 @@ function AppRoutes() {
           if (!callbackCurrent()) return;
           clearLoyaltyCensus();
           clearWolfCultIntelligence();
+          useSessionStore.getState().setAwayMissionHandPointer(null);
+          useSessionStore.getState().setAwayMissionHand(null);
+          useSessionStore.getState().setGmAwayMissionHandPointers([]);
           useSessionStore.getState().disconnect();
         },
         onSeats: (next) => { if (callbackCurrent()) useSessionStore.getState().setSeats(next); },
@@ -516,6 +526,32 @@ function AppRoutes() {
           pendingRoleBrief = next;
           store.setRoleBrief(null);
         },
+        onAwayMissionHandPointer: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if ((store.me && store.me.uid !== playerUid) || store.me?.role === 'gm') {
+            store.setAwayMissionHandPointer(null);
+            store.setAwayMissionHand(null);
+            return;
+          }
+          store.setAwayMissionHandPointer(next);
+          if (!next) store.setAwayMissionHand(null);
+        },
+        onAwayMissionHand: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if ((store.me && store.me.uid !== playerUid) || store.me?.role === 'gm' ||
+              (next && store.awayMissionHandPointer?.handId !== next.handId)) {
+            store.setAwayMissionHand(null);
+            return;
+          }
+          store.setAwayMissionHand(next);
+        },
+        onGmAwayMissionHandPointers: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          store.setGmAwayMissionHandPointers(store.me?.role === 'gm' ? next : []);
+        },
         onCommissarPurgeAuthority: (next: CommissarPurgeAuthority | null) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
@@ -609,6 +645,7 @@ function AppRoutes() {
           <>
             <PrivateLoyaltyPanel />
             <CrisisReportPanel />
+            <AwayMissionDiscardPanel />
             <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />

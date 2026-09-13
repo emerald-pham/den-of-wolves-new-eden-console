@@ -2286,6 +2286,93 @@ export interface StartGameStaleReply {
 
 export type StartGameReply = StartGameReceiptReply | StartGameStaleReply;
 
+export interface AwayMissionDiscardReply {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly missionId: string;
+  readonly expectedSetupRevision: number;
+  readonly currentSetupRevision?: number;
+}
+
+function awayMissionDiscardReply(value: unknown): AwayMissionDiscardReply {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('The server returned an invalid away-mission result.');
+  }
+  const raw = value as Record<string, unknown>;
+  if ((raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
+      typeof raw.sessionId !== 'string' || typeof raw.requestId !== 'string' ||
+      typeof raw.missionId !== 'string' || !Number.isSafeInteger(raw.expectedSetupRevision) ||
+      (raw.currentSetupRevision !== undefined && !Number.isSafeInteger(raw.currentSetupRevision))) {
+    throw new Error('The server returned an invalid away-mission result.');
+  }
+  return {
+    status: raw.status,
+    sessionId: raw.sessionId,
+    requestId: raw.requestId,
+    missionId: raw.missionId,
+    expectedSetupRevision: raw.expectedSetupRevision as number,
+    ...(raw.currentSetupRevision === undefined ? {} : { currentSetupRevision: raw.currentSetupRevision as number }),
+  };
+}
+
+/** Let the facilitator explicitly open the private discard step after extra-card selection. */
+export async function openPrivateMissionDiscards(missionId: string): Promise<AwayMissionDiscardReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before opening mission discards.');
+  requireFreshSessionAuthority('Reconnect before opening mission discards.');
+  const payload = {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedSetupRevision: expectedSetupRevision(store.session),
+    missionId,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'openPrivateMissionDiscards');
+    const reply = awayMissionDiscardReply((await call(payload)).data);
+    if (authorityCheckpointIsCurrent(checkpoint)) {
+      // The pointer listeners carry the authoritative phase; do not synthesize
+      // a private projection from a callable response.
+      useSessionStore.getState().setCommunicationError(null);
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Secretly discard the current participant's one owned mission card. */
+export async function discardPrivateMissionCard(
+  missionId: string,
+  cardId: string,
+): Promise<AwayMissionDiscardReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before discarding a mission card.');
+  requireFreshSessionAuthority('Reconnect before discarding a mission card.');
+  const payload = {
+    sessionId: store.session.id,
+    requestId: commandId(),
+    expectedSetupRevision: expectedSetupRevision(store.session),
+    missionId,
+    cardId,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'discardPrivateMissionCard');
+    const reply = awayMissionDiscardReply((await call(payload)).data);
+    if (authorityCheckpointIsCurrent(checkpoint)) useSessionStore.getState().setCommunicationError(null);
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 /** Commit the ordinary production start; the server derives Wolf/loyalty state. */
 export interface StartGameOptions {
   /** Reuse a caller-held id after an ambiguous transport failure. */

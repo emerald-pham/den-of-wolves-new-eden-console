@@ -210,6 +210,35 @@ export interface VipHand {
   readonly cards: readonly VipCard[];
 }
 
+export type AwayMissionHandPhase =
+  | 'awaiting-card-selection'
+  | 'discarding'
+  | 'assignment-ready';
+
+/** Server-owned metadata used to discover the participant's private hand. */
+export interface AwayMissionHandPointer {
+  readonly sessionId: SessionId;
+  readonly participantUid: PlayerId;
+  readonly missionId: string;
+  readonly handId: string;
+  readonly phase: AwayMissionHandPhase;
+  readonly revision: number;
+  readonly discarded: boolean;
+}
+
+/** The single mission card visible only to its participant or facilitator. */
+export interface AwayMissionHand {
+  readonly sessionId: SessionId;
+  readonly participantUid: PlayerId;
+  readonly missionId: string;
+  readonly handId: string;
+  readonly cardId: string;
+  readonly rank: string;
+  readonly suit: 'hearts' | 'diamonds' | 'clubs';
+  readonly value: number;
+  readonly discarded: boolean;
+}
+
 export interface ShipDamageState {
   readonly damagedSystemIds: readonly string[];
   readonly destroyed: boolean;

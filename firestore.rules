@@ -390,6 +390,19 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // A current-hand pointer carries only mission/phase metadata. The owner
+      // can use it to discover their private hand, while the current GM may
+      // enumerate pointers to operate the facilitator readiness control. It
+      // never contains a card identity or card content.
+      match /awayMissionHandPointers/{participantUid} {
+        allow get: if isMember(sessionId)
+          && resource.data.sessionId == sessionId
+          && resource.data.participantUid == participantUid
+          && (participantUid == uid() || isGm(sessionId));
+        allow list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // Dione VIP hands are one server-written private projection per owner.
       // The deck and all ownership transitions remain under serverState; a
       // member can read only the hand addressed by their authenticated UID.

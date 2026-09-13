@@ -99,6 +99,8 @@ import {
   requireFacilitatorResponsibilityRequest,
   requireGameStartRequest,
   requireAwayMissionCardDealRequest,
+  requireAwayMissionDiscardReadyRequest,
+  requireAwayMissionCardDiscardRequest,
   requireSessionSeatRequest,
   requireUid,
   requireSetupConfirmationRequest,
@@ -3847,7 +3849,8 @@ function isAwayMissionDealReply(value: unknown, sessionId: string): value is Awa
   return reply.sessionId === sessionId &&
     (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
     typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
-    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) > 0 &&
+    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) >= 0 &&
+    (reply.status === 'stale' || (reply.participantCount as number) > 0) &&
     Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
     (reply.currentSetupRevision === undefined ||
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
@@ -4017,6 +4020,10 @@ export const dealPrivateInitialCards = onCall<{
     };
     tx.set(missionRef, {
       schemaVersion: 1,
+      phase: 'awaiting-card-selection',
+      revision: 0,
+      discardedParticipantUids: [],
+      discardedCardIds: [],
       missionId: command.missionId,
       requestId: command.requestId,
       actorUid: uid,
@@ -4041,6 +4048,17 @@ export const dealPrivateInitialCards = onCall<{
         value: allocation.card.value,
         createdAt: FieldValue.serverTimestamp(),
       });
+      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${allocation.participant.uid}`), {
+        type: 'away-mission-hand-pointer',
+        sessionId: command.sessionId,
+        participantUid: allocation.participant.uid,
+        missionId: command.missionId,
+        handId,
+        phase: 'awaiting-card-selection',
+        revision: 0,
+        discarded: false,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
     tx.update(missionDeckRef, {
       dealtCount: dealtCount + allocations.length,
@@ -4048,6 +4066,393 @@ export const dealPrivateInitialCards = onCall<{
     });
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'mission-cards-dealt',
+      payload: {},
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(markerRef, {
+      fingerprint: markerFingerprint,
+      result: reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
+  });
+});
+
+type AwayMissionDiscardReadyReply = Readonly<{
+  status: 'committed' | 'replayed' | 'stale';
+  sessionId: string;
+  requestId: string;
+  missionId: string;
+  participantCount: number;
+  expectedSetupRevision: number;
+  currentSetupRevision?: number;
+}>;
+
+function isAwayMissionDiscardReadyReply(value: unknown, sessionId: string): value is AwayMissionDiscardReadyReply {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const reply = value as Record<string, unknown>;
+  return reply.sessionId === sessionId &&
+    (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
+    typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
+    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) > 0 &&
+    Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
+    (reply.currentSetupRevision === undefined ||
+      (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
+}
+
+/** Record that the facilitator has finished extra-card selection and players may discard. */
+export const openPrivateMissionDiscards = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  missionId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = requireAwayMissionDiscardReadyRequest(request.data ?? {});
+  const markerRef = commandReceiptRef(command.sessionId, command.requestId);
+  const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-discards-opened-${command.requestId}`);
+  const missionRef = db.doc(
+    `sessions/${command.sessionId}/serverState/awayMissions/instances/${command.missionId}`,
+  );
+  const markerFingerprint: CommandFingerprint = {
+    action: 'open-private-mission-discards',
+    sessionId: command.sessionId,
+    requestId: command.requestId,
+    actorUid: uid,
+    instanceId: command.instanceId,
+    expectedRevision: command.expectedSetupRevision,
+    payload: { missionId: command.missionId },
+  };
+
+  return db.runTransaction(async (tx) => {
+    const [marker, authority, missionSnapshot, eventSnapshot] = await Promise.all([
+      tx.get(markerRef),
+      requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+      tx.get(missionRef),
+      tx.get(eventRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx,
+      command.sessionId,
+      command.requestId,
+      'away-mission-discard-ready',
+      [eventRef.path],
+    );
+    if (!marker.exists && eventSnapshot.exists) rejectLegacyEventReplay('away-mission-discard-ready');
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'away-mission-discard-ready')) {
+      const result = marker.get('result');
+      if (!isAwayMissionDiscardReadyReply(result, command.sessionId)) {
+        throw commandError('failed-precondition', 'This discard-ready command has no replayable result.', 'conflict');
+      }
+      return { ...result, status: 'replayed' as const };
+    }
+
+    const currentSetupRevision = setupRevision(authority.session);
+    if (currentSetupRevision !== command.expectedSetupRevision) {
+      const reply: AwayMissionDiscardReadyReply = {
+        status: 'stale',
+        sessionId: command.sessionId,
+        requestId: command.requestId,
+        missionId: command.missionId,
+        participantCount: 0,
+        expectedSetupRevision: command.expectedSetupRevision,
+        currentSetupRevision,
+      };
+      tx.set(markerRef, {
+        fingerprint: markerFingerprint,
+        result: reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
+    }
+    if (authority.session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Away-mission cards require an active game.', 'invalid-phase');
+    }
+    if (!missionSnapshot.exists || missionSnapshot.get('missionId') !== command.missionId) {
+      throw commandError('failed-precondition', 'That away-mission identity is unavailable.', 'conflict');
+    }
+    if (missionSnapshot.get('phase') !== 'awaiting-card-selection') {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator must finish extra-card selection before opening private discards.',
+        'conflict',
+      );
+    }
+    const participants = awayMissionParticipantSnapshots(missionSnapshot.get('participantSnapshots'));
+    const storedHandIds = missionSnapshot.get('handIds');
+    if (!participants || !Array.isArray(storedHandIds) || storedHandIds.length !== participants.length ||
+        storedHandIds.some((handId) => typeof handId !== 'string')) {
+      throw commandError('failed-precondition', 'The away-mission hand roster is malformed.', 'malformed-input');
+    }
+    const revision = missionSnapshot.get('revision');
+    if (!Number.isSafeInteger(revision) || (revision as number) < 0) {
+      throw commandError('failed-precondition', 'The away-mission revision is malformed.', 'malformed-input');
+    }
+    const reply: AwayMissionDiscardReadyReply = {
+      status: 'committed',
+      sessionId: command.sessionId,
+      requestId: command.requestId,
+      missionId: command.missionId,
+      participantCount: participants.length,
+      expectedSetupRevision: command.expectedSetupRevision,
+    };
+    tx.update(missionRef, {
+      phase: 'discarding',
+      revision: (revision as number) + 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    participants.forEach((participant, index) => {
+      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${participant.uid}`), {
+        type: 'away-mission-hand-pointer',
+        sessionId: command.sessionId,
+        participantUid: participant.uid,
+        missionId: command.missionId,
+        handId: storedHandIds[index],
+        phase: 'discarding',
+        revision: (revision as number) + 1,
+        discarded: false,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'mission-discards-opened',
+      payload: {},
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(markerRef, {
+      fingerprint: markerFingerprint,
+      result: reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
+  });
+});
+
+type AwayMissionCardDiscardReply = Readonly<{
+  status: 'committed' | 'replayed' | 'stale';
+  sessionId: string;
+  requestId: string;
+  missionId: string;
+  expectedSetupRevision: number;
+  currentSetupRevision?: number;
+}>;
+
+function isAwayMissionCardDiscardReply(value: unknown, sessionId: string): value is AwayMissionCardDiscardReply {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const reply = value as Record<string, unknown>;
+  return reply.sessionId === sessionId &&
+    (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
+    typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
+    Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
+    (reply.currentSetupRevision === undefined ||
+      (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
+}
+
+function awayMissionParticipantSnapshots(value: unknown): readonly Record<string, unknown>[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const seen = new Set<string>();
+  const snapshots: Record<string, unknown>[] = [];
+  for (const candidate of value) {
+    if (!isRecord(candidate) || typeof candidate.uid !== 'string' || candidate.uid.length === 0 ||
+        seen.has(candidate.uid)) return null;
+    seen.add(candidate.uid);
+    snapshots.push(candidate);
+  }
+  return snapshots;
+}
+
+function awayMissionStringLedger(value: unknown): readonly string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const seen = new Set<string>();
+  const ledger: string[] = [];
+  for (const candidate of value) {
+    if (typeof candidate !== 'string' || candidate.length === 0 || seen.has(candidate)) return null;
+    seen.add(candidate);
+    ledger.push(candidate);
+  }
+  return ledger;
+}
+
+/** Secretly consume one participant-owned card before opportunity assignment. */
+export const discardPrivateMissionCard = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  missionId?: unknown;
+  cardId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = requireAwayMissionCardDiscardRequest(request.data ?? {});
+  const markerRef = commandReceiptRef(command.sessionId, command.requestId);
+  const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-card-discarded-${command.requestId}`);
+  const sessionRef = db.doc(`sessions/${command.sessionId}`);
+  const playerRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
+  const missionRef = db.doc(
+    `sessions/${command.sessionId}/serverState/awayMissions/instances/${command.missionId}`,
+  );
+  const handId = awayMissionHandId(command.missionId, uid);
+  const handRef = db.doc(`sessions/${command.sessionId}/awayMissionHands/${handId}`);
+  const pointerRef = db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${uid}`);
+  const markerFingerprint: CommandFingerprint = {
+    action: 'discard-private-mission-card',
+    sessionId: command.sessionId,
+    requestId: command.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: command.expectedSetupRevision,
+    payload: { missionId: command.missionId, cardId: command.cardId },
+  };
+
+  return db.runTransaction(async (tx) => {
+    const [marker, session, player, missionSnapshot, handSnapshot, pointerSnapshot, eventSnapshot] = await Promise.all([
+      tx.get(markerRef),
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(missionRef),
+      tx.get(handRef),
+      tx.get(pointerRef),
+      tx.get(eventRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx,
+      command.sessionId,
+      command.requestId,
+      'away-mission-discard',
+      [eventRef.path],
+    );
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Join the session before discarding a mission card.');
+    }
+    if (!marker.exists && eventSnapshot.exists) rejectLegacyEventReplay('away-mission-discard');
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'away-mission-discard')) {
+      const result = marker.get('result');
+      if (!isAwayMissionCardDiscardReply(result, command.sessionId)) {
+        throw commandError('failed-precondition', 'This away-mission discard has no replayable result.', 'conflict');
+      }
+      return { ...result, status: 'replayed' as const };
+    }
+
+    const currentSetupRevision = setupRevision(session);
+    if (currentSetupRevision !== command.expectedSetupRevision) {
+      const reply: AwayMissionCardDiscardReply = {
+        status: 'stale',
+        sessionId: command.sessionId,
+        requestId: command.requestId,
+        missionId: command.missionId,
+        expectedSetupRevision: command.expectedSetupRevision,
+        currentSetupRevision,
+      };
+      tx.set(markerRef, {
+        fingerprint: markerFingerprint,
+        result: reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
+    }
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission cards require an active game.',
+        'invalid-phase',
+      );
+    }
+    if (!missionSnapshot.exists || missionSnapshot.get('missionId') !== command.missionId) {
+      throw commandError('failed-precondition', 'That away-mission hand is unavailable.', 'conflict');
+    }
+    if (missionSnapshot.get('phase') !== 'discarding') {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator has not opened private discards for this away mission.',
+        'conflict',
+      );
+    }
+    const participants = awayMissionParticipantSnapshots(missionSnapshot.get('participantSnapshots'));
+    if (!participants) {
+      throw commandError('failed-precondition', 'The away-mission participant snapshot is malformed.', 'malformed-input');
+    }
+    const participant = participants.find((candidate) => candidate.uid === uid);
+    if (!participant) {
+      throw new HttpsError('permission-denied', 'Only a current mission participant may discard that hand.');
+    }
+    if (!pointerSnapshot.exists || pointerSnapshot.get('sessionId') !== command.sessionId ||
+        pointerSnapshot.get('participantUid') !== uid || pointerSnapshot.get('missionId') !== command.missionId ||
+        pointerSnapshot.get('handId') !== handId || pointerSnapshot.get('phase') !== 'discarding' ||
+        pointerSnapshot.get('discarded') === true) {
+      throw commandError('failed-precondition', 'Your private mission hand is not ready for a discard.', 'conflict');
+    }
+    const storedHandIds = missionSnapshot.get('handIds');
+    if (!Array.isArray(storedHandIds) || !storedHandIds.includes(handId)) {
+      throw commandError('failed-precondition', 'The away-mission hand is not part of this mission.', 'malformed-input');
+    }
+    if (!handSnapshot.exists || handSnapshot.get('sessionId') !== command.sessionId ||
+        handSnapshot.get('missionId') !== command.missionId ||
+        handSnapshot.get('participantUid') !== uid || handSnapshot.get('cardId') !== command.cardId) {
+      throw commandError('failed-precondition', 'That private card is not owned by this participant.', 'conflict');
+    }
+    if (handSnapshot.get('discarded') === true ||
+        (handSnapshot.get('discardedAt') !== undefined && handSnapshot.get('discardedAt') !== null)) {
+      throw commandError('failed-precondition', 'This private card has already been discarded.', 'conflict');
+    }
+    const discardedParticipantUids = awayMissionStringLedger(missionSnapshot.get('discardedParticipantUids'));
+    const discardedCardIds = awayMissionStringLedger(missionSnapshot.get('discardedCardIds'));
+    if (!discardedParticipantUids || !discardedCardIds) {
+      throw commandError('failed-precondition', 'The away-mission discard ledger is malformed.', 'malformed-input');
+    }
+    if (discardedParticipantUids.includes(uid) || discardedCardIds.includes(command.cardId)) {
+      throw commandError('failed-precondition', 'This participant has already discarded a mission card.', 'conflict');
+    }
+    const nextDiscardedParticipantUids = [...discardedParticipantUids, uid];
+    const nextDiscardedCardIds = [...discardedCardIds, command.cardId];
+    const allParticipantsDiscarded = participants.every(({ uid: participantUid }) =>
+      nextDiscardedParticipantUids.includes(participantUid));
+    const currentMissionRevision = missionSnapshot.get('revision');
+    const revision = currentMissionRevision === undefined
+      ? 0
+      : Number.isSafeInteger(currentMissionRevision) && (currentMissionRevision as number) >= 0
+        ? currentMissionRevision as number
+        : null;
+    if (revision === null) {
+      throw commandError('failed-precondition', 'The away-mission revision is malformed.', 'malformed-input');
+    }
+    const reply: AwayMissionCardDiscardReply = {
+      status: 'committed',
+      sessionId: command.sessionId,
+      requestId: command.requestId,
+      missionId: command.missionId,
+      expectedSetupRevision: command.expectedSetupRevision,
+    };
+    tx.update(handRef, {
+      discarded: true,
+      discardedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(missionRef, {
+      phase: allParticipantsDiscarded ? 'assignment-ready' : 'discarding',
+      discardedParticipantUids: nextDiscardedParticipantUids,
+      discardedCardIds: nextDiscardedCardIds,
+      revision: revision + 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(pointerRef, {
+      phase: allParticipantsDiscarded ? 'assignment-ready' : 'discarding',
+      revision: revision + 1,
+      discarded: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (allParticipantsDiscarded) {
+      participants.forEach((candidate) => {
+        if (candidate.uid === uid) return;
+        tx.update(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${candidate.uid}`), {
+          phase: 'assignment-ready',
+          revision: revision + 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+    }
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'mission-card-discarded',
       payload: {},
       createdAt: FieldValue.serverTimestamp(),
     }));

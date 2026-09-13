@@ -59,13 +59,16 @@ import type {
   WolfCultIntelligence,
   ArbourVision,
   ArbourVisionKind,
+  AwayMissionHand,
+  AwayMissionHandPhase,
+  AwayMissionHandPointer,
   VipCard,
   VipCardId,
   VipCardName,
   VipHand,
 } from '@/types/game';
 import { isCrisisKind, type CrisisReport, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
-import type { EntityId, EntityKind } from '@/types/identifiers';
+import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
@@ -378,6 +381,65 @@ function vipHand(value: unknown, sessionId: string, uid: string): VipHand | null
   });
   if (cards.length !== raw.cards.length || new Set(cards.map((card) => card.id)).size !== cards.length) return null;
   return { sessionId: entityId('session', sessionId), ownerUid, revision: revision as number, cards };
+}
+
+const AWAY_MISSION_HAND_PHASES: ReadonlySet<string> = new Set([
+  'awaiting-card-selection', 'discarding', 'assignment-ready',
+]);
+
+function awayMissionHandPointer(
+  value: unknown,
+  sessionId: string,
+  uid?: string,
+): AwayMissionHandPointer | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const participantUid = parseEntityId('player', raw.participantUid);
+  const phase = raw.phase as AwayMissionHandPhase;
+  if (
+    raw.type !== 'away-mission-hand-pointer' || raw.sessionId !== sessionId ||
+    !participantUid || (uid !== undefined && participantUid !== uid) ||
+    !isWireSafeEntityId(raw.missionId) || !isWireSafeEntityId(raw.handId) ||
+    !AWAY_MISSION_HAND_PHASES.has(phase) ||
+    !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+    typeof raw.discarded !== 'boolean'
+  ) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    participantUid,
+    missionId: raw.missionId,
+    handId: raw.handId,
+    phase,
+    revision: raw.revision as number,
+    discarded: raw.discarded,
+  };
+}
+
+function awayMissionHand(value: unknown, sessionId: string, uid: string): AwayMissionHand | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const participantUid = parseEntityId('player', raw.participantUid);
+  const suit = raw.suit;
+  if (
+    raw.type !== 'away-mission-hand' || raw.sessionId !== sessionId || participantUid !== uid ||
+    !participantUid || !isWireSafeEntityId(raw.missionId) || !isWireSafeEntityId(raw.handId) ||
+    typeof raw.cardId !== 'string' || raw.cardId.length === 0 || raw.cardId.length > 16 ||
+    typeof raw.rank !== 'string' || raw.rank.length === 0 ||
+    (suit !== 'hearts' && suit !== 'diamonds' && suit !== 'clubs') ||
+    typeof raw.value !== 'number' || !Number.isFinite(raw.value) ||
+    (raw.discarded !== undefined && typeof raw.discarded !== 'boolean')
+  ) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    participantUid,
+    missionId: raw.missionId,
+    handId: raw.handId,
+    cardId: raw.cardId,
+    rank: raw.rank,
+    suit,
+    value: raw.value,
+    discarded: raw.discarded === true,
+  };
 }
 
 function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | null {
@@ -1439,6 +1501,9 @@ export interface SessionStateHandlers {
   readonly onWolfCultIntelligence?: (intelligence: WolfCultIntelligence | null) => void;
   readonly onArbourVision?: (vision: ArbourVision | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
+  readonly onAwayMissionHandPointer?: (pointer: AwayMissionHandPointer | null) => void;
+  readonly onAwayMissionHand?: (hand: AwayMissionHand | null) => void;
+  readonly onGmAwayMissionHandPointers?: (pointers: readonly AwayMissionHandPointer[]) => void;
   readonly onCommissarPurgeAuthority?: (authority: CommissarPurgeAuthority | null) => void;
   readonly onFacilitatorRuleCall?: (call: FacilitatorRuleCall | null) => void;
   /** Whether the accepted player projection came from the server. */
@@ -1478,8 +1543,38 @@ export function subscribeSessionState(
   let startWolfCultListener: (resetRevision: boolean) => void = () => undefined;
   let startArbourVisionListener: (resetRevision: boolean) => void = () => undefined;
   let startPrivateLoyaltyListener: () => void = () => undefined;
+  let unsubscribeAwayMissionHand: Unsubscribe = () => undefined;
+  let awayMissionHandListenerGeneration = 0;
   const onError = () => {
     if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
+  };
+  const startAwayMissionHandListener = (pointer: AwayMissionHandPointer | null) => {
+    unsubscribeAwayMissionHand();
+    const generation = ++awayMissionHandListenerGeneration;
+    if (!pointer || !handlers.onAwayMissionHand) {
+      handlers.onAwayMissionHand?.(null);
+      return;
+    }
+    unsubscribeAwayMissionHand = onSnapshot(
+      doc(database, `sessions/${sessionId}/awayMissionHands/${pointer.handId}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== awayMissionHandListenerGeneration) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onAwayMissionHand?.(
+          snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null,
+        );
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== awayMissionHandListenerGeneration) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onAwayMissionHand?.(null);
+          return;
+        }
+        onError();
+      },
+    );
   };
   const unsubscribes = [
     onSnapshot(doc(database, `sessions/${sessionId}`), (snapshot) => {
@@ -1660,6 +1755,47 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
+    ...(handlers.onAwayMissionHandPointer ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/awayMissionHandPointers/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const pointer = snapshot.exists()
+          ? awayMissionHandPointer(snapshot.data(), sessionId, uid)
+          : null;
+        handlers.onAwayMissionHandPointer?.(pointer);
+        startAwayMissionHandListener(pointer);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onAwayMissionHandPointer?.(null);
+          startAwayMissionHandListener(null);
+          return;
+        }
+        onError();
+      },
+    )] : []),
+    ...(handlers.onGmAwayMissionHandPointers ? [onSnapshot(
+      collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onGmAwayMissionHandPointers?.(
+          snapshot.docs
+            .map((entry) => awayMissionHandPointer(entry.data(), sessionId))
+            .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null),
+        );
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onGmAwayMissionHandPointers?.([]);
+          return;
+        }
+        onError();
+      },
+    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -1789,6 +1925,8 @@ export function subscribeSessionState(
     privateLoyaltyListenerGeneration += 1;
     unsubscribeWolfCult();
     unsubscribeArbourVision();
+    unsubscribeAwayMissionHand();
+    awayMissionHandListenerGeneration += 1;
     wolfCultListenerGeneration += 1;
     arbourVisionListenerGeneration += 1;
     unsubscribes.forEach((unsubscribe) => unsubscribe());
@@ -1803,6 +1941,9 @@ export function subscribeSessionState(
       handlers.onWolfCultIntelligence?.(null);
       handlers.onArbourVision?.(null);
       handlers.onRoleBrief?.(null);
+      handlers.onAwayMissionHandPointer?.(null);
+      handlers.onAwayMissionHand?.(null);
+      handlers.onGmAwayMissionHandPointers?.([]);
       handlers.onCommissarPurgeAuthority?.(null);
       handlers.onFacilitatorRuleCall?.(null);
       handlers.onSetupReceipt?.(null);

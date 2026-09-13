@@ -15,6 +15,8 @@ import type {
   TurnStartReplay,
   WolfCultIntelligence,
   ArbourVision,
+  AwayMissionHand,
+  AwayMissionHandPointer,
 } from '@/types/game';
 import type { CrisisKind, CrisisStateProjection } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
@@ -352,6 +354,9 @@ interface SessionState {
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
   roleBrief: RoleBrief | null;
+  awayMissionHandPointer: AwayMissionHandPointer | null;
+  awayMissionHand: AwayMissionHand | null;
+  gmAwayMissionHandPointers: readonly AwayMissionHandPointer[];
   gmLoyaltyCensus: LoyaltyCensus | null;
   wolfCultIntelligence: WolfCultIntelligence | null;
   gmWolfCultIntelligence: WolfCultIntelligence | null;
@@ -379,6 +384,9 @@ interface SessionState {
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
   setPrivateLoyalty: (loyalty: PrivateLoyalty | null) => void;
   setRoleBrief: (brief: RoleBrief | null) => void;
+  setAwayMissionHandPointer: (pointer: AwayMissionHandPointer | null) => void;
+  setAwayMissionHand: (hand: AwayMissionHand | null) => void;
+  setGmAwayMissionHandPointers: (pointers: readonly AwayMissionHandPointer[]) => void;
   setGmLoyaltyCensus: (census: LoyaltyCensus | null) => void;
   setWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
   setGmWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
@@ -409,6 +417,9 @@ const initial = {
   turnStartReplay: null,
   privateLoyalty: null,
   roleBrief: null,
+  awayMissionHandPointer: null,
+  awayMissionHand: null,
+  gmAwayMissionHandPointers: [] as readonly AwayMissionHandPointer[],
   gmLoyaltyCensus: null,
   wolfCultIntelligence: null,
   gmWolfCultIntelligence: null,
@@ -428,7 +439,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -453,7 +464,8 @@ export const useSessionStore = create<SessionState>()(
       ...initial,
       setSession: (session) => set({ session }),
       setIdentity: (session, me) => set({
-        session, me, roleBrief: null, wolfCultIntelligence: null, gmWolfCultIntelligence: null,
+        session, me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
+        gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
         gmFacilitatorRuleCall: null, gmCrisisState: null, commissarPurgeAuthority: null,
       }),
@@ -467,6 +479,9 @@ export const useSessionStore = create<SessionState>()(
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
       setPrivateLoyalty: (privateLoyalty) => set({ privateLoyalty }),
       setRoleBrief: (roleBrief) => set({ roleBrief }),
+      setAwayMissionHandPointer: (awayMissionHandPointer) => set({ awayMissionHandPointer }),
+      setAwayMissionHand: (awayMissionHand) => set({ awayMissionHand }),
+      setGmAwayMissionHandPointers: (gmAwayMissionHandPointers) => set({ gmAwayMissionHandPointers }),
       setGmLoyaltyCensus: (gmLoyaltyCensus) => set({ gmLoyaltyCensus }),
       setWolfCultIntelligence: (wolfCultIntelligence) => set({ wolfCultIntelligence }),
       setGmWolfCultIntelligence: (gmWolfCultIntelligence) => set({ gmWolfCultIntelligence }),
@@ -501,6 +516,9 @@ export const useSessionStore = create<SessionState>()(
           turnStartReplay: null,
           privateLoyalty: null,
           roleBrief: null,
+          awayMissionHandPointer: null,
+          awayMissionHand: null,
+          gmAwayMissionHandPointers: [],
           gmLoyaltyCensus: null,
           wolfCultIntelligence: null,
           gmWolfCultIntelligence: null,

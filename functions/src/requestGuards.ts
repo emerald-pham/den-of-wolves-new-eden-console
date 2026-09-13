@@ -517,6 +517,56 @@ export function requireAwayMissionCardDealRequest(data: {
   };
 }
 
+export function requireAwayMissionDiscardReadyRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  missionId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  missionId: string;
+} {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+    missionId: requiredId(data.missionId, 'missionId'),
+  };
+}
+
+export function requireAwayMissionCardDiscardRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  missionId?: unknown;
+  cardId?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  missionId: string;
+  cardId: string;
+} {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+    missionId: requiredId(data.missionId, 'missionId'),
+    cardId: requiredText(data.cardId, 'cardId', 16),
+  };
+}
+
 export function requireSessionSeatRequest(data: {
   sessionId?: unknown;
   seatId?: unknown;
