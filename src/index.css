@@ -977,6 +977,7 @@ body {
 }
 .role-brief__rules--warrior-salvage p { font-size: 1rem; }
 .vulcan-labour-panel { border-color: var(--cic-cyan-dim); }
+.vulcan-labour-panel p { font-size: 0.875rem; }
 .vulcan-labour-panel .cic-action-button { min-height: 44px; max-width: 100%; white-space: normal; }
 .vulcan-labour-panel .maintenance-controls { margin-bottom: 0; }
 .role-brief__return { justify-self: start; }

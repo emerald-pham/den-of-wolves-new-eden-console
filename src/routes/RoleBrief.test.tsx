@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -155,5 +156,13 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
   await user.click(screen.getByRole('button', { name: /use additional labour/i }));
   expect(runVulcanAdditionalLabour).toHaveBeenCalledWith('additional-labour-1', 'dione', 'hydroponics', 3, 0, undefined);
   expect(screen.getByText(/Hydroponics: spent 1 water/i)).toBeVisible();
+  expect(screen.getByText(/If another action changes the session first, refresh before trying again/i)).toBeVisible();
   expect(screen.getByRole('link', { name: /return to role selection/i })).toBeVisible();
+});
+
+it('keeps Vulcan Additional Labour guidance readable and outcome-focused', () => {
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+
+  expect(stylesheet).toMatch(/\.vulcan-labour-panel p\s*\{\s*font-size:\s*0\.875rem;/);
+  expect(stylesheet).not.toContain('server checks current revisions before writing');
 });

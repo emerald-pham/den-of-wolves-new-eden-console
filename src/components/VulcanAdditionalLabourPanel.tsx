@@ -101,7 +101,7 @@ export default function VulcanAdditionalLabourPanel() {
           {damaged && <p role="status">That console is damaged and cannot be charged.</p>}
           {status && <p role="status">{status}</p>}
           {error && <p role="alert">{error}</p>}
-          <p role="status">Target: {targetName} // server checks current revisions before writing.</p>
+          <p role="status">Target: {targetName} // If another action changes the session first, refresh before trying again.</p>
         </fieldset>
       )}
     </section>

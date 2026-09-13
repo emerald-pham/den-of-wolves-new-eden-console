@@ -5,6 +5,7 @@ import { emptySmallShipState } from './smallShip';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(),
   role: 'gm', owner: 'u1', connected: true,
+  replacementRoleId: null as string | null, activeConsoleRoleId: null as string | null,
   session: {} as Record<string, unknown>,
   receipts: {} as Record<string, Record<string, unknown>>,
 }));
@@ -46,6 +47,8 @@ beforeEach(() => {
   mock.role = 'gm';
   mock.owner = 'u1';
   mock.connected = true;
+  mock.replacementRoleId = null;
+  mock.activeConsoleRoleId = null;
   mock.session = {
     activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
     expansion: 'base', capybaraEnabled: true,
@@ -64,7 +67,10 @@ beforeEach(() => {
       return fields ? snapshot(fields) : snapshot({}, false);
     }
     if (path.includes('/players/')) {
-      return snapshot({ role: mock.role, connected: mock.connected });
+      return snapshot({
+        role: mock.role, connected: mock.connected,
+        replacementRoleId: mock.replacementRoleId, activeConsoleRoleId: mock.activeConsoleRoleId,
+      });
     }
     if (path.includes('/gmInstances/')) {
       return snapshot({ uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() });
@@ -441,6 +447,27 @@ it('runs Vulcan Additional Labour atomically for two independent charges, immedi
   await expect(runVulcanAdditionalLabour.run(request({
     ...first, requestId: 'vulcan-labour-player', expectedRevision: 2,
   }))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.replacementRoleId = 'vulcan-captain';
+  mock.session.smallShipStates = {
+    vulcan: { ...vulcan, cycle: { ...vulcan.cycle, revision: 2, charges: ['additional-labour-1'] } },
+  };
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-replacement', expectedRevision: 2,
+    targetShipId: 'aegis', targetConsoleId: 'jump-drive', sourceConsoleId: 'additional-labour-1',
+  }))).resolves.toMatchObject({ status: 'committed', immediate: false, committedRevision: 3 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'smallShipStates.vulcan.cycle': expect.objectContaining({ charges: [] }),
+  }));
+  mock.replacementRoleId = 'warrior-captain';
+  mock.session.smallShipStates = {
+    vulcan: { ...vulcan, cycle: { ...vulcan.cycle, revision: 3, charges: ['additional-labour-2'] } },
+  };
+  mock.update.mockReset();
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-revoked-replacement', expectedRevision: 3,
+    targetShipId: 'aegis', targetConsoleId: 'jump-drive', sourceConsoleId: 'additional-labour-2',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
   mock.role = 'gm';
   mock.session.turnPhase = { turn: 1, airspace: { state: 'restricted' } };
   await expect(runVulcanAdditionalLabour.run(request({
