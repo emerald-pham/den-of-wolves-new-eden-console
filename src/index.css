@@ -2673,6 +2673,11 @@ body {
   color: var(--cic-cyan);
 }
 
+.ship-console__access {
+  color: var(--cic-cyan);
+  overflow-wrap: anywhere;
+}
+
 .gm-ship-access {
   flex: 0 0 auto;
   display: grid;

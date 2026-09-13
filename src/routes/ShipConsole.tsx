@@ -441,7 +441,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </button>
         </section>
         {(visiting || (!observer && !roleEnabled)) && (
-          <p>Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>
+          <p className="cic-overline ship-console__access">Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>
         )}
         {observer && <label className="maintenance-controls">View ship console role
           <select aria-label="View ship console role" value={viewedRoleId ?? ''} onChange={event => setObserverRoleId(event.target.value)}>
