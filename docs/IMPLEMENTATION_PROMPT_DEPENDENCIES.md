@@ -276,7 +276,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 165 | EXTEND | partial | 161;162 | none | none | none | none | none | none | none | E-AUDIT-165;E-165-METADATA-PARTIAL | M3;M5 | Complete console metadata. |
 | 166 | EXTEND | missing | 161;165 | none | none | none | none | none | none | none | E-AUDIT-166 | M3;M5 | Bind roles to vessel actions. |
 | 167 | EXTEND | done | none | none | none | none | none | none | none | none | E-AUDIT-167 | M3;M5 | Standardize vessel action envelopes. |
-| 168 | DECISION | missing | none | none | none | none | none | none | none | none | none | M3;M5 | Record vessel rule calls. |
+| 168 | DECISION | done | none | none | none | none | none | none | none | none | E-523-IMPLEMENTED;E-523-RELEASED | M3;M5 | Record vessel rule calls. |
 | 169 | EXTEND | missing | 161;162;165 | none | none | none | none | none | none | none | E-AUDIT-169 | M3;M5 | Build shared vessel fixtures. |
 | 170 | EXTEND | done | 048;049 | none | none | none | none | none | none | none | E-AUDIT-170;E-170-OBSERVER-PROJECTION | M3;M5 | Project observer-safe vessel data. |
 | 171 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-171 | M3;M5 | Complete AEGIS identity and maintenance lane. |

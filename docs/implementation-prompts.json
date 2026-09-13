@@ -9330,8 +9330,8 @@
         "acceptance": "an ambiguity produces a labeled facilitator decision, never an unexplained deterministic result.",
         "title": "Record vessel rule calls."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Satisfied by the released P523 facilitator rule-call path rather than another vessel-specific rules engine. A vessel ambiguity is recorded with explicit question, source and facilitator decision fields, a server-set FACILITATOR RULE CALL label, current GM authority, revision/replay checks and durable private history/audit. GM-only and selected-player audiences remain separate; the selected recipient reads the labeled decision on the private role brief. Existing production-path tests explicitly cover a shuttle docking ambiguity, private recipient projection, author identity/revision/replay denial and displayed source/decision fields. Reverified the callable and role-brief suites during this metadata reconciliation; no gameplay behavior or deterministic consequence is introduced.",
+      "evidenceIds": "E-523-IMPLEMENTED;E-523-RELEASED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -9339,10 +9339,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.91"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
