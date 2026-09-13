@@ -146,7 +146,7 @@ export default function Landing() {
         <p className="landing__error" role="alert">
           <span>{error.message}</span>
           {error.retryAfterSeconds !== undefined && (
-            <span>Try again in about {error.retryAfterSeconds} seconds.</span>
+            <span> Try again in about {error.retryAfterSeconds} seconds.</span>
           )}
         </p>
       )}

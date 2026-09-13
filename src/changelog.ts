@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [633],
+    implementationProgress: {
+      completed: 275, total: 751, percentage: '36.62%',
+      done: 275, partial: 25, active: 0, missing: 451,
+    },
+    changes: [
+      'If too many join attempts temporarily pause access, the console shows how long to wait. Connection errors give clearer guidance without automatically repeating your action.',
+      '275 of 751 planned items are complete (36.62%).',
+    ],
+  },
+  {
+    version: '0.4.8',
     implementationProgress: {
       completed: 274, total: 751, percentage: '36.48%',
       done: 274, partial: 25, active: 0, missing: 452,
