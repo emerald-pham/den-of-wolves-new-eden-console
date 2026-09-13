@@ -1,5 +1,7 @@
 export const SESSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const PRESENCE_LEASE_MS = 45_000;
+/** Keep repeated heartbeat retries out of the roster/census reconciliation path. */
+export const PRESENCE_RECONCILIATION_INTERVAL_MS = 5_000;
 
 export function deletionDeadline(disconnectedAt: Date): Date {
   return new Date(disconnectedAt.getTime() + SESSION_RETENTION_MS);

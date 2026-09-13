@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-import { PRESENCE_LEASE_MS, SESSION_RETENTION_MS } from './sessionLifecycle';
+import {
+  PRESENCE_LEASE_MS,
+  PRESENCE_RECONCILIATION_INTERVAL_MS,
+  SESSION_RETENTION_MS,
+} from './sessionLifecycle';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -209,6 +213,13 @@ function read(path: string) {
   return mock.documents.get(path);
 }
 
+function readPaths() {
+  return mock.get.mock.calls.map(([target]) =>
+    typeof target === 'object' && target !== null && 'path' in target
+      ? (target as { path: string }).path
+      : '');
+}
+
 function session(fields: StoredDocument = {}) {
   put('sessions/s1', {
     name: 'Table one',
@@ -260,6 +271,9 @@ describe('presence lease', () => {
     player({
       lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
     });
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromDate(NOW),
+    });
     put('sessions/s1/seats/seat-1', { status: 'open', holderUid: null });
 
     await expect(claimSeat.run(request({
@@ -284,6 +298,93 @@ describe('presence lease', () => {
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ lastSeenAt: 'server-time' });
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+    expect(readPaths()).toContain('sessions/s1/players');
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
+      .toEqual(expect.any(mock.Timestamp));
+  });
+
+  it('renews rapid heartbeat retries cheaply without moving the full-reconciliation marker', async () => {
+    session();
+    player({ role: 'gm' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+    const marker = mock.Timestamp.fromMillis(NOW.getTime() - 1_000);
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: marker });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1', instanceId: 'bridge' })))
+      .resolves.toEqual({ sessionId: 's1' });
+
+    expect(readPaths()).not.toContain('sessions/s1/players');
+    expect(readPaths()).not.toContain('sessions/s1/secrets');
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
+      .toBe(marker);
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      connected: true, lastSeenAt: 'server-time',
+    });
+  });
+
+  it('performs full reconciliation once the marker interval elapses', async () => {
+    session();
+    player();
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromMillis(
+        NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1,
+      ),
+    });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({
+      sessionId: 's1',
+    });
+
+    expect(readPaths()).toContain('sessions/s1/players');
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
+      .toEqual(expect.any(mock.Timestamp));
+  });
+
+  it('keeps the full marker isolated by session and player identity', async () => {
+    session();
+    player();
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromDate(NOW),
+    });
+    put('sessions/s1/players/u2', {
+      uid: 'u2', sessionId: 's1', role: 'player', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }, 'u2')))
+      .resolves.toEqual({ sessionId: 's1' });
+    expect(read('sessions/s1/presenceReconciliations/u2')?.lastFullReconciliationAt)
+      .toEqual(expect.any(mock.Timestamp));
+
+    put('sessions/s2', { name: 'Table two', phase: 'lobby', ownerUid: 'u1' });
+    put('sessions/s2/players/u1', {
+      uid: 'u1', sessionId: 's2', role: 'player', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW),
+    });
+    mock.get.mockClear();
+    await expect(refreshPresence.run(request({ sessionId: 's2' })))
+      .resolves.toEqual({ sessionId: 's2' });
+    expect(readPaths()).toContain('sessions/s2/players');
+    expect(read('sessions/s2/presenceReconciliations/u1')?.lastFullReconciliationAt)
+      .toEqual(expect.any(mock.Timestamp));
+  });
+
+  it('never takes the cheap path for an explicit role claim or release', async () => {
+    session({ pressEnabled: true, activeRoleIds: ['admiral'] });
+    player();
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: null })))
+      .resolves.toEqual({ sessionId: 's1' });
+
+    expect(readPaths()).toContain('sessions/s1/players');
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
+      .toEqual(expect.any(mock.Timestamp));
   });
 
   it('does not let a replaced player reclaim the historical console role', async () => {

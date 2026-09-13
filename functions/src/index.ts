@@ -208,6 +208,7 @@ import {
   activeSessionConflicts,
   deletionDeadline,
   isPresenceStale,
+  PRESENCE_RECONCILIATION_INTERVAL_MS,
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { destructionTransition } from './shipDestruction';
@@ -774,6 +775,10 @@ function authoritativeActiveVesselIdsForWolfPreparation(session: DocumentSnapsho
 
 function fleetGroupRef(sessionId: string) {
   return db.doc(`sessions/${sessionId}/fleetGroups/${INITIAL_FLEET_GROUP_ID}`);
+}
+
+function presenceReconciliationRef(sessionId: string, uid: string) {
+  return db.doc(`sessions/${sessionId}/presenceReconciliations/${uid}`);
 }
 
 function navigationStateRef(sessionId: string) {
@@ -10702,22 +10707,18 @@ export const refreshPresence = onCall<{
   const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
+  const reconciliationRef = presenceReconciliationRef(sessionId, uid);
   await db.runTransaction(async (tx) => {
     const requestedRoleId = activeConsoleRoleId ?? null;
     const roleHolders = requestedRoleId
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
       : null;
-    const [player, session, instance, holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
+    const [player, session, instance, reconciliation] = await Promise.all([
       tx.get(playerRef),
       tx.get(sessionRef),
       instanceRef ? tx.get(instanceRef) : null,
-      roleHolders ? tx.get(roleHolders) : null,
-      tx.get(pressHoldersRef),
-      tx.get(wolfSecretRef),
-      tx.get(playersRef),
-      tx.get(secretsRef),
-      tx.get(censusRef),
+      tx.get(reconciliationRef),
     ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
@@ -10726,6 +10727,31 @@ export const refreshPresence = onCall<{
     if (instanceId && (!instance || !isLiveGmInstance(instance, player, uid))) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    const lastFullReconciliationAt = toTimestampMillis(
+      reconciliation.get('lastFullReconciliationAt'),
+    );
+    const cheapHeartbeat = activeConsoleRoleId === undefined &&
+      lastFullReconciliationAt !== undefined &&
+      Date.now() - lastFullReconciliationAt < PRESENCE_RECONCILIATION_INTERVAL_MS;
+    if (cheapHeartbeat) {
+      tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+      if (instanceId && instanceRef) {
+        tx.update(instanceRef, {
+          connected: true,
+          lastSeenAt: FieldValue.serverTimestamp(),
+        });
+      }
+      tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+      return;
+    }
+    const [holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
+      roleHolders ? tx.get(roleHolders) : null,
+      tx.get(pressHoldersRef),
+      tx.get(wolfSecretRef),
+      tx.get(playersRef),
+      tx.get(secretsRef),
+      tx.get(censusRef),
+    ]);
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
@@ -10866,6 +10892,10 @@ export const refreshPresence = onCall<{
       });
     }
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+    tx.set(reconciliationRef, {
+      lastFullReconciliationAt: Timestamp.now(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   });
   return { sessionId };
 });
