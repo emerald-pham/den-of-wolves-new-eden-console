@@ -396,9 +396,12 @@ service cloud.firestore {
       // never contains a card identity or card content.
       match /awayMissionHandPointers/{pointerId} {
         allow get: if isMember(sessionId)
+          && resource.data.keys().hasAll(['sessionId', 'participantUid', 'handId'])
           && resource.data.sessionId == sessionId
+          && resource.data.handId == pointerId
           && (resource.data.participantUid == uid() || isGm(sessionId));
         allow list: if isMember(sessionId)
+          && resource.data.sessionId == sessionId
           && (resource.data.participantUid == uid() || isGm(sessionId));
         allow write: if false;
       }

@@ -1777,6 +1777,7 @@ export function subscribeSessionState(
       handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands) ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+        where('sessionId', '==', sessionId),
         where('participantUid', '==', uid),
       ),
       (snapshot) => {
@@ -1801,7 +1802,10 @@ export function subscribeSessionState(
       },
     )] : []),
     ...(handlers.onGmAwayMissionHandPointers ? [onSnapshot(
-      collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+      query(
+        collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+        where('sessionId', '==', sessionId),
+      ),
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
