@@ -192,9 +192,9 @@ it('checks the action phase before allocating a pending roll', async () => {
 });
 
 it.each([
-  ['missing dockedAt', (row: Record<string, unknown>, _rows: unknown[]) => { delete row.dockedAt; }],
-  ['blank dockedAt', (row: Record<string, unknown>, _rows: unknown[]) => { row.dockedAt = '  '; }],
-  ['in transit', (row: Record<string, unknown>, _rows: unknown[]) => { row.inTransit = true; }],
+  ['missing dockedAt', (row: Record<string, unknown>) => { delete row.dockedAt; }],
+  ['blank dockedAt', (row: Record<string, unknown>) => { row.dockedAt = '  '; }],
+  ['in transit', (row: Record<string, unknown>) => { row.inTransit = true; }],
   ['duplicate Hummingbird row', (row: Record<string, unknown>, rows: unknown[]) => { rows.push({ ...row }); }],
 ] as const)('rejects a Hummingbird docking row with %s before writing or rolling', async (_label, mutate) => {
   const session = mock.documents.get('sessions/s1')!;
