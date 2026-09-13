@@ -333,7 +333,7 @@ function AppRoutes() {
             if (arbourVisionBlocked) {
               const candidate = arbourVisionBlockReason === 'entitlement' &&
                 pendingArbourVision?.generation === arbourVisionAuthorityGeneration &&
-                pendingArbourVision.vision.revision > arbourVisionRevisionFloor
+                pendingArbourVision.vision.revision >= arbourVisionRevisionFloor
                 ? pendingArbourVision.vision
                 : null;
               arbourVisionBlocked = false;

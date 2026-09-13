@@ -813,6 +813,31 @@ describe('App', () => {
     expect(useSessionStore.getState().arbourVision).toEqual(vision);
   });
 
+  it('restores a displayed Arbour call across an entitlement snapshot', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+      text: 'The relay is under threat.', label: 'FACILITATOR CALL',
+    };
+    const arbourPlayer: Player = { ...player, role: 'player', assignedRoleId: 'admiral' };
+    useSessionStore.getState().setIdentity(session, arbourPlayer);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    act(() => handlers?.onArbourVision?.(vision));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+
+    act(() => handlers?.onPlayer?.({ ...arbourPlayer, replacementRoleId: 'vip-host' }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+  });
+
   it('keeps the current Arbour call through duplicate and older snapshots', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
