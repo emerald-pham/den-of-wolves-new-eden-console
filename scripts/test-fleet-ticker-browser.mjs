@@ -8,7 +8,9 @@ const port = Number(process.env.TICKER_SMOKE_PORT ?? 4179);
 const appUrl = `http://${host}:${port}/`;
 const artifactDirectory = process.env.TICKER_SMOKE_ARTIFACT_DIR
   ?? path.join('/tmp', 'fleet-ticker-smoke');
-const expectedText = 'SNN // CURRENT SERVER BROADCAST';
+const PRESS_TEXT = 'SNN // CURRENT SERVER BROADCAST';
+const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // TURN 0 // STANDING BY';
+const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.';
 
 const session = {
   id: 'ticker-browser-smoke',
@@ -27,10 +29,65 @@ const session = {
       sequence: 7,
       source: 'press',
       priority: 20,
-      text: expectedText,
+      text: PRESS_TEXT,
       tone: 'normal',
       gap: 'long',
       createdAt: '2026-09-13T16:00:00.000Z',
+    },
+    queued: [],
+    draining: [],
+    dismissed: [],
+  },
+};
+
+const turnZeroSession = {
+  ...session,
+  id: 'ticker-browser-turn-zero',
+  name: 'Turn Zero Ticker Browser Smoke',
+  joinCode: 'ZERO',
+  phase: 'lobby',
+  currentTurn: 0,
+  ownerUid: 'ticker-smoke-player',
+  fleetTicker: {
+    revision: 1,
+    nextSequence: 1,
+    replayCursor: 1,
+    current: {
+      id: 'ticker-browser-turn-zero:fleet-ticker:1',
+      sequence: 1,
+      source: 'automatic',
+      sourceId: 'turn-zero-atc',
+      priority: 30,
+      text: TURN_ZERO_ATC_TEXT,
+      tone: 'normal',
+      gap: 'long',
+      createdAt: '2026-09-13T16:00:00.000Z',
+    },
+    queued: [],
+    draining: [],
+    dismissed: [],
+  },
+};
+
+const turnOneSession = {
+  ...turnZeroSession,
+  phase: 'active',
+  currentTurn: 1,
+  updatedAt: '2026-09-13T16:01:00.000Z',
+  fleetTicker: {
+    revision: 2,
+    nextSequence: 2,
+    replayCursor: 2,
+    current: {
+      id: 'ticker-browser-turn-zero:fleet-ticker:2',
+      sequence: 2,
+      source: 'automatic',
+      sourceId: 'airspace:1:restricted',
+      priority: 40,
+      text: TURN_ONE_AIRSPACE_TEXT,
+      tone: 'normal',
+      gap: 'long',
+      createdAt: '2026-09-13T16:01:00.000Z',
     },
     queued: [],
     draining: [],
@@ -48,18 +105,24 @@ const player = {
   joinedAt: '2026-09-13T16:00:00.000Z',
 };
 
-const persistedSession = {
-  state: {
-    session,
-    me: player,
-    gmInstance: null,
-    gmAccessAuthenticatedAt: null,
-    pendingCommands: [],
-    mode: 'console',
-    lastRoute: '/console',
-  },
-  version: 1,
-};
+function persistedFixture(nextSession, lastRoute, activeConsoleRoleId = player.activeConsoleRoleId) {
+  return {
+    state: {
+      session: nextSession,
+      me: { ...player, sessionId: nextSession.id, activeConsoleRoleId },
+      gmInstance: null,
+      gmAccessAuthenticatedAt: null,
+      pendingCommands: [],
+      mode: 'console',
+      lastRoute,
+    },
+    version: 1,
+  };
+}
+
+const persistedSession = persistedFixture(session, '/console');
+const persistedTurnZeroSession = persistedFixture(turnZeroSession, '/roles', null);
+const persistedTurnOneSession = persistedFixture(turnOneSession, '/roles', null);
 
 function startVite() {
   const output = [];
@@ -90,13 +153,13 @@ async function waitForServer(child, output) {
   throw new Error(`Timed out waiting for Vite at ${appUrl}.\n${output()}`);
 }
 
-async function assertTicker(page, label, fontMode, reducedMotion) {
+async function assertTicker(page, label, fontMode, reducedMotion, expectedText) {
   await page.waitForFunction(
     () => document.querySelector('.fleet-ticker [role="status"]') !== null,
     undefined,
     { timeout: 15_000 },
   );
-  await page.waitForFunction(() => {
+  await page.waitForFunction((expected) => {
     const ticker = document.querySelector('.fleet-ticker');
     const frame = ticker?.querySelector('.fleet-ticker__window')?.getBoundingClientRect();
     if (!ticker || !frame) return false;
@@ -115,13 +178,13 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
       .some((element) => {
         const bounds = element.getBoundingClientRect();
         const style = getComputedStyle(element);
-        return element.textContent?.includes('SNN // CURRENT SERVER BROADCAST') &&
+        return element.textContent?.includes(expected) &&
           bounds.width > 0 && bounds.height > 0 && style.visibility === 'visible' && style.display !== 'none' && Number(style.opacity) > 0 &&
           bounds.right > frame.left && bounds.left < frame.right &&
           bounds.bottom > frame.top && bounds.top < frame.bottom;
       });
-  }, undefined, { timeout: 5_000 });
-  const snapshot = await page.evaluate(() => {
+  }, expectedText, { timeout: 5_000 });
+  const snapshot = await page.evaluate((expected) => {
     const ticker = document.querySelector('.fleet-ticker');
     const frame = ticker?.querySelector('.fleet-ticker__window');
     const status = ticker?.querySelector('[role="status"]');
@@ -142,7 +205,7 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
         .some((element) => {
           const bounds = element.getBoundingClientRect();
           const style = getComputedStyle(element);
-          return element.textContent?.includes('SNN // CURRENT SERVER BROADCAST') &&
+          return element.textContent?.includes(expected) &&
             bounds.width > 0 &&
             bounds.height > 0 && style.visibility === 'visible' && style.display !== 'none' && Number(style.opacity) > 0 &&
             frameBounds !== undefined && bounds.right > frameBounds.left &&
@@ -162,7 +225,7 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
       overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
       motion: document.querySelector('[data-motion]')?.dataset.motion ?? null,
     };
-  });
+  }, expectedText);
 
   if (!snapshot.ticker || !snapshot.viewportVisible || !snapshot.paintedText || !snapshot.tickerBounds ||
       snapshot.tickerBounds.width <= 0 || snapshot.tickerBounds.height <= 0) {
@@ -170,6 +233,9 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
   }
   if (!snapshot.text.includes(expectedText)) {
     throw new Error(`${label}: visible ticker text is wrong: ${JSON.stringify(snapshot)}`);
+  }
+  if (snapshot.text.includes('IRIS')) {
+    throw new Error(`${label}: obsolete Iris lockout copy reached the ticker: ${JSON.stringify(snapshot)}`);
   }
   if (snapshot.overflow) {
     throw new Error(`${label}: ticker introduced horizontal overflow: ${JSON.stringify(snapshot)}`);
@@ -186,7 +252,7 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
   }
 }
 
-async function runCase(fontMode, reducedMotion, viewport) {
+async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     reducedMotion: reducedMotion ? 'reduce' : 'no-preference',
@@ -213,8 +279,11 @@ async function runCase(fontMode, reducedMotion, viewport) {
       socket.close();
     }
   });
-  await context.addInitScript(({ fixture, fontMode: mode, reduced }) => {
-    localStorage.setItem('dow-new-eden-session', JSON.stringify(fixture));
+  await context.addInitScript(({ fixture, transitionFixture, fontMode: mode, reduced }) => {
+    const activeFixture = transitionFixture && sessionStorage.getItem('ticker-smoke-transition') === 'turn-one'
+      ? transitionFixture
+      : fixture;
+    localStorage.setItem('dow-new-eden-session', JSON.stringify(activeFixture));
     localStorage.setItem('new-eden-motion-override', reduced ? 'reduce' : 'full');
     localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({
       acknowledgedAt: Date.now(),
@@ -235,28 +304,44 @@ async function runCase(fontMode, reducedMotion, viewport) {
       // The assertion below fails closed if a browser does not expose a patchable FontFaceSet.
     }
     window.__tickerSmokeFontPatch = patched;
-  }, { fixture: persistedSession, fontMode, reduced: reducedMotion });
+  }, {
+    fixture: scenario === 'turn-zero' ? persistedTurnZeroSession : persistedSession,
+    transitionFixture: scenario === 'turn-zero' ? persistedTurnOneSession : null,
+    fontMode,
+    reduced: reducedMotion,
+  });
 
   const page = await context.newPage();
   await page.setViewportSize(viewport);
-  const label = `${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`;
+  const expectedText = scenario === 'turn-zero' ? TURN_ZERO_ATC_TEXT : PRESS_TEXT;
+  const label = `${scenario}/${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`;
   try {
-    await page.goto(`${appUrl}#/ships/aegis`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${appUrl}${scenario === 'turn-zero' ? '#/roles' : '#/ships/aegis'}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(100);
-    await assertTicker(page, `${label}/initial`, fontMode, reducedMotion);
+    await assertTicker(page, `${label}/initial`, fontMode, reducedMotion, expectedText);
 
-    await page.goto(`${appUrl}#/ships/aegis/roles/admiral`, { waitUntil: 'domcontentloaded' });
+    if (scenario === 'turn-zero') {
+      await page.evaluate(() => sessionStorage.setItem('ticker-smoke-transition', 'turn-one'));
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(100);
+      await assertTicker(page, `${label}/turn-one`, fontMode, reducedMotion, TURN_ONE_AIRSPACE_TEXT);
+      await page.goto(`${appUrl}#/ships/aegis`, { waitUntil: 'domcontentloaded' });
+    } else {
+      await page.goto(`${appUrl}#/ships/aegis/roles/admiral`, { waitUntil: 'domcontentloaded' });
+    }
     await page.waitForTimeout(100);
-    await assertTicker(page, `${label}/navigation`, fontMode, reducedMotion);
+    await assertTicker(page, `${label}/navigation`, fontMode, reducedMotion,
+      scenario === 'turn-zero' ? TURN_ONE_AIRSPACE_TEXT : expectedText);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(100);
-    await assertTicker(page, `${label}/reload`, fontMode, reducedMotion);
+    await assertTicker(page, `${label}/reload`, fontMode, reducedMotion,
+      scenario === 'turn-zero' ? TURN_ONE_AIRSPACE_TEXT : expectedText);
   } catch (error) {
     await mkdir(artifactDirectory, { recursive: true });
     const screenshotPath = path.join(
       artifactDirectory,
-      `ticker-${fontMode}-${reducedMotion ? 'reduced' : 'normal'}-${viewport.width}x${viewport.height}.png`,
+      `ticker-${scenario}-${fontMode}-${reducedMotion ? 'reduced' : 'normal'}-${viewport.width}x${viewport.height}.png`,
     );
     await page.screenshot({ path: screenshotPath, fullPage: false });
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nFailure screenshot: ${screenshotPath}`);
@@ -269,11 +354,16 @@ async function runCase(fontMode, reducedMotion, viewport) {
 const { child: vite, output: viteOutput } = startVite();
 try {
   await waitForServer(vite, viteOutput);
-  for (const fontMode of ['pending', 'ready']) {
-    for (const reducedMotion of [false, true]) {
-      for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-        await runCase(fontMode, reducedMotion, viewport);
-        console.log(`Ticker browser smoke passed: ${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`);
+  for (const scenario of ['press', 'turn-zero']) {
+    for (const fontMode of ['pending', 'ready']) {
+      for (const reducedMotion of [false, true]) {
+        const viewports = scenario === 'turn-zero'
+          ? [{ width: 320, height: 844 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]
+          : [{ width: 390, height: 844 }, { width: 1440, height: 900 }];
+        for (const viewport of viewports) {
+          await runCase(fontMode, reducedMotion, viewport, scenario);
+          console.log(`Ticker browser smoke passed: ${scenario}/${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`);
+        }
       }
     }
   }

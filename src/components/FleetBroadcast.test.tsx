@@ -5,6 +5,9 @@ import FleetBroadcast from './FleetBroadcast';
 
 const renderTicker = vi.hoisted(() => vi.fn(() => null));
 
+const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // TURN 0 // STANDING BY';
+const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.';
+
 vi.mock('./FleetTicker', () => ({ default: renderTicker }));
 
 beforeEach(() => {
@@ -69,6 +72,59 @@ it('passes the authoritative current identity and queued precedence to the ticke
   expect(props.queue).toMatchObject([
     { id: 's1:fleet-ticker:2', serverAuthoritative: true },
   ]);
+});
+
+it('shows server-owned Turn 0 ATC before Press publishes and follows the Turn 1 transition', () => {
+  const turnZeroSession = {
+    id: 's1', name: 'Table', joinCode: '1234', phase: 'lobby' as const, ownerUid: 'u1',
+    currentTurn: 0, createdAt: '', updatedAt: '',
+    fleetTicker: {
+      revision: 1, nextSequence: 1, replayCursor: 1,
+      current: {
+        id: 's1:fleet-ticker:1', sequence: 1, source: 'automatic' as const,
+        priority: 30, sourceId: 'turn-zero-atc', text: TURN_ZERO_ATC_TEXT,
+        tone: 'normal' as const, gap: 'long' as const, createdAt: '2026-09-13T16:00:00.000Z',
+      },
+      queued: [], draining: [], dismissed: [],
+    },
+  };
+  const member = {
+    uid: 'u1', sessionId: 's1', displayName: 'Admiral', role: 'player' as const,
+    seatId: null, activeConsoleRoleId: null, joinedAt: '',
+  };
+  useSessionStore.getState().setIdentity(turnZeroSession, member);
+
+  render(<FleetBroadcast />);
+  const turnZeroProps = (renderTicker.mock.calls.at(-1) as unknown[] | undefined)?.[0] as {
+    message?: { id: string; text: string; serverAuthoritative?: boolean };
+  };
+  expect(turnZeroProps.message).toMatchObject({
+    id: 's1:fleet-ticker:1', text: TURN_ZERO_ATC_TEXT, serverAuthoritative: true,
+  });
+  expect(turnZeroProps.message?.text).not.toContain('IRIS');
+
+  act(() => useSessionStore.getState().setIdentity({
+    ...turnZeroSession,
+    phase: 'active',
+    currentTurn: 1,
+    fleetTicker: {
+      revision: 2, nextSequence: 2, replayCursor: 2,
+      current: {
+        id: 's1:fleet-ticker:2', sequence: 2, source: 'automatic' as const,
+        priority: 40, sourceId: 'airspace:1:restricted', text: TURN_ONE_AIRSPACE_TEXT,
+        tone: 'normal' as const, gap: 'long' as const, createdAt: '2026-09-13T16:01:00.000Z',
+      },
+      queued: [], draining: [], dismissed: [],
+    },
+  }, member));
+
+  const turnOneProps = (renderTicker.mock.calls.at(-1) as unknown[] | undefined)?.[0] as {
+    message?: { id: string; text: string; serverAuthoritative?: boolean };
+  };
+  expect(turnOneProps.message).toMatchObject({
+    id: 's1:fleet-ticker:2', text: TURN_ONE_AIRSPACE_TEXT, serverAuthoritative: true,
+  });
+  expect(turnOneProps.message?.text).not.toContain('IRIS');
 });
 
 it('does not resurrect legacy copy after an authoritative stream is empty', () => {

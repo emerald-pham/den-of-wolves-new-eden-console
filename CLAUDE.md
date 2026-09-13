@@ -220,6 +220,15 @@ session projection fixture isolated to the smoke and save a viewport screenshot
 when a case fails; do not replace the real ticker with a mock or an offscreen
 DOM assertion.
 
+The initial server projection is also release-critical: a freshly joined member
+must see `AIRSPACE CONTROL // TURN 0 // STANDING BY` from the moment a lobby is
+joined, before any Press Officer publication or role-specific dispatch. The
+Turn 0 smoke covers a freshly joined member with no claimed role or Press
+dispatch, pending and ready fonts, normal and reduced motion, 320px and
+390px phones, wide desktop, navigation, reload, and the authoritative Turn 1 airspace transition. The
+initial ATC projection is separate from the SNN/Press stream and must never
+reintroduce the retired Iris lockout ticker.
+
 ## Worktrees and emulator rows
 
 Each task uses its own branch and checkout. For rules or emulator-backed checks,

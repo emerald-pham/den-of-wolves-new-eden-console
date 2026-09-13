@@ -383,7 +383,10 @@ and monospaced readout scale; they never attach to the viewport bottom or cover
 the console. On constrained widths the broadcast occupies its own full-width
 row inside that same measured header, so the console offset still accounts for
 it. The SNN ticker remains absent until the Press Officer publishes the first
-dispatch, then returns between finite broadcasts. Press dispatches leave a
+dispatch, then returns between finite broadcasts. A freshly joined Turn 0
+member may still see the separate server-owned `AIRSPACE CONTROL // TURN 0 //
+STANDING BY` bulletin before any Press publication; this ATC standing-by copy
+is not an SNN dispatch. Press dispatches leave a
 deliberately long field of empty track between repetitions,
 so each item reads as a discrete wire-service bulletin rather than a dense alert.
 Stable moving broadcasts keep two identical groups, with enough copies in each
@@ -1215,17 +1218,18 @@ Admiral command uses the shared framed action button, with a live status
 alongside it and inline errors. Every label, control state, status and error in
 this alert instrument is authored in uppercase.
 
-Every fleet bulletin begins with its source: `AEGIS //` for automatic airspace
-and stand-down notices, `ICSN ADMIRAL //` for active Admiral warnings, and
-`SNN //` for Press dispatches. Keep that prefix first in the moving copy,
-reduced-motion readout, and assistive-technology status so the origin stays
-clear before a bulletin is read.
+Every fleet bulletin begins with its source: `AIRSPACE CONTROL //` for the
+server-owned Turn 0 standing-by and airspace notices, `AEGIS //` for automatic
+stand-down notices, `ICSN ADMIRAL //` for active Admiral warnings, and `SNN //`
+for Press dispatches. Keep that prefix first in the moving copy, reduced-motion
+readout, and assistive-technology status so the origin stays clear before a
+bulletin is read.
 
-During Turn 0, the same instrument carries the normal long-gap boot bulletin
-`AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE`. It is
-removed from the requested queue as soon as the shared turn reaches Turn 1, so
-the setup warning never repeats into live play; any copy already on screen
-still drains under the normal ticker transition.
+During Turn 0, the same instrument carries the server-owned normal long-gap
+boot bulletin `AIRSPACE CONTROL // TURN 0 // STANDING BY`. It is independent
+of Press Officer publication and is replaced by the authoritative Turn 1
+airspace bulletin when the shared turn advances, so the initial standing-by
+copy never becomes an SNN dispatch or reintroduces the retired Iris lockout.
 
 All moving ticker copy enters from the right and travels left at one constant,
 linear rate. This is the fleetwide press/alert transition convention: when a
