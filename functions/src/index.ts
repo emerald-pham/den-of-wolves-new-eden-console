@@ -781,6 +781,13 @@ function presenceReconciliationRef(sessionId: string, uid: string) {
   return db.doc(`sessions/${sessionId}/presenceReconciliations/${uid}`);
 }
 
+function presenceReconciliationTimestamp() {
+  const timestamp = Timestamp as unknown as { fromMillis?: (milliseconds: number) => unknown };
+  return typeof timestamp.fromMillis === 'function'
+    ? timestamp.fromMillis(Date.now())
+    : FieldValue.serverTimestamp();
+}
+
 function navigationStateRef(sessionId: string) {
   return db.doc(navigationStateDocumentPath(sessionId));
 }
@@ -10893,7 +10900,7 @@ export const refreshPresence = onCall<{
     }
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
     tx.set(reconciliationRef, {
-      lastFullReconciliationAt: Timestamp.fromMillis(Date.now()),
+      lastFullReconciliationAt: presenceReconciliationTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
