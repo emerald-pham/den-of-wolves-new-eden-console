@@ -66,6 +66,44 @@ describe('small-ship rules', () => {
     })).toThrow(/capacity/i);
   });
 
+  it('runs only charged base Capybara production against the docked host ledger', () => {
+    let state = {
+      ...docked('capybara-small'),
+      cycle: {
+        ...docked('capybara-small').cycle,
+        step: 5, revision: 5, turn: 1,
+        charges: ['water-reclimator', 'hydroponics'],
+      },
+    };
+    let resources = { ...hostResources, food: 3, water: 2 };
+
+    ({ state, hostResources: resources } = advanceSmallShipMaintenance({
+      state, action: 'production', expectedRevision: 5, currentTurn: 1,
+      hostResources: resources, productionConsoleId: 'water-reclimator', rolls: [], now: 'now',
+    }));
+    expect(resources).toMatchObject({ food: 3, water: 6 });
+    expect(state.cycle).toMatchObject({ step: 5, revision: 6, charges: ['hydroponics'] });
+    expect(state.cycle.results['5']).toContain('generated 4 water');
+
+    ({ state, hostResources: resources } = advanceSmallShipMaintenance({
+      state, action: 'production', expectedRevision: 6, currentTurn: 1,
+      hostResources: resources, productionConsoleId: 'hydroponics', rolls: [], now: 'now',
+    }));
+    expect(resources).toMatchObject({ food: 7, water: 5 });
+    expect(state.cycle).toMatchObject({ step: 5, revision: 7, charges: [] });
+    expect(state.cycle.results['5']).toContain('generated 4 food');
+
+    const noWater = { ...state, cycle: { ...state.cycle, charges: ['hydroponics'] } };
+    expect(() => advanceSmallShipMaintenance({
+      state: noWater, action: 'production', expectedRevision: 7, currentTurn: 1,
+      hostResources: { ...resources, water: 0 }, productionConsoleId: 'hydroponics', rolls: [], now: 'now',
+    })).toThrow(/insufficient water/i);
+    expect(() => advanceSmallShipMaintenance({
+      state: { ...noWater, id: 'warrior' }, action: 'production', expectedRevision: 7, currentTurn: 1,
+      hostResources: resources, productionConsoleId: 'hydroponics', rolls: [], now: 'now',
+    })).toThrow(/base Capybara/i);
+  });
+
   it('borrows food and water from the docked host and advances the four steps', () => {
     let state = docked();
     let resources = hostResources;

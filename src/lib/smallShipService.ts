@@ -8,6 +8,7 @@ export interface SmallShipMaintenanceChoices {
   readonly foodLevel?: number;
   readonly waterLevel?: number;
   readonly consoles?: readonly string[];
+  readonly productionConsoleId?: 'water-reclimator' | 'hydroponics';
 }
 
 function commandId(): string {

@@ -489,6 +489,29 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   await waitFor(() => expect(assignReplacementRole).toHaveBeenCalledWith('u2', 'wolf-commander', 1, 5));
 });
 
+it('renders charged base Capybara production controls in the live GM console', () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      'capybara-small': {
+        id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1,
+        population: 2_000, unrest: 0,
+        cycle: { step: 5, revision: 5, results: { '4': 'Reactor powered up.' }, charges: ['water-reclimator', 'hydroponics'] },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const card = screen.getByRole('region', { name: 'Capybara small-ship operations' });
+  expect(within(card).getByRole('button', { name: /Run Water Reclimator/ })).toBeEnabled();
+  expect(within(card).getByRole('button', { name: /Run Hydroponics/ })).toBeEnabled();
+  expect(within(card).getByRole('button', { name: 'End small-ship cycle' })).toBeEnabled();
+});
+
 it('does not advertise extra-ship replacement roles for a duplicate vessel tuple', async () => {
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,

@@ -595,7 +595,7 @@ function smallShipStates(value: unknown): NonNullable<GameSession['smallShipStat
     if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return [];
     if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return [];
     const parsedResults = Object.fromEntries(Object.entries(results).flatMap(([key, result]) =>
-      /^[1-4]$/.test(key) && typeof result === 'string' ? [[key, result]] : []));
+      /^[1-5]$/.test(key) && typeof result === 'string' ? [[key, result]] : []));
     const startedAt = cycle.startedAt === undefined ? undefined : timestampString(cycle.startedAt);
     const completedAt = cycle.completedAt === undefined ? undefined : timestampString(cycle.completedAt);
     if ((cycle.startedAt !== undefined && !startedAt) || (cycle.completedAt !== undefined && !completedAt)) return [];

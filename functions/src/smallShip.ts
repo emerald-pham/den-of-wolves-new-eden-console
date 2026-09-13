@@ -1,4 +1,4 @@
-import type { ShipResourceInventory } from './resources';
+import { addResourceAmount, type ShipResourceInventory } from './resources';
 
 /**
  * Shared rules for the four optional base-game small ships.  A small ship is
@@ -26,6 +26,9 @@ export const SMALL_SHIP_RULES = {
 
 export type SmallShipId = keyof typeof SMALL_SHIP_RULES;
 export const SMALL_SHIP_IDS: readonly SmallShipId[] = Object.keys(SMALL_SHIP_RULES) as SmallShipId[];
+
+export const BASE_CAPYBARA_PRODUCTION_CONSOLES = ['water-reclimator', 'hydroponics'] as const;
+export type BaseCapybaraProductionConsole = (typeof BASE_CAPYBARA_PRODUCTION_CONSOLES)[number];
 
 export interface SmallShipMaintenanceCycle {
   step: number;
@@ -58,6 +61,7 @@ export interface SmallShipMaintenanceInput {
   readonly foodLevel?: number;
   readonly waterLevel?: number;
   readonly consoles?: readonly string[];
+  readonly productionConsoleId?: string;
   readonly now: string;
 }
 
@@ -96,7 +100,7 @@ function parseCycle(value: unknown): SmallShipMaintenanceCycle | undefined {
   if (!rawResults) return undefined;
   const results: Record<string, string> = {};
   for (const [key, result] of Object.entries(rawResults)) {
-    if (/^[1-4]$/.test(key) && typeof result === 'string') results[key] = result;
+    if (/^[1-5]$/.test(key) && typeof result === 'string') results[key] = result;
   }
   const charges = raw.charges.filter((charge): charge is string => typeof charge === 'string');
   if (charges.length !== raw.charges.length) return undefined;
@@ -158,7 +162,10 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
       : cycleInput.step === 2 ? 'unrest'
         : cycleInput.step === 3 ? 'riot'
           : cycleInput.step === 4 ? 'reactor' : 'end';
-  if (expectedAction !== action) throw new Error('This small-ship action is not available at the current step.');
+  const isProduction = action === 'production';
+  if ((!isProduction && expectedAction !== action) || (isProduction && cycleInput.step !== 5)) {
+    throw new Error('This small-ship action is not available at the current step.');
+  }
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
     throw new Error('Small-ship maintenance can only be done once per turn.');
   }
@@ -222,11 +229,34 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
       cycle.charges = consoles;
       cycle.results['4'] = `Reactor powered up. Charged ${consoles.length}/${rules.reactorCapacity} consoles.`;
     }
+  } else if (action === 'production') {
+    if (state.id !== 'capybara-small') throw new Error('Base Capybara production is unavailable for this small ship.');
+    const consoleId = input.productionConsoleId;
+    if (!BASE_CAPYBARA_PRODUCTION_CONSOLES.includes(consoleId as BaseCapybaraProductionConsole)) {
+      throw new Error('Select a base Capybara production console.');
+    }
+    if (!cycleInput.charges.includes(consoleId!)) throw new Error('Production console is not charged.');
+    if (consoleId === 'hydroponics') {
+      if (hostResources.water < 1) throw new Error('The docked host has insufficient water for Hydroponics.');
+      hostResources = {
+        ...hostResources,
+        water: addResourceAmount(hostResources.water, -1),
+        food: addResourceAmount(hostResources.food, 4),
+      };
+      cycle.results['5'] = 'Hydroponics: spent 1 water, generated 4 food.';
+    } else {
+      hostResources = {
+        ...hostResources,
+        water: addResourceAmount(hostResources.water, 4),
+      };
+      cycle.results['5'] = 'Water Reclimator: generated 4 water.';
+    }
+    cycle.charges = cycleInput.charges.filter((id) => id !== consoleId);
   } else if (action === 'end') {
     cycle.completedAt = input.now;
     cycle.charges = [];
   }
-  cycle.step = action === 'end' ? 0 : cycle.step + 1;
+  cycle.step = action === 'end' || isProduction ? (action === 'end' ? 0 : cycle.step) : cycle.step + 1;
   return {
     state: {
       ...state,

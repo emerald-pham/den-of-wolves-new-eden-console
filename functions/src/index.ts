@@ -10272,6 +10272,7 @@ type SmallShipCommandFingerprint = Readonly<{
   foodLevel?: number | null;
   waterLevel?: number | null;
   consoles?: readonly string[];
+  productionConsoleId?: string;
 }>;
 
 function sameSmallShipFingerprint(value: unknown, expected: SmallShipCommandFingerprint): boolean {
@@ -10287,12 +10288,15 @@ function sameSmallShipFingerprint(value: unknown, expected: SmallShipCommandFing
   const waterLevelMatch = expected.waterLevel === undefined
     ? value.waterLevel === undefined
     : value.waterLevel === expected.waterLevel;
+  const productionConsoleMatch = expected.productionConsoleId === undefined
+    ? value.productionConsoleId === undefined
+    : value.productionConsoleId === expected.productionConsoleId;
   return value.kind === expected.kind && value.sessionId === expected.sessionId &&
     value.smallShipId === expected.smallShipId && value.actorUid === expected.actorUid &&
     value.instanceId === expected.instanceId && value.expectedRevision === expected.expectedRevision &&
     value.action === (expected.action ?? undefined) && value.hostShipId === expected.hostShipId &&
     value.docked === (expected.docked ?? undefined) && foodLevelMatch &&
-    waterLevelMatch && consolesMatch;
+    waterLevelMatch && consolesMatch && productionConsoleMatch;
 }
 
 function smallShipReceiptReply(
@@ -10408,11 +10412,12 @@ export const setSmallShipDocking = onCall<{
 export const runSmallShipMaintenance = onCall<{
   sessionId?: unknown; smallShipId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
   expectedRevision?: unknown; instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
+  productionConsoleId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-      Object.keys(raw).some(key => !['sessionId', 'smallShipId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
+      Object.keys(raw).some(key => !['sessionId', 'smallShipId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'productionConsoleId'].includes(key))) {
     throw new HttpsError('invalid-argument', 'Invalid small-ship maintenance request.');
   }
   const parsed = requireSmallShipMaintenanceRequest(raw);
@@ -10423,9 +10428,12 @@ export const runSmallShipMaintenance = onCall<{
     ...(raw.waterLevel === undefined ? {} : { waterLevel: raw.waterLevel as number }),
     ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
   };
-  if (!id || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'end'].includes(data.action) ||
+  const productionConsoleId = raw.productionConsoleId === undefined ? undefined : String(raw.productionConsoleId);
+  if (!id || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'production', 'end'].includes(data.action) ||
       [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isSafeInteger(level) || level < 0 || level > 3)) ||
-      (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(consoleId => typeof consoleId !== 'string')))) {
+      (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(consoleId => typeof consoleId !== 'string'))) ||
+      (raw.productionConsoleId !== undefined && (data.action !== 'production' ||
+        !['water-reclimator', 'hydroponics'].includes(productionConsoleId ?? '')))) {
     throw new HttpsError('invalid-argument', 'Invalid small-ship maintenance choices.');
   }
   const fingerprint: SmallShipCommandFingerprint = {
@@ -10433,6 +10441,7 @@ export const runSmallShipMaintenance = onCall<{
     instanceId: data.instanceId ?? null, expectedRevision: data.expectedRevision,
     action: data.action, foodLevel: data.foodLevel ?? null, waterLevel: data.waterLevel ?? null,
     consoles: [...(data.consoles ?? [])],
+    ...(productionConsoleId === undefined ? {} : { productionConsoleId }),
   };
   const requestRef = db.doc(`sessions/${data.sessionId}/smallShipRequests/${data.requestId}`);
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
@@ -10488,7 +10497,7 @@ export const runSmallShipMaintenance = onCall<{
         state, action: data.action, expectedRevision: data.expectedRevision,
         currentTurn: sessionTurn(session.get('currentTurn')), hostResources,
         rolls: stableRolls, foodLevel: data.foodLevel, waterLevel: data.waterLevel,
-        consoles: data.consoles, now: serverTime,
+        consoles: data.consoles, productionConsoleId, now: serverTime,
       });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid small-ship maintenance action.', 'conflict');

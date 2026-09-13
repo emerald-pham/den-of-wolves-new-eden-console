@@ -177,3 +177,112 @@ it('returns stale without consuming the host ledger', async () => {
   });
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('runs base Capybara production atomically against the host with authority, replay, stale, and resource guards', async () => {
+  const baseState = emptySmallShipState('capybara-small', 'aegis');
+  const productionState = {
+    ...baseState,
+    cycle: {
+      ...baseState.cycle, step: 5, revision: 5, turn: 1,
+      charges: ['water-reclimator', 'hydroponics'],
+    },
+  };
+  mock.session = {
+    activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
+    expansion: 'base', capybaraEnabled: true,
+    shipResources: {
+      aegis: { ore: 0, fuel: 4, food: 3, water: 2, materials: 1, securityTeams: 2 },
+    },
+    smallShipStates: { 'capybara-small': productionState },
+  };
+  const waterRequest = {
+    ...maintenanceBase, smallShipId: 'capybara-small', action: 'production',
+    expectedRevision: 5, requestId: 'capybara-small-water', productionConsoleId: 'water-reclimator',
+  };
+  await expect(runSmallShipMaintenance.run(request(waterRequest))).resolves.toMatchObject({
+    status: 'committed', action: 'production', committedRevision: 6,
+    result: { hostResources: { food: 3, water: 6 } },
+    cycle: { step: 5, charges: ['hydroponics'], results: { '5': expect.stringContaining('generated 4 water') } },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis': expect.objectContaining({ food: 3, water: 6 }),
+  }));
+
+  const receiptPath = 'sessions/s1/smallShipRequests/capybara-small-water';
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.receipts[receiptPath] = receipt;
+  mock.update.mockReset();
+  mock.set.mockReset();
+  await expect(runSmallShipMaintenance.run(request(waterRequest))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.session.smallShipStates = {
+    'capybara-small': {
+      ...productionState,
+      cycle: { ...productionState.cycle, revision: 6, charges: ['hydroponics'] },
+    },
+  };
+  mock.session.shipResources = {
+    aegis: { ore: 0, fuel: 4, food: 3, water: 6, materials: 1, securityTeams: 2 },
+  };
+  mock.update.mockReset();
+  await expect(runSmallShipMaintenance.run(request({
+    ...waterRequest, requestId: 'capybara-small-hydroponics', expectedRevision: 6,
+    productionConsoleId: 'hydroponics',
+  }))).resolves.toMatchObject({
+    status: 'committed', committedRevision: 7,
+    result: { hostResources: { food: 7, water: 5 } },
+    cycle: { step: 5, charges: [], results: { '5': expect.stringContaining('generated 4 food') } },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis': expect.objectContaining({ food: 7, water: 5 }),
+  }));
+
+  mock.session.smallShipStates = {
+    'capybara-small': {
+      ...productionState,
+      cycle: { ...productionState.cycle, revision: 7, charges: [] },
+    },
+  };
+  mock.session.shipResources = {
+    aegis: { ore: 0, fuel: 4, food: 7, water: 5, materials: 1, securityTeams: 2 },
+  };
+  mock.update.mockReset();
+  await expect(runSmallShipMaintenance.run(request({
+    ...waterRequest, requestId: 'capybara-small-stale', expectedRevision: 5,
+    productionConsoleId: 'hydroponics',
+  }))).resolves.toMatchObject({ status: 'stale', currentRevision: 7 });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.set.mockReset();
+  mock.session.smallShipStates = {
+    'capybara-small': {
+      ...productionState,
+      cycle: { ...productionState.cycle, revision: 6, charges: ['hydroponics'] },
+    },
+  };
+  mock.session.shipResources = {
+    aegis: { ore: 0, fuel: 4, food: 3, water: 0, materials: 1, securityTeams: 2 },
+  };
+  await expect(runSmallShipMaintenance.run(request({
+    ...waterRequest, requestId: 'capybara-small-no-water', expectedRevision: 6,
+    productionConsoleId: 'hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.role = 'player';
+  await expect(runSmallShipMaintenance.run(request({
+    ...waterRequest, requestId: 'capybara-small-wrong-actor', expectedRevision: 6,
+    productionConsoleId: 'hydroponics',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.role = 'gm';
+  mock.session.expansion = 'capybara';
+  await expect(runSmallShipMaintenance.run(request({
+    ...waterRequest, requestId: 'capybara-small-expansion', expectedRevision: 6,
+    productionConsoleId: 'hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});

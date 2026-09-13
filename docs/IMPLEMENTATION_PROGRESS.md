@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**212 / 750 prompts complete (28.27%)**
+**213 / 750 prompts complete (28.40%)**
 
-Status breakdown: **212 done · 22 partial · 516 missing**.
+Status breakdown: **213 done · 22 partial · 515 missing**.
 
 Active prompt: **none**
 
@@ -679,7 +679,7 @@ release classification and evidence.
 | 241a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 241d | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 241d | done | non-feature | — | The base small-ship Capybara now resolves its two printed production consoles through the existing server-owned small-ship maintenance transaction: at step 5, a charged Water Reclimator adds 4 water to the active docked host, and a charged Hydroponics atomically spends 1 host water for 4 host food. The callable reuses active-host authority, Team/turn gates, revision CAS, and exact replay receipts; uncharged, stale, wrong-actor, expansion-mode, and insufficient-water requests reject before a session or host-ledger write. The GM small-ship console exposes only charged production controls and keeps the full expansion Capybara path separate. Fuel Processor, jump, and cargo mechanics remain deferred to their owning prompts; the routed small-ship derivative does not provide a card identity or named owner for these consoles, so no such metadata is invented and the existing host authority remains the mutation boundary. |
 | 241e | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 242 | done | non-feature | — | The existing shared small-ship production path closes Warrior identity and maintenance: the typed supplemental vessel records 2,000 survivors, one reactor charge, 1/1/2 jump costs, and steps 1–4, while the server-owned rules enforce Warrior’s one-console cap and host-funded maintenance. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves the one-charge identity and printed host ration debit alongside the other audited small ships. Warrior salvage, repair, and Salvage Drones remain deferred to their later prompts. |
 | 243 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

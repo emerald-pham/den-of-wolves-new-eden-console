@@ -14,6 +14,10 @@ const SMALL_SHIP_RULES: Readonly<Record<SmallShipId, { readonly reactorCapacity:
 };
 
 const RATION_NAMES = ['None', 'Minimal', 'Short', 'Normal'];
+const BASE_CAPYBARA_PRODUCTION_CONSOLES = [
+  { id: 'water-reclimator', name: 'Water Reclimator', effect: 'Generate 4 water' },
+  { id: 'hydroponics', name: 'Hydroponics', effect: 'Spend 1 water → generate 4 food' },
+] as const;
 
 interface SmallShipCardProps {
   readonly id: SmallShipId;
@@ -52,7 +56,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
   const cycle = state?.cycle;
   const currentHost = state?.hostShipId ?? null;
   const selectedHost = currentHost ?? hostShipId;
-  const submit = async (action: string, choices: { foodLevel?: number; waterLevel?: number; consoles?: readonly string[] } = {}) => {
+  const submit = async (action: string, choices: { foodLevel?: number; waterLevel?: number; consoles?: readonly string[]; productionConsoleId?: (typeof BASE_CAPYBARA_PRODUCTION_CONSOLES)[number]['id'] } = {}) => {
     if (!state) return;
     setError('');
     setPending(true);
@@ -115,6 +119,16 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               return <label key={consoleId}><input type="checkbox" checked={consoles.includes(consoleId)} onChange={(event) => setConsoles((current) => event.target.checked ? [...current, consoleId] : current.filter((id) => id !== consoleId))} /> Console {index + 1}</label>;
             })}
             <button className="cic-action-button" type="button" onClick={() => void submit('reactor', { consoles })}>Charge selected consoles</button>
+          </fieldset>}
+          {step === 5 && id === 'capybara-small' && <fieldset disabled={pending} className="maintenance-controls">
+            <legend>Capybara production // charged consoles</legend>
+            {BASE_CAPYBARA_PRODUCTION_CONSOLES.map((console) => {
+              const charged = cycle?.charges.includes(console.id) ?? false;
+              return <button key={console.id} className="cic-action-button" type="button" disabled={!charged || pending}
+                onClick={() => void submit('production', { productionConsoleId: console.id })}>
+                {charged ? `Run ${console.name}` : `${console.name} not charged`} // {console.effect}
+              </button>;
+            })}
           </fieldset>}
           {step === 5 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('end')}>End small-ship cycle</button>}
           {latestResult && <p role="status">{latestResult}</p>}
