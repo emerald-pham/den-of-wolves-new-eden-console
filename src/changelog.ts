@@ -21,20 +21,21 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: [390, 658],
+    implementationPrompts: [390, 248, 658],
     implementationProgress: {
-      completed: 220,
+      completed: 221,
       total: 750,
-      percentage: '29.33%',
-      done: 220,
+      percentage: '29.47%',
+      done: 221,
       partial: 25,
       active: 0,
-      missing: 505,
+      missing: 504,
     },
     changes: [
       'Hummingbird’s Explorer can harvest during Coordination, choosing which of two dice supplies food and which supplies water to the shuttle.',
+      'Vulcan’s Captain can use each charged Additional Labour console to help operate an eligible console on another ship.',
       'Seat confirmation now uses CIC language.',
-      '220 of 750 planned items are complete (29.33%).',
+      '221 of 750 planned items are complete (29.47%).',
     ],
   },
   {
