@@ -191,6 +191,13 @@ describe('role-private brief boundary', () => {
 });
 
 describe('session header', () => {
+  it('denies chart selection and chart-lock writes from player and GM clients', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), { chartId: 'C', chartSelectionLocked: true }));
+      await assertFails(updateDoc(doc(as(uid), SESSION), { chartSelectionLocked: false }));
+    }
+  });
+
   it('keeps fleet-group membership and vessel tuples server-only', async () => {
     const group = `${SESSION}/fleetGroups/fleet-1`;
     await assertFails(getDoc(doc(as('alice'), group)));

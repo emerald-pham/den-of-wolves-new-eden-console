@@ -75,6 +75,7 @@ function sessionPhase(value: unknown): SessionPhase | undefined {
 export interface SetupConfirmationInput {
   readonly playerCount: number;
   readonly chartId: 'A' | 'B' | 'C';
+  readonly lockChart?: boolean;
   readonly expansion: 'base' | 'capybara' | 'none';
   readonly turnLimit: 6 | 7 | 8;
   readonly dioneEnabled: boolean;
@@ -350,6 +351,8 @@ function applyCommandResult(
     );
     const nextSession = {
       ...store.session,
+      ...(typeof reply.chartSelectionLocked === 'boolean'
+        ? { chartSelectionLocked: reply.chartSelectionLocked } : {}),
       ...(typeof reply.setupRevision === 'number' && Number.isSafeInteger(reply.setupRevision) && reply.setupRevision >= 0
         ? { setupRevision: reply.setupRevision } : {}),
       ...(canonicalSetup ? {

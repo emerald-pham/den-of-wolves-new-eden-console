@@ -1229,12 +1229,14 @@ it('rejects a delayed older server snapshot in the same lifecycle window', () =>
   callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', {
     updatedAt: timestamp(1_789_077_000, 900_400_000),
     setupRevision: 8,
+    chartSelectionLocked: true,
     activeRoleIds: ['admiral'],
     shipResources: { aegis: { ore: 9, fuel: 4, food: 3, water: 2, materials: 1, securityTeams: 0 } },
   })));
   callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', {
     updatedAt: timestamp(1_789_076_999, 900_400_000),
     setupRevision: 7,
+    chartSelectionLocked: false,
     activeRoleIds: ['wing-commander'],
     shipResources: { aegis: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 } },
   })));
@@ -1242,6 +1244,7 @@ it('rejects a delayed older server snapshot in the same lifecycle window', () =>
   expect(onSession).toHaveBeenCalledTimes(1);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({
     setupRevision: 8,
+    chartSelectionLocked: true,
     activeRoleIds: ['admiral'],
     shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
   });

@@ -5462,3 +5462,9 @@ body {
     justify-self: start;
   }
 }
+
+/* Chart confirmation stays readable in the narrow GM setup panel. */
+.gm-chart-setup .gm-role-preset { grid-template-columns: minmax(0, 1fr); font-size: 0.875rem; }
+.gm-chart-setup .gm-role-preset select { width: 100%; min-width: 0; font-size: 1rem; }
+.gm-chart-setup .gm-role-setup__note { font-size: 0.875rem; overflow-wrap: anywhere; }
+.gm-chart-setup .cic-action-button { min-height: 44px; font-size: 1rem; white-space: normal; }

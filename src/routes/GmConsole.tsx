@@ -368,6 +368,10 @@ export default function GmConsole() {
     'idle' | 'pending' | 'blocked' | 'stale' | 'committed' | 'replayed'
   >('idle');
   const [startMutationMessage, setStartMutationMessage] = useState<string | null>(null);
+  const serverChartId = session?.setup?.chartId ?? session?.chartId ?? 'A';
+  const chartLocked = session?.chartSelectionLocked === true || session?.configurationLocked === true ||
+    (session !== null && !['lobby', 'casting'].includes(session.phase));
+  const [draftChartId, setDraftChartId] = useState<'A' | 'B' | 'C'>(serverChartId);
   const [draftRoleIds, setDraftRoleIds] = useState<readonly string[]>(() => normalizedServerRoleIds);
   const [confirmingRoster, setConfirmingRoster] = useState(false);
   const [rosterMutationState, setRosterMutationState] = useState<
@@ -779,6 +783,10 @@ export default function GmConsole() {
     document.addEventListener('keydown', cancelOnEscape);
     return () => document.removeEventListener('keydown', cancelOnEscape);
   }, [confirmGameStart]);
+
+  useEffect(() => {
+    setDraftChartId(serverChartId);
+  }, [serverChartId, session?.id, chartLocked]);
 
   useEffect(() => {
     const nextServerRoleIds = knownRoleIds(activeRoleIds);
@@ -1332,7 +1340,8 @@ export default function GmConsole() {
     });
   }
 
-  async function confirmRoster(): Promise<void> {
+  async function confirmRoster(lockChart = false): Promise<void> {
+    if (lockChart && chartLocked) return;
     if (!rosterConfigurationValid) return;
     const activeSession = session;
     if (!activeSession) return;
@@ -1347,7 +1356,8 @@ export default function GmConsole() {
     try {
       const disposition = await confirmSetup({
         playerCount,
-        chartId: activeSession.setup?.chartId ?? activeSession.chartId ?? 'A',
+        chartId: chartLocked ? serverChartId : draftChartId,
+        ...(lockChart ? { lockChart: true } : {}),
         expansion,
         turnLimit: activeSession.setup?.turnLimit ?? activeSession.turnLimit ?? 6,
         dioneEnabled: playerCount >= 12 && draftDioneEnabled,
@@ -1990,6 +2000,34 @@ export default function GmConsole() {
                 <p className="gm-role-setup__note" role="status" aria-label="Press GM projection">
                   {pressProjectionMessage}
                 </p>
+                <fieldset className="gm-role-setup gm-chart-setup">
+                  <legend>Star chart</legend>
+                  <label className="gm-role-preset">
+                    <span>Star chart</span>
+                    <select aria-label="Star chart" value={draftChartId}
+                      disabled={chartLocked || confirmingRoster || rosterQueued}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value === 'A' || value === 'B' || value === 'C') setDraftChartId(value);
+                      }}>
+                      <option value="A">Chart A</option>
+                      <option value="B">Chart B</option>
+                      <option value="C">Chart C</option>
+                    </select>
+                  </label>
+                  <p className="gm-role-setup__note" role="status" aria-label="Star chart lock status">
+                    {`Current chart ${serverChartId} // ${chartLocked ? 'Locked' : 'Not locked'}`}
+                    {!chartLocked && draftChartId !== serverChartId ? ` // Chart ${draftChartId} staged` : ''}
+                  </p>
+                  <p className="gm-role-setup__note">
+                    Confirm the staged setup and lock this chart. Other roster choices remain editable until start.
+                  </p>
+                  <button className="cic-action-button" type="button"
+                    disabled={chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
+                    onClick={() => void confirmRoster(true)}>
+                    Lock star chart
+                  </button>
+                </fieldset>
                 <fieldset className="gm-role-setup">
                   <legend>Active roles</legend>
                   <label className="gm-role-preset">

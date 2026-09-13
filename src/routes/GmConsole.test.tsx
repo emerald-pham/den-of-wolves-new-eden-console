@@ -2108,3 +2108,26 @@ it('shows one facilitator the complete current setup queue without requiring ano
   expect(within(queue).getByText('Start production')).toBeInTheDocument();
   expect(queue).toHaveTextContent(/one GM owns every required step/i);
 });
+
+it('stages a star chart locally and locks it through explicit setup confirmation', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(confirmSetup).mockImplementation(async (setup) => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, chartId: setup.chartId, chartSelectionLocked: setup.lockChart === true });
+    return 'applied';
+  });
+  renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const select = screen.getByRole('combobox', { name: 'Star chart' });
+  await user.selectOptions(select, 'C');
+  expect(confirmSetup).not.toHaveBeenCalled();
+  expect(screen.getByRole('status', { name: 'Star chart lock status' })).toHaveTextContent('Chart C staged');
+  await user.click(screen.getByRole('button', { name: 'Lock star chart' }));
+  expect(confirmSetup).toHaveBeenCalledWith(expect.objectContaining({ chartId: 'C', lockChart: true }));
+  expect(select).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Lock star chart' })).toBeDisabled();
+  expect(screen.getByRole('status', { name: 'Star chart lock status' })).toHaveTextContent('Current chart C // Locked');
+  expect(screen.getByRole('combobox', { name: 'Recommended player count' })).not.toBeDisabled();
+});

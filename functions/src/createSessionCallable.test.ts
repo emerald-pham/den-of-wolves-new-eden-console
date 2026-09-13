@@ -878,3 +878,35 @@ it.each(['A', 'B', 'C'] as const)('confirms chart %s through a facilitator and r
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+it('locks the selected chart before start, preserves roster editing, and binds retries to the lock intent', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  const docs = new Map<string, Record<string, unknown>>([
+    ['sessions/s1', { phase: 'casting', configurationLocked: false, setupRevision: 0,
+      playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+      dioneEnabled: false, capybaraEnabled: true, activeRoleIds }],
+    ['sessions/s1/players/u1', { connected: true, role: 'gm' }],
+    ['sessions/s1/gmInstances/bridge', { uid: 'u1', connected: true, lastSeenAt: new Date() }],
+  ]);
+  mock.get.mockImplementation(async ({ path }: { path: string }) => ({ ...snapshot(docs.get(path), docs.has(path)), data: () => docs.get(path) }));
+  mock.set.mockImplementation(({ path }: { path: string }, value: Record<string, unknown>) => docs.set(path, value));
+  mock.update.mockImplementation(({ path }: { path: string }, value: Record<string, unknown>) =>
+    docs.set(path, { ...docs.get(path), ...value }));
+  const data = { sessionId: 's1', instanceId: 'bridge', requestId: 'chart-lock', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'B', lockChart: true, expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds };
+  await expect(confirmSetup.run(request(data))).resolves.toMatchObject({ status: 'committed', chartSelectionLocked: true });
+  expect(docs.get('sessions/s1')).toMatchObject({ chartId: 'B', chartSelectionLocked: true, configurationLocked: false });
+  mock.update.mockClear();
+  await expect(confirmSetup.run(request(data))).resolves.toMatchObject({ status: 'replayed', chartSelectionLocked: true });
+  expect(mock.update).not.toHaveBeenCalled();
+  await expect(confirmSetup.run(request({ ...data, lockChart: false }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(confirmSetup.run(request({ ...data, requestId: 'stale-other-gm', chartId: 'C' })))
+    .resolves.toMatchObject({ status: 'stale' });
+  await expect(confirmSetup.run(request({ ...data, requestId: 'change-locked-chart', expectedSetupRevision: 1, chartId: 'C', lockChart: false })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  await expect(confirmSetup.run(request({ ...data, requestId: 'same-chart-setup', expectedSetupRevision: 1, lockChart: false, turnLimit: 7 })))
+    .resolves.toMatchObject({ status: 'committed', chartSelectionLocked: true });
+  expect(docs.get('sessions/s1')).toMatchObject({ chartId: 'B', turnLimit: 7, chartSelectionLocked: true, configurationLocked: false });
+});

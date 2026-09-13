@@ -849,6 +849,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { expansion: data.expansion } : {}),
     ...(data.turnLimit === 6 || data.turnLimit === 7 || data.turnLimit === 8
       ? { turnLimit: data.turnLimit } : {}),
+    ...(typeof data.chartSelectionLocked === 'boolean'
+      ? { chartSelectionLocked: data.chartSelectionLocked } : {}),
     ...(typeof data.configurationLocked === 'boolean'
       ? { configurationLocked: data.configurationLocked } : {}),
     ...(Number.isSafeInteger(data.setupRevision) && data.setupRevision >= 0

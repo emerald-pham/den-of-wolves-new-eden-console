@@ -2480,19 +2480,20 @@ describe('authoritative setup and seating wrappers', () => {
     };
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({
       data: {
-        status: 'committed', requestId: 'setup-projection', setupRevision: 5,
+        status: 'committed', requestId: 'setup-projection', setupRevision: 5, chartSelectionLocked: true,
         setup: canonicalSetup, activeRoleIds, activeVesselIds,
       },
     }));
 
     await expect(authorityService.confirmSetup({
-      playerCount: 19, chartId: 'B', expansion: 'capybara', turnLimit: 7,
+      playerCount: 19, chartId: 'B', lockChart: true, expansion: 'capybara', turnLimit: 7,
       dioneEnabled: true, capybaraEnabled: true, activeRoleIds,
       universalArbourEnabled: false, wolfCultEnabled: false,
     })).resolves.toBe('applied');
 
     expect(useSessionStore.getState().session).toMatchObject({
       setupRevision: 5,
+      chartSelectionLocked: true,
       playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',

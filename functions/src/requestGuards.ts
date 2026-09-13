@@ -1192,6 +1192,7 @@ export function requireSetupConfirmationRequest(data: {
   setup?: unknown;
   playerCount?: unknown;
   chartId?: unknown;
+  lockChart?: unknown;
   expansion?: unknown;
   turnLimit?: unknown;
   dioneEnabled?: unknown;
@@ -1205,6 +1206,7 @@ export function requireSetupConfirmationRequest(data: {
   requestId: string;
   expectedSetupRevision: number;
   configuration: SessionConfiguration;
+  lockChart: boolean;
   activeRoleIds: string[];
 } {
   if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
@@ -1214,6 +1216,9 @@ export function requireSetupConfirmationRequest(data: {
     ? data.setup as Record<string, unknown>
     : {};
   const input = { ...data, ...nested };
+  if (input.lockChart !== undefined && typeof input.lockChart !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'lockChart must be a boolean.');
+  }
   let configuration: SessionConfiguration;
   try {
     configuration = normalizeSessionConfiguration(input);
@@ -1243,6 +1248,7 @@ export function requireSetupConfirmationRequest(data: {
     requestId: requiredId(data.requestId, 'requestId'),
     expectedSetupRevision: data.expectedSetupRevision as number,
     configuration,
+    lockChart: input.lockChart === true,
     activeRoleIds: [...activeRoleIds],
   };
 }

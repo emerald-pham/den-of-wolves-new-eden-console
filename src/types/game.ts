@@ -410,6 +410,8 @@ export interface GameSession {
   readonly expansion?: SessionExpansionMode;
   readonly turnLimit?: 6 | 7 | 8;
   readonly configurationLocked?: boolean;
+  /** GM-confirmed chart-only lock; roster setup remains editable before start. */
+  readonly chartSelectionLocked?: boolean;
   readonly setupRevision?: number;
   /** One canonical server-validated configuration tuple. */
   readonly setup?: SessionSetup;

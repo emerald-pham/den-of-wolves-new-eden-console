@@ -2368,6 +2368,7 @@ function setupWriteFields(setup: ReturnType<typeof canonicalSetupForSession>) {
 type SetupCommandFingerprint = {
   readonly playerCount: number;
   readonly chartId: string;
+  readonly lockChart: boolean;
   readonly expansion: string;
   readonly turnLimit: number;
   readonly dioneEnabled: boolean;
@@ -2382,10 +2383,12 @@ function setupCommandFingerprint(
   configuration: ReturnType<typeof normalizeSessionConfiguration>,
   activeRoleIds: readonly string[],
   expectedSetupRevision: number,
+  lockChart = false,
 ): SetupCommandFingerprint {
   return {
     playerCount: configuration.playerCount,
     chartId: configuration.chartId,
+    lockChart,
     expansion: configuration.expansion,
     turnLimit: configuration.turnLimit,
     dioneEnabled: configuration.dioneEnabled,
@@ -2405,6 +2408,7 @@ function sameSetupCommandFingerprint(
   const candidate = value as Record<string, unknown>;
   return candidate.playerCount === expected.playerCount &&
     candidate.chartId === expected.chartId &&
+    (candidate.lockChart === true) === expected.lockChart &&
     candidate.expansion === expected.expansion &&
     candidate.turnLimit === expected.turnLimit &&
     candidate.dioneEnabled === expected.dioneEnabled &&
@@ -2438,6 +2442,7 @@ export const confirmSetup = onCall<{
   setup?: unknown;
   playerCount?: unknown;
   chartId?: unknown;
+  lockChart?: unknown;
   expansion?: unknown;
   turnLimit?: unknown;
   dioneEnabled?: unknown;
@@ -2463,6 +2468,7 @@ export const confirmSetup = onCall<{
     payload: {
       playerCount: command.configuration.playerCount,
       chartId: command.configuration.chartId,
+      ...(command.lockChart ? { lockChart: true } : {}),
       expansion: command.configuration.expansion,
       turnLimit: command.configuration.turnLimit,
       dioneEnabled: command.configuration.dioneEnabled,
@@ -2478,6 +2484,7 @@ export const confirmSetup = onCall<{
       command.configuration,
       command.activeRoleIds,
       command.expectedSetupRevision,
+      command.lockChart,
     );
     const [prior, marker, authority, legacyEvent, storedGroup, players] = await Promise.all([
       tx.get(requestRef),
@@ -2508,6 +2515,7 @@ export const confirmSetup = onCall<{
         command.configuration,
         command.activeRoleIds,
         command.expectedSetupRevision,
+        command.lockChart,
       );
       if (!sameSetupCommandFingerprint(prior.get('fingerprint'), expectedFingerprint)) {
         throw commandError('failed-precondition', 'This request id was already used for a different setup tuple.', 'conflict');
@@ -2538,6 +2546,10 @@ export const confirmSetup = onCall<{
     }
     requireCastingWindow(authority.session);
     requireVesselModeUnchanged(authority.session, command.configuration);
+    if (authority.session.get('chartSelectionLocked') === true &&
+        canonicalSetupForSession(authority.session, sessionActiveRoleIds(authority.session)).chartId !== command.configuration.chartId) {
+      throw commandError('failed-precondition', 'The star chart is locked.', 'conflict');
+    }
     const currentRoleIds = sessionActiveRoleIds(authority.session);
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
@@ -2632,6 +2644,7 @@ export const confirmSetup = onCall<{
     );
     const reply = {
       status: 'committed' as const,
+      chartSelectionLocked: authority.session.get('chartSelectionLocked') === true || command.lockChart,
       requestId: command.requestId,
       setupRevision: command.expectedSetupRevision + 1,
       setup,
@@ -2640,6 +2653,7 @@ export const confirmSetup = onCall<{
     };
     tx.update(sessionRef, {
       ...setupWriteFields(setup),
+      chartSelectionLocked: reply.chartSelectionLocked,
       shipResources: nextShipResources,
       shipUnrest: nextShipUnrest,
       shipSurvivors: nextShipSurvivors,
@@ -4885,6 +4899,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { expansion: sessionSnap.get('expansion') } : {}),
         ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
           ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
+        ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
+          ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
         ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
           ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
         ...(typeof sessionSnap.get('setupRevision') === 'number'
@@ -5099,6 +5115,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { expansion: sessionSnap.get('expansion') } : {}),
       ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
         ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
+      ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
+        ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
       ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
         ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
       ...(typeof sessionSnap.get('setupRevision') === 'number'

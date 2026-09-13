@@ -4641,6 +4641,13 @@
       "language": "Reuse the existing facilitator-only chart confirmation and configuration-lock contract; do not introduce a second local chart authority.",
       "source": "P282 authoritative chart selection contract",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "282a",
+      "id": "E-282A-VERIFIED",
+      "language": "The explicit chart-only pre-start lock is server-owned, revisioned, replay-bound, projected on reconnect and preserved by subsequent setup edits. Direct client writes are denied. Rendered GM controls are 16px with at least 44px targets at 320x844,1440x900,844x390; keyboard Enter reaches the logical parent.",
+      "source": "functions/src/index.ts confirmSetup; functions/src/createSessionCallable.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/lib/firestore.test.ts; src/lib/sessionService.test.ts; tests/rules/firestore.rules.test.ts; /tmp/p282a-render-evidence.txt",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -12010,8 +12017,8 @@
         "acceptance": "Provide an accessible GM-console setup control to select star chart A, B, or C and explicitly lock that choice before the game starts. Commit the selected chart and its lock atomically through a live-facilitator-authorized, revisioned server command; lock only the chart without prematurely freezing unrelated roster/setup work. Show the selected chart and its confirmed locked status truthfully. Once locked, the UI and every setup/callable path reject attempts to change the chart, including forged or concurrent requests. Exact retries remain idempotent, stale GM edits cannot overwrite the locked choice, and refresh/reconnect restores server state. The GM organiser map and subsequent code lookups use the locked chart rather than an independent local preview. Preserve player discovery privacy, existing setup authority, and accessible responsive controls and navigation.",
         "title": "Select and lock the star map from the GM console."
       },
-      "description": "Owner-requested GM-console star-map selection with explicit pre-start locking. Current P282 supplies authoritative A/B/C configuration and the GM overlay, but confirmRoster resubmits the existing chart and has no chooser. Further source inspection shows configurationLocked is only set by startGame, so a pre-start chart-only lock is also missing. Implement both the usable selector and server-enforced chart lock without prematurely locking roster work or reverting shipped map behavior.",
-      "evidenceIds": "E-282A-OWNER;E-282A-DEPENDENCY",
+      "description": "The GM setup panel now stages A/B/C selection and explicitly locks it before start through revisioned confirmSetup. The server records chartSelectionLocked atomically with the selected chart, includes lock intent in request fingerprints and replay receipts, rejects later chart changes, and permits other setup edits while preserving the lock. Join/resume, live snapshots, and committed receipts carry the lock. Focused callable, stale/replay, client projection, route, and direct-write-denial checks pass; actual three-size reduced-motion rendering confirms readable controls and keyboard parent navigation. No deployment is claimed by this candidate.",
+      "evidenceIds": "E-282A-OWNER;E-282A-DEPENDENCY;E-282A-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "282",
@@ -12022,7 +12029,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
