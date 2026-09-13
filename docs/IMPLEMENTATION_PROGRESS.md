@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**244 / 751 prompts complete (32.49%)**
+**245 / 751 prompts complete (32.62%)**
 
-Status breakdown: **244 done · 21 partial · 486 missing**.
+Status breakdown: **245 done · 21 partial · 485 missing**.
 
 Active prompt: **none**
 
@@ -1134,7 +1134,7 @@ release classification and evidence.
 | 652c | done | feature | — | Owner-requested follow-up to the shipped P652b mobile ticker. Supersedes its hide/reveal and temporary expansion/refolding behavior while preserving P652b as the historical release record and retaining its pinned layout and broadcast guarantees. FleetBroadcast now keeps the ticker visible at every supported viewport; focused tests and rendered geometry verify the removal. |
 | 653 | done | non-feature | 0.3.95 | Removed the obsolete fleet-wide Iris/Turn 0 console permission gate while preserving action-specific authority, phase, safety, resource, damage, cooldown, and manual travel-lock checks. Legacy automatic turn-zero bulletins are filtered on both server and client, including cached queues. Failing-first callable, route, and ticker coverage; independent Terra review of the authority change and limited follow-up clear. Real component layout checked at 320, 390, 844, and 1440 widths in normal and reduced motion. |
 | 654 | missing | non-feature | — | Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1. |
-| 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
+| 655 | done | non-feature | 0.3.96 | The SNN dispenser displays the exact docked-cockpit warning and exposes it as the firing button description. Readable warning typography and unscaled mobile controls preserve visible focus and 44px targets. Reconnect retries reuse the persisted command ID; the server validates current Press authority, rejects foreign/legacy command-ID collisions, and atomically replays its private receipt without firing twice. Existing server-owned SNN/host targeting and no ordinary GM event remain. Failing-first warning and legacy-collision coverage, 131 client/callable tests, 28 UI/policy tests, independent Terra review and limited namespace follow-up clear; actual ShuttleConsole layout checked at four viewport sizes in normal and reduced motion. |
 | 656 | done | non-feature | 0.3.54 | The launcher now keeps cached or reconnecting sessions out of create/join actions, exposes a truthful current-session recovery link, restores only recognized in-session routes, and preserves transient resume state until terminal denial clears it. Focused App, Landing, session-service, and connection-indicator tests plus Chrome CDP route/recovery checks cover the required viewports and reduced motion. |
 | 657 | done | non-feature | — | Completed [REPAIR] copy cleanup removes standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage. The Settings changelog remains bounded, keyboard reachable, and readable across phone, desktop, and short-landscape layouts with reduced motion. |
 | 658 | done | feature | — | The retained role-selection seat status now uses the exact CIC confirmation wording. Existing claim/release status updates and server mutations remain unchanged; the route regression checks the accessible status and claim/release flow. |

@@ -819,7 +819,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 652c | EXTEND | done | 652b | none | none | none | none | TICKER-LIFECYCLE | none | 106c;603a;652;652a | E-652C-OWNER;E-652C-DEPENDENCY;E-652C-RELATED;E-652C-VERIFIED | none | Remove the ticker Hide button. |
 | 653 | EXTEND | done | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
 | 654 | REPAIR | missing | none | M1 | none | OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
-| 655 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
+| 655 | REPAIR | done | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
 | 656 | REPAIR | done | 034;050 | none | none | none | none | none | none | none | E-AUDIT-656 | none | Route an already-connected launcher to its current session. |
 | 657 | REPAIR | done | none | none | none | none | none | none | none | none | E-657-VERIFIED | none | Remove roadmap jargon from player-facing changelog history and future entries. |
 | 658 | POLISH | done | 030;050 | none | none | none | none | none | none | none | E-AUDIT-658;E-658-VERIFIED | none | Use CIC language for seat-change confirmation when the page remains. |

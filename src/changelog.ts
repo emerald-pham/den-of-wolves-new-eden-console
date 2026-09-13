@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [655],
+    implementationProgress: {
+      completed: 245,
+      total: 751,
+      percentage: '32.62%',
+      done: 245,
+      partial: 21,
+      active: 0,
+      missing: 485,
+    },
+    changes: [
+      'The Press shredder clearly warns that shredded evidence also enters docked ship cockpits, with readable mobile controls.',
+      'Reconnecting after firing the Press shredder no longer repeats the same firing request.',
+      '245 of 751 planned items are complete (32.62%).',
+    ],
+  },
+  {
+    version: '0.3.95',
     implementationPrompts: [653, 598],
     implementationProgress: {
       completed: 241,

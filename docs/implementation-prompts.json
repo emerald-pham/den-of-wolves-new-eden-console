@@ -21797,7 +21797,7 @@
         "acceptance": "exact visible and accessible copy states firing sends `SHREDDED EVIDENCE INTO COCKPITS OF DOCKED SHIPS AS WELL`. Preserve server targeting of docked SNN to SNN plus the authoritative host only, undocked SNN to SNN only, no client-selected or unrelated target, no ordinary GM event, and no duplicate on replay or reconnect. Focus, live-region, reduced-motion, and responsive CIC semantics remain covered.",
         "title": "Restore the Press evidence-shredder docked-cockpit warning."
       },
-      "description": "Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication.",
+      "description": "The SNN dispenser displays the exact docked-cockpit warning and exposes it as the firing button description. Readable warning typography and unscaled mobile controls preserve visible focus and 44px targets. Reconnect retries reuse the persisted command ID; the server validates current Press authority, rejects foreign/legacy command-ID collisions, and atomically replays its private receipt without firing twice. Existing server-owned SNN/host targeting and no ordinary GM event remain. Failing-first warning and legacy-collision coverage, 131 client/callable tests, 28 UI/policy tests, independent Terra review and limited namespace follow-up clear; actual ShuttleConsole layout checked at four viewport sizes in normal and reduced motion.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21806,10 +21806,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.96"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {
