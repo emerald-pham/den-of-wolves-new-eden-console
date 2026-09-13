@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**223 / 750 prompts complete (29.73%)**
+**224 / 750 prompts complete (29.87%)**
 
-Status breakdown: **223 done · 25 partial · 502 missing**.
+Status breakdown: **224 done · 25 partial · 501 missing**.
 
 Active prompt: **none**
 
@@ -970,7 +970,7 @@ release classification and evidence.
 | 507 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 508 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 509 | done | non-feature | — | The Android holder has a reachable voluntary proof action. The server verifies the authenticated active player owns the Android secret, records a replay-safe member-readable disclosure event, and rejects disconnected, non-Android, duplicate, forged, or non-player requests; the private card parser and GM event log consume only the allowlisted proof state. |
-| 510 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 510 | done | feature | — | The server-owned loyalty assignment path pairs Friend cards by writing reciprocal private records with each partner's assigned console role. The entitled private panel renders the canonical partner role name while omitting the raw partner UID, and Firestore rules retain exact-holder-only reads for the reciprocal secrets. Unrelated players, observers, GMs, and the other holder remain denied; later loyalty mechanics remain outside this prompt. |
 | 511 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 512 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 513 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
