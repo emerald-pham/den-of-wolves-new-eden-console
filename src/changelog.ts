@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [511],
+    implementationProgress: {
+      completed: 225,
+      total: 750,
+      percentage: '30.00%',
+      done: 225,
+      partial: 25,
+      active: 0,
+      missing: 500,
+    },
+    changes: [
+      'The GM can send private visions to Universal Arbour members, who can read the current call in their role briefing.',
+      '225 of 750 planned items are complete (30.00%).',
+    ],
+  },
+  {
+    version: '0.3.85',
     implementationPrompts: [510],
     implementationProgress: {
       completed: 224,
