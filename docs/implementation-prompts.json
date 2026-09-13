@@ -4697,6 +4697,20 @@
       "language": "The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts.",
       "source": "src/data/vessels/vulcan.ts; src/data/vesselTemplates.test.ts; functions/src/smallShip.ts; functions/src/index.ts; functions/src/smallShip.test.ts; functions/src/smallShipCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/smallShipService.ts",
       "type": "evidence / production-path"
+    },
+    {
+      "direction": "618a -> GM-MANIFEST-RECOVERY",
+      "id": "E-618A-OWNER",
+      "language": "Owner supplied a screenshot of gm-manifest-link / WCI-GM-MANIFEST-LINK and reported that the GM console would not reconnect automatically from that state. Queue reproduction and recovery; the image alone does not establish the root cause.",
+      "source": "Owner report and screenshot, 2026-09-12; src/routes/GmConsole.tsx subscribeGmInstances error callback",
+      "type": "owner request / regression report"
+    },
+    {
+      "direction": "618a -> 045;084;085;086",
+      "id": "E-618A-DEPENDENCIES",
+      "language": "The focused repair consumes shipped GM-instance authority and session reconnect foundations. Broader all-projection recovery (618) and retry guidance (633) are related scope, not prerequisites for fixing this reported failure.",
+      "source": "docs/implementation-prompts.json; src/routes/GmConsole.tsx; src/lib/firestore.ts",
+      "type": "hard_prompt / related/consumes"
     }
   ],
   "plan": {
@@ -20582,6 +20596,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "EXTEND"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Reproduce the owner-reported GM console state showing Error – Wolf Communications Interception, code gm-manifest-link, reference WCI-GM-MANIFEST-LINK, where the live GM instance manifest could not be refreshed and automatic reconnect did not occur. When connectivity or a recoverable authentication interruption clears and the user remains authorized, restore the GM manifest subscription and current server snapshot automatically without requiring reload, route change, modal dismissal, or manual reconnect. Distinguish retryable failures from revoked membership, lost GM authority, and missing sessions; recovery must never restore stale GM write authority or expose protected data. Use bounded backoff and existing reconnect/online/foreground lifecycle seams, avoid duplicate listeners or retry storms, and cancel pending recovery on unmount, session change, logout, or demotion. Clear or replace this specific stale communication error after confirmed recovery without erasing unrelated newer errors. Add a focused production subscription-to-GM-console regression that fails before the repair and proves failure then restored connection updates the manifest automatically, plus repeated interruption, listener cleanup, and authorization-loss coverage. Verify truthful accessible connection status and retained keyboard navigation on narrow phone, wide desktop, and short landscape. The screenshot establishes the symptom, not the underlying transport or authentication cause.",
+        "title": "Automatically recover the GM manifest after a transient connection failure."
+      },
+      "description": "Owner-reported reconnect failure from the GM manifest communication-error state. Queued for reproduction and automatic subscription recovery; no fix or root cause is claimed.",
+      "evidenceIds": "E-618A-OWNER;E-618A-DEPENDENCIES",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "045;084;085;086",
+      "id": "618a",
+      "milestoneHints": "X",
+      "relatedConsumes": "048;522;618;633",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "REPAIR"
     },
     {
       "changeClass": "non-feature",

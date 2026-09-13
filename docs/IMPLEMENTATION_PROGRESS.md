@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**211 / 749 prompts complete (28.17%)**
+**211 / 750 prompts complete (28.13%)**
 
-Status breakdown: **211 done · 19 partial · 519 missing**.
+Status breakdown: **211 done · 19 partial · 520 missing**.
 
 Active prompt: **none**
 
@@ -1094,6 +1094,7 @@ release classification and evidence.
 | 616 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 617 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 618 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 618a | missing | feature | — | Owner-reported reconnect failure from the GM manifest communication-error state. Queued for reproduction and automatic subscription recovery; no fix or root cause is claimed. |
 | 619 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 620 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 621 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

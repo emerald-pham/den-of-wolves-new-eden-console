@@ -2092,7 +2092,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 <!-- BEGIN GENERATED PROMPT CATALOG: plan -->
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 #### Prompt checklist
-#### Execution checklist — all 749 prompts (catalog view)
+#### Execution checklist — all 750 prompts (catalog view)
 - [x] Prompt 001
 - [x] Prompt 002
 - [x] Prompt 003
@@ -2777,6 +2777,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 616
 - [ ] Prompt 617
 - [ ] Prompt 618
+- [ ] Prompt 618a
 - [ ] Prompt 619
 - [ ] Prompt 620
 - [ ] Prompt 621
@@ -3548,6 +3549,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 616 — [PRESERVE] Make disconnect replay-safe.** Acceptance: queued cleanup acknowledges once, expires correctly, and clears local data only under the documented policy.
 - **Prompt 617 — [PRESERVE] Reconcile the command outbox.** Acceptance: pending commands expire/reconcile against authority and irreversible actions never duplicate after reconnect.
 - **Prompt 618 — [EXTEND] Reconnect every live projection.** Acceptance: session, player, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief listeners replace cache correctly.
+- **Prompt 618a — [REPAIR] Automatically recover the GM manifest after a transient connection failure.** Acceptance: Reproduce the owner-reported GM console state showing Error – Wolf Communications Interception, code gm-manifest-link, reference WCI-GM-MANIFEST-LINK, where the live GM instance manifest could not be refreshed and automatic reconnect did not occur. When connectivity or a recoverable authentication interruption clears and the user remains authorized, restore the GM manifest subscription and current server snapshot automatically without requiring reload, route change, modal dismissal, or manual reconnect. Distinguish retryable failures from revoked membership, lost GM authority, and missing sessions; recovery must never restore stale GM write authority or expose protected data. Use bounded backoff and existing reconnect/online/foreground lifecycle seams, avoid duplicate listeners or retry storms, and cancel pending recovery on unmount, session change, logout, or demotion. Clear or replace this specific stale communication error after confirmed recovery without erasing unrelated newer errors. Add a focused production subscription-to-GM-console regression that fails before the repair and proves failure then restored connection updates the manifest automatically, plus repeated interruption, listener cleanup, and authorization-loss coverage. Verify truthful accessible connection status and retained keyboard navigation on narrow phone, wide desktop, and short landscape. The screenshot establishes the symptom, not the underlying transport or authentication cause.
 - **Prompt 619 — [EXTEND] Make candidate retries survive reconnect.** Acceptance: N/O/P actions return original fuel, roll, loss, contribution, and outcome results without duplicates.
 - **Prompt 620 — [EXTEND] Recover from stale revisions.** Acceptance: conflict responses carry enough fresh nonsecret state to retry safely while preserving local input where appropriate.
 - **Prompt 621 — [EXTEND] Recover during a Wolf attack.** Acceptance: a participant resumes at the current step with resolved actions locked and permitted pending actions intact.
