@@ -92,6 +92,13 @@
   flex-wrap: wrap;
 }
 
+.starmap__compass {
+  position: relative;
+  inset: auto;
+  margin-top: 1rem;
+  font-size: 0.625rem;
+}
+
 .starmap__toolbar-label {
   color: var(--cic-amber);
   font: 0.68rem/1.4 var(--cic-mono);

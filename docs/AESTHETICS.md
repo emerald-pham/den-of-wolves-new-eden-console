@@ -311,6 +311,13 @@ navigational error. Resource/census privacy controls are local presentation
 switches, and the ICN travel lock is a state readout plus a square command
 button; neither should look like a decorative card or imply hidden authority.
 
+The ship map's fix readout includes the shared `GalacticOrientationCompass`
+used by expanded shipboard DRADIS. Keep its cardinal labels and fixed wireframe
+orientation identical to that reference. In the map it occupies normal layout
+space below the fix details, so it cannot cover map nodes, links, or controls;
+its labels use the map's larger type treatment. The compass remains a static,
+non-interactive image with an accessible cardinal-direction name.
+
 ### Jump-drive launch module
 
 The jump-drive console is a single full-width CIC instrument: four square

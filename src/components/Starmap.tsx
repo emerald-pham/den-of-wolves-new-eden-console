@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import GalacticOrientationCompass from './GalacticOrientationCompass';
 import {
   coordinateForNode,
   STAR_CHART_CONNECTIONS,
@@ -293,6 +294,7 @@ export default function Starmap({
                 <div><dt>Current ship</dt><dd>{fleetMarkers[0]?.coordinate ?? selectedCoordinate}</dd></div>
                 <div><dt>Places you have come from</dt><dd>{visitedCoordinates.length > 0 ? visitedCoordinates.join(' // ') : 'None recorded'}</dd></div>
               </dl>
+              <GalacticOrientationCompass className="starmap__compass" />
             </>
           ) : selectedSystem ? (
             <>
