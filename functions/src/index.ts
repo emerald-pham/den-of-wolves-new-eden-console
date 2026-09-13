@@ -11081,7 +11081,8 @@ async function requireVulcanLabourAuthority(
     )) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
-  } else if (!isActivePlayer(player) || player.get('replacementRoleId') !== 'vulcan-captain') {
+  } else if (!isActivePlayer(player) || player.get('replacementRoleId') !== 'vulcan-captain' ||
+    player.get('activeConsoleRoleId') !== null) {
     throw new HttpsError('permission-denied', 'An active Vulcan Captain replacement role is required.');
   }
   const state = storedSmallShipState(session, 'vulcan');

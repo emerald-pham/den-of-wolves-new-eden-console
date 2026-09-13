@@ -468,6 +468,13 @@ it('runs Vulcan Additional Labour atomically for two independent charges, immedi
     targetShipId: 'aegis', targetConsoleId: 'jump-drive', sourceConsoleId: 'additional-labour-2',
   }))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
+  mock.replacementRoleId = 'vulcan-captain';
+  mock.activeConsoleRoleId = 'aegis-admiral';
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-mismatched-console', expectedRevision: 3,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  mock.activeConsoleRoleId = null;
   mock.role = 'gm';
   mock.session.turnPhase = { turn: 1, airspace: { state: 'restricted' } };
   await expect(runVulcanAdditionalLabour.run(request({
