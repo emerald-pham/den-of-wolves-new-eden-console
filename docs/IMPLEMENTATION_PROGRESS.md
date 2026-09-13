@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**231 / 751 prompts complete (30.76%)**
+**232 / 751 prompts complete (30.89%)**
 
-Status breakdown: **231 done · 26 partial · 494 missing**.
+Status breakdown: **232 done · 26 partial · 493 missing**.
 
 Active prompt: **none**
 
@@ -994,7 +994,7 @@ release classification and evidence.
 | 524b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 524c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 524d | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 525 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 525 | done | feature | 0.3.92 | The GM can author and advance a server-authoritative crisis lifecycle with private facilitator notes, immutable GM audit history, and redacted member-safe events from delivered through closed states. Fresh GM instance manifests gate the private stream, stale callbacks are ignored, and request validation bounds canonical crisis IDs before any write. |
 | 526 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 527 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 528 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |

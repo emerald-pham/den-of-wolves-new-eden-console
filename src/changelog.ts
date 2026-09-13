@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [525],
+    implementationProgress: {
+      completed: 232,
+      total: 751,
+      percentage: '30.89%',
+      done: 232,
+      partial: 26,
+      active: 0,
+      missing: 493,
+    },
+    changes: [
+      'Facilitators can move a crisis through its full lifecycle from the GM console, with private notes and durable audit history.',
+      'Players receive safe crisis summaries after delivery without facilitator-only notes.',
+      '232 of 751 planned items are complete (30.89%).',
+    ],
+  },
+  {
+    version: '0.3.91',
     implementationPrompts: [523],
     implementationProgress: {
       completed: 231,

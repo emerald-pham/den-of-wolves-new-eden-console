@@ -3509,6 +3509,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "525 -> production path",
+      "id": "E-525-VERIFIED",
+      "language": "Prompt 525 is implemented in the authoritative crisis callable and GM projection. Focused callable, request-guard, event-redaction, GM-console, and Firestore rules checks cover lifecycle authority, canonical crisis ID validation before writes, immutable GM-only title/details audit records across replacement, debated member-safe events without private details, instance revocation, stale callbacks, and private crisis reads. The reconciled candidate passes 88 Firestore rules checks plus the focused application suite and rendered responsive GM-console checks.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/crisisCallable.test.ts; functions/src/requestGuards.test.ts; functions/src/eventRedaction.test.ts; src/routes/GmConsole.test.tsx; tests/rules/firestore.rules.test.ts; rendered Chromium evidence",
+      "type": "evidence/verified"
+    },
+    {
       "direction": "526 -> 525",
       "id": "E-AUDIT-526",
       "language": "Crisis configuration consumes the crisis state machine.",
@@ -18483,15 +18490,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "draft, delivered, debated, resolved, escalated, announced, and closed states have facilitator authority and audience-safe events.",
         "title": "Create the crisis state machine."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-525",
+      "description": "The GM can author and advance a server-authoritative crisis lifecycle with private facilitator notes, immutable GM audit history, and redacted member-safe events from delivered through closed states. Fresh GM instance manifests gate the private stream, stale callbacks are ignored, and request validation bounds canonical crisis IDs before any write.",
+      "evidenceIds": "E-AUDIT-525;E-525-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "008;522",
@@ -18499,10 +18506,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.92"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

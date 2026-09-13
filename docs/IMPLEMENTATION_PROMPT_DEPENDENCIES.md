@@ -679,7 +679,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 524b | NEW | missing | 524a | none | none | none | none | none | none | none | E-AUDIT-524B | M10 | Resolve the President's address. |
 | 524c | NEW | missing | 524b | none | none | none | none | none | none | none | E-AUDIT-524C | M10 | Resolve a presidential visit. |
 | 524d | NEW | missing | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524D | M10 | Enforce presidential authority boundaries. |
-| 525 | NEW | missing | 008;522 | none | none | none | none | none | none | none | E-AUDIT-525 | M3;M11;M12 | Create the crisis state machine. |
+| 525 | NEW | done | 008;522 | none | none | none | none | none | none | none | E-AUDIT-525;E-525-VERIFIED | M3;M11;M12 | Create the crisis state machine. |
 | 526 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-526 | M3;M11;M12 | Gate crises by configuration. |
 | 527 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
 | 528 | DECISION | missing | 527 | none | none | none | none | none | none | none | E-AUDIT-528 | M3;M11;M12 | Resolve Approaching Vessel choices. |
@@ -1368,6 +1368,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-524C | hard_prompt | 524c -> 524b | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Presidential visit consumes the address. |
 | E-AUDIT-524D | hard_prompt | 524d -> 524c;044 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Presidential authority boundaries consume visit and eligibility. |
 | E-AUDIT-525 | hard_prompt | 525 -> 008;522 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Crisis state machine consumes lifecycle state and facilitator ownership. |
+| E-525-VERIFIED | evidence/verified | 525 -> production path | functions/src/index.ts; functions/src/requestGuards.ts; functions/src/crisisCallable.test.ts; functions/src/requestGuards.test.ts; functions/src/eventRedaction.test.ts; src/routes/GmConsole.test.tsx; tests/rules/firestore.rules.test.ts; rendered Chromium evidence | Prompt 525 is implemented in the authoritative crisis callable and GM projection. Focused callable, request-guard, event-redaction, GM-console, and Firestore rules checks cover lifecycle authority, canonical crisis ID validation before writes, immutable GM-only title/details audit records across replacement, debated member-safe events without private details, instance revocation, stale callbacks, and private crisis reads. The reconciled candidate passes 88 Firestore rules checks plus the focused application suite and rendered responsive GM-console checks. |
 | E-AUDIT-526 | hard_prompt | 526 -> 525 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Crisis configuration consumes the crisis state machine. |
 | E-AUDIT-527 | hard_prompt | 527 -> 525 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each crisis delivery consumes the crisis state machine. |
 | E-AUDIT-528 | hard_prompt | 528 -> 527 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Approaching Vessel choices consume its delivered state. |
