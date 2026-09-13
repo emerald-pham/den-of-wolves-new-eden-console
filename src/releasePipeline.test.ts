@@ -437,7 +437,9 @@ it('uses current Node 24 action runtimes in verification and deployment', () => 
 });
 
 it('uses current artifact action majors throughout the exact-SHA pipeline', () => {
-  expect(ci.match(/actions\/upload-artifact@v7/g)).toHaveLength(2);
+  const uploadActions = ci.match(/actions\/upload-artifact@v\d+/g) ?? [];
+  expect(uploadActions.length).toBeGreaterThan(0);
+  expect(new Set(uploadActions)).toEqual(new Set(['actions/upload-artifact@v7']));
   expect(deploy.match(/actions\/download-artifact@v8/g)).toHaveLength(2);
   expect(`${ci}\n${deploy}`).not.toMatch(/actions\/(?:upload|download)-artifact@v[1-6]/);
 });
