@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [526],
+    implementationProgress: {
+      completed: 255,
+      total: 751,
+      percentage: '33.95%',
+      done: 255,
+      partial: 21,
+      active: 0,
+      missing: 475,
+    },
+    changes: [
+      'Crisis preparation checks whether the session includes the required President or loyalty group, with a private facilitator override for adaptations.',
+      '255 of 751 planned items are complete (33.95%).',
+    ],
+  },
+  {
+    version: '0.3.97',
     implementationPrompts: [668, 671],
     implementationProgress: {
       completed: 247,

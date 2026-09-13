@@ -18629,7 +18629,7 @@
         "acceptance": "President-dependent and loyalty-dependent crises cannot appear in an incompatible roster without an explicit facilitator override.",
         "title": "Gate crises by configuration."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Server-authoritative crisis drafts and delivery enforce configured President and Universal Arbour eligibility for their source-defined crisis kinds. Facilitators can record an explicit private adaptation override; generic crises remain available without a President. GM controls expose kind, eligibility and private override. Legacy clients retain stored configuration across transitions; CAS, current authority, replay and member-event privacy remain enforced. Primary facilitator and crisis-card sources visually verified; focused callable, projection and GM interaction coverage, independent Terra review and compatibility follow-up clear, and four responsive viewport sizes checked in normal and reduced motion.",
       "evidenceIds": "E-AUDIT-526",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18638,10 +18638,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.98"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

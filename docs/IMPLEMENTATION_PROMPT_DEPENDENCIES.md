@@ -680,7 +680,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 524c | NEW | missing | 524b | none | none | none | none | none | none | none | E-AUDIT-524C | M10 | Resolve a presidential visit. |
 | 524d | NEW | missing | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524D | M10 | Enforce presidential authority boundaries. |
 | 525 | NEW | done | 008;522 | none | none | none | none | none | none | none | E-AUDIT-525;E-525-VERIFIED | M3;M11;M12 | Create the crisis state machine. |
-| 526 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-526 | M3;M11;M12 | Gate crises by configuration. |
+| 526 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-526 | M3;M11;M12 | Gate crises by configuration. |
 | 527 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
 | 528 | DECISION | missing | 527 | none | none | none | none | none | none | none | E-AUDIT-528 | M3;M11;M12 | Resolve Approaching Vessel choices. |
 | 529 | NEW | missing | 249;527 | none | none | none | none | none | none | none | E-AUDIT-529 | M3;M11;M12 | Integrate Voyage 33-0 arrival. |
