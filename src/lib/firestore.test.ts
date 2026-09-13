@@ -2471,3 +2471,23 @@ it.each(['permission-denied', 'not-found'])('does not retry a denied GM manifest
     vi.useRealTimers();
   }
 });
+
+it('retains private crisis configuration on reconnect and rejects malformed kinds', async () => {
+  const { subscribeGmCrisisState } = await import('./firestore');
+  let publish: ((snapshot: unknown) => void) | undefined;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    publish = callback as (snapshot: unknown) => void;
+    return vi.fn();
+  }) as never);
+  const onState = vi.fn();
+  const stop = subscribeGmCrisisState('s1', onState);
+  const record = { sessionId: 's1', crisisId: 'crisis-1', state: 'draft', revision: 1,
+    title: 'Election', details: 'Private notes', crisisKind: 'presidential-election',
+    configurationOverride: 'Facilitator adaptation.' };
+  publish?.({ metadata: { fromCache: false }, exists: () => true, data: () => record });
+  expect(onState).toHaveBeenLastCalledWith(record);
+  publish?.({ metadata: { fromCache: false }, exists: () => true,
+    data: () => ({ ...record, crisisKind: 'unknown' }) });
+  expect(onState).toHaveBeenLastCalledWith(null);
+  stop();
+});

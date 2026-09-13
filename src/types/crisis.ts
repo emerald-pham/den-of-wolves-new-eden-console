@@ -29,6 +29,8 @@ export interface CrisisStateProjection {
   readonly revision: number;
   readonly title: string;
   readonly details: string;
+  readonly crisisKind?: CrisisKind;
+  readonly configurationOverride?: string;
   readonly updatedAt?: string;
 }
 
@@ -44,3 +46,17 @@ export function nextCrisisStates(
   // next facilitator-authored crisis starts a fresh lifecycle.
   return current.state === 'closed' ? ['draft'] : CRISIS_TRANSITIONS[current.state];
 }
+
+export const CRISIS_KINDS = ['custom', 'approaching-vessel', 'disease-outbreak', 'religious-zealotry', 'civil-unrest', 'presidential-election'] as const;
+export type CrisisKind = (typeof CRISIS_KINDS)[number];
+export function isCrisisKind(value: unknown): value is CrisisKind {
+  return typeof value === 'string' && (CRISIS_KINDS as readonly string[]).includes(value);
+}
+export const CRISIS_KIND_LABELS: Readonly<Record<CrisisKind, string>> = {
+  custom: 'Custom crisis',
+  'approaching-vessel': 'Approaching Vessel',
+  'disease-outbreak': 'Disease Outbreak',
+  'religious-zealotry': 'Religious Zealotry',
+  'civil-unrest': 'Civil Unrest',
+  'presidential-election': 'Presidential Election',
+};

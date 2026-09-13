@@ -339,10 +339,13 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
   const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
   await user.type(within(panel).getByRole('textbox', { name: 'Crisis title' }), 'Relay pressure');
   await user.type(within(panel).getByRole('textbox', { name: 'Crisis facilitator notes' }), 'Facilitator-only deliberation.');
+  await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'presidential-election');
+  await user.type(within(panel).getByRole('textbox', { name: 'Crisis configuration override' }), 'Alternate decision maker agreed at this table.');
   await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
 
   await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
     'crisis-1', 'draft', 'Relay pressure', 'Facilitator-only deliberation.',
+    { crisisKind: 'presidential-election', configurationOverride: 'Alternate decision maker agreed at this table.' },
   ));
   expect(await within(panel).findByRole('status')).toHaveTextContent(/crisis transition committed/i);
 });

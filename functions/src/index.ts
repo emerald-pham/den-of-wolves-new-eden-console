@@ -5475,7 +5475,7 @@ export const transitionCrisis = onCall<{
     }
     if (current.exists && !replacingClosedCrisis && (
       crisis.crisisKind !== (current.get('crisisKind') ?? (isCrisisKind(previousCrisisId) ? previousCrisisId : 'custom')) ||
-      crisis.configurationOverride !== (current.get('configurationOverride') ?? '')
+      (crisis.state !== 'delivered' && crisis.configurationOverride !== (current.get('configurationOverride') ?? ''))
     )) throw commandError('failed-precondition', 'Crisis configuration is fixed after draft creation.', 'conflict');
     const activeRoles = authority.session.get('activeRoleIds') ?? DEFAULT_ACTIVE_ROLE_IDS;
     const blocker = crisisConfigurationBlocker(crisis.crisisKind, {

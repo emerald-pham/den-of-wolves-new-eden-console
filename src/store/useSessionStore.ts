@@ -16,7 +16,7 @@ import type {
   WolfCultIntelligence,
   ArbourVision,
 } from '@/types/game';
-import type { CrisisStateProjection } from '@/types/crisis';
+import type { CrisisKind, CrisisStateProjection } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -262,6 +262,8 @@ export type PendingCommand = (
         readonly state: import('@/types/crisis').CrisisStateName;
         readonly title: string;
         readonly details: string;
+        readonly crisisKind?: CrisisKind;
+        readonly configurationOverride?: string;
       };
       readonly createdAt: string;
     }

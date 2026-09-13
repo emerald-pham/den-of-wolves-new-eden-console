@@ -93,7 +93,7 @@ import type {
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
-import { nextCrisisStates, type CrisisStateName } from '@/types/crisis';
+import { CRISIS_KINDS, CRISIS_KIND_LABELS, isCrisisKind, nextCrisisStates, type CrisisKind, type CrisisStateName } from '@/types/crisis';
 import { isWireSafeEntityId } from '@/types/identifiers';
 import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
 
@@ -342,6 +342,8 @@ export default function GmConsole() {
   const [crisisIdDraft, setCrisisIdDraft] = useState('crisis-1');
   const [crisisTitleDraft, setCrisisTitleDraft] = useState('');
   const [crisisDetailsDraft, setCrisisDetailsDraft] = useState('');
+  const [crisisKindDraft, setCrisisKindDraft] = useState<CrisisKind>('custom');
+  const [crisisOverrideDraft, setCrisisOverrideDraft] = useState('');
   const [crisisMutationState, setCrisisMutationState] = useState<CrisisStateName | null>(null);
   const [crisisMessage, setCrisisMessage] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
@@ -743,6 +745,8 @@ export default function GmConsole() {
                 setCrisisIdDraft(crisis.crisisId);
                 setCrisisTitleDraft(crisis.title);
                 setCrisisDetailsDraft(crisis.details);
+                setCrisisKindDraft(crisis.crisisKind ?? (isCrisisKind(crisis.crisisId) ? crisis.crisisId : 'custom'));
+                setCrisisOverrideDraft(crisis.configurationOverride ?? '');
               }
               setCrisisMutationState(null);
             }, () => {
@@ -1428,7 +1432,11 @@ export default function GmConsole() {
     setCrisisMutationState(state);
     setCrisisMessage(null);
     try {
-      const disposition = await transitionCrisis(crisisId, state, title, details);
+      const locked = gmCrisisState && gmCrisisState.state !== 'closed' ? gmCrisisState : null;
+      const disposition = await transitionCrisis(crisisId, state, title, details, {
+        crisisKind: locked ? (locked.crisisKind ?? (isCrisisKind(locked.crisisId) ? locked.crisisId : 'custom')) : crisisKindDraft,
+        configurationOverride: locked && state !== 'delivered' ? locked.configurationOverride ?? '' : crisisOverrideDraft,
+      });
       if (
         currentCrisisAuthorityKey() !== authorityKey ||
         verifiedCrisisAuthorityKey.current !== authorityKey
@@ -2133,7 +2141,7 @@ export default function GmConsole() {
               </p>
             </section>
           </section>
-          <section className="gm-console__module cic-frame" aria-label="Crisis state machine">
+          <section className="gm-console__module gm-crisis cic-frame" aria-label="Crisis state machine">
             <h2 className="gm-console__section-title">Crisis state machine</h2>
             <p className="gm-console__status">
               {gmCrisisState
@@ -2144,6 +2152,25 @@ export default function GmConsole() {
               Facilitator-authored lifecycle only. Draft and debate notes stay facilitator-private;
               member events carry the state title after delivery decisions commit.
             </p>
+            <label className="gm-wolf-preparation__field">
+              <span>Crisis kind</span>
+              <select aria-label="Crisis kind" value={crisisKindDraft}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed') || crisisMutationState !== null}
+                onChange={(event) => { if (isCrisisKind(event.target.value)) setCrisisKindDraft(event.target.value); }}>
+                {CRISIS_KINDS.map((kind) => <option key={kind} value={kind}>{CRISIS_KIND_LABELS[kind]}</option>)}
+              </select>
+            </label>
+            <p className="gm-console__hint">
+              Presidential Election requires the President role. Religious Zealotry requires Universal Arbour loyalties.
+              Other crisis kinds may be used without the President. Record a private override to adapt an incompatible crisis.
+            </p>
+            <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+              <span>Facilitator configuration override (optional, private)</span>
+              <textarea rows={2} maxLength={1000} aria-label="Crisis configuration override"
+                value={crisisOverrideDraft}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed' && gmCrisisState.state !== 'draft') || crisisMutationState !== null}
+                onChange={(event) => setCrisisOverrideDraft(event.target.value)} />
+            </label>
             <label className="gm-wolf-preparation__field">
               <span>Crisis identifier</span>
               <input

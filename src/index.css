@@ -5842,3 +5842,10 @@ body {
 .role-brief-screen .role-brief__return {
   font-size: 14px;
 }
+
+/* Crisis selection must shrink inside the phone-width facilitator panel. */
+.gm-crisis .gm-wolf-preparation__field { min-width: 0; }
+.gm-crisis input,
+.gm-crisis select,
+.gm-crisis textarea { min-width: 0; width: 100%; }
+.gm-crisis .gm-console__hint { font-size: 0.75rem; line-height: 1.5; }

@@ -190,3 +190,31 @@ it('blocks Religious Zealotry without Universal Arbour unless the facilitator re
     crisisKind: 'religious-zealotry', configurationOverride: 'Facilitator adapts this crisis for the table.',
   });
 });
+
+it('rechecks configuration at delivery and permits a newly recorded private override', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: true });
+  const typed = { ...baseData, crisisKind: 'religious-zealotry' };
+  await transitionCrisis.run(request(typed));
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false });
+  const delivered = { ...typed, requestId: 'deliver-crisis', expectedRevision: 1, state: 'delivered' };
+  await expect(transitionCrisis.run(request(delivered))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(transitionCrisis.run(request({ ...delivered, configurationOverride: 'Adapted after the roster changed.' })))
+    .resolves.toMatchObject({ state: 'delivered' });
+  const event = mock.documents.get('sessions/s1/events/crisis-approaching-vessel-deliver-crisis');
+  expect(JSON.stringify(event)).not.toContain('Adapted after the roster changed.');
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ configurationOverride: 'Adapted after the roster changed.' });
+});
+
+it.each(['approaching-vessel', 'disease-outbreak', 'civil-unrest'])('allows %s without a President or loyalty override', async (crisisKind) => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: [], universalArbourEnabled: false });
+  await expect(transitionCrisis.run(request({ ...baseData, crisisKind }))).resolves.toMatchObject({ state: 'draft' });
+});
+
+it('permits Presidential Election with its configured role and rejects an unknown kind', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: ['dione-president'] });
+  await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'not-a-crisis' })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.set).not.toHaveBeenCalled();
+  await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'presidential-election' })))
+    .resolves.toMatchObject({ state: 'draft' });
+});

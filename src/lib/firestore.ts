@@ -64,7 +64,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import type { CrisisStateProjection, CrisisStateName } from '@/types/crisis';
+import { isCrisisKind, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -844,7 +844,9 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
       typeof raw.crisisId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(raw.crisisId) || raw.crisisId.length > 80 ||
       !isCrisisStateName(raw.state) || revision === undefined ||
       typeof raw.title !== 'string' || raw.title.length === 0 || raw.title.length > 160 ||
-      typeof raw.details !== 'string' || raw.details.length > 2_000) return null;
+      typeof raw.details !== 'string' || raw.details.length > 2_000 ||
+      (raw.crisisKind !== undefined && !isCrisisKind(raw.crisisKind)) ||
+      (raw.configurationOverride !== undefined && (typeof raw.configurationOverride !== 'string' || raw.configurationOverride.length > 1000))) return null;
   return {
     sessionId: parsedSessionId,
     crisisId: raw.crisisId,
@@ -852,6 +854,8 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
     revision,
     title: raw.title,
     details: raw.details,
+    crisisKind: isCrisisKind(raw.crisisKind) ? raw.crisisKind : (isCrisisKind(raw.crisisId) ? raw.crisisId : 'custom'),
+    configurationOverride: typeof raw.configurationOverride === 'string' ? raw.configurationOverride : '',
     ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
   };
 }
