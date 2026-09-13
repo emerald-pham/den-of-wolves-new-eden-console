@@ -89,6 +89,22 @@ service cloud.firestore {
         );
     }
 
+    function isCurrentArbourVision(sessionId, visionUid) {
+      return isMember(sessionId)
+        && visionUid == uid()
+        && resource.data.type == 'arbour-vision'
+        && resource.data.sessionId == sessionId
+        && resource.data.recipientUid == uid()
+        && resource.data.visibleToUids.size() == 1
+        && resource.data.visibleToUids[0] == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+        ).data.type == 'arbour-vision-authority'
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+        ).data.recipientUid == uid();
+    }
+
     match /sessions/{sessionId} {
       // Joining by code goes through the callable function, so session headers
       // never need to be exposed to strangers or enumerable from the client.
@@ -142,25 +158,6 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // Wolf Cult intelligence has one private projection for the current
-      // Cult holder and one organiser projection for connected facilitators.
-      // The authority document lets revocation fail closed immediately when
-      // the loyalty holder is removed or replaced.
-      match /wolfCultIntelligence/{intelligenceUid} {
-        allow get: if (intelligenceUid == 'current' && isGm(sessionId) && resource.data.type == 'wolf-cult-intelligences')
-          || isCurrentWolfCultIntelligence(sessionId, intelligenceUid);
-        allow list, write: if false;
-
-        match /audit/{auditId} {
-          allow get, list: if intelligenceUid == 'current' && isGm(sessionId);
-          allow write: if false;
-        }
-      }
-
-      match /wolfCultIntelligenceAuthority/{projectionId} {
-        allow read, write: if false;
-      }
-
       // Away-mission hands are private projections. The participant may read
       // only their own hand, while any currently connected GM may facilitate
       // the mission. Checking current role here deliberately revokes a former
@@ -190,6 +187,66 @@ service cloud.firestore {
       match /roleBriefs/{briefUid} {
         allow get: if isAssignedRoleBrief(sessionId, briefUid);
         allow list, write: if false;
+      }
+
+      // Wolf Cult intelligence has one private projection for the current
+      // Cult holder and one organiser projection for connected facilitators.
+      // An exact holder may subscribe before the first delivery; authority is
+      // still required for that absent document and all content remains
+      // server-owned and non-enumerable.
+      match /wolfCultIntelligence/{intelligenceUid} {
+        allow get: if intelligenceUid == 'current' && isGm(sessionId)
+          && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/current)
+            || resource.data.type == 'wolf-cult-intelligences')
+          || (intelligenceUid == uid()
+            && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/$(intelligenceUid))
+              || isCurrentWolfCultIntelligence(sessionId, intelligenceUid))
+            && get(
+              /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
+            ).data.type == 'wolf-cult-intelligence-authority'
+            && get(
+              /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
+            ).data.recipientUid == uid());
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if intelligenceUid == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
+      match /wolfCultIntelligenceAuthority/{projectionId} {
+        allow read, write: if false;
+      }
+
+      // Universal Arbour calls are server-authored and private to the current
+      // loyalty holder; the facilitator's current projection is a separate
+      // GM-only document so the recipient cannot enumerate author metadata.
+      // An exact holder may subscribe before the first delivery; authority is
+      // checked even while that holder document is absent.
+      match /arbourVisions/{visionUid} {
+        allow get: if visionUid == 'current' && isGm(sessionId)
+          && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/current)
+            || resource.data.type == 'arbour-visions')
+          || (visionUid == uid()
+            && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/$(visionUid))
+              || isCurrentArbourVision(sessionId, visionUid))
+            && get(
+              /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+            ).data.type == 'arbour-vision-authority'
+            && get(
+              /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+            ).data.recipientUid == uid());
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if visionUid == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
+      match /arbourVisionAuthority/{projectionId} {
+        allow read, write: if false;
       }
 
       // Hummingbird's server dice and pending allocation are private to the

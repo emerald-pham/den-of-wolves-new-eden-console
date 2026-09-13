@@ -4713,6 +4713,20 @@
       "type": "evidence / verified / authority / hard_prompt / related/consumes"
     },
     {
+      "direction": "511 -> 495;522",
+      "id": "E-AUDIT-511",
+      "language": "Universal Arbour calls consume the authoritative private loyalty assignment and the live facilitator lease; no automated clue producer or public event path is implied.",
+      "source": "IMPLEMENTATION_PLAN.md - Prompt 511 definition; routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md; routed REFERENCE_ONLY_FACILITATION.md",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "511",
+      "id": "E-511-ARBOUR-VISIONS",
+      "language": "The facilitator can publish one labeled FACILITATOR CALL for the current Universal Arbour loyalty holder through a lease-checked, revisioned, shared-receipt callable. Server projections keep the call private to the GM and current recipient, revoke the recipient path when the canonical loyalty census changes, and write no public event. Exact retries replay without a second write; wrong actor, stale revision, malformed text, closed session, non-Arbour recipient, direct client reads, and direct client writes fail closed. The recipient-only RoleBrief and GM authoring panel are rendered through production components with readable typography, 44px controls, no horizontal overflow, reduced motion, and a working keyboard return path at 320x844, 844x390, and 1440x900. Focused callable, lifecycle, client, and rules checks pass alongside the affected loyalty/session regressions.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/arbourVisionCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/sessionService.ts; src/store/useSessionStore.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/App.tsx; src/App.test.tsx; src/index.css; focused tests 148/148 plus functions regressions 126/126; npm run typecheck; functions npm run build; targeted eslint; rendered production-component fixture geometry and screenshots captured 320x844, 844x390, 1440x900 with reduced motion",
+      "type": "evidence / production-path / authority / privacy"
+    },
+    {
       "direction": "241 -> CAPYBARA-IDENTITY-MAINTENANCE",
       "id": "E-241-VERIFIED",
       "language": "The existing shared small-ship production path closes base Capybara identity and maintenance: the typed supplemental vessel is the base-small Capybara with 2,000 survivors, 1/1/2 jump costs, two reactor charges, and steps 1–4, while the server-owned rules apply the same identity and printed host food/water table. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; a focused production-path regression proves Capybara remains distinct from Warrior and Vulcan while borrowing its host ration costs. The full expansion Capybara remains a separate identity, and named Capybara systems stay deferred to 241b–241e.",
@@ -4818,9 +4832,30 @@
       "type": "evidence / production-path / authority / privacy"
     },
     {
+      "direction": "517 -> VIP-HOST-VISIT-CONFIRMATION",
+      "id": "E-517-VISIT-DECISION",
+      "language": "The production audit found no authoritative Team Time visit or Host reroll grant/consumption path. ShipConsole visiting is console browsing; shuttle visit logs describe docking. The owner has been asked who confirms a Host visit; no answer or policy is inferred. CAS, replay, and consent storage are implementation work after the gameplay confirmation policy is defined.",
+      "source": "src/routes/ShipConsole.tsx; functions/src/index.ts; docs/implementation-prompts.json",
+      "type": "evidence / decision_owner / missing-producer"
+    },
+    {
+      "direction": "567 -> 252",
+      "id": "E-567-DEPENDENCY",
+      "language": "Reverification consumes the implemented immutable Capybara mode and active-vessel boundary in Prompt 252, including its existing owner-revised supported roster limits.",
+      "source": "docs/implementation-prompts.json; functions/src/gameSetup.ts",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "567 -> CAPYBARA-MODE-PROOF",
+      "id": "E-567-VERIFIED",
+      "language": "At deployed 04d64e52040a4b1c400e1b609de29ff1634b666e, reviewed canonical setup, casting mode lock, active lifecycle rejection, retired toggle denial, distinct vessel definitions and direct-route filtering. Existing tests cover mode mapping, unsupported/incomplete expansion tuples, no-write casting changes, same-mode retry, full expansion presentation and rejected base/disabled routes. The final 2274-test run and successful Deploy 34740082082 include these unchanged sources; current main differs only by documentation. Private expansion provenance and both complementary artifact checksums were checked; the product-owner roster restriction remains explicit rather than being presented as a printed limitation. No new runtime, capacity or rendered review claim.",
+      "source": "functions/src/gameSetup.ts; functions/src/gameSetup.test.ts; functions/src/index.ts; functions/src/createSessionCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/data/vesselTemplates.test.ts; src/routes/ShipConsole.test.tsx; src/routes/ShipRoleSelect.test.tsx; src/routes/GmConsole.test.tsx; src/components/ShipPlot.test.tsx; https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/34740082082",
+      "type": "evidence / verified / production-path"
+    },
+    {
       "direction": "512 -> WOLF-CULT-INTELLIGENCE",
       "id": "E-512-VERIFIED",
-      "language": "The facilitator-authored Wolf Cult path accepts the four source-defined facts: active fortress coordinate, abandoned supplies coordinate, other Wolf agent, and code word. One server transaction requires a live facilitator instance, resolves exactly one current canonical Cult holder and one current Wolf agent from authoritative loyalty secrets, verifies the supplied agent, and writes a replay-safe CAS revision to a GM projection plus a holder-only player projection. Reassignment or release updates the server authority and clears stale projections; Firestore rules deny enumeration and writes, permit only the current holder or a connected GM, and fail closed after authority loss. The GM form and private loyalty card are reachable through existing production routes. The production private-card path was checked at 390x844, 1440x900, and 844x390 with reduced-motion media; short-landscape overflow remains reachable and the displayed facts remain readable at 16px or larger. This is facilitator-authored delivery; no automated scout, clue, timing, or effect producer is claimed.",
+      "language": "The facilitator-authored Wolf Cult path accepts the four source-defined facts: active fortress coordinate, abandoned supplies coordinate, other Wolf agent, and code word. One server transaction requires a live facilitator instance, resolves exactly one current canonical Cult holder and one current Wolf agent from authoritative loyalty secrets, verifies the supplied agent, and writes a replay-safe CAS revision to a GM projection plus a holder-only player projection. Census reconciliation deletes the current and every known holder projection whenever either Wolf identity changes or the unique pair is lost, including agent reassignment/removal. Rules permit exact absent current/holder reads only while the server authority names that GM or holder, then enforce the same private content boundary after creation; no listing or client writes are allowed. Client generation blocking discards delayed former-holder data until fresh loyalty authorization. The GM form and private loyalty card are reachable through existing production routes. This is facilitator-authored delivery; no automated scout, clue, timing, or effect producer is claimed.",
       "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/wolfCultIntelligenceCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/App.tsx; src/App.test.tsx; src/store/useSessionStore.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md",
       "type": "evidence / production-path / authority / privacy / accessibility"
     }
@@ -17875,11 +17910,11 @@
         "acceptance": "facilitator-authored location, danger, or suspicion content is private and labeled as a call.",
         "title": "Deliver Universal Arbour visions."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The live GM can author a labeled FACILITATOR CALL for the current Universal Arbour loyalty holder through a lease-checked, revisioned callable with shared replay receipt and private audit. The GM projection and recipient RoleBrief are server-filtered, revoked when the canonical loyalty census changes, and never emitted as a public event. Focused callable/client/rules/lifecycle checks and rendered production-component evidence cover the private path and responsive accessibility behavior.",
+      "evidenceIds": "E-AUDIT-511;E-511-ARBOUR-VISIONS",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "495;522",
       "id": "511",
       "milestoneHints": "M10",
       "relatedConsumes": "none",
@@ -17887,7 +17922,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17898,7 +17933,7 @@
         "acceptance": "fortress, supplies, agent, and code-word intel reaches only the Cult leader and facilitator.",
         "title": "Deliver Wolf Cult intelligence."
       },
-      "description": "Facilitator-authored Wolf Cult delivery now accepts the four source-defined facts—active fortress coordinate, abandoned supplies coordinate, other Wolf agent, and code word—and projects them only to the current canonical Cult holder and connected facilitators. The server resolves current loyalty holders, enforces a live facilitator lease, revisioned replay-safe writes, and stale-projection cleanup on reassignment or release. The existing GM console and private loyalty card are reachable; no automated scout, clue, timing, or effect producer is claimed.",
+      "description": "Facilitator-authored Wolf Cult delivery accepts the four source-defined facts and projects them only to the current canonical Cult holder and connected facilitators. The server requires a live facilitator lease, authoritative unique Cult and Wolf identities, revisioned replay-safe writes, and deletes stale private projections whenever either identity changes or the pair is no longer unique. Exact absent holder and GM reads are allowed only for the authority-approved path so listeners can bind before first delivery; delayed former-holder callbacks are discarded until a fresh loyalty-authorized snapshot. No automated scout, clue, timing, or effect producer is claimed.",
       "evidenceIds": "E-512-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18008,13 +18043,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-VIP-HOST-VISIT-CONFIRMATION",
       "definition": {
         "acceptance": "a verified visit grants one hosted ship its printed maintenance reroll once.",
         "title": "Activate the VIP Host."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-517",
+      "description": "Source audit confirms the VIP Host maintenance reroll requires a Team Time visit to another ship. Existing console browsing is read-only perspective selection, not an authoritative visit; shuttle docking history does not establish this visit either. The owner decision about who confirms the visit remains pending (GM, destination captain, or Host declaration). Implement the confirmed visit and maintenance-reroll consumption together after that decision, preserving printed scope, server authority, and once-only receipts. No visit, grant, or reroll implementation is claimed; Prompt 517 remains missing.",
+      "evidenceIds": "E-AUDIT-517;E-517-VISIT-DECISION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;190",
@@ -19372,8 +19407,8 @@
         "acceptance": "base-only, base extras, or crewed expansion remains immutable and no route/catalog conflates the two Capybaras.",
         "title": "Reverify Capybara mode selection."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-567",
+      "description": "Reverified the shipped none, base-capybara, and expansion-capybara configuration boundary. Canonical setup selects one mode, rejects unsupported roster substitutions and incomplete expansion pairs, and locks mode changes from casting onward. Retired legacy toggles cannot bypass setup. Distinct vessel definitions, active-vessel filtering, and direct-route guards keep the base extra and crewed expansion separate; supported 19/20-player expansion sessions retain their full ship. Current production code and existing setup, catalog, selector, and route regressions passed in the 0.3.86 validation and deployed workflow. This is evidence closeout only; no new gameplay or rendered UI is claimed, and lower-count expansion substitutions remain governed by Prompt 252.",
+      "evidenceIds": "E-567-DEPENDENCY;E-567-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "252",
@@ -19384,7 +19419,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

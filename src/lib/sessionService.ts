@@ -19,6 +19,7 @@ import type {
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfCultIntelligence,
+  ArbourVision,
   SessionPhase,
 } from '@/types/game';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
@@ -468,6 +469,31 @@ function applyCommandResult(
         codeWord: reply.codeWord,
         label: 'WOLF INTEL',
       } satisfies WolfCultIntelligence);
+    }
+  }
+  if (
+    command.kind === 'authorArbourVision' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    if (
+      (reply.status === 'committed' || reply.status === 'replayed') &&
+      reply.sessionId === command.payload.sessionId &&
+      reply.recipientUid === command.payload.targetUid &&
+      Number.isSafeInteger(reply.revision) && (reply.revision as number) >= 1 &&
+      (reply.kind === 'location' || reply.kind === 'danger' || reply.kind === 'suspicion') &&
+      typeof reply.text === 'string' && reply.text.length > 0 && reply.text.length <= 240 &&
+      reply.label === 'FACILITATOR CALL'
+    ) {
+      store.setGmArbourVision({
+        sessionId: command.payload.sessionId,
+        recipientUid: command.payload.targetUid,
+        revision: reply.revision as number,
+        kind: reply.kind,
+        text: reply.text,
+        label: 'FACILITATOR CALL',
+      } satisfies ArbourVision);
     }
   }
   if (command.kind === 'setCapybaraEnabled' && store.session?.id === command.payload.sessionId) {
@@ -2767,4 +2793,30 @@ export async function disconnectFromSession(): Promise<CommandDisposition> {
   // command can still reach the server, or be queued if the network is down.
   store.disconnect();
   return sendOrQueue(command);
+}
+
+/** Publish one private, facilitator-authored Universal Arbour call. */
+export async function authorUniversalArbourVision(
+  targetUid: string,
+  kind: ArbourVision['kind'],
+  text: string,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || !store.gmLoyaltyCensus) {
+    throw new Error('An active GM census is required before authoring a call.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'authorArbourVision',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmArbourVision?.revision ?? 0,
+      targetUid,
+      kind,
+      text: text.trim().slice(0, 240),
+    },
+    createdAt: new Date().toISOString(),
+  });
 }

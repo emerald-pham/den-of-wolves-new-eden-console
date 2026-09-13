@@ -35,7 +35,7 @@ import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
+import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence, ArbourVision } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -121,6 +121,12 @@ function AppRoutes() {
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
     let wolfCultAuthorityGeneration = 0;
+    let wolfCultBlocked = false;
+    let pendingArbourVision: { vision: ArbourVision; generation: number } | null = null;
+    let arbourVisionAuthorityGeneration = 0;
+    let arbourVisionBlocked = false;
+    let arbourVisionBlockReason: 'entitlement' | 'loyalty' | null = null;
+    let arbourVisionRevisionFloor = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
     let unsubscribe: () => void = () => undefined;
@@ -141,8 +147,34 @@ function AppRoutes() {
     };
     const clearWolfCultIntelligence = () => {
       wolfCultAuthorityGeneration += 1;
+      wolfCultBlocked = true;
       pendingWolfCultIntelligence = null;
       useSessionStore.getState().setWolfCultIntelligence(null);
+    };
+    const invalidateArbourVision = () => {
+      arbourVisionAuthorityGeneration += 1;
+      arbourVisionRevisionFloor = Math.max(
+        arbourVisionRevisionFloor,
+        pendingArbourVision?.vision.revision ?? 0,
+        useSessionStore.getState().arbourVision?.revision ?? 0,
+      );
+      arbourVisionBlocked = true;
+      arbourVisionBlockReason = 'loyalty';
+      pendingArbourVision = null;
+      useSessionStore.getState().setArbourVision(null);
+    };
+    const retainArbourVisionForEntitlementChange = () => {
+      const store = useSessionStore.getState();
+      const candidate = arbourVisionBlockReason === 'loyalty'
+        ? null
+        : pendingArbourVision?.vision ?? store.arbourVision ?? null;
+      arbourVisionAuthorityGeneration += 1;
+      arbourVisionBlocked = true;
+      arbourVisionBlockReason = 'entitlement';
+      pendingArbourVision = candidate
+        ? { vision: candidate, generation: arbourVisionAuthorityGeneration }
+        : null;
+      store.setArbourVision(null);
     };
     const currentPlayerMayReadCensus = () => {
       const state = useSessionStore.getState();
@@ -256,6 +288,9 @@ function AppRoutes() {
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
           }
+          if (previousEntitlement !== nextEntitlement) {
+            retainArbourVisionForEntitlementChange();
+          }
           if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
             const current = useSessionStore.getState().session;
             if (current?.id === sessionId) {
@@ -313,12 +348,41 @@ function AppRoutes() {
           store.setPrivateLoyalty(next);
           if (store.me?.role !== 'player' || next?.kind !== 'wolf-cult') {
             clearWolfCultIntelligence();
-            return;
+          } else {
+            wolfCultBlocked = false;
+            const pending = pendingWolfCultIntelligence;
+            if (pending && pending.generation === wolfCultAuthorityGeneration) {
+              pendingWolfCultIntelligence = null;
+              store.setWolfCultIntelligence(pending.intelligence);
+            }
           }
-          const pending = pendingWolfCultIntelligence;
-          if (pending && pending.generation === wolfCultAuthorityGeneration) {
-            pendingWolfCultIntelligence = null;
-            store.setWolfCultIntelligence(pending.intelligence);
+          if (next?.kind === 'universal-arbour') {
+            if (arbourVisionBlocked) {
+              const candidate = arbourVisionBlockReason === 'entitlement' &&
+                pendingArbourVision?.generation === arbourVisionAuthorityGeneration &&
+                pendingArbourVision.vision.revision >= arbourVisionRevisionFloor
+                ? pendingArbourVision.vision
+                : null;
+              arbourVisionBlocked = false;
+              arbourVisionBlockReason = null;
+              pendingArbourVision = null;
+              if (candidate) {
+                arbourVisionRevisionFloor = candidate.revision;
+                store.setArbourVision(candidate);
+              } else {
+                store.setArbourVision(null);
+              }
+            } else if (
+              pendingArbourVision &&
+              pendingArbourVision.generation === arbourVisionAuthorityGeneration &&
+              pendingArbourVision.vision.revision > arbourVisionRevisionFloor
+            ) {
+              store.setArbourVision(pendingArbourVision.vision);
+              arbourVisionRevisionFloor = pendingArbourVision.vision.revision;
+              pendingArbourVision = null;
+            }
+          } else {
+            invalidateArbourVision();
           }
         },
         onWolfCultIntelligence: (next) => {
@@ -329,13 +393,49 @@ function AppRoutes() {
             store.setWolfCultIntelligence(null);
             return;
           }
-          if (store.me?.role !== 'player' || store.privateLoyalty?.kind !== 'wolf-cult') {
+          if (wolfCultBlocked || store.me?.role !== 'player') {
+            pendingWolfCultIntelligence = null;
+            store.setWolfCultIntelligence(null);
+            return;
+          }
+          if (store.privateLoyalty?.kind !== 'wolf-cult') {
             pendingWolfCultIntelligence = { intelligence: next, generation: wolfCultAuthorityGeneration };
             store.setWolfCultIntelligence(null);
             return;
           }
           pendingWolfCultIntelligence = null;
           store.setWolfCultIntelligence(next);
+        },
+        onArbourVision: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if (!next) {
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+            return;
+          }
+          if (next.revision <= arbourVisionRevisionFloor) return;
+          if (arbourVisionBlocked) {
+            if (arbourVisionBlockReason === 'entitlement') {
+              const candidate = pendingArbourVision?.vision;
+              if (next.revision > arbourVisionRevisionFloor &&
+                  (!candidate || next.revision > candidate.revision)) {
+                pendingArbourVision = { vision: next, generation: arbourVisionAuthorityGeneration };
+              }
+            } else {
+              pendingArbourVision = null;
+            }
+            store.setArbourVision(null);
+            return;
+          }
+          if (store.privateLoyalty?.kind !== 'universal-arbour') {
+            pendingArbourVision = { vision: next, generation: arbourVisionAuthorityGeneration };
+            store.setArbourVision(null);
+            return;
+          }
+          pendingArbourVision = null;
+          arbourVisionRevisionFloor = next.revision;
+          store.setArbourVision(next);
         },
         onRoleBrief: (next) => {
           if (!callbackCurrent()) return;
@@ -382,6 +482,9 @@ function AppRoutes() {
       pendingRoleBrief = null;
       clearLoyaltyCensus();
       clearWolfCultIntelligence();
+      pendingArbourVision = null;
+      arbourVisionBlocked = true;
+      useSessionStore.getState().setArbourVision(null);
       unsubscribe();
     };
   }, [playerUid, sessionId]);

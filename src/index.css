@@ -5722,3 +5722,33 @@ body {
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
+
+.gm-arbour-vision .gm-player-roster__hint,
+.gm-arbour-vision .gm-player-roster__note {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.gm-arbour-vision button {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.role-brief__rules--arbour-vision .eyebrow {
+  font-size: 12px;
+}
+
+.role-brief__rules--arbour-vision h2 {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.role-brief__rules--arbour-vision > p:last-child {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.role-brief-screen .session-mode__back,
+.role-brief-screen .role-brief__return {
+  font-size: 14px;
+}

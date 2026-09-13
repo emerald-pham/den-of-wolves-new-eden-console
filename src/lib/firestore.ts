@@ -55,6 +55,8 @@ import type {
   WolfAttackWindow,
   WolfAssignment,
   WolfCultIntelligence,
+  ArbourVision,
+  ArbourVisionKind,
   VipCard,
   VipCardId,
   VipCardName,
@@ -250,6 +252,49 @@ function gmWolfCultIntelligence(value: unknown, sessionId: string): WolfCultInte
     label: 'WOLF INTEL',
   };
 }
+
+function arbourVision(value: unknown, sessionId: string, uid: string): ArbourVision | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    raw.type !== 'arbour-vision' || raw.sessionId !== sessionId || raw.recipientUid !== uid ||
+    !Array.isArray(raw.visibleToUids) || raw.visibleToUids.length !== 1 || raw.visibleToUids[0] !== uid ||
+    !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+    (raw.kind !== 'location' && raw.kind !== 'danger' && raw.kind !== 'suspicion') ||
+    typeof raw.text !== 'string' || raw.text.trim().length === 0 || raw.text.length > 240 ||
+    raw.label !== 'FACILITATOR CALL'
+  ) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    recipientUid: entityId('player', uid),
+    revision: raw.revision as number,
+    kind: raw.kind as ArbourVisionKind,
+    text: raw.text,
+    label: 'FACILITATOR CALL',
+  };
+}
+
+function gmArbourVision(value: unknown, sessionId: string): ArbourVision | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    raw.type !== 'arbour-visions' || raw.sessionId !== sessionId || typeof raw.recipientUid !== 'string' ||
+    !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+    (raw.kind !== 'location' && raw.kind !== 'danger' && raw.kind !== 'suspicion') ||
+    typeof raw.text !== 'string' || raw.text.trim().length === 0 || raw.text.length > 240 ||
+    raw.label !== 'FACILITATOR CALL'
+  ) return null;
+  const recipientUid = parseEntityId('player', raw.recipientUid);
+  return recipientUid ? {
+    sessionId: entityId('session', sessionId),
+    recipientUid,
+    revision: raw.revision as number,
+    kind: raw.kind as ArbourVisionKind,
+    text: raw.text,
+    label: 'FACILITATOR CALL',
+  } : null;
+}
+
 
 const VIP_CARD_NAMES: Readonly<Record<VipCardId, VipCardName>> = {
   'party-deck': 'Party Deck', 'spa-deck': 'Spa Deck', 'gaming-deck': 'Gaming Deck',
@@ -1257,6 +1302,7 @@ export interface SessionStateHandlers {
   readonly onSeats: (seats: readonly Seat[]) => void;
   readonly onPrivateLoyalty?: (loyalty: PrivateLoyalty | null) => void;
   readonly onWolfCultIntelligence?: (intelligence: WolfCultIntelligence | null) => void;
+  readonly onArbourVision?: (vision: ArbourVision | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
   /** Whether the accepted player projection came from the server. */
   readonly onPlayerFreshness?: (fresh: boolean) => void;
@@ -1282,6 +1328,7 @@ export function subscribeSessionState(
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
   const acceptsWolfCultRevision = createMonotonicRevisionGate();
+  const acceptsArbourVisionRevision = createMonotonicRevisionGate();
   const onError = () => {
     if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
   };
@@ -1416,6 +1463,23 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
+    ...(handlers.onArbourVision ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/arbourVisions/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const vision = snapshot.exists() ? arbourVision(snapshot.data(), sessionId, uid) : null;
+        if (vision && !acceptsArbourVisionRevision(vision.revision)) return;
+        handlers.onArbourVision?.(vision);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onArbourVision?.(null);
+        }
+        onError();
+      },
+    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -1446,6 +1510,7 @@ export function subscribeSessionState(
       // leaves a newer listener's private state intact.
       handlers.onPrivateLoyalty?.(null);
       handlers.onWolfCultIntelligence?.(null);
+      handlers.onArbourVision?.(null);
       handlers.onRoleBrief?.(null);
       handlers.onSetupReceipt?.(null);
     }
@@ -1585,6 +1650,38 @@ export function subscribeGmWolfCultIntelligence(
     onIntelligence(null);
   };
 }
+
+/** Subscribe to the facilitator-only current Universal Arbour call. */
+export function subscribeGmArbourVision(
+  sessionId: string,
+  onVision: (vision: ArbourVision | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/arbourVisions/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const vision = snapshot.exists() ? gmArbourVision(snapshot.data(), sessionId) : null;
+      if (vision && !acceptsRevision(vision.revision)) return;
+      onVision(vision);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        onVision(null);
+        return;
+      }
+      onVision(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onVision(null);
+  };
+}
+
 
 /** Subscribe to the facilitator-only first Wolf-attack timing marker. */
 export function subscribeGmWolfAttackWindow(

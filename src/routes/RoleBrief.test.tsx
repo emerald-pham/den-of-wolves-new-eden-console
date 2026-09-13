@@ -50,6 +50,26 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
 
+it('renders a facilitator-labeled Universal Arbour call only on the private brief', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'universal-arbour', suspicion: 10 });
+  useSessionStore.getState().setArbourVision({
+    sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+    text: 'There is danger at the outer relay.', label: 'FACILITATOR CALL',
+  });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('FACILITATOR CALL')).toBeVisible();
+  expect(screen.getByRole('heading', { name: /Universal Arbour vision/i })).toBeVisible();
+  expect(screen.getByText('There is danger at the outer relay.')).toBeVisible();
+});
+
 it('returns to role selection when the local assignment no longer matches', () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, assignedRoleId: null });
   render(

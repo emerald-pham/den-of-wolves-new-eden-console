@@ -45,15 +45,22 @@ async function defaultRunCommand(command, args) {
 }
 
 async function verifyHosting({ hostingUrl, expectedVersion, fetchImpl }) {
-  const response = await fetchImpl(`${hostingUrl.replace(/\/$/, '')}/build-version.json`, {
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`Hosting build-version check returned HTTP ${response.status}.`);
-  const metadata = await response.json();
-  if (metadata?.version !== expectedVersion) {
-    throw new Error(
-      `Hosting version ${String(metadata?.version)} does not match expected ${expectedVersion}.`,
-    );
+  // Hosting can briefly serve the previous release after Firebase reports
+  // deployment success. Keep the exact-version requirement, but allow up to
+  // 30 seconds for propagation; other failures remain immediate errors.
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    const response = await fetchImpl(`${hostingUrl.replace(/\/$/, '')}/build-version.json`, {
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`Hosting build-version check returned HTTP ${response.status}.`);
+    const metadata = await response.json();
+    if (metadata?.version === expectedVersion) return;
+    if (attempt === 6) {
+      throw new Error(
+        `Hosting version ${String(metadata?.version)} does not match expected ${expectedVersion}.`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 }
 

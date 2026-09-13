@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
+import type { ArbourVision, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -750,6 +750,148 @@ describe('App', () => {
     expect(useSessionStore.getState().roleBrief).toBeNull();
     act(() => handlers?.onRoleBrief?.(null));
     expect(useSessionStore.getState().roleBrief).toBeNull();
+  });
+
+  it('holds an Arbour call until private loyalty arrives and clears it on loyalty loss', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+      text: 'There is danger at the relay.', label: 'FACILITATOR CALL',
+    };
+    const arbourPlayer: Player = { ...player, role: 'player', assignedRoleId: 'admiral' };
+    useSessionStore.getState().setIdentity(session, arbourPlayer);
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => handlers?.onArbourVision?.(vision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+    act(() => handlers?.onPrivateLoyalty?.(null));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+  });
+
+  it('does not replay a delayed former Arbour call after loyalty changes', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const oldVision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+      text: 'Former holder call.', label: 'FACILITATOR CALL',
+    };
+    const currentVision: ArbourVision = {
+      ...oldVision, revision: 2, text: 'Current holder call.',
+    };
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    // The first callback may race the private loyalty snapshot and is held.
+    act(() => handlers?.onArbourVision?.(oldVision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // Losing Arbour authority invalidates the held revision.
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'fleet-loyalist', suspicion: 5 }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // A delayed callback from the former holder must stay discarded.
+    act(() => handlers?.onArbourVision?.(oldVision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // Reacquiring Arbour starts a new generation without reviving old text.
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    act(() => handlers?.onArbourVision?.(currentVision));
+    expect(useSessionStore.getState().arbourVision).toEqual(currentVision);
+  });
+
+  it('retains a valid Arbour call across an entitlement snapshot before loyalty', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'location',
+      text: 'The relay is quiet.', label: 'FACILITATOR CALL',
+    };
+    const arbourPlayer: Player = { ...player, role: 'player', assignedRoleId: 'admiral' };
+    useSessionStore.getState().setIdentity(session, arbourPlayer);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => handlers?.onArbourVision?.(vision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // A same-user replacement projection clears the visible call but does
+    // not revoke the still-authoritative loyalty candidate.
+    act(() => handlers?.onPlayer?.({ ...arbourPlayer, replacementRoleId: 'vip-host' }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // The unchanged Arbour card authorizes the retained revision without a
+    // second vision document callback.
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+  });
+
+  it('restores a displayed Arbour call across an entitlement snapshot', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+      text: 'The relay is under threat.', label: 'FACILITATOR CALL',
+    };
+    const arbourPlayer: Player = { ...player, role: 'player', assignedRoleId: 'admiral' };
+    useSessionStore.getState().setIdentity(session, arbourPlayer);
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    act(() => handlers?.onArbourVision?.(vision));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+
+    act(() => handlers?.onPlayer?.({ ...arbourPlayer, replacementRoleId: 'vip-host' }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toEqual(vision);
+  });
+
+  it('keeps the current Arbour call through duplicate and older snapshots', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const current: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 2, kind: 'suspicion',
+      text: 'The signal is compromised.', label: 'FACILITATOR CALL',
+    };
+    const older: ArbourVision = { ...current, revision: 1, text: 'Older call.' };
+    useSessionStore.getState().setIdentity(session, {
+      ...player, role: 'player', assignedRoleId: 'admiral',
+    });
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    act(() => handlers?.onArbourVision?.(current));
+    expect(useSessionStore.getState().arbourVision).toEqual(current);
+
+    act(() => handlers?.onArbourVision?.(current));
+    expect(useSessionStore.getState().arbourVision).toEqual(current);
+    act(() => handlers?.onArbourVision?.(older));
+    expect(useSessionStore.getState().arbourVision).toEqual(current);
   });
 
   it('renders cached session state while showing the existing red Offline indicator', async () => {

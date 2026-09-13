@@ -60,6 +60,7 @@ import {
   requireWolfCommanderRerollRequest,
   requireFacilitatorCensusNoteRequest,
   requireWolfCultIntelligenceRequest,
+  requireArbourVisionRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -4758,6 +4759,19 @@ function loyaltyCensusEntryFromSecret(
   return { uid, kind: record.kind as LoyaltyKind, suspicion: decision.suspicion };
 }
 
+
+function wolfCultIdentity(entries: readonly LoyaltyCensusEntry[]): { cultUid: string; agentUid: string } | null {
+  const cults = entries.filter((entry) => entry.kind === 'wolf-cult');
+  const agents = entries.filter((entry) => entry.kind === 'wolf-agent');
+  return cults.length === 1 && agents.length === 1
+    ? { cultUid: cults[0]!.uid, agentUid: agents[0]!.uid }
+    : null;
+}
+
+function wolfCultHolderUids(entries: readonly LoyaltyCensusEntry[]): readonly string[] {
+  return entries.filter((entry) => entry.kind === 'wolf-cult').map((entry) => entry.uid);
+}
+
 function setLoyaltyCensusFromSecrets(
   tx: Transaction,
   sessionId: string,
@@ -4790,18 +4804,28 @@ function setLoyaltyCensusFromSecrets(
     else entries.delete(uid);
   }
   const nextEntries = [...entries.values()].sort((left, right) => left.uid.localeCompare(right.uid));
-  const previousCultUid = storedLoyaltyCensusEntries(previousCensus)
-    ?.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
-  const nextCultUid = nextEntries.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
+  const previousEntries = storedLoyaltyCensusEntries(previousCensus) ?? [];
+  const previousWolf = wolfCultIdentity(previousEntries);
+  const nextWolf = wolfCultIdentity(nextEntries);
+  const previousCultUid = previousWolf?.cultUid ?? null;
+  const nextCultUid = nextWolf?.cultUid ?? null;
   tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
     type: 'loyalty-census',
     revision: censusRevision,
     entries: nextEntries,
   });
-  if (previousCultUid !== nextCultUid) {
+  const wolfIdentityChanged = !previousWolf || !nextWolf ||
+    previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
+  if (wolfIdentityChanged) {
     tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
-    if (previousCultUid) {
-      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${previousCultUid}`));
+    const staleHolderUids = new Set([
+      ...wolfCultHolderUids(previousEntries),
+      ...wolfCultHolderUids(nextEntries),
+      ...(previousCultUid ? [previousCultUid] : []),
+      ...(nextCultUid ? [nextCultUid] : []),
+    ]);
+    for (const holderUid of staleHolderUids) {
+      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${holderUid}`));
     }
   }
   tx.set(db.doc(`sessions/${sessionId}/wolfCultIntelligenceAuthority/current`), {
@@ -4810,9 +4834,15 @@ function setLoyaltyCensusFromSecrets(
     recipientUid: nextCultUid,
     revision: censusRevision,
   });
+  tx.set(db.doc(`sessions/${sessionId}/arbourVisionAuthority/current`), {
+    type: 'arbour-vision-authority',
+    sessionId,
+    recipientUid: nextEntries.find((entry) => entry.kind === 'universal-arbour')?.uid ?? null,
+    revision: censusRevision,
+  });
 }
 
-function setLoyaltyCensusEntries(
+export function setLoyaltyCensusEntries(
   tx: Transaction,
   sessionId: string,
   revision: number,
@@ -4829,24 +4859,40 @@ function setLoyaltyCensusEntries(
     const note = entry.note ?? previousNotes.get(entry.uid);
     return note ? { ...entry, note } : entry;
   }).sort((left, right) => left.uid.localeCompare(right.uid));
-  const previousCultUid = storedLoyaltyCensusEntries(previousCensus)
-    ?.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
-  const nextCultUid = nextEntries.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
+  const previousEntries = storedLoyaltyCensusEntries(previousCensus) ?? [];
+  const previousWolf = wolfCultIdentity(previousEntries);
+  const nextWolf = wolfCultIdentity(nextEntries);
+  const previousCultUid = previousWolf?.cultUid ?? null;
+  const nextCultUid = nextWolf?.cultUid ?? null;
   tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
     type: 'loyalty-census',
     revision: censusRevision,
     entries: nextEntries,
   });
-  if (previousCultUid !== nextCultUid) {
+  const wolfIdentityChanged = !previousWolf || !nextWolf ||
+    previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
+  if (wolfIdentityChanged) {
     tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
-    if (previousCultUid) {
-      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${previousCultUid}`));
+    const staleHolderUids = new Set([
+      ...wolfCultHolderUids(previousEntries),
+      ...wolfCultHolderUids(nextEntries),
+      ...(previousCultUid ? [previousCultUid] : []),
+      ...(nextCultUid ? [nextCultUid] : []),
+    ]);
+    for (const holderUid of staleHolderUids) {
+      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${holderUid}`));
     }
   }
   tx.set(db.doc(`sessions/${sessionId}/wolfCultIntelligenceAuthority/current`), {
     type: 'wolf-cult-intelligence-authority',
     sessionId,
     recipientUid: nextCultUid,
+    revision: censusRevision,
+  });
+  tx.set(db.doc(`sessions/${sessionId}/arbourVisionAuthority/current`), {
+    type: 'arbour-vision-authority',
+    sessionId,
+    recipientUid: nextEntries.find((entry) => entry.kind === 'universal-arbour')?.uid ?? null,
     revision: censusRevision,
   });
 }
@@ -5191,6 +5237,178 @@ export const deliverWolfCultIntelligence = onCall<{
       revision,
       actorUid: uid,
       instanceId: intelligence.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type ArbourVisionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  recipientUid: string;
+  revision: number;
+  kind: 'location' | 'danger' | 'suspicion';
+  text: string;
+  label: 'FACILITATOR CALL';
+}>;
+
+function isArbourVisionResult(value: unknown, sessionId: string): value is ArbourVisionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && typeof result.recipientUid === 'string' &&
+    Number.isSafeInteger(result.revision) && (result.revision as number) >= 1 &&
+    (result.kind === 'location' || result.kind === 'danger' || result.kind === 'suspicion') &&
+    typeof result.text === 'string' && result.text.length > 0 && result.text.length <= 240 &&
+    result.label === 'FACILITATOR CALL';
+}
+
+/** Publish one facilitator-authored Universal Arbour call to its current holder. */
+export const authorArbourVision = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  kind?: unknown;
+  text?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const vision = requireArbourVisionRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${vision.sessionId}/arbourVisions/current`);
+  const recipientRef = db.doc(`sessions/${vision.sessionId}/arbourVisions/${vision.targetUid}`);
+  const secretRef = db.doc(`sessions/${vision.sessionId}/secrets/loyalty-${vision.targetUid}`);
+  const targetRef = db.doc(`sessions/${vision.sessionId}/players/${vision.targetUid}`);
+  const censusRef = db.doc(`sessions/${vision.sessionId}/loyaltyCensus/current`);
+  const authorityRef = db.doc(`sessions/${vision.sessionId}/arbourVisionAuthority/current`);
+  const auditRef = db.doc(`sessions/${vision.sessionId}/arbourVisions/current/audit/${vision.requestId}`);
+  const receiptRef = commandReceiptRef(vision.sessionId, vision.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'author-arbour-vision',
+    sessionId: vision.sessionId,
+    requestId: vision.requestId,
+    actorUid: uid,
+    instanceId: vision.instanceId,
+    expectedRevision: vision.expectedRevision,
+    payload: {
+      targetUid: vision.targetUid,
+      kind: vision.kind,
+      text: vision.text,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<ArbourVisionResult> => {
+    const [authority, current, target, secret, census, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, vision.sessionId, uid, vision.instanceId),
+      tx.get(currentRef),
+      tx.get(targetRef),
+      tx.get(secretRef),
+      tx.get(censusRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, vision.sessionId, vision.requestId, 'Arbour vision', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is ArbourVisionResult => isArbourVisionResult(value, vision.sessionId),
+      'Arbour vision',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Arbour vision');
+    if (authority.session.get('phase') === 'closed' || authority.session.get('phase') === 'retained-empty') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    const activeRoleIds = sessionActiveRoleIds(authority.session);
+    const censusEntries = storedLoyaltyCensusEntries(census);
+    const targetRoleId = target.get('assignedRoleId');
+    if (!target.exists || isKickedPlayer(target) || target.get('role') !== 'player' ||
+        typeof targetRoleId !== 'string' || !activeRoleIds.includes(targetRoleId) ||
+        !censusEntries?.some((entry) => entry.uid === vision.targetUid && entry.kind === 'universal-arbour')) {
+      throw commandError(
+        'failed-precondition',
+        'The selected player is not the current canonical Universal Arbour holder.',
+        'conflict',
+      );
+    }
+    const secretPayload = secret.get('payload');
+    if (typeof secretPayload !== 'object' || secretPayload === null || Array.isArray(secretPayload) ||
+        (secretPayload as Record<string, unknown>).type !== 'loyalty' ||
+        (secretPayload as Record<string, unknown>).kind !== 'universal-arbour' ||
+        !hasExactPrivateSecretAudience(secret, vision.targetUid)) {
+      throw commandError(
+        'failed-precondition',
+        'The selected player does not have a current Universal Arbour loyalty card.',
+        'conflict',
+      );
+    }
+    const currentRevision = current.exists && Number.isSafeInteger(current.get('revision')) &&
+      (current.get('revision') as number) >= 0 ? current.get('revision') as number : 0;
+    if (current.exists && current.get('type') !== 'arbour-visions') {
+      throw commandError('failed-precondition', 'The Arbour vision projection is malformed.', 'malformed-input');
+    }
+    if (currentRevision !== vision.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The Arbour vision changed. Refresh the private projection and try again.',
+        'stale-revision',
+      );
+    }
+    const revision = currentRevision + 1;
+    const result: ArbourVisionResult = {
+      status: 'committed',
+      sessionId: vision.sessionId,
+      recipientUid: vision.targetUid,
+      revision,
+      kind: vision.kind,
+      text: vision.text,
+      label: 'FACILITATOR CALL',
+    };
+    const projection = {
+      type: 'arbour-vision',
+      sessionId: vision.sessionId,
+      recipientUid: vision.targetUid,
+      visibleToUids: [vision.targetUid],
+      revision,
+      kind: vision.kind,
+      text: vision.text,
+      label: 'FACILITATOR CALL',
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    const previousRecipientUid = current.get('recipientUid');
+    tx.set(currentRef, {
+      type: 'arbour-visions',
+      sessionId: vision.sessionId,
+      recipientUid: vision.targetUid,
+      visibleToUids: [uid],
+      revision,
+      kind: vision.kind,
+      text: vision.text,
+      label: 'FACILITATOR CALL',
+      actorUid: uid,
+      instanceId: vision.instanceId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(recipientRef, projection);
+    tx.set(authorityRef, {
+      type: 'arbour-vision-authority',
+      sessionId: vision.sessionId,
+      recipientUid: vision.targetUid,
+      revision,
+    });
+    if (typeof previousRecipientUid === 'string' && previousRecipientUid !== vision.targetUid) {
+      tx.delete(db.doc(`sessions/${vision.sessionId}/arbourVisions/${previousRecipientUid}`));
+    }
+    tx.set(auditRef, {
+      type: 'arbour-vision',
+      action: 'author',
+      recipientUid: vision.targetUid,
+      kind: vision.kind,
+      revision,
+      actorUid: uid,
+      instanceId: vision.instanceId,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

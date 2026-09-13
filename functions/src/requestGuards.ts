@@ -1025,6 +1025,44 @@ export function requireWolfCultIntelligenceRequest(data: {
   };
 }
 
+/** A bounded facilitator-authored Universal Arbour call. */
+export function requireArbourVisionRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  kind?: unknown;
+  text?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  targetUid: string;
+  kind: 'location' | 'danger' | 'suspicion';
+  text: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (data.kind !== 'location' && data.kind !== 'danger' && data.kind !== 'suspicion') {
+    throw new HttpsError('invalid-argument', 'kind must be location, danger, or suspicion.');
+  }
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (!text || text.length > 240) {
+    throw new HttpsError('invalid-argument', 'text must contain 1 to 240 characters.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    kind: data.kind,
+    text,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -263,6 +263,105 @@ describe('role-private brief boundary', () => {
   });
 });
 
+describe('private projection listener bootstrap', () => {
+  it('permits exact GM and entitled-holder reads before server projection creation, then reads the created documents', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await deleteDoc(doc(db, `${SESSION}/arbourVisions/current`));
+      await deleteDoc(doc(db, `${SESSION}/arbourVisions/alice`));
+      await setDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`), {
+        type: 'arbour-vision-authority', sessionId: 's1',
+        recipientUid: 'alice', revision: 8,
+      });
+      await deleteDoc(doc(db, `${SESSION}/wolfCultIntelligence/current`));
+      await deleteDoc(doc(db, `${SESSION}/wolfCultIntelligence/alice`));
+      await setDoc(doc(db, `${SESSION}/wolfCultIntelligenceAuthority/current`), {
+        type: 'wolf-cult-intelligence-authority', sessionId: 's1',
+        recipientUid: 'alice', revision: 8,
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/arbourVisions/current`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/arbourVisions/alice`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/wolfCultIntelligence/current`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/wolfCultIntelligence/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/arbourVisions/current`), {
+        type: 'arbour-visions', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['gm1'], revision: 1, kind: 'danger', text: 'Created',
+        label: 'FACILITATOR CALL',
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
+        type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['alice'], revision: 1, kind: 'danger', text: 'Created',
+        label: 'FACILITATOR CALL',
+      });
+      await setDoc(doc(db, `${SESSION}/wolfCultIntelligence/current`), {
+        type: 'wolf-cult-intelligences', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['gm1'], revision: 1, fortressCoordinate: '4454',
+        suppliesCoordinate: '1964', agentUid: 'press', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+      });
+      await setDoc(doc(db, `${SESSION}/wolfCultIntelligence/alice`), {
+        type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['alice'], revision: 1, fortressCoordinate: '4454',
+        suppliesCoordinate: '1964', agentUid: 'press', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/arbourVisions/current`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/wolfCultIntelligence/current`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`)));
+  });
+});
+
+describe('Universal Arbour vision boundary', () => {
+  it('allows only the current Arbour holder and connected GMs to read their respective projections', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/secrets/loyalty-alice`), {
+        visibleToUids: ['alice'],
+        payload: { type: 'loyalty', kind: 'universal-arbour', suspicion: 10 },
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
+        type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['alice'], revision: 1, kind: 'danger',
+        text: 'There is danger at the outer relay.', label: 'FACILITATOR CALL',
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisions/current`), {
+        type: 'arbour-visions', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['gm1'], revision: 1, kind: 'danger',
+        text: 'There is danger at the outer relay.', label: 'FACILITATOR CALL',
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`), {
+        type: 'arbour-vision-authority', sessionId: 's1', recipientUid: 'alice', revision: 4,
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    for (const uid of ['gm1', 'observer', 'stranger']) {
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/arbourVisions/alice`)));
+    }
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/arbourVisions/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisionAuthority/current`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/arbourVisions`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`), { text: 'forged' }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/secrets/loyalty-alice`), {
+        'payload.kind': 'fleet-loyalist',
+      });
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/arbourVisionAuthority/current`), {
+        recipientUid: null, revision: 5,
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+  });
+});
+
 describe('Hummingbird harvest boundary', () => {
   it('keeps pending dice private to the active Quellon Explorer and denies client writes', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
@@ -1192,6 +1291,7 @@ describe('complete server-owned denial matrix', () => {
       SESSION + '/maintenanceUndo/aegis',
       SESSION + '/craftOwnership/manifest',
       SESSION + '/fleetGroups/fleet-1',
+      SESSION + '/arbourVisionAuthority/current',
       'joinCodes/482109',
       'activeMemberships/alice',
     ];

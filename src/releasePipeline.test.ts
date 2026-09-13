@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
   applyReleaseFragment,
   nextReleaseVersion,
@@ -81,6 +81,42 @@ it('fails closed to all surfaces for an unknown changed file', () => {
 
 it('treats manual deployment as an explicit all-surface request', () => {
   expect(classifyChangedFiles([], { manual: true }).targets).toEqual([...ALL_DEPLOYMENT_TARGETS]);
+});
+
+it('waits for the expected Hosting version to propagate without accepting the old release', async () => {
+  vi.useFakeTimers();
+  try {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ version: '0.3.83' }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ version: '0.3.85' }) });
+    const check = verifyDeployment({
+      targets: 'hosting', projectId: 'example', expectedVersion: '0.3.85', fetchImpl,
+    });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(check).resolves.toEqual({ hosting: true, functions: false, firestore: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenLastCalledWith('https://example.web.app/build-version.json', { cache: 'no-store' });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('still rejects a persistently wrong Hosting version after bounded retries', async () => {
+  vi.useFakeTimers();
+  try {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: '0.3.83' }) });
+    const check = expect(verifyDeployment({
+      targets: 'hosting', projectId: 'example', expectedVersion: '0.3.85', fetchImpl,
+    })).rejects.toThrow('Hosting version 0.3.83 does not match expected 0.3.85.');
+    await vi.advanceTimersByTimeAsync(30000);
+    await check;
+    expect(fetchImpl).toHaveBeenCalledTimes(7);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('verifies Hosting and public Functions through injected production adapters', async () => {

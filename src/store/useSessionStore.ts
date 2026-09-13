@@ -12,6 +12,7 @@ import type {
   SetupReceipt,
   TurnStartReplay,
   WolfCultIntelligence,
+  ArbourVision,
 } from '@/types/game';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -216,6 +217,20 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'authorArbourVision';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedRevision: number;
+        readonly targetUid: string;
+        readonly kind: ArbourVision['kind'];
+        readonly text: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'claimSeat';
       readonly payload: {
         readonly sessionId: string;
@@ -301,6 +316,8 @@ interface SessionState {
   gmLoyaltyCensus: LoyaltyCensus | null;
   wolfCultIntelligence: WolfCultIntelligence | null;
   gmWolfCultIntelligence: WolfCultIntelligence | null;
+  arbourVision: ArbourVision | null;
+  gmArbourVision: ArbourVision | null;
   gmSetupReceipt: SetupReceipt | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
@@ -322,6 +339,8 @@ interface SessionState {
   setGmLoyaltyCensus: (census: LoyaltyCensus | null) => void;
   setWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
   setGmWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
+  setArbourVision: (vision: ArbourVision | null) => void;
+  setGmArbourVision: (vision: ArbourVision | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
@@ -346,6 +365,8 @@ const initial = {
   gmLoyaltyCensus: null,
   wolfCultIntelligence: null,
   gmWolfCultIntelligence: null,
+  arbourVision: null,
+  gmArbourVision: null,
   gmSetupReceipt: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
@@ -356,7 +377,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -380,7 +401,7 @@ export const useSessionStore = create<SessionState>()(
     (set, get) => ({
       ...initial,
       setSession: (session) => set({ session }),
-      setIdentity: (session, me) => set({ session, me, roleBrief: null, wolfCultIntelligence: null, gmWolfCultIntelligence: null }),
+      setIdentity: (session, me) => set({ session, me, roleBrief: null, wolfCultIntelligence: null, gmWolfCultIntelligence: null, arbourVision: null, gmArbourVision: null }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
@@ -394,6 +415,8 @@ export const useSessionStore = create<SessionState>()(
       setGmLoyaltyCensus: (gmLoyaltyCensus) => set({ gmLoyaltyCensus }),
       setWolfCultIntelligence: (wolfCultIntelligence) => set({ wolfCultIntelligence }),
       setGmWolfCultIntelligence: (gmWolfCultIntelligence) => set({ gmWolfCultIntelligence }),
+      setArbourVision: (arbourVision) => set({ arbourVision }),
+      setGmArbourVision: (gmArbourVision) => set({ gmArbourVision }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
@@ -422,6 +445,8 @@ export const useSessionStore = create<SessionState>()(
           gmLoyaltyCensus: null,
           wolfCultIntelligence: null,
           gmWolfCultIntelligence: null,
+          arbourVision: null,
+          gmArbourVision: null,
           gmSetupReceipt: null,
           mode: null,
           lastRoute: null,

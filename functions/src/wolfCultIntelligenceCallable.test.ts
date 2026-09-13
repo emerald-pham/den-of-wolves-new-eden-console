@@ -64,7 +64,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { deliverWolfCultIntelligence } from './index';
+import { deliverWolfCultIntelligence, setLoyaltyCensusEntries } from './index';
 
 const baseData = {
   sessionId: 's1',
@@ -180,4 +180,33 @@ it('rejects non-facilitators, stale revisions, wrong agents, and malformed loyal
   await expect(deliverWolfCultIntelligence.run(request({ ...baseData, requestId: 'missing-cult', expectedRevision: 1 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+
+it('clears private Wolf projections when the agent changes or the census loses a unique pair', () => {
+  const tx = { set: vi.fn(), delete: vi.fn() };
+  const previous = {
+    exists: true,
+    get: (field: string) => field === 'entries'
+      ? [
+        { uid: 'u2', kind: 'wolf-cult', suspicion: 15 },
+        { uid: 'u3', kind: 'wolf-agent', suspicion: 0 },
+      ]
+      : 3,
+  };
+  setLoyaltyCensusEntries(tx as never, 's1', 4, [
+    { uid: 'u2', kind: 'wolf-cult', suspicion: 15 },
+    { uid: 'u4', kind: 'wolf-agent', suspicion: 0 },
+  ], previous as never);
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/current' }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/u2' }));
+
+  tx.delete.mockClear();
+  setLoyaltyCensusEntries(tx as never, 's1', 5, [
+    { uid: 'u2', kind: 'wolf-cult', suspicion: 15 },
+    { uid: 'u4', kind: 'wolf-agent', suspicion: 0 },
+    { uid: 'u5', kind: 'wolf-agent', suspicion: 0 },
+  ], previous as never);
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/current' }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/u2' }));
 });

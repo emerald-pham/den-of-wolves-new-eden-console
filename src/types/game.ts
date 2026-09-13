@@ -631,6 +631,18 @@ export interface WolfCultIntelligence {
   readonly label: 'WOLF INTEL';
 }
 
+export type ArbourVisionKind = 'location' | 'danger' | 'suspicion';
+
+/** Facilitator-authored Universal Arbour call, private to its current holder. */
+export interface ArbourVision {
+  readonly sessionId: SessionId;
+  readonly recipientUid: PlayerId;
+  readonly revision: number;
+  readonly kind: ArbourVisionKind;
+  readonly text: string;
+  readonly label: 'FACILITATOR CALL';
+}
+
 /** Server-owned role-private projection for the authenticated player only. */
 export interface RoleBrief {
   readonly assignmentUid: PlayerId;
