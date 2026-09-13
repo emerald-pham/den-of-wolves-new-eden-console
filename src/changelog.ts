@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['669'],
+    implementationProgress: {
+      completed: 273,
+      total: 751,
+      percentage: '36.35%',
+      done: 273,
+      partial: 21,
+      active: 0,
+      missing: 457,
+    },
+    changes: [
+      'GM DRADIS now uses the same zoom, orientation, timer, and effect controls as ship consoles while keeping facilitator perspective controls.',
+      '273 of 751 planned items are complete (36.35%).',
+    ],
+  },
+  {
+    version: '0.4.1',
     implementationPrompts: ['535'],
     implementationProgress: {
       completed: 272,
