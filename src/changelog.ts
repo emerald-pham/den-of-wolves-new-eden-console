@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['435', '618a'],
+    implementationProgress: {
+      completed: 212,
+      total: 750,
+      percentage: '28.27%',
+      done: 212,
+      partial: 20,
+      active: 0,
+      missing: 518,
+    },
+    changes: [
+      'The Wolf Commander can privately review targeting dice and reroll each eligible die once before AEGIS Command and Control.',
+      'The GM console automatically recovers interrupted manifest updates and clears its connection error when fresh data returns.',
+      '212 of 750 planned items are complete (28.27%).',
+    ],
+  },
+  {
+    version: '0.3.74',
     implementationPrompts: ['178'],
     implementationProgress: {
       completed: 208,
