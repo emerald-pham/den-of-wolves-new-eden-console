@@ -380,6 +380,7 @@ type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
 
 const FLEET_TICKER_COPY = {
+  turnZero: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
   airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
   airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
@@ -387,6 +388,16 @@ const FLEET_TICKER_COPY = {
   standDown: 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
   finale: 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
 } as const;
+
+const TURN_ZERO_ATC_SOURCE_ID = 'turn-zero-atc';
+
+function turnZeroFleetTicker(sessionId: string, now: string): FleetTickerState {
+  return publishFleetTicker(sessionId, emptyFleetTickerState(), {
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
+    text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long',
+    sourceId: TURN_ZERO_ATC_SOURCE_ID,
+  }, now);
+}
 
 function fleetTickerStateFromLegacy(
   sessionId: string,
@@ -475,6 +486,31 @@ function fleetTickerForMutation(
     pressDispatchState(session.get('pressDispatch')).dispatches.map(({ id }) => id),
     now,
   );
+}
+
+/** Seed the standing Turn 0 ATC bulletin without disturbing an active stream. */
+function ensureTurnZeroFleetTicker(
+  tx: Transaction,
+  sessionRef: DocumentReference,
+  session: DocumentSnapshot,
+  now: string,
+): FleetTickerState {
+  const stored = session.get('fleetTicker');
+  const state = fleetTickerForMutation(sessionRef.id, session, now);
+  if (session.get('phase') === 'closed' || sessionTurn(session.get('currentTurn')) !== 0 ||
+      state.current !== null || state.queued.length > 0) {
+    return state;
+  }
+  const next = publishFleetTicker(sessionRef.id, state, {
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
+    text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long',
+    sourceId: TURN_ZERO_ATC_SOURCE_ID,
+  }, now);
+  const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
+  if (stored === undefined || JSON.stringify(previous) !== JSON.stringify(next)) {
+    tx.update(sessionRef, { fleetTicker: next, updatedAt: FieldValue.serverTimestamp() });
+  }
+  return next;
 }
 
 function publishSessionFleetTicker(
@@ -2091,7 +2127,7 @@ export const createSession = onCall<{
       const sessionRef = db.collection('sessions').doc();
       const eventRef = db.doc(`sessions/${sessionRef.id}/events/create-${creation.requestId}`);
       const now = new Date().toISOString();
-      const initialFleetTicker = emptyFleetTickerState();
+      const initialFleetTicker = turnZeroFleetTicker(sessionRef.id, now);
       // The expansion mode is persisted now, but its two-role composition is
       // deliberately resolved by the casting/start slice. Adding both roles
       // here would silently create more role holders than configured players
@@ -7533,6 +7569,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipGalacticCoordinates: removeLegacyNavigationField(),
         shipNavigationLogs: removeLegacyNavigationField(),
       });
+      ensureTurnZeroFleetTicker(tx, sessionRef, sessionDoc, new Date().toISOString());
       reconcilePresenceTimer(tx, sessionRef, sessionDoc, true);
       if (player.exists) {
         const storedGroupId = player.get('fleetGroupId');
@@ -7814,6 +7851,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       currentPlayer.get('role') !== 'player' || hasCoreAssignment(currentPlayer) ||
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
+    ensureTurnZeroFleetTicker(tx, sessionRef, currentSession, new Date().toISOString());
     reconcilePresenceTimer(tx, sessionRef, currentSession, true);
     tx.update(playerRef, {
       fleetGroupId: group.id,
@@ -10734,6 +10772,7 @@ export const refreshPresence = onCall<{
     if (instanceId && (!instance || !isLiveGmInstance(instance, player, uid))) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    ensureTurnZeroFleetTicker(tx, sessionRef, session, new Date().toISOString());
     const lastFullReconciliationAt = toTimestampMillis(
       reconciliation.get('lastFullReconciliationAt'),
     );

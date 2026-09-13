@@ -477,6 +477,54 @@ describe('presence lease', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: 'press-officer' });
   });
 
+  it('seeds Turn 0 ATC on the first heartbeat and does not publish it again on cheap renewal', async () => {
+    session({ currentTurn: 0 });
+    player();
+
+    await refreshPresence.run(request({ sessionId: 's1' }));
+    const firstTicker = read('sessions/s1')?.fleetTicker as Record<string, unknown>;
+    expect(firstTicker).toMatchObject({
+      revision: 1,
+      current: expect.objectContaining({
+        sourceId: 'turn-zero-atc',
+        text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
+      }),
+    });
+
+    const tickerWrites = () => mock.update.mock.calls.filter(([ref, fields]) =>
+      (ref as { path: string }).path === 'sessions/s1' &&
+      typeof fields === 'object' && fields !== null && 'fleetTicker' in fields);
+    expect(tickerWrites()).toHaveLength(1);
+
+    // The mock transaction stores serverTimestamp as a sentinel string. The
+    // next real Firestore read resolves it to a Timestamp before liveness is
+    // checked, so model that commit boundary for the repeated heartbeat.
+    put('sessions/s1/players/u1', {
+      ...read('sessions/s1/players/u1'),
+      lastSeenAt: mock.Timestamp.fromDate(NOW),
+    });
+    await refreshPresence.run(request({ sessionId: 's1' }));
+
+    expect(tickerWrites()).toHaveLength(1);
+    expect((read('sessions/s1')?.fleetTicker as Record<string, unknown>).revision).toBe(1);
+  });
+
+  it.each([
+    ['a later turn', { currentTurn: 1 }],
+    ['a closed Turn 0 session', { phase: 'closed', currentTurn: 0 }],
+  ])('does not seed Turn 0 ATC for %s', async (_label, fields) => {
+    session(fields);
+    player();
+
+    await refreshPresence.run(request({ sessionId: 's1' }));
+
+    expect(read('sessions/s1')?.fleetTicker).toBeUndefined();
+    expect(mock.update.mock.calls.filter(([ref, updates]) =>
+      (ref as { path: string }).path === 'sessions/s1' &&
+      typeof updates === 'object' && updates !== null && 'fleetTicker' in updates,
+    )).toHaveLength(0);
+  });
+
   it('does not let a stale Press holder reclaim authority after a replacement claims it', async () => {
     session({
       pressEnabled: true,

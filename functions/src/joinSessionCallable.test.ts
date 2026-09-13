@@ -127,6 +127,36 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
   });
 });
 
+it('persists the Turn 0 ATC bulletin when joining an existing empty stream', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby', currentTurn: 0 });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  await joinSession.run(request('482109'));
+
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({
+      fleetTicker: expect.objectContaining({
+        revision: 1,
+        current: expect.objectContaining({
+          sourceId: 'turn-zero-atc',
+          text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
+        }),
+      }),
+    }),
+  );
+});
+
 it('omits a valid-shaped turn entity when it disagrees with the current phase or configured limit', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);

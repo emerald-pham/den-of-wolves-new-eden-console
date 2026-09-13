@@ -156,6 +156,23 @@ it('lets a player return after two idle hours, clearing only an occupied old sea
   );
 });
 
+it('persists the Turn 0 ATC bulletin while resuming an existing empty stream', async () => {
+  prepareResume({ status: 'open', holderUid: null }, {}, { currentTurn: 0 });
+
+  const response = await resumeSession.run(request('s1')) as {
+    session: { fleetTicker: { current: { sourceId: string; text: string } } };
+  };
+
+  expect(response.session.fleetTicker.current).toMatchObject({
+    sourceId: 'turn-zero-atc',
+    text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
+  });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({ fleetTicker: expect.objectContaining({ revision: 1 }) }),
+  );
+});
+
 it('defaults a legacy resume reply with no Press toggle to enabled', async () => {
   prepareResume({ status: 'open', holderUid: null });
 

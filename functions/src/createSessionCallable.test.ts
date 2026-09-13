@@ -80,6 +80,28 @@ beforeEach(() => {
   mock.get.mockResolvedValue(snapshot({}, false));
 });
 
+it('creates the factual Turn 0 ATC standing-by bulletin in the authoritative stream', async () => {
+  const response = await createSession.run(request({ requestId: 'turn-zero-atc-create' }));
+  const ticker = (response.session as Record<string, unknown>).fleetTicker as Record<string, unknown>;
+
+  expect(ticker).toMatchObject({
+    revision: 1,
+    nextSequence: 1,
+    replayCursor: 1,
+    current: {
+      source: 'automatic',
+      sourceId: 'turn-zero-atc',
+      text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
+      sequence: 1,
+      createdAt: expect.any(String),
+    },
+    queued: [],
+  });
+  expect((mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session')?.[1] as Record<string, unknown>)?.fleetTicker)
+    .toEqual(ticker);
+});
+
 it('rejects unsupported setup before opening a transaction', async () => {
   await expect(createSession.run(request({ requestId: 'create-1', playerCount: 7 })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
