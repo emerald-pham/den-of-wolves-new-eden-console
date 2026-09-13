@@ -36,6 +36,8 @@ export default function FleetSystemsWorkspace({
   damage,
   damageDraws,
   navigationLogs,
+  knownCoordinates,
+  knownSystems,
   consoleLocked = false,
   includeAssignedShuttlecraft = true,
   shipState,
@@ -47,6 +49,8 @@ export default function FleetSystemsWorkspace({
   readonly damage?: ShipDamageState | undefined;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
   readonly navigationLogs?: ShipNavigationLogs | undefined;
+  readonly knownCoordinates?: readonly string[] | undefined;
+  readonly knownSystems?: Readonly<Record<string, string>> | undefined;
   readonly consoleLocked?: boolean | undefined;
   readonly includeAssignedShuttlecraft?: boolean;
   readonly shipState?: ShipConsoleProjection | undefined;
@@ -105,6 +109,8 @@ export default function FleetSystemsWorkspace({
       shipName={ship.name}
       currentCoordinate={galacticCoordinate}
       entries={navigationLogs?.[ship.id]}
+      knownCoordinates={knownCoordinates}
+      knownSystems={knownSystems}
       consoleLocked={consoleLocked}
     /> : <>
       {maintenance

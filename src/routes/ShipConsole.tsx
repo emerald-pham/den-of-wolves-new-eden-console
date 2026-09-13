@@ -295,6 +295,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             damage={shipState?.damage}
             damageDraws={damageDraws}
             navigationLogs={shipState?.navigationLogs}
+            knownCoordinates={session.playerDiscovery?.knownCoordinates}
+            knownSystems={session.playerDiscovery?.knownSystems}
             consoleLocked={consoleLocked}
             shipState={shipState}
           />
@@ -384,6 +386,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           shipId={ship.id}
           shipName={ship.name}
           shipCoordinate={shipCoordinate}
+          {...(session.playerDiscovery?.pursuitDistance !== undefined
+            ? { pursuitDistance: session.playerDiscovery.pursuitDistance }
+            : {})}
         />
         {observer && (
           <section className="observer-access cic-frame" aria-label="Observer access">

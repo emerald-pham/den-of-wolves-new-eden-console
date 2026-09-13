@@ -7,11 +7,20 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
+import { STAR_CHART_SYSTEMS as LEGACY_SYSTEMS, siteForCoordinate } from '@/data/starChart';
 import {
   SESSION_WAIVER_RESET_EVENT,
   SESSION_WAIVER_STORAGE_KEY,
 } from '@/lib/sessionWaiver';
 import GmConsole from './GmConsole';
+
+const ORGANISER_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
+  `system-${String(index + 1).padStart(2, '0')}`, system.coordinate,
+]));
+const organiserSitesFor = (chart: 'A' | 'B' | 'C') => Object.fromEntries(LEGACY_SYSTEMS.flatMap((system) => {
+  const site = siteForCoordinate(system.coordinate, chart);
+  return site ? [[system.coordinate, site]] : [];
+}));
 
 vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
@@ -582,7 +591,10 @@ it('shows the 3D starmap only inside the GM console and follows the organiser ch
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, chartId: 'C' });
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    chartId: 'C', organiserSystems: ORGANISER_SYSTEMS, organiserSites: organiserSitesFor('C'),
+  });
   renderConsole();
 
   const gmMap = await screen.findByRole('region', { name: /gm starmap/i });
@@ -694,6 +706,10 @@ it('shows each ship-local pursuit tracker beneath its resource controls', async 
       shepherd: '0000',
       quellon: '1096',
       'refinery-124': '0408',
+    },
+    pursuitDistances: {
+      aegis: 0, dione: 1, icebreaker: 2, capybara: 6,
+      shepherd: 0, quellon: 4, 'refinery-124': 7,
     },
   });
   renderConsole();

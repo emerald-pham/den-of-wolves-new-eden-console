@@ -1991,6 +1991,9 @@ export default function GmConsole() {
                       shipId={ship.id}
                       shipName={ship.name}
                       shipCoordinate={shipCoordinate}
+                      {...(session.pursuitDistances?.[ship.id] !== undefined
+                        ? { pursuitDistance: session.pursuitDistances[ship.id] }
+                        : {})}
                     />
                   </section>
                 );

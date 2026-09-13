@@ -204,6 +204,21 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Navigation knowledge is published per authenticated member. The
+      // producer derives the group and assigned ship on the server; clients
+      // cannot enumerate a group's or another ship's history.
+      match /playerDiscoveries/{playerUid} {
+        allow get: if isMember(sessionId) && playerUid == uid();
+        allow list, write: if false;
+      }
+
+      // The organiser projection is a separate allowlisted read path. It is
+      // never present on the member-readable session document.
+      match /gmDiscovery/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+      }
+
       match /events/{eventId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

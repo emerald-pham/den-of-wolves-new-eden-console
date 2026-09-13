@@ -9,6 +9,7 @@ it('tracks only the current ship and reads pursuit depth from the galactic map',
       shipId="shepherd"
       shipName="Shepherd"
       shipCoordinate="8378"
+      pursuitDistance={6}
     />,
   );
 
@@ -28,6 +29,7 @@ it('rebases the score when a split ship has a different position', () => {
       shipId="dione"
       shipName="Dione"
       shipCoordinate="5143"
+      pursuitDistance={1}
     />,
   );
 
@@ -39,6 +41,7 @@ it('rebases the score when a split ship has a different position', () => {
       shipId="shepherd"
       shipName="Shepherd"
       shipCoordinate="8378"
+      pursuitDistance={6}
     />,
   );
 
@@ -52,6 +55,7 @@ it('keeps the wolf pursuit countdown visible at the lower end of the cycle', () 
       shipId="shepherd"
       shipName="Shepherd"
       shipCoordinate="0000"
+      pursuitDistance={0}
     />,
   );
 
@@ -73,6 +77,7 @@ it('calls the full Wolf Pursuit countdown ten cycles', () => {
       shipId="shepherd"
       shipName="Shepherd"
       shipCoordinate="0000"
+      pursuitDistance={0}
     />,
   );
 
@@ -91,6 +96,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
       shipId="dione"
       shipName="Dione"
       shipCoordinate="5143"
+      pursuitDistance={1}
     />,
   );
 
@@ -104,6 +110,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
       shipId="shepherd"
       shipName="Shepherd"
       shipCoordinate="0000"
+      pursuitDistance={0}
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'critical');
@@ -115,6 +122,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
       shipId="shepherd"
       shipName="Shepherd"
       shipCoordinate="0000"
+      pursuitDistance={0}
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'terminal');

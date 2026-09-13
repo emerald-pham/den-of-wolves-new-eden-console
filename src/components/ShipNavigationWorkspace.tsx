@@ -7,6 +7,8 @@ interface Props {
   readonly shipName: string;
   readonly currentCoordinate: string;
   readonly entries?: readonly ShipNavigationLogEntry[] | undefined;
+  readonly knownCoordinates?: readonly string[] | undefined;
+  readonly knownSystems?: Readonly<Record<string, string>> | undefined;
   readonly consoleLocked?: boolean | undefined;
 }
 
@@ -15,6 +17,8 @@ export default function ShipNavigationWorkspace({
   shipName,
   currentCoordinate,
   entries = [],
+  knownCoordinates,
+  knownSystems,
   consoleLocked = false,
 }: Props) {
   return (
@@ -24,6 +28,8 @@ export default function ShipNavigationWorkspace({
         shipName={shipName}
         currentCoordinate={currentCoordinate}
         navigationEntries={entries}
+        {...(knownCoordinates ? { knownCoordinates } : {})}
+        {...(knownSystems ? { knownSystems } : {})}
       />
       <ShipNavigationLog shipName={shipName} entries={entries} />
     </div>

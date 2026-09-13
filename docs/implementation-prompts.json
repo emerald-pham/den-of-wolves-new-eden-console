@@ -4547,9 +4547,16 @@
     {
       "direction": "284 -> 286",
       "id": "E-284-GROUP-PRODUCER",
-      "language": "Fleet-group entitlement requires authoritative fleet-group identity before unknown-system facts can be projected to the correct group. The current code has no fleet-group state; a client-only visibility filter cannot satisfy the acceptance. This records implementation readiness only, not a commit, merge, push, or deployment gate.",
+      "language": "Fleet-group entitlement consumes the stable server-owned fleet-1 identity and member pointers established by Prompt 286. The discovery producer resolves that identity before applying the assigned-ship history filter; no client-selected group or coordinate co-location rule is used.",
       "source": "docs/implementation-prompts.json (Prompts 284 and 286); functions/src/index.ts; src/types/game.ts",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "284 -> 283;006;286",
+      "id": "E-284-DISCOVERY-BOUNDARY",
+      "language": "The server-owned discovery boundary stores raw navigation only under denied serverState, emits a GM-only organiser lookup and per-UID playerDiscoveries projection, filters each player's assigned ship to its own current fix and self-navigation history, and sends the browser only opaque topology plus entitled coordinate mappings. Join/resume/setup migration, relocation, and jump projections are covered by focused callable/lifecycle tests; two group IDs with cross-ship log noise prove there is no group-union leak; stale cached discovery and GM projections are ignored after server authority; malformed legacy navigation defaults to the canonical origin; and the rules suite covers own-document, GM-only, list, and write denial. Root typecheck, Functions build, 2,089 unit/Functions tests, 72 Firestore rules tests, lint, production build and bundle-size check pass. No scout-result producer exists in the current source, so no scout outcome is fabricated.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/starChartProjection.ts; functions/src/starChartLookup.ts; functions/src/index.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/App.tsx; src/components/Starmap.tsx; src/components/Starmap.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts; npm run typecheck; npm run build --prefix functions; npm run build; node scripts/check-bundle-size.mjs; npx vitest run --project unit --project functions; npm run test:rules",
+      "type": "evidence / authority / related/consumes"
     },
     {
       "direction": "314 -> 140d",
@@ -12070,8 +12077,8 @@
         "acceptance": "players receive only discoveries entitled to their fleet group while facilitators retain the organiser view.",
         "title": "Redact unknown systems."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-284;E-284-GROUP-PRODUCER",
+      "description": "The server now keeps raw navigation state in the denied serverState path, publishes a GM-only organiser projection, and writes one per-member playerDiscoveries projection. Each player projection carries the authoritative assigned ship's current fix and self-navigation history, filtered to that ship after the server-owned fleet-group identity is resolved; it never unions another ship's visits or exposes organiser site labels. The browser receives only opaque topology nodes and entitled coordinate mappings, while chart codes/site titles remain in the GM projection. Join, resume, setup migration, relocation, and jump writes reconcile the private navigation state and projections atomically, including legacy sessions; malformed legacy navigation fails closed to the canonical origin. Firestore rules deny server navigation, projection enumeration, and client writes, while allowing only the connected member's own discovery document or the connected GM's current organiser projection. No scout-result semantics were invented because the current source defines navigation arrivals/logs but no scout-result producer; later scouting/discovery history remains with its owning prompt.",
+      "evidenceIds": "E-AUDIT-284;E-284-GROUP-PRODUCER;E-284-DISCOVERY-BOUNDARY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "283;006;286",
@@ -12082,7 +12089,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

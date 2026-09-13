@@ -120,8 +120,20 @@ it.each([
   const expectedCoordinates = Object.fromEntries(
     reply.session.setup.activeVesselIds.map((shipId: string) => [shipId, '0000']),
   );
-  expect(reply.session.shipGalacticCoordinates).toEqual(expectedCoordinates);
-  expect(sessionWrite?.shipGalacticCoordinates).toEqual(expectedCoordinates);
+  expect(reply.session.shipGalacticCoordinates).toBeUndefined();
+  expect(reply.session.shipNavigationLogs).toBeUndefined();
+  expect(sessionWrite?.shipGalacticCoordinates).toBeUndefined();
+  expect(sessionWrite?.shipNavigationLogs).toBeUndefined();
+  const navigationWrite = mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session/serverState/navigation/current',
+  )?.[1] as Record<string, unknown> | undefined;
+  expect(navigationWrite?.shipGalacticCoordinates).toEqual(expectedCoordinates);
+  expect(navigationWrite?.shipNavigationLogs).toEqual(
+    Object.fromEntries(reply.session.setup.activeVesselIds.map((shipId: string) => [shipId, []])),
+  );
+  expect(reply.session.playerDiscovery).toMatchObject({
+    groupId: 'fleet-1', knownCoordinates: ['0000'], pursuitDistance: 0, revision: 0,
+  });
   expect(reply.session).toMatchObject({ playerCount, expansion, capybaraEnabled });
   expect(reply.session.setup).toMatchObject({ playerCount, expansion, capybaraEnabled });
   expect(sessionWrite).toMatchObject({
@@ -153,8 +165,13 @@ it.each([
   expect(Object.keys(session.shipResources as Record<string, unknown>)).toEqual(session.activeVesselIds);
   expect(Object.keys(session.shipUnrest as Record<string, unknown>)).toEqual(session.activeVesselIds);
   expect(Object.keys(session.shipSurvivors as Record<string, unknown>)).toEqual(session.activeVesselIds);
-  expect(Object.keys(session.shipGalacticCoordinates as Record<string, unknown>)).toEqual(session.activeVesselIds);
-  expect(Object.keys(session.shipNavigationLogs as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(session.shipGalacticCoordinates).toBeUndefined();
+  expect(session.shipNavigationLogs).toBeUndefined();
+  const navigationWrite = mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session/serverState/navigation/current',
+  )?.[1] as Record<string, unknown> | undefined;
+  expect(Object.keys(navigationWrite?.shipGalacticCoordinates as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(navigationWrite?.shipNavigationLogs as Record<string, unknown>)).toEqual(session.activeVesselIds);
   expect(Object.keys(session.shipConsoleLocks as Record<string, unknown>)).toEqual(session.activeVesselIds);
   expect(Object.keys(session.shipJumpStates as Record<string, unknown>)).toEqual(session.activeVesselIds);
   expect(session.shipResources).not.toHaveProperty('capybara');

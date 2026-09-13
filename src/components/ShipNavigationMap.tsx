@@ -10,6 +10,8 @@ interface Props {
   readonly currentCoordinate: string;
   readonly navigationEntries?: readonly ShipNavigationLogEntry[];
   readonly visitedCoordinates?: readonly string[];
+  readonly knownCoordinates?: readonly string[];
+  readonly knownSystems?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -22,6 +24,8 @@ export default function ShipNavigationMap({
   currentCoordinate,
   navigationEntries = [],
   visitedCoordinates: explicitVisited,
+  knownCoordinates: explicitKnown,
+  knownSystems,
 }: Props) {
   const visited = useMemo(
     () => explicitVisited ?? visitedCoordinates(navigationEntries, currentCoordinate),
@@ -34,6 +38,8 @@ export default function ShipNavigationMap({
       mode="ship"
       selectedCoordinate={currentCoordinate || ORIGIN_GALACTIC_COORDINATE}
       visitedCoordinates={visited}
+      knownCoordinates={explicitKnown ?? [...new Set([currentCoordinate, ...visited])]}
+      {...(knownSystems ? { knownSystems } : {})}
       fleetMarkers={[{
         id: `${shipId}-current-fix`,
         label: shipName,

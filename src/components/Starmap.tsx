@@ -1,14 +1,19 @@
 import type { CSSProperties } from 'react';
 import {
-  EXPLORATION_SITES,
+  coordinateForNode,
   STAR_CHART_CONNECTIONS,
-  STAR_CHART_IDS,
   STAR_CHART_SYSTEMS,
-  siteForCoordinate,
   systemForCoordinate,
-  type StarChartId,
   type StarSystem,
-} from '@/data/starChart';
+} from '@/data/starChartTopology';
+
+export type StarChartId = 'A' | 'B' | 'C';
+export interface OrganiserSiteProjection {
+  readonly code: string;
+  readonly name: string;
+  readonly candidate: boolean;
+  readonly summary: string;
+}
 
 export interface StarmapFleetMarker {
   readonly id: string;
@@ -26,6 +31,10 @@ export interface StarmapProps {
   /** Ship consoles use the same topology without exposing organiser site data. */
   readonly mode?: 'gm' | 'ship';
   readonly visitedCoordinates?: readonly string[];
+  readonly knownCoordinates?: readonly string[];
+  /** Opaque browser node ID to the coordinates entitled to this view. */
+  readonly knownSystems?: Readonly<Record<string, string>>;
+  readonly organiserSites?: Readonly<Record<string, OrganiserSiteProjection>>;
   readonly className?: string;
 }
 
@@ -36,24 +45,26 @@ type StarmapNodeStyle = CSSProperties & {
 
 function systemAccessibleName(
   system: StarSystem,
-  chart: StarChartId,
   fleetLabels: readonly string[],
   shipMode: boolean,
   visited: boolean,
+  known: boolean,
+  coordinate: string | undefined,
+  organiserSites: Readonly<Record<string, OrganiserSiteProjection>> | undefined,
 ): string {
   if (shipMode) {
-    const state = visited ? ' // Previous fix' : system.coordinate === '0000' ? ' // Origin' : '';
-    return `System ${system.coordinate}${state}`;
+    if (!known || !coordinate) return 'Unknown system // coordinates unavailable';
+    const state = visited ? ' // Previous fix' : coordinate === '0000' ? ' // Origin' : '';
+    return `System ${coordinate}${state}`;
   }
-  const code = system.chartCodes[chart];
-  const chartLabel = code === null
-    ? 'Start'
-    : `${code} // ${EXPLORATION_SITES[code].name}` +
-      (EXPLORATION_SITES[code].candidate ? ' // New Eden candidate' : '');
+  const site = coordinate ? organiserSites?.[coordinate] : undefined;
+  const chartLabel = site
+    ? `${site.code || 'START'}${site.name ? ` // ${site.name}` : ''}${site.candidate ? ' // New Eden candidate' : ''}`
+    : coordinate === '0000' ? 'START // Fleet departure point' : 'System data pending';
   const fleetLabel = fleetLabels.length > 0
     ? ` // Fleet ${fleetLabels.length === 1 ? 'ship' : 'ships'}: ${fleetLabels.join(', ')}`
     : '';
-  return `System ${system.coordinate} // ${chartLabel}${fleetLabel}`;
+  return `${coordinate ? `System ${coordinate}` : `System ${system.id}`} // ${chartLabel}${fleetLabel}`;
 }
 
 function depthLabel(distance: number): string {
@@ -95,15 +106,20 @@ export default function Starmap({
   fleetMarkers = [],
   mode = 'gm',
   visitedCoordinates = [],
+  knownCoordinates = ['0000'],
+  knownSystems = {},
+  organiserSites,
   className = '',
 }: StarmapProps) {
   const shipMode = mode === 'ship';
-  const selectedSystem = systemForCoordinate(selectedCoordinate);
-  const selectedSite = shipMode ? undefined : siteForCoordinate(selectedCoordinate, chart);
+  const selectedSystem = systemForCoordinate(selectedCoordinate, knownSystems);
+  const selectedSite = shipMode ? undefined : organiserSites?.[selectedCoordinate];
   const selectedFleet = fleetMarkers.filter((marker) => marker.coordinate === selectedCoordinate);
-  const selectedNeighbors = selectedSystem?.neighbors ?? [];
+  const selectedNeighbors = selectedSystem?.neighbors
+    .map((nodeId) => coordinateForNode(nodeId, knownSystems))
+    .filter((coordinate): coordinate is string => typeof coordinate === 'string') ?? [];
   const selectedLabel = selectedSystem
-    ? `System ${selectedSystem.coordinate}`
+    ? `System ${selectedCoordinate}`
     : `Unmapped coordinate ${selectedCoordinate}`;
 
   return (
@@ -145,7 +161,7 @@ export default function Starmap({
         {!shipMode && onChartChange && (
           <div className="starmap__chart-selector" role="group" aria-label="Organiser chart">
             <span className="starmap__toolbar-label">Organiser chart</span>
-            {STAR_CHART_IDS.map((chartId) => (
+            {(['A', 'B', 'C'] as const).map((chartId) => (
               <button
                 className="starmap__chart-button cic-action-button"
                 key={chartId}
@@ -178,11 +194,11 @@ export default function Starmap({
               focusable="false"
             >
               {STAR_CHART_CONNECTIONS.map((connection) => {
-                const from = systemForCoordinate(connection[0]);
-                const to = systemForCoordinate(connection[1]);
+                const from = STAR_CHART_SYSTEMS.find((system) => system.id === connection[0]);
+                const to = STAR_CHART_SYSTEMS.find((system) => system.id === connection[1]);
                 if (!from || !to) return null;
-                const isSelectedRoute = connection[0] === selectedCoordinate ||
-                  connection[1] === selectedCoordinate;
+                const isSelectedRoute = selectedSystem !== undefined &&
+                  (connection[0] === selectedSystem.id || connection[1] === selectedSystem.id);
                 return (
                   <line
                     className={`starmap__link${isSelectedRoute ? ' starmap__link--selected' : ''}`}
@@ -199,11 +215,14 @@ export default function Starmap({
 
             <div className="starmap__nodes">
               {STAR_CHART_SYSTEMS.map((system) => {
-                const code = shipMode ? null : system.chartCodes[chart];
-                const site = shipMode || code === null ? undefined : EXPLORATION_SITES[code];
-                const markers = fleetMarkers.filter((marker) => marker.coordinate === system.coordinate);
+                const coordinate = coordinateForNode(system.id, knownSystems);
+                const known = !shipMode || (coordinate !== undefined && knownCoordinates.includes(coordinate));
+                const site = shipMode || !coordinate ? undefined : organiserSites?.[coordinate];
+                const markers = coordinate
+                  ? fleetMarkers.filter((marker) => marker.coordinate === coordinate)
+                  : [];
                 const isCurrentShip = shipMode && markers.length > 0;
-                const isVisited = shipMode && visitedCoordinates.includes(system.coordinate);
+                const isVisited = shipMode && coordinate !== undefined && visitedCoordinates.includes(coordinate);
                 const markerColor = markers[0]?.color ?? 'var(--cic-cyan)';
                 const style: StarmapNodeStyle = {
                   left: `${system.position.x}%`,
@@ -213,14 +232,16 @@ export default function Starmap({
                 };
                 const nodeLabel = systemAccessibleName(
                   system,
-                  chart,
                   markers.map((marker) => marker.label),
                   shipMode,
                   isVisited,
+                  known,
+                  coordinate,
+                  organiserSites,
                 );
                 const nodeChildren = <>
-                  <span className="starmap__node-coordinate">{system.coordinate}</span>
-                  <span className="starmap__node-code">{shipMode ? (isCurrentShip ? 'SHIP' : isVisited ? 'FROM' : 'FIX') : code ?? 'START'}</span>
+                  <span className="starmap__node-coordinate">{shipMode && !known ? 'UNKNOWN' : coordinate ?? 'UNKNOWN'}</span>
+                  <span className="starmap__node-code">{shipMode ? (isCurrentShip ? 'SHIP' : isVisited ? 'FROM' : known ? 'FIX' : 'UNKNOWN') : site?.code || 'START'}</span>
                   {markers.length > 0 && (
                     <span className="starmap__node-fleet" aria-hidden="true">
                       {shipMode ? 'CURRENT SHIP' : `FLEET ${markers.length}`}
@@ -231,21 +252,23 @@ export default function Starmap({
                   className: `starmap__node${isCurrentShip ? ' starmap__node--current-ship' : ''}${isVisited ? ' starmap__node--visited' : ''}`,
                   'aria-label': nodeLabel,
                   'data-candidate': String(site?.candidate === true),
-                  'data-selected': String(selectedCoordinate === system.coordinate),
+                  'data-selected': String(selectedCoordinate === coordinate),
                   'data-fleet-count': String(markers.length),
-                  'data-system-coordinate': system.coordinate,
+                  'data-system-id': system.id,
+                  'data-system-coordinate': coordinate,
                   'data-current-ship': isCurrentShip ? 'true' : undefined,
-                  'data-visited-coordinate': isVisited ? system.coordinate : undefined,
+                  'data-visited-coordinate': isVisited ? coordinate : undefined,
+                  'data-known-coordinate': known ? coordinate : undefined,
                   style,
                 };
                 return shipMode ? (
-                  <span key={system.coordinate} role="img" {...nodeData}>{nodeChildren}</span>
+                  <span key={system.id} role="img" {...nodeData}>{nodeChildren}</span>
                 ) : (
                   <button
-                    key={system.coordinate}
+                    key={system.id}
                     type="button"
-                    aria-pressed={selectedCoordinate === system.coordinate}
-                    onClick={() => onSystemSelect?.(system.coordinate)}
+                    aria-pressed={selectedCoordinate === coordinate}
+                    onClick={() => coordinate && onSystemSelect?.(coordinate)}
                     {...nodeData}
                   >
                     {nodeChildren}

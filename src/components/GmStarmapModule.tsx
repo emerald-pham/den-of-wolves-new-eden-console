@@ -99,6 +99,8 @@ export default function GmStarmapModule({ session }: Props) {
       </div>
       <Starmap
         chart={chart}
+        {...(session.organiserSites ? { organiserSites: session.organiserSites } : {})}
+        {...(session.organiserSystems ? { knownSystems: session.organiserSystems } : {})}
         selectedCoordinate={selectedCoordinate}
         onSystemSelect={setSelectedCoordinate}
         fleetMarkers={fleetMarkers}

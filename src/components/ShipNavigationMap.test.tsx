@@ -9,6 +9,8 @@ it('shows only the ship fix and the coordinates it has visited', () => {
       shipName="AEGIS"
       currentCoordinate="5143"
       visitedCoordinates={['0000']}
+      knownCoordinates={['0000', '5143']}
+      knownSystems={{ 'system-01': '0000', 'system-02': '5143' }}
     />,
   );
 

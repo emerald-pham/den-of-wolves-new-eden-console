@@ -1,3 +1,13 @@
+import { STAR_CHART_SYSTEMS as LEGACY_SYSTEMS, siteForCoordinate } from '@/data/starChart';
+
+const ENTITLED_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
+  `system-${String(index + 1).padStart(2, '0')}`, system.coordinate,
+]));
+const ORGANISER_SITES = Object.fromEntries(LEGACY_SYSTEMS.flatMap((system) => {
+  const site = siteForCoordinate(system.coordinate, 'A');
+  return site ? [[system.coordinate, site]] : [];
+}));
+
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
@@ -13,6 +23,8 @@ it('renders a selectable 3D projection of the printed chart without inventing sp
       chart="A"
       onChartChange={onChartChange}
       selectedCoordinate="0000"
+      knownSystems={ENTITLED_SYSTEMS}
+      organiserSites={ORGANISER_SITES}
       onSystemSelect={onSystemSelect}
       fleetMarkers={[{
         id: 'aegis', label: 'AEGIS', coordinate: '0000', color: 'var(--cic-faction-icn)',
@@ -41,6 +53,8 @@ it('keeps the selected site effect and every distinct fleet fix in the readout',
     <Starmap
       chart="A"
       selectedCoordinate="6798"
+      knownSystems={ENTITLED_SYSTEMS}
+      organiserSites={ORGANISER_SITES}
       fleetMarkers={[
         { id: 'aegis', label: 'AEGIS', coordinate: '0000', color: 'var(--cic-faction-icn)' },
         { id: 'snn', label: 'SNN', coordinate: '6798', color: 'var(--cic-faction-fas)' },
@@ -59,6 +73,8 @@ it('surfaces live fleet plotting state and the selected jump corridor', () => {
     <Starmap
       chart="A"
       selectedCoordinate="6798"
+      knownSystems={ENTITLED_SYSTEMS}
+      organiserSites={ORGANISER_SITES}
       fleetMarkers={[
         { id: 'aegis', label: 'AEGIS', coordinate: '0000', color: 'var(--cic-faction-icn)' },
         { id: 'snn', label: 'SNN', coordinate: '6798', color: 'var(--cic-faction-fas)' },
@@ -76,4 +92,24 @@ it('surfaces live fleet plotting state and the selected jump corridor', () => {
   expect(selectedNode).toHaveAttribute('data-fleet-count', '1');
 
   expect(container.querySelectorAll('line[data-route-state="selected"]')).toHaveLength(4);
+});
+
+it('renders opaque topology while exposing only the coordinates in the player projection', () => {
+  render(
+    <Starmap
+      chart="A"
+      mode="ship"
+      selectedCoordinate="0000"
+      knownCoordinates={['0000']}
+      knownSystems={{ 'system-01': '0000' }}
+      fleetMarkers={[{ id: 'aegis', label: 'AEGIS', coordinate: '0000', color: 'cyan' }]}
+    />,
+  );
+
+  const map = screen.getByRole('region', { name: 'Ship navigation map' });
+  expect(map).toHaveTextContent('Current ship // 0000');
+  expect(map).not.toHaveTextContent('5143');
+  expect(map.querySelectorAll('[data-system-id]')).toHaveLength(22);
+  expect(map.querySelectorAll('[data-system-coordinate]')).toHaveLength(1);
+  expect(map.querySelectorAll('[data-system-id="system-02"]')).toHaveLength(1);
 });

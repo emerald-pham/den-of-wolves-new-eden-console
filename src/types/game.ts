@@ -9,6 +9,7 @@
 import type {
   EntityId,
   EntityKind,
+  GroupId,
   EventId,
   GroupId,
   PlayerId,
@@ -93,6 +94,26 @@ export interface ShipNavigationLogEntry {
 
 export type ShipNavigationLogs = Readonly<Record<string, readonly ShipNavigationLogEntry[]>>;
 export type ShipConsoleLocks = Readonly<Record<string, boolean>>;
+
+/** Server-owned navigation knowledge for one entitled player/ship view. */
+export interface PlayerDiscoveryProjection {
+  readonly groupId: GroupId;
+  readonly shipId?: VesselId;
+  readonly currentCoordinate?: GalacticCoordinate;
+  readonly knownCoordinates: readonly GalacticCoordinate[];
+  /** Opaque browser node ID to the coordinates this player is entitled to see. */
+  readonly knownSystems: Readonly<Record<string, GalacticCoordinate>>;
+  readonly pursuitDistance: number;
+  readonly navigationLogs: readonly ShipNavigationLogEntry[];
+  readonly revision: number;
+}
+
+export interface OrganiserSiteProjection {
+  readonly code: string;
+  readonly name: string;
+  readonly candidate: boolean;
+  readonly summary: string;
+}
 
 export interface ShipJumpState {
   /** The numbered turn in which this ship last completed a jump. */
@@ -431,6 +452,14 @@ export interface GameSession {
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
   /** Server-authored navigation events, newest first, by receiving ship. */
   readonly shipNavigationLogs?: ShipNavigationLogs;
+  /** The authenticated player's server-owned discovery entitlement. */
+  readonly playerDiscovery?: PlayerDiscoveryProjection;
+  /** Facilitator-only organiser lookup received from the protected projection. */
+  readonly organiserSites?: Readonly<Record<string, OrganiserSiteProjection>>;
+  /** Facilitator-only coordinate mapping for the opaque map topology. */
+  readonly organiserSystems?: Readonly<Record<string, GalacticCoordinate>>;
+  /** Server-authored pursuit depth for the current entitled ship/fleet view. */
+  readonly pursuitDistance?: number;
   /** Server-authorized travel lock state, by ship. */
   readonly shipConsoleLocks?: ShipConsoleLocks;
   /** Revision cursor shared by vessel actions without a narrower domain revision. */
@@ -441,6 +470,8 @@ export interface GameSession {
   readonly shipJumpTransitions?: ShipJumpTransitions;
   /** Server-owned pursuit value per initial fleet group. */
   readonly pursuitGroups?: Readonly<Record<string, number>>;
+  /** Facilitator-only pursuit depth by plotted ship. */
+  readonly pursuitDistances?: Readonly<Record<string, number>>;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */
   readonly shipResources?: ShipResources;
   /** Drawn damage cards by ship; absent legacy sessions begin with an intact deck. */

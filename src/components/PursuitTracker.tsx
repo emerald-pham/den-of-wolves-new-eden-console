@@ -10,6 +10,7 @@ interface PursuitTrackerProps {
   readonly shipId: string;
   readonly shipName: string;
   readonly shipCoordinate: string;
+  readonly pursuitDistance?: number;
 }
 
 const TRACK_SEGMENTS = Array.from({ length: MAX_PURSUIT }, (_, index) => index);
@@ -28,16 +29,17 @@ export default function PursuitTracker({
   shipId,
   shipName,
   shipCoordinate,
+  pursuitDistance = 0,
 }: PursuitTrackerProps) {
   const coordinate = shipCoordinate || '0000';
-  const pursuitDistance = pursuitDistanceForCoordinate(coordinate);
-  const pursuitScore = pursuitScoreForPosition(currentTurn, coordinate);
+  const entitledDistance = pursuitDistanceForCoordinate(coordinate, pursuitDistance);
+  const pursuitScore = pursuitScoreForPosition(currentTurn, coordinate, entitledDistance);
   const status = pursuitStatusForScore(pursuitScore);
   const threatLevel = pursuitThreatLevelForScore(pursuitScore);
   const failureCountdown = MAX_PURSUIT - pursuitScore;
   const failureCountdownLabel = `${failureCountdown} cycle${failureCountdown === 1 ? '' : 's'}`;
   const turnLoad = Math.max(0, Math.floor(currentTurn)) * 2;
-  const mapDepth = pursuitDistance === 0 ? 'Start system' : `-${pursuitDistance} pursuit distance`;
+  const mapDepth = entitledDistance === 0 ? 'Start system' : `-${entitledDistance} pursuit distance`;
   const statusLabel = status === 'surrounded'
     ? 'SURROUNDED // GAME OVER'
     : status === 'critical'

@@ -610,11 +610,12 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     for (const session of [joined.session, resumed.session]) {
       expect(session.activeVesselIds).toEqual(expectedVessels);
       for (const field of [
-        'shipResources', 'shipUnrest', 'shipSurvivors', 'shipGalacticCoordinates',
-        'shipNavigationLogs', 'shipConsoleLocks', 'shipJumpStates',
+        'shipResources', 'shipUnrest', 'shipSurvivors', 'shipConsoleLocks', 'shipJumpStates',
       ]) {
         expect(Object.keys(session[field] as Record<string, unknown>)).toEqual(expectedVessels);
       }
+      expect(session.shipGalacticCoordinates).toBeUndefined();
+      expect(session.shipNavigationLogs).toBeUndefined();
       expect(session.shipResources).not.toHaveProperty('capybara');
       expect(session.shipSurvivors).not.toHaveProperty('capybara');
       expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
@@ -639,15 +640,20 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     }, ownerUid));
 
     const sessionPath = `sessions/${sessionId}`;
+    const navigationPath = `${sessionPath}/serverState/navigation/current`;
     const before = read(sessionPath) as StoredDocument;
     before.shipResources = {
       ...(before.shipResources as Record<string, unknown>),
       aegis: { ...(before.shipResources as Record<string, Record<string, unknown>>).aegis, fuel: 1 },
     };
-    before.shipGalacticCoordinates = {
-      ...(before.shipGalacticCoordinates as Record<string, unknown>), aegis: '5143',
-    };
     mock.documents.set(sessionPath, before);
+    const navigationBefore = read(navigationPath) as StoredDocument;
+    mock.documents.set(navigationPath, {
+      ...navigationBefore,
+      shipGalacticCoordinates: {
+        ...(navigationBefore.shipGalacticCoordinates as Record<string, unknown>), aegis: '5143',
+      },
+    });
 
     const expansionRoles = recommendedRoleIds(19);
     const expanded = await confirmSetup.run(request({
@@ -670,7 +676,8 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara',
     ]);
     expect((expandedSession.shipResources as Record<string, Record<string, number>>).aegis?.fuel).toBe(1);
-    expect((expandedSession.shipGalacticCoordinates as Record<string, string>).aegis).toBe('5143');
+    expect(expandedSession.shipGalacticCoordinates).toBeUndefined();
+    expect((read(navigationPath)?.shipGalacticCoordinates as Record<string, string>).aegis).toBe('5143');
     expect((expandedSession.shipResources as Record<string, Record<string, number>>).capybara).toMatchObject({ scrap: 3 });
     expect((expandedSession.shipSurvivors as Record<string, number>).capybara).toBe(20_000);
     expect(expandedOwnership.roleOwnedCraft).toEqual(expect.arrayContaining([

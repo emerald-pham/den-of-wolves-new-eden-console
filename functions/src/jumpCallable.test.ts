@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
+  set: vi.fn(),
   role: 'gm',
   owner: 'u1',
   connected: true,
@@ -30,12 +31,15 @@ vi.mock('firebase-admin/firestore', () => ({
       const attempts = mock.transactionRetries + 1;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const writes: Array<[string, Record<string, unknown>]> = [];
+        const sets: Array<[string, Record<string, unknown>]> = [];
         result = await callback({
           get: mock.get,
+          set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
           update: (path: string, fields: Record<string, unknown>) => writes.push([path, fields]),
         });
         if (attempt === attempts - 1) {
           for (const [path, fields] of writes) mock.update(path, fields);
+          for (const [path, fields] of sets) mock.set(path, fields);
         }
       }
       return result;
@@ -74,6 +78,7 @@ beforeEach(() => {
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('jump-event');
   mock.update.mockReset();
+  mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
@@ -187,7 +192,12 @@ it('validates reachability from stored position even when the client supplies a 
     status: 'jumped', origin: '5143', destination: '0000',
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    'shipGalacticCoordinates.aegis': '0000',
+    'shipResources.aegis.fuel': expect.any(Number),
+    shipGalacticCoordinates: null,
+    shipNavigationLogs: null,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation/current', expect.objectContaining({
+    shipGalacticCoordinates: expect.objectContaining({ aegis: '0000' }),
   }));
 });
 
@@ -215,18 +225,18 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
   expect(mock.randomInt).toHaveBeenCalledWith(1, 7);
   expect(mock.update).toHaveBeenCalledTimes(1);
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    'shipGalacticCoordinates.aegis': '5143',
     'shipResources.aegis.fuel': 3,
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
     'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-test-jump' }),
+    shipGalacticCoordinates: null,
+    shipNavigationLogs: null,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation/current', expect.objectContaining({
+    shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     shipNavigationLogs: expect.objectContaining({
       aegis: expect.arrayContaining([expect.objectContaining({
-        id: 'jump-test-jump-0',
-        type: 'self-jump',
-        origin: '0000',
-        destination: '5143',
-        navigationalError: false,
+        id: 'jump-test-jump-0', type: 'self-jump', origin: '0000', destination: '5143',
       })]),
     }),
   }));
@@ -241,6 +251,7 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
   mock.update.mockReset();
+  mock.set.mockReset();
 
   await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
     status: 'jumped',
@@ -255,11 +266,15 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).toHaveBeenCalledTimes(1);
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    'shipGalacticCoordinates.aegis': '5143',
     'shipResources.aegis.fuel': 2,
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
     'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-test-jump' }),
+    shipGalacticCoordinates: null,
+    shipNavigationLogs: null,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation/current', expect.objectContaining({
+    shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     shipNavigationLogs: expect.objectContaining({
       aegis: expect.arrayContaining([expect.objectContaining({
         id: 'jump-test-jump-0',

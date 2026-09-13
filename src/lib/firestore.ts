@@ -35,6 +35,8 @@ import type {
   ShuttleDocking,
   ShuttleVisit,
   ShipNavigationLogEntry,
+  PlayerDiscoveryProjection,
+  OrganiserSiteProjection,
   ShipJumpStates,
   ShipJumpTransitions,
   ShipNavigationLogs,
@@ -448,6 +450,62 @@ function shipNavigationLogs(value: unknown): ShipNavigationLogs {
       })
       : [],
   ])) as ShipNavigationLogs;
+}
+
+function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | undefined {
+  const raw = recordValue(value);
+  const groupId = parseEntityId('group', raw?.groupId);
+  const shipId = raw?.shipId === undefined ? undefined : parseEntityId('vessel', raw.shipId);
+  const revision = nonNegativeInteger(raw?.revision);
+  const currentCoordinate = typeof raw?.currentCoordinate === 'string' ? raw.currentCoordinate : undefined;
+  const knownCoordinates = Array.isArray(raw?.knownCoordinates)
+    ? raw.knownCoordinates.filter((coordinate): coordinate is string => typeof coordinate === 'string')
+    : [];
+  const knownSystemsRaw = recordValue(raw?.knownSystems);
+  const knownSystems = Object.fromEntries(Object.entries(knownSystemsRaw ?? {}).flatMap(([systemId, coordinate]) =>
+    typeof coordinate === 'string' ? [[systemId, coordinate]] : []));
+  if (!groupId || revision === undefined || (raw?.shipId !== undefined && !shipId)) return undefined;
+  const logs = shipNavigationLogs(raw?.navigationLogs === undefined
+    ? {}
+    : { [shipId ?? 'unknown']: raw.navigationLogs });
+  return {
+    groupId,
+    ...(shipId ? { shipId } : {}),
+    ...(currentCoordinate ? { currentCoordinate } : {}),
+    knownCoordinates,
+    knownSystems,
+    pursuitDistance: nonNegativeInteger(raw?.pursuitDistance) ?? 0,
+    navigationLogs: shipId ? logs[shipId] ?? [] : [],
+    revision,
+  };
+}
+
+function organiserSiteProjection(value: unknown): OrganiserSiteProjection | undefined {
+  const raw = recordValue(value);
+  if (!raw || typeof raw.code !== 'string' || typeof raw.name !== 'string' ||
+      typeof raw.candidate !== 'boolean' || typeof raw.summary !== 'string') return undefined;
+  return { code: raw.code, name: raw.name, candidate: raw.candidate, summary: raw.summary };
+}
+
+function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'pursuitDistances'> | undefined {
+  const raw = recordValue(value);
+  if (!raw) return undefined;
+  const sitesRaw = recordValue(raw.organiserSites);
+  const organiserSites = Object.fromEntries(Object.entries(sitesRaw ?? {}).flatMap(([coordinate, site]) => {
+    const parsed = organiserSiteProjection(site);
+    return parsed ? [[coordinate, parsed]] : [];
+  }));
+  return {
+    shipGalacticCoordinates: shipGalacticCoordinates(raw.shipGalacticCoordinates),
+    shipNavigationLogs: shipNavigationLogs(raw.shipNavigationLogs),
+    organiserSites,
+    organiserSystems: Object.fromEntries(Object.entries(recordValue(raw.knownSystems) ?? {}).flatMap(([systemId, coordinate]) =>
+      typeof coordinate === 'string' ? [[systemId, coordinate]] : [])),
+    pursuitDistances: Object.fromEntries(Object.entries(recordValue(raw.pursuitDistances) ?? {}).flatMap(([shipId, distance]) => {
+      const parsed = nonNegativeInteger(distance);
+      return parsed === undefined ? [] : [[shipId, parsed]];
+    })),
+  };
 }
 
 function alertMap<T extends UnrestAlert | PopulationAlert>(value: unknown, population: boolean): Readonly<Record<string, T>> {
@@ -869,8 +927,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       Number.isSafeInteger(data.pressAvailabilityRevision) && data.pressAvailabilityRevision >= 0
         ? data.pressAvailabilityRevision as number
         : 0,
-    shipGalacticCoordinates: shipGalacticCoordinates(data.shipGalacticCoordinates),
-    shipNavigationLogs: shipNavigationLogs(data.shipNavigationLogs),
+    // Navigation and discovery are audience-scoped subcollection projections;
+    // the member-readable session document never hydrates these fields.
     shipConsoleLocks: shipConsoleLocks(data.shipConsoleLocks),
     vesselActionRevisions: vesselActionRevisions(data.vesselActionRevisions),
     shipJumpStates: shipJumpStates(data.shipJumpStates),
@@ -970,6 +1028,10 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
 
 export interface SessionStateHandlers {
   readonly onSession: (session: GameSession) => void;
+  /** Audience-scoped navigation/discovery projection for this member. */
+  readonly onPlayerDiscovery?: (projection: PlayerDiscoveryProjection | null) => void;
+  /** Facilitator-only organiser navigation/chart projection. */
+  readonly onGmDiscovery?: (projection: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'pursuitDistances'> | null) => void;
   /** Whether the accepted session snapshot is backed by server authority. */
   readonly onSessionFreshness?: (fresh: boolean) => void;
   /** Retain accepted server authority when an equivalent listener is restarted. */
@@ -1046,6 +1108,30 @@ export function subscribeSessionState(
         handlers.onPlayerFreshness?.(!fromCache);
       } else onError();
     }, onError),
+    ...(handlers.onPlayerDiscovery ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onPlayerDiscovery?.(snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
+      },
+    )] : []),
+    ...(handlers.onGmDiscovery ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/gmDiscovery/current`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onGmDiscovery?.(snapshot.exists() ? gmDiscoveryProjection(snapshot.data()) ?? null : null);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
+      },
+    )] : []),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;

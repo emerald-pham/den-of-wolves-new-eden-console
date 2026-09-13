@@ -14,6 +14,8 @@ interface Props {
   readonly damage?: ShipDamageState | undefined;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
   readonly navigationLogs?: ShipNavigationLogs | undefined;
+  readonly knownCoordinates?: readonly string[] | undefined;
+  readonly knownSystems?: Readonly<Record<string, string>> | undefined;
   readonly consoleLocked?: boolean;
   /** Selected public vessel state; legacy props remain for standalone references. */
   readonly shipState?: ShipConsoleProjection | undefined;
@@ -27,6 +29,8 @@ export default function FleetConsoleWorkspace({
   damage,
   damageDraws,
   navigationLogs,
+  knownCoordinates,
+  knownSystems,
   consoleLocked = false,
   shipState,
 }: Props) {
@@ -45,6 +49,8 @@ export default function FleetConsoleWorkspace({
         damage={projectedDamage}
         damageDraws={damageDraws}
         navigationLogs={projectedNavigationLogs}
+        knownCoordinates={knownCoordinates}
+        knownSystems={knownSystems}
         consoleLocked={projectedConsoleLock}
         shipState={shipState}
       />
@@ -59,6 +65,8 @@ export default function FleetConsoleWorkspace({
     damage={projectedDamage}
     damageDraws={damageDraws}
     navigationLogs={projectedNavigationLogs}
+    knownCoordinates={knownCoordinates}
+    knownSystems={knownSystems}
     consoleLocked={projectedConsoleLock}
     shipState={shipState}
   />;

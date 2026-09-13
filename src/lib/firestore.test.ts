@@ -95,7 +95,7 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   expect(session.id).toBe('typed-session');
   expect(session.activeRoleIds?.[0]).toBe('admiral');
   expect(session.activeVesselIds).toEqual(['aegis', 'icebreaker']);
-  expect(session.shipNavigationLogs?.aegis?.[0]).toMatchObject({ id: 'jump-1', shipId: 'aegis' });
+  expect(session.shipNavigationLogs).toBeUndefined();
   expect(session.shuttleDockings?.[0]).toMatchObject({ shuttleId: 'starlight', shipId: 'aegis' });
   expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
 });
@@ -256,7 +256,7 @@ it('removes hidden state nested in public and crew projections while preserving 
   expect(session.shuttleCargo?.starlight).toEqual({ food: 3 });
   expect(session.shipDamage?.aegis).toEqual({ damagedSystemIds: ['storage'], destroyed: false });
   expect(session.shipUpgrades?.aegis).toEqual(['storage']);
-  expect(session.shipGalacticCoordinates?.aegis).toBe('0011');
+  expect(session.shipGalacticCoordinates).toBeUndefined();
   expect(session.pursuitGroups).toEqual({ fleet: 2 });
   expect(session.confettiUsedShipIds).toEqual(['aegis']);
   expect(session.shuttleDockings).toEqual(expect.arrayContaining([
@@ -284,7 +284,7 @@ it('removes hidden state nested in public and crew projections while preserving 
   const crewProjection = projectShipState(session, 'aegis');
   expect(crewProjection).toMatchObject({
     shipId: 'aegis',
-    galacticCoordinate: '0011',
+    galacticCoordinate: '0000',
     maintenanceCycle: { step: 2, revision: 4 },
     damage: { damagedSystemIds: ['storage'], destroyed: false },
   });
@@ -321,9 +321,7 @@ it('does not carry malformed IDs from an untrusted session snapshot', () => {
   expect(session.activeRoleIds).toEqual([]);
   expect(session.activeVesselIds).toEqual([]);
   expect(session.ownerUid).toBeUndefined();
-  expect(session.shipNavigationLogs?.aegis).toEqual([
-    expect.objectContaining({ id: 'jump-1', shipId: 'aegis' }),
-  ]);
+  expect(session.shipNavigationLogs).toBeUndefined();
   expect(session.unrestAlerts).toEqual({});
   expect(session.populationAlerts).toEqual({});
   expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
@@ -1399,6 +1397,67 @@ it('does not let a late cached callback overwrite accepted server authority', ()
   expect(onSession).toHaveBeenCalledTimes(1);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({ shipResources: { aegis: { ore: 3 } } });
   expect(onFreshness.mock.calls).toEqual([[true]]);
+});
+
+it('does not let reconnect cache replace an authoritative own-ship discovery or GM navigation projection', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  const onPlayerDiscovery = vi.fn();
+  const onGmDiscovery = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession,
+    onPlayerDiscovery,
+    onGmDiscovery,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    sessionSnapshotAuthority: sessionSnapshotAuthorityFor('s1', 'u1'),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted'), false));
+  callbacks[2]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
+      knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
+      pursuitDistance: 1, navigationLogs: [], revision: 2,
+    }),
+  });
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      shipGalacticCoordinates: { aegis: '5143' }, shipNavigationLogs: { aegis: [] },
+      knownSystems: { 'system-01': '0000', 'system-02': '5143' }, revision: 2,
+    }),
+  });
+
+  callbacks[2]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    data: () => ({
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '8378',
+      knownCoordinates: ['0000', '8378'], knownSystems: { 'system-01': '0000', 'system-17': '8378' },
+      pursuitDistance: 6, navigationLogs: [], revision: 1,
+    }),
+  });
+  callbacks[3]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    data: () => ({
+      shipGalacticCoordinates: { aegis: '8378' }, shipNavigationLogs: { aegis: [] },
+      knownSystems: { 'system-01': '0000', 'system-17': '8378' }, revision: 1,
+    }),
+  });
+
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onPlayerDiscovery).toHaveBeenCalledTimes(1);
+  expect(onPlayerDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({
+    currentCoordinate: '5143', knownCoordinates: ['0000', '5143'],
+  }));
+  expect(onGmDiscovery).toHaveBeenCalledTimes(1);
+  expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
+    shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
+  });
 });
 
 it('does not let cached identity projections overwrite accepted server authority', () => {

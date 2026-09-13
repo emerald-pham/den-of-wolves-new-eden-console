@@ -32,7 +32,7 @@ import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { LoyaltyCensus, RoleBrief as RoleBriefProjection } from '@/types/game';
+import type { GameSession, LoyaltyCensus, RoleBrief as RoleBriefProjection } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -40,6 +40,14 @@ const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') || path.startsWith('/shuttles/');
+
+function stripNavigationProjection(session: GameSession): GameSession {
+  const next = { ...session };
+  delete next.playerDiscovery;
+  delete next.shipGalacticCoordinates;
+  delete next.shipNavigationLogs;
+  return next;
+}
 
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
@@ -116,6 +124,33 @@ function AppRoutes() {
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
         onSession: (next) => useSessionStore.getState().setSession(next),
+        onPlayerDiscovery: (projection) => {
+          const store = useSessionStore.getState();
+          const current = store.session;
+          if (!current || current.id !== sessionId) return;
+          if (!projection) {
+            store.setSession(stripNavigationProjection(current));
+            return;
+          }
+          const shipId = projection.shipId;
+          const withoutPreviousDiscovery = stripNavigationProjection(current);
+          store.setSession({
+            ...withoutPreviousDiscovery,
+            playerDiscovery: projection,
+            ...(shipId && projection.currentCoordinate
+              ? { shipGalacticCoordinates: { [shipId]: projection.currentCoordinate } }
+              : {}),
+            ...(shipId
+              ? { shipNavigationLogs: { [shipId]: projection.navigationLogs } }
+              : {}),
+          });
+        },
+        onGmDiscovery: (projection) => {
+          const store = useSessionStore.getState();
+          const current = store.session;
+          if (!projection || !current || current.id !== sessionId) return;
+          store.setSession({ ...current, ...projection });
+        },
         onSessionFreshness: (fresh) => {
           const store = useSessionStore.getState();
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');

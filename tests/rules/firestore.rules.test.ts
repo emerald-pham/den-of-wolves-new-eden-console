@@ -223,6 +223,36 @@ describe('session header', () => {
     }
   });
 
+  it('isolates player discovery projection reads and reserves organiser lookup for GMs', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/alice`), {
+        groupId: 'fleet-1', shipId: 'aegis', knownCoordinates: ['0000'], navigationLogs: [], revision: 1,
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/press`), {
+        groupId: 'fleet-2', shipId: 'dione', knownCoordinates: ['0000'], navigationLogs: [], revision: 1,
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/gmDiscovery/current`), {
+        knownSystems: { 'system-01': '0000' }, organiserSites: { '0000': { code: 'START' } }, revision: 1,
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/press`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/playerDiscoveries`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`), { groupId: 'fleet-2' }));
+    await assertFails(updateDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`), { groupId: 'fleet-2' }));
+
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/gmDiscovery/current`)));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/gmDiscovery`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`), { revision: 2 }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`)));
+  });
+
   it('keeps fleet-group membership and vessel tuples server-only', async () => {
     const group = `${SESSION}/fleetGroups/fleet-1`;
     await assertFails(getDoc(doc(as('alice'), group)));

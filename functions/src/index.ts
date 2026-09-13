@@ -105,6 +105,12 @@ import {
   type NavigationLogs,
 } from './navigation';
 import {
+  navigationState,
+  playerDiscoveryProjection,
+  writePlayerDiscoveryProjection,
+  type NavigationState,
+} from './navigationProjection';
+import {
   resolveJumpAttempt,
   type JumpAttemptResult,
   type JumpDriveState,
@@ -229,6 +235,10 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
+import { organiserSitesForChart } from './starChartLookup';
+import { allDiscoverySystems } from './starChartProjection';
+import { discoverySystemsForCoordinates } from './starChartProjection';
+import { pursuitDistancesForCoordinates } from './starChartProjection';
 import type { LifecyclePhase } from './lifecycle';
 import {
   allocateMissionCards,
@@ -584,6 +594,50 @@ function fleetGroupRef(sessionId: string) {
   return db.doc(`sessions/${sessionId}/fleetGroups/${INITIAL_FLEET_GROUP_ID}`);
 }
 
+function navigationStateRef(sessionId: string) {
+  return db.doc(`sessions/${sessionId}/serverState/navigation/current`);
+}
+
+function gmDiscoveryProjectionRef(sessionId: string) {
+  return db.doc(`sessions/${sessionId}/gmDiscovery/current`);
+}
+
+function playerDiscoveryProjectionRef(sessionId: string, uid: string) {
+  return db.doc(`sessions/${sessionId}/playerDiscoveries/${uid}`);
+}
+
+function navigationStateForSession(
+  navigationDoc: DocumentSnapshot,
+  session: Pick<DocumentSnapshot, 'get'>,
+  activeVesselIds: readonly string[],
+): NavigationState {
+  // A few callers/tests use lightweight snapshots that expose only `get`.
+  // Treat those as an absent private document so legacy migration remains
+  // compatible while real Admin snapshots still take the private path.
+  if (navigationDoc.exists && typeof (navigationDoc as unknown as { data?: unknown }).data === 'function') {
+    return navigationState(navigationDoc.data(), activeVesselIds);
+  }
+  // Legacy sessions predate the private navigation state. This is a bounded
+  // migration source only; callers persist the normalized state before the
+  // next navigation mutation and never publish these fields to members.
+  return navigationState({
+    shipGalacticCoordinates: session.get('shipGalacticCoordinates'),
+    shipNavigationLogs: session.get('shipNavigationLogs'),
+  }, activeVesselIds);
+}
+
+function navigationProjectionFields(navigation: NavigationState): Record<string, unknown> {
+  return {
+    shipGalacticCoordinates: navigation.shipGalacticCoordinates,
+    shipNavigationLogs: navigation.shipNavigationLogs,
+  };
+}
+
+function removeLegacyNavigationField(): unknown {
+  const deleteField = (FieldValue as unknown as { delete?: () => unknown }).delete;
+  return typeof deleteField === 'function' ? deleteField() : null;
+}
+
 function activeFleetGroupMemberUids(players: readonly DocumentSnapshot[]): readonly string[] {
   const memberUids = players
     .filter((player) => player.exists && !isKickedPlayer(player))
@@ -665,6 +719,45 @@ function ensureInitialFleetGroup(
     }
   }
   return group;
+}
+
+/** Publish only each member's own ship history into their group entitlement. */
+function publishDiscoveryProjections(
+  tx: Transaction,
+  sessionId: string,
+  players: readonly DocumentSnapshot[],
+  navigation: NavigationState,
+  revision: number,
+  chart: 'A' | 'B' | 'C' = 'A',
+): void {
+  tx.set(gmDiscoveryProjectionRef(sessionId), {
+    ...navigationProjectionFields(navigation),
+    knownSystems: allDiscoverySystems(),
+    pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
+    organiserSites: organiserSitesForChart(chart),
+    revision,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  for (const player of players) {
+    if (!player.exists || isKickedPlayer(player) || typeof player.id !== 'string' || player.id.length === 0) continue;
+    const groupId = player.get('fleetGroupId');
+    // ensureInitialFleetGroup backfills legacy pointers in the same
+    // transaction, but the snapshot read before that write is necessarily
+    // stale. Use the canonical initial group for that migration snapshot so
+    // every non-kicked member receives a projection in this commit.
+    const effectiveGroupId = typeof groupId === 'string' && groupId.length > 0
+      ? groupId : INITIAL_FLEET_GROUP_ID;
+    const projectionPlayer = {
+      get: (field: string) => field === 'fleetGroupId' ? effectiveGroupId : player.get(field),
+    };
+    writePlayerDiscoveryProjection(
+      tx,
+      playerDiscoveryProjectionRef(sessionId, player.id),
+      projectionPlayer,
+      navigation,
+      revision,
+    );
+  }
 }
 
 function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[]): Record<string, number> {
@@ -1772,11 +1865,17 @@ export const createSession = onCall<{
           wolfCultEnabled: creation.configuration.wolfCultEnabled,
           setup,
           activeVesselIds: setup.activeVesselIds,
+          playerDiscovery: {
+            groupId: group.id,
+            knownCoordinates: ['0000'],
+            knownSystems: discoverySystemsForCoordinates(['0000']),
+            pursuitDistance: 0,
+            navigationLogs: [],
+            revision: 0,
+          },
           pressEnabled: true,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
-          shipGalacticCoordinates,
-          shipNavigationLogs,
           shipConsoleLocks,
           shipJumpStates,
           vesselActionRevisions: Object.fromEntries(setup.activeVesselIds.map((shipId) => [shipId, 0])),
@@ -1882,8 +1981,6 @@ export const createSession = onCall<{
           pressEnabled: true,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
-          shipGalacticCoordinates,
-          shipNavigationLogs,
           shipConsoleLocks,
           shipJumpStates,
           vesselActionRevisions: Object.fromEntries(setup.activeVesselIds.map((shipId) => [shipId, 0])),
@@ -1924,6 +2021,22 @@ export const createSession = onCall<{
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        const navigation = navigationState({ shipGalacticCoordinates, shipNavigationLogs }, setup.activeVesselIds);
+        tx.set(navigationStateRef(sessionRef.id), {
+          ...navigationProjectionFields(navigation),
+          revision: 0,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(gmDiscoveryProjectionRef(sessionRef.id), {
+          ...navigationProjectionFields(navigation),
+          knownSystems: allDiscoverySystems(),
+          pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
+          organiserSites: organiserSitesForChart(creation.configuration.chartId),
+          revision: 0,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         for (const seat of stableSeats) {
           tx.set(db.doc(`sessions/${sessionRef.id}/seats/${seat.id}`), {
             ...seat,
@@ -1944,6 +2057,15 @@ export const createSession = onCall<{
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(playerDiscoveryProjectionRef(sessionRef.id, uid), {
+          groupId: group.id,
+          knownCoordinates: ['0000'],
+          knownSystems: discoverySystemsForCoordinates(['0000']),
+          pursuitDistance: 0,
+          navigationLogs: [],
+          revision: 0,
+          updatedAt: FieldValue.serverTimestamp(),
         });
         tx.set(membershipRef, { sessionId: sessionRef.id, connectedAt: FieldValue.serverTimestamp() });
         tx.set(creationRequestRef, {
@@ -2494,12 +2616,13 @@ export const confirmSetup = onCall<{
       command.expectedSetupRevision,
       command.lockChart,
     );
-    const [prior, marker, authority, legacyEvent, storedGroup, players] = await Promise.all([
+    const [prior, marker, authority, legacyEvent, storedGroup, storedNavigation, players] = await Promise.all([
       tx.get(requestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
       tx.get(eventRef),
       tx.get(groupRef),
+      tx.get(navigationStateRef(command.sessionId)),
       tx.get(db.collection(`sessions/${command.sessionId}/players`)),
     ]);
     const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
@@ -2592,15 +2715,20 @@ export const confirmSetup = onCall<{
       (value) => activeShipSurvivors(value, Object.keys(INITIAL_SHIP_SURVIVORS)),
       INITIAL_SHIP_SURVIVORS,
     );
+    const currentNavigation = navigationStateForSession(
+      storedNavigation,
+      authority.session,
+      currentActiveVesselIds,
+    );
     const nextShipGalacticCoordinates = reconcileActiveVesselMap(
-      authority.session.get('shipGalacticCoordinates'),
+      currentNavigation.shipGalacticCoordinates,
       currentActiveVesselIds,
       nextActiveVesselIds,
       shipGalacticCoordinates,
       INITIAL_SHIP_GALACTIC_COORDINATES,
     );
     const nextShipNavigationLogs = reconcileActiveVesselMap(
-      authority.session.get('shipNavigationLogs'),
+      currentNavigation.shipNavigationLogs,
       currentActiveVesselIds,
       nextActiveVesselIds,
       shipNavigationLogs,
@@ -2665,8 +2793,8 @@ export const confirmSetup = onCall<{
       shipResources: nextShipResources,
       shipUnrest: nextShipUnrest,
       shipSurvivors: nextShipSurvivors,
-      shipGalacticCoordinates: nextShipGalacticCoordinates,
-      shipNavigationLogs: nextShipNavigationLogs,
+      shipGalacticCoordinates: removeLegacyNavigationField(),
+      shipNavigationLogs: removeLegacyNavigationField(),
       shipConsoleLocks: nextShipConsoleLocks,
       shipJumpStates: nextShipJumpStates,
       shuttleDockings: nextDockings,
@@ -2674,6 +2802,19 @@ export const confirmSetup = onCall<{
       setupRevision: reply.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    const nextNavigation = navigationState({
+      shipGalacticCoordinates: nextShipGalacticCoordinates,
+      shipNavigationLogs: nextShipNavigationLogs,
+    }, nextActiveVesselIds);
+    tx.set(navigationStateRef(command.sessionId), {
+      ...navigationProjectionFields(nextNavigation),
+      revision: reply.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    publishDiscoveryProjections(
+      tx, command.sessionId, playerDocs, nextNavigation, reply.setupRevision,
+      command.configuration.chartId,
+    );
     tx.set(db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`), {
       ...nextCraftManifest,
       setupRevision: reply.setupRevision,
@@ -5040,11 +5181,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const playersRef = db.collection(`sessions/${sessionId}/players`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const resumedSeatId = await db.runTransaction(async (tx) => {
-      const [sessionDoc, player, membership, storedGroup, players] = await Promise.all([
+      const [sessionDoc, player, membership, storedGroup, storedNavigation, players] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
         tx.get(fleetGroupRef(sessionId)),
+        tx.get(navigationStateRef(sessionId)),
         tx.get(playersRef),
       ]);
       const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
@@ -5080,6 +5222,29 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       const group = ensureInitialFleetGroup(
         tx, sessionId, setup.activeVesselIds, memberUids, storedGroup, playerDocs,
       );
+      const navigation = navigationStateForSession(storedNavigation, sessionDoc, setup.activeVesselIds);
+      const navigationRevision = typeof storedNavigation.get('revision') === 'number'
+        ? storedNavigation.get('revision') as number : 0;
+      if (!storedNavigation.exists) {
+        tx.set(navigationStateRef(sessionId), {
+          ...navigationProjectionFields(navigation),
+          revision: navigationRevision,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      tx.set(gmDiscoveryProjectionRef(sessionId), {
+        ...navigationProjectionFields(navigation), knownSystems: allDiscoverySystems(), revision: navigationRevision,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      publishDiscoveryProjections(
+        tx, sessionId, playerDocs, navigation, navigationRevision,
+        sessionDoc.get('chartId') === 'B' || sessionDoc.get('chartId') === 'C' ? sessionDoc.get('chartId') : 'A',
+      );
+      tx.update(sessionRef, {
+        shipGalacticCoordinates: removeLegacyNavigationField(),
+        shipNavigationLogs: removeLegacyNavigationField(),
+      });
       if (player.exists) {
         const storedGroupId = player.get('fleetGroupId');
         if (storedGroupId !== undefined && storedGroupId !== group.id) {
@@ -5106,6 +5271,11 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
             ? { assignedRoleId: null } : {}),
           ...(returningSeat.clearPointer ? { seatId: null } : {}),
         });
+        tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
+          ...playerDiscoveryProjection(player, navigation, navigationRevision),
+          groupId: group.id,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         tx.update(sessionRef, {
           deleteAfter: null,
           updatedAt: FieldValue.serverTimestamp(),
@@ -5131,6 +5301,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
+          groupId: group.id,
+          knownCoordinates: ['0000'], knownSystems: discoverySystemsForCoordinates(['0000']),
+          pursuitDistance: 0, navigationLogs: [], revision: navigationRevision,
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
@@ -5181,12 +5357,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         pressEnabled: sessionSnap.get('pressEnabled') !== false,
         pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
-        shipGalacticCoordinates: activeVesselRecord(
-          shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')), activeVesselIds,
-        ),
-        shipNavigationLogs: activeVesselRecord(
-          shipNavigationLogs(sessionSnap.get('shipNavigationLogs')), activeVesselIds,
-        ),
         shipConsoleLocks: activeVesselRecord(
           shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
         ),
@@ -5271,11 +5441,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const resumedSeatId = await db.runTransaction(async (tx) => {
-    const [currentSession, currentPlayer, membership, storedGroup, players] = await Promise.all([
+    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(fleetGroupRef(sessionId)),
+      tx.get(navigationStateRef(sessionId)),
       tx.get(playersRef),
     ]);
     const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
@@ -5317,6 +5488,27 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       storedGroup,
       playerDocs,
     );
+    const navigation = navigationStateForSession(storedNavigation, currentSession, setup.activeVesselIds);
+    const navigationRevision = typeof storedNavigation.get('revision') === 'number'
+      ? storedNavigation.get('revision') as number : 0;
+    if (!storedNavigation.exists) {
+      tx.set(navigationStateRef(sessionId), {
+        ...navigationProjectionFields(navigation), revision: navigationRevision,
+        createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    tx.set(gmDiscoveryProjectionRef(sessionId), {
+      ...navigationProjectionFields(navigation), knownSystems: allDiscoverySystems(), revision: navigationRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    publishDiscoveryProjections(
+      tx, sessionId, playerDocs, navigation, navigationRevision,
+      currentSession.get('chartId') === 'B' || currentSession.get('chartId') === 'C' ? currentSession.get('chartId') : 'A',
+    );
+    tx.update(sessionRef, {
+      shipGalacticCoordinates: removeLegacyNavigationField(),
+      shipNavigationLogs: removeLegacyNavigationField(),
+    });
     const storedGroupId = currentPlayer.get('fleetGroupId');
     if (storedGroupId !== undefined && storedGroupId !== group.id) {
       throw commandError(
@@ -5341,6 +5533,11 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       ...(!releasePress && currentPressAuthority && currentPlayer.get('assignedRoleId') === 'press-officer'
         ? { assignedRoleId: null } : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
+    });
+    tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
+      ...playerDiscoveryProjection(currentPlayer, navigation, navigationRevision),
+      groupId: group.id,
+      updatedAt: FieldValue.serverTimestamp(),
     });
     tx.update(sessionRef, {
       deleteAfter: null,
@@ -5399,12 +5596,6 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       pressEnabled: sessionSnap.get('pressEnabled') !== false,
       pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
-      shipGalacticCoordinates: activeVesselRecord(
-        shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')), activeVesselIds,
-      ),
-      shipNavigationLogs: activeVesselRecord(
-        shipNavigationLogs(sessionSnap.get('shipNavigationLogs')), activeVesselIds,
-      ),
       shipConsoleLocks: activeVesselRecord(
         shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
       ),
@@ -6033,6 +6224,8 @@ export const moveShipToLocation = onCall<{
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
+    const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
     if (replay) return replay;
@@ -6060,6 +6253,7 @@ export const moveShipToLocation = onCall<{
       throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
     const activeVesselIds = activeVesselIdsForSession(session);
+    const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
     let move;
     try {
       move = applyShipNavigationMove({
@@ -6068,11 +6262,9 @@ export const moveShipToLocation = onCall<{
         now,
         eventIdPrefix,
         coordinates: activeVesselRecord(
-          shipGalacticCoordinates(session.get('shipGalacticCoordinates')), activeVesselIds,
+          currentNavigation.shipGalacticCoordinates, activeVesselIds,
         ),
-        logs: activeVesselRecord(
-          shipNavigationLogs(session.get('shipNavigationLogs')), activeVesselIds,
-        ),
+        logs: currentNavigation.shipNavigationLogs,
         shipNames: FLEET_SHIP_NAMES,
       });
     } catch (cause) {
@@ -6082,9 +6274,30 @@ export const moveShipToLocation = onCall<{
         'conflict',
       );
     }
-    tx.update(sessionRef, {
+    const nextNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
+    }, activeVesselIds);
+    const nextRevision = currentRevision + 1;
+    tx.set(navigationStateRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation), revision: nextRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation), revision: nextRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    publishDiscoveryProjections(
+      tx,
+      change.sessionId,
+      Array.isArray(players?.docs) ? players.docs : [player],
+      nextNavigation,
+      nextRevision,
+      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+    );
+    tx.update(sessionRef, {
+      shipGalacticCoordinates: removeLegacyNavigationField(),
+      shipNavigationLogs: removeLegacyNavigationField(),
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -6093,7 +6306,7 @@ export const moveShipToLocation = onCall<{
       origin: move.origin,
       destination: move.destination,
       stardate: move.stardate,
-      ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, nextRevision,
         identity.requestId, 'move-ship'),
     };
     txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
@@ -6130,6 +6343,8 @@ export const jumpShip = onCall<{
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, false);
     const session = await tx.get(sessionRef);
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
+    const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
@@ -6155,11 +6370,10 @@ export const jumpShip = onCall<{
       throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
     const activeVesselIds = activeVesselIdsForSession(session);
+    const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
 
     const currentTurn = sessionTurn(session.get('currentTurn'));
-    const currentCoordinate = activeVesselRecord(
-      shipGalacticCoordinates(session.get('shipGalacticCoordinates')), activeVesselIds,
-    )[change.shipId] ?? '0000';
+    const currentCoordinate = currentNavigation.shipGalacticCoordinates[change.shipId] ?? '0000';
     const currentCycles = typeof session.get('maintenanceCycles') === 'object' && session.get('maintenanceCycles') !== null
       ? session.get('maintenanceCycles') as Record<string, unknown>
       : {};
@@ -6260,12 +6474,8 @@ export const jumpShip = onCall<{
       now,
       eventIdPrefix: transitionId,
       navigationalError: false,
-      coordinates: activeVesselRecord(
-        shipGalacticCoordinates(session.get('shipGalacticCoordinates')), activeVesselIds,
-      ),
-      logs: activeVesselRecord(
-        shipNavigationLogs(session.get('shipNavigationLogs')), activeVesselIds,
-      ),
+      coordinates: currentNavigation.shipGalacticCoordinates,
+      logs: currentNavigation.shipNavigationLogs,
       shipNames: FLEET_SHIP_NAMES,
     });
     const nextCycle = {
@@ -6279,13 +6489,33 @@ export const jumpShip = onCall<{
       },
     };
     const revision = currentRevision + 1;
+    const nextNavigation = navigationState({
+      shipGalacticCoordinates: move.coordinates,
+      shipNavigationLogs: move.logs,
+    }, activeVesselIds);
+    tx.set(navigationStateRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation), revision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation), revision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    publishDiscoveryProjections(
+      tx,
+      change.sessionId,
+      Array.isArray(players?.docs) ? players.docs : [player],
+      nextNavigation,
+      revision,
+      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+    );
     tx.update(sessionRef, {
-      [`shipGalacticCoordinates.${change.shipId}`]: result.destination,
+      shipGalacticCoordinates: removeLegacyNavigationField(),
       [`shipResources.${change.shipId}.fuel`]: result.remainingFuel,
       [`maintenanceCycles.${change.shipId}`]: nextCycle,
       [`shipJumpStates.${change.shipId}`]: result.state,
       [`shipJumpTransitions.${change.shipId}`]: result.transition,
-      shipNavigationLogs: move.logs,
+      shipNavigationLogs: removeLegacyNavigationField(),
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });

@@ -101,6 +101,12 @@ it('places the pursuit tracker beneath shipboard DRADIS and uses this ship posit
     ...activeSession,
     currentTurn: 4,
     shipGalacticCoordinates: { capybara: '8378', aegis: '0000', dione: '5143' },
+    playerDiscovery: {
+      groupId: 'fleet-1', shipId: 'capybara', currentCoordinate: '8378',
+      knownCoordinates: ['0000', '8378'],
+      knownSystems: { 'system-01': '0000', 'system-17': '8378' },
+      pursuitDistance: 6, navigationLogs: [], revision: 1,
+    },
   });
 
   render(

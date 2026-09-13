@@ -25,6 +25,8 @@ interface Props {
   readonly damage?: ShipDamageState | undefined;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
   readonly navigationLogs?: ShipNavigationLogs | undefined;
+  readonly knownCoordinates?: readonly string[] | undefined;
+  readonly knownSystems?: Readonly<Record<string, string>> | undefined;
   readonly consoleLocked?: boolean | undefined;
   readonly shipState?: ShipConsoleProjection | undefined;
 }
@@ -221,7 +223,7 @@ function FighterWingCard({
   );
 }
 
-function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
+function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, knownCoordinates, knownSystems, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
   const printedStatistics = aegis.printedStatistics;
   const session = useSessionStore((state) => state.session);
@@ -248,7 +250,9 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
         shipId="aegis"
         shipName="AEGIS"
         currentCoordinate={galacticCoordinate}
-        entries={navigationLogs?.aegis}
+          entries={navigationLogs?.aegis}
+          knownCoordinates={knownCoordinates}
+        knownSystems={knownSystems}
         consoleLocked={consoleLocked}
       /> : <>
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
@@ -283,7 +287,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
   );
 }
 
-function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
+function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs, knownCoordinates, knownSystems, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
   const [page, setPage] = useState<'flight' | 'combat' | 'navigation'>('flight');
   const console = AEGIS_ROLE_CONSOLES['wing-commander'];
   const session = useSessionStore((state) => state.session);
@@ -319,7 +323,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
         shipId="aegis"
         shipName="AEGIS"
         currentCoordinate={galacticCoordinate}
-        entries={navigationLogs?.aegis}
+          entries={navigationLogs?.aegis}
+          knownCoordinates={knownCoordinates}
+        knownSystems={knownSystems}
         consoleLocked={consoleLocked}
       /> : page === 'flight' ? (
         <div className="aegis-craft-grid">
@@ -372,9 +378,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   );
 }
 
-export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked, shipState }: Props) {
+export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws, navigationLogs, knownCoordinates, knownSystems, consoleLocked, shipState }: Props) {
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
-    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} navigationLogs={navigationLogs} consoleLocked={consoleLocked} shipState={shipState} />
-    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} navigationLogs={navigationLogs} consoleLocked={consoleLocked} shipState={shipState} />;
+    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} navigationLogs={navigationLogs} knownCoordinates={knownCoordinates} knownSystems={knownSystems} consoleLocked={consoleLocked} shipState={shipState} />
+    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} navigationLogs={navigationLogs} knownCoordinates={knownCoordinates} knownSystems={knownSystems} consoleLocked={consoleLocked} shipState={shipState} />;
 }

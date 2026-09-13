@@ -3,6 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { GameSession } from '@/types/game';
 import GmStarmapModule from './GmStarmapModule';
+import { STAR_CHART_SYSTEMS as LEGACY_SYSTEMS, siteForCoordinate } from '@/data/starChart';
+
+const ORGANISER_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
+  `system-${String(index + 1).padStart(2, '0')}`, system.coordinate,
+]));
+const organiserSitesFor = (chart: 'A' | 'B' | 'C') => Object.fromEntries(LEGACY_SYSTEMS.flatMap((system) => {
+  const site = siteForCoordinate(system.coordinate, chart);
+  return site ? [[system.coordinate, site]] : [];
+}));
 
 vi.mock('@/lib/sessionService', () => ({
   moveShipToLocation: vi.fn().mockResolvedValue({
@@ -18,6 +27,8 @@ const session = {
   currentTurn: 1,
   shipGalacticCoordinates: { aegis: '0000', dione: '0000' },
   shipNavigationLogs: { aegis: [], dione: [] },
+  organiserSystems: ORGANISER_SYSTEMS,
+  organiserSites: organiserSitesFor('A'),
 } as unknown as GameSession;
 
 it('lets the GM select a ship, click a system, and move that ship there', async () => {
@@ -94,16 +105,16 @@ it('removes a destroyed selected ship while keeping living movement choices and 
 
 
 it('follows authoritative chart changes instead of keeping a local overlay selection', () => {
-  const { rerender } = render(<GmStarmapModule session={{ ...session, chartId: 'B' }} />);
+  const { rerender } = render(<GmStarmapModule session={{ ...session, chartId: 'B', organiserSites: organiserSitesFor('B') }} />);
   expect(screen.getByText('Chart B // labelled overlay')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /system 6798.*active wolf fortress/i })).toBeInTheDocument();
   expect(screen.queryByRole('group', { name: 'Organiser chart' })).not.toBeInTheDocument();
 
-  rerender(<GmStarmapModule session={{ ...session, chartId: 'C' }} />);
+  rerender(<GmStarmapModule session={{ ...session, chartId: 'C', organiserSites: organiserSitesFor('C') }} />);
   expect(screen.getByText('Chart C // labelled overlay')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /system 6798.*ancient jump ring/i })).toBeInTheDocument();
 
-  rerender(<GmStarmapModule session={{ ...session, chartId: 'C', setup: {
+  rerender(<GmStarmapModule session={{ ...session, chartId: 'C', organiserSites: organiserSitesFor('B'), setup: {
     playerCount: 8, chartId: 'B', expansion: 'base', turnLimit: 8,
     dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false,
     wolfCultEnabled: false, activeRoleIds: ['admiral'], activeVesselIds: ['aegis'],
