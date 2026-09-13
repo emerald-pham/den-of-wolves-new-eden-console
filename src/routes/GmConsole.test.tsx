@@ -62,6 +62,11 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
+vi.mock('@/lib/smallShipService', () => ({
+  runSmallShipMaintenance: vi.fn(),
+  setSmallShipDocking: vi.fn(),
+}));
+
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
@@ -69,6 +74,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
+const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
 const local = {
   id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
@@ -510,6 +516,52 @@ it('renders charged base Capybara production controls in the live GM console', (
   expect(within(card).getByRole('button', { name: /Run Water Reclimator/ })).toBeEnabled();
   expect(within(card).getByRole('button', { name: /Run Hydroponics/ })).toBeEnabled();
   expect(within(card).getByRole('button', { name: 'End small-ship cycle' })).toBeEnabled();
+});
+
+it('charges named base Capybara consoles before exposing their production actions', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      'capybara-small': {
+        id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1,
+        population: 2_000, unrest: 0,
+        cycle: { step: 4, revision: 4, results: {}, charges: [] },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(runSmallShipMaintenance).mockImplementation(async (_id, action, expectedRevision, choices) => {
+    const session = useSessionStore.getState().session;
+    const state = session?.smallShipStates?.['capybara-small'];
+    if (!session || !state) throw new Error('Expected the fixture Capybara state.');
+    const nextCycle = action === 'reactor'
+      ? { ...state.cycle, step: 5, revision: expectedRevision + 1, charges: [...(choices?.consoles ?? [])] }
+      : { ...state.cycle, revision: expectedRevision + 1, charges: state.cycle.charges.filter((charge) => charge !== choices?.productionConsoleId) };
+    useSessionStore.getState().setSession({
+      ...session,
+      smallShipStates: { ...session.smallShipStates, 'capybara-small': { ...state, cycle: nextCycle } },
+    });
+    return { status: 'committed' };
+  });
+  renderConsole();
+
+  const card = screen.getByRole('region', { name: 'Capybara small-ship operations' });
+  await user.click(within(card).getByRole('checkbox', { name: 'Water Reclimator' }));
+  await user.click(within(card).getByRole('checkbox', { name: 'Hydroponics' }));
+  await user.click(within(card).getByRole('button', { name: 'Charge selected consoles' }));
+  await waitFor(() => expect(runSmallShipMaintenance).toHaveBeenCalledWith(
+    'capybara-small', 'reactor', 4, { consoles: ['water-reclimator', 'hydroponics'] },
+  ));
+  await waitFor(() => expect(within(card).getByRole('button', { name: /Run Water Reclimator/ })).toBeEnabled());
+
+  await user.click(within(card).getByRole('button', { name: /Run Water Reclimator/ }));
+  await waitFor(() => expect(runSmallShipMaintenance).toHaveBeenLastCalledWith(
+    'capybara-small', 'production', 5, { productionConsoleId: 'water-reclimator' },
+  ));
 });
 
 it('does not advertise extra-ship replacement roles for a duplicate vessel tuple', async () => {

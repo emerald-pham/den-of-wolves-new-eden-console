@@ -115,8 +115,10 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
           {step === 3 && <button className="cic-action-button" type="button" disabled={disabled} onClick={() => void submit('riot')}>Run population / riot roll // server dice</button>}
           {step === 4 && <fieldset disabled={pending} className="maintenance-controls"><legend>Step 4 // Reactor // up to {rules.reactorCapacity}</legend>
             {Array.from({ length: rules.reactorCapacity }, (_, index) => {
-              const consoleId = `console-${index + 1}`;
-              return <label key={consoleId}><input type="checkbox" checked={consoles.includes(consoleId)} onChange={(event) => setConsoles((current) => event.target.checked ? [...current, consoleId] : current.filter((id) => id !== consoleId))} /> Console {index + 1}</label>;
+              const productionConsole = id === 'capybara-small' ? BASE_CAPYBARA_PRODUCTION_CONSOLES[index] : undefined;
+              const consoleId = productionConsole?.id ?? `console-${index + 1}`;
+              const consoleName = productionConsole?.name ?? `Console ${index + 1}`;
+              return <label key={consoleId}><input type="checkbox" checked={consoles.includes(consoleId)} onChange={(event) => setConsoles((current) => event.target.checked ? [...current, consoleId] : current.filter((id) => id !== consoleId))} /> {consoleName}</label>;
             })}
             <button className="cic-action-button" type="button" onClick={() => void submit('reactor', { consoles })}>Charge selected consoles</button>
           </fieldset>}
