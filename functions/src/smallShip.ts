@@ -27,7 +27,7 @@ export const SMALL_SHIP_RULES = {
 export type SmallShipId = keyof typeof SMALL_SHIP_RULES;
 export const SMALL_SHIP_IDS: readonly SmallShipId[] = Object.keys(SMALL_SHIP_RULES) as SmallShipId[];
 
-export const BASE_CAPYBARA_PRODUCTION_CONSOLES = ['water-reclimator', 'hydroponics'] as const;
+export const BASE_CAPYBARA_PRODUCTION_CONSOLES = ['water-reclimator', 'hydroponics', 'fuel-processor'] as const;
 export type BaseCapybaraProductionConsole = (typeof BASE_CAPYBARA_PRODUCTION_CONSOLES)[number];
 
 export interface SmallShipMaintenanceCycle {
@@ -62,6 +62,7 @@ export interface SmallShipMaintenanceInput {
   readonly waterLevel?: number;
   readonly consoles?: readonly string[];
   readonly productionConsoleId?: string;
+  readonly productionOreAmount?: number;
   readonly now: string;
 }
 
@@ -244,12 +245,29 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
         food: addResourceAmount(hostResources.food, 4),
       };
       cycle.results['5'] = 'Hydroponics: spent 1 water, generated 4 food.';
-    } else {
+    } else if (consoleId === 'water-reclimator') {
       hostResources = {
         ...hostResources,
         water: addResourceAmount(hostResources.water, 4),
       };
       cycle.results['5'] = 'Water Reclimator: generated 4 water.';
+    } else {
+      const oreAmount = input.productionOreAmount;
+      if (!Number.isSafeInteger(oreAmount) || oreAmount < 1 || oreAmount > 5) {
+        throw new Error('Choose between 1 and 5 ore for the Fuel Processor.');
+      }
+      if (hostResources.ore < oreAmount) {
+        throw new Error('The docked host has insufficient ore for the Fuel Processor.');
+      }
+      if (hostResources.fuel > Number.MAX_SAFE_INTEGER - oreAmount) {
+        throw new Error('The docked host fuel store cannot hold that output.');
+      }
+      hostResources = {
+        ...hostResources,
+        ore: addResourceAmount(hostResources.ore, -oreAmount),
+        fuel: addResourceAmount(hostResources.fuel, oreAmount),
+      };
+      cycle.results['5'] = `Fuel Processor: spent ${oreAmount} ore, generated ${oreAmount} fuel.`;
     }
     cycle.charges = cycleInput.charges.filter((id) => id !== consoleId);
   } else if (action === 'end') {

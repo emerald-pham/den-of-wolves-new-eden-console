@@ -104,6 +104,48 @@ describe('small-ship rules', () => {
     })).toThrow(/base Capybara/i);
   });
 
+  it('converts a bounded ore amount to host fuel only through a charged Fuel Processor', () => {
+    const state = {
+      ...docked('capybara-small'),
+      cycle: {
+        ...docked('capybara-small').cycle,
+        step: 5, revision: 5, turn: 1,
+        charges: ['fuel-processor'],
+      },
+    };
+    const resources = { ...hostResources, ore: 7, fuel: 4 };
+    const result = advanceSmallShipMaintenance({
+      state, action: 'production', expectedRevision: 5, currentTurn: 1,
+      hostResources: resources, productionConsoleId: 'fuel-processor', productionOreAmount: 5,
+      rolls: [], now: 'now',
+    });
+    expect(result.hostResources).toMatchObject({ ore: 2, fuel: 9 });
+    expect(result.state.cycle).toMatchObject({ step: 5, revision: 6, charges: [] });
+    expect(result.state.cycle.results['5']).toContain('spent 5 ore, generated 5 fuel');
+
+    expect(() => advanceSmallShipMaintenance({
+      state, action: 'production', expectedRevision: 5, currentTurn: 1,
+      hostResources: { ...resources, ore: 4 }, productionConsoleId: 'fuel-processor', productionOreAmount: 5,
+      rolls: [], now: 'now',
+    })).toThrow(/insufficient ore/i);
+    expect(() => advanceSmallShipMaintenance({
+      state, action: 'production', expectedRevision: 5, currentTurn: 1,
+      hostResources: resources, productionConsoleId: 'fuel-processor', productionOreAmount: 6,
+      rolls: [], now: 'now',
+    })).toThrow(/between 1 and 5/i);
+    expect(() => advanceSmallShipMaintenance({
+      state, action: 'production', expectedRevision: 5, currentTurn: 1,
+      hostResources: { ...resources, fuel: Number.MAX_SAFE_INTEGER },
+      productionConsoleId: 'fuel-processor', productionOreAmount: 1,
+      rolls: [], now: 'now',
+    })).toThrow(/fuel store/i);
+    expect(() => advanceSmallShipMaintenance({
+      state: { ...state, cycle: { ...state.cycle, charges: [] } }, action: 'production', expectedRevision: 5,
+      currentTurn: 1, hostResources: resources, productionConsoleId: 'fuel-processor', productionOreAmount: 1,
+      rolls: [], now: 'now',
+    })).toThrow(/not charged/i);
+  });
+
   it('borrows food and water from the docked host and advances the four steps', () => {
     let state = docked();
     let resources = hostResources;

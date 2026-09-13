@@ -286,3 +286,83 @@ it('runs base Capybara production atomically against the host with authority, re
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('runs the charged base Capybara Fuel Processor against the host ore and fuel ledger', async () => {
+  const baseState = emptySmallShipState('capybara-small', 'aegis');
+  const productionState = {
+    ...baseState,
+    cycle: {
+      ...baseState.cycle, step: 5, revision: 5, turn: 1,
+      charges: ['fuel-processor'],
+    },
+  };
+  mock.session = {
+    activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
+    expansion: 'base', capybaraEnabled: true,
+    shipResources: {
+      aegis: { ore: 7, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+    },
+    smallShipStates: { 'capybara-small': productionState },
+  };
+  const processorRequest = {
+    ...maintenanceBase, smallShipId: 'capybara-small', action: 'production',
+    expectedRevision: 5, requestId: 'capybara-small-fuel',
+    productionConsoleId: 'fuel-processor', productionOreAmount: 5,
+  };
+  await expect(runSmallShipMaintenance.run(request(processorRequest))).resolves.toMatchObject({
+    status: 'committed', committedRevision: 6,
+    result: { hostResources: { ore: 2, fuel: 9 } },
+    cycle: { step: 5, charges: [], results: { '5': expect.stringContaining('spent 5 ore, generated 5 fuel') } },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis': expect.objectContaining({ ore: 2, fuel: 9 }),
+  }));
+
+  const receiptPath = 'sessions/s1/smallShipRequests/capybara-small-fuel';
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.receipts[receiptPath] = receipt;
+  mock.update.mockReset();
+  mock.set.mockReset();
+  await expect(runSmallShipMaintenance.run(request(processorRequest))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.session.smallShipStates = {
+    'capybara-small': {
+      ...productionState,
+      cycle: { ...productionState.cycle, revision: 6 },
+    },
+  };
+  mock.session.shipResources = {
+    aegis: { ore: 4, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+  };
+  mock.update.mockReset();
+  await expect(runSmallShipMaintenance.run(request({
+    ...processorRequest, requestId: 'capybara-small-fuel-insufficient', expectedRevision: 6,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.session.smallShipStates = {
+    'capybara-small': {
+      ...productionState,
+      cycle: { ...productionState.cycle, revision: 6, charges: [] },
+    },
+  };
+  await expect(runSmallShipMaintenance.run(request({
+    ...processorRequest, requestId: 'capybara-small-fuel-uncharged', expectedRevision: 6,
+    productionOreAmount: 2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.session.smallShipStates = {
+    'capybara-small': {
+      ...productionState,
+      cycle: { ...productionState.cycle, revision: 6, charges: ['fuel-processor'] },
+    },
+  };
+  await expect(runSmallShipMaintenance.run(request({
+    ...processorRequest, requestId: 'capybara-small-fuel-invalid', expectedRevision: 6,
+    productionOreAmount: 6,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.update).not.toHaveBeenCalled();
+});

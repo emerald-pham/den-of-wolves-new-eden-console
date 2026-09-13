@@ -564,6 +564,54 @@ it('charges named base Capybara consoles before exposing their production action
   ));
 });
 
+it('charges and runs the base Capybara Fuel Processor with an explicit ore amount', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      'capybara-small': {
+        id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1,
+        population: 2_000, unrest: 0,
+        cycle: { step: 4, revision: 4, results: {}, charges: [] },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(runSmallShipMaintenance).mockImplementation(async (_id, action, expectedRevision, choices) => {
+    const session = useSessionStore.getState().session;
+    const state = session?.smallShipStates?.['capybara-small'];
+    if (!session || !state) throw new Error('Expected the fixture Capybara state.');
+    const nextCycle = action === 'reactor'
+      ? { ...state.cycle, step: 5, revision: expectedRevision + 1, charges: [...(choices?.consoles ?? [])] }
+      : { ...state.cycle, revision: expectedRevision + 1, charges: state.cycle.charges.filter((charge) => charge !== choices?.productionConsoleId) };
+    useSessionStore.getState().setSession({
+      ...session,
+      smallShipStates: { ...session.smallShipStates, 'capybara-small': { ...state, cycle: nextCycle } },
+    });
+    return { status: 'committed' };
+  });
+  renderConsole();
+
+  const card = screen.getByRole('region', { name: 'Capybara small-ship operations' });
+  await user.click(within(card).getByRole('checkbox', { name: 'Fuel Processor' }));
+  await user.click(within(card).getByRole('checkbox', { name: 'Water Reclimator' }));
+  await user.click(within(card).getByRole('button', { name: 'Charge selected consoles' }));
+  await waitFor(() => expect(runSmallShipMaintenance).toHaveBeenCalledWith(
+    'capybara-small', 'reactor', 4, { consoles: ['fuel-processor', 'water-reclimator'] },
+  ));
+  await waitFor(() => expect(within(card).getByRole('button', { name: /Run Fuel Processor/ })).toBeEnabled());
+
+  await user.selectOptions(within(card).getByRole('combobox', { name: 'Fuel Processor ore amount' }), '4');
+  await user.click(within(card).getByRole('button', { name: /Run Fuel Processor/ }));
+  await waitFor(() => expect(runSmallShipMaintenance).toHaveBeenLastCalledWith(
+    'capybara-small', 'production', 5,
+    { productionConsoleId: 'fuel-processor', productionOreAmount: 4 },
+  ));
+});
+
 it('does not advertise extra-ship replacement roles for a duplicate vessel tuple', async () => {
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,

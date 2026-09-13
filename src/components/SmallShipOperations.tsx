@@ -17,6 +17,7 @@ const RATION_NAMES = ['None', 'Minimal', 'Short', 'Normal'];
 const BASE_CAPYBARA_PRODUCTION_CONSOLES = [
   { id: 'water-reclimator', name: 'Water Reclimator', effect: 'Generate 4 water' },
   { id: 'hydroponics', name: 'Hydroponics', effect: 'Spend 1 water → generate 4 food' },
+  { id: 'fuel-processor', name: 'Fuel Processor', effect: 'Spend up to 5 ore → generate 1 fuel each' },
 ] as const;
 
 interface SmallShipCardProps {
@@ -35,6 +36,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
   const [foodLevel, setFoodLevel] = useState(0);
   const [waterLevel, setWaterLevel] = useState(0);
   const [consoles, setConsoles] = useState<string[]>([]);
+  const [fuelProcessorOreAmount, setFuelProcessorOreAmount] = useState(1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,7 +58,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
   const cycle = state?.cycle;
   const currentHost = state?.hostShipId ?? null;
   const selectedHost = currentHost ?? hostShipId;
-  const submit = async (action: string, choices: { foodLevel?: number; waterLevel?: number; consoles?: readonly string[]; productionConsoleId?: (typeof BASE_CAPYBARA_PRODUCTION_CONSOLES)[number]['id'] } = {}) => {
+  const submit = async (action: string, choices: { foodLevel?: number; waterLevel?: number; consoles?: readonly string[]; productionConsoleId?: (typeof BASE_CAPYBARA_PRODUCTION_CONSOLES)[number]['id']; productionOreAmount?: number } = {}) => {
     if (!state) return;
     setError('');
     setPending(true);
@@ -114,22 +116,32 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
           {step === 2 && <button className="cic-action-button" type="button" disabled={disabled} onClick={() => void submit('unrest')}>Run unrest roll // server dice</button>}
           {step === 3 && <button className="cic-action-button" type="button" disabled={disabled} onClick={() => void submit('riot')}>Run population / riot roll // server dice</button>}
           {step === 4 && <fieldset disabled={pending} className="maintenance-controls"><legend>Step 4 // Reactor // up to {rules.reactorCapacity}</legend>
-            {Array.from({ length: rules.reactorCapacity }, (_, index) => {
-              const productionConsole = id === 'capybara-small' ? BASE_CAPYBARA_PRODUCTION_CONSOLES[index] : undefined;
-              const consoleId = productionConsole?.id ?? `console-${index + 1}`;
-              const consoleName = productionConsole?.name ?? `Console ${index + 1}`;
-              return <label key={consoleId}><input type="checkbox" checked={consoles.includes(consoleId)} onChange={(event) => setConsoles((current) => event.target.checked ? [...current, consoleId] : current.filter((id) => id !== consoleId))} /> {consoleName}</label>;
-            })}
+            {(id === 'capybara-small'
+              ? BASE_CAPYBARA_PRODUCTION_CONSOLES
+              : Array.from({ length: rules.reactorCapacity }, (_, index) => ({ id: `console-${index + 1}`, name: `Console ${index + 1}` })))
+              .map((console) => {
+                const checked = consoles.includes(console.id);
+                const atCapacity = consoles.length >= rules.reactorCapacity;
+                return <label key={console.id}><input type="checkbox" checked={checked} disabled={!checked && atCapacity} onChange={(event) => setConsoles((current) => event.target.checked ? [...current, console.id] : current.filter((id) => id !== console.id))} /> {console.name}</label>;
+              })}
             <button className="cic-action-button" type="button" onClick={() => void submit('reactor', { consoles })}>Charge selected consoles</button>
           </fieldset>}
           {step === 5 && id === 'capybara-small' && <fieldset disabled={pending} className="maintenance-controls">
             <legend>Capybara production // charged consoles</legend>
             {BASE_CAPYBARA_PRODUCTION_CONSOLES.map((console) => {
               const charged = cycle?.charges.includes(console.id) ?? false;
-              return <button key={console.id} className="cic-action-button" type="button" disabled={!charged || pending}
-                onClick={() => void submit('production', { productionConsoleId: console.id })}>
-                {charged ? `Run ${console.name}` : `${console.name} not charged`} // {console.effect}
-              </button>;
+              return <div key={console.id} className="maintenance-controls__production-action">
+                {console.id === 'fuel-processor' && <label>Ore to refine<select aria-label="Fuel Processor ore amount" value={fuelProcessorOreAmount} onChange={(event) => setFuelProcessorOreAmount(Number(event.target.value))}>
+                  {[1, 2, 3, 4, 5].map((amount) => <option key={amount} value={amount}>{amount}</option>)}
+                </select></label>}
+                <button className="cic-action-button" type="button" disabled={!charged || pending}
+                  onClick={() => void submit('production', {
+                    productionConsoleId: console.id,
+                    ...(console.id === 'fuel-processor' ? { productionOreAmount: fuelProcessorOreAmount } : {}),
+                  })}>
+                  {charged ? `Run ${console.name}` : `${console.name} not charged`} // {console.effect}
+                </button>
+              </div>;
             })}
           </fieldset>}
           {step === 5 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('end')}>End small-ship cycle</button>}
