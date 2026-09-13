@@ -114,14 +114,16 @@ async function declare(): Promise<void> {
   });
 }
 
-beforeEach(() => {
+function resetFixture(): void {
   mock.documents.clear();
   mock.get.mockClear();
   mock.update.mockClear();
   mock.set.mockClear();
   cryptoMock.randomInt.mockImplementation(() => 0);
   session(); gm(); preparation(); dueWindow();
-});
+}
+
+beforeEach(resetFixture);
 
 it('reads a filtered current-dice view and patches only selected receipt rolls', async () => {
   await declare();
@@ -197,4 +199,45 @@ it('keeps the targeting action closed after the targeting stage', async () => {
   }, 'wolf-1'))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(getWolfCommanderTargeting.run(request({ sessionId: 's1' }, 'wolf-1')))
     .resolves.toMatchObject({ type: 'wolf-commander-targeting-unavailable', reason: 'not-targeting' });
+});
+
+it('does not expose an old targeting receipt during debrief or closed lifecycle phases', async () => {
+  await declare();
+  const stateBefore = mock.documents.get('sessions/s1/wolfAttackState/current');
+  for (const phase of ['debrief', 'closed'] as const) {
+    put('sessions/s1', { phase });
+    await expect(getWolfCommanderTargeting.run(request({ sessionId: 's1' }, 'wolf-1')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
+  }
+});
+
+it('fails closed without reading dice or writing when the receipt has an impossible final die or target', async () => {
+  for (const corruption of [
+    { finalDie: 8 },
+    { target: 'shepherd' },
+  ]) {
+    resetFixture();
+    await declare();
+    const statePath = 'sessions/s1/wolfAttackState/current';
+    const state = mock.documents.get(statePath)!;
+    const calculationReceipt = state.calculationReceipt as Fields;
+    const targeting = calculationReceipt.targeting as Fields;
+    const rolls = targeting.rolls as Fields[];
+    put(statePath, {
+      ...state,
+      calculationReceipt: {
+        ...calculationReceipt,
+        targeting: { ...targeting, rolls: [{ ...rolls[0]!, ...corruption }, ...rolls.slice(1)] },
+      },
+    });
+    const before = mock.documents.get(statePath);
+    const updates = mock.update.mock.calls.length;
+    const writes = mock.set.mock.calls.length;
+    await expect(getWolfCommanderTargeting.run(request({ sessionId: 's1' }, 'wolf-1')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get(statePath)).toEqual(before);
+    expect(mock.update.mock.calls.length).toBe(updates);
+    expect(mock.set.mock.calls.length).toBe(writes);
+  }
 });

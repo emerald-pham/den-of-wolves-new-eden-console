@@ -7883,6 +7883,7 @@ export const getWolfCommanderTargeting = onCall<{
   const [session, player, state] = await Promise.all([sessionRef.get(), playerRef.get(), stateRef.get()]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   requireWolfCommanderPlayer(player, uid);
+  requireActiveGameplayPhase(session);
   if (!state.exists) {
     return { type: 'wolf-commander-targeting-unavailable', sessionId, reason: 'waiting' } satisfies WolfCommanderTargetingReadResult;
   }

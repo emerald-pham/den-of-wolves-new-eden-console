@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   applyWolfCommanderTargetRerolls,
   getWolfCommanderTargeting,
@@ -39,24 +39,36 @@ export default function WolfCommanderTargetingPanel({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('Refresh after the GM declares a Wolf attack.');
+  const requestGeneration = useRef(0);
+
+  useEffect(() => {
+    requestGeneration.current += 1;
+    setView(null);
+    setSelected([]);
+    setBusy(false);
+    setLoading(false);
+  }, [isCommander, sessionId]);
 
   const refresh = useCallback(async () => {
     if (!isCommander || !sessionId) return;
+    const generation = requestGeneration.current;
     setLoading(true);
     try {
       const result = await readTargeting();
+      if (requestGeneration.current !== generation) return;
       const next = usableView(result);
       setView(next);
       setSelected([]);
       setStatus(next
-        ? 'Select any remaining dice, then commit one server-authorized reroll action.'
+        ? 'Select any remaining dice, then reroll the selected dice.'
         : result.type === 'wolf-commander-targeting-unavailable' && result.reason === 'waiting'
           ? 'No targeting window is open yet.'
           : 'Targeting is no longer the active Wolf-attack step.');
     } catch {
+      if (requestGeneration.current !== generation) return;
       setStatus('Targeting view unavailable // reconnect and refresh.');
     } finally {
-      setLoading(false);
+      if (requestGeneration.current === generation) setLoading(false);
     }
   }, [isCommander, readTargeting, sessionId]);
 
@@ -68,16 +80,20 @@ export default function WolfCommanderTargetingPanel({
 
   async function rerollSelected(): Promise<void> {
     if (!view || selected.length === 0 || busy) return;
+    const generation = requestGeneration.current;
+    const requestSessionId = sessionId;
     setBusy(true);
     try {
       const result = await rerollTargeting(view.turn, view.revision, selected);
+      if (requestGeneration.current !== generation || sessionId !== requestSessionId || !isCommander) return;
       setView(result.view);
       setSelected([]);
-      setStatus('Rerolls committed privately. Review any remaining eligible dice before AEGIS Command and Control.');
+      setStatus('Selected dice rerolled. Review any remaining eligible dice before AEGIS Command and Control.');
     } catch {
+      if (requestGeneration.current !== generation || sessionId !== requestSessionId || !isCommander) return;
       setStatus('Reroll rejected // refresh the current targeting view and try again.');
     } finally {
-      setBusy(false);
+      if (requestGeneration.current === generation) setBusy(false);
     }
   }
 
@@ -137,7 +153,7 @@ export default function WolfCommanderTargetingPanel({
           disabled={!view || selected.length === 0 || busy}
           onClick={() => void rerollSelected()}
         >
-          {busy ? 'Committing rerolls…' : 'Reroll selected dice'}
+          {busy ? 'Rerolling…' : 'Reroll selected dice'}
         </button>
         <button className="cic-text-button" type="button" disabled={loading || busy} onClick={() => void refresh()}>
           {loading ? 'Refreshing…' : 'Refresh targeting'}

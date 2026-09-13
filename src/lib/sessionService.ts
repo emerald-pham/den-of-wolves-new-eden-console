@@ -240,6 +240,15 @@ function authorityCheckpointIsCurrent(
   return isCurrentSessionAuthority(checkpoint, allowConnecting);
 }
 
+function wolfCommanderAuthorityCheckpointIsCurrent(
+  sessionId: string,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+): boolean {
+  const store = useSessionStore.getState();
+  return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+    store.me?.replacementRoleId === 'wolf-commander' && authorityCheckpointIsCurrent(checkpoint);
+}
+
 function isCleanupCommand(command: PendingCommand): boolean {
   return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
@@ -2401,10 +2410,11 @@ function wolfCommanderTargetRerollReply(value: unknown): WolfCommanderTargetRero
     ? reply.rerolledIndexes.filter((index): index is number => Number.isSafeInteger(index) && (index as number) >= 0)
     : [];
   if (reply.status !== 'committed' || reply.type !== 'wolf-commander-target-reroll' ||
-      typeof reply.sessionId !== 'string' || typeof reply.requestId !== 'string' ||
+      typeof reply.sessionId !== 'string' || !reply.sessionId || typeof reply.requestId !== 'string' ||
       !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 || reply.currentStep !== 'targeting' ||
-      !Array.isArray(reply.rerolledIndexes) || indexes.length !== reply.rerolledIndexes.length || !view) return null;
+      !Array.isArray(reply.rerolledIndexes) || indexes.length !== reply.rerolledIndexes.length ||
+      !view || view.sessionId !== reply.sessionId) return null;
   return {
     status: 'committed', type: 'wolf-commander-target-reroll', sessionId: reply.sessionId,
     requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
@@ -2521,12 +2531,20 @@ export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetin
     throw new Error('Only the active Wolf Commander may read targeting dice.');
   }
   requireFreshSessionAuthority('Reconnect before reading Wolf targeting dice.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   await ensureSignedIn();
-  const payload = { sessionId: store.session.id };
+  const payload = { sessionId };
   const call = httpsCallable<typeof payload, unknown>(functions(), 'getWolfCommanderTargeting');
   try {
     const reply = wolfCommanderTargetingReadReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf Commander targeting view.');
+    if (reply.sessionId !== sessionId) {
+      throw new Error('The server returned a Wolf Commander targeting view for another session.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this response arrived.');
+    }
     return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
@@ -2545,9 +2563,11 @@ export async function applyWolfCommanderTargetRerolls(
     throw new Error('Only the active Wolf Commander may reroll targeting dice.');
   }
   requireFreshSessionAuthority('Reconnect before rerolling Wolf targeting dice.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   await ensureSignedIn();
   const payload = {
-    sessionId: store.session.id,
+    sessionId,
     requestId: commandId(),
     expectedTurn,
     expectedRevision,
@@ -2557,6 +2577,12 @@ export async function applyWolfCommanderTargetRerolls(
   try {
     const reply = wolfCommanderTargetRerollReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf Commander reroll receipt.');
+    if (reply.sessionId !== sessionId) {
+      throw new Error('The server returned a Wolf Commander reroll receipt for another session.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this response arrived.');
+    }
     return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));

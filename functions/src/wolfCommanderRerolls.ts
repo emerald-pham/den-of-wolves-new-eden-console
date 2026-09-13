@@ -38,28 +38,48 @@ function isWolfShipId(value: unknown): value is WolfShipId {
   return (WOLF_SHIP_IDS as readonly unknown[]).includes(value);
 }
 
-function isDie(value: unknown, ring: WolfTargetRing): value is number {
-  const upperBound = ring.includes('capybara') ? 8 : ring.length;
-  return Number.isSafeInteger(value) && (value as number) >= 1 && (value as number) <= upperBound;
+function isResolvedDie(value: unknown, ring: WolfTargetRing): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 1 && (value as number) <= ring.length;
 }
 
 function isModifiers(value: unknown): value is WolfTargetingRollReceipt['modifiers'] {
-  return Array.isArray(value) && value.every((modifier) =>
-    modifier === 'commander-reroll' || modifier === 'target-shift' ||
-    modifier === 'command-and-control-redirect');
+  if (!Array.isArray(value) || value.some((modifier) =>
+    modifier !== 'commander-reroll' && modifier !== 'target-shift' &&
+    modifier !== 'command-and-control-redirect')) return false;
+  const allowedOrder = ['commander-reroll', 'target-shift', 'command-and-control-redirect'];
+  return new Set(value).size === value.length && value.every((modifier, index) =>
+    index === 0 || allowedOrder.indexOf(modifier) > allowedOrder.indexOf(value[index - 1]!));
 }
 
 function parseRoll(value: unknown, rosterIndex: number, ring: WolfTargetRing): WolfTargetingRollReceipt | undefined {
   if (!isRecord(value) || value.rosterIndex !== rosterIndex || !isWolfShipId(value.shipId) ||
-      !isDie(value.initialDie, ring) || !isDie(value.finalDie, ring) ||
+      !isResolvedDie(value.initialDie, ring) || !isResolvedDie(value.finalDie, ring) ||
       typeof value.target !== 'string' || !ring.includes(value.target as never) ||
       !isModifiers(value.modifiers)) return undefined;
-  if (value.rerollDie !== undefined && !isDie(value.rerollDie, ring)) return undefined;
-  if (value.shiftedDie !== undefined && !isDie(value.shiftedDie, ring)) return undefined;
-  if (value.printedRerolls !== undefined && (!Array.isArray(value.printedRerolls) ||
-      value.printedRerolls.some((die) => die !== 8))) return undefined;
-  if (value.commanderPrintedRerolls !== undefined && (!Array.isArray(value.commanderPrintedRerolls) ||
-      value.commanderPrintedRerolls.some((die) => die !== 8))) return undefined;
+  if (value.rerollDie !== undefined && !isResolvedDie(value.rerollDie, ring)) return undefined;
+  if (value.shiftedDie !== undefined && !isResolvedDie(value.shiftedDie, ring)) return undefined;
+  const printedRerolls = value.printedRerolls;
+  const commanderPrintedRerolls = value.commanderPrintedRerolls;
+  if (!ring.includes('capybara') && (printedRerolls !== undefined || commanderPrintedRerolls !== undefined)) {
+    return undefined;
+  }
+  if (printedRerolls !== undefined && (!Array.isArray(printedRerolls) ||
+      printedRerolls.length < 1 || printedRerolls.some((die) => die !== 8))) return undefined;
+  if (commanderPrintedRerolls !== undefined && (!Array.isArray(commanderPrintedRerolls) ||
+      commanderPrintedRerolls.length < 1 || commanderPrintedRerolls.some((die) => die !== 8))) return undefined;
+  const modifiers = value.modifiers as WolfTargetingRollReceipt['modifiers'];
+  const hasCommanderReroll = modifiers.includes('commander-reroll');
+  const hasTargetShift = modifiers.includes('target-shift');
+  const hasRedirect = modifiers.includes('command-and-control-redirect');
+  if ((value.rerollDie === undefined) !== !hasCommanderReroll ||
+      (value.shiftedDie === undefined) !== !hasTargetShift ||
+      (commanderPrintedRerolls !== undefined && !hasCommanderReroll) ||
+      (printedRerolls !== undefined && !ring.includes('capybara'))) return undefined;
+  const expectedFinalDie = value.shiftedDie ?? value.rerollDie ?? value.initialDie;
+  if (value.finalDie !== expectedFinalDie) return undefined;
+  if (hasRedirect ? value.target !== 'aegis' : value.target !== wolfTargetForDie(value.finalDie, ring)) {
+    return undefined;
+  }
   return {
     rosterIndex,
     shipId: value.shipId,
@@ -68,10 +88,10 @@ function parseRoll(value: unknown, rosterIndex: number, ring: WolfTargetRing): W
     ...(value.shiftedDie === undefined ? {} : { shiftedDie: value.shiftedDie }),
     finalDie: value.finalDie,
     target: value.target as WolfTargetingRollReceipt['target'],
-    ...(value.printedRerolls === undefined ? {} : { printedRerolls: [...value.printedRerolls] as number[] }),
-    ...(value.commanderPrintedRerolls === undefined
-      ? {} : { commanderPrintedRerolls: [...value.commanderPrintedRerolls] as number[] }),
-    modifiers: [...value.modifiers] as WolfTargetingRollReceipt['modifiers'],
+    ...(printedRerolls === undefined ? {} : { printedRerolls: [...printedRerolls] as number[] }),
+    ...(commanderPrintedRerolls === undefined
+      ? {} : { commanderPrintedRerolls: [...commanderPrintedRerolls] as number[] }),
+    modifiers: [...modifiers],
   };
 }
 
