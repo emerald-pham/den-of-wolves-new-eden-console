@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [512],
+    implementationProgress: {
+      completed: 227,
+      total: 750,
+      percentage: '30.27%',
+      done: 227,
+      partial: 25,
+      active: 0,
+      missing: 498,
+    },
+    changes: [
+      'The GM can deliver private Wolf Cult intelligence to its current holder; changing either Wolf identity clears outdated information.',
+      'Private Wolf intelligence and Arbour visions can arrive while the recipient is already connected, without a reload.',
+      '227 of 750 planned items are complete (30.27%).',
+    ],
+  },
+  {
+    version: '0.3.86',
     implementationPrompts: [511],
     implementationProgress: {
       completed: 225,
