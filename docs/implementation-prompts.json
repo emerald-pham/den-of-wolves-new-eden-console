@@ -21155,7 +21155,7 @@
         "acceptance": "session/game/private collections remain unreadable and unlistable outside membership.",
         "title": "Deny unauthenticated and nonmember reads."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "Existing Firestore membership checks and default denial are verified across populated session, gameplay, private-projection, server-only and nested audit records. A dedicated emulator matrix denies document reads and collection enumeration to signed-out users, a facilitator connected only to another table, and a disconnected former facilitator. Member session/report reads and facilitator crisis reads remain positive controls. The combined rules suite passes 97 tests; this closes verification scope without changing rules or application behavior.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21164,10 +21164,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.0"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

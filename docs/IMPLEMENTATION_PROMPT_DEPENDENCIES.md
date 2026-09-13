@@ -787,7 +787,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 623 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Preserve PWA deep links. |
 | 624 | EXTEND | missing | 623 | none | none | none | none | none | none | none | E-AUDIT-624 | X | Update the service worker safely. |
 | 625 | EXTEND | done | none | none | none | none | none | none | none | none | none | X | Enforce App Check on mutations. |
-| 626 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Deny unauthenticated and nonmember reads. |
+| 626 | EXTEND | done | none | none | none | none | none | none | none | none | none | X | Deny unauthenticated and nonmember reads. |
 | 627 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Deny all direct gameplay writes. |
 | 628 | EXTEND | done | none | none | none | none | none | none | none | none | E-628-GM-INSTANCE-AUTHORITY | X | Enforce GM-instance authority everywhere. |
 | 629 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Protect private projections comprehensively. |
