@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [612],
+    implementationProgress: {
+      completed: 277, total: 751, percentage: '36.88%',
+      done: 277, partial: 24, active: 0, missing: 450,
+    },
+    changes: [
+      'Saved sessions now show a clear reconnecting or offline marker while preserving the last usable view, and the marker no longer overlaps role selection on small screens.',
+      '277 of 751 planned items are complete (36.88%).',
+    ],
+  },
+  {
+    version: '0.4.10',
     implementationPrompts: [638],
     implementationProgress: {
       completed: 276, total: 751, percentage: '36.75%',

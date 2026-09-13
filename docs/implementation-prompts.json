@@ -4512,8 +4512,8 @@
     {
       "direction": "612",
       "id": "E-612-RESTORE-VERIFIED",
-      "language": "Persisted session hydration now marks the restored projection as cache-freshness and carries an ephemeral browser-local stale marker until an accepted server snapshot clears it. The header announces 'Saved view // reconnecting' or 'Saved view // offline' while preserving the existing reconnect light, and cached session state remains blocked from the Press airspace mutation. Focused store, header, and service coverage passes 66 tests; Chrome renders the real header at 320x844, 844x390 with reduced motion, and 1440x900 with no horizontal overflow, including marker clearance after server authority. This is local implementation and rendered evidence; deployment is reported separately.",
-      "source": "src/store/useSessionStore.ts (persist.merge); src/store/useSessionStore.test.ts; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/lib/airspaceService.test.ts; /tmp/p612-render/phone-hydrated.png; /tmp/p612-render/landscape-hydrated.png; /tmp/p612-render/desktop-hydrated.png",
+      "language": "Persisted session hydration now marks the restored projection as cache-freshness and carries an ephemeral browser-local stale marker until an accepted server snapshot clears it. The header announces 'Saved view // reconnecting' or 'Saved view // offline' while preserving the existing reconnect light, and cached session state remains blocked from the Press airspace mutation. Focused store, header, service, and short-viewport CSS coverage passes 73 tests; Chrome renders the real saved-view header and role roster at 320x844, 844x390, and 1440x900 with settled marker clearance and no horizontal overflow. This is local implementation and rendered evidence; deployment is reported separately.",
+      "source": "src/store/useSessionStore.ts (persist.merge); src/store/useSessionStore.test.ts; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/lib/airspaceService.test.ts; src/index.css; src/styles/consoleScroll.test.ts; /tmp/p612-repro/320x844.png; /tmp/p612-repro/844x390.png; /tmp/p612-repro/1440x900.png",
       "type": "evidence / production-path / security / accessibility / rendered"
     },
     {
@@ -20902,7 +20902,9 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.11"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
       "status": "done",
