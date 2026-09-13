@@ -130,6 +130,28 @@ it('keeps public records readable to unaffected members and private records read
   expect(screen.queryByLabelText("Your team's grievance")).not.toBeInTheDocument();
 });
 
+it('revokes stale private text synchronously when the live team changes', () => {
+  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+  act(() => mocks.teamCallbacks[0]!(privateGrievance));
+  expect(screen.getByText('A private team concern.')).toBeVisible();
+
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  act(() => useSessionStore.setState({
+    session: { ...session, activeVesselIds: ['shepherd'] },
+    me: { ...me, assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist' },
+  }));
+  expect(screen.queryByText('A private team concern.')).not.toBeInTheDocument();
+});
+
+it('revokes private text when the crisis leaves its accepting lifecycle', () => {
+  const view = render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+  act(() => mocks.teamCallbacks[0]!(privateGrievance));
+  expect(screen.getByText('A private team concern.')).toBeVisible();
+  view.rerender(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="resolved" />);
+  expect(screen.queryByText('A private team concern.')).not.toBeInTheDocument();
+});
+
 it('disables editing outside Team Phase and after the crisis resolves', () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({

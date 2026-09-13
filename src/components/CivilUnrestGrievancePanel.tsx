@@ -91,7 +91,13 @@ export default function CivilUnrestGrievancePanel({
   }, [teamShipKey, ships, shipId]);
 
   if (!sessionId || !me) return null;
-  const current = teamGrievances[shipId] ?? null;
+  const currentCandidate = teamGrievances[shipId] ?? null;
+  const current = me.role === 'player' && crisisAcceptingGrievances && ships.includes(shipId) &&
+    currentCandidate?.crisisId === crisisId ? currentCandidate : null;
+  const visibleGmGrievances = me.role === 'gm' && crisisAcceptingGrievances
+    ? Object.entries(teamGrievances).filter(([affectedShipId, grievance]) =>
+      readShipIds.includes(affectedShipId) && grievance?.crisisId === crisisId)
+    : [];
   const isUnion = ships.length > 1;
   const submit = async () => {
     if (!canEdit || !shipId || !text.trim() || busy) return;
@@ -139,10 +145,10 @@ export default function CivilUnrestGrievancePanel({
           </select>
         </label>
       )}
-      {me.role === 'gm' && Object.entries(teamGrievances).some(([, grievance]) => grievance) && (
+      {visibleGmGrievances.length > 0 && (
         <div role="region" aria-label="GM private grievance records">
           <h4>Private team grievances // GM view</h4>
-          {Object.entries(teamGrievances).flatMap(([affectedShipId, grievance]) => grievance ? [(
+          {visibleGmGrievances.flatMap(([affectedShipId, grievance]) => grievance ? [(
             <article key={affectedShipId} className="civil-unrest-grievance__entry">
               <strong>{SHIP_NAMES[affectedShipId] ?? affectedShipId}</strong>
               <span className="civil-unrest-grievance__audience">Private — current team and facilitators</span>
