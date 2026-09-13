@@ -5,6 +5,7 @@ import {
   emptyFleetTickerState,
   fleetTickerState,
   publishFleetTicker,
+  recoverActivePressMessages,
   reconcileFleetTicker,
   standDownExpiry,
 } from './fleetTickerState';
@@ -15,6 +16,11 @@ const alert = {
   sourceId: 'red-alert:1',
 };
 const airspace = { source: 'automatic' as const, priority: 40, text: 'AIRSPACE CLOSED', tone: 'normal' as const, gap: 'long' as const };
+const pressOne = {
+  source: 'press' as const, priority: 20, text: 'SNN // FIRST REPORT', tone: 'normal' as const,
+  gap: 'long' as const, sourceId: 'press-1',
+};
+const pressTwo = { ...pressOne, text: 'SNN // SECOND REPORT', sourceId: 'press-2' };
 
 describe('fleet ticker state', () => {
   it('assigns deterministic session scoped sequence identities and revisions', () => {
@@ -66,6 +72,82 @@ describe('fleet ticker state', () => {
       sequence: current.current!.sequence,
       revision: 3,
     }]);
+  });
+
+  it('keeps an active press dispatch queued through alert and expiring stand-down copy', () => {
+    const press = publishFleetTicker('s1', emptyFleetTickerState(), pressOne, now);
+    const alertState = publishFleetTicker('s1', press, alert, now);
+    const standDown = publishFleetTicker('s1', alertState, {
+      source: 'automatic', priority: 80, text: 'RED ALERT CANCELLED', tone: 'normal',
+      passCount: 2, sourceId: 'red-alert:1', expiresAt: standDownExpiry(now),
+    }, now);
+
+    expect(alertState.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
+    expect(standDown.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
+    const afterExpiry = reconcileFleetTicker(standDown, standDownExpiry(now));
+    expect(afterExpiry.current?.sourceId).toBe('press-1');
+    expect(afterExpiry.queued).toHaveLength(0);
+  });
+
+  it('promotes the older active press when the latest same-priority press is dismissed', () => {
+    const first = publishFleetTicker('s1', emptyFleetTickerState(), pressOne, now);
+    const second = publishFleetTicker('s1', first, pressTwo, now);
+    expect(second.current?.sourceId).toBe('press-2');
+    expect(second.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
+
+    const dismissed = dismissFleetTickerSource('s1', second, 'press-2', now);
+    expect(dismissed.current?.sourceId).toBe('press-1');
+    expect(dismissed.queued).toHaveLength(0);
+  });
+
+  it('removes a queued press without resurrecting it after dismissal', () => {
+    const current = publishFleetTicker('s1', emptyFleetTickerState(), alert, now);
+    const queued = publishFleetTicker('s1', current, pressOne, now);
+    const dismissed = dismissFleetTickerSource('s1', queued, 'press-1', now);
+
+    expect(dismissed.current?.sourceId).toBe('red-alert:1');
+    expect(dismissed.queued).toHaveLength(0);
+    expect(dismissed.draining).toHaveLength(0);
+  });
+
+  it('recovers an active press from an old drain but not a dismissed source', () => {
+    const stored = {
+      ...emptyFleetTickerState(),
+      revision: 2,
+      nextSequence: 2,
+      replayCursor: 2,
+      draining: [{ ...pressOne, id: 's1:fleet-ticker:1', sequence: 1, createdAt: now }],
+    };
+
+    const recovered = recoverActivePressMessages(stored, ['press-1'], now);
+    expect(recovered.current?.sourceId).toBe('press-1');
+    expect(recoverActivePressMessages(stored, [], now).current).toBeNull();
+    const dismissed = {
+      ...stored,
+      dismissed: [{ id: 's1:fleet-ticker:1', sequence: 1, revision: 3, dismissedAt: now }],
+    };
+    expect(recoverActivePressMessages(dismissed, ['press-1'], now).current).toBeNull();
+  });
+
+  it('deduplicates a press already queued and draining while retaining the queue cap', () => {
+    const queued = Array.from({ length: 12 }, (_, index) => ({
+      source: 'automatic' as const, priority: 40, text: `AIRSPACE ${index}`,
+      tone: 'normal' as const, gap: 'standard' as const, sourceId: `airspace:${index}`,
+      id: `s1:fleet-ticker:${index + 1}`, sequence: index + 1, createdAt: now,
+    }));
+    const stored = {
+      ...emptyFleetTickerState(), revision: 12, nextSequence: 12, replayCursor: 12,
+      current: { ...pressOne, id: 's1:fleet-ticker:13', sequence: 13, createdAt: now },
+      queued: [{ ...pressOne, id: 's1:fleet-ticker:14', sequence: 14, createdAt: now }, ...queued],
+      draining: [{ ...pressOne, id: 's1:fleet-ticker:13', sequence: 13, createdAt: now }],
+    };
+    const replaced = publishFleetTicker('s1', stored, alert, now);
+    expect(replaced.queued).toHaveLength(12);
+    expect(replaced.queued.filter(({ sourceId }) => sourceId === 'press-1')).toHaveLength(1);
+    expect(replaced.draining.filter(({ sourceId }) => sourceId === 'press-1')).toHaveLength(1);
+    const dismissed = dismissFleetTickerSource('s1', replaced, 'press-1', now);
+    expect(dismissed.queued.filter(({ sourceId }) => sourceId === 'press-1')).toHaveLength(0);
+    expect(dismissed.draining.filter(({ sourceId }) => sourceId === 'press-1')).toHaveLength(0);
   });
 
   it('uses a server deadline for stand-down rather than visual completion', () => {

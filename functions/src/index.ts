@@ -328,6 +328,7 @@ import {
   emptyFleetTickerState,
   FLEET_TICKER_PRIORITIES,
   publishFleetTicker,
+  recoverActivePressMessages,
   standDownExpiry,
   fleetTickerState,
   type FleetTickerState,
@@ -446,9 +447,12 @@ function fleetTickerForSession(
   session: DocumentSnapshot,
 ): FleetTickerState {
   const stored = session.get('fleetTicker');
-  return stored === undefined
-    ? emptyFleetTickerState()
-    : fleetTickerState(stored);
+  if (stored === undefined) return emptyFleetTickerState();
+  return recoverActivePressMessages(
+    stored,
+    pressDispatchState(session.get('pressDispatch')).dispatches.map(({ id }) => id),
+    new Date().toISOString(),
+  );
 }
 
 /**
@@ -462,9 +466,14 @@ function fleetTickerForMutation(
   now: string,
 ): FleetTickerState {
   const stored = session.get('fleetTicker');
-  return stored === undefined
+  const state = stored === undefined
     ? fleetTickerStateFromLegacy(sessionId, session, now)
     : fleetTickerState(stored);
+  return recoverActivePressMessages(
+    state,
+    pressDispatchState(session.get('pressDispatch')).dispatches.map(({ id }) => id),
+    now,
+  );
 }
 
 function publishSessionFleetTicker(
@@ -476,6 +485,36 @@ function publishSessionFleetTicker(
   return publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, now), input, now);
 }
 
+function pressMessageIds(state: FleetTickerState): ReadonlySet<string> {
+  return new Set(
+    [state.current, ...state.queued]
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null && entry.source === 'press' && entry.sourceId !== undefined)
+      .map((entry) => entry.id),
+  );
+}
+
+/** Persist recovery of active press copy stranded by the pre-queue reducer. */
+function persistActivePressRecovery(
+  tx: Transaction,
+  sessionRef: DocumentReference,
+  session: DocumentSnapshot,
+  now: string,
+): void {
+  const stored = session.get('fleetTicker');
+  if (stored === undefined) return;
+  const before = fleetTickerState(stored);
+  const recovered = recoverActivePressMessages(
+    stored,
+    pressDispatchState(session.get('pressDispatch')).dispatches.map(({ id }) => id),
+    now,
+  );
+  const beforePress = pressMessageIds(before);
+  const hasNewPress = [...pressMessageIds(recovered)].some((messageId) => !beforePress.has(messageId));
+  if (hasNewPress) {
+    tx.update(sessionRef, { fleetTicker: recovered, updatedAt: FieldValue.serverTimestamp() });
+  }
+}
+
 /** Presence and clock changes commit together, so rejoin/expiry races retry on
  * the same session version. A reconnect can release only an automatic hold. */
 function reconcilePresenceTimer(
@@ -485,22 +524,37 @@ function reconcilePresenceTimer(
   connected: boolean,
 ): void {
   const debrief = session.get('debriefMode') as { active?: unknown } | undefined;
-  if (session.get('phase') !== 'active' || debrief?.active === true) return;
+  if (session.get('phase') !== 'active' || debrief?.active === true) {
+    persistActivePressRecovery(tx, sessionRef, session, new Date().toISOString());
+    return;
+  }
   const phase = turnPhaseState(session.get('turnPhase'));
-  if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) return;
+  if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
+    persistActivePressRecovery(tx, sessionRef, session, new Date().toISOString());
+    return;
+  }
   const now = Date.now();
   let next: ActiveTurnPhase | undefined;
   if (connected) {
-    if (phase.timerPause?.reason !== 'empty-session') return;
+    if (phase.timerPause?.reason !== 'empty-session') {
+      persistActivePressRecovery(tx, sessionRef, session, new Date(now).toISOString());
+      return;
+    }
     next = resumePausedTurnPhase(phase, now);
   } else {
-    if (phase.timerPause) return;
+    if (phase.timerPause) {
+      persistActivePressRecovery(tx, sessionRef, session, new Date(now).toISOString());
+      return;
+    }
     const paused = pauseActiveTurnPhase(phase, now);
     if (paused?.timerPause) {
       next = { ...paused, timerPause: { ...paused.timerPause, reason: 'empty-session' } };
     }
   }
-  if (!next) return;
+  if (!next) {
+    persistActivePressRecovery(tx, sessionRef, session, new Date(now).toISOString());
+    return;
+  }
   const serverTime = new Date(now).toISOString();
   const turnState = updatedTurnState(session, next);
   const priorTicker = fleetTickerForMutation(sessionRef.id, session, serverTime);

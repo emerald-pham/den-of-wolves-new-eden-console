@@ -198,6 +198,50 @@ it('projects only the public fleet ticker fields on join', async () => {
   expect(ticker.current).not.toHaveProperty('internal');
 });
 
+it('recovers an active legacy press dispatch from an old authoritative drain on join', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one', phase: 'active', currentTurn: 1,
+      fleetTicker: {
+        revision: 3, nextSequence: 3, replayCursor: 3,
+        current: null, queued: [],
+        draining: [{
+          id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
+          text: 'SNN // FIRST REPORT', tone: 'normal', gap: 'long', sourceId: 'press-1',
+          createdAt: '2026-09-12T13:00:00.000Z',
+        }],
+        dismissed: [],
+      },
+      pressDispatch: {
+        dispatches: [{ id: 'press-1', text: 'SNN // FIRST REPORT' }], revision: 1,
+      },
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
+  expect(response.session.fleetTicker).toMatchObject({
+    revision: 3,
+    current: { source: 'press', sourceId: 'press-1', text: 'SNN // FIRST REPORT' },
+  });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({
+      fleetTicker: expect.objectContaining({
+        current: expect.objectContaining({ sourceId: 'press-1' }),
+      }),
+    }),
+  );
+});
+
 it('keeps a legacy inactive alert streamless until its server command writes a deadline', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);

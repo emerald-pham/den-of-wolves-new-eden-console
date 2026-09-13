@@ -116,6 +116,30 @@ it('uses revision zero when the session has no earlier dispatch', async () => {
   expectAuthoritativeTicker(mock.update.mock.calls[0]?.[1], 'dispatch-new');
 });
 
+it('repairs an active press stranded in an old ticker drain before publishing new copy', async () => {
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-old', text: 'SNN // Earlier report' }], revision: 1,
+  };
+  mock.fleetTicker = {
+    revision: 3, nextSequence: 3, replayCursor: 3,
+    current: null, queued: [],
+    draining: [{
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
+      text: 'SNN // Earlier report', tone: 'normal', gap: 'long', sourceId: 'dispatch-old',
+      createdAt: '2026-09-12T13:00:00.000Z',
+    }],
+    dismissed: [],
+  };
+
+  await publishPressDispatch.run(request({ ...data, expectedRevision: 1 }));
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    current: { source: 'press', sourceId: 'dispatch-new' },
+    queued: [{ source: 'press', sourceId: 'dispatch-old' }],
+  });
+});
+
 it('stops an airspace bulletin when Press publishes new copy', async () => {
   mock.turnPhase = {
     turn: 1,
@@ -186,10 +210,21 @@ it('dismisses only the selected active dispatch and advances the collection revi
     updatedAt: 'server-time',
   }));
   const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
-  expectAuthoritativeTicker(update, 'dispatch-1');
+  const ticker = update.fleetTicker as {
+    current?: { sourceId?: string };
+    queued?: readonly { sourceId?: string }[];
+    draining?: readonly { sourceId?: string }[];
+  };
+  expect([
+    ticker.current?.sourceId,
+    ...(ticker.queued ?? []).map((entry) => entry.sourceId),
+    ...(ticker.draining ?? []).map((entry) => entry.sourceId),
+  ]).not.toContain('dispatch-1');
+  expect(ticker.current?.sourceId).toBe('red-alert:1');
+  expect(ticker.queued?.map((entry) => entry.sourceId)).toContain('dispatch-2');
 });
 
-it('records dismissal for a Press copy already in the authoritative drain', async () => {
+it('removes a dismissed Press copy recovered from an authoritative drain', async () => {
   mock.pressDispatch = {
     dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }],
     revision: 1,
@@ -220,7 +255,7 @@ it('records dismissal for a Press copy already in the authoritative drain', asyn
   expect(update.fleetTicker).toMatchObject({
     revision: 3,
     current: { id: 's1:fleet-ticker:2' },
-    draining: [{ id: 's1:fleet-ticker:1', sourceId: 'dispatch-1' }],
+    draining: [],
     dismissed: [{ id: 's1:fleet-ticker:1', revision: 3 }],
   });
 });

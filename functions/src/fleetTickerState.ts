@@ -123,6 +123,30 @@ function sortQueue(messages: readonly FleetTickerMessage[]): readonly FleetTicke
     right.priority - left.priority || left.sequence - right.sequence);
 }
 
+function queueKey(entry: FleetTickerMessage): string {
+  return entry.source === 'press' && entry.sourceId !== undefined
+    ? `press:${entry.sourceId}`
+    : `message:${entry.id}`;
+}
+
+/** Keep one queue identity per press dispatch while retaining required press copy. */
+function queueMessages(
+  existing: readonly FleetTickerMessage[],
+  additions: readonly FleetTickerMessage[],
+  required: readonly FleetTickerMessage[] = [],
+): readonly FleetTickerMessage[] {
+  const byKey = new Map<string, FleetTickerMessage>();
+  for (const entry of [...existing, ...additions]) byKey.set(queueKey(entry), entry);
+  const all = sortQueue([...byKey.values()]);
+  const requiredKeys = new Set(required.map(queueKey));
+  const retainedRequired = all.filter((entry) => requiredKeys.has(queueKey(entry))).slice(0, MAX_QUEUE);
+  if (retainedRequired.length === MAX_QUEUE) return retainedRequired;
+  const remaining = all
+    .filter((entry) => !requiredKeys.has(queueKey(entry)))
+    .slice(0, MAX_QUEUE - retainedRequired.length);
+  return sortQueue([...retainedRequired, ...remaining]);
+}
+
 function pruneExpired(state: FleetTickerState, now: string): FleetTickerState {
   const nowMs = Date.parse(now);
   let current = state.current && (
@@ -213,7 +237,7 @@ function withDraining(
 ): readonly FleetTickerMessage[] {
   return outgoing === null
     ? state.draining
-    : [...state.draining, outgoing].slice(-MAX_DRAINING);
+    : [...state.draining.filter((entry) => entry.id !== outgoing.id), outgoing].slice(-MAX_DRAINING);
 }
 
 /**
@@ -231,9 +255,12 @@ export function publishFleetTicker(
   const next = nextMessage(sessionId, normalized, input, now);
   const replaces = normalized.current !== null && input.priority >= normalized.current.priority;
   const current = replaces || normalized.current === null ? next : normalized.current;
+  const preservedPress = replaces && normalized.current?.source === 'press'
+    ? [normalized.current]
+    : [];
   const queued = replaces || normalized.current === null
-    ? normalized.queued
-    : sortQueue([...normalized.queued, next]).slice(0, MAX_QUEUE);
+    ? queueMessages(normalized.queued, preservedPress, preservedPress)
+    : queueMessages(normalized.queued, [next]);
   return {
     ...normalized,
     revision: normalized.revision + 1,
@@ -259,6 +286,9 @@ export function dismissFleetTicker(
   const drainingTarget = normalized.draining.find((entry) => entry.id === messageId) ?? null;
   const target = currentTarget ?? drainingTarget;
   if (!target && queued.length === normalized.queued.length) return normalized;
+  const cleanedDraining = queuedTarget && drainingTarget
+    ? normalized.draining.filter((entry) => entry.id !== messageId)
+    : normalized.draining;
   const revision = normalized.revision + 1;
   const [next, ...remaining] = sortQueue(queued);
   return {
@@ -269,7 +299,9 @@ export function dismissFleetTicker(
     queued: currentTarget ? remaining : queued,
     // A draining item has already left current/queued. Keep it in the drain
     // so viewers which have started the pass can finish their local tail.
-    draining: currentTarget ? withDraining(normalized, currentTarget) : normalized.draining,
+    draining: currentTarget
+      ? withDraining({ ...normalized, draining: cleanedDraining }, currentTarget)
+      : cleanedDraining,
     dismissed: [...normalized.dismissed, {
       id: messageId,
       sequence: target?.sequence ?? queuedTarget?.sequence ?? 0,
@@ -290,6 +322,34 @@ export function dismissFleetTickerSource(
   const target = [state.current, ...state.queued, ...state.draining]
     .find((entry) => entry?.sourceId === sourceId);
   return target ? dismissFleetTicker(sessionId, state, target.id, now) : state;
+}
+
+/** Recover active press copy from a pre-fix drain without reviving dismissed or expired notices. */
+export function recoverActivePressMessages(
+  value: unknown,
+  activeSourceIds: readonly string[],
+  now: string,
+): FleetTickerState {
+  const normalized = reconcileFleetTicker(value, now);
+  const active = new Set(activeSourceIds);
+  const represented = new Set(
+    [normalized.current, ...normalized.queued]
+      .filter((entry): entry is FleetTickerMessage => entry !== null && entry.source === 'press' && entry.sourceId !== undefined)
+      .map((entry) => entry.sourceId!),
+  );
+  const dismissed = new Set(normalized.dismissed.map((entry) => entry.id));
+  const recovered = new Map<string, FleetTickerMessage>();
+  for (const entry of normalized.draining) {
+    if (entry.source !== 'press' || entry.sourceId === undefined ||
+        !active.has(entry.sourceId) || represented.has(entry.sourceId) || dismissed.has(entry.id)) continue;
+    const prior = recovered.get(entry.sourceId);
+    if (!prior || entry.sequence > prior.sequence) recovered.set(entry.sourceId, entry);
+  }
+  if (recovered.size === 0) return normalized;
+  return reconcileFleetTicker({
+    ...normalized,
+    queued: queueMessages(normalized.queued, [...recovered.values()], [...recovered.values()]),
+  }, now);
 }
 
 /** Stand-down uses a shared server deadline; local animation may outlive it. */
