@@ -48,3 +48,15 @@ it.each([
     ]),
   );
 });
+
+it('seeds only shuttles owned by enabled printed roles', () => {
+  const dockings = initialShuttleDockingsForRoles(recommendedRoleIds(8));
+  expect(dockings.map(({ shuttleId }) => shuttleId)).toEqual([
+    'snn-press-shuttle', 'starlight', 'highwall', 'endeavour',
+    'hummingbird', 'chepu',
+  ]);
+  expect(dockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'pallas' }),
+    expect.objectContaining({ shuttleId: 'blacksmith' }),
+  ]));
+});

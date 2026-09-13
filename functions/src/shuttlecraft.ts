@@ -1,3 +1,5 @@
+import { roleOwnedCraftForRoles } from './craftOwnership';
+
 /**
  * Server-owned initial shuttle manifest. The Union craft are intentionally
  * absent from the default core roster: their printed sheets do not say
@@ -60,6 +62,9 @@ export function activeShuttleVisitsForDockings<T extends { shuttleId: string }>(
 export function initialShuttleDockingsForRoles(
   activeRoleIds: readonly string[],
 ): readonly typeof INITIAL_SHUTTLE_DOCKINGS[number][] {
+  const enabledShuttleIds = new Set(roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => craft.kind === 'shuttle')
+    .map((craft) => craft.id));
   const initialHost = activeRoleIds.some((roleId) => roleId.startsWith('dione-'))
     ? 'dione'
     : 'aegis';
@@ -71,7 +76,8 @@ export function initialShuttleDockingsForRoles(
     return activeRoleIds.some((roleId) => roleId.startsWith(`${shipId}-`));
   };
   return INITIAL_SHUTTLE_DOCKINGS
-    .filter((docking) => docking.shuttleId === 'snn-press-shuttle' || shipIsActive(docking.shipId))
+    .filter((docking) => enabledShuttleIds.has(docking.shuttleId) &&
+      (docking.shuttleId === 'snn-press-shuttle' || shipIsActive(docking.shipId)))
     .map((docking) => docking.shuttleId === 'snn-press-shuttle'
       ? { ...docking, shipId: initialHost }
       : docking);

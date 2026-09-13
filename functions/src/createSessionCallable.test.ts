@@ -40,7 +40,9 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { applyRolePreset, confirmSetup, createSession } from './index';
+import { activeVesselIdsForRoles } from './gameSetup';
 import { recommendedRoleIds } from './roleConfiguration';
+import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
 const PRIVATE_SNAPSHOT_KEYS = new Set([
   'brief', 'deck', 'deckOrder', 'decks', 'facilitatorNotes', 'loyalty', 'loyaltyAssignment',
@@ -458,6 +460,100 @@ it('denies a downsize that would remove a claimed stable seat without mutating s
     sessionId: 's1', instanceId: 'bridge', playerCount: 18,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects a moved enabled craft whose host is removed before any setup write', async () => {
+  const currentRoleIds = recommendedRoleIds(12);
+  const nextRoleIds = recommendedRoleIds(8);
+  const movedDockings = initialShuttleDockingsForRoles(currentRoleIds).map((docking) =>
+    docking.shuttleId === 'starlight' ? { ...docking, shipId: 'dione' } : docking);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 12, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: true, capybaraEnabled: true,
+        activeRoleIds: currentRoleIds,
+        activeVesselIds: activeVesselIdsForRoles(currentRoleIds),
+        shuttleDockings: movedDockings,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'remove-dione-host', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds: nextRoleIds,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/removes a host/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a duplicate moved-host row before filtering can hide it', async () => {
+  const currentRoleIds = recommendedRoleIds(12);
+  const nextRoleIds = recommendedRoleIds(8);
+  const movedDockings = initialShuttleDockingsForRoles(currentRoleIds).map((docking) =>
+    docking.shuttleId === 'starlight' ? { ...docking, shipId: 'dione' } : docking);
+  movedDockings.push({ shuttleId: 'starlight', shipId: 'dione', dockedAt: 'DUPLICATE' });
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 12, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: true, capybaraEnabled: true,
+        activeRoleIds: currentRoleIds,
+        activeVesselIds: activeVesselIdsForRoles(currentRoleIds),
+        shuttleDockings: movedDockings,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'duplicate-removed-host', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds: nextRoleIds,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('reconciles a removed role craft instead of retaining an inactive docking row', async () => {
+  const currentRoleIds = recommendedRoleIds(9);
+  const nextRoleIds = recommendedRoleIds(8);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 9, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: false, capybaraEnabled: true,
+        activeRoleIds: currentRoleIds,
+        activeVesselIds: activeVesselIdsForRoles(currentRoleIds),
+        shuttleDockings: initialShuttleDockingsForRoles(currentRoleIds),
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'remove-miner-craft', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds: nextRoleIds,
+  }))).resolves.toMatchObject({ status: 'committed' });
+  const dockingUpdate = mock.update.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/s1')?.[1] as Record<string, unknown> | undefined;
+  expect(dockingUpdate?.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'blacksmith' }),
+  ]));
 });
 
 it('locks the effective vessel mode after casting begins without mutating setup', async () => {

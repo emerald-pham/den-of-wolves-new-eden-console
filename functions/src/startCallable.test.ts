@@ -63,7 +63,7 @@ import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
-import { craftStartingManifestForSetup } from './craftOwnership';
+import { craftStartingManifestForSetup, roleOwnedCraftManifestForSetup } from './craftOwnership';
 
 function fixtureDockingsForRoles(activeRoleIds: readonly string[]) {
   return [
@@ -488,6 +488,22 @@ it('blocks duplicate current docking rows before the start transaction writes', 
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('blocks a known inactive craft row before the start transaction writes', async () => {
+  mock.session.shuttleDockings = [
+    ...(mock.session.shuttleDockings as Array<Record<string, string>>),
+    { shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'INACTIVE EXTRA' },
+  ];
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-inactive-extra', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Start blocked: craft-starting-manifest.',
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('leaves GM-controlled Union craft disabled until an explicit host is persisted', async () => {
   mock.session.shuttleDockings = initialShuttleDockingsForRoles(roleIds);
 
@@ -516,6 +532,77 @@ it('records the current authoritative docking when migrating a legacy manifest',
   expect(manifestWrite?.startingCraft?.entries).toEqual(expect.arrayContaining([
     expect.objectContaining({ id: 'starlight', startingHostId: 'quellon' }),
   ]));
+});
+
+it('normalizes a legacy unresolved Union placeholder without activating absent craft', async () => {
+  mock.session.shuttleDockings = initialShuttleDockingsForRoles(roleIds);
+  const expected = craftStartingManifestForSetup(roleIds, 'base-capybara', mock.session.shuttleDockings);
+  const legacyStartingCraft = {
+    ...expected,
+    entries: [
+      ...expected.entries,
+      { id: 'wobbly', kind: 'shuttle' as const, ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled' as const, startingHostId: null },
+      { id: 'ally', kind: 'shuttle' as const, ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled' as const, startingHostId: null },
+    ],
+  };
+  mock.craftOwnershipManifest = {
+    ...roleOwnedCraftManifestForSetup(roleIds, 'base-capybara'),
+    startingCraft: legacyStartingCraft,
+  };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-normalize-unresolved-union', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', currentTurn: 1 });
+  const manifestWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/craftOwnership/manifest',
+  )?.[1];
+  expect(manifestWrite?.startingCraft).toEqual(expected);
+  expect(manifestWrite?.startingCraft?.entries).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'wobbly' }),
+    expect.objectContaining({ id: 'ally' }),
+  ]));
+});
+
+it('normalizes legacy Union placeholders to an explicit current docking host', async () => {
+  const expected = craftStartingManifestForSetup(
+    roleIds,
+    'base-capybara',
+    mock.session.shuttleDockings as Array<{ shuttleId: string; shipId: string }>,
+  );
+  const legacyStartingCraft = {
+    ...expected,
+    entries: expected.entries.map((entry) => entry.enabledMode === 'gm-controlled'
+      ? { ...entry, startingHostId: null }
+      : entry),
+  };
+  mock.craftOwnershipManifest = {
+    ...roleOwnedCraftManifestForSetup(roleIds, 'base-capybara'),
+    startingCraft: legacyStartingCraft,
+  };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', currentTurn: 1 });
+  const manifestWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/craftOwnership/manifest',
+  )?.[1];
+  expect(manifestWrite?.startingCraft).toEqual(expected);
+  expect(manifestWrite?.startingCraft?.entries).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'wobbly', startingHostId: 'quellon' }),
+    expect.objectContaining({ id: 'ally', startingHostId: 'shepherd' }),
+  ]));
+  const receipt = mock.set.mock.calls.find(([ref]) => ref.path === 'sessionStartRequests/s1_start-1')?.[1];
+  mock.priorReply = receipt?.reply;
+  mock.priorFingerprint = receipt?.fingerprint;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('reports a typed setup error for a malformed persisted high-count mode before writes', async () => {

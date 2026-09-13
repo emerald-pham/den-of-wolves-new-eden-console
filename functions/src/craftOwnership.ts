@@ -146,7 +146,7 @@ export function shuttleDockingsMatchRoleOwnedCraft(
     .filter((craft) => craft.kind === 'shuttle')
     .filter((craft) => craft.enabledMode === 'standard' || seen.has(craft.id))
     .map((craft) => craft.id));
-  return seen.size >= expected.size && [...expected].every((craftId) => seen.has(craftId));
+  return seen.size === expected.size && [...expected].every((craftId) => seen.has(craftId));
 }
 
 /** Validate the starting tuple before setup/start can perform any mutation. */
@@ -197,22 +197,35 @@ export function craftStartingManifestHasUnresolvedHosts(
   const activeRoleIds = candidate.activeRoleIds;
   const entries = candidate.entries;
   let unresolved = false;
-  return activeRoleIds.length === expected.activeRoleIds.length &&
-    activeRoleIds.every((roleId, index) => roleId === expected.activeRoleIds[index]) &&
-    entries.length === expected.entries.length &&
-    entries.every((entry, index) => {
+  const expectedById = new Map(expected.entries.map((entry) => [entry.id, entry]));
+  const activeOptionalUnionIds = new Set(roleOwnedCraftForRoles(expected.activeRoleIds)
+    .filter((craft) => craft.kind === 'shuttle' && craft.enabledMode === 'gm-controlled')
+    .map((craft) => craft.id));
+  const candidateIds = new Set<string>();
+  const candidateMatchesExpected = entries.every((entry) => {
       if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return false;
       const record = entry as Record<string, unknown>;
-      const expectedEntry = expected.entries[index];
-      if (expectedEntry === undefined || record.id !== expectedEntry.id ||
-          record.kind !== expectedEntry.kind || record.ownerRoleId !== expectedEntry.ownerRoleId ||
-          record.enabledMode !== expectedEntry.enabledMode) return false;
-      if (record.startingHostId === null && expectedEntry.enabledMode === 'gm-controlled') {
+      if (typeof record.id !== 'string' || candidateIds.has(record.id)) return false;
+      candidateIds.add(record.id);
+      const expectedEntry = expectedById.get(record.id);
+      const optionalUnionPlaceholder = expectedEntry === undefined &&
+        activeOptionalUnionIds.has(record.id);
+      if (expectedEntry === undefined && !optionalUnionPlaceholder) return false;
+      const expectedCraft = expectedEntry ?? roleOwnedCraftForRoles(expected.activeRoleIds)
+        .find((craft) => craft.id === record.id);
+      if (expectedCraft === undefined || record.kind !== expectedCraft.kind ||
+          record.ownerRoleId !== expectedCraft.ownerRoleId ||
+          record.enabledMode !== expectedCraft.enabledMode) return false;
+      if (record.startingHostId === null && expectedCraft.enabledMode === 'gm-controlled') {
         unresolved = true;
         return true;
       }
-      return record.startingHostId === expectedEntry.startingHostId;
-    }) && unresolved;
+      return expectedEntry !== undefined && record.startingHostId === expectedEntry.startingHostId;
+    });
+  const expectedEntriesPresent = expected.entries.every((entry) => candidateIds.has(entry.id));
+  return activeRoleIds.length === expected.activeRoleIds.length &&
+    activeRoleIds.every((roleId, index) => roleId === expected.activeRoleIds[index]) &&
+    candidateMatchesExpected && expectedEntriesPresent && unresolved;
 }
 
 export function roleOwnedCraftManifestForSetup(

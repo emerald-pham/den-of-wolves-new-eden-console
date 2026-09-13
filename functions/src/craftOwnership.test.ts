@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   craftStartingManifestForSetup,
+  craftStartingManifestHasUnresolvedHosts,
   craftStartingManifestMatches,
   ownedCraftIdsForRole,
   roleOwnedCraftForRoles,
@@ -144,6 +145,36 @@ describe('role-owned craft composition', () => {
       ...resolved,
       { shuttleId: 'unknown', shipId: 'aegis' },
     ])).toBe(false);
+    expect(shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, [
+      ...resolved,
+      { shuttleId: 'macaw', shipId: 'aegis' },
+    ])).toBe(false);
+  });
+
+  it('accepts only a legacy null placeholder for an optional Union entry', () => {
+    const activeRoleIds = ['admiral', 'wing-commander', 'joint-engineering-quellon-refinery'];
+    const expected = craftStartingManifestForSetup(
+      activeRoleIds,
+      'none',
+      initialShuttleDockingsForRoles(activeRoleIds),
+    );
+    const legacyPlaceholder = {
+      ...expected,
+      entries: [
+        ...expected.entries,
+        {
+          id: 'wobbly', kind: 'shuttle' as const,
+          ownerRoleId: 'joint-engineering-quellon-refinery',
+          enabledMode: 'gm-controlled' as const, startingHostId: null,
+        },
+      ],
+    };
+    expect(craftStartingManifestHasUnresolvedHosts(legacyPlaceholder, expected)).toBe(true);
+    expect(craftStartingManifestHasUnresolvedHosts({
+      ...legacyPlaceholder,
+      entries: legacyPlaceholder.entries.map((entry) =>
+        entry.id === 'wobbly' ? { ...entry, startingHostId: 'quellon' } : entry),
+    }, expected)).toBe(false);
   });
 
   it('preserves a moved current docking instead of resetting to printed start', () => {

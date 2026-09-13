@@ -2730,8 +2730,51 @@ export const confirmSetup = onCall<{
       throw commandError('failed-precondition', 'The star chart is locked.', 'conflict');
     }
     const currentRoleIds = sessionActiveRoleIds(authority.session);
-    await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
+    const currentActiveVesselIds = activeVesselIdsForSession(authority.session);
+    const storedDockings = authority.session.get('shuttleDockings');
+    const rawCurrentDockings = Array.isArray(storedDockings)
+      ? storedDockings as Array<{ shuttleId: string; shipId: string }>
+      : initialShuttleDockingsForRoles(currentRoleIds);
+    // Validate the persisted tuple before projection filtering can hide a
+    // moved craft whose current host is being removed from the next roster.
+    if (!shuttleDockingsAreKnownAndUnique(rawCurrentDockings) ||
+        !shuttleDockingsMatchRoleOwnedCraft(currentRoleIds, rawCurrentDockings)) {
+      throw commandError(
+        'failed-precondition',
+        'The selected setup has malformed craft docking state.',
+        'malformed-input',
+      );
+    }
+    const currentActiveVessels = new Set(currentActiveVesselIds);
+    const currentEnabledShuttleIds = new Set(roleOwnedCraftForRoles(currentRoleIds)
+      .filter((craft) => craft.kind === 'shuttle')
+      .map((craft) => craft.id));
+    if (rawCurrentDockings.some((docking) =>
+      docking.shuttleId !== 'snn-press-shuttle' &&
+      currentEnabledShuttleIds.has(docking.shuttleId) &&
+      !currentActiveVessels.has(docking.shipId))) {
+      throw commandError(
+        'failed-precondition',
+        'The persisted craft docking host is not in the active vessel roster.',
+        'malformed-input',
+      );
+    }
+    const nextActiveVessels = new Set(setup.activeVesselIds);
+    const nextEnabledShuttleIds = new Set(roleOwnedCraftForRoles(command.activeRoleIds)
+      .filter((craft) => craft.kind === 'shuttle')
+      .map((craft) => craft.id));
+    if (rawCurrentDockings.some((docking) =>
+      docking.shuttleId !== 'snn-press-shuttle' &&
+      nextEnabledShuttleIds.has(docking.shuttleId) &&
+      !nextActiveVessels.has(docking.shipId))) {
+      throw commandError(
+        'failed-precondition',
+        'The selected setup removes a host for an enabled craft; relocate it before changing the roster.',
+        'conflict',
+      );
+    }
+    await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     ensureInitialFleetGroup(
       tx,
       command.sessionId,
@@ -2740,7 +2783,6 @@ export const confirmSetup = onCall<{
       storedGroup,
       playerDocs,
     );
-    const currentActiveVesselIds = activeVesselIdsForSession(authority.session);
     const nextActiveVesselIds = setup.activeVesselIds;
     const nextShipResources = reconcileActiveVesselMap(
       authority.session.get('shipResources'),
@@ -2796,19 +2838,8 @@ export const confirmSetup = onCall<{
       shipJumpStates,
       INITIAL_SHIP_JUMP_STATES,
     );
-    const currentDockings = activeShuttleDockingsForVessels(
-      (authority.session.get('shuttleDockings') as typeof INITIAL_SHUTTLE_DOCKINGS | undefined) ??
-        initialShuttleDockingsForRoles(currentRoleIds),
-      currentActiveVesselIds,
-    );
-    if (!shuttleDockingsAreKnownAndUnique(currentDockings)) {
-      throw commandError(
-        'failed-precondition',
-        'The selected setup has malformed craft docking state.',
-        'malformed-input',
-      );
-    }
-    const retainedDockings = activeShuttleDockingsForVessels(currentDockings, nextActiveVesselIds);
+    const retainedDockings = activeShuttleDockingsForVessels(rawCurrentDockings, nextActiveVesselIds)
+      .filter((docking) => nextEnabledShuttleIds.has(docking.shuttleId));
     const seededDockings = initialShuttleDockingsForRoles(setup.activeRoleIds);
     const retainedByShuttleId = new Map(retainedDockings.map((docking) => [docking.shuttleId, docking]));
     const seededShuttleIds = new Set(seededDockings.map((docking) => docking.shuttleId));
@@ -2838,7 +2869,7 @@ export const confirmSetup = onCall<{
       vesselModeForConfiguration(setup),
       nextDockings,
     );
-    if (!shuttleDockingsAreKnownAndUnique(nextDockings)) {
+    if (!shuttleDockingsMatchRoleOwnedCraft(command.activeRoleIds, nextDockings)) {
       throw commandError(
         'failed-precondition',
         'The selected setup has unresolved craft starting hosts.',
@@ -3442,13 +3473,17 @@ export const startGame = onCall<{
     const persistedStartingCraft = craftOwnershipManifest.exists
       ? craftOwnershipManifest.get('startingCraft')
       : undefined;
+    const persistedStartingCraftMatches = persistedStartingCraft !== undefined &&
+      craftStartingManifestMatches(
+        persistedStartingCraft,
+        startingCraftManifest,
+        lockedSetup.activeVesselIds,
+      );
+    const persistedStartingCraftHasLegacyPlaceholder = persistedStartingCraft !== undefined &&
+      !persistedStartingCraftMatches &&
+      craftStartingManifestHasUnresolvedHosts(persistedStartingCraft, startingCraftManifest);
     if (persistedStartingCraft !== undefined &&
-        !craftStartingManifestMatches(
-          persistedStartingCraft,
-          startingCraftManifest,
-          lockedSetup.activeVesselIds,
-        ) &&
-        !craftStartingManifestHasUnresolvedHosts(persistedStartingCraft, startingCraftManifest)) {
+        !persistedStartingCraftMatches && !persistedStartingCraftHasLegacyPlaceholder) {
       throw commandError(
         'failed-precondition',
         'Start blocked: craft-starting-manifest.',
@@ -3599,7 +3634,8 @@ export const startGame = onCall<{
       payload: { type: 'setup-receipt', ...setupReceipt },
       createdAt: FieldValue.serverTimestamp(),
     });
-    if (!craftOwnershipManifest.exists || persistedStartingCraft === undefined) {
+    if (!craftOwnershipManifest.exists || persistedStartingCraft === undefined ||
+        persistedStartingCraftHasLegacyPlaceholder) {
       tx.set(craftOwnershipManifestRef, {
         ...expectedCraftManifest,
         startingCraft: startingCraftManifest,
