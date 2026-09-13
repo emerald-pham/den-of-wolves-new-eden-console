@@ -320,7 +320,9 @@ function recordStaleAuthorityReply(): void {
 
 async function executeCommand(command: PendingCommand): Promise<unknown> {
   const call = httpsCallable<typeof command.payload, unknown>(functions(), command.kind);
-  const reply = await call(command.payload);
+  const reply = await call(command.kind === 'popShipConfetti'
+    ? { ...command.payload, requestId: command.id }
+    : command.payload);
   return reply.data;
 }
 

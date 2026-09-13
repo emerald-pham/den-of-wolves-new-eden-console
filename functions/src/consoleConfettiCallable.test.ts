@@ -220,7 +220,7 @@ it('denies the Press dispenser when Press is disabled without changing its histo
   mock.pressEnabled = false;
 
   await expect(popShipConfetti.run({
-    data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer' },
+    data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer', requestId: 'press-1' },
     auth: { uid: 'u1' },
   } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set).not.toHaveBeenCalled();
@@ -232,8 +232,35 @@ it('does not let an enabled Press dispenser be forged by a connected non-Press m
   mock.activeRoleIds = ['admiral'];
 
   await expect(popShipConfetti.run({
-    data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer' },
+    data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer', requestId: 'press-1' },
     auth: { uid: 'u1' },
   } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('replays a Press request without firing twice and rejects another actor', async () => {
+  mock.post = 'press-officer';
+  mock.full = false;
+  const receipts = new Map<string, Record<string, unknown>>();
+  const get = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (ref) => {
+    const path = typeof ref === 'string' ? ref : ref.path;
+    if (path.endsWith('/players')) return { docs: [] };
+    if (path.includes('/commandReceipts/')) {
+      const value = receipts.get(path);
+      return { exists: Boolean(value), get: (key: string) => value?.[key] };
+    }
+    return get(ref);
+  });
+  mock.set.mockImplementation((path, value) => {
+    if (String(path).includes('/commandReceipts/')) receipts.set(String(path), value);
+  });
+  const press = { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer', requestId: 'press-retry-1' };
+  const first = await popShipConfetti.run({ data: press, auth: { uid: 'u1' } } as CallableRequest<typeof press>);
+  const writes = mock.set.mock.calls.length;
+  await expect(popShipConfetti.run({ data: press, auth: { uid: 'u1' } } as CallableRequest<typeof press>)).resolves.toEqual(first);
+  expect(mock.set).toHaveBeenCalledTimes(writes);
+  await expect(popShipConfetti.run({ data: press, auth: { uid: 'u2' } } as CallableRequest<typeof press>))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).toHaveBeenCalledTimes(writes);
 });

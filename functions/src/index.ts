@@ -9284,7 +9284,7 @@ export const applyRolePreset = onCall<{
 
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
 export const popShipConfetti = onCall<{
-  sessionId?: string; shipId?: string; roleId?: string;
+  sessionId?: string; shipId?: string; roleId?: string; requestId?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const activation = requireShipConfettiRequest(request.data ?? {});
@@ -9292,6 +9292,10 @@ export const popShipConfetti = onCall<{
   if (!isFleetShipId(shipId)) {
     throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
   }
+  const identity = shipId === 'snn-press-shuttle' ? requireVesselActionRequest(request.data ?? {}) : null;
+  const receiptRef = identity ? commandReceiptRef(activation.sessionId, identity.requestId) : null;
+  const fingerprint = identity ? vesselActionFingerprint('press-confetti', activation.sessionId,
+    identity.requestId, uid, null, null, { shipId, roleId: activation.roleId }) : null;
   const sessionRef = db.doc(`sessions/${activation.sessionId}`);
   const playerRef = db.doc(`sessions/${activation.sessionId}/players/${uid}`);
   const eventRef = db.collection(`sessions/${activation.sessionId}/events`).doc();
@@ -9398,6 +9402,12 @@ export const popShipConfetti = onCall<{
     } catch {
       throw new HttpsError('permission-denied', 'That role cannot fire this ship dispenser.');
     }
+    if (receiptRef && fingerprint) {
+      const prior = await tx.get(receiptRef);
+      const replay = replayBoundCommand(prior, fingerprint,
+        (value): value is 'fired' => value === 'fired', 'Press dispenser');
+      if (replay) return replay;
+    }
     if (decision.kind === 'awaiting-officer') {
       tx.set(approvalRef, { approvals: decision.approvals, updatedAt: FieldValue.serverTimestamp() });
       return 'awaiting-officer';
@@ -9441,6 +9451,9 @@ export const popShipConfetti = onCall<{
         payload: event,
         createdAt: event.createdAt,
       }));
+    }
+    if (receiptRef && fingerprint) {
+      tx.set(receiptRef, { fingerprint, result: 'fired', createdAt: FieldValue.serverTimestamp() });
     }
     return 'fired';
   });

@@ -237,6 +237,27 @@ describe('connect', () => {
     });
   });
 
+  it('reuses the persisted Press command identity through reconnect retries', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().enqueueCommand({
+      id: 'press-retry-command', kind: 'popShipConfetti',
+      payload: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer' },
+      createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
+    });
+    const fire = vi.fn().mockRejectedValueOnce({ code: 'functions/unavailable' })
+      .mockResolvedValueOnce({ data: { shipId: 'snn-press-shuttle', status: 'fired' } });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? callableReturning({ data: { session, player } }) : fire);
+    await connect();
+    expect(useSessionStore.getState().pendingCommands).toHaveLength(1);
+    await connect();
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(fire).toHaveBeenCalledTimes(2);
+    expect(fire.mock.calls[0]?.[0]).toEqual({ sessionId: 's1', shipId: 'snn-press-shuttle',
+      roleId: 'press-officer', requestId: 'press-retry-command' });
+    expect(fire.mock.calls[1]?.[0]).toEqual(fire.mock.calls[0]?.[0]);
+  });
+
   it('keeps reconnecting while a transient outbox replay remains queued', async () => {
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().enqueueCommand({
@@ -1617,7 +1638,7 @@ describe('GM instance commands', () => {
     await popShipConfetti('aegis', 'admiral');
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'popShipConfetti');
-    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' });
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral', requestId: expect.any(String) });
     expect(useSessionStore.getState().session?.confettiUsedShipIds).toEqual(['aegis']);
   });
 
