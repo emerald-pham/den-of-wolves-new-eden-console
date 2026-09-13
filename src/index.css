@@ -5375,6 +5375,26 @@ body {
 .gm-console__instruments .gm-dradis { padding: 0; }
 .gm-console__instruments .gm-dradis[data-expanded='true'] { padding: 1rem; }
 .gm-console__instruments:has([data-expanded='true']) { overflow: visible; }
+.gm-dradis .ship-plot--gm,
+.gm-dradis .ship-plot--gm[data-expanded='false'] {
+  position: relative;
+  inset: auto;
+  z-index: 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1;
+}
+.gm-dradis .ship-plot--gm[data-expanded='true'] {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  min-height: calc(100dvh - 2rem);
+  aspect-ratio: auto;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--cic-void) 97%, transparent);
+}
 .gm-console .console-workspace__header { grid-template-columns: 1fr; }
 @media (max-width: 42rem), (max-height: 42rem) {
   .ship-console.gm-console {

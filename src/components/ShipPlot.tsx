@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -49,6 +50,9 @@ export default function ShipPlot({
   activeVesselIds,
   ambientSession,
   turnPhase,
+  layout = 'ship',
+  expanded: controlledExpanded,
+  onExpandedChange,
 }: {
   hostile: boolean;
   aboard: boolean;
@@ -62,8 +66,18 @@ export default function ShipPlot({
   activeVesselIds?: readonly string[] | undefined;
   ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
   turnPhase?: GameSession['turnPhase'] | undefined;
+  /** GM embeds the same plot in its perspective panel while retaining its own expansion state. */
+  layout?: 'ship' | 'gm';
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = controlledExpanded ?? localExpanded;
+  const setExpanded = useCallback((next: boolean): void => {
+    if (controlledExpanded === undefined) setLocalExpanded(next);
+    onExpandedChange?.(next);
+  }, [controlledExpanded, onExpandedChange]);
+  const gmLayout = layout === 'gm';
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
   const [jumpTransitionId, setJumpTransitionId] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -75,7 +89,7 @@ export default function ShipPlot({
 
   useEffect(() => {
     if (!aboard) setExpanded(false);
-  }, [aboard]);
+  }, [aboard, setExpanded]);
 
   useEffect(() => {
     if (!jumpTransition?.id) return;
@@ -165,7 +179,7 @@ export default function ShipPlot({
 
   return (
     <div
-      className={`ship-plot${aboard ? ' dradis-outline' : ''}`}
+      className={`ship-plot${aboard ? ' dradis-outline' : ''}${gmLayout ? ' ship-plot--gm gm-dradis__viewport' : ''}`}
       data-aboard={String(aboard)}
       data-expanded={String(expanded)}
       data-rotation-enabled={String(SHIP_PLOT_ROTATION_ENABLED)}
@@ -173,10 +187,10 @@ export default function ShipPlot({
       style={{ '--ship-plot-resize': `${SHIP_PLOT_RESIZE_MS}ms` } as ShipPlotStyle}
     >
       <ContactPlot
-        key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
+        key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}${gmLayout ? `-${activeShipIds.join(',')}` : ''}`}
         hostile={hostile}
-        placement={aboard ? 'widget' : 'inset'}
-        size="min(92cqi, 92cqb)"
+        placement={gmLayout ? 'inset' : aboard ? 'widget' : 'inset'}
+        size={gmLayout ? expanded ? 'min(92vmin, 128vw)' : 'min(92cqi, 92cqb)' : 'min(92cqi, 92cqb)'}
         contacts={contacts}
         ambientSession={jumpInProgress ? undefined : ambientSession}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}

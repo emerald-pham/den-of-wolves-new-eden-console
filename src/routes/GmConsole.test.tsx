@@ -1153,7 +1153,7 @@ it('uses the ship-console outline treatment for compact GM DRADIS', async () => 
   const viewport = container.querySelector('.gm-dradis__viewport');
 
   expect(viewport).toHaveClass('dradis-outline');
-  expect(within(dradis).getByText('DRADIS // FLEET PLOT')).toBeInTheDocument();
+  expect(within(dradis).getByText('DRADIS // LOCAL PLOT')).toBeInTheDocument();
 });
 
 it('shows the 3D starmap only inside the GM console and follows the organiser chart', async () => {
@@ -1180,10 +1180,12 @@ it('shows the 3D starmap only inside the GM console and follows the organiser ch
     .toHaveTextContent(/8378.*deep nebula.*new eden candidate/i);
 });
 
-it('forwards the fleet range-display policy into the GM DRADIS without recalculating coordinates', () => {
+it('reuses the shared DRADIS range-display policy for the GM plot', () => {
   const console = readFileSync('src/routes/GmConsole.tsx', 'utf8');
+  const shipPlot = readFileSync('src/components/ShipPlot.tsx', 'utf8');
 
-  expect(console).toMatch(/color: ship\.color,\s+combatRange: ship\.combatRange,\s+showCombatRange: ship\.showCombatRange,/);
+  expect(console).toContain('layout="gm"');
+  expect(shipPlot).toMatch(/color: ship\.color,\s+combatRange: ship\.combatRange,\s+showCombatRange: ship\.showCombatRange,/);
 });
 
 it('shows live resource stock for every flagged ship', async () => {
@@ -1424,10 +1426,10 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
   expect(dradis).toHaveAttribute('data-expanded', 'false');
   expect(screen.queryByRole('complementary', { name: 'Combat range bands' }))
     .not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
+  await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
 
   expect(dradis).toHaveAttribute('data-expanded', 'true');
-  expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /close dradis/i })).toBeInTheDocument();
   expect(screen.queryByRole('complementary', { name: 'Combat range bands' }))
     .not.toBeInTheDocument();
 });
@@ -1452,7 +1454,7 @@ it('keeps each airspace-window countdown in compact and expanded fleet DRADIS', 
   expect(await screen.findByRole('status', {
     name: /Airspace closed \/\/ \d{2}:\d{2} remaining/i,
   })).toHaveAttribute('data-tone', 'blue');
-  fireEvent.click(screen.getByRole('button', { name: /expand dradis display/i }));
+  fireEvent.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
   expect(screen.getByRole('status', {
     name: /Airspace closed \/\/ \d{2}:\d{2} remaining/i,
   })).toHaveAttribute('data-tone', 'blue');
@@ -1483,7 +1485,7 @@ it('lets the active GM trigger a fleetwide contact only from expanded DRADIS', a
   await screen.findByRole('region', { name: /fleet dradis/i });
   expect(screen.queryByRole('button', { name: /trigger unknown contact/i }))
     .not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
+  await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
   await user.click(screen.getByRole('button', { name: /trigger unknown contact/i }));
 
   expect(triggerDradisContact).toHaveBeenCalledOnce();
@@ -1507,14 +1509,14 @@ it('eases the GM DRADIS through both expansion and collapse', async () => {
   const animate = vi.fn(() => ({ cancel }) as unknown as Animation);
   Object.defineProperty(dradis, 'animate', { configurable: true, value: animate });
 
-  await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
+  await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
 
   expect(animate).toHaveBeenNthCalledWith(1, [
     { transform: 'translate(600px, 180px) scale(0.26666666666666666, 0.525)' },
     { transform: 'none' },
   ], { duration: 200, easing: 'ease-in-out' });
 
-  await user.click(screen.getByRole('button', { name: /collapse dradis display/i }));
+  await user.click(screen.getByRole('button', { name: /close dradis/i }));
 
   expect(cancel).toHaveBeenCalledOnce();
   expect(animate).toHaveBeenNthCalledWith(2, [

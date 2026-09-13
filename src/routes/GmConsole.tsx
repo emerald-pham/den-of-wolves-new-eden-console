@@ -2,10 +2,8 @@ import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import ContactPlot from '@/components/ContactPlot';
-import DradisEffectControls from '@/components/DradisEffectControls';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
-import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
+import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -13,7 +11,6 @@ import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
-import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
 import { nextGmClockUpdate } from '@/lib/gmClock';
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
@@ -565,23 +562,6 @@ export default function GmConsole() {
   const viewer = availableShips.find((ship) => ship.id === viewerId) ?? availableShips[0];
   const viewerCoordinate = session?.shipGalacticCoordinates?.[viewer?.id ?? 'aegis'] ??
     ORIGIN_GALACTIC_COORDINATE;
-  const contacts = fleetViewFrom(
-    viewer?.id ?? 'aegis',
-    capybaraEnabled,
-    session?.shipGalacticCoordinates,
-    dioneEnabled,
-    activeShipIds,
-    session?.shipDamage,
-  ).map((ship) => ({
-    tag: ship.name.toUpperCase(),
-    x: ship.x,
-    y: ship.y,
-    z: ship.z,
-    color: ship.color,
-    combatRange: ship.combatRange,
-    showCombatRange: ship.showCombatRange,
-  }));
-  const viewerOrigin = fleetOriginFor(viewer?.id ?? 'aegis');
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
   const nextClockUpdate = nextGmClockUpdate(session, clock);
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
@@ -674,12 +654,12 @@ export default function GmConsole() {
     });
   }, [dradisExpanded, reducedMotion]);
 
-  const toggleDradis = () => {
+  const toggleDradis = (nextExpanded?: boolean) => {
     const dradis = dradisRef.current;
     if (dradis) dradisPreviousBounds.current = dradis.getBoundingClientRect();
     dradisAnimation.current?.cancel();
     dradisAnimation.current = null;
-    setDradisExpanded((expanded) => !expanded);
+    setDradisExpanded((expanded) => nextExpanded ?? !expanded);
   };
 
   useEffect(() => {
@@ -3788,30 +3768,24 @@ export default function GmConsole() {
             aria-label="Fleet DRADIS"
             data-expanded={String(dradisExpanded)}
           >
-            <div className="gm-dradis__viewport dradis-outline">
-              <ContactPlot
-                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}-${activeShipIds.join(',')}`}
-                placement="inset"
-                size={dradisExpanded ? 'min(92vmin, 128vw)' : 'min(92cqi, 92cqb)'}
-                contacts={contacts}
-                ambientSession={session}
-                centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
-                origin={viewerOrigin}
-              />
-              <DradisAirspaceTimer phase={currentPhase} />
-              <span className="gm-dradis__label dradis-label" aria-hidden="true">
-                DRADIS // FLEET PLOT
-              </span>
-              <button
-                className="gm-dradis__toggle"
-                type="button"
-                aria-label={`${dradisExpanded ? 'Collapse' : 'Expand'} DRADIS display`}
-                aria-pressed={dradisExpanded}
-                onClick={toggleDradis}
-              />
-            </div>
+            <ShipPlot
+              layout="gm"
+              hostile={false}
+              aboard
+              viewerId={viewer?.id ?? 'aegis'}
+              expanded={dradisExpanded}
+              onExpandedChange={toggleDradis}
+              capybaraEnabled={capybaraEnabled}
+              dioneEnabled={dioneEnabled}
+              shipGalacticCoordinates={session?.shipGalacticCoordinates}
+              shipDamage={session?.shipDamage}
+              shipJumpTransitions={session?.shipJumpTransitions}
+              activeRoleIds={hasUnconfirmedRosterChanges ? draftRoleIds : serverRoleIds}
+              activeVesselIds={hasUnconfirmedRosterChanges ? undefined : session?.activeVesselIds}
+              ambientSession={session ?? undefined}
+              turnPhase={currentPhase}
+            />
             <div className="gm-dradis__controls">
-              <DradisEffectControls expanded={dradisExpanded} />
               <p className="gm-dradis__perspective">
                 DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
               </p>
