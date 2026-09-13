@@ -585,6 +585,16 @@ async function composeProductionSession(
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
 
+  it('rejects malformed presence role ids before opening a transaction', async () => {
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'a'.repeat(129),
+    }, 'u1'))).rejects.toMatchObject({ code: 'invalid-argument' });
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: { role: 'admiral' },
+    }, 'u1'))).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(mock.transactionAttempts).not.toHaveBeenCalled();
+  });
+
   it('projects create, join, and resume composition maps to the locked vessel set', async () => {
     const composition = await composeProductionSession(8);
     const storedSession = read(`sessions/${composition.sessionId}`) as StoredDocument;

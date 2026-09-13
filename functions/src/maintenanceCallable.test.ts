@@ -426,6 +426,41 @@ it('rejects a second maintenance cycle in the same turn', async () => {
 
 const data = { sessionId: 's1', shipId: 'aegis', requestId: 'maintenance-base', instanceId: 'bridge', action: 'begin', expectedRevision: 0 };
 
+it('rejects oversized canonical maintenance collections before authority preflight', async () => {
+  mock.get.mockClear();
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-too-many-bays',
+    action: 'bays',
+    refuels: { one: 'starlight', two: 'pallas', three: 'macaw' },
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-long-console',
+    action: 'reactor',
+    consoles: ['a'.repeat(129)],
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-long-refuel-key',
+    action: 'bays',
+    refuels: { ['a'.repeat(129)]: 'starlight' },
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-too-many-consoles',
+    action: 'reactor',
+    consoles: Array.from({ length: 7 }, (_, index) => `console-${index}`),
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+
+  expect(mock.get).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 
 it('begins maintenance atomically with a server-owned revision', async () => {
   await expect(runMaintenance.run(request(data))).resolves.toMatchObject({

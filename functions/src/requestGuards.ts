@@ -45,6 +45,53 @@ export function requireAirspaceRequest(data: {
   };
 }
 
+/** Presence keeps the explicit release marker distinct from an omitted role. */
+export function requirePresenceRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  activeConsoleRoleId?: unknown;
+}): { sessionId: string; instanceId?: string; activeConsoleRoleId?: string | null } {
+  return {
+    ...requireAirspaceRequest(data),
+    ...(data.activeConsoleRoleId === undefined || data.activeConsoleRoleId === null
+      ? (data.activeConsoleRoleId === null ? { activeConsoleRoleId: null } : {})
+      : { activeConsoleRoleId: requiredId(data.activeConsoleRoleId, 'activeConsoleRoleId') }),
+  };
+}
+
+/** Validate a bounded list of canonical ids before any callable transaction. */
+export function requireBoundedIdList(
+  value: unknown,
+  field: string,
+  maxEntries: number,
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > maxEntries) {
+    throw new HttpsError('invalid-argument', `${field} must contain at most ${maxEntries} entries.`);
+  }
+  return value.map((entry, index) => requiredId(entry, `${field}[${index}]`));
+}
+
+/** Validate a bounded canonical-id map before any callable transaction. */
+export function requireBoundedIdMap(
+  value: unknown,
+  field: string,
+  maxEntries: number,
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new HttpsError('invalid-argument', `${field} must be an object.`);
+  }
+  const entries = Object.entries(value);
+  if (entries.length > maxEntries) {
+    throw new HttpsError('invalid-argument', `${field} must contain at most ${maxEntries} entries.`);
+  }
+  return Object.fromEntries(entries.map(([key, entry]) => [
+    requiredId(key, `${field} key`),
+    requiredId(entry, `${field}[${key}]`),
+  ]));
+}
+
 export function requireMaintenanceRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;

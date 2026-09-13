@@ -119,6 +119,42 @@ it('does not reveal a stale revision to a non-GM member', async () => {
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('accepts the domain maximum small-ship console list and rejects malformed ids before preflight', async () => {
+  const reactorState = emptySmallShipState('gorgoneion', 'aegis');
+  reactorState.cycle = { ...reactorState.cycle, step: 4, revision: 4, turn: 1 };
+  mock.session.smallShipStates = { gorgoneion: reactorState };
+  const consoles = ['command-console', 'reactor-console'];
+
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, action: 'reactor', expectedRevision: 4,
+    requestId: 'small-ship-reactor-capacity', consoles,
+  }))).resolves.toMatchObject({
+    status: 'committed', action: 'reactor', committedRevision: 5,
+    cycle: { charges: consoles },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'smallShipStates.gorgoneion': expect.objectContaining({
+      cycle: expect.objectContaining({ charges: consoles }),
+    }),
+  }));
+
+  mock.get.mockClear();
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, action: 'reactor', expectedRevision: 4,
+    requestId: 'small-ship-long-console', consoles: ['a'.repeat(129)],
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, action: 'reactor', expectedRevision: 4,
+    requestId: 'small-ship-too-many-consoles',
+    consoles: ['console-a', 'console-b', 'console-c'],
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.get).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('replays an undock with its explicit null host target', async () => {
   mock.session.smallShipStates = {
     gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },

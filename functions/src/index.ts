@@ -85,6 +85,9 @@ import {
   requireUnrestDismissalRequest,
   requireSessionRequest,
   requireAirspaceRequest,
+  requirePresenceRequest,
+  requireBoundedIdList,
+  requireBoundedIdMap,
   requireMaintenanceRequest,
   requireVipCardDrawRequest,
   requireVipCardTransferRequest,
@@ -358,6 +361,18 @@ initializeApp();
 setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 
 const db = getFirestore();
+
+// Keep request bounds tied to the printed/domain catalogs. The resolver still
+// decides whether each canonical id is valid for the selected vessel.
+const MAX_MAINTENANCE_CONSOLES = Math.max(
+  ...Object.values(MAINTENANCE_RULES).map(({ reactor }) => reactor + 1),
+);
+const MAX_MAINTENANCE_REFUELS = Math.max(
+  ...Object.values(SHIP_DAMAGE_DECKS).map((deck) => deck.filter(({ systemId }) => systemId.startsWith('shuttle-bay')).length),
+);
+const MAX_SMALL_SHIP_CONSOLES = Math.max(
+  ...Object.values(SMALL_SHIP_RULES).map(({ reactorCapacity }) => reactorCapacity),
+);
 
 type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
@@ -10620,7 +10635,7 @@ export const refreshPresence = onCall<{
   sessionId?: string; activeConsoleRoleId?: string | null; instanceId?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
-  const { sessionId, instanceId } = requireAirspaceRequest(request.data ?? {});
+  const { sessionId, instanceId, activeConsoleRoleId } = requirePresenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const instanceRef = instanceId
@@ -10634,9 +10649,7 @@ export const refreshPresence = onCall<{
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
   await db.runTransaction(async (tx) => {
-    const requestedRoleId = typeof request.data?.activeConsoleRoleId === 'string'
-      ? request.data.activeConsoleRoleId
-      : null;
+    const requestedRoleId = activeConsoleRoleId ?? null;
     const roleHolders = requestedRoleId
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
@@ -10671,7 +10684,7 @@ export const refreshPresence = onCall<{
       session.get('pressEnabled') === false || player.get('role') !== 'player' ||
       hasCoreAssignment(player) || otherActivePressHolders.length > 0
     );
-    const explicitRelease = request.data?.activeConsoleRoleId === null;
+    const explicitRelease = activeConsoleRoleId === null;
     const orphanedPressAssignment = player.get('assignedRoleId') === 'press-officer' &&
       !currentPressAuthority;
     if (explicitRelease || invalidCurrentPressAuthority || orphanedPressAssignment) {
@@ -10695,8 +10708,8 @@ export const refreshPresence = onCall<{
       presenceUpdate.assignedRoleId = null;
       pressHolderUidUpdate = uid;
     }
-    else if (typeof request.data?.activeConsoleRoleId === 'string') {
-      const requestedRoleId = request.data.activeConsoleRoleId;
+    else if (typeof activeConsoleRoleId === 'string') {
+      const requestedRoleId = activeConsoleRoleId;
       if (typeof player.get('replacementRoleId') === 'string') {
         throw commandError(
           'failed-precondition',
@@ -10769,7 +10782,7 @@ export const refreshPresence = onCall<{
     }
     if (
       currentPressAuthority && !invalidCurrentPressAuthority &&
-      request.data?.activeConsoleRoleId !== null
+      activeConsoleRoleId !== null
     ) {
       pressHolderUidUpdate = uid;
     }
@@ -13494,17 +13507,17 @@ export const runSmallShipMaintenance = onCall<{
   }
   const parsed = requireSmallShipMaintenanceRequest(raw);
   const id = smallShipId(parsed.smallShipId);
+  const consoles = requireBoundedIdList(raw.consoles, 'consoles', MAX_SMALL_SHIP_CONSOLES);
   const data = {
     ...parsed,
     ...(raw.foodLevel === undefined ? {} : { foodLevel: raw.foodLevel as number }),
     ...(raw.waterLevel === undefined ? {} : { waterLevel: raw.waterLevel as number }),
-    ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
+    ...(consoles === undefined ? {} : { consoles }),
   };
   const productionConsoleId = raw.productionConsoleId === undefined ? undefined : String(raw.productionConsoleId);
   const productionOreAmount = raw.productionOreAmount === undefined ? undefined : raw.productionOreAmount;
   if (!id || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'production', 'end'].includes(data.action) ||
       [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isSafeInteger(level) || level < 0 || level > 3)) ||
-      (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(consoleId => typeof consoleId !== 'string'))) ||
       (raw.productionConsoleId !== undefined && (data.action !== 'production' ||
         !['water-reclimator', 'hydroponics', 'fuel-processor'].includes(productionConsoleId ?? ''))) ||
       (raw.productionOreAmount !== undefined && (!Number.isSafeInteger(productionOreAmount) ||
@@ -13999,12 +14012,14 @@ export const runMaintenance = onCall<{
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }
   const parsed = requireMaintenanceRequest(raw);
+  const consoles = requireBoundedIdList(raw.consoles, 'consoles', MAX_MAINTENANCE_CONSOLES);
+  const refuels = requireBoundedIdMap(raw.refuels, 'refuels', MAX_MAINTENANCE_REFUELS);
   const data: MaintenanceCommand = {
     ...parsed,
     ...(raw.foodLevel === undefined ? {} : { foodLevel: raw.foodLevel as number }),
     ...(raw.waterLevel === undefined ? {} : { waterLevel: raw.waterLevel as number }),
-    ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
-    ...(raw.refuels === undefined ? {} : { refuels: raw.refuels as Record<string, string> }),
+    ...(consoles === undefined ? {} : { consoles }),
+    ...(refuels === undefined ? {} : { refuels }),
     ...(raw.productionConsoleId === undefined ? {} : { productionConsoleId: raw.productionConsoleId as string }),
     ...(raw.productionMode === undefined ? {} : { productionMode: raw.productionMode as 'run' | 'skip' }),
     ...(raw.productionScrap === undefined ? {} : { productionScrap: raw.productionScrap as boolean }),
@@ -14018,8 +14033,6 @@ export const runMaintenance = onCall<{
     )) ||
     (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId)) ||
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
-    (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(id => typeof id !== 'string'))) ||
-    (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string'))) ||
     (data.productionConsoleId !== undefined && (typeof data.productionConsoleId !== 'string' || !(
       (data.shipId === 'dione' && ['hydroponics', 'water-reclamation'].includes(data.productionConsoleId)) ||
       (data.shipId === 'capybara' && ['advanced-hydroponics', 'water-production', 'scrap-refinery'].includes(data.productionConsoleId))

@@ -29,6 +29,9 @@ import {
   requireShipJumpRequest,
   requireSessionRequest,
   requireSessionCreationRequest,
+  requirePresenceRequest,
+  requireBoundedIdList,
+  requireBoundedIdMap,
   requireCastingPreferenceRequest,
   requireCrisisTransitionRequest,
   requireRoleAssignmentRequest,
@@ -55,6 +58,30 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
+  it('bounds canonical maintenance collections while preserving exact optional presence semantics', () => {
+    expect(requireBoundedIdList(['a'.repeat(128), 'b'], 'consoles', 2))
+      .toEqual(['a'.repeat(128), 'b']);
+    expect(requireBoundedIdMap({
+      'shuttle-bay-zeta': 'starlight',
+      'shuttle-bay-omega': 'pallas',
+    }, 'refuels', 2)).toEqual({
+      'shuttle-bay-zeta': 'starlight',
+      'shuttle-bay-omega': 'pallas',
+    });
+    expectHttpsError(() => requireBoundedIdList(['a', 'b', 'c'], 'consoles', 2), 'invalid-argument');
+    expectHttpsError(() => requireBoundedIdList(['a'.repeat(129)], 'consoles', 2), 'invalid-argument');
+    expectHttpsError(() => requireBoundedIdMap({ a: 'b', c: 'd', e: 'f' }, 'refuels', 2), 'invalid-argument');
+    expectHttpsError(() => requireBoundedIdMap({ a: 'b'.repeat(129) }, 'refuels', 2), 'invalid-argument');
+
+    expect(requirePresenceRequest({ sessionId: 's1' })).toEqual({ sessionId: 's1' });
+    expect(requirePresenceRequest({ sessionId: 's1', activeConsoleRoleId: null }))
+      .toEqual({ sessionId: 's1', activeConsoleRoleId: null });
+    expect(requirePresenceRequest({ sessionId: 's1', activeConsoleRoleId: 'a'.repeat(128) }))
+      .toEqual({ sessionId: 's1', activeConsoleRoleId: 'a'.repeat(128) });
+    expectHttpsError(() => requirePresenceRequest({ sessionId: 's1', activeConsoleRoleId: 'a'.repeat(129) }), 'invalid-argument');
+    expectHttpsError(() => requirePresenceRequest({ sessionId: 's1', activeConsoleRoleId: { role: 'admiral' } }), 'invalid-argument');
+  });
+
   it('requires an explicit replacement reason and CAS cursor', () => {
     expect(requireReplacementEligibilityRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'eligible-1',
