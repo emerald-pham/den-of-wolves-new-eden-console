@@ -26,6 +26,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 274, partial: 25, active: 0, missing: 452,
     },
     changes: [
+      'The fleet ticker stays visible from joining at Turn 0, including while scrolling and between broadcasts. ATC returns when the news ends, and new Press reports no longer get stuck behind ATC.',
+      '274 of 751 planned items are complete (36.48%).',
+    ],
+  },
+  {
+    version: '0.4.7',
+    implementationProgress: {
+      completed: 274, total: 751, percentage: '36.48%',
+      done: 274, partial: 25, active: 0, missing: 452,
+    },
+    changes: [
       'Air Traffic Control broadcasts appear as soon as you join at Turn 0, before any news is published. Existing Turn 0 sessions recover the missing dispatch automatically.',
       '274 of 751 planned items are complete (36.48%).',
     ],
