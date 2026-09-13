@@ -1599,6 +1599,49 @@ it('suppresses delayed older lifecycle snapshots at the session listener boundar
   expect(onSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 2 });
 });
 
+it.each(['captain', 'commissar'] as const)(
+  'keeps the %s authority listener alive while its eligible document is absent and later changes',
+  (role) => {
+    const { callbacks } = captureSessionListener();
+    const onAuthority = vi.fn();
+    subscribeSessionState('s1', 'u1', {
+      onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+      onCommissarPurgeAuthority: onAuthority,
+    });
+    const authorityPath = callbacks[3];
+    authorityPath?.({ exists: () => false, metadata: { fromCache: false } });
+    authorityPath?.({
+      exists: () => true,
+      metadata: { fromCache: false },
+      data: () => role === 'captain'
+        ? {
+          type: 'commissar-purge-authority', sessionId: 's1', role,
+          captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', revision: 1,
+          consented: false, usedThisTurn: false,
+        }
+        : { type: 'commissar-purge-authority', sessionId: 's1', role, revision: 1, consents: {}, ledger: {} },
+    });
+    authorityPath?.({
+      exists: () => true,
+      metadata: { fromCache: false },
+      data: () => role === 'captain'
+        ? {
+          type: 'commissar-purge-authority', sessionId: 's1', role,
+          captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', revision: 2,
+          consented: true, consentTurn: 1, consentVesselRevision: 0, usedThisTurn: false,
+        }
+        : {
+          type: 'commissar-purge-authority', sessionId: 's1', role, revision: 2,
+          consents: { icebreaker: { turn: 1, captainRoleId: 'icebreaker-captain', vesselRevision: 0 } },
+          ledger: {},
+        },
+    });
+    expect(onAuthority).toHaveBeenNthCalledWith(1, null);
+    expect(onAuthority).toHaveBeenNthCalledWith(2, expect.objectContaining({ role, revision: 1 }));
+    expect(onAuthority).toHaveBeenNthCalledWith(3, expect.objectContaining({ role, revision: 2 }));
+  },
+);
+
 it('rejects a delayed older server snapshot in the same lifecycle window', () => {
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();

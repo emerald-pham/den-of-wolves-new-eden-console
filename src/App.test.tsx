@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { ArbourVision, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
+import type { ArbourVision, CommissarPurgeAuthority, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -26,6 +26,7 @@ vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
+  refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
   releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
@@ -685,6 +686,114 @@ describe('App', () => {
 
     act(() => handlers?.onPlayer(nextPlayer));
     expect(useSessionStore.getState().roleBrief).toEqual(nextBrief);
+  });
+
+  it('rejects late Commissar authority callbacks across captain and replacement transitions', async () => {
+    const subscriptions: Array<Parameters<typeof subscribeSessionState>[2]> = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      subscriptions.push(nextHandlers);
+      return vi.fn();
+    });
+    const sessionWithFleet: GameSession = {
+      ...session,
+      phase: 'active',
+      activeVesselIds: ['icebreaker'],
+      activeRoleIds: ['icebreaker-captain'],
+    };
+    const captain: Player = {
+      ...player, role: 'player', assignedRoleId: 'icebreaker-captain',
+      activeConsoleRoleId: 'icebreaker-captain', replacementRoleId: null,
+    };
+    const commissar: Player = {
+      ...captain, activeConsoleRoleId: null, replacementRoleId: 'commissar',
+    };
+    const captainAuthority: CommissarPurgeAuthority = {
+      sessionId: 's1', role: 'captain', revision: 1,
+      captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', consented: true,
+      consentTurn: 1, consentVesselRevision: 0, usedThisTurn: false,
+    };
+    const commissarAuthority: CommissarPurgeAuthority = {
+      sessionId: 's1', role: 'commissar', revision: 2, consents: {}, ledger: {},
+    };
+    useSessionStore.getState().setIdentity(sessionWithFleet, captain);
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+
+    act(() => subscriptions[0]?.onPlayer(captain));
+    act(() => subscriptions[0]?.onCommissarPurgeAuthority?.(captainAuthority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toEqual(captainAuthority);
+
+    act(() => subscriptions[0]?.onPlayer(commissar));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+    act(() => subscriptions[0]?.onCommissarPurgeAuthority?.(captainAuthority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    act(() => subscriptions[1]?.onCommissarPurgeAuthority?.(commissarAuthority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toEqual(commissarAuthority);
+    act(() => subscriptions[1]?.onPlayer(captain));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+    await waitFor(() => expect(subscriptions).toHaveLength(3));
+    act(() => subscriptions[1]?.onCommissarPurgeAuthority?.(commissarAuthority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+  });
+
+  it('rebinds the production authority listener after denied eligibility and keeps later updates current', async () => {
+    const subscriptions: Array<Parameters<typeof subscribeSessionState>[2]> = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      subscriptions.push(nextHandlers);
+      return vi.fn();
+    });
+    const sessionWithFleet: GameSession = {
+      ...session,
+      phase: 'active',
+      activeVesselIds: ['icebreaker'],
+      activeRoleIds: ['icebreaker-captain'],
+    };
+    const ineligible: Player = {
+      ...player, role: 'player', assignedRoleId: 'press-officer',
+      activeConsoleRoleId: 'press-officer', replacementRoleId: null,
+    };
+    const captain: Player = {
+      ...ineligible, assignedRoleId: 'icebreaker-captain',
+      activeConsoleRoleId: 'icebreaker-captain',
+    };
+    const authority: CommissarPurgeAuthority = {
+      sessionId: 's1', role: 'captain', revision: 1,
+      captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', consented: true,
+      consentTurn: 1, consentVesselRevision: 0, usedThisTurn: false,
+    };
+    useSessionStore.getState().setIdentity(sessionWithFleet, ineligible);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+
+    // A permission-denied private read ends the first Firestore listener. The
+    // live player projection makes the same UID eligible and must register a
+    // fresh production listener rather than relying on a one-shot refresh.
+    act(() => subscriptions[0]?.onError?.());
+    act(() => subscriptions[0]?.onPlayer(captain));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+
+    // A queued callback from the denied listener cannot restore authority.
+    act(() => subscriptions[0]?.onCommissarPurgeAuthority?.(authority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+
+    // The rebound listener receives the absent projection first, then the
+    // server-created document and its later update without another refresh.
+    act(() => subscriptions[1]?.onCommissarPurgeAuthority?.(null));
+    act(() => subscriptions[1]?.onCommissarPurgeAuthority?.(authority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toEqual(authority);
+    const updatedAuthority = { ...authority, revision: 2, consented: false };
+    act(() => subscriptions[1]?.onCommissarPurgeAuthority?.(updatedAuthority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toEqual(updatedAuthority);
+
+    // Demotion clears the accepted projection; a queued late update from the
+    // old eligible listener remains rejected after the role transition.
+    act(() => subscriptions[1]?.onPlayer(ineligible));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+    act(() => subscriptions[1]?.onCommissarPurgeAuthority?.(updatedAuthority));
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+    unmount();
   });
 
   it('drops a buffered brief when the player projection changes again first', async () => {

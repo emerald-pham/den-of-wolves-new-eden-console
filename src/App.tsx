@@ -85,6 +85,43 @@ function playerEntitlementKey(player: Player | null | undefined): string | undef
   return player.assignedRoleId ? `assigned:${player.assignedRoleId}` : undefined;
 }
 
+function playerAuthorityKey(player: Player | null | undefined): string | undefined {
+  if (!player || player.role !== 'player') return undefined;
+  if (player.replacementRoleId === 'commissar' && player.activeConsoleRoleId === null) {
+    return `commissar:${player.uid}`;
+  }
+  const activeConsoleRoleId = player.activeConsoleRoleId;
+  if (
+    activeConsoleRoleId === 'admiral' ||
+    activeConsoleRoleId === 'dione-captain' ||
+    activeConsoleRoleId === 'icebreaker-captain' ||
+    activeConsoleRoleId === 'shepherd-captain' ||
+    activeConsoleRoleId === 'quellon-captain' ||
+    activeConsoleRoleId === 'refinery-124-captain' ||
+    activeConsoleRoleId === 'capybara-captain'
+  ) {
+    return `captain:${player.uid}:${activeConsoleRoleId}`;
+  }
+  return undefined;
+}
+
+function commissarPurgeAuthorityIsCurrent(
+  authority: CommissarPurgeAuthority,
+  session: GameSession | null,
+  player: Player | null,
+): boolean {
+  if (!session || !player || authority.sessionId !== session.id || player.role !== 'player') return false;
+  if (authority.role === 'commissar') {
+    return player.replacementRoleId === 'commissar' && player.activeConsoleRoleId === null;
+  }
+  if (player.activeConsoleRoleId !== authority.captainRoleId ||
+      (player.replacementRoleId !== null && player.replacementRoleId !== authority.captainRoleId) ||
+      !authority.shipId || !session.activeVesselIds?.includes(authority.shipId)) return false;
+  const expectedCaptainRole = authority.shipId === 'aegis'
+    ? 'admiral' : `${authority.shipId}-captain`;
+  return authority.captainRoleId === expectedCaptainRole;
+}
+
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
@@ -92,6 +129,7 @@ function AppRoutes() {
   const me = useSessionStore((state) => state.me);
   const sessionId = session?.id;
   const playerUid = me?.uid;
+  const playerAuthority = playerAuthorityKey(me);
   const playerListenerGeneration = useRef(0);
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
@@ -471,7 +509,18 @@ function AppRoutes() {
           store.setRoleBrief(null);
         },
         onCommissarPurgeAuthority: (next: CommissarPurgeAuthority | null) => {
-          if (callbackCurrent()) useSessionStore.getState().setCommissarPurgeAuthority(next);
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if (!next) {
+            store.setCommissarPurgeAuthority(null);
+            return;
+          }
+          // Firestore can deliver the old private document after a role
+          // transition. Recheck the live player projection before accepting
+          // it so a revoked captain or Commissar cannot rehydrate stale data.
+          if (commissarPurgeAuthorityIsCurrent(next, store.session, store.me)) {
+            store.setCommissarPurgeAuthority(next);
+          }
         },
         onSetupReceipt: (next) => {
           if (!callbackCurrent()) return;
@@ -499,7 +548,7 @@ function AppRoutes() {
       useSessionStore.getState().setArbourVision(null);
       unsubscribe();
     };
-  }, [playerUid, sessionId]);
+  }, [playerAuthority, playerUid, sessionId]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;

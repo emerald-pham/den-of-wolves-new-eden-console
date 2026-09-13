@@ -241,6 +241,46 @@ describe('Commissar purge private authority boundary', () => {
     await assertFails(getDoc(doc(as('commissar'), `${SESSION}/commissarPurgeState/current`)));
   });
 
+  it('keeps an eligible absent projection listener authorized through create and later updates', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/players/new-captain`), {
+        uid: 'new-captain', role: 'player', connected: true,
+        assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain',
+        replacementRoleId: null,
+      });
+      await setDoc(doc(db, `${SESSION}/players/new-commissar`), {
+        uid: 'new-commissar', role: 'player', connected: true,
+        assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: null,
+        replacementRoleId: 'commissar',
+      });
+    });
+    const captainAuthority = doc(as('new-captain'), `${SESSION}/commissarPurgeAuthority/new-captain`);
+    const commissarAuthority = doc(as('new-commissar'), `${SESSION}/commissarPurgeAuthority/new-commissar`);
+    await assertSucceeds(getDoc(captainAuthority));
+    await assertSucceeds(getDoc(commissarAuthority));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/commissarPurgeAuthority/new-captain`), {
+        type: 'commissar-purge-authority', sessionId: 's1', role: 'captain',
+        captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', revision: 1,
+        consented: false, usedThisTurn: false,
+      });
+      await setDoc(doc(db, `${SESSION}/commissarPurgeAuthority/new-commissar`), {
+        type: 'commissar-purge-authority', sessionId: 's1', role: 'commissar',
+        revision: 1, consents: {}, ledger: {},
+      });
+      await updateDoc(doc(db, `${SESSION}/commissarPurgeAuthority/new-captain`), {
+        consented: true, consentTurn: 1, consentVesselRevision: 0,
+      });
+      await updateDoc(doc(db, `${SESSION}/commissarPurgeAuthority/new-commissar`), {
+        revision: 2, ledger: { icebreaker: { turn: 1, revision: 1 } },
+      });
+    });
+    await assertSucceeds(getDoc(captainAuthority));
+    await assertSucceeds(getDoc(commissarAuthority));
+  });
+
   it('revokes the old captain projection after handover without exposing a stale callback', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();

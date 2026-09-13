@@ -194,6 +194,41 @@ service cloud.firestore {
         && visionUid == uid();
     }
 
+    function isCurrentCommissarPurgePrincipal(sessionId) {
+      return isMember(sessionId)
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.role == 'player'
+        && (
+          (get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data.replacementRoleId == 'commissar'
+            && get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == null)
+          || (get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data.activeConsoleRoleId == 'admiral'
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == 'dione-captain'
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == 'icebreaker-captain'
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == 'shepherd-captain'
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == 'quellon-captain'
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == 'refinery-124-captain'
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.activeConsoleRoleId == 'capybara-captain'));
+    }
+
     match /sessions/{sessionId} {
       // Joining by code goes through the callable function, so session headers
       // never need to be exposed to strangers or enumerable from the client.
@@ -237,20 +272,22 @@ service cloud.firestore {
       match /commissarPurgeAuthority/{authorityUid} {
         allow get: if isMember(sessionId)
           && authorityUid == uid()
-          && resource.data.sessionId == sessionId
-          && resource.data.role is string
           && (
-            (resource.data.role == 'commissar'
-              && get(
-                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-              ).data.role == 'player'
-              && get(
-                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-              ).data.replacementRoleId == 'commissar'
-              && get(
-                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-              ).data.activeConsoleRoleId == null)
-            || (resource.data.role == 'captain'
+            (resource == null && isCurrentCommissarPurgePrincipal(sessionId))
+            || (resource != null
+              && resource.data.sessionId == sessionId
+              && resource.data.role is string
+              && ((resource.data.role == 'commissar'
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+                ).data.role == 'player'
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+                ).data.replacementRoleId == 'commissar'
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+                ).data.activeConsoleRoleId == null)
+              || (resource.data.role == 'captain'
               && resource.data.captainRoleId is string
               && get(
                 /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
@@ -267,7 +304,7 @@ service cloud.firestore {
                 ).data.replacementRoleId == null
                 || get(
                   /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-                ).data.replacementRoleId == resource.data.captainRoleId)));
+                ).data.replacementRoleId == resource.data.captainRoleId)))));
         allow list, write: if false;
       }
 
