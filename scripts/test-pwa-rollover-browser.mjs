@@ -118,7 +118,39 @@ try {
     await serviceWorker.update();
   });
   await page.waitForFunction(async () => Boolean((await navigator.serviceWorker.ready).waiting));
+  await page.locator('.app-update-notice').waitFor({ state: 'attached' });
   console.log(JSON.stringify({ phase: 'v2-waiting' }));
+  const rendered = {};
+  for (const viewport of [
+    { width: 320, height: 844 },
+    { width: 844, height: 390 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const measurement = await page.evaluate(() => {
+      const header = document.querySelector('.app-header')?.getBoundingClientRect();
+      const notice = document.querySelector('.app-update-notice')?.getBoundingClientRect();
+      const button = document.querySelector('.app-update-notice button')?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        bodyScrollWidth: document.documentElement.scrollWidth,
+        header: header ? { top: header.top, bottom: header.bottom, width: header.width } : null,
+        notice: notice ? { left: notice.left, right: notice.right, top: notice.top, bottom: notice.bottom } : null,
+        button: button ? { width: button.width, height: button.height } : null,
+      };
+    });
+    if (!measurement.notice || !measurement.header || !measurement.button
+      || measurement.bodyScrollWidth > measurement.viewport.width + 1
+      || measurement.notice.left < -1
+      || measurement.notice.right > measurement.viewport.width + 1
+      || measurement.notice.bottom > measurement.header.bottom + 1
+      || measurement.button.width < 44
+      || measurement.button.height < 44) {
+      throw new Error(`Update notice clearance failed: ${JSON.stringify(measurement)}`);
+    }
+    rendered[`${viewport.width}x${viewport.height}`] = measurement;
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   const applyButton = page.getByRole('button', { name: 'Apply update' });
   try {
     await applyButton.waitFor({ state: 'visible' });
@@ -145,13 +177,18 @@ try {
   if (after.cacheNames.length < 2) {
     throw new Error(`Expected both versioned shell caches to remain usable: ${JSON.stringify(after)}`);
   }
-  console.log(JSON.stringify({
+  const result = {
     fixture: 'static-host-only; no Firebase or server replay claim',
     before,
     activated,
     after,
+    rendered,
     controls: 'Apply update -> controllerchange -> Reload app',
-  }, null, 2));
+  };
+  if (process.env.P624_EVIDENCE_PATH) {
+    fs.writeFileSync(process.env.P624_EVIDENCE_PATH, `${JSON.stringify(result, null, 2)}\n`);
+  }
+  console.log(JSON.stringify(result, null, 2));
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
