@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'player', activeRole: 'wing-commander',
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'player', activeRole: 'wing-commander' as string | undefined,
   owner: 'u1', connected: true,
   players: [] as Array<Record<string, unknown>>,
   session: {} as Record<string, unknown>,
@@ -92,7 +92,7 @@ it('rejects a player without the Wing Commander authority', async () => {
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('rejects disconnected short-staffed AEGIS consoles but permits a live GM instance', async () => {
+it('rejects other consoles and disconnected Wing Commanders but permits a live GM instance', async () => {
   for (const [index, activeRole] of ['admiral', 'executive-officer'].entries()) {
     mock.activeRole = activeRole;
     mock.connected = true;
@@ -102,6 +102,13 @@ it('rejects disconnected short-staffed AEGIS consoles but permits a live GM inst
     expect(mock.update).not.toHaveBeenCalled();
     mock.update.mockReset();
   }
+
+  mock.activeRole = 'wing-commander';
+  mock.connected = false;
+  await expect(buildFighter.run(request({ ...base, requestId: 'build-disconnected-commander' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 
   mock.role = 'gm';
   mock.activeRole = undefined;
