@@ -12,6 +12,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:bundle": "npm run build && node scripts/check-bundle-size.mjs",
+    "test:pwa:rollover": "npm run build && node scripts/test-pwa-rollover-browser.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint . --ext .ts,.tsx",

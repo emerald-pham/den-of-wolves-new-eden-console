@@ -115,6 +115,31 @@ it('registers the root service worker when the browser exposes the API', async (
   expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
 });
 
+it('never turns an update notice race or registration failure into an automatic reload', async () => {
+  vi.resetModules();
+  const reload = vi.fn();
+  vi.stubGlobal('window', { location: { reload } });
+  const { applyServiceWorkerUpdate, markServiceWorkerUpdateAvailable, registerServiceWorker } =
+    await import('./pwa');
+  const register = vi.fn().mockRejectedValue(new Error('registration unavailable'));
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: { register },
+  });
+
+  // The build marker can arrive before register() settles, and a failed
+  // registration must leave the player in the current shell safely.
+  markServiceWorkerUpdateAvailable();
+  applyServiceWorkerUpdate();
+  registerServiceWorker();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+  expect(reload).not.toHaveBeenCalled();
+  vi.unstubAllGlobals();
+});
+
 it('keeps a waiting worker non-blocking until the player explicitly applies it', async () => {
   const eventListeners = new Map<string, EventListener>();
   const worker = {

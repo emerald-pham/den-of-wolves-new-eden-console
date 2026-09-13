@@ -15,6 +15,7 @@ const INITIAL_UPDATE_STATE: ServiceWorkerUpdateState = {
 let updateState = INITIAL_UPDATE_STATE;
 let registration: ServiceWorkerRegistration | null = null;
 let waitingWorker: ServiceWorker | null = null;
+let applyRequested = false;
 const listeners = new Set<ServiceWorkerUpdateListener>();
 
 function publishUpdateState(next: Partial<ServiceWorkerUpdateState>): void {
@@ -26,6 +27,10 @@ function markWaiting(worker: ServiceWorker | null): void {
   if (!worker) return;
   waitingWorker = worker;
   publishUpdateState({ available: true, activated: false });
+  if (applyRequested) {
+    applyRequested = false;
+    worker.postMessage({ type: 'SKIP_WAITING' });
+  }
 }
 
 function observeRegistration(nextRegistration: ServiceWorkerRegistration): void {
@@ -68,11 +73,10 @@ export function applyServiceWorkerUpdate(): void {
     waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     return;
   }
+  applyRequested = true;
   if (registration) {
     void registration.update().catch(() => undefined);
-    return;
   }
-  if (typeof window !== 'undefined') window.location.reload();
 }
 
 /** Reload only after the player explicitly chooses to use the activated worker. */
