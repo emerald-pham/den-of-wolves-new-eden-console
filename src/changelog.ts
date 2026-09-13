@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['241d'],
+    implementationProgress: {
+      completed: 213,
+      total: 750,
+      percentage: '28.40%',
+      done: 213,
+      partial: 22,
+      active: 0,
+      missing: 515,
+    },
+    changes: [
+      'Base Capybara can use its charged Water Reclimator to add four water, or Hydroponics to turn one water into four food, in its docked host’s stores.',
+      '213 of 750 planned items are complete (28.40%).',
+    ],
+  },
+  {
+    version: '0.3.75',
     implementationPrompts: ['435', '618a'],
     implementationProgress: {
       completed: 212,
