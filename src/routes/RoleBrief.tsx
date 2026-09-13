@@ -3,6 +3,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
+import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
 
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
@@ -50,6 +51,8 @@ export default function RoleBrief() {
           <h2 id="role-brief-rules-title">Common rules</h2>
           <p>{brief.commonRules}</p>
         </section>
+
+        {me.replacementRoleId === 'wolf-commander' && <WolfCommanderTargetingPanel />}
 
         <Link className="cic-action-button role-brief__return" to="/roles">
           Return to role selection

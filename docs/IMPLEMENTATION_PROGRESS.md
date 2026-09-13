@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **211 / 750 prompts complete (28.13%)**
 
-Status breakdown: **211 done · 19 partial · 520 missing**.
+Status breakdown: **211 done · 20 partial · 519 missing**.
 
 Active prompt: **none**
 
@@ -888,7 +888,7 @@ release classification and evidence.
 | 433b | missing | non-feature | — | Planned [EXTEND] affected-player-console choices/results prompt; existing consoles do not yet resolve a playable attack. |
 | 434 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 434a | missing | non-feature | — | Planned [EXTEND] reasoned CAS/idempotent danger-confirmed intervention/recovery/audit prompt; no composed attack override path exists yet. |
-| 435 | missing | non-feature | — | Blocked until P515's reviewed replacement-role producer and P432's reviewed Wolf declaration receipt are available to establish an effective Wolf Commander assignment. The reroll implementation must consume the private replacement-role authority, use server randomness, and preserve the declaration's targeting-stage boundary; it cannot add a fallback assignment field. |
+| 435 | partial | non-feature | — | Production path implemented: the active player with P515's replacementRoleId wolf-commander authority reads a filtered current-dice view and submits selected rerolls against P432's successful GM-only targeting receipt. The server transaction uses shared command fingerprints, turn/revision CAS, unique persistent consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. Printed Capybara 8 rerolls remain separate. P432 remains partial only for its independent nearest-host/P146/P373 parking policy; this prompt does not add timeout, auto-advance, C&C, range, damage, or parking behavior. Later targeting steps remain separate prompts. |
 | 436 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 437 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 438 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

@@ -56,6 +56,7 @@ import {
   requireWolfAttackWindowRequest,
   requireWolfAttackPreparationRequest,
   requireWolfAttackDeclarationRequest,
+  requireWolfCommanderRerollRequest,
   requireFacilitatorCensusNoteRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
@@ -265,7 +266,14 @@ import {
   EXPANDED_WOLF_TARGET_RING,
   resolveWolfTargeting,
   type WolfTargetRing,
+  type WolfTargetingReceipt,
 } from './wolfCombatMath';
+import {
+  applyWolfCommanderRerolls,
+  commanderTargetingView,
+  parseWolfTargetingReceipt,
+  type WolfCommanderTargetingView,
+} from './wolfCommanderRerolls';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -7683,6 +7691,7 @@ export const declareWolfAttack = onCall<{
       parkedCraftIds: [...inputs.parkedCraftIds],
       parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       calculationReceipt,
+      commanderRerollIndexes: [],
       preparation: inputs.preparation,
       actorUid: uid,
       declaredAt,
@@ -7733,6 +7742,263 @@ export const declareWolfAttack = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfCommanderTargetingResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-commander-target-reroll';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  currentStep: 'targeting';
+  rerolledIndexes: readonly number[];
+  view: WolfCommanderTargetingView;
+}>;
+
+type WolfCommanderTargetingReadResult =
+  | WolfCommanderTargetingView
+  | Readonly<{
+    type: 'wolf-commander-targeting-unavailable';
+    sessionId: string;
+    reason: 'waiting' | 'not-targeting';
+  }>;
+
+function isWolfCommanderTargetingResult(value: unknown): value is WolfCommanderTargetingResult {
+  if (!isRecord(value)) return false;
+  return value.status === 'committed' && value.type === 'wolf-commander-target-reroll' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
+    typeof value.requestId === 'string' && value.requestId.length > 0 &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    value.currentStep === 'targeting' && Array.isArray(value.rerolledIndexes) &&
+    value.rerolledIndexes.every((index) => Number.isSafeInteger(index) && (index as number) >= 0) &&
+    isRecord(value.view) && value.view.type === 'wolf-commander-targeting-view';
+}
+
+type WolfCommanderTargetingInputs = Readonly<{
+  turn: number;
+  revision: number;
+  receipt: WolfTargetingReceipt;
+  consumedIndexes: readonly number[];
+  calculationReceipt: Record<string, unknown>;
+}>;
+
+function wolfCommanderTargetingInputs(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+): WolfCommanderTargetingInputs {
+  if (!state.exists || state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
+      state.get('currentStep') !== WOLF_ATTACK_DECLARATION_STEP || state.get('airspaceLocked') !== true) {
+    throw commandError('failed-precondition', 'Wolf targeting is not currently open to the Commander.', 'invalid-phase');
+  }
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== currentTurn) {
+    throw commandError('failed-precondition', 'The Wolf targeting state is stale for the current turn.', 'stale-revision');
+  }
+  if (!Number.isSafeInteger(revision) || (revision as number) < 1) {
+    throw commandError('failed-precondition', 'The Wolf targeting revision is malformed.', 'conflict');
+  }
+  const rawConsumed = state.get('commanderRerollIndexes');
+  if (!Array.isArray(rawConsumed) || rawConsumed.some((index) =>
+    !Number.isSafeInteger(index) || (index as number) < 0) || new Set(rawConsumed).size !== rawConsumed.length) {
+    throw commandError('failed-precondition', 'The Wolf targeting reroll ledger is malformed.', 'conflict');
+  }
+  const rawCalculationReceipt = state.get('calculationReceipt');
+  if (!isRecord(rawCalculationReceipt) || rawCalculationReceipt.step !== WOLF_ATTACK_DECLARATION_STEP) {
+    throw commandError('failed-precondition', 'The Wolf targeting receipt is unavailable.', 'conflict');
+  }
+  const receipt = parseWolfTargetingReceipt(rawCalculationReceipt.targeting);
+  if (!receipt) {
+    throw commandError('failed-precondition', 'The Wolf targeting receipt is malformed.', 'conflict');
+  }
+  const receiptRerolledIndexes = receipt.rolls.flatMap((roll) =>
+    roll.rerollDie === undefined && !roll.modifiers.includes('commander-reroll')
+      ? [] : [roll.rosterIndex]);
+  const consumedIndexes = [...rawConsumed] as number[];
+  if (JSON.stringify([...consumedIndexes].sort((a, b) => a - b)) !==
+      JSON.stringify([...receiptRerolledIndexes].sort((a, b) => a - b)) ||
+      consumedIndexes.some((index) => index >= receipt.rolls.length)) {
+    throw commandError('failed-precondition', 'The Wolf targeting reroll ledger does not match its receipt.', 'conflict');
+  }
+  const preparation = wolfAttackPreparationState(state.get('preparation'));
+  if (!preparation || preparation.turn !== turn) {
+    throw commandError('failed-precondition', 'The Wolf targeting preparation is unavailable.', 'conflict');
+  }
+  try {
+    const composition = scheduledWolfAttackComposition(turn as number, preparation.shipIds);
+    if (composition.shipIds.length !== receipt.rolls.length ||
+        composition.shipIds.some((shipId, index) => receipt.rolls[index]?.shipId !== shipId)) {
+      throw new Error('The Wolf targeting receipt does not match its preparation.');
+    }
+    const activeVesselIds = wolfAttackActiveVesselIds(session);
+    const expectedRing = activeVesselIds.includes('capybara')
+      ? EXPANDED_WOLF_TARGET_RING : CORE_WOLF_TARGET_RING;
+    if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing)) {
+      throw new Error('The Wolf targeting receipt does not match the active fleet.');
+    }
+  } catch (error) {
+    throw commandError(
+      'failed-precondition',
+      error instanceof Error ? error.message : 'The Wolf targeting receipt is not authoritative.',
+      'conflict',
+    );
+  }
+  return {
+    turn: turn as number,
+    revision: revision as number,
+    receipt,
+    consumedIndexes,
+    calculationReceipt: rawCalculationReceipt,
+  };
+}
+
+function requireWolfCommanderPlayer(player: DocumentSnapshot, uid: string): void {
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
+    throw new HttpsError('permission-denied', 'Only the active Wolf Commander player may use this action.');
+  }
+  if (player.get('replacementRoleId') !== 'wolf-commander') {
+    throw new HttpsError('permission-denied', 'The historical role does not grant Wolf Commander authority.');
+  }
+}
+
+/** Return a filtered targeting view; the GM-only receipt never crosses this boundary. */
+export const getWolfCommanderTargeting = onCall<{
+  sessionId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The Commander targeting query accepts only sessionId.');
+  }
+  const sessionId = requireSessionRequest(isRecord(raw) ? raw : {}).sessionId;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const [session, player, state] = await Promise.all([sessionRef.get(), playerRef.get(), stateRef.get()]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  requireWolfCommanderPlayer(player, uid);
+  if (!state.exists) {
+    return { type: 'wolf-commander-targeting-unavailable', sessionId, reason: 'waiting' } satisfies WolfCommanderTargetingReadResult;
+  }
+  try {
+    const inputs = wolfCommanderTargetingInputs(session, state);
+    return commanderTargetingView(sessionId, inputs.turn, inputs.revision, inputs.receipt);
+  } catch (error) {
+    if (error instanceof HttpsError && error.code === 'failed-precondition' &&
+        state.get('currentStep') !== WOLF_ATTACK_DECLARATION_STEP) {
+      return { type: 'wolf-commander-targeting-unavailable', sessionId, reason: 'not-targeting' } satisfies WolfCommanderTargetingReadResult;
+    }
+    throw error;
+  }
+});
+
+/** Apply selected targeting rerolls under the replacement-role authority. */
+export const applyWolfCommanderTargetRerolls = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+  rosterIndexes?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw)) {
+    const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'rosterIndexes']);
+    if (Object.keys(raw).some((key) => !allowed.has(key))) {
+      throw new HttpsError('invalid-argument', 'Reroll outcomes are server generated.');
+    }
+  }
+  const change = requireWolfCommanderRerollRequest(isRecord(raw) ? raw : {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const playerRef = db.doc(`sessions/${change.sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const canonicalIndexes = [...change.rosterIndexes].sort((left, right) => left - right);
+  const fingerprint: CommandFingerprint = {
+    action: 'apply-wolf-commander-target-rerolls',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: change.expectedRevision,
+    payload: { expectedTurn: change.expectedTurn, rosterIndexes: canonicalIndexes.map(String) },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<WolfCommanderTargetingResult> => {
+    const [session, player, state, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    const replay = replayBoundCommand(
+      receipt, fingerprint, isWolfCommanderTargetingResult, 'Wolf Commander target reroll',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    const inputs = wolfCommanderTargetingInputs(session, state);
+    if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf targeting view is stale. Refresh the current dice before choosing rerolls.',
+        'stale-revision',
+      );
+    }
+    if (canonicalIndexes.some((index) => inputs.consumedIndexes.includes(index))) {
+      throw commandError(
+        'failed-precondition',
+        'One or more selected targeting dice have already been rerolled.',
+        'stale-revision',
+      );
+    }
+    let targeting;
+    try {
+      targeting = applyWolfCommanderRerolls(inputs.receipt, canonicalIndexes, (upperBound) => randomInt(upperBound));
+    } catch (error) {
+      throw commandError(
+        'failed-precondition',
+        error instanceof Error ? error.message : 'The selected targeting dice cannot be rerolled.',
+        'conflict',
+      );
+    }
+    const rerolledIndexes = [...inputs.consumedIndexes, ...canonicalIndexes].sort((left, right) => left - right);
+    const nextRevision = inputs.revision + 1;
+    const nextView = commanderTargetingView(change.sessionId, inputs.turn, nextRevision, targeting);
+    const nextCalculationReceipt = {
+      ...inputs.calculationReceipt,
+      targeting,
+    };
+    const result: WolfCommanderTargetingResult = {
+      status: 'committed',
+      type: 'wolf-commander-target-reroll',
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      turn: inputs.turn,
+      revision: nextRevision,
+      currentStep: 'targeting',
+      rerolledIndexes: canonicalIndexes,
+      view: nextView,
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      calculationReceipt: nextCalculationReceipt,
+      commanderRerollIndexes: rerolledIndexes,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-commander-target-reroll',
+      turn: inputs.turn,
+      revision: nextRevision,
+      rerolledIndexes: canonicalIndexes,
+      actorUid: uid,
+      requestId: change.requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

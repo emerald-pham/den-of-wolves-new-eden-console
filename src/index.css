@@ -977,6 +977,114 @@ body {
 }
 .role-brief__return { justify-self: start; }
 
+.wolf-commander-panel {
+  display: grid;
+  gap: 1rem;
+  border-color: var(--cic-cyan-dim);
+  padding: 1rem;
+}
+.wolf-commander-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.wolf-commander-panel__header h2 {
+  margin: 0.25rem 0 0;
+  color: var(--cic-cyan);
+  font: 700 1rem/1.3 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.wolf-commander-panel__revision {
+  color: var(--cic-amber);
+  font: 0.8rem/1.4 var(--cic-mono);
+  white-space: nowrap;
+}
+.wolf-commander-panel__guidance,
+.wolf-commander-panel__empty,
+.wolf-commander-panel__status {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 14px/1.6 var(--cic-mono);
+}
+.wolf-commander-panel__empty,
+.wolf-commander-panel__status { color: var(--cic-muted); }
+.wolf-commander-panel__dice {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--cic-rule);
+  padding: 0.75rem;
+}
+.wolf-commander-panel__dice legend {
+  padding: 0 0.35rem;
+  color: var(--cic-amber);
+  font: 16px/1.4 var(--cic-mono);
+}
+.wolf-commander-panel__dice ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wolf-commander-panel__die {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--cic-rule) 70%, transparent);
+}
+.wolf-commander-panel__die:last-child { border-bottom: 0; }
+.wolf-commander-panel__die label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  min-width: 0;
+  color: var(--cic-ink);
+  font: 16px/1.4 var(--cic-mono);
+  cursor: pointer;
+}
+.wolf-commander-panel__die input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  accent-color: var(--cic-cyan);
+}
+.wolf-commander-panel__die label > span {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wolf-commander-panel__die label > span > span {
+  color: var(--cic-muted);
+  font-size: 14px;
+}
+.wolf-commander-panel__die small {
+  color: var(--cic-muted);
+  font: 12px/1.4 var(--cic-mono);
+  white-space: nowrap;
+}
+.wolf-commander-panel__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.wolf-commander-panel__actions .cic-action-button,
+.wolf-commander-panel__actions .cic-text-button { font-size: 16px; }
+.wolf-commander-panel__actions .cic-action-button { min-height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wolf-commander-panel *,
+  .wolf-commander-panel *::before,
+  .wolf-commander-panel *::after { animation: none !important; transition: none !important; }
+}
+
 .role-select__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

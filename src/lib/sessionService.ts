@@ -14,6 +14,7 @@ import type {
   WolfAttackPreparationModifierId,
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationResult,
+  WolfCommanderTargetingView,
   WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
@@ -2325,6 +2326,92 @@ function wolfAttackDeclarationReply(value: unknown): WolfAttackDeclarationResult
   };
 }
 
+export type WolfCommanderTargetingReadResult =
+  | WolfCommanderTargetingView
+  | Readonly<{
+    type: 'wolf-commander-targeting-unavailable';
+    sessionId: string;
+    reason: 'waiting' | 'not-targeting';
+  }>;
+
+export interface WolfCommanderTargetRerollResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-commander-target-reroll';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly currentStep: 'targeting';
+  readonly rerolledIndexes: readonly number[];
+  readonly view: WolfCommanderTargetingView;
+}
+
+function wolfCommanderTargetingView(value: unknown): WolfCommanderTargetingView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const rolls = Array.isArray(raw.rolls) ? raw.rolls.flatMap((roll): WolfCommanderTargetingView['rolls'][number][] => {
+    if (typeof roll !== 'object' || roll === null || Array.isArray(roll)) return [];
+    const candidate = roll as Record<string, unknown>;
+    return Number.isSafeInteger(candidate.rosterIndex) && (candidate.rosterIndex as number) >= 0 &&
+      typeof candidate.shipId === 'string' && candidate.shipId.length > 0 &&
+      Number.isSafeInteger(candidate.die) && (candidate.die as number) >= 1 &&
+      typeof candidate.target === 'string' && candidate.target.length > 0
+      ? [{ rosterIndex: candidate.rosterIndex as number, shipId: candidate.shipId, die: candidate.die as number, target: candidate.target }]
+      : [];
+  }) : [];
+  const eligibleRerollIndexes = Array.isArray(raw.eligibleRerollIndexes)
+    ? raw.eligibleRerollIndexes.filter((index): index is number => Number.isSafeInteger(index) && (index as number) >= 0)
+    : [];
+  const rerolledIndexes = Array.isArray(raw.rerolledIndexes)
+    ? raw.rerolledIndexes.filter((index): index is number => Number.isSafeInteger(index) && (index as number) >= 0)
+    : [];
+  if (raw.type !== 'wolf-commander-targeting-view' || typeof raw.sessionId !== 'string' ||
+      !raw.sessionId || !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 || raw.currentStep !== 'targeting' ||
+      !Array.isArray(raw.rolls) || rolls.length !== raw.rolls.length ||
+      !Array.isArray(raw.eligibleRerollIndexes) || eligibleRerollIndexes.length !== raw.eligibleRerollIndexes.length ||
+      !Array.isArray(raw.rerolledIndexes) || rerolledIndexes.length !== raw.rerolledIndexes.length) return null;
+  return {
+    type: 'wolf-commander-targeting-view',
+    sessionId: raw.sessionId,
+    turn: raw.turn as number,
+    revision: raw.revision as number,
+    currentStep: 'targeting',
+    rolls,
+    eligibleRerollIndexes,
+    rerolledIndexes,
+  };
+}
+
+function wolfCommanderTargetingReadReply(value: unknown): WolfCommanderTargetingReadResult | null {
+  const view = wolfCommanderTargetingView(value);
+  if (view) return view;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  return reply.type === 'wolf-commander-targeting-unavailable' && typeof reply.sessionId === 'string' &&
+    (reply.reason === 'waiting' || reply.reason === 'not-targeting')
+    ? { type: reply.type, sessionId: reply.sessionId, reason: reply.reason } : null;
+}
+
+function wolfCommanderTargetRerollReply(value: unknown): WolfCommanderTargetRerollResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const view = wolfCommanderTargetingView(reply.view);
+  const indexes = Array.isArray(reply.rerolledIndexes)
+    ? reply.rerolledIndexes.filter((index): index is number => Number.isSafeInteger(index) && (index as number) >= 0)
+    : [];
+  if (reply.status !== 'committed' || reply.type !== 'wolf-commander-target-reroll' ||
+      typeof reply.sessionId !== 'string' || typeof reply.requestId !== 'string' ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 || reply.currentStep !== 'targeting' ||
+      !Array.isArray(reply.rerolledIndexes) || indexes.length !== reply.rerolledIndexes.length || !view) return null;
+  return {
+    status: 'committed', type: 'wolf-commander-target-reroll', sessionId: reply.sessionId,
+    requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
+    currentStep: 'targeting', rerolledIndexes: indexes, view,
+  };
+}
+
 /** Mark the approximate first Wolf-attack window from an active GM console. */
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,
@@ -2420,6 +2507,56 @@ export async function declareWolfAttack(expectedRevision: number): Promise<WolfA
     const reply = wolfAttackDeclarationReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf-attack declaration.');
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the server-filtered targeting projection for the active Wolf Commander. */
+export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetingReadResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+    throw new Error('Only the active Wolf Commander may read targeting dice.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading Wolf targeting dice.');
+  await ensureSignedIn();
+  const payload = { sessionId: store.session.id };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'getWolfCommanderTargeting');
+  try {
+    const reply = wolfCommanderTargetingReadReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Wolf Commander targeting view.');
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Apply one bounded selection of Commander rerolls with a revision CAS. */
+export async function applyWolfCommanderTargetRerolls(
+  expectedTurn: number,
+  expectedRevision: number,
+  rosterIndexes: readonly number[],
+): Promise<WolfCommanderTargetRerollResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+    throw new Error('Only the active Wolf Commander may reroll targeting dice.');
+  }
+  requireFreshSessionAuthority('Reconnect before rerolling Wolf targeting dice.');
+  await ensureSignedIn();
+  const payload = {
+    sessionId: store.session.id,
+    requestId: commandId(),
+    expectedTurn,
+    expectedRevision,
+    rosterIndexes: [...rosterIndexes],
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'applyWolfCommanderTargetRerolls');
+  try {
+    const reply = wolfCommanderTargetRerollReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Wolf Commander reroll receipt.');
     return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));

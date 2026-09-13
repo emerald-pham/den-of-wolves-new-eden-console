@@ -329,6 +329,25 @@ export interface WolfAttackDeclarationResult {
   readonly announcementId: string;
 }
 
+/** Commander-only filtered targeting projection; the server receipt remains GM-only. */
+export interface WolfCommanderTargetingViewRoll {
+  readonly rosterIndex: number;
+  readonly shipId: string;
+  readonly die: number;
+  readonly target: string;
+}
+
+export interface WolfCommanderTargetingView {
+  readonly type: 'wolf-commander-targeting-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly currentStep: 'targeting';
+  readonly rolls: readonly WolfCommanderTargetingViewRoll[];
+  readonly eligibleRerollIndexes: readonly number[];
+  readonly rerolledIndexes: readonly number[];
+}
+
 /** The shared real-time window that starts with every numbered turn. */
 export interface TurnPhase {
   readonly turn: number;

@@ -4622,6 +4622,13 @@
       "type": "evidence / authority / related/consumes"
     },
     {
+      "direction": "435 -> 432;515;428",
+      "id": "E-AUDIT-435",
+      "language": "The live replacementRoleId wolf-commander player receives a filtered targeting view through a narrowly authorized callable; the GM-only declaration receipt remains private. A transaction-bound Commander action requires the current turn, targeting step, live replacement authority, expected revision, unique roster indexes, and shared command fingerprint, then patches only selected receipt rolls with server randomness, records a private audit and persistent consumed-index ledger, and replays an exact request without another sample. Historical assignedRoleId, GM actors, stale/concurrent revisions, duplicate or consumed indexes, malformed receipts, and post-targeting actions fail closed. P432 remains partial only for its independent nearest-host/P146/P373 parking policy; P435 consumes its successful declaration receipt and does not resolve parking, C&C, range, damage, or timeout behavior. Focused callable/math/guard/UI tests, Functions build, app typecheck/build/lint, and reduced-motion responsive evidence cover the action surface.",
+      "source": "functions/src/index.ts; functions/src/wolfCommanderRerolls.ts; functions/src/wolfCommanderRerolls.test.ts; functions/src/wolfCommanderTargetingCallable.test.ts; functions/src/requestGuards.ts; functions/src/wolfAttackDeclaration.ts; src/components/WolfCommanderTargetingPanel.tsx; src/components/WolfCommanderTargetingPanel.test.tsx; src/routes/RoleBrief.tsx; src/lib/sessionService.ts; src/types/game.ts; src/index.css; focused tests/build/lint; local 320x844, 1440x900, and 844x390 reduced-motion render checks",
+      "type": "evidence / authority / related/consumes"
+    },
+    {
       "direction": "652c",
       "id": "E-652C-OWNER",
       "language": "Add a prompt to remove the ticker Hide button. This explicitly supersedes the older mobile hide/reveal requirement.",
@@ -15854,8 +15861,8 @@
         "acceptance": "the assigned Commander rerolls each eligible die no more than once before Command and Control.",
         "title": "Resolve Wolf Commander target rerolls."
       },
-      "description": "Blocked until P515's reviewed replacement-role producer and P432's reviewed Wolf declaration receipt are available to establish an effective Wolf Commander assignment. The reroll implementation must consume the private replacement-role authority, use server randomness, and preserve the declaration's targeting-stage boundary; it cannot add a fallback assignment field.",
-      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT",
+      "description": "Production path implemented: the active player with P515's replacementRoleId wolf-commander authority reads a filtered current-dice view and submits selected rerolls against P432's successful GM-only targeting receipt. The server transaction uses shared command fingerprints, turn/revision CAS, unique persistent consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. Printed Capybara 8 rerolls remain separate. P432 remains partial only for its independent nearest-host/P146/P373 parking policy; this prompt does not add timeout, auto-advance, C&C, range, damage, or parking behavior. Later targeting steps remain separate prompts.",
+      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;515",
@@ -15866,7 +15873,7 @@
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

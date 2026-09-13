@@ -22,6 +22,8 @@ export interface WolfAttackStageState {
   }[];
   /** Hidden GM state: targeting rolls remain outside member-readable events. */
   readonly calculationReceipt: unknown;
+  /** Server-owned consumed roster indexes; each may be used at most once. */
+  readonly commanderRerollIndexes: readonly number[];
   readonly preparation: WolfAttackPreparation;
   readonly actorUid: string;
   readonly declaredAt: string;

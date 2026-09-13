@@ -784,6 +784,43 @@ export function requireWolfAttackDeclarationRequest(data: {
   };
 }
 
+/** A live Wolf Commander submits only the targeting indexes it wants rerolled. */
+export function requireWolfCommanderRerollRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+  rosterIndexes?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  expectedTurn: number;
+  expectedRevision: number;
+  rosterIndexes: number[];
+} {
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive integer.');
+  }
+  if (!Array.isArray(data.rosterIndexes) || data.rosterIndexes.length < 1 || data.rosterIndexes.length > 24 ||
+      data.rosterIndexes.some((index) => !Number.isSafeInteger(index) || (index as number) < 0)) {
+    throw new HttpsError('invalid-argument', 'rosterIndexes must contain one to twenty-four non-negative indexes.');
+  }
+  const rosterIndexes = data.rosterIndexes as number[];
+  if (new Set(rosterIndexes).size !== rosterIndexes.length) {
+    throw new HttpsError('invalid-argument', 'rosterIndexes must not contain duplicates.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedTurn: data.expectedTurn as number,
+    expectedRevision: data.expectedRevision as number,
+    rosterIndexes: [...rosterIndexes],
+  };
+}
+
 /** A facilitator's private census annotation is revisioned and clearable. */
 export function requireFacilitatorCensusNoteRequest(data: {
   sessionId?: unknown;
