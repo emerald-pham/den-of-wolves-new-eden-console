@@ -52,10 +52,10 @@ it('keeps implementation-plan features mapped when release notes declare coverag
 
 it('keeps roadmap jargon out of rendered changelog fields while retaining provenance', () => {
   const renderedChanges = CHANGELOG.flatMap((entry) => entry.changes);
-  const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const historicalEntry = CHANGELOG.find((entry) => entry.version === '0.3.79');
 
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
-  expect(currentEntry?.implementationPrompts).toEqual([245]);
+  expect(historicalEntry?.implementationPrompts).toEqual([245]);
 });
 
 it('emits uncached build metadata for live clients to discover upgrades', () => {

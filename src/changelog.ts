@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [657],
+    implementationProgress: {
+      completed: 218,
+      total: 750,
+      percentage: '29.07%',
+      done: 218,
+      partial: 25,
+      active: 0,
+      missing: 507,
+    },
+    changes: [
+      'Release history now uses clearer language while preserving past progress figures.',
+      '218 of 750 planned items are complete (29.07%).',
+    ],
+  },
+  {
+    version: '0.3.80',
     implementationPrompts: [313, 337],
     implementationProgress: {
       completed: 217,
