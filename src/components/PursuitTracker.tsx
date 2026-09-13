@@ -103,6 +103,7 @@ export default function PursuitTracker({
         className={`pursuit-tracker__status pursuit-tracker__status--${status}`}
         changeKey={`${shipId}:${currentTurn}:${coordinate}:${entitledDistance}:${pursuitScore}:${threatLevel}`}
         message={statusLabel}
+        role={null}
       />
     </section>
   );

@@ -4,7 +4,7 @@ interface LiveChangeRegionProps {
   readonly as?: ElementType;
   readonly changeKey: string | null | undefined;
   readonly message: string;
-  readonly role?: 'status' | 'alert';
+  readonly role?: 'status' | 'alert' | null;
   readonly politeness?: 'polite' | 'assertive';
   readonly atomic?: boolean;
   readonly announceInitial?: boolean;
@@ -57,7 +57,7 @@ export default function LiveChangeRegion({
       className={className}
       {...(announcedMessage
         ? {
-            role,
+            ...(role ? { role } : {}),
             'aria-live': live ? politeness : 'off',
             'aria-atomic': atomic,
           }
