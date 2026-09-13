@@ -2644,3 +2644,31 @@ it('labels outbreak fields as public and submits them separately from private no
     } },
   ));
 });
+
+
+it('allows removing an affected ship disabled after drafting before delivering the corrected outbreak', async () => {
+  const user = userEvent.setup();
+  const diseaseOutbreak = { affectedShipIds: ['dione'], workRestrictions: 'Affected crew cannot work.', escalationRisk: 'Further spread.' };
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, publish) => {
+    publish({ ...liveCrisis, crisisKind: 'disease-outbreak', diseaseOutbreak });
+    return vi.fn();
+  });
+  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, phase: 'active', activeVesselIds: ['aegis', 'dione'], dioneEnabled: true });
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(transitionCrisis).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+  const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
+  expect(await within(panel).findByRole('checkbox', { name: /^Dione$/i })).toBeChecked();
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, activeVesselIds: ['aegis'], dioneEnabled: false }));
+  const inactive = await within(panel).findByRole('checkbox', { name: /Dione.*inactive/i });
+  expect(inactive).toBeChecked();
+  await user.click(inactive);
+  expect(within(panel).queryByRole('checkbox', { name: /Dione/i })).not.toBeInTheDocument();
+  await user.click(within(panel).getByRole('checkbox', { name: /AEGIS/ }));
+  await user.click(within(panel).getByRole('button', { name: 'Mark delivered' }));
+  await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
+    liveCrisis.crisisId, 'delivered', liveCrisis.title, liveCrisis.details,
+    { crisisKind: 'disease-outbreak', configurationOverride: '', diseaseOutbreak: { ...diseaseOutbreak, affectedShipIds: ['aegis'] } },
+  ));
+});

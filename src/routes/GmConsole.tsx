@@ -525,6 +525,9 @@ export default function GmConsole() {
       (capybaraEnabled || ship.id !== 'capybara') &&
       (dioneEnabled || ship.id !== 'dione'),
   );
+  const outbreakShips = [...availableShips, ...diseaseShipIds
+    .filter(id => !availableShips.some(ship => ship.id === id))
+    .map(id => ({ id, name: `${SHIPS.find(ship => ship.id === id)?.name ?? id} (inactive)` }))];
   const viewer = availableShips.find((ship) => ship.id === viewerId) ?? availableShips[0];
   const viewerCoordinate = session?.shipGalacticCoordinates?.[viewer?.id ?? 'aegis'] ??
     ORIGIN_GALACTIC_COORDINATE;
@@ -2205,7 +2208,7 @@ export default function GmConsole() {
             {crisisKindDraft === 'disease-outbreak' && (
               <DiseaseOutbreakFields
                 disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed' && gmCrisisState.state !== 'draft') || crisisMutationState !== null}
-                ships={availableShips} diseaseShipIds={diseaseShipIds} diseaseWork={diseaseWork} diseaseRisk={diseaseRisk}
+                ships={outbreakShips} diseaseShipIds={diseaseShipIds} diseaseWork={diseaseWork} diseaseRisk={diseaseRisk}
                 setDiseaseShipIds={setDiseaseShipIds} setDiseaseWork={setDiseaseWork} setDiseaseRisk={setDiseaseRisk}
               />
             )}
