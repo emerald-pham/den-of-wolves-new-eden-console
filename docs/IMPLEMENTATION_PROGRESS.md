@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**235 / 751 prompts complete (31.29%)**
+**238 / 751 prompts complete (31.69%)**
 
-Status breakdown: **235 done · 25 partial · 491 missing**.
+Status breakdown: **238 done · 23 partial · 490 missing**.
 
 Active prompt: **none**
 
@@ -858,9 +858,9 @@ release classification and evidence.
 | 413 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 414 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 415 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 416 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 416a | partial | non-feature | — | The typed catalog now encodes Ice Asteroids B as a poor six-card mission with two opportunities: exploration 17 for 6 water, and mining 24/30 for 8 water plus a critical +1 material bonus. The authorized routed source inventory does not preserve a primary mission-card PDF, and its derivative does not establish a B-specific trait-bonus value or score-failure consequence. Those fields remain explicit unresolved gaps rather than inferred defaults, so Prompt 416a is partial; mission dealing and resolution remain deferred. |
-| 416b | partial | non-feature | — | The typed catalog now encodes Rare Element Moon C as a poor six-card mission with two opportunities: mining/exploration 20 for 2 minerals, and science 25 for the Endeavour to cross out 1 research box of the player's choice. The authorized routed source inventory does not preserve a primary mission-card PDF, and its derivative does not establish a C-specific trait-bonus value or score-failure consequence. Those fields remain explicit unresolved gaps rather than inferred defaults, so Prompt 416b is partial; mission dealing and resolution remain deferred. |
+| 416 | done | non-feature | — | The server-owned catalog now encodes Lichen-Covered Asteroids A from the authorized local v1.1 primary print review: two opportunities, six cards, exploration 17 for 8 food, mining 24 for 3 ore, and no printed critical threshold. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
+| 416a | done | non-feature | — | The server-owned catalog now encodes Ice Asteroids B from the authorized local v1.1 primary print review: two opportunities, six cards, exploration 17 for 6 water, mining 24/30 for 8 water plus a critical +1 material, explicit card-level trait-bonus absence with generic shuttle bonuses preserved, automatic empty-opportunity failure, below-difficulty facilitator consequences, and exact rewards. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
+| 416b | done | non-feature | — | The server-owned catalog now encodes Rare Element Moon C from the authorized local v1.1 primary print review: two opportunities, six cards, mining/exploration 20 for 2 minerals, science 25 for the Endeavour to cross out one chosen research box, explicit card-level trait-bonus absence with generic shuttle bonuses preserved, automatic empty-opportunity failure, below-difficulty facilitator consequences, and exact rewards. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
 | 417 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 417a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 417b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
