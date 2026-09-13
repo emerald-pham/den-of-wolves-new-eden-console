@@ -87,6 +87,7 @@ import type {
   WolfAttackWindowStatus,
   WolfAssignment,
 } from '@/types/game';
+import { isWireSafeEntityId } from '@/types/identifiers';
 import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
 
 const WOLF_PREPARATION_CARD_TYPES = [
@@ -557,7 +558,15 @@ export default function GmConsole() {
   const replacementCandidates = allPlayers
     .filter((player) => player.role === 'player' && !player.replacementRoleId)
     .sort((left, right) => normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
-  const replacementVesselIds = new Set(session?.activeVesselIds ?? []);
+  const persistedReplacementVesselIds = session?.activeVesselIds;
+  const replacementVesselIds = new Set(
+    Array.isArray(persistedReplacementVesselIds) &&
+    persistedReplacementVesselIds.length > 0 &&
+    persistedReplacementVesselIds.every(isWireSafeEntityId) &&
+    new Set(persistedReplacementVesselIds).size === persistedReplacementVesselIds.length
+      ? persistedReplacementVesselIds
+      : [],
+  );
   const replacementRoles = REPLACEMENT_ROLE_CATALOG.filter((role) =>
     (!role.baseVesselOnly || session?.expansion !== 'capybara') &&
     (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),

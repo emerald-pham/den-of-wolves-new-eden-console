@@ -462,6 +462,34 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   await waitFor(() => expect(assignReplacementRole).toHaveBeenCalledWith('u2', 'wolf-commander', 1, 5));
 });
 
+it('does not advertise extra-ship replacement roles for a duplicate vessel tuple', async () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'gorgoneion', 'gorgoneion'],
+    activeRoleIds: ['admiral'], expansion: 'base', smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: null, dockingRevision: 0,
+        population: 1000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{
+      uid: 'u2', sessionId: 's1', displayName: 'Ari', role: 'player', seatId: 'admiral',
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', connected: false,
+      joinedAt: '2026-01-01T00:01:00.000Z',
+    }]);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Facilitator replacement roles' });
+  expect(within(panel).queryByRole('option', { name: /Gorgoneion Captain/i })).not.toBeInTheDocument();
+  expect(within(panel).getByRole('option', { name: /Wolf Commander/i })).toBeInTheDocument();
+});
+
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
