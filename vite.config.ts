@@ -1,7 +1,12 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { createHash } from 'node:crypto';
+import { dirname, join, resolve as resolvePath } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import packageJson from './package.json';
+
+const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 
 const buildVersionMetadata: Plugin = {
   name: 'build-version-metadata',
@@ -11,6 +16,45 @@ const buildVersionMetadata: Plugin = {
       fileName: 'build-version.json',
       source: `${JSON.stringify({ version: packageJson.version })}\n`,
     });
+  },
+};
+
+const serviceWorkerPrecache: Plugin = {
+  name: 'versioned-service-worker-precache',
+  apply: 'build',
+  writeBundle(outputOptions, bundle) {
+    const staticShellUrls = [
+      '/',
+      '/index.html',
+      '/manifest.webmanifest',
+      '/icons/dradis-ball-180.png',
+      '/icons/dradis-ball-192.png',
+      '/icons/dradis-ball-512.png',
+      '/icons/dradis-ball-maskable-512.png',
+    ];
+    const hashedAssetUrls = Object.keys(bundle)
+      .filter((fileName) => fileName.startsWith('assets/') && !fileName.endsWith('.map'))
+      .map((fileName) => `/${fileName}`)
+      .sort();
+    const precacheUrls = [...staticShellUrls, ...hashedAssetUrls];
+    const fingerprint = createHash('sha256')
+      .update(precacheUrls.join('\n'))
+      .digest('hex')
+      .slice(0, 12);
+    const cacheName = `new-eden-console-shell-${packageJson.version}-${fingerprint}`;
+    const outputDirectory = outputOptions.dir ?? dirname(
+      outputOptions.file ?? resolvePath(projectRoot, 'dist/index.html'),
+    );
+    const source = readFileSync(resolvePath(projectRoot, 'public/sw.js'), 'utf8')
+      .replace(
+        "const CACHE_NAME = 'new-eden-console-shell-dev';",
+        `const CACHE_NAME = ${JSON.stringify(cacheName)};`,
+      )
+      .replace(
+        /const PRECACHE_URLS = \[[\s\S]*?\];/,
+        `const PRECACHE_URLS = ${JSON.stringify(precacheUrls, null, 2)};`,
+      );
+    writeFileSync(join(outputDirectory, 'sw.js'), source);
   },
 };
 
@@ -26,7 +70,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
-    plugins: [react(), buildVersionMetadata],
+    plugins: [react(), buildVersionMetadata, serviceWorkerPrecache],
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },

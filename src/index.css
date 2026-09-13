@@ -520,6 +520,35 @@ body {
   display: none;
 }
 
+.app-update-notice {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  max-width: min(32rem, 100%);
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--cic-amber);
+  background: color-mix(in srgb, var(--cic-void) 94%, var(--cic-amber));
+  color: var(--cic-amber);
+  font: 0.62rem/1.35 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-update-notice > span {
+  min-width: 0;
+}
+
+.app-update-notice .cic-action-button {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  color: var(--cic-amber);
+  border-color: var(--cic-amber);
+  font-size: 0.58rem;
+}
+
 .player-rank {
   min-height: 2.5rem;
   display: flex;
@@ -4346,6 +4375,11 @@ body {
 
   .app-header {
     align-items: stretch;
+  }
+
+  .app-update-notice {
+    flex: 1 1 100%;
+    order: 6;
   }
 
   .session-badge__label,

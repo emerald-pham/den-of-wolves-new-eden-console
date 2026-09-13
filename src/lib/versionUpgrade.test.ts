@@ -24,7 +24,7 @@ describe('stale page recovery', () => {
     expect(PAGE_STALE_AFTER_MS).toBe(60_000);
   });
 
-  it('reloads a stale page into a newer build without clearing its resumable identity', async () => {
+  it('advertises a newer build without reloading or clearing resumable identity', async () => {
     const session = {
       id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby' as const,
       ownerUid: 'u1', createdAt: '2026-01-01T00:00:00.000Z',
@@ -42,13 +42,13 @@ describe('stale page recovery', () => {
     useSessionStore.getState().setGmInstance(gmInstance);
     useSessionStore.getState().setMode('gm');
     useSessionStore.getState().setLastRoute('/gm');
-    const reload = vi.fn();
+    const onUpdateAvailable = vi.fn();
     const reconnect = vi.fn();
     const fetchVersion = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ version: '99.99.99' }),
     });
-    const stop = startVersionUpgradeMonitor({ fetchVersion, reload, reconnect });
+    const stop = startVersionUpgradeMonitor({ fetchVersion, onUpdateAvailable, reconnect });
 
     expect(fetchVersion).not.toHaveBeenCalled();
     visibility = 'hidden';
@@ -59,8 +59,8 @@ describe('stale page recovery', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(fetchVersion).toHaveBeenCalledOnce();
-    expect(reload).toHaveBeenCalledOnce();
-    expect(reconnect).not.toHaveBeenCalled();
+    expect(onUpdateAvailable).toHaveBeenCalledOnce();
+    expect(reconnect).toHaveBeenCalledOnce();
     expect(useSessionStore.getState()).toMatchObject({
       session, me: player, gmInstance, mode: 'gm', lastRoute: '/gm',
     });
@@ -73,7 +73,7 @@ describe('stale page recovery', () => {
       ok: true,
       json: async () => ({ version: APP_VERSION }),
     });
-    const stop = startVersionUpgradeMonitor({ fetchVersion, reconnect, reload: vi.fn() });
+    const stop = startVersionUpgradeMonitor({ fetchVersion, reconnect, onUpdateAvailable: vi.fn() });
 
     visibility = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
@@ -101,7 +101,7 @@ describe('stale page recovery', () => {
     const stop = startVersionUpgradeMonitor({
       fetchVersion: vi.fn().mockRejectedValue(new Error('offline')),
       reconnect,
-      reload: vi.fn(),
+      onUpdateAvailable: vi.fn(),
     });
 
     visibility = 'hidden';

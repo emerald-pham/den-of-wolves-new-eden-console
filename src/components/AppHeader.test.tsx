@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
+import { markServiceWorkerUpdateAvailable } from '@/pwa';
 import type { Player } from '@/types/game';
 import AppHeader from './AppHeader';
 
@@ -735,4 +736,15 @@ it('hides rank until a role is selected and hides it again after release', async
   act(() => useSessionStore.getState().setMe(connectedPlayer('u1')));
   await screen.findByText('2 connected to CIC');
   expect(screen.queryByText(/^Rank:/)).not.toBeInTheDocument();
+});
+
+it('shows an update prompt without blocking the current session surface', async () => {
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await screen.findByText('2 connected to CIC');
+
+  act(() => markServiceWorkerUpdateAvailable());
+
+  expect(screen.getByText('Update available // apply when ready')).toBeVisible();
+  expect(screen.getByRole('button', { name: /apply update/i })).toBeVisible();
+  expect(screen.getByRole('button', { name: /settings/i })).toBeVisible();
 });

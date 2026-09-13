@@ -12,32 +12,32 @@ interface VersionUpgradeMonitorOptions {
     input: string,
     init: { readonly cache: 'no-store' },
   ) => Promise<VersionResponse>;
-  readonly reload?: () => void;
   readonly reconnect?: () => void;
+  readonly onUpdateAvailable?: () => void;
   readonly staleAfterMs?: number;
 }
 
 /**
  * Recover after the page has been hidden long enough for browser throttling to
- * stale its connection. A newer build reloads with persisted identity intact;
- * the current build resumes directly. Neither path sends the explicit
- * disconnect command, so server presence does not enter a player-drop state.
+ * stale its connection. A newer build advertises a non-blocking update; the
+ * current build resumes directly. Neither path sends the explicit disconnect
+ * command, so server presence does not enter a player-drop state.
  */
 export function startVersionUpgradeMonitor(
   options: VersionUpgradeMonitorOptions = {},
 ): () => void {
   const fetchVersion = options.fetchVersion ?? ((input, init) => fetch(input, init));
-  const reload = options.reload ?? (() => window.location.reload());
   const reconnect = options.reconnect ?? (() => undefined);
+  const onUpdateAvailable = options.onUpdateAvailable ?? (() => undefined);
   const staleAfterMs = options.staleAfterMs ?? PAGE_STALE_AFTER_MS;
   let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : null;
   let stopped = false;
   let checking = false;
+  let advertisedVersion: string | null = null;
 
   const recover = async (): Promise<void> => {
     if (stopped || checking) return;
     checking = true;
-    let reloading = false;
     try {
       const response = await fetchVersion('/build-version.json', { cache: 'no-store' });
       if (!response.ok) return;
@@ -47,14 +47,16 @@ export function startVersionUpgradeMonitor(
         'version' in metadata && typeof metadata.version === 'string' &&
         metadata.version !== APP_VERSION
       ) {
-        reloading = true;
-        reload();
+        if (advertisedVersion !== metadata.version) {
+          advertisedVersion = metadata.version;
+          onUpdateAvailable();
+        }
       }
     } catch {
       // Reconnection is still useful when the static version marker is unavailable.
     } finally {
       checking = false;
-      if (!stopped && !reloading) reconnect();
+      if (!stopped) reconnect();
     }
   };
 

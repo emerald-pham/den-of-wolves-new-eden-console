@@ -30,6 +30,7 @@ import MotionSafetyGate from '@/components/MotionSafetyGate';
 import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
+import { markServiceWorkerUpdateAvailable } from '@/pwa';
 import { dockingForShuttle } from '@/data/shuttles';
 import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
@@ -712,6 +713,7 @@ function AppRuntime() {
     });
     const stopVersionMonitor = startVersionUpgradeMonitor({
       reconnect: () => run(connect),
+      onUpdateAvailable: markServiceWorkerUpdateAvailable,
     });
     run(connect);
 

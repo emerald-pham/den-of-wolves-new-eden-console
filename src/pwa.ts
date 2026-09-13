@@ -1,8 +1,97 @@
 export const SERVICE_WORKER_PATH = '/sw.js';
 
+export interface ServiceWorkerUpdateState {
+  readonly available: boolean;
+  readonly activated: boolean;
+}
+
+type ServiceWorkerUpdateListener = (state: ServiceWorkerUpdateState) => void;
+
+const INITIAL_UPDATE_STATE: ServiceWorkerUpdateState = {
+  available: false,
+  activated: false,
+};
+
+let updateState = INITIAL_UPDATE_STATE;
+let registration: ServiceWorkerRegistration | null = null;
+let waitingWorker: ServiceWorker | null = null;
+const listeners = new Set<ServiceWorkerUpdateListener>();
+
+function publishUpdateState(next: Partial<ServiceWorkerUpdateState>): void {
+  updateState = { ...updateState, ...next };
+  for (const listener of listeners) listener(updateState);
+}
+
+function markWaiting(worker: ServiceWorker | null): void {
+  if (!worker) return;
+  waitingWorker = worker;
+  publishUpdateState({ available: true, activated: false });
+}
+
+function observeRegistration(nextRegistration: ServiceWorkerRegistration): void {
+  registration = nextRegistration;
+  markWaiting(nextRegistration.waiting);
+  nextRegistration.addEventListener('updatefound', () => {
+    const installing = nextRegistration.installing;
+    if (!installing) return;
+    installing.addEventListener('statechange', () => {
+      if (installing.state === 'installed' && installing !== navigator.serviceWorker.controller) {
+        markWaiting(installing);
+      }
+    });
+  });
+}
+
+/** The app can render this state without making the update blocking. */
+export function getServiceWorkerUpdateState(): ServiceWorkerUpdateState {
+  return updateState;
+}
+
+/** Subscribe to update state for the existing app header/status surface. */
+export function subscribeServiceWorkerUpdates(
+  listener: ServiceWorkerUpdateListener,
+): () => void {
+  listeners.add(listener);
+  listener(updateState);
+  return () => listeners.delete(listener);
+}
+
+/** Ask the browser to discover the waiting worker after a fresh build marker. */
+export function markServiceWorkerUpdateAvailable(): void {
+  publishUpdateState({ available: true, activated: false });
+  void registration?.update().catch(() => undefined);
+}
+
+/** Apply only an explicitly requested update; this never reloads the page. */
+export function applyServiceWorkerUpdate(): void {
+  if (waitingWorker) {
+    waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    return;
+  }
+  if (registration) {
+    void registration.update().catch(() => undefined);
+    return;
+  }
+  if (typeof window !== 'undefined') window.location.reload();
+}
+
+/** Reload only after the player explicitly chooses to use the activated worker. */
+export function reloadAfterServiceWorkerUpdate(): void {
+  if (typeof window !== 'undefined') window.location.reload();
+}
+
 /** Register the root-scoped worker only when the browser supports installable app shells. */
 export function registerServiceWorker(): void {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
-  void navigator.serviceWorker.register(SERVICE_WORKER_PATH, { scope: '/' }).catch(() => undefined);
+  navigator.serviceWorker.addEventListener?.('controllerchange', () => {
+    if (!updateState.available) return;
+    waitingWorker = null;
+    publishUpdateState({ activated: true });
+  });
+  void navigator.serviceWorker.register(SERVICE_WORKER_PATH, { scope: '/' })
+    .then((nextRegistration) => {
+      if (nextRegistration) observeRegistration(nextRegistration);
+    })
+    .catch(() => undefined);
 }

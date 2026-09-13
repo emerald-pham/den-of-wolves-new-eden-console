@@ -21,6 +21,13 @@ import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
+import {
+  applyServiceWorkerUpdate,
+  getServiceWorkerUpdateState,
+  reloadAfterServiceWorkerUpdate,
+  subscribeServiceWorkerUpdates,
+  type ServiceWorkerUpdateState,
+} from '@/pwa';
 
 const CONNECTION_STATUS_GRACE_MS = 30_000;
 const CONNECTION_ACTIVITY_WINDOW_MS = CONNECTION_STATUS_GRACE_MS;
@@ -225,6 +232,9 @@ export default function AppHeader() {
   const [gmAccessPassword, setGmAccessPassword] = useState('');
   const [gmAccessBusy, setGmAccessBusy] = useState(false);
   const [singlePlayerDemoBusy, setSinglePlayerDemoBusy] = useState(false);
+  const [serviceWorkerUpdate, setServiceWorkerUpdate] = useState<ServiceWorkerUpdateState>(
+    getServiceWorkerUpdateState,
+  );
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(
     readVisualConnectedPlayers,
   );
@@ -304,6 +314,8 @@ export default function AppHeader() {
       unsubscribe();
     };
   }, [fleetGroupId, playerRole, sessionId]);
+
+  useEffect(() => subscribeServiceWorkerUpdates(setServiceWorkerUpdate), []);
 
   function closeSettings(): void {
     setConfirmDisconnect(false);
@@ -419,6 +431,29 @@ export default function AppHeader() {
         />
       )}
       <FleetBroadcast />
+      {serviceWorkerUpdate.available && (
+        <aside
+          className="app-update-notice"
+          data-update-state={serviceWorkerUpdate.activated ? 'activated' : 'available'}
+          role="status"
+          aria-live="polite"
+        >
+          <span>
+            {serviceWorkerUpdate.activated
+              ? 'Update downloaded // reload when ready'
+              : 'Update available // apply when ready'}
+          </span>
+          <button
+            className="cic-action-button"
+            type="button"
+            onClick={serviceWorkerUpdate.activated
+              ? reloadAfterServiceWorkerUpdate
+              : applyServiceWorkerUpdate}
+          >
+            {serviceWorkerUpdate.activated ? 'Reload app' : 'Apply update'}
+          </button>
+        </aside>
+      )}
       {rank !== null && <p className="player-rank">Rank: {rank}</p>}
       <ConnectionIndicator
         status={indicatorStatus}

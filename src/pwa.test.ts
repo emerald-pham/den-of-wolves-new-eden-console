@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { registerServiceWorker } from './pwa';
+import {
+  applyServiceWorkerUpdate,
+  getServiceWorkerUpdateState,
+  registerServiceWorker,
+} from './pwa';
 
 const root = process.cwd();
 const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
@@ -111,6 +115,42 @@ it('registers the root service worker when the browser exposes the API', async (
   expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
 });
 
+it('keeps a waiting worker non-blocking until the player explicitly applies it', async () => {
+  const eventListeners = new Map<string, EventListener>();
+  const worker = {
+    postMessage: vi.fn(),
+  } as unknown as ServiceWorker;
+  const registration = {
+    waiting: worker,
+    installing: null,
+    update: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn(),
+  } as unknown as ServiceWorkerRegistration;
+  const serviceWorker = {
+    controller: {} as ServiceWorker,
+    register: vi.fn().mockResolvedValue(registration),
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      eventListeners.set(type, listener);
+    }),
+  } as unknown as ServiceWorkerContainer;
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: serviceWorker,
+  });
+
+  registerServiceWorker();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(getServiceWorkerUpdateState()).toMatchObject({ available: true, activated: false });
+  expect(worker.postMessage).not.toHaveBeenCalled();
+  applyServiceWorkerUpdate();
+  expect(worker.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+  expect(eventListeners.get('controllerchange')).toBeDefined();
+  eventListeners.get('controllerchange')?.(new Event('controllerchange'));
+  expect(getServiceWorkerUpdateState()).toMatchObject({ available: true, activated: true });
+});
+
 it('serves a network-first app shell with cached static assets for offline launch', () => {
   const serviceWorker = readPublicFile('sw.js');
 
@@ -118,6 +158,30 @@ it('serves a network-first app shell with cached static assets for offline launc
   expect(serviceWorker).toContain("self.addEventListener('activate'");
   expect(serviceWorker).toContain("self.addEventListener('fetch'");
   expect(serviceWorker).toContain("event.request.mode === 'navigate'");
-  expect(serviceWorker).toContain("caches.match('/index.html')");
+  expect(serviceWorker).toContain("matchCached('/index.html')");
   expect(serviceWorker).toContain("cache.match(request)");
+});
+
+it('keeps updates waiting, revalidates the manifest, and supports explicit activation', () => {
+  const serviceWorker = readPublicFile('sw.js');
+
+  expect(serviceWorker).toContain('const CACHE_PREFIX =');
+  expect(serviceWorker).toContain('const PRECACHE_URLS =');
+  expect(serviceWorker).toContain("event.data?.type === 'SKIP_WAITING'");
+  const installLifecycle = serviceWorker.slice(
+    serviceWorker.indexOf("self.addEventListener('install'"),
+    serviceWorker.indexOf("self.addEventListener('activate'"),
+  );
+  expect(installLifecycle).not.toContain('self.skipWaiting()');
+  expect(serviceWorker).toContain("if (url.pathname === '/manifest.webmanifest')");
+  expect(serviceWorker).toContain('const cached = await matchCached(request);');
+});
+
+it('generates a versioned precache worker during production builds', () => {
+  const viteConfig = readFileSync(resolve(root, 'vite.config.ts'), 'utf8');
+
+  expect(viteConfig).toContain("name: 'versioned-service-worker-precache'");
+  expect(viteConfig).toContain("const cacheName = `new-eden-console-shell-");
+  expect(viteConfig).toContain("filter((fileName) => fileName.startsWith('assets/') && !fileName.endsWith('.map'))");
+  expect(viteConfig).toContain("writeFileSync(join(outputDirectory, 'sw.js'), source)");
 });
