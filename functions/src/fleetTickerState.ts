@@ -260,7 +260,7 @@ export function publishFleetTicker(
     : [];
   const queued = replaces || normalized.current === null
     ? queueMessages(normalized.queued, preservedPress, preservedPress)
-    : queueMessages(normalized.queued, [next]);
+    : queueMessages(normalized.queued, [next], next.source === 'press' ? [next] : []);
   return {
     ...normalized,
     revision: normalized.revision + 1,

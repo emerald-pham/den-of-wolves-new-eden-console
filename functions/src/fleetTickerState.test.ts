@@ -150,6 +150,26 @@ describe('fleet ticker state', () => {
     expect(dismissed.draining.filter(({ sourceId }) => sourceId === 'press-1')).toHaveLength(0);
   });
 
+  it('retains a newly published press when the lower-priority queue is full', () => {
+    const queued = Array.from({ length: 12 }, (_, index) => ({
+      source: 'automatic' as const, priority: 40, text: `AIRSPACE ${index}`,
+      tone: 'normal' as const, gap: 'standard' as const, sourceId: `airspace:${index}`,
+      id: `s1:fleet-ticker:${index + 1}`, sequence: index + 1, createdAt: now,
+    }));
+    const stored = {
+      ...emptyFleetTickerState(), revision: 13, nextSequence: 13, replayCursor: 13,
+      current: { ...alert, gap: 'standard' as const, id: 's1:fleet-ticker:13', sequence: 13, createdAt: now },
+      queued,
+    };
+
+    const published = publishFleetTicker('s1', stored, pressOne, now);
+
+    expect(published.current?.sourceId).toBe('red-alert:1');
+    expect(published.queued).toHaveLength(12);
+    expect(published.queued.filter(({ sourceId }) => sourceId === 'press-1')).toHaveLength(1);
+    expect(published.queued.filter(({ source }) => source !== 'press')).toHaveLength(11);
+  });
+
   it('uses a server deadline for stand-down rather than visual completion', () => {
     expect(standDownExpiry(now)).toBe('2026-09-12T13:01:00.000Z');
     const state = publishFleetTicker('s1', emptyFleetTickerState(), {
