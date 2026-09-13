@@ -4676,6 +4676,27 @@
       "language": "The live GM records explicit dead, arrested, removed, or late eligibility and assigns a source-defined replacement role or an already active extra-ship role. Assignment atomically consumes eligibility, releases the old station and console authority, preserves historical role and private loyalty, writes the recipient-only brief, and replaces old-ship navigation entitlement. Server and UI require the canonical active-vessel tuple; stale revisions, conflicting retries, duplicate assignments and unauthorized writes fail closed. Independent authority review and focused callable/rules/client checks cover the boundary. Extra-ship activation and Wolf Commander rerolls remain with their owning prompts.",
       "source": "functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/requestGuards.ts; functions/src/roleBriefs.ts; functions/src/replacementCallable.test.ts; functions/src/replacementRoles.test.ts; firestore.rules; src/data/replacementRoles.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md lines 278-314; src/App.test.tsx; functions/src/navigationProjection.test.ts",
       "type": "evidence / verified / authority / hard_prompt / related/consumes"
+    },
+    {
+      "direction": "241 -> CAPYBARA-IDENTITY-MAINTENANCE",
+      "id": "E-241-VERIFIED",
+      "language": "The existing shared small-ship production path closes base Capybara identity and maintenance: the typed supplemental vessel is the base-small Capybara with 2,000 survivors, 1/1/2 jump costs, two reactor charges, and steps 1–4, while the server-owned rules apply the same identity and printed host food/water table. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; a focused production-path regression proves Capybara remains distinct from Warrior and Vulcan while borrowing its host ration costs. The full expansion Capybara remains a separate identity, and named Capybara systems stay deferred to 241b–241e.",
+      "source": "src/data/vessels/capybara-small.ts; src/data/vesselTemplates.test.ts; functions/src/smallShip.ts; functions/src/index.ts; functions/src/smallShip.test.ts; functions/src/smallShipCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/smallShipService.ts",
+      "type": "evidence / production-path"
+    },
+    {
+      "direction": "242 -> WARRIOR-IDENTITY-MAINTENANCE",
+      "id": "E-242-VERIFIED",
+      "language": "The existing shared small-ship production path closes Warrior identity and maintenance: the typed supplemental vessel records 2,000 survivors, one reactor charge, 1/1/2 jump costs, and steps 1–4, while the server-owned rules enforce Warrior’s one-console cap and host-funded maintenance. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves the one-charge identity and printed host ration debit alongside the other audited small ships. Warrior salvage, repair, and Salvage Drones remain deferred to their later prompts.",
+      "source": "src/data/vessels/warrior.ts; src/data/vesselTemplates.test.ts; functions/src/smallShip.ts; functions/src/index.ts; functions/src/smallShip.test.ts; functions/src/smallShipCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/smallShipService.ts",
+      "type": "evidence / production-path"
+    },
+    {
+      "direction": "246 -> VULCAN-IDENTITY-MAINTENANCE",
+      "id": "E-246-VERIFIED",
+      "language": "The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts.",
+      "source": "src/data/vessels/vulcan.ts; src/data/vesselTemplates.test.ts; functions/src/smallShip.ts; functions/src/index.ts; functions/src/smallShip.test.ts; functions/src/smallShipCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/smallShipService.ts",
+      "type": "evidence / production-path"
     }
   ],
   "plan": {
@@ -10906,8 +10927,8 @@
         "acceptance": "the hybrid tracks 2,000 survivors, two charges, host stores, docking, and steps 1–4.",
         "title": "Complete base Capybara identity and maintenance."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241",
+      "description": "The existing shared small-ship production path closes base Capybara identity and maintenance: the typed supplemental vessel is the base-small Capybara with 2,000 survivors, 1/1/2 jump costs, two reactor charges, and steps 1–4, while the server-owned rules apply the same identity and printed host food/water table. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; a focused production-path regression proves Capybara remains distinct from Warrior and Vulcan while borrowing its host ration costs. The full expansion Capybara remains a separate identity, and named Capybara systems stay deferred to 241b–241e.",
+      "evidenceIds": "E-AUDIT-241;E-241-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;161;162",
@@ -10918,7 +10939,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11044,8 +11065,8 @@
         "acceptance": "the salvage vessel tracks 2,000 survivors, one charge, host stores, and small-ship timing.",
         "title": "Complete Warrior identity and maintenance."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-242",
+      "description": "The existing shared small-ship production path closes Warrior identity and maintenance: the typed supplemental vessel records 2,000 survivors, one reactor charge, 1/1/2 jump costs, and steps 1–4, while the server-owned rules enforce Warrior’s one-console cap and host-funded maintenance. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves the one-charge identity and printed host ration debit alongside the other audited small ships. Warrior salvage, repair, and Salvage Drones remain deferred to their later prompts.",
+      "evidenceIds": "E-AUDIT-242;E-242-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;161;162",
@@ -11056,7 +11077,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11136,8 +11157,8 @@
         "acceptance": "15,000 survivors, two charges, host stores, docking, and 1/1/2 jump obey small-ship rules.",
         "title": "Complete Vulcan identity and maintenance."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-246",
+      "description": "The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts.",
+      "evidenceIds": "E-AUDIT-246;E-246-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;161;162",
@@ -11148,7 +11169,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

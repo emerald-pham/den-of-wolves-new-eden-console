@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**208 / 749 prompts complete (27.77%)**
+**211 / 749 prompts complete (28.17%)**
 
-Status breakdown: **208 done · 19 partial · 522 missing**.
+Status breakdown: **211 done · 19 partial · 519 missing**.
 
 Active prompt: **none**
 
@@ -675,17 +675,17 @@ release classification and evidence.
 | 238 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 239 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 240 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 241 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 241 | done | non-feature | — | The existing shared small-ship production path closes base Capybara identity and maintenance: the typed supplemental vessel is the base-small Capybara with 2,000 survivors, 1/1/2 jump costs, two reactor charges, and steps 1–4, while the server-owned rules apply the same identity and printed host food/water table. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; a focused production-path regression proves Capybara remains distinct from Warrior and Vulcan while borrowing its host ration costs. The full expansion Capybara remains a separate identity, and named Capybara systems stay deferred to 241b–241e. |
 | 241a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241d | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241e | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 242 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 242 | done | non-feature | — | The existing shared small-ship production path closes Warrior identity and maintenance: the typed supplemental vessel records 2,000 survivors, one reactor charge, 1/1/2 jump costs, and steps 1–4, while the server-owned rules enforce Warrior’s one-console cap and host-funded maintenance. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves the one-charge identity and printed host ration debit alongside the other audited small ships. Warrior salvage, repair, and Salvage Drones remain deferred to their later prompts. |
 | 243 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 244 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 245 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 246 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 246 | done | non-feature | — | The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts. |
 | 247 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 248 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 249 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

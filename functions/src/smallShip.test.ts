@@ -24,6 +24,30 @@ describe('small-ship rules', () => {
     expect(state.cycle.step).toBe(0);
   });
 
+  it('keeps the three audited identities distinct while borrowing their printed ration costs from the host', () => {
+    const expectations = [
+      { id: 'capybara-small', population: 2_000, reactorCapacity: 2, food: 5, water: 3 },
+      { id: 'warrior', population: 2_000, reactorCapacity: 1, food: 5, water: 3 },
+      { id: 'vulcan', population: 15_000, reactorCapacity: 2, food: 6, water: 4 },
+    ] as const;
+
+    for (const expected of expectations) {
+      const state = docked(expected.id);
+      expect(state).toMatchObject({ id: expected.id, population: expected.population });
+      expect(SMALL_SHIP_RULES[expected.id].reactorCapacity).toBe(expected.reactorCapacity);
+
+      const result = advanceSmallShipMaintenance({
+        state: { ...state, cycle: { ...state.cycle, step: 1, revision: 1, turn: 1 } },
+        action: 'rations', expectedRevision: 1, currentTurn: 1,
+        hostResources: { ...hostResources }, foodLevel: 2, waterLevel: 2, rolls: [], now: 'now',
+      });
+      expect(result.hostResources).toMatchObject({
+        food: hostResources.food - expected.food,
+        water: hostResources.water - expected.water,
+      });
+    }
+  });
+
   it('keeps Gorgoneion at 1,000 survivors and permits at most two charged consoles', () => {
     const state = docked('gorgoneion');
     expect(state.population).toBe(1_000);
