@@ -394,6 +394,29 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 
+  it('rejects delayed cleanup from an older browser lease', async () => {
+    const oldLease = '2026-01-01T00:00:00.000Z';
+    const currentLease = '2026-01-01T00:01:00.000Z';
+    session({ activeVesselIds: ['aegis'] });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1', { claimedAt: oldLease });
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true, claimedAt: oldLease,
+    }))).resolves.toEqual({ enabled: true, shipId: 'aegis' });
+
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'),
+      claimedAt: currentLease,
+    });
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: false, claimedAt: oldLease,
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
+      shipId: 'aegis',
+    });
+  });
+
   it.each([
     ['foreign instance', { uid: 'u2' }, 'u1'],
     ['expired instance', { connected: false }, 'u1'],

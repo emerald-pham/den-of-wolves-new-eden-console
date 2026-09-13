@@ -1761,22 +1761,48 @@ export async function listGmInstances(): Promise<readonly GmInstance[]> {
 }
 
 /** Set the current browser's server-owned ship-console write target. */
+export interface GmShipConsoleWriteGrantAuthority {
+  readonly sessionId: string;
+  readonly uid: string;
+  readonly instanceId: string;
+  readonly claimedAt: string;
+  readonly shipId: string;
+}
+
 export async function setGmShipConsoleWriteGrant(
   shipId: string,
   enabled: boolean,
+  authority?: GmShipConsoleWriteGrantAuthority,
 ): Promise<boolean> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+  const cleanupAuthority = authority !== undefined && !enabled;
+  if (!cleanupAuthority &&
+      (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance)) {
     throw new Error('An active GM instance is required for ship-console write access.');
   }
-  requireFreshSessionAuthority();
+  if (!cleanupAuthority) {
+    requireFreshSessionAuthority();
+    if (authority && (
+      store.session?.id !== authority.sessionId ||
+      store.me?.uid !== authority.uid ||
+      store.gmInstance?.id !== authority.instanceId ||
+      store.gmInstance.claimedAt !== authority.claimedAt
+    )) {
+      throw new Error('The GM ship-console authority changed before confirmation.');
+    }
+  }
   await ensureSignedIn();
-  const instanceId = store.gmInstance.id;
+  const sessionId = authority?.sessionId ?? store.session!.id;
+  const instanceId = authority?.instanceId ?? store.gmInstance!.id;
   const call = httpsCallable<{
-    sessionId: string; instanceId: string; shipId: string; enabled: boolean;
+    sessionId: string; instanceId: string; shipId: string; enabled: boolean; claimedAt?: string;
   }, { enabled: boolean; shipId?: string }>(functions(), 'setGmShipConsoleWriteGrant');
   const result = (await call({
-    sessionId: store.session.id, instanceId, shipId, enabled,
+    sessionId,
+    instanceId,
+    shipId,
+    enabled,
+    ...(authority?.claimedAt ? { claimedAt: authority.claimedAt } : {}),
   })).data;
   const current = useSessionStore.getState();
   if (current.gmInstance?.id === instanceId && result.enabled === true) {

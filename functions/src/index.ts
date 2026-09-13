@@ -7348,6 +7348,25 @@ function gmInstanceFrom(
   };
 }
 
+/** Canonical lease token used to keep a delayed browser cleanup tied to one claim. */
+function gmInstanceClaimedAtToken(value: unknown): string | undefined {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const milliseconds = Date.parse(value);
+    return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : undefined;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  if (typeof value === 'object' && value !== null && 'toMillis' in value &&
+      typeof (value as { toMillis?: unknown }).toMillis === 'function') {
+    const milliseconds = (value as { toMillis: () => unknown }).toMillis();
+    return typeof milliseconds === 'number' && Number.isFinite(milliseconds)
+      ? new Date(milliseconds).toISOString()
+      : undefined;
+  }
+  return undefined;
+}
+
 /** Establish persistent GM access for this anonymous browser identity. */
 export const loginGmAccess = onCall<{ password?: string }>(async (request) => {
   const uid = requireUid(request.auth);
@@ -7447,7 +7466,8 @@ export const claimGmInstance = onCall<{
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
-    if (existing.exists && !isLiveGmInstance(existing, player, uid)) {
+    const replacingStaleInstance = existing.exists && !isLiveGmInstance(existing, player, uid);
+    if (replacingStaleInstance) {
       // A stale browser may reclaim the same human-readable instance name.
       // Its old scoped ship grant must not follow that name into the new lease.
       tx.delete(gmShipConsoleWriteGrantRef(claim.sessionId, claim.instanceId));
@@ -7472,7 +7492,9 @@ export const claimGmInstance = onCall<{
       ...(firstActiveGm
         ? { responsibilities: ['main', 'assistant'], responsibility: 'main' }
         : {}),
-      claimedAt: existing.get('claimedAt') ?? FieldValue.serverTimestamp(),
+      claimedAt: replacingStaleInstance
+        ? FieldValue.serverTimestamp()
+        : existing.get('claimedAt') ?? FieldValue.serverTimestamp(),
     });
     tx.update(playerRef, {
       role: 'gm',
@@ -7508,6 +7530,7 @@ export const setGmShipConsoleWriteGrant = onCall<{
   instanceId?: unknown;
   shipId?: unknown;
   enabled?: unknown;
+  claimedAt?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const grant = requireGmShipConsoleWriteGrantRequest(request.data ?? {});
@@ -7523,6 +7546,10 @@ export const setGmShipConsoleWriteGrant = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (grant.claimedAt !== undefined &&
+        gmInstanceClaimedAtToken(instance.get('claimedAt')) !== grant.claimedAt) {
+      throw new HttpsError('permission-denied', 'This GM instance lease has changed.');
     }
     if (!grant.enabled) {
       if (currentGrant.exists && currentGrant.get('shipId') === grant.shipId) {

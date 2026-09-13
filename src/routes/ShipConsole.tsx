@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
@@ -18,6 +18,7 @@ import {
   selectConsoleRole,
   setGmShipConsoleWriteGrant,
   setShipConsoleLock,
+  type GmShipConsoleWriteGrantAuthority,
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
@@ -47,6 +48,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
   const playerRole = useSessionStore((state) => state.me?.role);
   const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
+  const gmInstanceClaimedAt = useSessionStore((state) => state.gmInstance?.claimedAt);
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
@@ -66,8 +68,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
   const [observerWrite, setObserverWrite] = useState(false);
   const [observerWritePending, setObserverWritePending] = useState(false);
-  const [observerWriteConfirm, setObserverWriteConfirm] = useState(false);
+  const [observerWriteConfirm, setObserverWriteConfirm] = useState<GmShipConsoleWriteGrantAuthority | null>(null);
   const observerWriteConfirmRef = useRef<HTMLButtonElement | null>(null);
+  const observerWriteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const observerWriteCommandRef = useRef<Promise<void>>(Promise.resolve());
   const grantedShipId = useSessionStore((state) => state.gmInstance?.shipConsoleWriteGrant?.shipId);
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
@@ -125,6 +129,47 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     !(ship.id === 'dione' && session.dioneEnabled === false),
   );
 
+  const captureObserverWriteAuthority = useCallback((targetShipId = ship?.id): GmShipConsoleWriteGrantAuthority | null => {
+    const current = useSessionStore.getState();
+    if (
+      !targetShipId ||
+      !current.session?.id ||
+      !current.me?.uid ||
+      !current.gmInstance?.id ||
+      current.gmInstance.claimedAt === undefined
+    ) return null;
+    return {
+      sessionId: current.session.id,
+      uid: current.me.uid,
+      instanceId: current.gmInstance.id,
+      claimedAt: current.gmInstance.claimedAt,
+      shipId: targetShipId,
+    };
+  }, [ship?.id]);
+
+  function currentObserverWriteAuthorityMatches(authority: GmShipConsoleWriteGrantAuthority): boolean {
+    const current = useSessionStore.getState();
+    return Boolean(
+      observer &&
+      ship?.id === authority.shipId &&
+      current.session?.id === authority.sessionId &&
+      current.me?.uid === authority.uid &&
+      current.gmInstance?.id === authority.instanceId &&
+      current.gmInstance.claimedAt === authority.claimedAt,
+    );
+  }
+
+  function queueObserverWriteCommand(action: () => Promise<boolean>): Promise<boolean> {
+    const next = observerWriteCommandRef.current.catch(() => undefined).then(action);
+    observerWriteCommandRef.current = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  function dismissObserverWriteConfirmation(): void {
+    setObserverWriteConfirm(null);
+    observerWriteTriggerRef.current?.focus();
+  }
+
   useEffect(() => {
     if (!consoleRole || !canClaimConsoleRole || observer || visiting) return;
     void Promise.resolve(selectConsoleRole(consoleRole.id)).catch(() => undefined);
@@ -133,25 +178,50 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   useEffect(() => {
     setObserverWrite(observer && grantedShipId === ship?.id);
     setObserverWritePending(false);
-    setObserverWriteConfirm(false);
+    setObserverWriteConfirm(null);
   }, [ship?.id, observer, grantedShipId]);
+
+  const observerWriteAuthorityIsCurrent = Boolean(
+    observerWriteConfirm &&
+    observerWriteConfirm.sessionId === session?.id &&
+    observerWriteConfirm.uid === me?.uid &&
+    observerWriteConfirm.instanceId === gmInstanceId &&
+    observerWriteConfirm.claimedAt === gmInstanceClaimedAt &&
+    observerWriteConfirm.shipId === ship?.id,
+  );
+
+  useEffect(() => {
+    if (!observerWriteConfirm || observerWriteAuthorityIsCurrent) return;
+    dismissObserverWriteConfirmation();
+  }, [
+    gmInstanceClaimedAt,
+    gmInstanceId,
+    me?.uid,
+    observerWriteAuthorityIsCurrent,
+    observerWriteConfirm,
+    session?.id,
+    ship?.id,
+  ]);
 
   useEffect(() => {
     if (!observerWriteConfirm) return;
     observerWriteConfirmRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setObserverWriteConfirm(false);
+      if (event.key === 'Escape') dismissObserverWriteConfirmation();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [observerWriteConfirm]);
 
   useEffect(() => {
-    if (!observer || !ship?.id || !gmInstanceId) return;
+    const authority = observer ? captureObserverWriteAuthority() : null;
+    if (!authority) return;
     return () => {
-      void Promise.resolve(setGmShipConsoleWriteGrant(ship.id, false)).catch(() => undefined);
+      void queueObserverWriteCommand(() =>
+        setGmShipConsoleWriteGrant(authority.shipId, false, authority),
+      ).catch(() => undefined);
     };
-  }, [gmInstanceId, observer, ship?.id]);
+  }, [captureObserverWriteAuthority, gmInstanceClaimedAt, gmInstanceId, me?.uid, observer, session?.id, ship?.id]);
 
   useEffect(() => {
     setHideResources(false);
@@ -256,12 +326,17 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   async function toggleObserverWrite(): Promise<void> {
     if (!ship?.id || !gmInstanceId || observerWritePending) return;
     if (!observerWrite) {
-      setObserverWriteConfirm(true);
+      const authority = captureObserverWriteAuthority();
+      if (authority) setObserverWriteConfirm(authority);
       return;
     }
+    const authority = captureObserverWriteAuthority();
+    if (!authority) return;
     setObserverWritePending(true);
     try {
-      const granted = await setGmShipConsoleWriteGrant(ship.id, false);
+      const granted = await queueObserverWriteCommand(() =>
+        setGmShipConsoleWriteGrant(authority.shipId, false, authority),
+      );
       setObserverWrite(granted);
     } catch {
       setObserverWrite(false);
@@ -271,11 +346,18 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   async function confirmObserverWrite(): Promise<void> {
-    if (!ship?.id || !gmInstanceId || observerWritePending) return;
-    setObserverWriteConfirm(false);
+    const authority = observerWriteConfirm;
+    if (!authority || !ship?.id || !gmInstanceId || observerWritePending ||
+        !currentObserverWriteAuthorityMatches(authority)) {
+      dismissObserverWriteConfirmation();
+      return;
+    }
+    setObserverWriteConfirm(null);
     setObserverWritePending(true);
     try {
-      const granted = await setGmShipConsoleWriteGrant(ship.id, true);
+      const granted = await queueObserverWriteCommand(() =>
+        setGmShipConsoleWriteGrant(authority.shipId, true, authority),
+      );
       setObserverWrite(granted);
     } catch {
       setObserverWrite(false);
@@ -492,6 +574,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               aria-label="GM ship console read write access"
               aria-pressed={observerWrite}
               disabled={observerWritePending}
+              ref={observerWriteTriggerRef}
               onClick={() => void toggleObserverWrite()}
             >
               GM ship console read write access // {observerWrite ? 'Read / Write' : 'Read only'}
@@ -499,7 +582,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </section>
         )}
         {observer && observerWriteConfirm && (
-          <div className="gm-write-confirm-backdrop" role="presentation" onClick={() => setObserverWriteConfirm(false)}>
+          <div className="gm-write-confirm-backdrop" role="presentation" onClick={dismissObserverWriteConfirmation}>
             <section
               className="gm-write-confirm cic-frame"
               role="alertdialog"
@@ -526,7 +609,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                   className="cic-text-button"
                   type="button"
                   disabled={observerWritePending}
-                  onClick={() => setObserverWriteConfirm(false)}
+                  onClick={dismissObserverWriteConfirmation}
                 >
                   Cancel
                 </button>

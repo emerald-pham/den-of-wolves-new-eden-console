@@ -1338,7 +1338,8 @@ export function requireGmShipConsoleWriteGrantRequest(data: {
   instanceId?: unknown;
   shipId?: unknown;
   enabled?: unknown;
-}): { sessionId: string; instanceId: string; shipId: string; enabled: boolean } {
+  claimedAt?: unknown;
+}): { sessionId: string; instanceId: string; shipId: string; enabled: boolean; claimedAt?: string } {
   if (typeof data.enabled !== 'boolean') {
     throw new HttpsError('invalid-argument', 'enabled must be boolean.');
   }
@@ -1347,6 +1348,7 @@ export function requireGmShipConsoleWriteGrantRequest(data: {
     instanceId: requiredId(data.instanceId, 'instanceId'),
     shipId: requiredId(data.shipId, 'shipId'),
     enabled: data.enabled,
+    ...(data.claimedAt === undefined ? {} : { claimedAt: requiredText(data.claimedAt, 'claimedAt', 80) }),
   };
 }
 

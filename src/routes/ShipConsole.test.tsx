@@ -459,13 +459,22 @@ it('gives a GM quiet read-only ship view and requires confirmed write access', a
   await user.click(writeMode);
   expect(screen.getByRole('alertdialog', { name: 'Are you sure?' })).toBeInTheDocument();
   expect(setGmShipConsoleWriteGrant).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: /cancel/i }));
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('alertdialog', { name: 'Are you sure?' })).not.toBeInTheDocument();
+  expect(document.activeElement).toBe(writeMode);
   expect(writeMode).toHaveAttribute('aria-pressed', 'false');
   expect(setGmShipConsoleWriteGrant).not.toHaveBeenCalled();
 
   await user.click(writeMode);
   await user.click(screen.getByRole('button', { name: /are you sure/i }));
-  expect(setGmShipConsoleWriteGrant).toHaveBeenCalledWith('aegis', true);
+  expect(setGmShipConsoleWriteGrant).toHaveBeenCalledWith(
+    'aegis',
+    true,
+    expect.objectContaining({
+      sessionId: 's1', uid: 'u1', instanceId: 'gm-1',
+      claimedAt: '2026-01-01T00:00:00.000Z', shipId: 'aegis',
+    }),
+  );
   expect(writeMode).toHaveAttribute('aria-pressed', 'true');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'write');
   expect(screen.getByText(/GM ship console access.*read \/ write/i)).toBeInTheDocument();
@@ -475,6 +484,68 @@ it('gives a GM quiet read-only ship view and requires confirmed write access', a
   expect(screen.getByRole('button', { name: 'GM ship console read write access' }))
     .toHaveAttribute('aria-pressed', 'false');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
+});
+
+it('drops a pending write confirmation when the GM instance changes', async () => {
+  const user = userEvent.setup();
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  const bridge = {
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  };
+  useSessionStore.getState().setGmInstance(bridge);
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/observer']}>
+      <Routes><Route path="/ships/:shipId/observer" element={<ShipConsole observer />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const trigger = screen.getByRole('button', { name: 'GM ship console read write access' });
+  await user.click(trigger);
+  expect(screen.getByRole('alertdialog', { name: 'Are you sure?' })).toBeInTheDocument();
+  act(() => useSessionStore.getState().setGmInstance({ ...bridge, id: 'tablet' }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog', { name: 'Are you sure?' })).not.toBeInTheDocument());
+  expect(setGmShipConsoleWriteGrant).not.toHaveBeenCalledWith('aegis', true, expect.anything());
+  expect(document.activeElement).toBe(trigger);
+});
+
+it('waits for a pending write grant before revoking the captured lease', async () => {
+  const user = userEvent.setup();
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  const events: string[] = [];
+  let resolveGrant: ((value: boolean) => void) | undefined;
+  vi.mocked(setGmShipConsoleWriteGrant).mockImplementation(async (_shipId, enabled) => {
+    if (enabled) {
+      events.push('grant');
+      return await new Promise<boolean>((resolve) => { resolveGrant = (value) => { events.push('grant-resolved'); resolve(value); }; });
+    }
+    events.push('revoke');
+    return false;
+  });
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/observer']}>
+      <Routes>
+        <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
+        <Route path="/ships/:shipId/roles" element={<Link to="/ships/aegis/observer">Return to observer</Link>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('button', { name: 'GM ship console read write access' }));
+  await user.click(screen.getByRole('button', { name: /are you sure/i }));
+  await waitFor(() => expect(events).toEqual(['grant']));
+  await user.click(screen.getByRole('link', { name: /change role/i }));
+  expect(events).toEqual(['grant']);
+  act(() => resolveGrant?.(true));
+  await waitFor(() => expect(events).toEqual(['grant', 'grant-resolved', 'revoke']));
 });
 
 it('rejects the observer route for a non-GM', () => {
