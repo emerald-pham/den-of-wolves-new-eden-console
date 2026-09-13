@@ -461,6 +461,30 @@ it('rejects oversized canonical maintenance collections before authority preflig
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('accepts the maintenance form’s explicit do-not-refuel sentinel', async () => {
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1,
+      maintenanceCycles: { aegis: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] } },
+      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+      shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { aegis: 0 }, shipSurvivors: { aegis: 2_500 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+
+  await expect(runMaintenance.run(request({
+    ...data, action: 'bays', expectedRevision: 0, requestId: 'maintenance-do-not-refuel',
+    refuels: { 'shuttle-bay-zeta': '' },
+  }))).resolves.toMatchObject({
+    status: 'committed', action: 'bays', committedRevision: 1,
+    cycle: { step: 7, refuelled: [], results: { '6': expect.stringMatching(/No shuttles refuelled/) } },
+  });
+});
+
 
 it('begins maintenance atomically with a server-owned revision', async () => {
   await expect(runMaintenance.run(request(data))).resolves.toMatchObject({

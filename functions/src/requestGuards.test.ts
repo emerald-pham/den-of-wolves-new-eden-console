@@ -68,6 +68,8 @@ describe('callable request guards', () => {
       'shuttle-bay-zeta': 'starlight',
       'shuttle-bay-omega': 'pallas',
     });
+    expect(requireBoundedIdMap({ 'shuttle-bay-zeta': '' }, 'refuels', 2, true))
+      .toEqual({ 'shuttle-bay-zeta': '' });
     expectHttpsError(() => requireBoundedIdList(['a', 'b', 'c'], 'consoles', 2), 'invalid-argument');
     expectHttpsError(() => requireBoundedIdList(['a'.repeat(129)], 'consoles', 2), 'invalid-argument');
     expectHttpsError(() => requireBoundedIdMap({ a: 'b', c: 'd', e: 'f' }, 'refuels', 2), 'invalid-argument');

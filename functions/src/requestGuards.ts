@@ -77,6 +77,7 @@ export function requireBoundedIdMap(
   value: unknown,
   field: string,
   maxEntries: number,
+  allowEmptyValues = false,
 ): Record<string, string> | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -88,7 +89,7 @@ export function requireBoundedIdMap(
   }
   return Object.fromEntries(entries.map(([key, entry]) => [
     requiredId(key, `${field} key`),
-    requiredId(entry, `${field}[${key}]`),
+    allowEmptyValues && entry === '' ? '' : requiredId(entry, `${field}[${key}]`),
   ]));
 }
 

@@ -14013,7 +14013,7 @@ export const runMaintenance = onCall<{
   }
   const parsed = requireMaintenanceRequest(raw);
   const consoles = requireBoundedIdList(raw.consoles, 'consoles', MAX_MAINTENANCE_CONSOLES);
-  const refuels = requireBoundedIdMap(raw.refuels, 'refuels', MAX_MAINTENANCE_REFUELS);
+  const refuels = requireBoundedIdMap(raw.refuels, 'refuels', MAX_MAINTENANCE_REFUELS, true);
   const data: MaintenanceCommand = {
     ...parsed,
     ...(raw.foodLevel === undefined ? {} : { foodLevel: raw.foodLevel as number }),
