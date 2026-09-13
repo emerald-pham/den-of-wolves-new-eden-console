@@ -15,6 +15,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeShipConfetti: vi.fn(() => vi.fn()),
   subscribeDamageDraws: vi.fn(() => vi.fn()),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+  subscribeVipCards: vi.fn(() => vi.fn()),
 }));
 
 const { setShipConsoleLock } = await import('@/lib/sessionService');

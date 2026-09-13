@@ -54,6 +54,7 @@ vi.mock('@/lib/firestore', () => ({
     onDraws([]);
     return vi.fn();
   }),
+  subscribeVipCards: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('@/lib/versionUpgrade', () => ({
