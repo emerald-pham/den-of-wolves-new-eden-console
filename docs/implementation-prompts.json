@@ -4167,6 +4167,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "633",
+      "id": "E-633-RETRY-GUIDANCE",
+      "language": "The join-code limiter returns a bounded retryAfterSeconds detail with the existing unavailable-service taxonomy. Client normalization accepts only safe bounded integer timing, renders static retry guidance in the launcher and communication notice, and keeps server prose private. The Civil Unrest, away-mission discard, and Hummingbird action panels also use the static taxonomy guidance. Existing server-authority outbox and replay boundaries remain unchanged, so mutation commands without replay identity are not newly auto-replayed.",
+      "source": "functions/src/index.ts; functions/src/joinSessionCallable.test.ts; src/lib/commandErrors.ts; src/lib/commandErrors.test.ts; src/components/CommunicationError.tsx; src/components/CommunicationError.test.tsx; src/routes/Landing.tsx; src/routes/Landing.test.tsx; src/components/CivilUnrestGrievancePanel.tsx; src/components/AwayMissionDiscardPanel.tsx; src/components/HummingbirdHarvest.tsx; focused unit and Functions tests",
+      "type": "evidence / production-path / security / accessibility"
+    },
+    {
       "direction": "634 -> 019;630",
       "id": "E-AUDIT-634",
       "language": "Security denial records consume audit and randomness/security proof.",
@@ -21386,8 +21393,8 @@
         "acceptance": "throttled, unavailable, and contended commands expose actionable timing/status without secrets or duplicate-action risk.",
         "title": "Return safe retry guidance."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-633",
+      "description": "The join-code limiter returns a bounded machine-readable retryAfterSeconds hint with the existing unavailable-service taxonomy. Client command normalization preserves only that bounded timing and static guidance, while the launcher and communication notice show a safe retry wait without server prose. Civil Unrest, away-mission discard, and Hummingbird action panels now use the same static taxonomy guidance; existing mutation outbox authority and replay boundaries remain unchanged, with no automatic replay added.",
+      "evidenceIds": "E-AUDIT-633;E-633-RETRY-GUIDANCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "012;015",
@@ -21398,7 +21405,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

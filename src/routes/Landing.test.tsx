@@ -271,6 +271,27 @@ describe('Landing', () => {
     });
   });
 
+  it('shows safe retry timing for a throttled join without exposing server prose', async () => {
+    const user = userEvent.setup();
+    vi.mocked(joinSession).mockRejectedValue({
+      code: 'functions/resource-exhausted',
+      details: { commandError: 'unavailable-service', retryAfterSeconds: 600 },
+      message: 'private limiter details',
+    });
+    renderLanding();
+
+    await user.type(screen.getByRole('textbox', { name: /code/i }), '0000');
+    await user.click(screen.getByRole('button', { name: /join a session/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'The fleet service is temporarily unavailable. Reconnect and retry.',
+      );
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('Try again in about 600 seconds.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('private limiter details');
+  });
+
   it('does not leave the buttons live while a request is in flight', async () => {
     const user = userEvent.setup();
     let release: (() => void) | undefined;

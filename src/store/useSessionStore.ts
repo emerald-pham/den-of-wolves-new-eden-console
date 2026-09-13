@@ -382,6 +382,7 @@ export interface CommunicationError {
   readonly kind?: CommandErrorKind;
   readonly code: string;
   readonly message: string;
+  readonly retryAfterSeconds?: number;
 }
 
 /**

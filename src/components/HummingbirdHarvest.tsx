@@ -4,6 +4,7 @@ import { subscribeHummingbirdHarvest } from '@/lib/firestore';
 import { allocateHummingbirdHarvest, rollHummingbirdHarvest } from '@/lib/hummingbirdHarvestService';
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 interface Props {
   readonly docking?: ShuttleDocking | undefined;
@@ -11,7 +12,8 @@ interface Props {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'The Hummingbird action could not be completed.';
+  if (error instanceof Error && !('code' in error)) return error.message;
+  return normalizeCommandError(error).message;
 }
 
 export default function HummingbirdHarvest({ docking, fuelled }: Props) {

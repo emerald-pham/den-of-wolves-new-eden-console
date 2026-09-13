@@ -5,9 +5,11 @@ import {
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { AwayMissionHandPointer } from '@/types/game';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 function failureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'The mission command could not be completed.';
+  if (error instanceof Error && !('code' in error)) return error.message;
+  return normalizeCommandError(error).message;
 }
 
 function ParticipantPanel() {

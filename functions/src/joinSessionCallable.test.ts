@@ -410,6 +410,10 @@ it('does not reveal another code after the identity bucket is exhausted', async 
 
   await expect(joinSession.run(request('4821'))).rejects.toMatchObject({
     code: 'resource-exhausted',
+    details: {
+      commandError: 'unavailable-service',
+      retryAfterSeconds: expect.any(Number),
+    },
   });
 
   expect(mock.get).toHaveBeenCalledTimes(1);

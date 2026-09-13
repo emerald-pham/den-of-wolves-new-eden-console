@@ -29,6 +29,9 @@ export default function CommunicationError() {
         Error — {timeout ? display.code : `Wolf Communications Interception Code: ${display.code}`}
       </strong>
       <span>{display.message}</span>
+      {display.retryAfterSeconds !== undefined && (
+        <span>Try again in about {display.retryAfterSeconds} seconds.</span>
+      )}
       <span className="communication-error__reference">Reference: {reference(display.code)}</span>
       <button type="button" aria-label="Dismiss error" onClick={() => clear(null)}>×</button>
     </aside>

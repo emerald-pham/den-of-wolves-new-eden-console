@@ -6,6 +6,7 @@ import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { restoreSessionRoute } from '@/lib/sessionRoute';
 import { useSessionStore } from '@/store/useSessionStore';
+import { normalizeCommandError, type NormalizedCommandError } from '@/lib/commandErrors';
 
 const LEGACY_CODE_LENGTH = 4;
 const CODE_LENGTH = 6;
@@ -14,11 +15,26 @@ function isCompleteCode(code: string): boolean {
   return code.length === LEGACY_CODE_LENGTH || code.length === CODE_LENGTH;
 }
 
+type LandingError = Pick<NormalizedCommandError, 'message' | 'retryAfterSeconds'>;
+
+function landingError(cause: unknown): LandingError {
+  const display = normalizeCommandError(cause);
+  const hasTransportCode = typeof cause === 'object' && cause !== null &&
+    'code' in cause && typeof cause.code === 'string';
+  // Local validation/recovery errors do not have a callable transport code and
+  // remain useful as authored. Firebase errors always have a code and use the
+  // static taxonomy guidance above instead of server prose.
+  if (cause instanceof Error && !hasTransportCode) {
+    return { message: cause.message };
+  }
+  return display;
+}
+
 export default function Landing() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LandingError | null>(null);
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const lastRoute = useSessionStore((state) => state.lastRoute);
@@ -37,7 +53,7 @@ export default function Landing() {
       await action();
       navigate('/roles');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Something went wrong.');
+      setError(landingError(cause));
     } finally {
       setBusy(false);
     }
@@ -128,7 +144,10 @@ export default function Landing() {
 
       {error !== null && (
         <p className="landing__error" role="alert">
-          {error}
+          <span>{error.message}</span>
+          {error.retryAfterSeconds !== undefined && (
+            <span>Try again in about {error.retryAfterSeconds} seconds.</span>
+          )}
         </p>
       )}
       <footer className="arrival-bottomline cic-overline"><span>OPERATION NEW EDEN</span><span>SYSTEM INTERFACE / BUILD {APP_VERSION}</span></footer>

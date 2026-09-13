@@ -25,12 +25,17 @@ export interface NormalizedCommandError {
   readonly code: string;
   /** Safe, static guidance suitable for player-facing rendering. */
   readonly message: string;
+  /** Optional server-provided wait hint, bounded before it reaches the UI. */
+  readonly retryAfterSeconds?: number;
 }
 
 export interface CommandErrorDetails {
   readonly commandError?: unknown;
   readonly kind?: unknown;
+  readonly retryAfterSeconds?: unknown;
 }
+
+const MAX_RETRY_AFTER_SECONDS = 60 * 60;
 
 const GUIDANCE: Readonly<Record<CommandErrorKind, string>> = {
   unauthenticated: 'Sign in again before sending this command.',
@@ -100,6 +105,17 @@ function detailKind(cause: unknown): CommandErrorKind | undefined {
     : undefined;
 }
 
+function retryAfterSeconds(cause: unknown): number | undefined {
+  const value = details(cause)?.retryAfterSeconds ?? (
+    typeof cause === 'object' && cause !== null && 'retryAfterSeconds' in cause
+      ? cause.retryAfterSeconds
+      : undefined
+  );
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_RETRY_AFTER_SECONDS
+    ? value
+    : undefined;
+}
+
 function codeKind(code: string): CommandErrorKind {
   switch (code) {
     case 'unauthenticated': return 'unauthenticated';
@@ -139,7 +155,8 @@ export function normalizeCommandError(cause: unknown): NormalizedCommandError {
     typeof cause.message === 'string'
     ? cause.message.slice(0, 240)
     : GUIDANCE[kind];
-  return { kind, code, message };
+  const wait = retryAfterSeconds(cause);
+  return wait === undefined ? { kind, code, message } : { kind, code, message, retryAfterSeconds: wait };
 }
 
 export function commandErrorGuidance(kind: CommandErrorKind): string {

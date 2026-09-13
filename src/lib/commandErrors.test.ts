@@ -56,4 +56,24 @@ describe('normalizeCommandError', () => {
       code: 'failed-precondition', kind: 'terminal-session', message: 'secret=session-token',
     }).message).not.toContain('session-token');
   });
+
+  it('preserves a bounded structured retry hint without exposing server text', () => {
+    expect(normalizeCommandError({
+      code: 'functions/resource-exhausted',
+      details: { commandError: 'unavailable-service', retryAfterSeconds: 600 },
+      message: 'private limiter details',
+    })).toMatchObject({
+      kind: 'unavailable-service',
+      retryAfterSeconds: 600,
+      message: 'The fleet service is temporarily unavailable. Reconnect and retry.',
+    });
+  });
+
+  it.each([0, -1, 3601, 1.5, '600'])('drops an invalid retry hint (%s)', (retryAfterSeconds) => {
+    expect(normalizeCommandError({
+      code: 'functions/resource-exhausted',
+      details: { commandError: 'unavailable-service', retryAfterSeconds },
+      message: 'private limiter details',
+    })).not.toHaveProperty('retryAfterSeconds');
+  });
 });

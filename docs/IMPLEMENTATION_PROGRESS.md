@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**274 / 751 prompts complete (36.48%)**
+**275 / 751 prompts complete (36.62%)**
 
-Status breakdown: **274 done · 25 partial · 452 missing**.
+Status breakdown: **275 done · 25 partial · 451 missing**.
 
 Active prompt: **none**
 
@@ -1109,7 +1109,7 @@ release classification and evidence.
 | 630 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 631 | partial | non-feature | — | The production refreshPresence path now coalesces rapid passive heartbeat retries with a server-only per-session/per-UID full-reconciliation marker. Authenticated active players still renew their own lease and membership, optional live GM instances still renew their connection, explicit activeConsoleRoleId claim/release requests always run the full authority path, and the marker is private to server code. Focused lifecycle, Functions build/lint, and populated Firestore rules privacy checks are recorded; broader expensive-callable limiting remains open, so P631 is partial. |
 | 632 | done | non-feature | — | Production callable boundaries now reject malformed or oversized maintenance and presence payloads before authority preflight. The server derives limits from the printed/domain maintenance catalogs, validates canonical console and refuel IDs while preserving the form's empty Do not refuel sentinel, and preserves omitted versus explicit-null presence semantics; broader already-guarded payload fields remain unchanged and no new UI or game rule is claimed. |
-| 633 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 633 | done | non-feature | — | The join-code limiter returns a bounded machine-readable retryAfterSeconds hint with the existing unavailable-service taxonomy. Client command normalization preserves only that bounded timing and static guidance, while the launcher and communication notice show a safe retry wait without server prose. Civil Unrest, away-mission discard, and Hummingbird action panels now use the same static taxonomy guidance; existing mutation outbox authority and replay boundaries remain unchanged, with no automatic replay added. |
 | 634 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

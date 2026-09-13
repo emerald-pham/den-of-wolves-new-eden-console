@@ -2058,9 +2058,14 @@ async function consumeJoinCodeAttempt(uid: string): Promise<void> {
 
   const retryAt = decision.retryAt ?? new Date();
   const minutes = Math.max(1, Math.ceil((retryAt.getTime() - Date.now()) / 60_000));
+  const retryAfterSeconds = Math.min(
+    10 * 60,
+    Math.max(1, Math.ceil((retryAt.getTime() - Date.now()) / 1_000)),
+  );
   throw new HttpsError(
     'resource-exhausted',
     `Too many session-code attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+    { commandError: 'unavailable-service', retryAfterSeconds },
   );
 }
 

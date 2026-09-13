@@ -5,6 +5,7 @@ import { subscribeCivilUnrestGrievance, subscribeCivilUnrestPublic } from '@/lib
 import { phaseForSession } from '@/lib/turnPhase';
 import { submitCivilUnrestGrievance } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
+import { normalizeCommandError } from '@/lib/commandErrors';
 import type { CivilUnrestGrievance, CivilUnrestPublicProjection, CrisisStateName } from '@/types/crisis';
 
 const UNION_SHIPS: Readonly<Record<string, readonly string[]>> = {
@@ -16,6 +17,11 @@ const SHIP_NAMES: Readonly<Record<string, string>> = {
   quellon: 'Quellon', 'refinery-124': 'Refinery 124',
 };
 const AFFECTED_SHIP_IDS = Object.keys(SHIP_NAMES);
+
+function grievanceErrorMessage(error: unknown): string {
+  if (error instanceof Error && !('code' in error)) return error.message;
+  return normalizeCommandError(error).message;
+}
 
 function teamShips(
   activeRoleId: string | null | undefined,
@@ -112,7 +118,7 @@ export default function CivilUnrestGrievancePanel({
       setText('');
       setMessage(disposition === 'queued' ? 'Saved to send when the connection returns.' : 'Grievance submitted.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'The grievance could not be submitted. Refresh and try again.');
+      setMessage(grievanceErrorMessage(error));
     } finally { setBusy(false); }
   };
 
