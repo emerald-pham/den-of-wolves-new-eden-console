@@ -104,6 +104,14 @@ it.each(['member', 'gm'] as const)('denies direct gameplay mutations even to a c
   }
 });
 
+it.each(['member', 'gm'] as const)('denies connected %s reads of the server-only presence marker', async (uid) => {
+  const db = env.authenticatedContext(uid).firestore();
+  const marker = `${sessionPath}/presenceReconciliations/u1`;
+  await expect(getDoc(doc(db, marker))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(getDocs(collection(db, `${sessionPath}/presenceReconciliations`)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
 it('allows a connected player to edit their own display name but not gameplay authority', async () => {
   const db = env.authenticatedContext('member').firestore();
   const player = doc(db, `${sessionPath}/players/member`);
