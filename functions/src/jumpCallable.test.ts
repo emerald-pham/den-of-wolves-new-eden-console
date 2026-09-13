@@ -85,6 +85,11 @@ beforeEach(() => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
+      : path.includes('/private/shipConsoleWriteGrant')
+        ? {
+          type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: mock.owner,
+          shipId: 'aegis', grantedAt: new Date(),
+        }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {
@@ -327,6 +332,11 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
+      : path.includes('/private/shipConsoleWriteGrant')
+        ? {
+          type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: mock.owner,
+          shipId: 'aegis', grantedAt: new Date(),
+        }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {

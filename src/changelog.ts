@@ -21,19 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: [526],
+    implementationPrompts: [628],
     implementationProgress: {
-      completed: 255,
+      completed: 256,
       total: 751,
-      percentage: '33.95%',
-      done: 255,
+      percentage: '34.09%',
+      done: 256,
       partial: 21,
       active: 0,
-      missing: 475,
+      missing: 474,
     },
     changes: [
-      'Crisis preparation checks whether the session includes the required President or loyalty group, with a private facilitator override for adaptations.',
-      '255 of 751 planned items are complete (33.95%).',
+      'GM ship-console write access now follows the active GM browser instance, selected ship, and a revocable private grant.',
+      'Observer mode stays read only until the server confirms the scoped write grant, including after reconnects and stale-instance cleanup.',
+      '256 of 751 planned items are complete (34.09%).',
     ],
   },
   {

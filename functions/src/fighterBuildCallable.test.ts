@@ -66,6 +66,12 @@ beforeEach(() => {
     if (path.includes('/players/')) {
       return snapshot({ role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeRole });
     }
+    if (path.includes('/private/shipConsoleWriteGrant')) {
+      return snapshot({
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'gm-1', uid: mock.owner,
+        shipId: 'aegis', grantedAt: new Date(),
+      });
+    }
     if (path.includes('/gmInstances/')) {
       return snapshot({ uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() });
     }

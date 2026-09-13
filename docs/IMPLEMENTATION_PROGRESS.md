@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**255 / 751 prompts complete (33.95%)**
+**256 / 751 prompts complete (34.09%)**
 
-Status breakdown: **255 done · 21 partial · 475 missing**.
+Status breakdown: **256 done · 21 partial · 474 missing**.
 
 Active prompt: **none**
 
@@ -1104,7 +1104,7 @@ release classification and evidence.
 | 625 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 626 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 627 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 628 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 628 | done | non-feature | 0.3.99 | Implemented GM-instance authority for ship and role console interventions with private revocable ship grants, owner-only projection, stale-instance cleanup, replay-safe checks, and Observer read-only enforcement. Validated by focused callable/composition tests, Firestore rules coverage, responsive production ShipConsole checks, and independent Terra review. |
 | 629 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 630 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 631 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

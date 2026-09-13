@@ -5019,6 +5019,13 @@
       "language": "Full primary-component visual review resolves the earlier unavailable-source assumption. The Starlight component has scouting and away-mission operations without a cargo-transfer permission. Existing cargoTransfer absence, Wing Commander route, scout/fuel envelope, mission modifiers and AEGIS initial docking remain consistent. No source file or private primary content is copied into the repository and no new gameplay action is introduced.",
       "source": "Authorized local v1.1 A4 Card Duplex primary component, page41; src/data/vessels/starlight.ts; src/data/aegisConsoles.test.ts; src/routes/ShuttleConsole.test.tsx; functions/src/shuttlecraft.test.ts; /tmp/pdfs/p361/starlight-source-verification.json",
       "type": "evidence / primary-source / preserved"
+    },
+    {
+      "direction": "628 -> GM-INSTANCE-AUTHORITY / SHIP-CONSOLE-GRANT",
+      "id": "E-628-GM-INSTANCE-AUTHORITY",
+      "language": "Prompt 628 is implemented for privileged ship and role console interventions: the server requires an active GM player, the named live browser instance, the target ship, and the private revocable ship-console grant before mutation. Session-level GM commands retain their existing session authority. Grants are stored under the authoritative instance private subdocument, are projected only to the owning GM, and are deleted on revoke, logout, release, disconnect, stale-instance reclaim, stale-player cleanup, or instance replacement. VIP replay checks authority before receipt replay. Firestore rules deny direct nested grant reads and writes to members, and Observer mode remains read only until the server projection confirms the grant. Final validation passes npm test (207 files, 2392 tests), Firestore rules (89 tests), typecheck, Functions build, lint, and roadmap documentation checks. Focused callable and composition coverage passes 28 tests; responsive production ShipConsole checks pass at 320x844, 844x390, and 1440x900 with read-only and granted states; Terra review cleared exact production candidate e81a38e4ab6137b1db5c0d3343d7619ace4b80ff after replay ordering, private grant visibility, and stale grant cleanup repairs.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/store/useSessionStore.ts; firestore.rules; tests/rules/firestore.rules.test.ts; functions/src/gmSessionCallable.test.ts; functions/src/vipCardsCallable.test.ts; functions/src/fleetAlertCallable.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/jumpCallable.test.ts; functions/src/fighterBuildCallable.test.ts; functions/src/sessionComposition.test.ts; Terra review e81a38e4ab6137b1db5c0d3343d7619ace4b80ff",
+      "type": "evidence / authority / privacy / release"
     }
   ],
   "plan": {
@@ -21150,8 +21157,8 @@
         "acceptance": "every privileged command checks active eligibility, role, instance, expiry, and scope; Observer remains read-only by default.",
         "title": "Enforce GM-instance authority everywhere."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Implemented GM-instance authority for ship and role console interventions with private revocable ship grants, owner-only projection, stale-instance cleanup, replay-safe checks, and Observer read-only enforcement. Validated by focused callable/composition tests, Firestore rules coverage, responsive production ShipConsole checks, and independent Terra review.",
+      "evidenceIds": "E-628-GM-INSTANCE-AUTHORITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -21159,10 +21166,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.99"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

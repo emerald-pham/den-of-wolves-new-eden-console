@@ -1114,6 +1114,17 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       });
     }
 
+    mock.documents.set(
+      `sessions/${composition.sessionId}/gmInstances/bridge-8/private/shipConsoleWriteGrant`,
+      {
+        type: 'gm-ship-console-write-grant',
+        sessionId: composition.sessionId,
+        instanceId: 'bridge-8',
+        uid: composition.ownerUid,
+        shipId: 'icebreaker',
+        grantedAt: new Date(),
+      },
+    );
     await expect(runMaintenance.run(request({
       sessionId: composition.sessionId,
       shipId: 'icebreaker',
