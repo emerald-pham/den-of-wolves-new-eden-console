@@ -138,11 +138,37 @@ function AppRoutes() {
       subscribeLoyaltyCensusFn = subscribeLoyaltyCensus;
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
-        onSession: (next) => useSessionStore.getState().setSession(next),
+        onSession: (next) => {
+          const store = useSessionStore.getState();
+          const current = store.session;
+          if (!current || current.id !== next.id) {
+            store.setSession(next);
+            return;
+          }
+          // Protected documents have independent snapshot timing. A public
+          // header update must not discard their already accepted projections.
+          const composed = {
+            ...next,
+            ...(current.playerDiscovery ? { playerDiscovery: current.playerDiscovery } : {}),
+            ...(current.shipGalacticCoordinates ? { shipGalacticCoordinates: current.shipGalacticCoordinates } : {}),
+            ...(current.shipNavigationLogs ? { shipNavigationLogs: current.shipNavigationLogs } : {}),
+            ...(current.organiserSystems ? { organiserSystems: current.organiserSystems } : {}),
+            ...(current.organiserSites ? { organiserSites: current.organiserSites } : {}),
+            ...(current.pursuitDistances ? { pursuitDistances: current.pursuitDistances } : {}),
+          };
+          store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
+        },
         onPlayerDiscovery: (projection) => {
           const store = useSessionStore.getState();
           const current = store.session;
           if (!current || current.id !== sessionId) return;
+          if (store.me?.role === 'gm' && current.organiserSystems !== undefined) {
+            const next = { ...current };
+            if (projection) next.playerDiscovery = projection;
+            else delete next.playerDiscovery;
+            store.setSession(next);
+            return;
+          }
           if (!projection) {
             store.setSession(stripNavigationProjection(current));
             return;

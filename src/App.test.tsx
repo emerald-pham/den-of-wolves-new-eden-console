@@ -454,6 +454,42 @@ describe('App', () => {
     expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
     expect(useSessionStore.getState().session?.shipNavigationLogs).toEqual({ aegis: own.navigationLogs });
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
+    act(() => handlers?.onSession({ ...session, currentTurn: 3 }));
+    expect(useSessionStore.getState().session?.currentTurn).toBe(3);
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
+    expect(useSessionStore.getState().session?.shipNavigationLogs).toEqual({ aegis: own.navigationLogs });
+    unmount();
+  });
+
+  it('keeps the GM fleet projection through own-discovery and public-header updates', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity(session, player);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const gm = {
+      shipGalacticCoordinates: { aegis: '5143', dione: '8378' },
+      shipNavigationLogs: { aegis: [], dione: [] },
+      organiserSystems: { 'system-02': '5143', 'system-17': '8378' },
+      organiserSites: {}, pursuitDistances: { aegis: 1, dione: 6 },
+    };
+    const own = {
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
+      knownCoordinates: ['0000', '5143'], knownSystems: { 'system-02': '5143' },
+      navigationLogs: [], pursuitDistance: 1, revision: 2,
+    };
+    act(() => {
+      handlers?.onGmDiscovery?.(gm);
+      handlers?.onPlayerDiscovery?.(own);
+      handlers?.onSession({ ...session, currentTurn: 3 });
+    });
+    expect(useSessionStore.getState().session).toMatchObject({ ...gm, playerDiscovery: own, currentTurn: 3 });
+    act(() => handlers?.onPlayerDiscovery?.(null));
+    expect(useSessionStore.getState().session).toMatchObject(gm);
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
     unmount();
   });
 
