@@ -49,6 +49,7 @@ describe('useSessionStore', () => {
     expect(state.seats).toEqual([]);
     expect(state.session).toBeNull();
     expect(state.gmAccessAuthenticatedAt).toBeNull();
+    expect(state.persistedSessionSnapshot).toBe(false);
   });
 
   it('reset clears a populated store', () => {
@@ -76,6 +77,7 @@ describe('useSessionStore', () => {
       lastRoute: '/console',
     });
     expect(saved.state).not.toHaveProperty('connection');
+    expect(saved.state).not.toHaveProperty('persistedSessionSnapshot');
   });
 
   it.each([false, true])('keeps privileged GM chart data out of saved and restored sessions (own ship: %s)', async (hasOwn) => {
@@ -162,7 +164,15 @@ describe('useSessionStore', () => {
     localStorage.setItem(
       SESSION_STORAGE_KEY,
       JSON.stringify({
-        state: { session, me: player, gmInstance, mode: 'console', lastRoute: '/console' },
+        state: {
+          session,
+          me: player,
+          gmInstance,
+          mode: 'console',
+          lastRoute: '/console',
+          connection: 'live',
+          sessionSnapshotFreshness: 'server',
+        },
         version: 1,
       }),
     );
@@ -175,7 +185,13 @@ describe('useSessionStore', () => {
       gmInstance,
       mode: 'console',
       lastRoute: '/console',
+      sessionSnapshotFreshness: 'cache',
+      persistedSessionSnapshot: true,
     });
+    expect(useSessionStore.getState().connection).toBe('idle');
+
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    expect(useSessionStore.getState().persistedSessionSnapshot).toBe(false);
   });
 
   it('disconnect is idempotent and removes all persisted session state', () => {

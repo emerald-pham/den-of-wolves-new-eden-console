@@ -233,7 +233,11 @@ export default function AppHeader() {
   const dialog = useRef<HTMLElement>(null);
   const status = useSessionStore(selectConnectionStatus);
   const explicitlyOffline = useSessionStore((state) => state.connection === 'offline');
+  const persistedSessionSnapshot = useSessionStore((state) => state.persistedSessionSnapshot);
   const hasCacheDerivedSnapshot = useSessionStore(
+    (state) => state.sessionSnapshotFreshness === 'cache' && !state.persistedSessionSnapshot,
+  );
+  const hasStaleSessionSnapshot = useSessionStore(
     (state) => state.sessionSnapshotFreshness === 'cache',
   );
   const connection = useSessionStore((state) => state.connection);
@@ -420,6 +424,18 @@ export default function AppHeader() {
         status={indicatorStatus}
         sessionRecovery={Boolean(sessionId && !playerUid && connection === 'connecting')}
       />
+      {sessionId && (persistedSessionSnapshot || hasStaleSessionSnapshot) && (
+        <span
+          className="session-snapshot-status"
+          role="status"
+          aria-live="polite"
+          aria-label="Stale session snapshot"
+          title="The saved session snapshot is stale until live authority returns"
+          data-state="stale"
+        >
+          Cached snapshot // reconnect required
+        </span>
+      )}
       <button
         className="settings-button"
         ref={settingsButton}

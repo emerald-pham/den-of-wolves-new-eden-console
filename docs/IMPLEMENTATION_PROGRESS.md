@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**276 / 751 prompts complete (36.75%)**
+**277 / 751 prompts complete (36.88%)**
 
-Status breakdown: **276 done · 25 partial · 450 missing**.
+Status breakdown: **277 done · 24 partial · 450 missing**.
 
 Active prompt: **none**
 
@@ -1087,7 +1087,7 @@ release classification and evidence.
 | 610 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |
 | 611a | done | feature | 0.3.105 | Characterized the exact Write / crew incomplete and Read only console-access paragraphs: both inherited 16px system sans, normal tracking and mixed casing rather than the nearby CIC caption family. Both now use the existing cic-overline mono/tracking/uppercase style with the named cyan readout color and safe wrapping. The change preserves copy, paragraph semantics, heading order and all authority behavior; it introduces no global scale or redesign. Before/after actual component renders verified both states at 320x844, 390x844, 844x390 and 1440x900 in normal/reduced motion without horizontal overflow. Readout contrast exceeds 9.7:1 against both named CIC ground surfaces; focused console and aesthetic tests passed. |
-| 612 | partial | non-feature | — | The store immediately rehydrates the saved session and route; transient resume failures preserve the view, while terminal membership denial clears local authority fields. The header marks Firestore-cache snapshots Offline, but local-storage hydration retains unknown freshness and the published connection-light grace behavior, so a dedicated stale-view marker for that restoration is still missing. Preserve the connection-light policy while adding the separate marker and verifying snapshot-only action denial before closure. |
+| 612 | done | non-feature | — | The store immediately rehydrates the saved session and route; local-storage hydration now marks the projection cache-freshness and exposes an ephemeral browser-local stale marker until an accepted server snapshot arrives. Transient resume failures preserve the view, terminal membership denial clears local authority fields, the header announces the stale snapshot while preserving connection-light grace, and snapshot-only mutations remain denied. |
 | 613 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 614 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 615 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

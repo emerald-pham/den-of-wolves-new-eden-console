@@ -220,6 +220,29 @@ it('shows a cache-derived snapshot as Offline without changing ordinary reconnec
   expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
+it('marks a persisted snapshot stale without changing the connection grace light', async () => {
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.setState({
+    connection: 'live',
+    sessionSnapshotFreshness: 'cache',
+    persistedSessionSnapshot: true,
+  });
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await screen.findByText('2 connected to CIC');
+
+  const indicator = screen.getByRole('status', {
+    name: /^(connected|disconnected|offline|reconnecting|no connection)/i,
+  });
+  expect(indicator).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: 'Stale session snapshot' }))
+    .toHaveTextContent('Cached snapshot // reconnect required');
+
+  act(() => useSessionStore.getState().setSessionSnapshotFreshness('server'));
+  expect(screen.queryByRole('status', { name: 'Stale session snapshot' })).not.toBeInTheDocument();
+  expect(indicator).toHaveAttribute('data-status', 'green');
+});
+
 it('does not let a page return after an outage make disconnected eligible', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));

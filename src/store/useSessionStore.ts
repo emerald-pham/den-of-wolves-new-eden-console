@@ -424,6 +424,8 @@ interface SessionState {
   lastRoute: string | null;
   connection: 'idle' | 'connecting' | 'live' | 'offline';
   sessionSnapshotFreshness: 'unknown' | 'cache' | 'server';
+  /** A local-storage snapshot was restored before this browser revalidated it. */
+  persistedSessionSnapshot: boolean;
 
   setSession: (session: GameSession | null) => void;
   setIdentity: (session: GameSession, me: Player) => void;
@@ -495,11 +497,12 @@ const initial = {
   lastRoute: null,
   connection: 'idle',
   sessionSnapshotFreshness: 'unknown',
+  persistedSessionSnapshot: false,
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
-  'sessionSnapshotFreshness'
+  'sessionSnapshotFreshness' | 'persistedSessionSnapshot'
 >;
 
 function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
@@ -521,7 +524,10 @@ export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
       ...initial,
-      setSession: (session) => set({ session }),
+      setSession: (session) => set({
+        session,
+        ...(session === null ? { persistedSessionSnapshot: false } : {}),
+      }),
       setIdentity: (session, me) => set({
         session, me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         awayMissionHandPointers: [], awayMissionHands: [],
@@ -574,7 +580,12 @@ export const useSessionStore = create<SessionState>()(
       setConnection: (connection) => { if (get().connection !== connection) set({ connection }); },
       setSessionSnapshotFreshness: (sessionSnapshotFreshness) => {
         if (get().sessionSnapshotFreshness !== sessionSnapshotFreshness) {
-          set({ sessionSnapshotFreshness });
+          set({
+            sessionSnapshotFreshness,
+            ...(sessionSnapshotFreshness === 'server' || sessionSnapshotFreshness === 'unknown'
+              ? { persistedSessionSnapshot: false }
+              : {}),
+          });
         }
       },
       disconnect: () =>
@@ -606,6 +617,7 @@ export const useSessionStore = create<SessionState>()(
           mode: null,
           lastRoute: null,
           sessionSnapshotFreshness: 'unknown',
+          persistedSessionSnapshot: false,
           // Queued disconnect and logout commands must survive local teardown
           // so the server can receive the user's explicit cleanup decision.
           pendingCommands: state.pendingCommands.filter(
@@ -633,12 +645,21 @@ export const useSessionStore = create<SessionState>()(
         const restored = persisted && typeof persisted === 'object'
           ? persisted as Partial<SessionState>
           : {};
+        const hasRestoredSession = Object.hasOwn(restored, 'session');
+        const restoredSession = hasRestoredSession
+          ? normalizePersistedSession(restored.session)
+          : current.session;
         return {
           ...current,
           ...restored,
-          session: Object.hasOwn(restored, 'session')
-            ? normalizePersistedSession(restored.session)
-            : current.session,
+          // Connection and freshness are runtime authority, never persisted
+          // input. A restored session is renderable only as a cache snapshot.
+          connection: current.connection,
+          session: restoredSession,
+          sessionSnapshotFreshness: hasRestoredSession && restoredSession
+            ? 'cache'
+            : current.sessionSnapshotFreshness,
+          persistedSessionSnapshot: hasRestoredSession && restoredSession !== null,
         };
       },
     },

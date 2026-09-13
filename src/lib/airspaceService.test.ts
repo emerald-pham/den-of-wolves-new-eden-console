@@ -82,6 +82,17 @@ it('rejects a Press airspace command backed only by cached session state', async
   expect(mocks.callable).not.toHaveBeenCalled();
 });
 
+it('rejects a Press airspace command from a persisted snapshot even when transport is live', async () => {
+  useSessionStore.setState({
+    connection: 'live',
+    sessionSnapshotFreshness: 'cache',
+    persistedSessionSnapshot: true,
+  });
+
+  await expect(unlockPressAirspace()).rejects.toThrow(/live session state/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
+});
+
 it('does not patch a delayed airspace reply over newer session authority', async () => {
   const sessionId = 'airspace-race';
   const initialSession = {
