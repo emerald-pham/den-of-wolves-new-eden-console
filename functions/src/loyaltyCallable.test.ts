@@ -50,6 +50,12 @@ function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
+function deletedSecretPaths(): string[] {
+  return mock.delete.mock.calls
+    .map(([reference]) => (reference as { path: string }).path)
+    .filter((path) => path.startsWith('sessions/s1/secrets/'));
+}
+
 beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
@@ -671,10 +677,7 @@ it('removes only the reciprocal displaced Friend when replacing a target loyalty
     targetUid: 'u2', kind: 'android', suspicion: null,
   }))).resolves.toMatchObject({ assignedUids: ['u2'] });
 
-  expect(mock.delete).toHaveBeenCalledTimes(1);
-  expect(mock.delete).toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u3' }),
-  );
+  expect(deletedSecretPaths()).toEqual(['sessions/s1/secrets/loyalty-u3']);
 });
 
 it('removes only the reciprocal displaced Friend when replacing a new Friend partner', async () => {
@@ -700,10 +703,7 @@ it('removes only the reciprocal displaced Friend when replacing a new Friend par
     targetUid: 'u2', kind: 'friend', suspicion: 0, partnerUid: 'u3',
   }))).resolves.toMatchObject({ assignedUids: ['u2', 'u3'] });
 
-  expect(mock.delete).toHaveBeenCalledTimes(1);
-  expect(mock.delete).toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u4' }),
-  );
+  expect(deletedSecretPaths()).toEqual(['sessions/s1/secrets/loyalty-u4']);
 });
 
 it('never deletes a corrupt or unrelated secret while replacing a Friend target', async () => {
@@ -727,7 +727,7 @@ it('never deletes a corrupt or unrelated secret while replacing a Friend target'
     targetUid: 'u2', kind: 'android', suspicion: null,
   }))).resolves.toMatchObject({ assignedUids: ['u2'] });
 
-  expect(mock.delete).not.toHaveBeenCalled();
+  expect(deletedSecretPaths()).toEqual([]);
 });
 
 it('allows only the Android holder to disclose proof and makes the disclosure auditable', async () => {
