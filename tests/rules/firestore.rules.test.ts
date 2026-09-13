@@ -164,6 +164,36 @@ beforeEach(async () => {
       revision: 3,
       entries: [{ uid: 'alice', kind: 'fleet-loyalist', suspicion: 0 }],
     });
+    await setDoc(doc(db, `${SESSION}/wolfCultIntelligenceAuthority/current`), {
+      type: 'wolf-cult-intelligence-authority',
+      sessionId: 's1',
+      recipientUid: 'alice',
+      revision: 1,
+    });
+    await setDoc(doc(db, `${SESSION}/wolfCultIntelligence/alice`), {
+      type: 'wolf-cult-intelligence',
+      sessionId: 's1',
+      recipientUid: 'alice',
+      visibleToUids: ['alice'],
+      revision: 1,
+      fortressCoordinate: '4454',
+      suppliesCoordinate: '1964',
+      agentUid: 'press',
+      codeWord: 'NIGHTFALL',
+      label: 'WOLF INTEL',
+    });
+    await setDoc(doc(db, `${SESSION}/wolfCultIntelligence/current`), {
+      type: 'wolf-cult-intelligences',
+      sessionId: 's1',
+      recipientUid: 'alice',
+      visibleToUids: ['gm1'],
+      revision: 1,
+      fortressCoordinate: '4454',
+      suppliesCoordinate: '1964',
+      agentUid: 'press',
+      codeWord: 'NIGHTFALL',
+      label: 'WOLF INTEL',
+    });
     await setDoc(doc(db, `${SESSION}/damageDraws/draw1`), {
       shipId: 'aegis',
       card: '10♥',
@@ -339,6 +369,35 @@ describe('session header', () => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
     });
     await assertFails(getDoc(gmCensus));
+  });
+
+  it('keeps Wolf Cult intelligence private to the current holder and connected GMs', async () => {
+    const holderProjection = doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`);
+    const otherPlayerProjection = doc(as('press'), `${SESSION}/wolfCultIntelligence/alice`);
+    const observerProjection = doc(as('observer'), `${SESSION}/wolfCultIntelligence/alice`);
+    const gmProjection = doc(as('gm1'), `${SESSION}/wolfCultIntelligence/current`);
+    const holderCurrent = doc(as('alice'), `${SESSION}/wolfCultIntelligence/current`);
+    const gmAudit = collection(as('gm1'), `${SESSION}/wolfCultIntelligence/current/audit`);
+
+    await assertSucceeds(getDoc(holderProjection));
+    await assertFails(getDoc(otherPlayerProjection));
+    await assertFails(getDoc(observerProjection));
+    await assertSucceeds(getDoc(gmProjection));
+    await assertFails(getDoc(holderCurrent));
+    await assertSucceeds(getDocs(gmAudit));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/wolfCultIntelligence`)));
+    await assertFails(setDoc(holderProjection, { codeWord: 'FORGED' }));
+    await assertFails(setDoc(gmProjection, { codeWord: 'FORGED' }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/wolfCultIntelligenceAuthority/current`), {
+        recipientUid: null,
+      });
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { connected: false });
+    });
+    await assertFails(getDoc(holderProjection));
+    await assertFails(getDoc(gmProjection));
+    await assertFails(getDocs(gmAudit));
   });
 
   it('keeps the Wolf-attack timing marker and audit private to connected GMs', async () => {

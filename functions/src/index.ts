@@ -59,6 +59,7 @@ import {
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
   requireFacilitatorCensusNoteRequest,
+  requireWolfCultIntelligenceRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -4788,10 +4789,26 @@ function setLoyaltyCensusFromSecrets(
     }
     else entries.delete(uid);
   }
+  const nextEntries = [...entries.values()].sort((left, right) => left.uid.localeCompare(right.uid));
+  const previousCultUid = storedLoyaltyCensusEntries(previousCensus)
+    ?.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
+  const nextCultUid = nextEntries.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
   tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
     type: 'loyalty-census',
     revision: censusRevision,
-    entries: [...entries.values()].sort((left, right) => left.uid.localeCompare(right.uid)),
+    entries: nextEntries,
+  });
+  if (previousCultUid !== nextCultUid) {
+    tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
+    if (previousCultUid) {
+      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${previousCultUid}`));
+    }
+  }
+  tx.set(db.doc(`sessions/${sessionId}/wolfCultIntelligenceAuthority/current`), {
+    type: 'wolf-cult-intelligence-authority',
+    sessionId,
+    recipientUid: nextCultUid,
+    revision: censusRevision,
   });
 }
 
@@ -4808,13 +4825,29 @@ function setLoyaltyCensusEntries(
     ? previousCensus.get('revision') as number
     : -1;
   const censusRevision = Math.max(revision, previousRevision + 1);
+  const nextEntries = entries.map((entry) => {
+    const note = entry.note ?? previousNotes.get(entry.uid);
+    return note ? { ...entry, note } : entry;
+  }).sort((left, right) => left.uid.localeCompare(right.uid));
+  const previousCultUid = storedLoyaltyCensusEntries(previousCensus)
+    ?.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
+  const nextCultUid = nextEntries.find((entry) => entry.kind === 'wolf-cult')?.uid ?? null;
   tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
     type: 'loyalty-census',
     revision: censusRevision,
-    entries: entries.map((entry) => {
-      const note = entry.note ?? previousNotes.get(entry.uid);
-      return note ? { ...entry, note } : entry;
-    }).sort((left, right) => left.uid.localeCompare(right.uid)),
+    entries: nextEntries,
+  });
+  if (previousCultUid !== nextCultUid) {
+    tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
+    if (previousCultUid) {
+      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${previousCultUid}`));
+    }
+  }
+  tx.set(db.doc(`sessions/${sessionId}/wolfCultIntelligenceAuthority/current`), {
+    type: 'wolf-cult-intelligence-authority',
+    sessionId,
+    recipientUid: nextCultUid,
+    revision: censusRevision,
   });
 }
 
@@ -4833,8 +4866,8 @@ function censusNotesFromSnapshot(snapshot: DocumentSnapshot | undefined): Map<st
   return notes;
 }
 
-function storedLoyaltyCensusEntries(snapshot: DocumentSnapshot): LoyaltyCensusEntry[] | null {
-  if (!snapshot.exists) return null;
+function storedLoyaltyCensusEntries(snapshot: DocumentSnapshot | undefined): LoyaltyCensusEntry[] | null {
+  if (!snapshot?.exists) return null;
   const rawEntries = snapshot.get('entries');
   if (!Array.isArray(rawEntries)) return null;
   const entries: LoyaltyCensusEntry[] = [];
@@ -4964,6 +4997,200 @@ export const setFacilitatorCensusNote = onCall<{
       revision: nextRevision,
       actorUid: uid,
       instanceId: change.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfCultIntelligenceResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  recipientUid: string;
+  revision: number;
+  fortressCoordinate: string;
+  suppliesCoordinate: string;
+  agentUid: string;
+  codeWord: string;
+  label: 'WOLF INTEL';
+}>;
+
+function isWolfCultIntelligenceResult(
+  value: unknown,
+  sessionId: string,
+): value is WolfCultIntelligenceResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') && result.sessionId === sessionId &&
+    typeof result.recipientUid === 'string' && Number.isSafeInteger(result.revision) &&
+    (result.revision as number) >= 1 && typeof result.fortressCoordinate === 'string' &&
+    typeof result.suppliesCoordinate === 'string' && typeof result.agentUid === 'string' &&
+    typeof result.codeWord === 'string' && result.codeWord.length > 0 &&
+    result.codeWord.length <= 80 && result.label === 'WOLF INTEL';
+}
+
+/** Deliver the four source-defined Wolf Cult facts to its current holder. */
+export const deliverWolfCultIntelligence = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  fortressCoordinate?: unknown;
+  suppliesCoordinate?: unknown;
+  agentUid?: unknown;
+  codeWord?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const intelligence = requireWolfCultIntelligenceRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/current`);
+  const authorityRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligenceAuthority/current`);
+  const secretsRef = db.collection(`sessions/${intelligence.sessionId}/secrets`);
+  const playersRef = db.collection(`sessions/${intelligence.sessionId}/players`);
+  const auditRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/current/audit/${intelligence.requestId}`);
+  const receiptRef = commandReceiptRef(intelligence.sessionId, intelligence.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'deliver-wolf-cult-intelligence',
+    sessionId: intelligence.sessionId,
+    requestId: intelligence.requestId,
+    actorUid: uid,
+    instanceId: intelligence.instanceId,
+    expectedRevision: intelligence.expectedRevision,
+    payload: {
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid: intelligence.agentUid,
+      codeWord: intelligence.codeWord,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<WolfCultIntelligenceResult> => {
+    const [authority, current, players, secrets, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, intelligence.sessionId, uid, intelligence.instanceId),
+      tx.get(currentRef),
+      tx.get(playersRef),
+      tx.get(secretsRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, intelligence.sessionId, intelligence.requestId, 'Wolf Cult intelligence', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is WolfCultIntelligenceResult =>
+        isWolfCultIntelligenceResult(value, intelligence.sessionId),
+      'Wolf Cult intelligence',
+    );
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Wolf Cult intelligence');
+    requireActiveGameplayPhase(authority.session);
+
+    const activeRoleIds = configuredRoleIds(authority.session);
+    const canonicalSecrets = secrets.docs
+      .map((secret) => canonicalLoyaltySecret(secret, players.docs, activeRoleIds))
+      .filter((secret): secret is CanonicalLoyaltySecret => secret !== null);
+    const cultHolders = canonicalSecrets.filter((secret) => secret.kind === 'wolf-cult');
+    const wolfAgents = canonicalSecrets.filter((secret) => secret.kind === 'wolf-agent');
+    if (authority.session.get('wolfCultEnabled') !== true || cultHolders.length !== 1 || wolfAgents.length !== 1) {
+      throw commandError(
+        'failed-precondition',
+        'Wolf Cult intelligence requires one current Cult leader and one current Wolf agent.',
+        'conflict',
+      );
+    }
+    const recipientUid = cultHolders[0]!.uid;
+    const agentUid = wolfAgents[0]!.uid;
+    if (intelligence.agentUid !== agentUid) {
+      throw commandError(
+        'failed-precondition',
+        'The supplied Wolf agent does not match the current authoritative loyalty assignment.',
+        'conflict',
+      );
+    }
+    const currentRevisionValue = current.get('revision');
+    const currentRevision = current.exists && Number.isSafeInteger(currentRevisionValue) &&
+      (currentRevisionValue as number) >= 0 ? currentRevisionValue as number : 0;
+    if (current.exists && (
+      current.get('type') !== 'wolf-cult-intelligences' ||
+      current.get('sessionId') !== intelligence.sessionId ||
+      !Number.isSafeInteger(currentRevisionValue) ||
+      (currentRevisionValue as number) < 0 ||
+      !isWireSafeEntityId(current.get('recipientUid'))
+    )) {
+      throw commandError('failed-precondition', 'The Wolf Cult intelligence projection is malformed.', 'malformed-input');
+    }
+    if (currentRevision !== intelligence.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'Wolf Cult intelligence changed. Refresh the private projection and try again.',
+        'stale-revision',
+      );
+    }
+    const revision = currentRevision + 1;
+    const result: WolfCultIntelligenceResult = {
+      status: 'committed',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      revision,
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid,
+      codeWord: intelligence.codeWord,
+      label: 'WOLF INTEL',
+    };
+    const gmUids = players.docs
+      .filter((player) => isActivePlayer(player) && player.get('role') === 'gm')
+      .map((player) => player.id);
+    const recipientProjectionRef = db.doc(
+      `sessions/${intelligence.sessionId}/wolfCultIntelligence/${recipientUid}`,
+    );
+    const previousRecipientUid = current.get('recipientUid');
+    tx.set(recipientProjectionRef, {
+      type: 'wolf-cult-intelligence',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      visibleToUids: [recipientUid],
+      revision,
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid,
+      codeWord: intelligence.codeWord,
+      label: 'WOLF INTEL',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(currentRef, {
+      type: 'wolf-cult-intelligences',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      visibleToUids: gmUids,
+      revision,
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid,
+      codeWord: intelligence.codeWord,
+      label: 'WOLF INTEL',
+      actorUid: uid,
+      instanceId: intelligence.instanceId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(authorityRef, {
+      type: 'wolf-cult-intelligence-authority',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      revision,
+    });
+    if (isWireSafeEntityId(previousRecipientUid) && previousRecipientUid !== recipientUid) {
+      tx.delete(db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/${previousRecipientUid}`));
+    }
+    tx.set(auditRef, {
+      type: 'wolf-cult-intelligence',
+      action: 'deliver',
+      recipientUid,
+      revision,
+      actorUid: uid,
+      instanceId: intelligence.instanceId,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

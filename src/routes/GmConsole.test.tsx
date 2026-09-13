@@ -46,6 +46,7 @@ vi.mock('@/lib/sessionService', () => ({
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
   setFacilitatorCensusNote: vi.fn(),
+  deliverWolfCultIntelligence: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -58,6 +59,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfAttackPreparation: vi.fn(),
   subscribeGmWolfAttackState: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
+  subscribeGmWolfCultIntelligence: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
@@ -69,10 +71,10 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -139,6 +141,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
     onAssignment(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfCultIntelligence).mockImplementation((_sessionId, onIntelligence) => {
+    onIntelligence(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -227,6 +233,32 @@ it('renders and saves facilitator notes and hydrates the hidden Wolf assignment'
   await user.click(within(census).getByRole('button', { name: 'Save note' }));
   expect(setFacilitatorCensusNote).toHaveBeenCalledWith('u2', 'Watch the transfer window');
   expect(await screen.findByRole('region', { name: 'Private Wolf assignment' })).toHaveTextContent('Admiral');
+});
+
+it('makes the facilitator-authored Wolf Cult delivery reachable from the GM console', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 7,
+    entries: [
+      { uid: 'u2', kind: 'wolf-cult', suspicion: 15 },
+      { uid: 'u3', kind: 'wolf-agent', suspicion: 0 },
+    ],
+  });
+  vi.mocked(deliverWolfCultIntelligence).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+
+  const delivery = await screen.findByRole('region', { name: /Wolf Cult intelligence delivery/i });
+  await user.type(within(delivery).getByLabelText('Active Wolf fortress coordinate'), '4454');
+  await user.type(within(delivery).getByLabelText('Abandoned supplies coordinate'), '1964');
+  await user.type(within(delivery).getByLabelText('Code word'), 'NIGHTFALL');
+  await user.click(within(delivery).getByRole('button', { name: /deliver private Wolf intel/i }));
+
+  await waitFor(() => expect(deliverWolfCultIntelligence).toHaveBeenCalledWith(
+    '4454', '1964', 'u3', 'NIGHTFALL',
+  ));
+  expect(delivery).toHaveTextContent(/WOLF INTEL DELIVERED/i);
 });
 
 it('returns to role selection', async () => {

@@ -18,6 +18,7 @@ import type {
   WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
+  WolfCultIntelligence,
   SessionPhase,
 } from '@/types/game';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
@@ -440,6 +441,33 @@ function applyCommandResult(
         responsibilities,
         ...(responsibilities.length > 0 ? { responsibility: responsibilities[0] } : {}),
       });
+    }
+  }
+  if (
+    command.kind === 'deliverWolfCultIntelligence' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    if (
+      (reply.status === 'committed' || reply.status === 'replayed') &&
+      reply.sessionId === command.payload.sessionId &&
+      typeof reply.recipientUid === 'string' && Number.isSafeInteger(reply.revision) &&
+      (reply.revision as number) >= 1 && typeof reply.fortressCoordinate === 'string' &&
+      typeof reply.suppliesCoordinate === 'string' && typeof reply.agentUid === 'string' &&
+      typeof reply.codeWord === 'string' && reply.codeWord.trim().length > 0 &&
+      reply.codeWord.length <= 80 && reply.label === 'WOLF INTEL'
+    ) {
+      store.setGmWolfCultIntelligence({
+        sessionId: command.payload.sessionId,
+        recipientUid: reply.recipientUid,
+        revision: reply.revision as number,
+        fortressCoordinate: reply.fortressCoordinate,
+        suppliesCoordinate: reply.suppliesCoordinate,
+        agentUid: reply.agentUid,
+        codeWord: reply.codeWord,
+        label: 'WOLF INTEL',
+      } satisfies WolfCultIntelligence);
     }
   }
   if (command.kind === 'setCapybaraEnabled' && store.session?.id === command.payload.sessionId) {
@@ -1183,6 +1211,34 @@ export async function setFacilitatorCensusNote(
       expectedRevision: store.gmLoyaltyCensus.revision,
       targetUid,
       note: note.trim().slice(0, 240),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Deliver one facilitator-authored Wolf Cult intelligence projection. */
+export async function deliverWolfCultIntelligence(
+  fortressCoordinate: string,
+  suppliesCoordinate: string,
+  agentUid: string,
+  codeWord: string,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || !store.gmLoyaltyCensus) {
+    throw new Error('An active GM census is required before delivering Wolf Cult intelligence.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'deliverWolfCultIntelligence',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmWolfCultIntelligence?.revision ?? 0,
+      fortressCoordinate: fortressCoordinate.trim(),
+      suppliesCoordinate: suppliesCoordinate.trim(),
+      agentUid: agentUid.trim(),
+      codeWord: codeWord.trim().slice(0, 80),
     },
     createdAt: new Date().toISOString(),
   });

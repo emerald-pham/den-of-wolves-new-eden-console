@@ -54,6 +54,7 @@ import type {
   WolfAttackDeclarationState,
   WolfAttackWindow,
   WolfAssignment,
+  WolfCultIntelligence,
   VipCard,
   VipCardId,
   VipCardName,
@@ -189,6 +190,64 @@ function privateLoyalty(value: unknown, ownerUid?: string): PrivateLoyalty | nul
     ...(partnerUid ? { partnerUid } : {}),
     ...(payload.kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
     ...(payload.kind === 'android' && proofMarker === true ? { proofRevealed: true } : {}),
+  };
+}
+
+function wolfCultIntelligence(
+  value: unknown,
+  sessionId: string,
+  uid: string,
+): WolfCultIntelligence | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const recipientUid = parseEntityId('player', raw.recipientUid);
+  const agentUid = parseEntityId('player', raw.agentUid);
+  const validCoordinate = (candidate: unknown): candidate is string =>
+    typeof candidate === 'string' && /^\d{4}$/.test(candidate);
+  if (
+    raw.type !== 'wolf-cult-intelligence' || raw.sessionId !== sessionId ||
+    recipientUid !== uid || agentUid === undefined || agentUid === uid ||
+    !Array.isArray(raw.visibleToUids) || raw.visibleToUids.length !== 1 || raw.visibleToUids[0] !== uid ||
+    !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+    !validCoordinate(raw.fortressCoordinate) || !validCoordinate(raw.suppliesCoordinate) ||
+    typeof raw.codeWord !== 'string' || raw.codeWord.trim().length === 0 || raw.codeWord.length > 80 ||
+    raw.label !== 'WOLF INTEL'
+  ) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    recipientUid,
+    revision: raw.revision as number,
+    fortressCoordinate: raw.fortressCoordinate,
+    suppliesCoordinate: raw.suppliesCoordinate,
+    agentUid,
+    codeWord: raw.codeWord,
+    label: 'WOLF INTEL',
+  };
+}
+
+function gmWolfCultIntelligence(value: unknown, sessionId: string): WolfCultIntelligence | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const recipientUid = parseEntityId('player', raw.recipientUid);
+  const agentUid = parseEntityId('player', raw.agentUid);
+  const validCoordinate = (candidate: unknown): candidate is string =>
+    typeof candidate === 'string' && /^\d{4}$/.test(candidate);
+  if (
+    raw.type !== 'wolf-cult-intelligences' || raw.sessionId !== sessionId || !recipientUid ||
+    !agentUid || recipientUid === agentUid || !Number.isSafeInteger(raw.revision) ||
+    (raw.revision as number) < 1 || !validCoordinate(raw.fortressCoordinate) ||
+    !validCoordinate(raw.suppliesCoordinate) || typeof raw.codeWord !== 'string' ||
+    raw.codeWord.trim().length === 0 || raw.codeWord.length > 80 || raw.label !== 'WOLF INTEL'
+  ) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    recipientUid,
+    revision: raw.revision as number,
+    fortressCoordinate: raw.fortressCoordinate,
+    suppliesCoordinate: raw.suppliesCoordinate,
+    agentUid,
+    codeWord: raw.codeWord,
+    label: 'WOLF INTEL',
   };
 }
 
@@ -1197,6 +1256,7 @@ export interface SessionStateHandlers {
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
   readonly onPrivateLoyalty?: (loyalty: PrivateLoyalty | null) => void;
+  readonly onWolfCultIntelligence?: (intelligence: WolfCultIntelligence | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
   /** Whether the accepted player projection came from the server. */
   readonly onPlayerFreshness?: (fresh: boolean) => void;
@@ -1221,6 +1281,7 @@ export function subscribeSessionState(
   currentSessionSubscriptionToken = subscriptionToken;
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
+  const acceptsWolfCultRevision = createMonotonicRevisionGate();
   const onError = () => {
     if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
   };
@@ -1318,6 +1379,26 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
+    ...(handlers.onWolfCultIntelligence ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/wolfCultIntelligence/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const intelligence = snapshot.exists()
+          ? wolfCultIntelligence(snapshot.data(), sessionId, uid)
+          : null;
+        if (intelligence && !acceptsWolfCultRevision(intelligence.revision)) return;
+        handlers.onWolfCultIntelligence?.(intelligence);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onWolfCultIntelligence?.(null);
+          return;
+        }
+        onError();
+      },
+    )] : []),
     ...(handlers.onRoleBrief ? [onSnapshot(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
       (snapshot) => {
@@ -1364,6 +1445,7 @@ export function subscribeSessionState(
       // visible during reconnect or identity replacement. An older cleanup
       // leaves a newer listener's private state intact.
       handlers.onPrivateLoyalty?.(null);
+      handlers.onWolfCultIntelligence?.(null);
       handlers.onRoleBrief?.(null);
       handlers.onSetupReceipt?.(null);
     }
@@ -1470,6 +1552,37 @@ export function subscribeLoyaltyCensus(
     subscribed = false;
     unsubscribe();
     onCensus(null);
+  };
+}
+
+/** Subscribe to the facilitator-only current Wolf Cult intelligence call. */
+export function subscribeGmWolfCultIntelligence(
+  sessionId: string,
+  onIntelligence: (intelligence: WolfCultIntelligence | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfCultIntelligence/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const intelligence = snapshot.exists() ? gmWolfCultIntelligence(snapshot.data(), sessionId) : null;
+      if (intelligence && !acceptsRevision(intelligence.revision)) return;
+      onIntelligence(intelligence);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        onIntelligence(null);
+        return;
+      }
+      onIntelligence(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onIntelligence(null);
   };
 }
 

@@ -42,6 +42,7 @@ import {
   setGmControlsLocked,
   setFacilitatorResponsibility,
   setFacilitatorCensusNote,
+  deliverWolfCultIntelligence,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -281,6 +282,7 @@ export default function GmConsole() {
   const connection = useSessionStore((state) => state.connection);
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
   const loyaltyCensus = useSessionStore((state) => state.gmLoyaltyCensus);
+  const gmWolfCultIntelligence = useSessionStore((state) => state.gmWolfCultIntelligence);
   const queuedKicks = new Set(
     pendingCommands.flatMap((command) =>
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
@@ -309,6 +311,12 @@ export default function GmConsole() {
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
+  const [wolfCultFortressCoordinate, setWolfCultFortressCoordinate] = useState('');
+  const [wolfCultSuppliesCoordinate, setWolfCultSuppliesCoordinate] = useState('');
+  const [wolfCultAgentUid, setWolfCultAgentUid] = useState('');
+  const [wolfCultCodeWord, setWolfCultCodeWord] = useState('');
+  const [wolfCultIntelMutation, setWolfCultIntelMutation] = useState(false);
+  const [wolfCultIntelMessage, setWolfCultIntelMessage] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
@@ -614,6 +622,7 @@ export default function GmConsole() {
       subscribeGmWolfAttackState,
       subscribeGmWolfAttackWindow,
       subscribeGmWolfAssignment,
+      subscribeGmWolfCultIntelligence,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -656,6 +665,13 @@ export default function GmConsole() {
         sessionId,
         setWolfAssignment,
       );
+      const stopWolfCultIntelligence = subscribeGmWolfCultIntelligence(
+        sessionId,
+        (next) => {
+          if (!active) return;
+          useSessionStore.getState().setGmWolfCultIntelligence(next);
+        },
+      );
       const stopEvents = subscribeSessionEvents(
         sessionId,
         setEvents,
@@ -696,6 +712,7 @@ export default function GmConsole() {
         stopWolfAttackPreparation();
         stopWolfAttackState();
         stopWolfAssignment();
+        stopWolfCultIntelligence();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -706,6 +723,7 @@ export default function GmConsole() {
       active = false;
       unsubscribe();
       setWolfAssignment(null);
+      useSessionStore.getState().setGmWolfCultIntelligence(null);
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
       setAllPlayers([]);
@@ -717,6 +735,21 @@ export default function GmConsole() {
       (loyaltyCensus?.entries ?? []).map((entry) => [entry.uid, entry.note ?? '']),
     ));
   }, [loyaltyCensus?.entries, loyaltyCensus?.revision]);
+
+  const wolfCultRecipients = useMemo(
+    () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'wolf-cult') ?? [],
+    [loyaltyCensus?.entries],
+  );
+  const wolfAgentRecipients = useMemo(
+    () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'wolf-agent') ?? [],
+    [loyaltyCensus?.entries],
+  );
+
+  useEffect(() => {
+    const currentAgent = wolfAgentRecipients[0]?.uid ?? '';
+    setWolfCultAgentUid((current) =>
+      wolfAgentRecipients.some((entry) => entry.uid === current) ? current : currentAgent);
+  }, [wolfAgentRecipients]);
 
   useEffect(() => {
     if (!wolfAttackPreparation) return;
@@ -1378,6 +1411,34 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setCensusNoteMutationUid(null);
+    }
+  }
+
+  async function deliverWolfCultIntel(): Promise<void> {
+    if (wolfCultIntelMutation || wolfCultRecipients.length !== 1 || wolfAgentRecipients.length !== 1 ||
+        !wolfCultFortressCoordinate.trim() || !wolfCultSuppliesCoordinate.trim() ||
+        !wolfCultAgentUid || !wolfCultCodeWord.trim()) return;
+    setWolfCultIntelMutation(true);
+    setWolfCultIntelMessage(null);
+    try {
+      const disposition = await deliverWolfCultIntelligence(
+        wolfCultFortressCoordinate,
+        wolfCultSuppliesCoordinate,
+        wolfCultAgentUid,
+        wolfCultCodeWord,
+      );
+      setWolfCultIntelMessage(
+        disposition === 'queued'
+          ? 'WOLF INTEL QUEUED // awaiting reconnection'
+          : disposition === 'stale'
+            ? 'INTEL STALE // refresh the live projection and retry'
+            : 'WOLF INTEL DELIVERED // Cult leader and facilitator only',
+      );
+      if (disposition === 'applied') setWolfCultCodeWord('');
+    } catch {
+      setWolfCultIntelMessage('INTEL REJECTED // current Cult and Wolf assignments are required');
+    } finally {
+      setWolfCultIntelMutation(false);
     }
   }
 
@@ -2560,6 +2621,72 @@ export default function GmConsole() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {isGm && (
+            <section className="gm-console__module cic-frame gm-wolf-cult-intelligence" aria-label="Wolf Cult intelligence delivery">
+              <h2 className="gm-console__section-title">Wolf Cult // private intelligence</h2>
+              <p className="gm-player-roster__hint">
+                Deliver the four source-defined facts to the current Cult leader. The server checks the live loyalty assignments and keeps this projection private.
+              </p>
+              {wolfCultRecipients.length !== 1 || wolfAgentRecipients.length !== 1 ? (
+                <p className="gm-console__status">A current Wolf Cult leader and one Wolf agent are required before delivery.</p>
+              ) : (
+                <div className="gm-wolf-cult-intelligence__form">
+                  <p className="gm-player-roster__note">Cult leader // {wolfCultRecipients[0]!.uid}</p>
+                  <label htmlFor="wolf-cult-fortress">Active Wolf fortress coordinate</label>
+                  <input
+                    id="wolf-cult-fortress"
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    maxLength={4}
+                    value={wolfCultFortressCoordinate}
+                    disabled={wolfCultIntelMutation}
+                    onChange={(event) => setWolfCultFortressCoordinate(event.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                  />
+                  <label htmlFor="wolf-cult-supplies">Abandoned supplies coordinate</label>
+                  <input
+                    id="wolf-cult-supplies"
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    maxLength={4}
+                    value={wolfCultSuppliesCoordinate}
+                    disabled={wolfCultIntelMutation}
+                    onChange={(event) => setWolfCultSuppliesCoordinate(event.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                  />
+                  <label htmlFor="wolf-cult-agent">Other Wolf agent</label>
+                  <select
+                    id="wolf-cult-agent"
+                    value={wolfCultAgentUid}
+                    disabled={wolfCultIntelMutation}
+                    onChange={(event) => setWolfCultAgentUid(event.target.value)}
+                  >
+                    {wolfAgentRecipients.map((entry) => <option key={entry.uid} value={entry.uid}>{entry.uid}</option>)}
+                  </select>
+                  <label htmlFor="wolf-cult-code-word">Code word</label>
+                  <input
+                    id="wolf-cult-code-word"
+                    maxLength={80}
+                    value={wolfCultCodeWord}
+                    disabled={wolfCultIntelMutation}
+                    onChange={(event) => setWolfCultCodeWord(event.target.value)}
+                  />
+                  <button
+                    className="gm-census-note__save"
+                    type="button"
+                    disabled={wolfCultIntelMutation || !wolfCultFortressCoordinate || !wolfCultSuppliesCoordinate || !wolfCultAgentUid || !wolfCultCodeWord.trim()}
+                    onClick={() => void deliverWolfCultIntel()}
+                  >
+                    {wolfCultIntelMutation ? 'Delivering…' : 'Deliver private Wolf intel'}
+                  </button>
+                  <p className="gm-player-roster__note" role="status" aria-live="polite">
+                    {wolfCultIntelMessage ?? (gmWolfCultIntelligence
+                      ? `Current delivery // revision ${gmWolfCultIntelligence.revision} // ${gmWolfCultIntelligence.recipientUid}`
+                      : 'No Wolf Cult intelligence has been delivered.')}
+                  </p>
                 </div>
               )}
             </section>

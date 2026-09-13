@@ -42,6 +42,7 @@ function partnerLabel(loyalty: PrivateLoyalty): string | undefined {
 /** The current browser's private setup card; never accepts another player's id. */
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
+  const wolfCultIntelligence = useSessionStore((state) => state.wolfCultIntelligence);
   const setPrivateLoyalty = useSessionStore((state) => state.setPrivateLoyalty);
   const sessionId = useSessionStore((state) => state.session?.id);
   const me = useSessionStore((state) => state.me);
@@ -117,6 +118,16 @@ export default function PrivateLoyaltyPanel() {
             {error && <p role="alert">{error}</p>}
           </div>
         ))}
+        {loyalty.kind === 'wolf-cult' && wolfCultIntelligence && (
+          <section className="role-brief__rules role-brief__rules--wolf-cult-intelligence" aria-labelledby="wolf-cult-intelligence-title">
+            <p className="eyebrow">{wolfCultIntelligence.label}</p>
+            <h3 id="wolf-cult-intelligence-title">Wolf Cult intelligence</h3>
+            <p>Active Wolf fortress // {wolfCultIntelligence.fortressCoordinate}</p>
+            <p>Abandoned supplies // {wolfCultIntelligence.suppliesCoordinate}</p>
+            <p>Other Wolf agent // {wolfCultIntelligence.agentUid}</p>
+            <p>Code word // {wolfCultIntelligence.codeWord}</p>
+          </section>
+        )}
         <p className="private-loyalty-panel__note">
           This card belongs to this browser identity only. Do not read it aloud on an open channel.
         </p>

@@ -980,6 +980,51 @@ export function requireFacilitatorCensusNoteRequest(data: {
   };
 }
 
+/** A facilitator-authored Wolf Cult intelligence delivery. */
+export function requireWolfCultIntelligenceRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  fortressCoordinate?: unknown;
+  suppliesCoordinate?: unknown;
+  agentUid?: unknown;
+  codeWord?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  fortressCoordinate: string;
+  suppliesCoordinate: string;
+  agentUid: string;
+  codeWord: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  const coordinate = (value: unknown, field: string): string => {
+    const candidate = typeof value === 'string' ? value.trim() : '';
+    if (!isStarSystemCoordinate(candidate)) {
+      throw new HttpsError('invalid-argument', `${field} must be a printed star-system coordinate.`);
+    }
+    return candidate;
+  };
+  const codeWord = typeof data.codeWord === 'string' ? data.codeWord.trim() : '';
+  if (!codeWord || codeWord.length > 80) {
+    throw new HttpsError('invalid-argument', 'codeWord must contain 1 to 80 characters.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    fortressCoordinate: coordinate(data.fortressCoordinate, 'fortressCoordinate'),
+    suppliesCoordinate: coordinate(data.suppliesCoordinate, 'suppliesCoordinate'),
+    agentUid: requiredId(data.agentUid, 'agentUid'),
+    codeWord,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

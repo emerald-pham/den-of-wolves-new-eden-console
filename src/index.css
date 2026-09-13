@@ -5666,3 +5666,59 @@ body {
 .gm-chart-setup .gm-role-preset select { width: 100%; min-width: 0; font-size: 1rem; }
 .gm-chart-setup .gm-role-setup__note { font-size: 0.875rem; overflow-wrap: anywhere; }
 .gm-chart-setup .cic-action-button { min-height: 44px; font-size: 1rem; white-space: normal; }
+
+.gm-wolf-cult-intelligence__form {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 42rem;
+}
+
+.gm-wolf-cult-intelligence__form label {
+  color: var(--cic-amber);
+  font: 0.875rem/1.4 var(--cic-mono);
+  letter-spacing: 0.04em;
+}
+
+.gm-wolf-cult-intelligence__form input,
+.gm-wolf-cult-intelligence__form select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 16px/1.4 var(--cic-mono);
+}
+
+.gm-wolf-cult-intelligence__form button {
+  min-height: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.65rem 0.8rem;
+  font-size: 16px;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.role-brief__rules--wolf-cult-intelligence {
+  border-color: var(--cic-amber-dim);
+}
+
+.role-brief__rules--wolf-cult-intelligence .eyebrow {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.875rem/1.4 var(--cic-mono);
+}
+
+.role-brief__rules--wolf-cult-intelligence h3 {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.role-brief__rules--wolf-cult-intelligence > p:last-child {
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

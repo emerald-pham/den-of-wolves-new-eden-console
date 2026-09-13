@@ -33,6 +33,7 @@ const {
   subscribeConnectedPlayers,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
+  subscribeGmWolfCultIntelligence,
   subscribeGmWolfAttackPreparation,
   subscribeGmWolfAttackState,
   subscribeGmWolfAttackWindow,
@@ -672,6 +673,59 @@ it('hydrates the server-owned Android proof disclosure marker only for the curre
   });
 });
 
+it.each(['permission-denied', 'not-found'] as const)(
+  'hydrates only the current Wolf Cult intelligence projection and clears it on terminal access loss (%s)',
+  (code) => {
+    const { callbacks, errors } = captureSessionListener();
+    const onWolfCultIntelligence = vi.fn();
+    subscribeSessionState('s1', 'u1', {
+      onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+      onPrivateLoyalty: vi.fn(), onWolfCultIntelligence, onError: vi.fn(),
+    });
+
+    callbacks[4]?.({
+      metadata: { fromCache: false },
+      exists: () => true,
+      data: () => ({
+        type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'u1',
+        visibleToUids: ['u1'], revision: 2,
+        fortressCoordinate: '4454', suppliesCoordinate: '1964',
+        agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+      }),
+    });
+    expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({
+      recipientUid: 'u1', fortressCoordinate: '4454', codeWord: 'NIGHTFALL',
+    }));
+
+    callbacks[4]?.({
+      metadata: { fromCache: false },
+      exists: () => true,
+      data: () => ({
+        type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'u1',
+        visibleToUids: ['u1'], revision: 1,
+        fortressCoordinate: '0000', suppliesCoordinate: '5143',
+        agentUid: 'u3', codeWord: 'STALE', label: 'WOLF INTEL',
+      }),
+    });
+    expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({
+      revision: 2, codeWord: 'NIGHTFALL',
+    }));
+
+    errors[4]?.({ code });
+    expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(null);
+    callbacks[4]?.({
+      metadata: { fromCache: false }, exists: () => true,
+      data: () => ({
+        type: 'wolf-cult-intelligence', sessionId: 'other-session', recipientUid: 'u1',
+        visibleToUids: ['u1'], revision: 2,
+        fortressCoordinate: '4454', suppliesCoordinate: '1964',
+        agentUid: 'u3', codeWord: 'STALE', label: 'WOLF INTEL',
+      }),
+    });
+    expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(null);
+  },
+);
+
 it('drops Android proof markers from other or malformed loyalty records', () => {
   const { callbacks } = captureSessionListener();
   const onPrivateLoyalty = vi.fn();
@@ -884,6 +938,38 @@ it('does not let a delayed older census revision overwrite the newer server proj
     revision: 8,
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 20 }],
   });
+});
+
+it('keeps the GM Wolf Cult intelligence projection monotonic and clears terminal access loss', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onIntelligence = vi.fn();
+  const unsubscribe = subscribeGmWolfCultIntelligence('s1', onIntelligence);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({
+      type: 'wolf-cult-intelligences', sessionId: 's1', recipientUid: 'u2',
+      visibleToUids: ['gm1'], revision: 2,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+    }),
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({
+      type: 'wolf-cult-intelligences', sessionId: 's1', recipientUid: 'u2',
+      visibleToUids: ['gm1'], revision: 1,
+      fortressCoordinate: '0000', suppliesCoordinate: '5143',
+      agentUid: 'u3', codeWord: 'OLD', label: 'WOLF INTEL',
+    }),
+  });
+  expect(onIntelligence).toHaveBeenCalledTimes(1);
+  expect(onIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 2 }));
+  errors[0]?.({ code: 'permission-denied' });
+  expect(onIntelligence).toHaveBeenLastCalledWith(null);
+
+  unsubscribe();
+  expect(onIntelligence).toHaveBeenLastCalledWith(null);
 });
 
 it('hydrates the facilitator-only Wolf timing marker and rejects malformed state', () => {

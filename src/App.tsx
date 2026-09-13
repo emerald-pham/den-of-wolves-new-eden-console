@@ -35,7 +35,7 @@ import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection } from '@/types/game';
+import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -119,6 +119,8 @@ function AppRoutes() {
     const listenerGeneration = ++playerListenerGeneration.current;
     const callbackCurrent = () => active && playerListenerGeneration.current === listenerGeneration;
     let pendingRoleBrief: RoleBriefProjection | null = null;
+    let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
+    let wolfCultAuthorityGeneration = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
     let unsubscribe: () => void = () => undefined;
@@ -136,6 +138,11 @@ function AppRoutes() {
       unsubscribeLoyaltyCensus();
       unsubscribeLoyaltyCensus = () => undefined;
       useSessionStore.getState().setGmLoyaltyCensus(null);
+    };
+    const clearWolfCultIntelligence = () => {
+      wolfCultAuthorityGeneration += 1;
+      pendingWolfCultIntelligence = null;
+      useSessionStore.getState().setWolfCultIntelligence(null);
     };
     const currentPlayerMayReadCensus = () => {
       const state = useSessionStore.getState();
@@ -239,9 +246,16 @@ function AppRoutes() {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           const previousEntitlement = playerEntitlementKey(store.me);
+          const previousWolfCultIdentity = store.me
+            ? `${store.me.uid}:${store.me.role}:${store.me.assignedRoleId ?? ''}:${store.me.replacementRoleId ?? ''}`
+            : '';
+          const nextWolfCultIdentity = `${next.uid}:${next.role}:${next.assignedRoleId ?? ''}:${next.replacementRoleId ?? ''}`;
           const nextEntitlement = playerEntitlementKey(next);
           playerProjectionFresh = false;
           store.setMe(next);
+          if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
+            clearWolfCultIntelligence();
+          }
           if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
             const current = useSessionStore.getState().session;
             if (current?.id === sessionId) {
@@ -289,10 +303,40 @@ function AppRoutes() {
         onKicked: () => {
           if (!callbackCurrent()) return;
           clearLoyaltyCensus();
+          clearWolfCultIntelligence();
           useSessionStore.getState().disconnect();
         },
         onSeats: (next) => { if (callbackCurrent()) useSessionStore.getState().setSeats(next); },
-        onPrivateLoyalty: (next) => { if (callbackCurrent()) useSessionStore.getState().setPrivateLoyalty(next); },
+        onPrivateLoyalty: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          store.setPrivateLoyalty(next);
+          if (store.me?.role !== 'player' || next?.kind !== 'wolf-cult') {
+            clearWolfCultIntelligence();
+            return;
+          }
+          const pending = pendingWolfCultIntelligence;
+          if (pending && pending.generation === wolfCultAuthorityGeneration) {
+            pendingWolfCultIntelligence = null;
+            store.setWolfCultIntelligence(pending.intelligence);
+          }
+        },
+        onWolfCultIntelligence: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if (!next) {
+            pendingWolfCultIntelligence = null;
+            store.setWolfCultIntelligence(null);
+            return;
+          }
+          if (store.me?.role !== 'player' || store.privateLoyalty?.kind !== 'wolf-cult') {
+            pendingWolfCultIntelligence = { intelligence: next, generation: wolfCultAuthorityGeneration };
+            store.setWolfCultIntelligence(null);
+            return;
+          }
+          pendingWolfCultIntelligence = null;
+          store.setWolfCultIntelligence(next);
+        },
         onRoleBrief: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
@@ -337,6 +381,7 @@ function AppRoutes() {
       playerListenerGeneration.current += 1;
       pendingRoleBrief = null;
       clearLoyaltyCensus();
+      clearWolfCultIntelligence();
       unsubscribe();
     };
   }, [playerUid, sessionId]);

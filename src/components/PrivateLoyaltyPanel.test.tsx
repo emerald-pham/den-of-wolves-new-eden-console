@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 it('shows only the current core player loyalty card and suspicion', () => {
-  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  act(() => useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 }));
 
   render(<PrivateLoyaltyPanel />);
 
@@ -146,6 +146,27 @@ it.each([
   render(<PrivateLoyaltyPanel />);
 
   expect(screen.getByRole('region', { name: /private loyalty card/i })).toHaveTextContent(label);
+});
+
+it('shows facilitator-authored Wolf Cult intelligence only on the entitled Cult card', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 15 });
+  useSessionStore.getState().setWolfCultIntelligence({
+    sessionId: 's1', recipientUid: 'u2', revision: 1,
+    fortressCoordinate: '4454', suppliesCoordinate: '1964',
+    agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+  });
+
+  render(<PrivateLoyaltyPanel />);
+
+  const panel = screen.getByRole('region', { name: /private loyalty card/i });
+  expect(panel).toHaveTextContent(/Wolf Cult intelligence/);
+  expect(panel).toHaveTextContent('Active Wolf fortress // 4454');
+  expect(panel).toHaveTextContent('Abandoned supplies // 1964');
+  expect(panel).toHaveTextContent('Other Wolf agent // u3');
+  expect(panel).toHaveTextContent('Code word // NIGHTFALL');
+
+  act(() => useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 }));
+  expect(screen.getByRole('region', { name: /private loyalty card/i })).not.toHaveTextContent(/Wolf Cult intelligence/);
 });
 
 it('renders no panel before the entitled secret hydrates', () => {

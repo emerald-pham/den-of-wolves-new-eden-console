@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**224 / 750 prompts complete (29.87%)**
+**225 / 750 prompts complete (30.00%)**
 
-Status breakdown: **224 done · 25 partial · 501 missing**.
+Status breakdown: **225 done · 25 partial · 500 missing**.
 
 Active prompt: **none**
 
@@ -972,7 +972,7 @@ release classification and evidence.
 | 509 | done | non-feature | — | The Android holder has a reachable voluntary proof action. The server verifies the authenticated active player owns the Android secret, records a replay-safe member-readable disclosure event, and rejects disconnected, non-Android, duplicate, forged, or non-player requests; the private card parser and GM event log consume only the allowlisted proof state. |
 | 510 | done | feature | — | The server-owned loyalty assignment path pairs Friend cards by writing reciprocal private records with each partner's assigned console role. The entitled private panel renders the canonical partner role name while omitting the raw partner UID, and Firestore rules retain exact-holder-only reads for the reciprocal secrets. Unrelated players, observers, GMs, and the other holder remain denied; later loyalty mechanics remain outside this prompt. |
 | 511 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 512 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 512 | done | feature | — | Facilitator-authored Wolf Cult delivery now accepts the four source-defined facts—active fortress coordinate, abandoned supplies coordinate, other Wolf agent, and code word—and projects them only to the current canonical Cult holder and connected facilitators. The server resolves current loyalty holders, enforces a live facilitator lease, revisioned replay-safe writes, and stale-projection cleanup on reassignment or release. The existing GM console and private loyalty card are reachable; no automated scout, clue, timing, or effect producer is claimed. |
 | 513 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 514 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 515 | done | non-feature | — | The live GM records explicit dead, arrested, removed, or late eligibility and assigns a source-defined replacement role or an already active extra-ship role. Assignment atomically consumes eligibility, releases the old station and console authority, preserves historical role and private loyalty, writes the recipient-only brief, and replaces old-ship navigation entitlement. Server and UI require the canonical active-vessel tuple; stale revisions, conflicting retries, duplicate assignments and unauthorized writes fail closed. Independent authority review and focused callable/rules/client checks cover the boundary. Extra-ship activation and Wolf Commander rerolls remain with their owning prompts. |

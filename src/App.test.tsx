@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt } from '@/types/game';
+import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -493,6 +493,35 @@ describe('App', () => {
     act(() => handlers?.onPlayerDiscovery?.(null));
     expect(useSessionStore.getState().session).toMatchObject(gm);
     expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    unmount();
+  });
+
+  it('buffers Wolf Cult intelligence until its private card arrives and clears it on demotion', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    const cultPlayer = { ...player, role: 'player' as const, assignedRoleId: 'admiral' };
+    const intelligence: WolfCultIntelligence = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+    };
+    useSessionStore.getState().setIdentity(session, cultPlayer);
+
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onWolfCultIntelligence?.(intelligence));
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
+
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'wolf-cult', suspicion: 15 }));
+    expect(useSessionStore.getState().wolfCultIntelligence).toEqual(intelligence);
+
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'wolf-agent', suspicion: 0 }));
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
+    act(() => handlers?.onWolfCultIntelligence?.(intelligence));
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
     unmount();
   });
 

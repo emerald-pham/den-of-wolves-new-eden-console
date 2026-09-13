@@ -619,6 +619,18 @@ export interface PrivateLoyalty {
   readonly proofRevealed?: boolean;
 }
 
+/** Facilitator-authored Wolf Cult intelligence, private to the current Cult holder. */
+export interface WolfCultIntelligence {
+  readonly sessionId: SessionId;
+  readonly recipientUid: PlayerId;
+  readonly revision: number;
+  readonly fortressCoordinate: GalacticCoordinate;
+  readonly suppliesCoordinate: GalacticCoordinate;
+  readonly agentUid: PlayerId;
+  readonly codeWord: string;
+  readonly label: 'WOLF INTEL';
+}
+
 /** Server-owned role-private projection for the authenticated player only. */
 export interface RoleBrief {
   readonly assignmentUid: PlayerId;
