@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [668, 671],
+    implementationProgress: {
+      completed: 247,
+      total: 751,
+      percentage: '32.89%',
+      done: 247,
+      partial: 21,
+      active: 0,
+      missing: 483,
+    },
+    changes: [
+      'Privacy and write-mode controls now look and behave like the other fleet buttons, with clear selected states.',
+      'GM and settings actions use consistent focus and button styles, with larger census-save targets.',
+      '247 of 751 planned items are complete (32.89%).',
+    ],
+  },
+  {
+    version: '0.3.96',
     implementationPrompts: [655],
     implementationProgress: {
       completed: 245,

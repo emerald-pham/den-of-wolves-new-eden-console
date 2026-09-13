@@ -22100,7 +22100,7 @@
         "acceptance": "when Write Mode is off, its control is rendered as a shared button whose visual treatment and interaction match the rest of the UI, while preserving the existing write-mode permission and toggle guards, truthful off/on state, accessible name and pressed semantics, visible keyboard focus, minimum touch target, responsive layout, and reduced-motion behavior where applicable. Do not change authorization or write-mode policy.",
         "title": "Render Write Mode Off as a shared button."
       },
-      "description": "Planned [POLISH] prompt: make the Write Mode Off control use the shared button visual and interaction language while preserving current guards, accessible state, responsive behavior, and authorization.",
+      "description": "Fleet-number Write Mode Off/On and observer write controls now use the existing shared action button, retaining their exact names, pressed state, handlers and policy. Existing toggle/authority tests pass; phone, desktop, short landscape and reduced-motion render checks preserve visible focus, at least 44px targets and no overflow. Delivered with the Prompt 671 shared-button audit.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22109,10 +22109,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.97"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     },
     {
@@ -22169,7 +22171,7 @@
         "acceptance": "Audit button controls across the application and fleet consoles against the existing shared button design conventions, explicitly including Ship View Privacy controls `Hide Resource Stores` and `Hide Unrest and Population`. Repair inconsistent button styling, state presentation, keyboard focus, accessible names and toggle semantics, disabled/pending treatment, and touch targets using shared variants rather than a new visual system. Preserve each control's behavior, privacy settings, permissions, and server authority; preserve the accepted non-GM DRADIS appearance and behavior. Prove representative phone, desktop, short-landscape, and reduced-motion states. Coordinate with Prompt 668 so its Write Mode Off case is not implemented twice.",
         "title": "Align buttons across the fleet and application."
       },
-      "description": "Owner-requested app-wide and fleet-wide button consistency audit and repair, including both Ship View Privacy toggles; preserve behavior, privacy, authorization, and the accepted non-GM DRADIS experience.",
+      "description": "Audited 142 production button declarations across application and fleet surfaces. Privacy toggles, write modes, GM casting/census actions, settings access/changelog/disconnect and GM availability/registration now use existing shared action/confirmation treatment. Shared pressed state remains semantic; redundant custom visuals were removed and census saves inherit 44px minimums. Instrument controls, handlers, permissions, privacy persistence and non-GM DRADIS remain unchanged. 216 existing interaction tests and real rendered phone/desktop/short-landscape normal/reduced-motion checks cover ship, GM, settings and census actions; detailed dispositions in docs/audits/P671_BUTTON_REVIEW.md.",
       "evidenceIds": "E-671",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22178,10 +22180,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "668",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.97"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     },
     {

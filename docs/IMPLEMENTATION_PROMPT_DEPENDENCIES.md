@@ -832,10 +832,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable and machine-checked across coordination lifecycle. |
 | 666 | EXTEND | done | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
 | 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Runtime threat-model rebaseline: session-code compromise and DDoS. |
-| 668 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Render Write Mode Off as a shared button. |
+| 668 | POLISH | done | none | none | none | none | none | none | none | none | none | none | Render Write Mode Off as a shared button. |
 | 669 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Align the GM DRADIS console with ship-console DRADIS. |
 | 670 | REPAIR | missing | 044;045;046 | none | none | none | none | none | none | none | E-670-DEPENDENCIES | none | Allow authorized additional GMs to register from both surfaces. |
-| 671 | POLISH | missing | none | none | none | none | none | none | none | 668 | E-671 | none | Align buttons across the fleet and application. |
+| 671 | POLISH | done | none | none | none | none | none | none | none | 668 | E-671 | none | Align buttons across the fleet and application. |
 | 672 | POLISH | missing | 361;367 | none | none | none | none | none | none | none | E-AUDIT-672 | none | Show shuttle docking history in main ship consoles. |
 | 673 | POLISH | done | none | none | none | none | none | none | none | none | E-673-SHARED-COMPASS | none | Mirror the galactic orientation compass on the ship navigation jump map. |
 | 674 | REPAIR | missing | 048;049;170;628 | none | none | none | none | none | none | none | E-674;E-674-DEPENDENCIES | none | Replace ship Observer roles with unobtrusive GM viewing and confirmed write access. |

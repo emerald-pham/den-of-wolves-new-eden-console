@@ -2830,10 +2830,10 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 665
 - [x] Prompt 666
 - [ ] Prompt 667
-- [ ] Prompt 668
+- [x] Prompt 668
 - [ ] Prompt 669
 - [ ] Prompt 670
-- [ ] Prompt 671
+- [x] Prompt 671
 - [ ] Prompt 672
 - [x] Prompt 673
 - [ ] Prompt 674
