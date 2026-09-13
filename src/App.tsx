@@ -38,6 +38,7 @@ import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
+import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -53,21 +54,6 @@ function stripNavigationProjection(session: GameSession): GameSession {
   return next;
 }
 
-function stripGmNavigationProjection(session: GameSession): GameSession {
-  const next = { ...session };
-  delete next.shipGalacticCoordinates;
-  delete next.shipNavigationLogs;
-  delete next.organiserSites;
-  delete next.organiserSystems;
-  delete next.organiserSystemHistory;
-  delete next.pursuitDistances;
-  const own = next.playerDiscovery;
-  if (own?.shipId) {
-    if (own.currentCoordinate) next.shipGalacticCoordinates = { [own.shipId]: own.currentCoordinate };
-    next.shipNavigationLogs = { [own.shipId]: own.navigationLogs };
-  }
-  return next;
-}
 
 function effectivePlayerShip(player: Player | null | undefined): Player['shipPreferenceId'] {
   if (!player) return undefined;

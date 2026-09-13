@@ -78,6 +78,41 @@ describe('useSessionStore', () => {
     expect(saved.state).not.toHaveProperty('connection');
   });
 
+  it.each([false, true])('keeps privileged GM chart data out of saved and restored sessions (own ship: %s)', async (hasOwn) => {
+    const own = {
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '0000',
+      knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+      navigationLogs: [], pursuitDistance: 0, revision: 1,
+    };
+    const privileged = {
+      ...session,
+      ...(hasOwn ? { playerDiscovery: own } : {}),
+      organiserSystems: { 'system-17': '8378' },
+      organiserSites: { '8378': { code: 'J', name: 'Private site', candidate: false, summary: 'Secret' } },
+      organiserSystemHistory: {}, pursuitDistances: { dione: 6 },
+      shipGalacticCoordinates: { aegis: '0000', dione: '8378' },
+      shipNavigationLogs: { aegis: [], dione: [] },
+    };
+    useSessionStore.getState().setIdentity(privileged, { ...player, role: 'gm' });
+    const assertOwnOnly = (value: GameSession) => {
+      expect(JSON.stringify(value)).not.toContain('8378');
+      for (const key of ['organiserSystems', 'organiserSites', 'organiserSystemHistory', 'pursuitDistances']) {
+        expect(value).not.toHaveProperty(key);
+      }
+      expect(value.shipGalacticCoordinates).toEqual(hasOwn ? { aegis: '0000' } : undefined);
+      expect(value.shipNavigationLogs).toEqual(hasOwn ? { aegis: [] } : undefined);
+      expect(value.playerDiscovery).toEqual(hasOwn ? own : undefined);
+    };
+    assertOwnOnly(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state.session);
+    expect(useSessionStore.getState().session?.organiserSystems).toEqual(privileged.organiserSystems);
+    // A pre-fix cache must also be sanitized, even if it remembers GM identity.
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: 1, state: {
+      session: privileged, me: { ...player, role: 'gm' }, gmInstance, lastRoute: '/gm',
+    } }));
+    await useSessionStore.persist.rehydrate();
+    assertOwnOnly(useSessionStore.getState().session!);
+  });
+
   it('persists GM login status without persisting the password', () => {
     const authenticatedAt = Date.parse('2026-01-01T00:00:00.000Z');
     useSessionStore.getState().setGmAccessAuthenticatedAt(authenticatedAt);

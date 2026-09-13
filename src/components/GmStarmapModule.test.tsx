@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { GameSession } from '@/types/game';
 import GmStarmapModule from './GmStarmapModule';
+import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import { STAR_CHART_SYSTEMS as LEGACY_SYSTEMS, siteForCoordinate } from '@/data/starChart';
 
 const ORGANISER_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
@@ -57,6 +58,24 @@ it('shows every GM coordinate even when the selected ship knows only its origin'
   }
   await user.selectOptions(within(module).getByRole('combobox', { name: /ship to move/i }), 'dione');
   expect(module.querySelectorAll('[data-system-coordinate]')).toHaveLength(22);
+});
+
+it('does not render an old organiser chart on reload before a fresh GM projection arrives', async () => {
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: 1, state: {
+    session, me: { uid: 'gm', sessionId: 's1', role: 'gm' },
+    gmInstance: { id: 'old', uid: 'gm', sessionId: 's1' }, lastRoute: '/gm',
+  } }));
+  await useSessionStore.persist.rehydrate();
+  const { rerender } = render(<GmStarmapModule session={useSessionStore.getState().session!} />);
+  const module = screen.getByRole('region', { name: 'GM starmap' });
+  expect(module).not.toHaveTextContent('8378');
+  expect(module.querySelector('[data-system-coordinate="8378"]')).toBeNull();
+  // The authorized live read can still restore the full chart after reload.
+  useSessionStore.getState().setSession(session);
+  rerender(<GmStarmapModule session={useSessionStore.getState().session!} />);
+  expect(within(module).getByRole('button', { name: /^System 8378 \/\// })).toBeInTheDocument();
+  useSessionStore.getState().reset();
+  localStorage.clear();
 });
 
 it('freezes ship movement during endgame evaluation', async () => {

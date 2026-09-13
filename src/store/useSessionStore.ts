@@ -16,6 +16,7 @@ import type {
   ArbourVision,
 } from '@/types/game';
 import { normalizeShuttleManifest } from '@/data/shuttles';
+import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
@@ -394,7 +395,7 @@ function normalizePersistedSession(session: GameSession | null | undefined): Gam
     session.playerCount,
   );
   return {
-    ...session,
+    ...stripGmNavigationProjection(session),
     shuttleDockings: manifest.dockings,
     shuttleVisitLog: manifest.visits,
   };
@@ -470,7 +471,7 @@ export const useSessionStore = create<SessionState>()(
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: ({ session, me, gmInstance, gmAccessAuthenticatedAt, pendingCommands, mode, lastRoute }) => ({
-        session,
+        session: session ? stripGmNavigationProjection(session) : null,
         me,
         gmInstance,
         gmAccessAuthenticatedAt,
