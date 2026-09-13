@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [361],
+    implementationProgress: {
+      completed: 216,
+      total: 750,
+      percentage: '28.80%',
+      done: 216,
+      partial: 23,
+      active: 0,
+      missing: 511,
+    },
+    changes: [
+      'Shuttle and fighter-wing starting manifests now keep each enabled craft tied to its printed owner, mode, and authoritative host, while moved dockings survive setup edits and reconnects.',
+      'Union craft with an unresolved initial docking stay disabled until the GM records an explicit current host.',
+      '216 of 750 planned items are complete (28.80%).',
+    ],
+  },
+  {
+    version: '0.3.77',
     implementationPrompts: [190, '241e'],
     implementationProgress: {
       completed: 215,
