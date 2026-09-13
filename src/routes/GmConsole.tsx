@@ -366,6 +366,12 @@ export default function GmConsole() {
   const [zealotryRationaleDraft, setZealotryRationaleDraft] = useState('');
   const [zealotryMutation, setZealotryMutation] = useState(false);
   const [zealotryMessage, setZealotryMessage] = useState<string | null>(null);
+
+  function clearZealotryResponseDraft(): void {
+    setZealotryActionsDraft([]);
+    setZealotryCustomDraft('');
+    setZealotryRationaleDraft('');
+  }
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
@@ -768,7 +774,8 @@ export default function GmConsole() {
             ? subscribeGmCrisisState(sessionId, (crisis) => {
               const currentKey = currentAuthorityKey();
               if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
-              useSessionStore.getState().setGmCrisisState(crisis);
+              const store = useSessionStore.getState();
+              store.setGmCrisisState(crisis);
               if (crisis) {
                 setCrisisIdDraft(crisis.crisisId);
                 setCrisisTitleDraft(crisis.title);
@@ -778,6 +785,20 @@ export default function GmConsole() {
                 setDiseaseShipIds([...(crisis.diseaseOutbreak?.affectedShipIds ?? [])]);
                 setDiseaseWork(crisis.diseaseOutbreak?.workRestrictions ?? '');
                 setDiseaseRisk(crisis.diseaseOutbreak?.escalationRisk ?? '');
+              }
+              const response = store.gmZealotryResponse;
+              const matchesDebatedCrisis = Boolean(
+                crisis && response &&
+                crisis.crisisKind === 'religious-zealotry' && crisis.state === 'debated' &&
+                response.crisisId === crisis.crisisId && response.crisisRevision === crisis.revision,
+              );
+              if (matchesDebatedCrisis && response) {
+                setZealotryActionsDraft([...response.actions]);
+                setZealotryCustomDraft(response.customResponse ?? '');
+                setZealotryRationaleDraft(response.rationale);
+              } else {
+                store.setGmZealotryResponse(null);
+                clearZealotryResponseDraft();
               }
               setCrisisMutationState(null);
             }, () => {
@@ -794,11 +815,21 @@ export default function GmConsole() {
             ? subscribeGmZealotryResponse(sessionId, (response) => {
               const currentKey = currentAuthorityKey();
               if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
-              useSessionStore.getState().setGmZealotryResponse(response);
-              if (response) {
+              const store = useSessionStore.getState();
+              store.setGmZealotryResponse(response);
+              const crisis = store.gmCrisisState;
+              const matchesDebatedCrisis = Boolean(
+                crisis && response &&
+                crisis.crisisKind === 'religious-zealotry' && crisis.state === 'debated' &&
+                response.crisisId === crisis.crisisId && response.crisisRevision === crisis.revision,
+              );
+              if (matchesDebatedCrisis && response) {
                 setZealotryActionsDraft([...response.actions]);
                 setZealotryCustomDraft(response.customResponse ?? '');
                 setZealotryRationaleDraft(response.rationale);
+              } else if (!matchesDebatedCrisis) {
+                store.setGmZealotryResponse(null);
+                clearZealotryResponseDraft();
               }
               setZealotryMessage(null);
             })

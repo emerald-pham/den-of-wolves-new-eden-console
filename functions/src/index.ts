@@ -5844,6 +5844,7 @@ export const transitionCrisis = onCall<{
   const uid = requireUid(request.auth);
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
+  const zealotryResponseRef = db.doc(`sessions/${crisis.sessionId}/zealotryResponses/current`);
   const auditRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current/audit/${crisis.requestId}`);
   const receiptRef = commandReceiptRef(crisis.sessionId, crisis.requestId);
   const eventRef = db.doc(
@@ -6015,6 +6016,12 @@ export const transitionCrisis = onCall<{
     if (crisis.state === 'draft') {
       // A new draft must never retain the previously delivered crisis report.
       tx.delete(reportRef);
+      if (replacingClosedCrisis) {
+        // The current facilitator decision belongs to the closed crisis. Keep
+        // immutable history and audit, but force a fresh decision for the new
+        // crisis rather than letting the private projection bleed across IDs.
+        tx.delete(zealotryResponseRef);
+      }
     } else if (playerReport) {
       // Only this fixed player report crosses the private crisis boundary.
       // The facilitator's reality, difficulty and override notes stay private.

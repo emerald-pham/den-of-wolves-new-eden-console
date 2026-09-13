@@ -271,6 +271,45 @@ it('retires a delivered report when a closed crisis is replaced by a fresh draft
   expect(mock.documents.has('sessions/s1/crisisReports/current')).toBe(false);
 });
 
+it('retires the current Zealotry decision when a closed crisis is replaced', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: true });
+  const crisisA = {
+    ...baseData,
+    crisisId: 'zealotry-a', crisisKind: 'religious-zealotry',
+    title: 'Religious zealotry A', details: 'First crisis notes.',
+  };
+  await transitionCrisis.run(request(crisisA));
+  put('sessions/s1/zealotryResponses/current', {
+    type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-a',
+    crisisRevision: 3, state: 'debated', revision: 1,
+    actions: ['pressure', 'investigate'], rationale: 'Keep this private to crisis A.',
+    loyaltyCensusRevision: null, actorUid: 'u1', instanceId: 'gm-1',
+  });
+  put('sessions/s1/zealotryResponses/history-response-a', {
+    type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-a',
+    crisisRevision: 3, state: 'debated', revision: 1,
+    actions: ['pressure', 'investigate'], rationale: 'Keep this private to crisis A.',
+    loyaltyCensusRevision: null, actorUid: 'u1', instanceId: 'gm-1',
+  });
+  for (const [state, expectedRevision] of [
+    ['delivered', 1], ['debated', 2], ['resolved', 3], ['announced', 4], ['closed', 5],
+  ] as const) {
+    await transitionCrisis.run(request({ ...crisisA, requestId: `a-${state}`, expectedRevision, state }));
+  }
+  expect(mock.documents.has('sessions/s1/zealotryResponses/current')).toBe(true);
+
+  const crisisB = {
+    ...crisisA,
+    crisisId: 'zealotry-b', title: 'Religious zealotry B', details: 'Second crisis notes.',
+  };
+  await transitionCrisis.run(request({ ...crisisB, requestId: 'b-draft', expectedRevision: 6, state: 'draft' }));
+  expect(mock.documents.has('sessions/s1/zealotryResponses/current')).toBe(false);
+  expect(mock.documents.has('sessions/s1/zealotryResponses/history-response-a')).toBe(true);
+  await transitionCrisis.run(request({ ...crisisB, requestId: 'b-delivered', expectedRevision: 7, state: 'delivered' }));
+  await transitionCrisis.run(request({ ...crisisB, requestId: 'b-debated', expectedRevision: 8, state: 'debated' }));
+  expect(mock.documents.has('sessions/s1/zealotryResponses/current')).toBe(false);
+});
+
 it('accepts the alternative Wolf Cult configuration and rechecks it before Zealotry delivery', async () => {
   put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false, wolfCultEnabled: true });
   const input = { ...baseData, crisisId: 'zealotry-1', crisisKind: 'religious-zealotry' };

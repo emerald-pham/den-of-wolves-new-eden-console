@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { CrisisStateProjection } from '@/types/crisis';
+import type { CrisisStateProjection, ZealotryResponse } from '@/types/crisis';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
@@ -389,6 +389,57 @@ it('records a private source-approved Zealotry response only at the debated stag
     ['pressure', 'investigate'], 'Keep it informal.', 'No automatic suspicion change.',
   ));
   expect(await within(panel).findByRole('status')).toHaveTextContent(/recorded privately.*publication and law handling remain separate/i);
+});
+
+it('clears a prior Zealotry response when a later crisis arrives and ignores late hydration', async () => {
+  const user = userEvent.setup();
+  const crisisA: CrisisStateProjection = {
+    sessionId: 's1', crisisId: 'zealotry-a', state: 'debated', revision: 3,
+    title: 'Religious zealotry A', details: 'First crisis notes.', crisisKind: 'religious-zealotry',
+  };
+  const crisisB: CrisisStateProjection = {
+    ...crisisA, crisisId: 'zealotry-b', revision: 9,
+    title: 'Religious zealotry B', details: 'Second crisis notes.',
+  };
+  const responseA: ZealotryResponse = {
+    sessionId: 's1', crisisId: 'zealotry-a', crisisRevision: 3, state: 'debated', revision: 1,
+    actions: ['pressure', 'investigate'], rationale: 'Keep this private to crisis A.',
+    loyaltyCensusRevision: null,
+  };
+  let publishCrisis: ((state: CrisisStateProjection | null) => void) | undefined;
+  let publishResponse: ((response: ZealotryResponse | null) => void) | undefined;
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    publishCrisis = onState;
+    onState(crisisA);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmZealotryResponse).mockImplementation((_sessionId, onResponse) => {
+    publishResponse = onResponse;
+    onResponse(responseA);
+    return vi.fn();
+  });
+  useSessionStore.getState().setGmCrisisState(crisisA);
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Private Religious Zealotry response' });
+  expect(within(panel).getByRole('checkbox', { name: 'Pressure' })).toBeChecked();
+  expect(within(panel).getByRole('textbox', { name: 'Private Religious Zealotry rationale' })).toHaveValue(responseA.rationale);
+
+  act(() => publishCrisis?.(crisisB));
+  expect(within(panel).getByRole('checkbox', { name: 'Pressure' })).not.toBeChecked();
+  expect(within(panel).getByRole('checkbox', { name: 'Investigate' })).not.toBeChecked();
+  expect(within(panel).getByRole('textbox', { name: 'Custom Religious Zealotry response' })).toHaveValue('');
+  expect(within(panel).getByRole('textbox', { name: 'Private Religious Zealotry rationale' })).toHaveValue('');
+  expect(panel).toHaveTextContent(/no private response recorded/i);
+
+  act(() => publishResponse?.(responseA));
+  expect(within(panel).getByRole('checkbox', { name: 'Pressure' })).not.toBeChecked();
+  expect(within(panel).getByRole('textbox', { name: 'Private Religious Zealotry rationale' })).toHaveValue('');
+  expect(recordZealotryResponse).not.toHaveBeenCalled();
+  await user.click(within(panel).getByRole('checkbox', { name: 'Leave' }));
+  expect(recordZealotryResponse).not.toHaveBeenCalled();
 });
 
 it('withholds the private crisis stream until the fresh manifest confirms this instance', async () => {

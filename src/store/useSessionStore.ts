@@ -18,7 +18,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPointer,
 } from '@/types/game';
-import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection, ZealotryResponse } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection, ZealotryResponse, ZealotryResponseAction } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -279,7 +279,7 @@ export type PendingCommand = (
         readonly requestId: string;
         readonly expectedRevision: number;
         readonly crisisId: string;
-        readonly actions: readonly import('@/types/crisis').ZealotryResponseAction[];
+        readonly actions: readonly ZealotryResponseAction[];
         readonly customResponse?: string;
         readonly rationale: string;
       };
