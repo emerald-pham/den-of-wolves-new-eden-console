@@ -1381,6 +1381,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "235 -> GORGONEION-IDENTITY-MAINTENANCE",
+      "id": "E-235-VERIFIED",
+      "language": "The existing small-ship production path preserves Gorgoneion's printed 1,000-survivor identity, two-console reactor cap, host-funded four-step maintenance, active-host authority, stale and replay-safe revisions, and no-small-ship-damage rule; focused pure and callable tests cover the identity and mutation boundaries.",
+      "source": "src/data/vessels/gorgoneion.ts; functions/src/smallShip.ts; functions/src/index.ts; functions/src/smallShip.test.ts; functions/src/smallShipCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/smallShipService.ts",
+      "type": "evidence / production-path"
+    },
+    {
       "direction": "236 -> 234;287-304",
       "id": "E-AUDIT-236",
       "language": "Small-ship jump lanes consume small-ship identity and the common jump contract.",
@@ -10761,8 +10768,8 @@
         "acceptance": "the frigate tracks 1,000 survivors and no more than two charged consoles.",
         "title": "Complete Gorgoneion identity and maintenance."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-235",
+      "description": "The existing shared small-ship production path completes Gorgoneion's identity and maintenance contract: its typed supplemental vessel records 1,000 survivors and the 1/1/2 jump profile, the server-owned small-ship rules cap its reactor at two consoles, and the GM-authorized docked four-step cycle uses only the active host's food and water ledger. Active-host authority, stale revision, replay, wrong actor, malformed state, and no-independent-damage boundaries are covered by the callable and pure tests; the GM console and small-ship client service consume the same production paths. This closes the identity/maintenance prompt through existing P234 implementation evidence, without adding jump or named-system combat mechanics owned by later prompts.",
+      "evidenceIds": "E-AUDIT-235;E-235-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;161;162",
@@ -10773,7 +10780,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

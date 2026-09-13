@@ -24,6 +24,24 @@ describe('small-ship rules', () => {
     expect(state.cycle.step).toBe(0);
   });
 
+  it('keeps Gorgoneion at 1,000 survivors and permits at most two charged consoles', () => {
+    const state = docked('gorgoneion');
+    expect(state.population).toBe(1_000);
+    const reactorState = {
+      ...state,
+      cycle: { ...state.cycle, step: 4, revision: 4, turn: 1 },
+    };
+    const charged = advanceSmallShipMaintenance({
+      state: reactorState, action: 'reactor', expectedRevision: 4, currentTurn: 1,
+      hostResources, consoles: ['repair-drones', 'missile-array'], rolls: [], now: 'now',
+    });
+    expect(charged.state.cycle.charges).toEqual(['repair-drones', 'missile-array']);
+    expect(() => advanceSmallShipMaintenance({
+      state: reactorState, action: 'reactor', expectedRevision: 4, currentTurn: 1,
+      hostResources, consoles: ['repair-drones', 'missile-array', 'force-field-projector'], rolls: [], now: 'now',
+    })).toThrow(/capacity/i);
+  });
+
   it('borrows food and water from the docked host and advances the four steps', () => {
     let state = docked();
     let resources = hostResources;
