@@ -1347,11 +1347,42 @@ export function subscribeGmInstances(
   suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
   let subscribed = true;
+  let denied = false;
   let hasServerSnapshot = false;
   let refreshInFlight: Promise<void> | undefined;
   let refreshQueued = false;
+  let listenerFailed = false;
+  let listenerGeneration = 0;
+  let retryDelay = 1_000;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopListener: Unsubscribe = () => undefined;
+  const alive = () => subscribed && !denied;
+  const clearRetry = () => {
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
+    retryTimer = undefined;
+  };
+  const fail = (error: unknown) => {
+    if (!alive()) return;
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String(error.code).replace(/^(?:firestore|functions)\//, '') : '';
+    // Revoked access or a deleted session cannot be repaired by polling.
+    if (code === 'permission-denied' || code === 'not-found') {
+      denied = true;
+      listenerGeneration += 1;
+      stopListener();
+      clearRetry();
+      refreshQueued = false;
+    } else if (retryTimer === undefined) {
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        recover();
+      }, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15_000);
+    }
+    onError();
+  };
   const publishServerProjection = async (): Promise<void> => {
-    if (!subscribed) return;
+    if (!alive()) return;
     if (refreshInFlight) {
       refreshQueued = true;
       return refreshInFlight;
@@ -1359,10 +1390,13 @@ export function subscribeGmInstances(
     refreshInFlight = httpsCallable<{ sessionId: string }, { instances: GmInstance[] }>(
       functions(), 'listGmInstances',
     )({ sessionId }).then((response) => {
-      if (subscribed) onInstances(response.data.instances);
-    }).catch(() => {
-      if (subscribed) onError();
-    }).finally(() => {
+      if (!alive()) return;
+      onInstances(response.data.instances);
+      if (!listenerFailed) {
+        clearRetry();
+        retryDelay = 1_000;
+      }
+    }).catch(fail).finally(() => {
       refreshInFlight = undefined;
       if (refreshQueued) {
         refreshQueued = false;
@@ -1371,29 +1405,61 @@ export function subscribeGmInstances(
     });
     return refreshInFlight;
   };
-  const unsubscribe = onSnapshot(
-    query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
-    (snapshot) => {
-      if (!subscribed) return;
-      const fromCache = snapshot.metadata?.fromCache === true;
-      if (fromCache && (
-        hasServerSnapshot ||
-        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
-      )) return;
-      if (!fromCache) hasServerSnapshot = true;
-      // Firestore exposes the raw claim collection to members for compatibility,
-      // but it cannot compute player liveness across the sibling collection.
-      // Publish only the callable's server-computed projection so stale claims
-      // cannot disable locked-table recovery or become UI handoff targets.
-      void publishServerProjection();
-    },
-    () => { if (subscribed) onError(); },
-  );
-  const refreshTimer = setInterval(() => void publishServerProjection(), 15_000);
+  const attachListener = () => {
+    if (!alive()) return;
+    stopListener();
+    const generation = ++listenerGeneration;
+    listenerFailed = false;
+    const stop = onSnapshot(
+      query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
+      (snapshot) => {
+        if (!alive() || generation !== listenerGeneration) return;
+        const fromCache = snapshot.metadata?.fromCache === true;
+        if (fromCache && (
+          hasServerSnapshot ||
+          projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+        )) return;
+        if (!fromCache) hasServerSnapshot = true;
+        // Never publish raw claims: only the callable can verify player liveness.
+        void publishServerProjection();
+      },
+      (error) => {
+        if (!alive() || generation !== listenerGeneration) return;
+        listenerFailed = true;
+        listenerGeneration += 1;
+        stopListener();
+        fail(error);
+      },
+    );
+    // A synchronous failure must not retain its newly returned listener.
+    if (!alive() || generation !== listenerGeneration) stop();
+    else stopListener = stop;
+  };
+  function recover(): void {
+    if (!alive()) return;
+    clearRetry();
+    if (listenerFailed) attachListener();
+    void publishServerProjection();
+  }
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') recover();
+  };
+  attachListener();
+  const refreshTimer = setInterval(() => {
+    if (retryTimer === undefined) recover();
+  }, 15_000);
+  window.addEventListener('online', recover);
+  window.addEventListener('focus', recover);
+  document.addEventListener('visibilitychange', onVisible);
   return () => {
     subscribed = false;
-    unsubscribe();
+    listenerGeneration += 1;
+    stopListener();
+    clearRetry();
     clearInterval(refreshTimer);
+    window.removeEventListener('online', recover);
+    window.removeEventListener('focus', recover);
+    document.removeEventListener('visibilitychange', onVisible);
   };
 }
 

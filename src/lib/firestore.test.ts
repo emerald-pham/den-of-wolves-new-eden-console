@@ -1815,3 +1815,90 @@ it('keeps malformed and legacy lifecycle fields safe without throwing or inventi
   }).not.toThrow();
   expect(onSession).toHaveBeenCalledTimes(2);
 });
+
+it('recovers a failed GM manifest listener and callable without reload, then cancels late work on stop', async () => {
+  vi.useFakeTimers();
+  const snapshots: Array<(snapshot: unknown) => void> = [];
+  const failures: Array<(error: unknown) => void> = [];
+  const stops: Array<ReturnType<typeof vi.fn>> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, next: (snapshot: unknown) => void, error: (error: unknown) => void) => {
+    snapshots.push(next);
+    failures.push(error);
+    const stop = vi.fn();
+    stops.push(stop);
+    return stop;
+  }) as never);
+  const read = vi.fn()
+    .mockRejectedValueOnce({ code: 'functions/unavailable' })
+    .mockResolvedValue({ data: { instances: [{ id: 'current-gm' }] } });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  const onInstances = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeGmInstances('s1', onInstances, onError);
+  try {
+    snapshots[0]?.({ metadata: { fromCache: false } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onInstances).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(onInstances).toHaveBeenLastCalledWith([{ id: 'current-gm' }]);
+
+    failures[0]?.({ code: 'unavailable' });
+    expect(stops[0]).toHaveBeenCalled();
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(snapshots).toHaveLength(2);
+    const reads = read.mock.calls.length;
+    snapshots[0]?.({ metadata: { fromCache: false } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read).toHaveBeenCalledTimes(reads);
+
+    let resolveLate: ((value: unknown) => void) | undefined;
+    read.mockImplementationOnce(() => new Promise((resolve) => { resolveLate = resolve; }));
+    snapshots[1]?.({ metadata: { fromCache: false } });
+    const published = onInstances.mock.calls.length;
+    stop();
+    resolveLate?.({ data: { instances: [{ id: 'late-gm' }] } });
+    window.dispatchEvent(new Event('online'));
+    window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onInstances).toHaveBeenCalledTimes(published);
+    expect(stops[1]).toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
+});
+
+it.each(['permission-denied', 'not-found'])('does not retry a denied GM manifest or publish its late response (%s)', async (code) => {
+  vi.useFakeTimers();
+  let publish: ((snapshot: unknown) => void) | undefined;
+  let fail: ((error: unknown) => void) | undefined;
+  const stopListener = vi.fn();
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, next: (snapshot: unknown) => void, error: (error: unknown) => void) => {
+    publish = next;
+    fail = error;
+    return stopListener;
+  }) as never);
+  let resolveRead: ((value: unknown) => void) | undefined;
+  const read = vi.fn(() => new Promise((resolve) => { resolveRead = resolve; }));
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  const onInstances = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeGmInstances('s1', onInstances, onError);
+  try {
+    publish?.({ metadata: { fromCache: false } });
+    fail?.({ code });
+    resolveRead?.({ data: { instances: [{ id: 'revoked-gm' }] } });
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(read).toHaveBeenCalledOnce();
+    expect(onInstances).not.toHaveBeenCalled();
+    expect(stopListener).toHaveBeenCalled();
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
+});
