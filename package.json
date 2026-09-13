@@ -17,6 +17,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",
+    "test:ticker:browser": "node scripts/test-fleet-ticker-browser.mjs",
     "test:rules": "node scripts/run-emulator-command.mjs rules",
     "test:growth": "node scripts/test-growth-gate.mjs",
     "test:geometry:603a": "node scripts/prompt-603a-geometry.mjs",
@@ -63,6 +64,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "jsdom": "^25.0.1",
+    "playwright": "1.63.0",
     "typescript": "^5.6.3",
     "vite": "6.4.3",
     "vitest": "^3.2.4"

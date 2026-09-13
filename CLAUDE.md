@@ -209,6 +209,17 @@ Every non-landing screen and device mode has a visible, keyboard-accessible
 route back to its logical parent, normally Roles; do not rely on browser Back,
 Settings, disconnecting, or a route guard as the only exit.
 
+The shared FleetBroadcast ticker is release-critical because it is the only
+common live-news surface. Before a deployable candidate is accepted, run
+`npm run test:ticker:browser` against the real AppHeader/FleetBroadcast path.
+The smoke must prove an authoritative current message is painted with non-zero
+viewport geometry and visible text in normal and reduced motion at phone and
+desktop sizes, including a browser whose document font promise remains
+pending, after navigation and reload, without horizontal overflow. Keep its
+session projection fixture isolated to the smoke and save a viewport screenshot
+when a case fails; do not replace the real ticker with a mock or an offscreen
+DOM assertion.
+
 ## Worktrees and emulator rows
 
 Each task uses its own branch and checkout. For rules or emulator-backed checks,

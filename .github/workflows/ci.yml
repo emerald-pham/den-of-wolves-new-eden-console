@@ -151,6 +151,23 @@ jobs:
         if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm run build
 
+      - name: Install ticker smoke browser
+        if: steps.change_scope.outputs.documentation_only != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser ticker smoke
+        if: steps.change_scope.outputs.documentation_only != 'true'
+        run: npm run test:ticker:browser
+
+      - name: Upload ticker smoke failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-ticker-smoke-failure
+          path: /tmp/fleet-ticker-smoke
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Check web bundle size
         if: steps.change_scope.outputs.documentation_only != 'true'
         run: node scripts/check-bundle-size.mjs
