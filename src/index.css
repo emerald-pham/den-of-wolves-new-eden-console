@@ -975,6 +975,7 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.role-brief__rules--warrior-salvage p { font-size: 1rem; }
 .role-brief__return { justify-self: start; }
 
 .wolf-commander-panel {

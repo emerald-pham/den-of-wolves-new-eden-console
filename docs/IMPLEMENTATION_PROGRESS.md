@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**216 / 750 prompts complete (28.80%)**
+**217 / 750 prompts complete (28.93%)**
 
-Status breakdown: **216 done · 23 partial · 511 missing**.
+Status breakdown: **217 done · 23 partial · 510 missing**.
 
 Active prompt: **none**
 
@@ -684,7 +684,7 @@ release classification and evidence.
 | 242 | done | non-feature | — | The existing shared small-ship production path closes Warrior identity and maintenance: the typed supplemental vessel records 2,000 survivors, one reactor charge, 1/1/2 jump costs, and steps 1–4, while the server-owned rules enforce Warrior’s one-console cap and host-funded maintenance. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves the one-charge identity and printed host ration debit alongside the other audited small ships. Warrior salvage, repair, and Salvage Drones remain deferred to their later prompts. |
 | 243 | missing | non-feature | — | Source audit remains complete, but the runtime producer is intentionally deferred: the routed Warrior card establishes Away Mission full-hand discard and per-card food/water choice, while current code has no authoritative mission eligibility/opportunity ledger, remaining-hand assignment state, or Mission Leader reward custody. P242 and P402 provide Warrior identity and the deck only; P401, P407, and P413 must land before this prompt can add a callable or UI without inventing opportunity availability, recipient policy, or repeat timing. |
 | 244 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 245 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 245 | done | feature | — | The actual Warrior Captain private role brief states the after-Wolf-Attack Salvage Drones trigger and reports that the server-owned attack damage ledger, roll, and material award are unavailable until their authoritative producer exists. No client control pretends to resolve the deferred roll or award. |
 | 246 | done | non-feature | — | The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts. |
 | 247 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 248 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

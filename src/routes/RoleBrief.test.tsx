@@ -74,3 +74,31 @@ it('does not render a brief assigned to another player', () => {
 
   expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
+
+it('states the Warrior Salvage Drones trigger while the damage ledger is unavailable', () => {
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: null,
+    replacementRoleId: 'warrior-captain',
+  });
+  useSessionStore.getState().setRoleBrief({
+    ...useSessionStore.getState().roleBrief!,
+    roleId: 'warrior-captain',
+    roleName: 'Warrior Captain',
+    vesselName: 'RSS Warrior',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Salvage Drones' })).toBeVisible();
+  expect(screen.getByText(/after a wolf attack/i)).toBeVisible();
+  expect(screen.getByRole('status')).toHaveTextContent(/awaiting the authoritative attack damage ledger/i);
+  expect(screen.queryByRole('button', { name: /roll|salvage|award/i })).not.toBeInTheDocument();
+});

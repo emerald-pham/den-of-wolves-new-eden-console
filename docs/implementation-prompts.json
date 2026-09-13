@@ -4706,6 +4706,13 @@
       "type": "evidence / production-path"
     },
     {
+      "direction": "245 -> WARRIOR-SALVAGE-DRONES-WORKSPACE",
+      "id": "E-245-VERIFIED",
+      "language": "The actual Warrior Captain private role brief now states the after-Wolf-Attack Salvage Drones trigger and explains that the server-owned attack damage ledger, roll, and material award are unavailable until their authoritative producer exists. It exposes no client roll or award control, so the workspace remains truthful while the aggregate damage-ledger producer stays deferred.",
+      "source": "src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/index.css; functions/src/wolfCombatMath.ts",
+      "type": "evidence / production-path"
+    },
+    {
       "direction": "246 -> VULCAN-IDENTITY-MAINTENANCE",
       "id": "E-246-VERIFIED",
       "language": "The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts.",
@@ -11176,15 +11183,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the workspace states its after-attack trigger and awaits authoritative damage-ledger rolls.",
         "title": "Register Warrior Salvage Drones."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-245",
+      "description": "The actual Warrior Captain private role brief states the after-Wolf-Attack Salvage Drones trigger and reports that the server-owned attack damage ledger, roll, and material award are unavailable until their authoritative producer exists. No client control pretends to resolve the deferred roll or award.",
+      "evidenceIds": "E-AUDIT-245;E-245-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "242",
@@ -11195,7 +11202,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -5,6 +5,20 @@ import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
 
+function WarriorSalvageDronesStatus() {
+  return (
+    <section className="role-brief__rules role-brief__rules--warrior-salvage" aria-labelledby="warrior-salvage-drones-title">
+      <h2 id="warrior-salvage-drones-title">Salvage Drones</h2>
+      <p>
+        After a Wolf Attack, this charged console uses one server-owned roll for each point of damage dealt by either side.
+      </p>
+      <p role="status">
+        Awaiting the authoritative attack damage ledger. The roll and material award are not available in this workspace yet.
+      </p>
+    </section>
+  );
+}
+
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
   ...AEGIS_ROLE_CONSOLES['wing-commander'].craft.map((craft) => [craft.id, craft.name] as const),
@@ -53,6 +67,8 @@ export default function RoleBrief() {
         </section>
 
         {me.replacementRoleId === 'wolf-commander' && <WolfCommanderTargetingPanel />}
+
+        {me.replacementRoleId === 'warrior-captain' && <WarriorSalvageDronesStatus />}
 
         <Link className="cic-action-button role-brief__return" to="/roles">
           Return to role selection
