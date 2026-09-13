@@ -116,7 +116,7 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
         const bounds = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return element.textContent?.includes('SNN // CURRENT SERVER BROADCAST') &&
-          bounds.width > 0 && bounds.height > 0 && style.visibility !== 'hidden' &&
+          bounds.width > 0 && bounds.height > 0 && style.visibility === 'visible' && style.display !== 'none' && Number(style.opacity) > 0 &&
           bounds.right > frame.left && bounds.left < frame.right &&
           bounds.bottom > frame.top && bounds.top < frame.bottom;
       });
@@ -144,7 +144,7 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
           const style = getComputedStyle(element);
           return element.textContent?.includes('SNN // CURRENT SERVER BROADCAST') &&
             bounds.width > 0 &&
-            bounds.height > 0 && style.visibility !== 'hidden' &&
+            bounds.height > 0 && style.visibility === 'visible' && style.display !== 'none' && Number(style.opacity) > 0 &&
             frameBounds !== undefined && bounds.right > frameBounds.left &&
             bounds.left < frameBounds.right && bounds.bottom > frameBounds.top &&
             bounds.top < frameBounds.bottom;
@@ -181,7 +181,7 @@ async function assertTicker(page, label, fontMode, reducedMotion) {
   if (fontMode === 'pending' && (!snapshot.fontPatchInstalled || snapshot.fontStatus !== 'loading')) {
     throw new Error(`${label}: pending-font fixture did not remain pending: ${JSON.stringify(snapshot)}`);
   }
-  if (fontMode === 'ready' && snapshot.fontStatus === 'loading') {
+  if (fontMode === 'ready' && snapshot.fontStatus !== 'loaded') {
     throw new Error(`${label}: ready-font fixture remained pending: ${JSON.stringify(snapshot)}`);
   }
 }
@@ -190,6 +190,7 @@ async function runCase(fontMode, reducedMotion, viewport) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     reducedMotion: reducedMotion ? 'reduce' : 'no-preference',
+    serviceWorkers: 'block',
   });
   const localOrigin = new URL(appUrl).origin;
   await context.route('**/*', (route) => {
@@ -203,6 +204,14 @@ async function runCase(fontMode, reducedMotion, viewport) {
       if (requestUrl.startsWith('data:') || requestUrl.startsWith('blob:')) return route.continue();
     }
     return route.abort();
+  });
+  await context.routeWebSocket('**/*', (socket) => {
+    const url = new URL(socket.url());
+    if (url.protocol === 'ws:' && url.host === new URL(appUrl).host) {
+      socket.connectToServer();
+    } else {
+      socket.close();
+    }
   });
   await context.addInitScript(({ fixture, fontMode: mode, reduced }) => {
     localStorage.setItem('dow-new-eden-session', JSON.stringify(fixture));
