@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**215 / 750 prompts complete (28.67%)**
+**216 / 750 prompts complete (28.80%)**
 
-Status breakdown: **215 done · 22 partial · 513 missing**.
+Status breakdown: **216 done · 22 partial · 512 missing**.
 
 Active prompt: **none**
 
@@ -583,7 +583,7 @@ release classification and evidence.
 | 157 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 158 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 159 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 160 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 160 | done | non-feature | — | The Foundation Regression Matrix publishes every catalog row numbered 001–159, including lettered rows and retired Prompt 071, with each row's current catalog status, concrete acceptance-specific red-test target, recorded owner decision or dependency, and inspected repository proof links or an explicit no-production-proof gap. Partial and missing behavior remains open; rendered UI alone is never treated as completion. |
 | 161 | done | non-feature | — | The typed vessel catalog now registers the six core ships, four optional base small ships (Gorgoneion, base-game Capybara, Warrior, and Vulcan), the Voyage 33-0 approaching-vessel identity, and the separate expansion Capybara definition. Base small-ship Capybara uses a distinct stable ID and mode-gated lookup so it cannot be mixed with the expansion ship; optional registrations remain outside the core session roster until their gameplay prompts land. Focused vessel-template tests prove distinct identities, central lookup, and Capybara mode isolation. Foundational catalog implementation; no player release because no current player/runtime consumer behavior changes. |
 | 162 | done | non-feature | — | The shared typed vessel registration and statistics profile records the printed nation/class identity, full-ship capacity, population, jump costs, Reactor capacity, and maintenance-step range for all seven full vessel sheets. It also records applicable population, jump, Reactor, and steps 1–4 metadata for Gorgoneion, base-game Capybara, Warrior, Vulcan, and Voyage 33-0 while explicitly marking their independent crew/passenger capacity as unavailable. Full-ship population/specification catalogs and shared ship-console telemetry read the profile; supplemental entries remain metadata-only until their gameplay prompts land. Focused cross-vessel tests match the routed printed values and preserve the expansion/base Capybara distinction. Foundational catalog implementation; no player release because no current player/runtime consumer behavior changes. |
 | 163 | done | non-feature | — | Existing typed resource inventories restrict Scrap to the enabled expansion Capybara. Production create/setup composition filters inactive vessels, removes expansion inventory when returning to base mode, and denies inactive Capybara counter mutations; server join/resume projections also filter inventory by active vessels. Client and server resource normalizers omit Scrap for other ships. Verified 28 existing resource, production composition and ship-projection tests; this reconciles existing behavior evidence without a runtime change. |

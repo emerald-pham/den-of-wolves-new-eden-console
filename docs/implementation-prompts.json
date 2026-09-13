@@ -65,6 +65,13 @@
       "type": "evidence/audit closure"
     },
     {
+      "direction": "160 -> 001-159",
+      "id": "E-160-VERIFIED",
+      "language": "The published Foundation Regression Matrix includes every catalog row numbered 001–159, including lettered rows and retired Prompt 071, with catalog status, concrete red-test target, recorded decision or dependency, and inspected proof links or an explicit no-production-proof gap. It preserves partial and missing boundaries and does not treat rendered UI alone as completion.",
+      "source": "docs/FOUNDATION_REGRESSION_MATRIX.md; docs/IMPLEMENTATION_CONTRACTS.md; docs/implementation-prompts.json",
+      "type": "evidence/audit closure"
+    },
+    {
       "direction": "275a -> 004;051",
       "id": "E-275A",
       "language": "The Press release preserves the existing base-roster and setup/readiness evidence before its independent station contract.",
@@ -8843,8 +8850,8 @@
         "acceptance": "Prompts 001–159 each have a current status, red-test target, decision dependency, and proof link; rendered UI alone never means complete.",
         "title": "Publish the foundation regression matrix."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-160-AUDIT",
+      "description": "The Foundation Regression Matrix publishes every catalog row numbered 001–159, including lettered rows and retired Prompt 071, with each row's current catalog status, concrete acceptance-specific red-test target, recorded owner decision or dependency, and inspected repository proof links or an explicit no-production-proof gap. Partial and missing behavior remains open; rendered UI alone is never treated as completion.",
+      "evidenceIds": "E-160-AUDIT;E-160-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -8855,7 +8862,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
