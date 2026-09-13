@@ -50,6 +50,14 @@ it('keeps implementation-plan features mapped when release notes declare coverag
     .toBe(currentEntry.implementationPrompts.length);
 });
 
+it('keeps roadmap jargon out of rendered changelog fields while retaining provenance', () => {
+  const renderedChanges = CHANGELOG.flatMap((entry) => entry.changes);
+  const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+
+  expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
+  expect(currentEntry?.implementationPrompts).toEqual([245]);
+});
+
 it('emits uncached build metadata for live clients to discover upgrades', () => {
   const viteConfig = readFileSync('vite.config.ts', 'utf8');
   const firebaseConfig = readFileSync('firebase.json', 'utf8');

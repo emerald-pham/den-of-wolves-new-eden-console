@@ -534,6 +534,21 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
 });
 
+it('renders plain changelog copy with its progress marker and keyboard stop intact', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /view changelog/i }));
+
+  const region = screen.getByRole('region', { name: /changelog entries/i });
+  const renderedChanges = within(region).getAllByRole('listitem').map((item) => item.textContent ?? '');
+
+  expect(region).toHaveAttribute('tabindex', '0');
+  expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
+  expect(within(region).getByText('217 of 750 planned items are complete (28.93%).')).toBeVisible();
+});
+
 it('keeps the long settings changelog independently scrollable', () => {
   const stylesheet = readFileSync('src/index.css', 'utf8');
   const changelogRule = stylesheet.match(/\.settings-changelog__entries\s*\{([^}]*)\}/)?.[1];

@@ -4767,6 +4767,13 @@
       "language": "A server-owned, typed per-ship history envelope now round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; future attempts, hazards, rewards, cleared-threat, and candidate-progress buckets are preserved only as producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. P313 remains partial until later owning producers write the future categories.",
       "source": "functions/src/systemHistory.ts; functions/src/navigationProjection.ts; functions/src/index.ts; functions/src/systemHistory.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/jumpCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; src/App.tsx; authorized routed REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md",
       "type": "evidence / partial / production-path"
+    },
+    {
+      "direction": "657 -> PLAYER-CHANGELOG-COPY",
+      "id": "E-657-VERIFIED",
+      "language": "The rendered Settings changelog uses plain planned-item wording throughout its history, keeps the session join screen wording clear, and preserves the existing done/total percentage markers. A deterministic player-field-only guard leaves implementation provenance metadata intact; focused version and AppHeader regressions cover the copy, bounded scroll region, accessible tab stop, and rendered Settings flow at phone, desktop, and short-landscape sizes with reduced motion.",
+      "source": "src/changelog.ts; src/version.test.ts; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/index.css; rendered Settings checks at 390x844, 1440x900, and 844x390 with prefers-reduced-motion: reduce",
+      "type": "evidence / player-copy / accessibility / layout"
     }
   ],
   "plan": {
@@ -21635,8 +21642,8 @@
         "acceptance": "all rendered `CHANGELOG` changes have no case-insensitive standalone `prompt` or `prompts`; existing meaning and every numeric done/total percentage marker remain unchanged; internal `implementationPrompts` and other provenance terminology stays intact. Add a deterministic player-field-only guard plus focused copy/accessibility/layout regression coverage.",
         "title": "Remove roadmap jargon from player-facing changelog history and future entries."
       },
-      "description": "Planned [REPAIR] prompt: remove standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage.",
-      "evidenceIds": "none",
+      "description": "Completed [REPAIR] copy cleanup removes standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage. The Settings changelog remains bounded, keyboard reachable, and readable across phone, desktop, and short-landscape layouts with reduced motion.",
+      "evidenceIds": "E-657-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -21647,7 +21654,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

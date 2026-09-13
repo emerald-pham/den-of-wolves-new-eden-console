@@ -720,7 +720,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 614,
     },
     changes: [
-      'Facilitators can now lock base Capybara, expansion Capybara, or neither before casting, keeping each session on one vessel definition from setup through start. 101 of 734 implementation prompts are complete (13.76%).',
+      'Facilitators can now lock base Capybara, expansion Capybara, or neither before casting, keeping each session on one vessel definition from setup through start. 101 of 734 planned items are complete (13.76%).',
     ],
   },
   {
@@ -833,7 +833,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 616,
     },
     changes: [
-      'Live session updates now keep every player on the newest turn and phase, so a delayed older update cannot bring back an action from a window that has already closed. — Roadmap progress: 89 of 730 prompts complete (12.19%).',
+      'Live session updates now keep every player on the newest turn and phase, so a delayed older update cannot bring back an action from a window that has already closed. — Roadmap progress: 89 of 730 planned items complete (12.19%).',
     ],
   },
   {
@@ -849,7 +849,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 619,
     },
     changes: [
-      'The finale disco ball now stays clear of the Back to roles navigation on compact portrait and landscape screens while preserving its full desktop presentation. — Roadmap progress: 86 of 730 prompts complete (11.78%).',
+      'The finale disco ball now stays clear of the Back to roles navigation on compact portrait and landscape screens while preserving its full desktop presentation. — Roadmap progress: 86 of 730 planned items complete (11.78%).',
     ],
   },
   {
@@ -865,7 +865,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 620,
     },
     changes: [
-      'GMs can now open the normal airspace window through one server-authorized, retry-safe transition, so eligible craft can move only when the live phase permits it. — Roadmap progress: 86 of 730 prompts complete (11.78%).',
+      'GMs can now open the normal airspace window through one server-authorized, retry-safe transition, so eligible craft can move only when the live phase permits it. — Roadmap progress: 86 of 730 planned items complete (11.78%).',
     ],
   },
   {
@@ -880,7 +880,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 620,
     },
     changes: [
-      'CIC planning records now flag Wolf assignment authority for later review; no game behavior changed. — Roadmap progress: 85 of 729 prompts complete (11.66%).',
+      'CIC planning records now flag Wolf assignment authority for later review; no game behavior changed. — Roadmap progress: 85 of 729 planned items complete (11.66%).',
     ],
   },
   {
@@ -896,7 +896,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 620,
     },
     changes: [
-      'Turn advancement now waits for the correct game phase. — Roadmap progress: 84 of 728 prompts complete (11.54%).',
+      'Turn advancement now waits for the correct game phase. — Roadmap progress: 84 of 728 planned items complete (11.54%).',
     ],
   },
   {
@@ -912,7 +912,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 620,
     },
     changes: [
-      'Crew maintenance updates now show the useful result without exposing private game information. — Roadmap progress: 77 of 723 prompts complete (10.65%).',
+      'Crew maintenance updates now show the useful result without exposing private game information. — Roadmap progress: 77 of 723 planned items complete (10.65%).',
     ],
   },
   {
@@ -928,7 +928,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 622,
     },
     changes: [
-      'GMs can now safely retry an undo of the latest maintenance step during Team phase without duplicate effects, erasing damage, or changing maintenance history — Roadmap progress: 74 of 723 prompts complete (10.24%).',
+      'GMs can now safely retry an undo of the latest maintenance step during Team phase without duplicate effects, erasing damage, or changing maintenance history — Roadmap progress: 74 of 723 planned items complete (10.24%).',
     ],
   },
   {
@@ -1516,7 +1516,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.41',
     changes: [
-      'The session join prompt now stays focused on entering your code.',
+      'The session join screen now stays focused on entering your code.',
     ],
   },
   {
