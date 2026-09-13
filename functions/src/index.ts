@@ -10893,7 +10893,7 @@ export const refreshPresence = onCall<{
     }
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
     tx.set(reconciliationRef, {
-      lastFullReconciliationAt: Timestamp.now(),
+      lastFullReconciliationAt: Timestamp.fromMillis(Date.now()),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
