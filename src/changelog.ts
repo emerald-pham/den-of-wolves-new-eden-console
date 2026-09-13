@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [510],
+    implementationProgress: {
+      completed: 224,
+      total: 750,
+      percentage: '29.87%',
+      done: 224,
+      partial: 25,
+      active: 0,
+      missing: 501,
+    },
+    changes: [
+      'Friends can privately identify their partner’s role, including replacement roles, without exposing account identifiers.',
+      '224 of 750 planned items are complete (29.87%).',
+    ],
+  },
+  {
+    version: '0.3.84',
     implementationPrompts: [509],
     implementationProgress: {
       completed: 223,
