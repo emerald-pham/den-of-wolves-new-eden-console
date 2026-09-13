@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  craftStartingManifestForSetup,
+  craftStartingManifestMatches,
   ownedCraftIdsForRole,
   roleOwnedCraftForRoles,
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
+  shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
+import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
 describe('role-owned craft composition', () => {
   it('derives every represented shuttle and fighter wing from the active printed roles', () => {
@@ -89,6 +93,64 @@ describe('role-owned craft composition', () => {
       roleOwnedCraft: expected.roleOwnedCraft.map((craft, index) =>
         index === 1 ? { ...craft, ownerRoleId: 'admiral' } : craft),
     }, expected)).toBe(false);
+    expect(roleOwnedCraftManifestMatches({
+      ...expected,
+      roleOwnedCraft: expected.roleOwnedCraft.map((craft, index) =>
+        index === 1 ? { ...craft, enabledMode: 'gm-controlled' } : craft),
+    }, expected)).toBe(false);
     expect(roleOwnedCraftManifestMatches({ ...expected, vesselMode: 'expansion-capybara' }, expected)).toBe(false);
+  });
+
+  it('composes exact starting hosts, owner, kind, and enabled mode', () => {
+    const activeRoleIds = [
+      'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+      'quellon-explorer', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+    ];
+    const dockings = [
+      ...initialShuttleDockingsForRoles(activeRoleIds),
+      { shuttleId: 'wobbly', shipId: 'quellon' },
+      { shuttleId: 'ally', shipId: 'shepherd' },
+    ];
+    const manifest = craftStartingManifestForSetup(activeRoleIds, 'base-capybara', dockings);
+    expect(manifest.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard', startingHostId: 'aegis' }),
+      expect.objectContaining({ id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', startingHostId: 'aegis' }),
+      expect.objectContaining({ id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', startingHostId: 'refinery-124' }),
+      expect.objectContaining({ id: 'wobbly', enabledMode: 'gm-controlled', startingHostId: 'quellon' }),
+      expect.objectContaining({ id: 'ally', enabledMode: 'gm-controlled', startingHostId: 'shepherd' }),
+    ]));
+    expect(craftStartingManifestMatches(manifest, manifest, [
+      'aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
+    ])).toBe(true);
+  });
+
+  it('fails closed for duplicate, missing, unknown, and unresolved Union dockings', () => {
+    const activeRoleIds = ['admiral', 'wing-commander', 'joint-engineering-quellon-refinery'];
+    const initial = initialShuttleDockingsForRoles(activeRoleIds);
+    const expected = craftStartingManifestForSetup(activeRoleIds, 'none', initial);
+    expect(shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, initial)).toBe(true);
+    expect(expected.entries.some((entry) => entry.id === 'wobbly')).toBe(false);
+    expect(craftStartingManifestMatches(expected, expected, ['aegis', 'quellon'])).toBe(true);
+    const resolved = [...initial, { shuttleId: 'wobbly', shipId: 'quellon' }];
+    expect(shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, resolved)).toBe(true);
+    const resolvedManifest = craftStartingManifestForSetup(activeRoleIds, 'none', resolved);
+    expect(craftStartingManifestMatches(resolvedManifest, resolvedManifest, ['aegis', 'quellon'])).toBe(true);
+    expect(shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, [
+      ...resolved,
+      { shuttleId: 'wobbly', shipId: 'quellon' },
+    ])).toBe(false);
+    expect(shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, [
+      ...resolved,
+      { shuttleId: 'unknown', shipId: 'aegis' },
+    ])).toBe(false);
+  });
+
+  it('preserves a moved current docking instead of resetting to printed start', () => {
+    const activeRoleIds = ['admiral', 'wing-commander'];
+    const current = initialShuttleDockingsForRoles(activeRoleIds).map((docking) =>
+      docking.shuttleId === 'starlight' ? { ...docking, shipId: 'quellon' } : docking);
+    const manifest = craftStartingManifestForSetup(activeRoleIds, 'none', current);
+    expect(manifest.entries.find((entry) => entry.id === 'starlight')?.startingHostId).toBe('quellon');
   });
 });

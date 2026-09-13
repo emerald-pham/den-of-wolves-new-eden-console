@@ -2251,8 +2251,8 @@
     {
       "direction": "361 -> 161;162",
       "id": "E-AUDIT-361",
-      "language": "The craft manifest is typed by vessel and printed statistics.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "The server now composes a starting-craft manifest from the role-owned catalog and authoritative dockings: every enabled entry records craft id, kind, printed owner role, enabled mode, and one active starting host; fighter-wing hosts come from their printed bay vessels. Start validates exact-once rows and migrates legacy manifests from current dockings without resetting moved craft. GM-controlled Union craft remain disabled until an explicit docking exists because the routed source does not choose Wobbly/Ally's initial host.",
+      "source": "functions/src/craftOwnership.ts; functions/src/index.ts; functions/src/sessionComposition.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.test.ts; functions/src/startCallable.test.ts; src/data/vessels/starlight.ts; src/data/aegisConsoles.ts; src/data/pdfConsoles.ts; authorized routed REFERENCE_ONLY_SHUTTLES.md; authorized routed REFERENCE_ONLY_CAPYBARA_EXPANSION.md",
       "type": "hard_prompt"
     },
     {
@@ -13932,7 +13932,7 @@
         "acceptance": "every craft starts once at its printed host with exact owner, type, and enabled-mode rules.",
         "title": "Build the authoritative shuttle manifest."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Partial production path: server-owned setup/start state now composes each enabled craft's exact id, shuttle or fighter-wing kind, printed owner role, enabled mode, and authoritative starting host. Standard craft and printed fighter-wing hosts are validated exactly once before mutation; legacy starts and setup edits preserve current dockings rather than resetting to printed defaults. GM-controlled Wobbly and Ally remain disabled until an explicit current docking exists because the routed source leaves their initial Union pairing unresolved. Base and expansion Capybara craft stay distinct.",
       "evidenceIds": "E-AUDIT-361",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -13944,7 +13944,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

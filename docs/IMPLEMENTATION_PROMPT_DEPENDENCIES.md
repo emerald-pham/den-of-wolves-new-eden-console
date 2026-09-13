@@ -488,7 +488,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 358 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Reflect attack parking on DRADIS. |
 | 359 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Merge contacts after rejoin. |
 | 360 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Deny direct DRADIS writes. |
-| 361 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-361 | M7 | Build the authoritative shuttle manifest. |
+| 361 | PRESERVE | partial | 161;162 | none | none | none | none | none | none | none | E-AUDIT-361 | M7 | Build the authoritative shuttle manifest. |
 | 362 | NEW | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-362 | M7 | Transfer shuttle control. |
 | 363 | NEW | missing | 361;362 | none | none | none | none | none | none | none | E-AUDIT-363 | M7 | Resolve holder-based docking. |
 | 364 | NEW | missing | 142;361 | none | none | none | none | none | none | none | E-AUDIT-364 | M7 | Validate Team-start docking. |
@@ -1187,7 +1187,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-349 | hard_prompt | 349 -> 339;347 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Communication restoration follows denial and committed merge. |
 | E-AUDIT-350 | hard_prompt | 350 -> 346;347 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Split/rejoin retries compose eligibility and merge identity. |
 | E-AUDIT-352 | hard_prompt | 352 -> 294 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Transit presentation consumes authoritative jump departure state. |
-| E-AUDIT-361 | hard_prompt | 361 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The craft manifest is typed by vessel and printed statistics. |
+| E-AUDIT-361 | hard_prompt | 361 -> 161;162 | functions/src/craftOwnership.ts; functions/src/index.ts; functions/src/sessionComposition.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.test.ts; functions/src/startCallable.test.ts; src/data/vessels/starlight.ts; src/data/aegisConsoles.ts; src/data/pdfConsoles.ts; authorized routed REFERENCE_ONLY_SHUTTLES.md; authorized routed REFERENCE_ONLY_CAPYBARA_EXPANSION.md | The server now composes a starting-craft manifest from the role-owned catalog and authoritative dockings: every enabled entry records craft id, kind, printed owner role, enabled mode, and one active starting host; fighter-wing hosts come from their printed bay vessels. Start validates exact-once rows and migrates legacy manifests from current dockings without resetting moved craft. GM-controlled Union craft remain disabled until an explicit docking exists because the routed source does not choose Wobbly/Ally's initial host. |
 | E-AUDIT-362 | hard_prompt | 362 -> 361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Control transfer consumes the craft manifest. |
 | E-AUDIT-363 | hard_prompt | 363 -> 361;362 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Holder-based docking consumes manifest and current-holder authority. |
 | E-AUDIT-364 | hard_prompt | 364 -> 142;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Team-start docking consumes Team docking and manifest authority. |

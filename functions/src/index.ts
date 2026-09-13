@@ -171,9 +171,14 @@ import {
 } from './fleetGroups';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
+  craftStartingManifestForSetup,
+  craftStartingManifestHasUnresolvedHosts,
+  craftStartingManifestMatches,
   roleOwnedCraftForRoles,
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
+  shuttleDockingsAreKnownAndUnique,
+  shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
 import {
   PRESENCE_LEASE_MS,
@@ -965,9 +970,17 @@ function requireWolfAttackParking(
   activeVesselIds: readonly string[],
   activeRoleIds: readonly string[],
 ): WolfAttackParkingSnapshot {
-  const ownedCraft = roleOwnedCraftForRoles(activeRoleIds);
-  const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
   const initialDockings = initialShuttleDockingsForRoles(activeRoleIds);
+  const storedDockings = session.get('shuttleDockings');
+  const dockingIds = new Set(
+    Array.isArray(storedDockings)
+      ? storedDockings.flatMap((entry) =>
+        isRecord(entry) && typeof entry.shuttleId === 'string' ? [entry.shuttleId] : [])
+      : initialDockings.map((docking) => docking.shuttleId),
+  );
+  const ownedCraft = roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => craft.enabledMode === 'standard' || dockingIds.has(craft.id));
+  const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
   // The locked vessel roster represents every shuttle initially docked with
   // an active ship, while the role catalog adds optional Union craft that need
   // an explicit authoritative docking before declaration.
@@ -975,9 +988,9 @@ function requireWolfAttackParking(
     ...initialDockings.map((docking) => docking.shuttleId),
     ...expectedShuttles.map((craft) => craft.id),
   ]);
-  const source = session.get('shuttleDockings') === undefined
+  const source = storedDockings === undefined
     ? initialDockings
-    : session.get('shuttleDockings');
+    : storedDockings;
   if (!Array.isArray(source)) {
     throw commandError(
       'failed-precondition',
@@ -1862,6 +1875,18 @@ export const createSession = onCall<{
       const setup = canonicalSessionSetup(creation.configuration, activeRoleIds);
       const stableSeats = stableSeatsForRoles(activeRoleIds);
       const composition = initialSessionComposition(setup);
+      const startingCraftManifest = craftStartingManifestForSetup(
+        setup.activeRoleIds,
+        vesselModeForConfiguration(setup),
+        composition.shuttleDockings,
+      );
+      if (!shuttleDockingsAreKnownAndUnique(composition.shuttleDockings)) {
+        throw commandError(
+          'failed-precondition',
+          'The selected setup has unresolved craft starting hosts.',
+          'malformed-input',
+        );
+      }
       const group = initialFleetGroup(setup.activeVesselIds, [uid]);
       const shipGalacticCoordinates = activeVesselRecord(
         INITIAL_SHIP_GALACTIC_COORDINATES,
@@ -2034,6 +2059,7 @@ export const createSession = onCall<{
             setup.activeRoleIds,
             vesselModeForConfiguration(setup),
           ),
+          startingCraft: startingCraftManifest,
           setupRevision: 0,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -2775,6 +2801,13 @@ export const confirmSetup = onCall<{
         initialShuttleDockingsForRoles(currentRoleIds),
       currentActiveVesselIds,
     );
+    if (!shuttleDockingsAreKnownAndUnique(currentDockings)) {
+      throw commandError(
+        'failed-precondition',
+        'The selected setup has malformed craft docking state.',
+        'malformed-input',
+      );
+    }
     const retainedDockings = activeShuttleDockingsForVessels(currentDockings, nextActiveVesselIds);
     const seededDockings = initialShuttleDockingsForRoles(setup.activeRoleIds);
     const retainedByShuttleId = new Map(retainedDockings.map((docking) => [docking.shuttleId, docking]));
@@ -2800,6 +2833,18 @@ export const confirmSetup = onCall<{
       setup.activeRoleIds,
       vesselModeForConfiguration(setup),
     );
+    const nextStartingCraftManifest = craftStartingManifestForSetup(
+      setup.activeRoleIds,
+      vesselModeForConfiguration(setup),
+      nextDockings,
+    );
+    if (!shuttleDockingsAreKnownAndUnique(nextDockings)) {
+      throw commandError(
+        'failed-precondition',
+        'The selected setup has unresolved craft starting hosts.',
+        'malformed-input',
+      );
+    }
     const reply = {
       status: 'committed' as const,
       chartSelectionLocked: authority.session.get('chartSelectionLocked') === true || command.lockChart,
@@ -2839,6 +2884,7 @@ export const confirmSetup = onCall<{
     );
     tx.set(db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`), {
       ...nextCraftManifest,
+      startingCraft: nextStartingCraftManifest,
       setupRevision: reply.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -3372,6 +3418,44 @@ export const startGame = onCall<{
       );
     }
 
+    const storedShuttleDockings = authority.session.get('shuttleDockings');
+    const currentDockingsForManifest = Array.isArray(storedShuttleDockings)
+      ? storedShuttleDockings as Array<{ shuttleId: string; shipId: string }>
+      : initialShuttleDockingsForRoles(lockedSetup.activeRoleIds);
+    const startingCraftManifest = craftStartingManifestForSetup(
+      lockedSetup.activeRoleIds,
+      vesselModeForConfiguration(lockedSetup),
+      currentDockingsForManifest,
+    );
+    if (!shuttleDockingsMatchRoleOwnedCraft(lockedSetup.activeRoleIds, currentDockingsForManifest) ||
+        !craftStartingManifestMatches(
+          startingCraftManifest,
+          startingCraftManifest,
+          lockedSetup.activeVesselIds,
+        )) {
+      throw commandError(
+        'failed-precondition',
+        'Start blocked: craft-starting-manifest.',
+        'malformed-input',
+      );
+    }
+    const persistedStartingCraft = craftOwnershipManifest.exists
+      ? craftOwnershipManifest.get('startingCraft')
+      : undefined;
+    if (persistedStartingCraft !== undefined &&
+        !craftStartingManifestMatches(
+          persistedStartingCraft,
+          startingCraftManifest,
+          lockedSetup.activeVesselIds,
+        ) &&
+        !craftStartingManifestHasUnresolvedHosts(persistedStartingCraft, startingCraftManifest)) {
+      throw commandError(
+        'failed-precondition',
+        'Start blocked: craft-starting-manifest.',
+        'conflict',
+      );
+    }
+
     const routineWolf = deriveRoutineWolfAssignment({
       playerCount,
       occupiedCoreRoleIds: canonicalRosterIds.filter((roleId) =>
@@ -3458,6 +3542,7 @@ export const startGame = onCall<{
       eligibleRoleIds: [...routineWolf.eligibleRoleIds],
       orderedModifiers: [],
       roleOwnedCraft: expectedCraftManifest.roleOwnedCraft,
+      startingCraft: startingCraftManifest,
       resultCount: holders.length,
       loyaltySource,
       request: fingerprint,
@@ -3514,9 +3599,10 @@ export const startGame = onCall<{
       payload: { type: 'setup-receipt', ...setupReceipt },
       createdAt: FieldValue.serverTimestamp(),
     });
-    if (!craftOwnershipManifest.exists) {
+    if (!craftOwnershipManifest.exists || persistedStartingCraft === undefined) {
       tx.set(craftOwnershipManifestRef, {
         ...expectedCraftManifest,
+        startingCraft: startingCraftManifest,
         setupRevision: committedSetupRevision,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),

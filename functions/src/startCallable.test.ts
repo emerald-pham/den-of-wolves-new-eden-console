@@ -62,6 +62,20 @@ import { setFacilitatorResponsibility, startGame } from './index';
 import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
+import { initialShuttleDockingsForRoles } from './shuttlecraft';
+import { craftStartingManifestForSetup } from './craftOwnership';
+
+function fixtureDockingsForRoles(activeRoleIds: readonly string[]) {
+  return [
+    ...initialShuttleDockingsForRoles(activeRoleIds),
+    ...(activeRoleIds.includes('joint-engineering-quellon-refinery')
+      ? [{ shuttleId: 'wobbly', shipId: 'quellon', dockedAt: 'EXPLICIT TEST SETUP' }]
+      : []),
+    ...(activeRoleIds.includes('joint-engineering-shepherd-icebreaker')
+      ? [{ shuttleId: 'ally', shipId: 'shepherd', dockedAt: 'EXPLICIT TEST SETUP' }]
+      : []),
+  ];
+}
 
 const PRIVATE_SNAPSHOT_KEYS = new Set([
   'brief', 'deck', 'deckOrder', 'decks', 'facilitatorNotes', 'loyalty', 'loyaltyAssignment',
@@ -150,6 +164,7 @@ function provisionProductionRoster(
     expansion: playerCount >= 19 ? 'capybara' : 'base',
     activeRoleIds,
     activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+    shuttleDockings: fixtureDockingsForRoles(activeRoleIds),
     ...(pressMode === 'claimed' ? { pressHolderUid: 'press-21', pressEnabled: true } :
       pressMode === 'unclaimed' ? { pressHolderUid: null, pressEnabled: true } :
         pressMode === 'disabled' ? { pressHolderUid: 'press-21', pressEnabled: false } :
@@ -198,6 +213,7 @@ beforeEach(() => {
     currentTurn: 0,
     activeRoleIds: roleIds,
     activeVesselIds: activeVesselIdsForRoles(roleIds),
+    shuttleDockings: fixtureDockingsForRoles(roleIds),
     capybaraEnabled: true,
     dioneEnabled: true,
   };
@@ -433,22 +449,73 @@ it('writes the exact server-derived craft manifest when a legacy start has no ma
     activeRoleIds: [...roleIds],
     vesselMode: 'base-capybara',
     roleOwnedCraft: [
-      { id: 'snn-press-shuttle', kind: 'shuttle', ownerRoleId: 'press-officer' },
-      { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander' },
-      { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
-      { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
-      { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
-      { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist' },
-      { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer' },
-      { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel' },
-      { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel' },
-      { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery' },
-      { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker' },
+      { id: 'snn-press-shuttle', kind: 'shuttle', ownerRoleId: 'press-officer', enabledMode: 'standard' },
+      { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard' },
+      { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard' },
+      { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard' },
+      { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner', enabledMode: 'standard' },
+      { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist', enabledMode: 'standard' },
+      { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer', enabledMode: 'standard' },
+      { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard' },
+      { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard' },
+      { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled' },
+      { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled' },
     ],
+    startingCraft: craftStartingManifestForSetup(
+      roleIds,
+      'base-capybara',
+      fixtureDockingsForRoles(roleIds),
+    ),
     setupRevision: 1,
     createdAt: 'server-time',
     updatedAt: 'server-time',
   });
+});
+
+it('blocks duplicate current docking rows before the start transaction writes', async () => {
+  mock.session.shuttleDockings = [
+    ...(mock.session.shuttleDockings as Array<Record<string, string>>),
+    { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'DUPLICATE' },
+  ];
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-duplicate-docking', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Start blocked: craft-starting-manifest.',
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('leaves GM-controlled Union craft disabled until an explicit host is persisted', async () => {
+  mock.session.shuttleDockings = initialShuttleDockingsForRoles(roleIds);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-unresolved-union-host', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', currentTurn: 1 });
+  const manifestWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/craftOwnership/manifest',
+  )?.[1];
+  expect(manifestWrite?.startingCraft?.entries).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'wobbly' }),
+    expect.objectContaining({ id: 'ally' }),
+  ]));
+});
+
+it('records the current authoritative docking when migrating a legacy manifest', async () => {
+  mock.session.shuttleDockings = (mock.session.shuttleDockings as Array<Record<string, string>>).map((docking) =>
+    docking.shuttleId === 'starlight' ? { ...docking, shipId: 'quellon' } : docking);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-moved-docking', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', currentTurn: 1 });
+  const manifestWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/craftOwnership/manifest',
+  )?.[1];
+  expect(manifestWrite?.startingCraft?.entries).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'starlight', startingHostId: 'quellon' }),
+  ]));
 });
 
 it('reports a typed setup error for a malformed persisted high-count mode before writes', async () => {
@@ -912,6 +979,7 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
     playerCount: 20,
     activeRoleIds: coreRoleIds,
     activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+    shuttleDockings: fixtureDockingsForRoles(coreRoleIds),
     pressEnabled: true,
   };
   mock.playerDocs = coreRoleIds.map((roleId, index) => ({

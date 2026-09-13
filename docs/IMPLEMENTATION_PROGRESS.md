@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **216 / 750 prompts complete (28.80%)**
 
-Status breakdown: **216 done · 22 partial · 512 missing**.
+Status breakdown: **216 done · 23 partial · 511 missing**.
 
 Active prompt: **none**
 
@@ -803,7 +803,7 @@ release classification and evidence.
 | 358 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 359 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 360 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 361 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 361 | partial | non-feature | — | Partial production path: server-owned setup/start state now composes each enabled craft's exact id, shuttle or fighter-wing kind, printed owner role, enabled mode, and authoritative starting host. Standard craft and printed fighter-wing hosts are validated exactly once before mutation; legacy starts and setup edits preserve current dockings rather than resetting to printed defaults. GM-controlled Wobbly and Ally remain disabled until an explicit current docking exists because the routed source leaves their initial Union pairing unresolved. Base and expansion Capybara craft stay distinct. |
 | 362 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 363 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 364 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
