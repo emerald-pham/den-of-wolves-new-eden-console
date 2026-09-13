@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**275 / 751 prompts complete (36.62%)**
+**276 / 751 prompts complete (36.75%)**
 
-Status breakdown: **275 done · 25 partial · 451 missing**.
+Status breakdown: **276 done · 25 partial · 450 missing**.
 
 Active prompt: **none**
 
@@ -1114,7 +1114,7 @@ release classification and evidence.
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 637 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 638 | missing | non-feature | — | Planned [EXTEND] prompt: the catalog now contains the owner-set 8–20 rows, but one-GM 20-core production setup, optional Press-21, multiple-GM, reconnect/action, and measured capacity evidence remain open. |
+| 638 | done | non-feature | — | The source-aligned 20-player Capybara rehearsal now passes against an isolated Firebase Emulator: 20 core joins and seats, claimed Press holder, two simultaneous GMs, fresh Turn 0 ATC projection, listener convergence/privacy, real action commit/replay/stale/concurrency, dense heartbeats without duplicate ticker state, and core/Press reconnect retention. The evidence is local-emulator capacity proof; no 60-browser or production-capacity claim is made, and full Capybara vertical mechanics remain Prompt 584. |
 | 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 641 | missing | non-feature | — | Planned [PROVE] one-GM complete base playthrough followed by optional multi-GM mutation races. |
