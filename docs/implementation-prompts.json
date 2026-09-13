@@ -4774,6 +4774,13 @@
       "language": "The rendered Settings changelog uses plain planned-item wording throughout its history, keeps the session join screen wording clear, and preserves the existing done/total percentage markers. A deterministic player-field-only guard leaves implementation provenance metadata intact; focused version and AppHeader regressions cover the copy, bounded scroll region, accessible tab stop, and rendered Settings flow at phone, desktop, and short-landscape sizes with reduced motion.",
       "source": "src/changelog.ts; src/version.test.ts; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/index.css; rendered Settings checks at 390x844, 1440x900, and 844x390 with prefers-reduced-motion: reduce",
       "type": "evidence / player-copy / accessibility / layout"
+    },
+    {
+      "direction": "658 -> CIC-SEAT-STATUS",
+      "id": "E-658-VERIFIED",
+      "language": "The retained /roles screen renders the exact requested default seat status in its existing polite live region. Sixteen RoleSelect tests pass, including the accessible text and existing claim/release route flow. The production route fixture exposes the exact status at 390x844, 1440x900, and 844x390 with reduced motion and no horizontal body overflow; existing CSS and authority behavior are unchanged.",
+      "source": "src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; production route fixture at phone, desktop, short landscape",
+      "type": "evidence / player-copy / accessibility"
     }
   ],
   "plan": {
@@ -21658,15 +21665,15 @@
       "tag": "REPAIR"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the retained `/roles` route shows the exact visible and accessible status text `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat ownership, retry/idempotency, stale/reconnect behavior, privacy, and existing layout/accessibility. If a future flow removes the page, remove this status with it rather than duplicating it elsewhere.",
         "title": "Use CIC language for seat-change confirmation when the page remains."
       },
-      "description": "Planned [POLISH] prompt: retain `/roles` seat-change confirmation as the exact visible and accessible `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat/retry/stale/reconnect/privacy behavior and existing layout.",
-      "evidenceIds": "E-AUDIT-658",
+      "description": "The retained role-selection seat status now uses the exact CIC confirmation wording. Existing claim/release status updates and server mutations remain unchanged; the route regression checks the accessible status and claim/release flow.",
+      "evidenceIds": "E-AUDIT-658;E-658-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "030;050",
@@ -21677,7 +21684,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     },
     {

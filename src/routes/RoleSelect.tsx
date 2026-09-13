@@ -262,7 +262,7 @@ export default function RoleSelect() {
             })}
           </ul>
           <p className="role-seat-board__note" role="status" aria-live="polite" aria-label="Seat status">
-            {seatStatus ?? 'Seat changes commit through the authoritative session service.'}
+            {seatStatus ?? 'SEAT CHANGES COMMIT THROUGH THE CIC.'}
           </p>
           {interventionSeatId && (
             <div

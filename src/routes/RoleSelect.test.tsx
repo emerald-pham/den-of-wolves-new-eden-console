@@ -287,6 +287,8 @@ describe('RoleSelect', () => {
     });
     renderRoute();
 
+    expect(screen.getByRole('status', { name: 'Seat status' }))
+      .toHaveTextContent('SEAT CHANGES COMMIT THROUGH THE CIC.');
     expect(screen.getByText('AEGIS // Admiral')).toBeInTheDocument();
     expect(screen.getByText('Refinery 124 // P.D.F. Colonel')).toBeInTheDocument();
     expect(screen.queryByText('SNN // Press Officer')).not.toBeInTheDocument();

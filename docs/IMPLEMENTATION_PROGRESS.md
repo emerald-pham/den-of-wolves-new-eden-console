@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**218 / 750 prompts complete (29.07%)**
+**219 / 750 prompts complete (29.20%)**
 
-Status breakdown: **218 done · 25 partial · 507 missing**.
+Status breakdown: **219 done · 25 partial · 506 missing**.
 
 Active prompt: **none**
 
@@ -1137,7 +1137,7 @@ release classification and evidence.
 | 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
 | 656 | done | non-feature | 0.3.54 | The launcher now keeps cached or reconnecting sessions out of create/join actions, exposes a truthful current-session recovery link, restores only recognized in-session routes, and preserves transient resume state until terminal denial clears it. Focused App, Landing, session-service, and connection-indicator tests plus Chrome CDP route/recovery checks cover the required viewports and reduced motion. |
 | 657 | done | non-feature | — | Completed [REPAIR] copy cleanup removes standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage. The Settings changelog remains bounded, keyboard reachable, and readable across phone, desktop, and short-landscape layouts with reduced motion. |
-| 658 | missing | non-feature | — | Planned [POLISH] prompt: retain `/roles` seat-change confirmation as the exact visible and accessible `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat/retry/stale/reconnect/privacy behavior and existing layout. |
+| 658 | done | feature | — | The retained role-selection seat status now uses the exact CIC confirmation wording. Existing claim/release status updates and server mutations remain unchanged; the route regression checks the accessible status and claim/release flow. |
 | 659 | missing | non-feature | — | Planned [PRESERVE] prompt: inventory reachable player-facing copy, check in the approved CIC lexicon, forbidden jargon, and reviewed exceptions, and enforce the contract deterministically; this includes removing `System reduced motion is off.` while preserving system/effective reduced-motion behavior and meaningful accessibility. |
 | 660 | done | non-feature | — | Completed as tooling-only infrastructure: exact full validation self-prepares a missing local emulator configuration through the atomic allocator, records configuration/content identity, preserves pre-existing or replaced files, and releases only its own reservation/files with the exact `npm run emulators:configure -- auto` fallback. |
 | 661 | done | non-feature | — | Completed as tooling-only infrastructure: exact validation derives an AST/diff-proven static-copy profile requiring an allowlisted player source plus focused test, runs focused copy/a11y and lightweight gates only for that profile, and fails closed to `test:all` for mixed, uncertain, structural, security, or infrastructure changes. |
