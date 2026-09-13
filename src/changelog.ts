@@ -23,6 +23,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 274, total: 751, percentage: '36.48%',
+      done: 274, partial: 25, active: 0, missing: 452,
+    },
+    changes: [
+      'Air Traffic Control broadcasts appear as soon as you join at Turn 0, before any news is published. Existing Turn 0 sessions recover the missing dispatch automatically.',
+      '274 of 751 planned items are complete (36.48%).',
+    ],
+  },
+  {
+    version: '0.4.6',
+    implementationProgress: {
+      completed: 274, total: 751, percentage: '36.48%',
       done: 274, partial: 24, active: 0, missing: 453,
     },
     changes: [
