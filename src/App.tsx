@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
@@ -30,9 +30,12 @@ import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
+import { findShip } from '@/data/ships';
+import { findConsoleRole } from '@/data/roles';
+import { replacementRoleFor } from '@/data/replacementRoles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { GameSession, LoyaltyCensus, RoleBrief as RoleBriefProjection } from '@/types/game';
+import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -65,6 +68,23 @@ function stripGmNavigationProjection(session: GameSession): GameSession {
   return next;
 }
 
+function effectivePlayerShip(player: Player | null | undefined): Player['shipPreferenceId'] {
+  if (!player) return undefined;
+  if (player.replacementRoleId) {
+    const replacement = replacementRoleFor(player.replacementRoleId);
+    const replacementShip = replacement?.vesselId ? findShip(replacement.vesselId) : undefined;
+    return replacementShip?.id;
+  }
+  const assignedShipId = findConsoleRole(player.assignedRoleId ?? undefined)?.shipId;
+  return assignedShipId ? findShip(assignedShipId)?.id : undefined;
+}
+
+function playerEntitlementKey(player: Player | null | undefined): string | undefined {
+  if (!player) return undefined;
+  if (player.replacementRoleId) return `replacement:${player.replacementRoleId}`;
+  return player.assignedRoleId ? `assigned:${player.assignedRoleId}` : undefined;
+}
+
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
@@ -72,6 +92,7 @@ function AppRoutes() {
   const me = useSessionStore((state) => state.me);
   const sessionId = session?.id;
   const playerUid = me?.uid;
+  const playerListenerGeneration = useRef(0);
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
@@ -95,6 +116,8 @@ function AppRoutes() {
   useEffect(() => {
     if (!sessionId || !playerUid) return;
     let active = true;
+    const listenerGeneration = ++playerListenerGeneration.current;
+    const callbackCurrent = () => active && playerListenerGeneration.current === listenerGeneration;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
@@ -142,6 +165,7 @@ function AppRoutes() {
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
         onSession: (next) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           const current = store.session;
           if (!current || current.id !== next.id) {
@@ -163,6 +187,7 @@ function AppRoutes() {
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
         },
         onPlayerDiscovery: (projection) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           const current = store.session;
           if (!current || current.id !== sessionId) return;
@@ -177,6 +202,8 @@ function AppRoutes() {
             store.setSession(stripNavigationProjection(current));
             return;
           }
+          const entitledShipId = effectivePlayerShip(store.me);
+          if (!entitledShipId || projection.shipId !== entitledShipId) return;
           const shipId = projection.shipId;
           const withoutPreviousDiscovery = stripNavigationProjection(current);
           store.setSession({
@@ -191,6 +218,7 @@ function AppRoutes() {
           });
         },
         onGmDiscovery: (projection) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           const current = store.session;
           if (!current || current.id !== sessionId) return;
@@ -202,14 +230,24 @@ function AppRoutes() {
           if (store.me?.role === 'gm') store.setSession({ ...current, ...projection });
         },
         onSessionFreshness: (fresh) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           store.setConnection(fresh ? 'live' : 'offline');
         },
         onPlayer: (next) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          const previousEntitlement = playerEntitlementKey(store.me);
+          const nextEntitlement = playerEntitlementKey(next);
           playerProjectionFresh = false;
           store.setMe(next);
+          if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
+            const current = useSessionStore.getState().session;
+            if (current?.id === sessionId) {
+              useSessionStore.getState().setSession(stripNavigationProjection(current));
+            }
+          }
           const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
           if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
@@ -244,16 +282,19 @@ function AppRoutes() {
           }
         },
         onPlayerFreshness: (fresh) => {
+          if (!callbackCurrent()) return;
           playerProjectionFresh = fresh;
           reconcileLoyaltyCensus();
         },
         onKicked: () => {
+          if (!callbackCurrent()) return;
           clearLoyaltyCensus();
           useSessionStore.getState().disconnect();
         },
-        onSeats: (next) => useSessionStore.getState().setSeats(next),
-        onPrivateLoyalty: (next) => useSessionStore.getState().setPrivateLoyalty(next),
+        onSeats: (next) => { if (callbackCurrent()) useSessionStore.getState().setSeats(next); },
+        onPrivateLoyalty: (next) => { if (callbackCurrent()) useSessionStore.getState().setPrivateLoyalty(next); },
         onRoleBrief: (next) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           if (!next) {
             pendingRoleBrief = null;
@@ -277,6 +318,7 @@ function AppRoutes() {
           store.setRoleBrief(null);
         },
         onSetupReceipt: (next) => {
+          if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           // A denied GM query can report through the still-mounted session
           // listener after demotion. Never retain or rehydrate that private
@@ -287,11 +329,12 @@ function AppRoutes() {
           }
           store.setGmSetupReceipt(next);
         },
-        onError: () => useSessionStore.getState().setConnection('offline'),
+        onError: () => { if (callbackCurrent()) useSessionStore.getState().setConnection('offline'); },
       });
     });
     return () => {
       active = false;
+      playerListenerGeneration.current += 1;
       pendingRoleBrief = null;
       clearLoyaltyCensus();
       unsubscribe();

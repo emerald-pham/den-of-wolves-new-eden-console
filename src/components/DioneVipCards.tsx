@@ -18,6 +18,9 @@ export default function DioneVipCards({
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
+  const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
+  const role = useSessionStore((state) => state.me?.role);
+  const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const access = useConsoleAccess();
   const [hand, setHand] = useState<VipHand | null>(null);
   const [players, setPlayers] = useState<readonly Player[]>([]);
@@ -27,9 +30,11 @@ export default function DioneVipCards({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    setHand(null);
+    setPlayers([]);
+    setTargetUid('');
+    setCardId('');
     if (!session?.id || !me?.uid) {
-      setHand(null);
-      setPlayers([]);
       return undefined;
     }
     let active = true;
@@ -37,15 +42,19 @@ export default function DioneVipCards({
     let unsubscribePlayers: () => void = () => undefined;
     void import('@/lib/firestore').then(({ subscribeVipCards, subscribeConnectedPlayers }) => {
       if (!active) return;
-      unsubscribeHand = subscribeVipCards(session.id, me.uid, setHand, () => undefined);
-      unsubscribePlayers = subscribeConnectedPlayers(session.id, setPlayers, () => undefined);
+      unsubscribeHand = subscribeVipCards(session.id, me.uid, (next) => {
+        if (active) setHand(next);
+      }, () => undefined);
+      unsubscribePlayers = subscribeConnectedPlayers(session.id, (next) => {
+        if (active) setPlayers(next);
+      }, () => undefined);
     });
     return () => {
       active = false;
       unsubscribeHand();
       unsubscribePlayers();
     };
-  }, [me?.uid, session?.id]);
+  }, [fleetGroupId, gmInstanceId, me?.uid, role, session?.id]);
 
   const currentPhase = session ? phaseForSession(session) : undefined;
   const coordination = currentPhase?.airspace.state === 'lifted';

@@ -437,7 +437,7 @@ describe('App', () => {
       handlers = next;
       return vi.fn();
     });
-    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player', assignedRoleId: 'admiral' });
     const { unmount } = render(<App />);
     await waitFor(() => expect(handlers).toBeDefined());
     const own = {
@@ -493,6 +493,45 @@ describe('App', () => {
     act(() => handlers?.onPlayerDiscovery?.(null));
     expect(useSessionStore.getState().session).toMatchObject(gm);
     expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    unmount();
+  });
+
+  it('binds private discovery to the current assigned or replacement vessel', async () => {
+    const handlers: Array<Parameters<typeof subscribeSessionState>[2]> = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers.push(nextHandlers);
+      return vi.fn();
+    });
+    const dionePlayer: Player = { ...player, role: 'player', assignedRoleId: 'dione-captain' };
+    const shepherdPlayer: Player = {
+      ...dionePlayer,
+      replacementRoleId: 'rosal-militia-leader',
+    };
+    const dioneProjection = {
+      groupId: 'fleet-1', shipId: 'dione', currentCoordinate: '5143',
+      knownCoordinates: ['0000', '5143'], knownSystems: {}, pursuitDistance: 1,
+      navigationLogs: [], revision: 2,
+    };
+    const shepherdProjection = {
+      ...dioneProjection, shipId: 'shepherd' as const, currentCoordinate: '1413', revision: 3,
+    };
+    useSessionStore.getState().setIdentity(session, dionePlayer);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toHaveLength(1));
+
+    act(() => handlers[0]?.onPlayerDiscovery?.(dioneProjection));
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ dione: '5143' });
+
+    act(() => handlers[0]?.onPlayer?.(shepherdPlayer));
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipNavigationLogs).toBeUndefined();
+
+    // The old listener may still deliver a callback while Firestore tears it down.
+    act(() => handlers[0]?.onPlayerDiscovery?.(dioneProjection));
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    act(() => handlers[0]?.onPlayerDiscovery?.(shepherdProjection));
+    expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ shepherd: '1413' });
     unmount();
   });
 

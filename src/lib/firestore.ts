@@ -1603,13 +1603,16 @@ export function subscribeConnectedPlayers(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  // A new group or role projection invalidates the previous roster before the
+  // replacement listener has delivered its first server snapshot.
+  onPlayers([]);
   const viewer = useSessionStore.getState();
-  const facilitator = viewer.me?.role === 'gm' || viewer.gmInstance !== null;
+  const facilitator = viewer.me?.role === 'gm';
   const fleetGroupId = viewer.me?.fleetGroupId;
   // A member cannot safely subscribe until the callable projection has
   // supplied its server-owned group pointer. Do not fall back to a fleetwide
   // query while that identity is still loading.
-  if (!facilitator && typeof fleetGroupId !== 'string') {
+  if (!facilitator && (typeof fleetGroupId !== 'string' || fleetGroupId.length === 0)) {
     return () => { subscribed = false; };
   }
   const playersQuery = facilitator

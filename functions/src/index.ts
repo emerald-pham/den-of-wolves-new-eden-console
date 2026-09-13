@@ -2898,6 +2898,7 @@ export const confirmSetup = onCall<{
     const nextNavigation = navigationState({
       shipGalacticCoordinates: nextShipGalacticCoordinates,
       shipNavigationLogs: nextShipNavigationLogs,
+      systemHistory: currentNavigation.systemHistory,
     }, nextActiveVesselIds);
     tx.set(navigationStateRef(command.sessionId), {
       ...navigationProjectionFields(nextNavigation),

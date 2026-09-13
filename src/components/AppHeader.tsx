@@ -238,6 +238,8 @@ export default function AppHeader() {
   const connection = useSessionStore((state) => state.connection);
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);
+  const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
+  const playerRole = useSessionStore((state) => state.me?.role);
   const reconnectDisplayStatus = useConnectionStatusGrace(
     status,
     Boolean(sessionId && playerUid),
@@ -289,14 +291,14 @@ export default function AppHeader() {
       if (!active) return;
       unsubscribe = subscribeConnectedPlayers(
         sessionId,
-        (players) => setConnectedPlayers(players.length),
+        (players) => { if (active) setConnectedPlayers(players.length); },
       );
     });
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [sessionId]);
+  }, [fleetGroupId, playerRole, sessionId]);
 
   function closeSettings(): void {
     setConfirmDisconnect(false);

@@ -1590,7 +1590,7 @@ it('drops delayed cached secondary query snapshots after a server snapshot', asy
   await vi.waitFor(() => expect(onInstances).toHaveBeenCalled());
 
   expect(onInstances).toHaveBeenCalledTimes(1);
-  expect(onPlayers).toHaveBeenCalledTimes(1);
+  expect(onPlayers).toHaveBeenCalledTimes(2);
   expect(onEvents).toHaveBeenCalledTimes(1);
   expect(onDraws).toHaveBeenCalledTimes(1);
   stopDraws();
@@ -1619,7 +1619,7 @@ it('shares accepted session authority with secondary queries before their first 
   subscribeConnectedPlayers(sessionId, onPlayers, vi.fn());
   callbacks[0]?.({ metadata: { fromCache: true }, docs: [] });
 
-  expect(onPlayers).not.toHaveBeenCalled();
+  expect(onPlayers).toHaveBeenCalledWith([]);
   useSessionStore.getState().reset();
 });
 
@@ -1629,7 +1629,11 @@ it('queries a member roster by its server-owned group and clears stale data on r
       uid: 'grouped-player', sessionId: 'grouped-session', displayName: 'Player',
       role: 'player', seatId: null, fleetGroupId: 'fleet-2', joinedAt: '',
     },
-    gmInstance: null,
+    // A stale local GM instance must not widen a demoted player's query.
+    gmInstance: {
+      id: 'stale-gm', sessionId: 'grouped-session', uid: 'grouped-player', name: 'Old GM',
+      deviceLabel: 'old device', claimedAt: '',
+    },
   });
   let onSnapshotCallback: ((snapshot: unknown) => void) | undefined;
   let onSnapshotError: (() => void) | undefined;

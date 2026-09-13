@@ -43,6 +43,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const { shipId, roleId } = useParams();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
+  const playerRole = useSessionStore((state) => state.me?.role);
+  const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
@@ -128,7 +131,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     let unsubscribeDamage: () => void = () => undefined;
     void import('@/lib/firestore').then(({ subscribeShipConfetti, subscribeConnectedPlayers, subscribeDamageDraws }) => {
       if (!active) return;
-      unsubscribeCrew = subscribeConnectedPlayers(session.id, setCrew, () => setCrew(null));
+      unsubscribeCrew = subscribeConnectedPlayers(session.id, (next) => {
+        if (active) setCrew(next);
+      }, () => { if (active) setCrew(null); });
       unsubscribeDamage = subscribeDamageDraws(
         session.id,
         setDamageDraws,
@@ -160,7 +165,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       unsubscribeDamage();
       unsubscribeCrew?.();
     };
-  }, [session?.id, ship]);
+  }, [fleetGroupId, gmInstanceId, playerRole, session?.id, ship]);
 
   useEffect(() => {
     if (burst === 0) return;

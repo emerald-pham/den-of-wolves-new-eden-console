@@ -594,6 +594,65 @@ it('reconciles a removed role craft instead of retaining an inactive docking row
   ]));
 });
 
+it('carries private system history through setup reconciliation and prunes removed vessels', async () => {
+  const currentRoleIds = recommendedRoleIds(12);
+  const nextRoleIds = recommendedRoleIds(8);
+  const currentActiveVesselIds = activeVesselIdsForRoles(currentRoleIds);
+  const storedNavigation = {
+    shipGalacticCoordinates: Object.fromEntries(currentActiveVesselIds.map((shipId) => [shipId, '0000'])),
+    shipNavigationLogs: Object.fromEntries(currentActiveVesselIds.map((shipId) => [shipId, []])),
+    systemHistory: {
+      aegis: {
+        '5143': {
+          coordinate: '5143', discovery: { id: 'aegis-discovery', occurredAt: 'TURN 1' },
+          attempts: [{ id: 'aegis-attempt', occurredAt: 'TURN 2' }],
+          hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        },
+      },
+      dione: {
+        '8378': {
+          coordinate: '8378', discovery: { id: 'dione-discovery', occurredAt: 'TURN 1' },
+          attempts: [{ id: 'dione-attempt', occurredAt: 'TURN 2' }],
+          hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        },
+      },
+    },
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 12, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: true, capybaraEnabled: true, activeRoleIds: currentRoleIds,
+        activeVesselIds: currentActiveVesselIds,
+      });
+    }
+    if (ref.path === 'sessions/s1/serverState/navigation') {
+      return {
+        ...snapshot({}, true),
+        data: () => storedNavigation,
+      };
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'retain-history', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds: nextRoleIds,
+  }))).resolves.toMatchObject({ status: 'committed' });
+
+  const navigationWrite = mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/s1/serverState/navigation',
+  )?.[1] as Record<string, unknown> | undefined;
+  expect(navigationWrite?.systemHistory).toMatchObject({
+    aegis: { '5143': { attempts: [{ id: 'aegis-attempt' }] } },
+  });
+  expect(navigationWrite?.systemHistory).not.toHaveProperty('dione');
+});
+
 it('locks the effective vessel mode after casting begins without mutating setup', async () => {
   const activeRoleIds = recommendedRoleIds(8);
   mock.get.mockImplementation(async (ref: { path: string }) => {
