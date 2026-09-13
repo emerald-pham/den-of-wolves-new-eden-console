@@ -1327,8 +1327,19 @@ export function subscribeSessionState(
   currentSessionSubscriptionToken = subscriptionToken;
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
-  const acceptsWolfCultRevision = createMonotonicRevisionGate();
-  const acceptsArbourVisionRevision = createMonotonicRevisionGate();
+  let acceptsWolfCultRevision = createMonotonicRevisionGate();
+  let acceptsArbourVisionRevision = createMonotonicRevisionGate();
+  let unsubscribeWolfCult: Unsubscribe = () => undefined;
+  let unsubscribeArbourVision: Unsubscribe = () => undefined;
+  let unsubscribePrivateLoyalty: Unsubscribe = () => undefined;
+  let wolfCultListenerGeneration = 0;
+  let arbourVisionListenerGeneration = 0;
+  let privateLoyaltyListenerGeneration = 1;
+  let privateLoyaltyListenerBroken = false;
+  let lastPrivateLoyaltyKind: string | null = null;
+  let startWolfCultListener: (resetRevision: boolean) => void = () => undefined;
+  let startArbourVisionListener: (resetRevision: boolean) => void = () => undefined;
+  let startPrivateLoyaltyListener: () => void = () => undefined;
   const onError = () => {
     if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
   };
@@ -1371,6 +1382,10 @@ export function subscribeSessionState(
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         handlers.onPlayer(playerFrom(sessionId, uid, snapshot.data()));
         handlers.onPlayerFreshness?.(!fromCache);
+        // A legacy listener can terminate while the document is absent. A
+        // same-UID assignment updates this player projection atomically with
+        // its private card, giving us a safe point to rebind that listener.
+        startPrivateLoyaltyListener();
       } else onError();
     }, onError),
     ...(handlers.onPlayerDiscovery ? [onSnapshot(
@@ -1408,39 +1423,44 @@ export function subscribeSessionState(
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
         .filter((seat) => seat.roleId !== 'press-officer'));
     }, onError),
-    ...(handlers.onPrivateLoyalty ? [onSnapshot(
+    ...(handlers.onPrivateLoyalty ? [unsubscribePrivateLoyalty = onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (privateLoyaltyListenerGeneration !== 1) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        handlers.onPrivateLoyalty?.(
-          snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null,
-        );
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onPrivateLoyalty?.(null);
-          return;
+        privateLoyaltyListenerBroken = false;
+        const next = snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null;
+        const nextKind = next?.kind ?? null;
+        if (nextKind !== lastPrivateLoyaltyKind) {
+          if (nextKind === 'wolf-cult') startWolfCultListener(true);
+          else {
+            unsubscribeWolfCult();
+            wolfCultListenerGeneration += 1;
+            handlers.onWolfCultIntelligence?.(null);
+          }
+          if (nextKind === 'universal-arbour') startArbourVisionListener(true);
+          else {
+            unsubscribeArbourVision();
+            arbourVisionListenerGeneration += 1;
+            handlers.onArbourVision?.(null);
+          }
+          lastPrivateLoyaltyKind = nextKind;
         }
-        onError();
-      },
-    )] : []),
-    ...(handlers.onWolfCultIntelligence ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/wolfCultIntelligence/${uid}`),
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        const intelligence = snapshot.exists()
-          ? wolfCultIntelligence(snapshot.data(), sessionId, uid)
-          : null;
-        if (intelligence && !acceptsWolfCultRevision(intelligence.revision)) return;
-        handlers.onWolfCultIntelligence?.(intelligence);
+        handlers.onPrivateLoyalty?.(next);
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
+          privateLoyaltyListenerBroken = true;
+          unsubscribeWolfCult();
+          unsubscribeArbourVision();
+          wolfCultListenerGeneration += 1;
+          arbourVisionListenerGeneration += 1;
+          lastPrivateLoyaltyKind = null;
           handlers.onWolfCultIntelligence?.(null);
+          handlers.onArbourVision?.(null);
+          handlers.onPrivateLoyalty?.(null);
           return;
         }
         onError();
@@ -1463,23 +1483,6 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
-    ...(handlers.onArbourVision ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/arbourVisions/${uid}`),
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        const vision = snapshot.exists() ? arbourVision(snapshot.data(), sessionId, uid) : null;
-        if (vision && !acceptsArbourVisionRevision(vision.revision)) return;
-        handlers.onArbourVision?.(vision);
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onArbourVision?.(null);
-        }
-        onError();
-      },
-    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -1498,8 +1501,119 @@ export function subscribeSessionState(
       onError,
     )] : []),
   ];
+  startWolfCultListener = (resetRevision: boolean) => {
+    unsubscribeWolfCult();
+    const generation = ++wolfCultListenerGeneration;
+    if (resetRevision) acceptsWolfCultRevision = createMonotonicRevisionGate();
+    if (!handlers.onWolfCultIntelligence) return;
+    unsubscribeWolfCult = onSnapshot(
+      doc(database, `sessions/${sessionId}/wolfCultIntelligence/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== wolfCultListenerGeneration) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const intelligence = snapshot.exists()
+          ? wolfCultIntelligence(snapshot.data(), sessionId, uid)
+          : null;
+        if (intelligence && !acceptsWolfCultRevision(intelligence.revision)) return;
+        handlers.onWolfCultIntelligence?.(intelligence);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== wolfCultListenerGeneration) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onWolfCultIntelligence?.(null);
+          return;
+        }
+        onError();
+      },
+    );
+  };
+  startArbourVisionListener = (resetRevision: boolean) => {
+    unsubscribeArbourVision();
+    const generation = ++arbourVisionListenerGeneration;
+    if (resetRevision) acceptsArbourVisionRevision = createMonotonicRevisionGate();
+    if (!handlers.onArbourVision) return;
+    unsubscribeArbourVision = onSnapshot(
+      doc(database, `sessions/${sessionId}/arbourVisions/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== arbourVisionListenerGeneration) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const vision = snapshot.exists() ? arbourVision(snapshot.data(), sessionId, uid) : null;
+        if (vision && !acceptsArbourVisionRevision(vision.revision)) return;
+        handlers.onArbourVision?.(vision);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== arbourVisionListenerGeneration) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onArbourVision?.(null);
+          return;
+        }
+        onError();
+      },
+    );
+  };
+  startPrivateLoyaltyListener = () => {
+    if (!privateLoyaltyListenerBroken || !handlers.onPrivateLoyalty) return;
+    unsubscribePrivateLoyalty();
+    const generation = ++privateLoyaltyListenerGeneration;
+    privateLoyaltyListenerBroken = false;
+    unsubscribePrivateLoyalty = onSnapshot(
+      doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== privateLoyaltyListenerGeneration) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const next = snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null;
+        const nextKind = next?.kind ?? null;
+        if (nextKind !== lastPrivateLoyaltyKind) {
+          if (nextKind === 'wolf-cult') startWolfCultListener(true);
+          else {
+            unsubscribeWolfCult();
+            wolfCultListenerGeneration += 1;
+            handlers.onWolfCultIntelligence?.(null);
+          }
+          if (nextKind === 'universal-arbour') startArbourVisionListener(true);
+          else {
+            unsubscribeArbourVision();
+            arbourVisionListenerGeneration += 1;
+            handlers.onArbourVision?.(null);
+          }
+          lastPrivateLoyaltyKind = nextKind;
+        }
+        handlers.onPrivateLoyalty?.(next);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== privateLoyaltyListenerGeneration) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          privateLoyaltyListenerBroken = true;
+          unsubscribeWolfCult();
+          unsubscribeArbourVision();
+          wolfCultListenerGeneration += 1;
+          arbourVisionListenerGeneration += 1;
+          lastPrivateLoyaltyKind = null;
+          handlers.onWolfCultIntelligence?.(null);
+          handlers.onArbourVision?.(null);
+          handlers.onPrivateLoyalty?.(null);
+          return;
+        }
+        onError();
+      },
+    );
+  };
+  startWolfCultListener(false);
+  startArbourVisionListener(false);
   return () => {
     subscribed = false;
+    unsubscribePrivateLoyalty();
+    privateLoyaltyListenerGeneration += 1;
+    unsubscribeWolfCult();
+    unsubscribeArbourVision();
+    wolfCultListenerGeneration += 1;
+    arbourVisionListenerGeneration += 1;
     unsubscribes.forEach((unsubscribe) => unsubscribe());
     if (currentSessionSubscriptionToken === subscriptionToken) {
       currentSessionSubscriptionToken = undefined;

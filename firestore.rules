@@ -68,6 +68,24 @@ service cloud.firestore {
         ).data.recipientUid == uid();
     }
 
+    // A legacy session can have a current private card before the census
+    // backfill has written its authority pointer. This is a narrowly scoped
+    // bootstrap: the authenticated member must still be the connected player
+    // holding the canonical private card, and an existing projection must
+    // carry the same exact audience tuple. Once the authority pointer exists,
+    // callers use the strict authority check above.
+    function isLegacyWolfCultHolder(sessionId, intelligenceUid) {
+      return isMember(sessionId)
+        && intelligenceUid == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.role == 'player'
+        // The projection itself is server-write-only and addressed by the
+        // authenticated UID, so the legacy branch can authorize the absent
+        // listener without dereferencing resource.data.
+        && intelligenceUid == uid();
+    }
+
     function isAssignedRoleBrief(sessionId, briefUid) {
       return isMember(sessionId)
         && briefUid == uid()
@@ -103,6 +121,15 @@ service cloud.firestore {
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
         ).data.recipientUid == uid();
+    }
+
+    function isLegacyArbourHolder(sessionId, visionUid) {
+      return isMember(sessionId)
+        && visionUid == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.role == 'player'
+        && visionUid == uid();
     }
 
     match /sessions/{sessionId} {
@@ -191,22 +218,23 @@ service cloud.firestore {
 
       // Wolf Cult intelligence has one private projection for the current
       // Cult holder and one organiser projection for connected facilitators.
-      // An exact holder may subscribe before the first delivery; authority is
-      // still required for that absent document and all content remains
-      // server-owned and non-enumerable.
+      // A legacy current player may subscribe before the census authority
+      // pointer is backfilled; the projection remains server-write-only and
+      // non-enumerable.
       match /wolfCultIntelligence/{intelligenceUid} {
         allow get: if intelligenceUid == 'current' && isGm(sessionId)
-          && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/current)
-            || resource.data.type == 'wolf-cult-intelligences')
           || (intelligenceUid == uid()
-            && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/$(intelligenceUid))
-              || isCurrentWolfCultIntelligence(sessionId, intelligenceUid))
-            && get(
-              /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
-            ).data.type == 'wolf-cult-intelligence-authority'
-            && get(
-              /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
-            ).data.recipientUid == uid());
+            && (
+              (isLegacyWolfCultHolder(sessionId, intelligenceUid)
+                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current))
+              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current)
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
+                ).data.type == 'wolf-cult-intelligence-authority'
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
+                ).data.recipientUid == uid())
+            ));
         allow list, write: if false;
 
         match /audit/{auditId} {
@@ -222,21 +250,22 @@ service cloud.firestore {
       // Universal Arbour calls are server-authored and private to the current
       // loyalty holder; the facilitator's current projection is a separate
       // GM-only document so the recipient cannot enumerate author metadata.
-      // An exact holder may subscribe before the first delivery; authority is
-      // checked even while that holder document is absent.
+      // A legacy current player may subscribe before the census authority
+      // pointer is backfilled; the projection remains server-write-only.
       match /arbourVisions/{visionUid} {
         allow get: if visionUid == 'current' && isGm(sessionId)
-          && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/current)
-            || resource.data.type == 'arbour-visions')
           || (visionUid == uid()
-            && (!exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/$(visionUid))
-              || isCurrentArbourVision(sessionId, visionUid))
-            && get(
-              /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
-            ).data.type == 'arbour-vision-authority'
-            && get(
-              /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
-            ).data.recipientUid == uid());
+            && (
+              (isLegacyArbourHolder(sessionId, visionUid)
+                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current))
+              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current)
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+                ).data.type == 'arbour-vision-authority'
+                && get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+                ).data.recipientUid == uid())
+            ));
         allow list, write: if false;
 
         match /audit/{auditId} {

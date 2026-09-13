@@ -315,6 +315,60 @@ describe('private projection listener bootstrap', () => {
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/wolfCultIntelligence/current`)));
     await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`)));
   });
+
+  it('permits a canonical legacy holder while authority is absent, then requires the backfilled pointer', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/secrets/loyalty-alice`), {
+        visibleToUids: ['alice'],
+        payload: { type: 'loyalty', kind: 'universal-arbour', suspicion: 10 },
+      });
+      await deleteDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`));
+      await deleteDoc(doc(db, `${SESSION}/arbourVisions/alice`));
+
+      await setDoc(doc(db, `${SESSION}/players/cult`), {
+        uid: 'cult', role: 'player', connected: true, fleetGroupId: 'fleet-1',
+      });
+      await setDoc(doc(db, `${SESSION}/secrets/loyalty-cult`), {
+        visibleToUids: ['cult'],
+        payload: { type: 'loyalty', kind: 'wolf-cult', suspicion: 6 },
+      });
+      await deleteDoc(doc(db, `${SESSION}/wolfCultIntelligenceAuthority/current`));
+      await deleteDoc(doc(db, `${SESSION}/wolfCultIntelligence/cult`));
+    });
+
+    // The exact current holders may subscribe before the first server
+    // projection exists; unrelated members remain denied and no collection
+    // listing is introduced by this compatibility path.
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/arbourVisions/alice`)));
+    await assertSucceeds(getDoc(doc(as('cult'), `${SESSION}/wolfCultIntelligence/cult`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/wolfCultIntelligence/cult`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/arbourVisions`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`), {
+        type: 'arbour-vision-authority', sessionId: 's1', recipientUid: 'alice', revision: 9,
+      });
+      await setDoc(doc(db, `${SESSION}/wolfCultIntelligenceAuthority/current`), {
+        type: 'wolf-cult-intelligence-authority', sessionId: 's1', recipientUid: 'cult', revision: 9,
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
+        type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['alice'], revision: 1, kind: 'danger', text: 'Created', label: 'FACILITATOR CALL',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertSucceeds(getDoc(doc(as('cult'), `${SESSION}/wolfCultIntelligence/cult`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/arbourVisionAuthority/current`), { recipientUid: null });
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/wolfCultIntelligenceAuthority/current`), { recipientUid: null });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertFails(getDoc(doc(as('cult'), `${SESSION}/wolfCultIntelligence/cult`)));
+  });
 });
 
 describe('Universal Arbour vision boundary', () => {

@@ -726,6 +726,165 @@ it.each(['permission-denied', 'not-found'] as const)(
   },
 );
 
+it('rebinds a same-UID Wolf Cult listener after entitlement arrives and resets its revision floor', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onWolfCultIntelligence = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onWolfCultIntelligence, onError: vi.fn(),
+  });
+
+  // The initial listener is denied while the player is not yet a Cult holder.
+  errors[4]?.({ code: 'permission-denied' });
+  expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(null);
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'wolf-cult', suspicion: 6 }),
+  });
+  const rebound = callbacks[5];
+  rebound?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'u1',
+      visibleToUids: ['u1'], revision: 1,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+    }),
+  });
+  expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }));
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 }),
+  });
+  expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(null);
+  rebound?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'u1',
+      visibleToUids: ['u1'], revision: 1,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'STALE', label: 'WOLF INTEL',
+    }),
+  });
+  expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(null);
+});
+
+it('rebinds a same-UID Arbour listener after entitlement arrives and keeps former calls cleared', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onArbourVision = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onArbourVision, onError: vi.fn(),
+  });
+
+  errors[4]?.({ code: 'not-found' });
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'universal-arbour', suspicion: 10 }),
+  });
+  callbacks[5]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'arbour-vision', sessionId: 's1', recipientUid: 'u1',
+      visibleToUids: ['u1'], revision: 1, kind: 'location',
+      text: 'The fleet can find safety at the blue system.', label: 'FACILITATOR CALL',
+    }),
+  });
+  expect(onArbourVision).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }));
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 }),
+  });
+  expect(onArbourVision).toHaveBeenLastCalledWith(null);
+});
+
+it('rebinds a denied same-UID secret listener after the player projection changes', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onWolfCultIntelligence = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onWolfCultIntelligence, onError: vi.fn(),
+  });
+
+  errors[3]?.({ code: 'permission-denied' });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(null);
+
+  // The server's same-UID player update is the rebind point. The newly
+  // attached secret listener can then receive the card and attach the
+  // projection listener that had previously terminated.
+  callbacks[1]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: (field: string) => field === 'connected' ? true : undefined,
+    data: () => ({ role: 'player', assignedRoleId: 'admiral' }),
+  });
+  callbacks[5]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'wolf-cult', suspicion: 6 }),
+  });
+  callbacks[6]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'u1',
+      visibleToUids: ['u1'], revision: 1,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+    }),
+  });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'wolf-cult', suspicion: 6 });
+  expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }));
+});
+
+it('rebinds the denied same-UID Arbour secret path and hydrates a fresh call', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onArbourVision = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onArbourVision, onError: vi.fn(),
+  });
+
+  errors[3]?.({ code: 'not-found' });
+  callbacks[1]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: (field: string) => field === 'connected' ? true : undefined,
+    data: () => ({ role: 'player', assignedRoleId: 'admiral' }),
+  });
+  callbacks[5]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'universal-arbour', suspicion: 10 }),
+  });
+  callbacks[6]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'arbour-vision', sessionId: 's1', recipientUid: 'u1',
+      visibleToUids: ['u1'], revision: 1, kind: 'danger',
+      text: 'The outer relay is unsafe.', label: 'FACILITATOR CALL',
+    }),
+  });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'universal-arbour', suspicion: 10 });
+  expect(onArbourVision).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }));
+});
+
 it('drops Android proof markers from other or malformed loyalty records', () => {
   const { callbacks } = captureSessionListener();
   const onPrivateLoyalty = vi.fn();
