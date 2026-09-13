@@ -932,6 +932,24 @@ it('keeps away-mission hands private to the participant and current GMs', async 
   await assertSucceeds(getDoc(doc(as('gm2'), handPath)));
 });
 
+it('keeps Dione VIP hands private to the owner and server-written', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${SESSION}/vipHands/alice`), {
+      sessionId: 's1', ownerUid: 'alice', revision: 1,
+      cards: [{ id: 'party-deck', name: 'Party Deck', status: 'available' }],
+    });
+  });
+
+  const handPath = `${SESSION}/vipHands/alice`;
+  await assertSucceeds(getDoc(doc(as('alice'), handPath)));
+  await assertFails(getDoc(doc(as('press'), handPath)));
+  await assertFails(getDoc(doc(as('gm1'), handPath)));
+  await assertFails(getDocs(collection(as('alice'), `${SESSION}/vipHands`)));
+  await assertFails(setDoc(doc(as('alice'), handPath), { forged: true }));
+  await assertFails(updateDoc(doc(as('alice'), handPath), { cards: [] }));
+  await assertFails(deleteDoc(doc(as('alice'), handPath)));
+});
+
 describe('complete server-owned denial matrix', () => {
   it('denies direct lifecycle and retention changes from both players and GMs', async () => {
     for (const uid of ['alice', 'gm1']) {

@@ -49,6 +49,10 @@ import type {
   WolfAttackDeclarationState,
   WolfAttackWindow,
   WolfAssignment,
+  VipCard,
+  VipCardId,
+  VipCardName,
+  VipHand,
 } from '@/types/game';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -158,6 +162,33 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
     suspicion: payload.suspicion,
     ...(partnerUid ? { partnerUid } : {}),
   };
+}
+
+const VIP_CARD_NAMES: Readonly<Record<VipCardId, VipCardName>> = {
+  'party-deck': 'Party Deck', 'spa-deck': 'Spa Deck', 'gaming-deck': 'Gaming Deck',
+  'casino-deck': 'Casino Deck', 'theatre-deck': 'Theatre Deck',
+  'restaurant-deck': 'Restaurant Deck', 'art-deck': 'Art Deck',
+  'family-fun-deck': 'Family Fun Deck', 'theme-park-deck': 'Theme Park Deck',
+};
+
+function vipHand(value: unknown, sessionId: string, uid: string): VipHand | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const ownerUid = parseEntityId('player', raw.ownerUid);
+  const revision = raw.revision;
+  if (raw.sessionId !== sessionId || ownerUid !== uid ||
+      !Number.isSafeInteger(revision) || (revision as number) < 0 || !Array.isArray(raw.cards)) return null;
+  const cards = raw.cards.flatMap((entry): VipCard[] => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+    const candidate = entry as Record<string, unknown>;
+    const id = candidate.id as VipCardId;
+    if (!Object.hasOwn(VIP_CARD_NAMES, id) ||
+        candidate.name !== VIP_CARD_NAMES[id] ||
+        (candidate.status !== 'available' && candidate.status !== 'spent')) return [];
+    return [{ id, name: VIP_CARD_NAMES[id], status: candidate.status }];
+  });
+  if (cards.length !== raw.cards.length || new Set(cards.map((card) => card.id)).size !== cards.length) return null;
+  return { sessionId: entityId('session', sessionId), ownerUid, revision: revision as number, cards };
 }
 
 function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | null {
@@ -1203,6 +1234,42 @@ export function subscribeSessionState(
       handlers.onRoleBrief?.(null);
       handlers.onSetupReceipt?.(null);
     }
+  };
+}
+
+/** Subscribe to one server-owned VIP hand; card identity never enters the shared session snapshot. */
+export function subscribeVipCards(
+  sessionId: string,
+  uid: string,
+  onCards: (hand: VipHand | null) => void,
+  onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
+): Unsubscribe {
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const authority = suppliedAuthority ?? projectionSessionAuthority(sessionId, undefined);
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/vipHands/${uid}`),
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (hasServerSnapshot || authority?.hasServerSessionAuthority)) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onCards(snapshot.exists() ? vipHand(snapshot.data(), sessionId, uid) : null);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        onCards(null);
+        return;
+      }
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onCards(null);
   };
 }
 

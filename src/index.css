@@ -5060,6 +5060,12 @@ body {
   cursor: not-allowed;
   opacity: 0.65;
 }
+
+.dione-vip-cards { grid-column: 1 / -1; min-width: 0; }
+.dione-vip-cards p { max-width: 72ch; }
+.dione-vip-cards ul { margin: 0.75rem 0; padding-left: 1.25rem; }
+.dione-vip-cards fieldset { margin-top: 0.75rem; }
+.dione-vip-cards .cic-action-button { min-height: 2.75rem; }
 .maintenance-systems__cycle > ol > li[aria-current='step'] { border-left-color: var(--cic-cyan); }
 .maintenance-systems__cycle > ol > li > p { font-size: 0.875rem; }
 .maintenance-systems__cycle > ol > li > p[role='status'] { color: var(--cic-cyan); }

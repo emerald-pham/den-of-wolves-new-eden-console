@@ -43,6 +43,8 @@ describe('server-only console metadata', () => {
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
     expect(consoleMetadataFor('dione', 'water-reclamation')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
+    expect(consoleMetadataFor('dione', 'vip-lounge')?.resolver)
+      .toEqual({ status: 'implemented', id: 'vip-card.draw' });
     expect(consoleMetadataFor('capybara', 'scrap-refinery')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
     expect(consoleMetadataFor('capybara', 'water-production')?.resolver)

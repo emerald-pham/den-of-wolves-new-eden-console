@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**213 / 750 prompts complete (28.40%)**
+**214 / 750 prompts complete (28.53%)**
 
-Status breakdown: **213 done · 22 partial · 515 missing**.
+Status breakdown: **214 done · 22 partial · 514 missing**.
 
 Active prompt: **none**
 
@@ -613,7 +613,7 @@ release classification and evidence.
 | 187 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 188 | done | feature | 0.3.59 | The Dione maintenance console now exposes Hydroponics as an authoritative post-Reactor choice: charged J♣ spends one water for three food, or five with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed Hydroponics-before-Water-Reclamation order; an explicit skip preserves a deliberate choice without trapping the cycle. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed. |
 | 189 | done | feature | 0.3.59 | The Dione maintenance console now exposes Water Reclamation as an authoritative post-Reactor choice: charged Q♣ produces two water, or four with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed order boundary so an unresolved affordable Hydroponics charge cannot be bypassed; explicit skip and water-zero paths remain terminal and recoverable. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed. |
-| 190 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 190 | done | feature | — | The charged Dione VIP Lounge now draws one of the nine printed named cards through a server transaction. The deck is server-private and random-selected only after authority and charge checks; the Lounge charge is consumed atomically with the maintenance revision. Each owner receives only their own private hand projection, and Coordination transfers require the current unspent owner plus a fresh deck revision. Request receipts replay safely and reject changed actors, stale revisions, damaged/depleted Lounge state, duplicate draws, and former-owner actions. The durable spent-card state machine is present for Prompt 191, while the printed unrest reroll remains owned by Prompt 191 and is not exposed as a usable action here. Focused deck, authority, privacy-rule, replay/CAS, UI accessibility, and responsive render evidence is recorded in E-AUDIT-190. |
 | 191 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 192 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 193 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

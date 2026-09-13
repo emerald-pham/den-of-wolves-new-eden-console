@@ -991,8 +991,8 @@
     {
       "direction": "190 -> 167",
       "id": "E-AUDIT-190",
-      "language": "Private VIP ownership uses the standard authoritative action envelope.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "The Dione VIP Lounge draw and Coordination transfer use the standard authoritative action envelope, private per-owner projections, replay/CAS guards, and the responsive production component fixture.",
+      "source": "functions/src/vipCards.ts; functions/src/vipCardsCallable.test.ts; functions/src/index.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/components/DioneVipCards.tsx; src/components/MaintenanceSystems.test.tsx; evidence/prompt-190/README.md",
       "type": "hard_prompt"
     },
     {
@@ -9527,14 +9527,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the VIP Lounge produces one of nine named cards with private, transferable, single-use ownership.",
         "title": "Draw and own Dione VIP cards."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The charged Dione VIP Lounge now draws one of the nine printed named cards through a server transaction. The deck is server-private and random-selected only after authority and charge checks; the Lounge charge is consumed atomically with the maintenance revision. Each owner receives only their own private hand projection, and Coordination transfers require the current unspent owner plus a fresh deck revision. Request receipts replay safely and reject changed actors, stale revisions, damaged/depleted Lounge state, duplicate draws, and former-owner actions. The durable spent-card state machine is present for Prompt 191, while the printed unrest reroll remains owned by Prompt 191 and is not exposed as a usable action here. Focused deck, authority, privacy-rule, replay/CAS, UI accessibility, and responsive render evidence is recorded in E-AUDIT-190.",
       "evidenceIds": "E-AUDIT-190",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9546,7 +9546,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -18,6 +18,7 @@ export type ImplementedConsoleResolverId =
   | 'maintenance.bays'
   | 'maintenance.production'
   | 'fighter.build'
+  | 'vip-card.draw'
   | 'jump.resolve';
 
 export type ConsoleResolver =
@@ -174,7 +175,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'dione:water-reclamation': commonWaterReclamation(implemented('maintenance.production')),
   'dione:vip-lounge': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: noUpgrade,
-    effect: 'Draw a VIP card.', resolver: deferred('VIP card ownership and use remain unresolved.', ['190', '191']),
+    effect: 'Draw a VIP card.', resolver: implemented('vip-card.draw'),
   },
   'dione:fighter-bay': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot launch the Maliades when damaged.'), upgrade: noUpgrade,

@@ -118,6 +118,17 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // Dione VIP hands are one server-written private projection per owner.
+      // The deck and all ownership transitions remain under serverState; a
+      // member can read only the hand addressed by their authenticated UID.
+      match /vipHands/{handUid} {
+        allow get: if isMember(sessionId)
+          && handUid == uid()
+          && resource.data.sessionId == sessionId
+          && resource.data.ownerUid == uid();
+        allow list, write: if false;
+      }
+
       // A role brief is a server-owned per-UID projection. The assignment on
       // the current player record is part of the read boundary, so a stale
       // former assignment cannot be hydrated after release or reassignment.

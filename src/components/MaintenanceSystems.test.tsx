@@ -8,8 +8,20 @@ const rollback = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const run = vi.hoisted(() => vi.fn());
 const assign = vi.hoisted(() => vi.fn());
 const repair = vi.hoisted(() => vi.fn());
+const vipHandSubscription = vi.hoisted(() => vi.fn((_sessionId: string, _uid: string, onCards: (value: unknown) => void) => {
+  onCards({ sessionId: 's1', ownerUid: 'u1', revision: 0, cards: [] });
+  return () => undefined;
+}));
+const connectedPlayersSubscription = vi.hoisted(() => vi.fn((_sessionId: string, onPlayers: (value: readonly Player[]) => void) => {
+  onPlayers([]);
+  return () => undefined;
+}));
 vi.mock('@/lib/shipDamageService', () => ({ assignShipDamage: assign, repairAllShipDamage: repair }));
 vi.mock('@/lib/maintenanceService', () => ({ runMaintenance: run, rollbackMaintenance: rollback }));
+vi.mock('@/lib/firestore', () => ({
+  subscribeVipCards: vipHandSubscription,
+  subscribeConnectedPlayers: connectedPlayersSubscription,
+}));
 const session: GameSession = { id: 's1', name: 'Test', joinCode: 'TEST', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '' };
 const me: Player = { uid: 'u1', sessionId: 's1', displayName: 'Engineer', role: 'player', seatId: null, activeConsoleRoleId: 'admiral', joinedAt: '' };
 beforeEach(() => { useSessionStore.setState({ session, me, connection: 'live' }); run.mockReset(); assign.mockResolvedValue(undefined); repair.mockResolvedValue(undefined); });
@@ -137,6 +149,49 @@ it('renders Dione production controls from live charges and resource state', asy
   } }));
   expect(screen.getByRole('button', { name: 'Run Hydroponics' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Skip Hydroponics' })).toBeDisabled();
+});
+
+it('renders the Dione VIP Lounge as a private step-5 action with a later-use boundary', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    currentTurn: 1,
+    shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { dione: { step: 5, revision: 3, results: {}, charges: ['vip-lounge'], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name="Dione" shipId="dione"
+    systems={[{ id: 'vip-lounge', name: 'VIP Lounge', timing: 5 }]}
+    renderSystem={() => null} rations={null} />);
+
+  expect(await screen.findByRole('button', { name: 'Draw private VIP card' })).toBeEnabled();
+  expect(screen.getByText(/Prompt 191 owns the printed effect/i)).toBeVisible();
+  expect(screen.getByText(/That use action is not available yet/i)).toBeVisible();
+});
+
+it('keeps an owned card available for Coordination transfer after maintenance advances', async () => {
+  vipHandSubscription.mockImplementationOnce((_sessionId: string, _uid: string, onCards: (value: unknown) => void) => {
+    onCards({ sessionId: 's1', ownerUid: 'u1', revision: 3, cards: [{ id: 'party-deck', name: 'Party Deck', status: 'available' }] });
+    return () => undefined;
+  });
+  connectedPlayersSubscription.mockImplementationOnce((_sessionId: string, onPlayers: (value: readonly Player[]) => void) => {
+    onPlayers([{ ...me, uid: 'u2', displayName: 'Recipient', activeConsoleRoleId: 'dione-president' }]);
+    return () => undefined;
+  });
+  useSessionStore.setState({ session: {
+    ...session,
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: '2026-09-13T00:00:00.000Z', openAirspaceEndsAt: '2026-09-14T00:00:00.000Z',
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+    maintenanceCycles: { dione: { step: 6, revision: 3, results: {}, charges: [], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name="Dione" shipId="dione"
+    systems={[{ id: 'vip-lounge', name: 'VIP Lounge', timing: 5 }]}
+    renderSystem={() => null} rations={null} />);
+
+  expect(await screen.findByText('Transfer a VIP card')).toBeVisible();
+  expect(screen.getByRole('option', { name: 'Party Deck' })).toBeVisible();
+  expect(screen.getByRole('option', { name: 'Recipient' })).toBeVisible();
 });
 
 it('renders Capybara production controls with optional Scrap spending', async () => {

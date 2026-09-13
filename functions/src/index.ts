@@ -76,6 +76,8 @@ import {
   requireSessionRequest,
   requireAirspaceRequest,
   requireMaintenanceRequest,
+  requireVipCardDrawRequest,
+  requireVipCardTransferRequest,
   requireSmallShipDockingRequest,
   requireSmallShipMaintenanceRequest,
   requireSessionCreationRequest,
@@ -239,6 +241,15 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
+import {
+  VIP_CARD_DEFINITIONS,
+  drawVipCardState,
+  emptyVipDeckState,
+  parseVipDeckState,
+  transferVipCardState,
+  vipHandForState,
+  type VipDeckState,
+} from './vipCards';
 import { organiserSitesForChart } from './starChartLookup';
 import { allDiscoverySystems } from './starChartProjection';
 import { discoverySystemsForCoordinates } from './starChartProjection';
@@ -10944,6 +10955,298 @@ export const runMaintenance = onCall<{
       fingerprint, reply,
       createdAt: FieldValue.serverTimestamp(),
     });
+    return reply;
+  });
+});
+
+function vipDeckRef(sessionId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/serverState/vipCards`);
+}
+
+function vipHandRef(sessionId: string, uid: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/vipHands/${uid}`);
+}
+
+function vipDeckState(snapshot: DocumentSnapshot): VipDeckState {
+  if (!snapshot.exists) return emptyVipDeckState();
+  const parsed = parseVipDeckState(
+    typeof (snapshot as unknown as { data?: unknown }).data === 'function'
+      ? (snapshot as unknown as { data: () => unknown }).data()
+      : { revision: snapshot.get('revision'), cards: snapshot.get('cards') },
+  );
+  if (!parsed) {
+    throw commandError('failed-precondition', 'The Dione VIP deck is malformed; refresh before drawing.', 'malformed-input');
+  }
+  return parsed;
+}
+
+function writeVipHand(tx: Transaction, sessionId: string, state: VipDeckState, uid: string): void {
+  const hand = vipHandForState(state, sessionId, uid);
+  tx.set(vipHandRef(sessionId, uid), {
+    ...hand,
+    cards: hand.cards.map((card) => ({ ...card })),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+function vipCardEvent(
+  tx: Transaction,
+  sessionId: string,
+  requestId: string,
+  player: DocumentSnapshot,
+  actorUid: string,
+  session: DocumentSnapshot,
+  revision: number,
+  serverTime: string,
+  action: 'drawn' | 'transferred',
+): void {
+  // Card identity, owner, and recipient stay on private projections. Members
+  // may learn that the Lounge/trade action happened without learning a hand.
+  tx.set(db.doc(`sessions/${sessionId}/events/vip-card-${requestId}`), buildPrivacySafeEventRecord({
+    type: 'vip-card',
+    envelope: buildAuthoritativeEventEnvelope({
+      sessionId, actorUid, actorRoleId: vesselActorRoleId(player),
+      turn: sessionTurn(session.get('currentTurn')),
+      phase: 'active', type: 'vip-card', requestId, revision,
+      serverTime, visibility: EventVisibility.Member,
+    }),
+    payload: { shipId: 'dione', action },
+    createdAt: FieldValue.serverTimestamp(),
+  }));
+}
+
+/** Draw one private physical card from the charged Dione VIP Lounge. */
+export const drawVipCard = onCall<{
+  sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedRevision?: unknown;
+  instanceId?: unknown; consoleRoleId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'shipId', 'requestId', 'expectedRevision', 'instanceId', 'consoleRoleId'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some((key) => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid VIP card draw request.');
+  }
+  const data = requireVipCardDrawRequest(raw);
+  if (data.shipId !== 'dione' ||
+      (data.consoleRoleId !== undefined && shipForRole(data.consoleRoleId) !== 'dione') ||
+      (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId)) ||
+      (data.consoleRoleId !== undefined && !/^[\w-]{1,128}$/.test(data.consoleRoleId))) {
+    throw new HttpsError('invalid-argument', 'VIP cards may only be drawn from the Dione Lounge.');
+  }
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const deckRef = vipDeckRef(data.sessionId);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'draw-vip-card', data.sessionId, data.requestId, uid, data.instanceId ?? null,
+    data.expectedRevision, { shipId: data.shipId, consoleRoleId: data.consoleRoleId ?? null },
+  );
+
+  const preflight = await db.runTransaction(async tx => {
+    const { player, snapshot } = await requireMaintenanceAuthority(
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
+    );
+    const prior = await tx.get(receiptRef);
+    const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card draw');
+    if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireTurnOneForGameplay(snapshot);
+    requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    requireTurnOneForPlayer(snapshot, player);
+    if (snapshot.get('phase') === 'closed' || snapshot.get('dioneEnabled') === false ||
+        !activeVesselIdsForSession(snapshot).includes('dione')) {
+      throw commandError('failed-precondition', 'Dione is not available in this session.', 'conflict');
+    }
+    const currentCycles = isRecord(snapshot.get('maintenanceCycles'))
+      ? snapshot.get('maintenanceCycles') as Record<string, unknown> : {};
+    const currentCycle = parseMaintenanceCycle(currentCycles.dione) ?? emptyMaintenanceCycle();
+    if (currentCycle.revision !== data.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: data.sessionId, shipId: data.shipId,
+        action: 'vip-card', expectedRevision: data.expectedRevision,
+        currentRevision: currentCycle.revision,
+        ...vesselActionEnvelope(snapshot, player, uid, data.shipId, currentCycle.revision,
+          data.requestId, 'draw-vip-card'),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    if (currentCycle.step !== 5 || !currentCycle.charges.includes('vip-lounge')) {
+      throw commandError('failed-precondition', 'Charge the VIP Lounge during maintenance step 5 before drawing.', 'invalid-phase');
+    }
+    const currentDamage = shipDamage(snapshot.get('shipDamage')).dione ?? {
+      damagedSystemIds: [], destroyed: false,
+    };
+    if (currentDamage.destroyed || currentDamage.damagedSystemIds.includes('vip-lounge')) {
+      throw commandError('failed-precondition', 'A damaged VIP Lounge cannot be charged or used.', 'conflict');
+    }
+    const deck = vipDeckState(await tx.get(deckRef));
+    if (!drawVipCardState(deck, uid, 0)) {
+      throw commandError('failed-precondition', 'All nine Dione VIP cards have already been dealt.', 'conflict');
+    }
+    return null;
+  });
+  if (preflight) return preflight;
+
+  // Select entropy only after request identity and actor authority are valid.
+  const randomIndex = randomInt(0, VIP_CARD_DEFINITIONS.length);
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const { player, snapshot } = await requireMaintenanceAuthority(
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
+    );
+    const prior = await tx.get(receiptRef);
+    const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card draw');
+    if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireTurnOneForGameplay(snapshot);
+    requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    requireTurnOneForPlayer(snapshot, player);
+    if (snapshot.get('phase') === 'closed' || snapshot.get('dioneEnabled') === false ||
+        !activeVesselIdsForSession(snapshot).includes('dione')) {
+      throw commandError('failed-precondition', 'Dione is not available in this session.', 'conflict');
+    }
+    const currentCycles = isRecord(snapshot.get('maintenanceCycles'))
+      ? snapshot.get('maintenanceCycles') as Record<string, unknown> : {};
+    const currentCycle = parseMaintenanceCycle(currentCycles.dione) ?? emptyMaintenanceCycle();
+    if (currentCycle.revision !== data.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: data.sessionId, shipId: data.shipId,
+        action: 'vip-card', expectedRevision: data.expectedRevision,
+        currentRevision: currentCycle.revision,
+        ...vesselActionEnvelope(snapshot, player, uid, data.shipId, currentCycle.revision,
+          data.requestId, 'draw-vip-card'),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    if (currentCycle.step !== 5 || !currentCycle.charges.includes('vip-lounge')) {
+      throw commandError('failed-precondition', 'Charge the VIP Lounge during maintenance step 5 before drawing.', 'invalid-phase');
+    }
+    const currentDamage = shipDamage(snapshot.get('shipDamage')).dione ?? {
+      damagedSystemIds: [], destroyed: false,
+    };
+    if (currentDamage.destroyed || currentDamage.damagedSystemIds.includes('vip-lounge')) {
+      throw commandError('failed-precondition', 'A damaged VIP Lounge cannot be charged or used.', 'conflict');
+    }
+    const deckSnapshot = await tx.get(deckRef);
+    const deck = vipDeckState(deckSnapshot);
+    const drawn = drawVipCardState(deck, uid, randomIndex);
+    if (!drawn) {
+      throw commandError('failed-precondition', 'All nine Dione VIP cards have already been dealt.', 'conflict');
+    }
+    const nextCycle: MaintenanceCycle = {
+      ...currentCycle,
+      revision: currentCycle.revision + 1,
+      charges: currentCycle.charges.filter((charge) => charge !== 'vip-lounge'),
+      results: {
+        ...currentCycle.results,
+        '5': `${currentCycle.results['5'] ?? ''}${currentCycle.results['5'] ? ' ' : ''}VIP Lounge used. A private card was drawn.`,
+      },
+    };
+    tx.set(deckRef, {
+      revision: drawn.state.revision,
+      cards: drawn.state.cards.map((card) => ({ ...card })),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeVipHand(tx, data.sessionId, drawn.state, uid);
+    tx.update(sessionRef, {
+      'maintenanceCycles.dione': nextCycle,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const reply = {
+      status: 'committed' as const, sessionId: data.sessionId, shipId: data.shipId,
+      action: 'vip-card', requestId: data.requestId,
+      expectedRevision: data.expectedRevision, committedRevision: nextCycle.revision,
+      deckRevision: drawn.state.revision, currentTurn: sessionTurn(snapshot.get('currentTurn')),
+      serverTime, cycle: nextCycle,
+      ...vesselActionEnvelope(snapshot, player, uid, data.shipId, nextCycle.revision,
+        data.requestId, 'draw-vip-card'),
+    };
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    vipCardEvent(tx, data.sessionId, data.requestId, player, uid, snapshot, nextCycle.revision, serverTime, 'drawn');
+    return reply;
+  });
+});
+
+/** Transfer one unspent VIP card during the printed Coordination window. */
+export const transferVipCard = onCall<{
+  sessionId?: unknown; requestId?: unknown; cardId?: unknown; targetUid?: unknown;
+  expectedRevision?: unknown; instanceId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'requestId', 'cardId', 'targetUid', 'expectedRevision', 'instanceId'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some((key) => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid VIP card transfer request.');
+  }
+  const data = requireVipCardTransferRequest(raw);
+  if (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId)) {
+    throw new HttpsError('invalid-argument', 'Invalid GM instance.');
+  }
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const deckRef = vipDeckRef(data.sessionId);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'transfer-vip-card', data.sessionId, data.requestId, uid, data.instanceId ?? null,
+    data.expectedRevision, { cardId: data.cardId, targetUid: data.targetUid },
+  );
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const [player, target, snapshot, deckSnapshot, prior] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${data.targetUid}`)),
+      tx.get(sessionRef),
+      tx.get(deckRef),
+      tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card transfer');
+    if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+      throw new HttpsError('permission-denied', 'Join the session before transferring a VIP card.');
+    }
+    if (!isActivePlayer(target) || target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'The target player is not connected.', 'conflict');
+    }
+    requireTurnOneForGameplay(snapshot);
+    requireActionPhase(snapshot, 'transfer', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    requireTurnOneForPlayer(snapshot, player);
+    if (snapshot.get('dioneEnabled') === false || !activeVesselIdsForSession(snapshot).includes('dione')) {
+      throw commandError('failed-precondition', 'Dione is not available in this session.', 'conflict');
+    }
+    const deck = vipDeckState(deckSnapshot);
+    if (deck.revision !== data.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: data.sessionId, action: 'vip-card-transfer',
+        cardId: data.cardId, targetUid: data.targetUid, expectedRevision: data.expectedRevision,
+        currentRevision: deck.revision,
+        ...vesselActionEnvelope(snapshot, player, uid, 'dione', deck.revision,
+          data.requestId, 'transfer-vip-card'),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const transferred = transferVipCardState(deck, uid, data.targetUid, data.cardId);
+    if (!transferred) {
+      throw commandError('failed-precondition', 'Only the current owner may transfer an unspent VIP card.', 'conflict');
+    }
+    tx.set(deckRef, {
+      revision: transferred.revision,
+      cards: transferred.cards.map((card) => ({ ...card })),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeVipHand(tx, data.sessionId, transferred, uid);
+    writeVipHand(tx, data.sessionId, transferred, data.targetUid);
+    const reply = {
+      status: 'committed' as const, sessionId: data.sessionId, action: 'vip-card-transfer',
+      cardId: data.cardId, targetUid: data.targetUid, requestId: data.requestId,
+      expectedRevision: data.expectedRevision, committedRevision: transferred.revision,
+      currentTurn: sessionTurn(snapshot.get('currentTurn')), serverTime,
+      ...vesselActionEnvelope(snapshot, player, uid, 'dione', transferred.revision,
+        data.requestId, 'transfer-vip-card'),
+    };
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    vipCardEvent(tx, data.sessionId, data.requestId, player, uid, snapshot, transferred.revision, serverTime, 'transferred');
     return reply;
   });
 });

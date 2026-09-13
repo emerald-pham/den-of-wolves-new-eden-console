@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { runMaintenance, rollbackMaintenance, type MaintenanceChoices } from '@/lib/maintenanceService';
 import { assignShipDamage, repairAllShipDamage } from '@/lib/shipDamageService';
@@ -11,6 +11,7 @@ import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
+import DioneVipCards from './DioneVipCards';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -170,7 +171,9 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             {step === 4 && <p>Roll 1d6. Below current unrest causes a riot: draw and apply 1 damage card.</p>}
             {step === 4 && <button className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
             {step === 5 && <p>Charge consoles with the reactor, then resolve the consoles marked 5 when charged.</p>}
-            <div className="aegis-system-grid">{systems.filter(system => system.timing === step).map(renderSystem)}</div>
+            <div className="aegis-system-grid">{systems.filter(system => system.timing === step).map(system => <Fragment key={system.id}>
+              {renderSystem(system)}
+            </Fragment>)}</div>
             {step === 5 && <>
               <p>Unused charge is lost when the reactor powers up. Choose up to {capacity} consoles.</p>
               <fieldset disabled={disabled(5) || maintenancePhaseBlocked} className="maintenance-controls"><legend>Consoles to charge // {consoles.length}/{capacity}</legend>
@@ -272,6 +275,10 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           </li>;
         })}
       </ol>
+      {shipId === 'dione' && cycle && systems.some(system => system.id === 'vip-lounge') && <DioneVipCards
+        cycle={cycle}
+        damaged={damage?.damagedSystemIds.includes('vip-lounge') ?? false}
+      />}
       <button className="cic-action-button" disabled={endDisabled} onClick={() => void execute('end')}>End maintenance cycle</button>
       {cycle?.results['7'] && <p role="status">{cycle.results['7']}</p>}
       {me?.role === 'gm' && <div className="maintenance-controls" aria-label="GM damage controls">

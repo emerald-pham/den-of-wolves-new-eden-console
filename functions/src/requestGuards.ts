@@ -70,6 +70,62 @@ export function requireMaintenanceRequest(data: {
   };
 }
 
+export function requireVipCardDrawRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  requestId?: unknown;
+  instanceId?: unknown;
+  consoleRoleId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  shipId: string;
+  requestId: string;
+  instanceId?: string;
+  consoleRoleId?: string;
+  expectedRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    ...(data.consoleRoleId === undefined ? {} : { consoleRoleId: requiredId(data.consoleRoleId, 'consoleRoleId') }),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
+export function requireVipCardTransferRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  cardId?: unknown;
+  targetUid?: unknown;
+  instanceId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  cardId: string;
+  targetUid: string;
+  instanceId?: string;
+  expectedRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    cardId: requiredId(data.cardId, 'cardId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireSmallShipDockingRequest(data: {
   sessionId?: unknown;
   smallShipId?: unknown;

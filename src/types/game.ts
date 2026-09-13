@@ -153,6 +153,40 @@ export interface ShipResourceValues {
 }
 export type ShipResources = Readonly<Record<string, ShipResourceValues>>;
 
+export type VipCardId =
+  | 'party-deck'
+  | 'spa-deck'
+  | 'gaming-deck'
+  | 'casino-deck'
+  | 'theatre-deck'
+  | 'restaurant-deck'
+  | 'art-deck'
+  | 'family-fun-deck'
+  | 'theme-park-deck';
+export type VipCardName =
+  | 'Party Deck'
+  | 'Spa Deck'
+  | 'Gaming Deck'
+  | 'Casino Deck'
+  | 'Theatre Deck'
+  | 'Restaurant Deck'
+  | 'Art Deck'
+  | 'Family Fun Deck'
+  | 'Theme Park Deck';
+
+export interface VipCard {
+  readonly id: VipCardId;
+  readonly name: VipCardName;
+  readonly status: 'available' | 'spent';
+}
+
+export interface VipHand {
+  readonly sessionId: SessionId;
+  readonly ownerUid: PlayerId;
+  readonly revision: number;
+  readonly cards: readonly VipCard[];
+}
+
 export interface ShipDamageState {
   readonly damagedSystemIds: readonly string[];
   readonly destroyed: boolean;
