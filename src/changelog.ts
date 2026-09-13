@@ -34,6 +34,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Players can read delivered scouting, Religious Zealotry and election introductions after reconnecting. Facilitator notes and secret loyalties remain private.',
       'Religious Zealotry also supports the alternate Wolf Cult setup.',
+      'Election introductions make clear that voting procedures still need facilitator decisions.',
       '259 of 751 planned items are complete (34.49%).',
     ],
   },
