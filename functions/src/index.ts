@@ -10362,10 +10362,15 @@ function hummingbirdHarvestReceiptReply(
   return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
 }
 
-function hummingbirdDocking(session: DocumentSnapshot): { readonly shipId: string } | undefined {
+function hummingbirdDocking(
+  session: DocumentSnapshot,
+  activeVesselIds: readonly string[],
+): { readonly shipId: string } | undefined {
   const stored = session.get('shuttleDockings');
-  if (!Array.isArray(stored)) return undefined;
-  const docking = stored.find((entry) => isRecord(entry) && entry.shuttleId === 'hummingbird');
+  if (!Array.isArray(stored) || !shuttleDockingsAreParked(stored, activeVesselIds)) return undefined;
+  const dockings = stored.filter((entry) => isRecord(entry) && entry.shuttleId === 'hummingbird');
+  if (dockings.length !== 1) return undefined;
+  const docking = dockings[0];
   if (!isRecord(docking) || typeof docking.shipId !== 'string' || !isResourceShipId(docking.shipId)) return undefined;
   return { shipId: docking.shipId };
 }
@@ -10427,11 +10432,12 @@ async function requireHummingbirdAuthority(
   if (!activeVesselIdsForSession(session).includes('quellon')) {
     throw commandError('failed-precondition', 'Quellon is not active in this session.', 'conflict');
   }
-  const docking = hummingbirdDocking(session);
+  const activeVesselIds = activeVesselIdsForSession(session);
+  const docking = hummingbirdDocking(session, activeVesselIds);
   if (!docking) {
     throw commandError('failed-precondition', 'Hummingbird must be docked with an active fleet ship.', 'conflict');
   }
-  if (!activeVesselIdsForSession(session).includes(docking.shipId)) {
+  if (!activeVesselIds.includes(docking.shipId)) {
     throw commandError('failed-precondition', 'Hummingbird must be docked with an active fleet ship.', 'conflict');
   }
   const fuelled = session.get('shuttleFuelled');
@@ -10480,6 +10486,9 @@ export const rollHummingbirdHarvest = onCall<{
   const harvestRef = hummingbirdHarvestRef(data.sessionId, uid);
   const preflight = await db.runTransaction(async tx => {
     const prior = await tx.get(requestRef);
+    // Read authority before replay so an exact retry can return its stored
+    // result without re-sampling. Fresh rolls still pass the action-phase
+    // guard before the caller leaves this transaction and reaches RNG.
     const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, false);
     const fingerprint: HummingbirdHarvestFingerprint = {
       kind: 'roll', sessionId: data.sessionId, actorUid: uid,
@@ -10488,6 +10497,7 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return { replay, authority, fingerprint, reusePending: false };
+    requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
     const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
     const turn = sessionTurn(authority.session.get('currentTurn'));
@@ -10583,8 +10593,10 @@ export const allocateHummingbirdHarvest = onCall<{
   const requestRef = hummingbirdHarvestRequestRef(data.sessionId, data.requestId);
   const harvestRef = hummingbirdHarvestRef(data.sessionId, uid);
   return db.runTransaction(async tx => {
-    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, false);
     const prior = await tx.get(requestRef);
+    // Preserve exact request replay even if the phase has since advanced;
+    // every new allocation must pass the current action-phase guard first.
+    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, false);
     const turn = sessionTurn(authority.session.get('currentTurn'));
     const fingerprint: HummingbirdHarvestFingerprint = {
       kind: 'allocate', sessionId: data.sessionId, actorUid: uid,
@@ -10593,6 +10605,7 @@ export const allocateHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
     const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
     if (!current) {

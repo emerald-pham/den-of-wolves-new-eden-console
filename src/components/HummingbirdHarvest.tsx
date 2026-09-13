@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { HummingbirdHarvest as HummingbirdHarvestState, ShuttleDocking } from '@/types/game';
 import { subscribeHummingbirdHarvest } from '@/lib/firestore';
 import { allocateHummingbirdHarvest, rollHummingbirdHarvest } from '@/lib/hummingbirdHarvestService';
@@ -23,26 +23,48 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
   const [harvest, setHarvest] = useState<HummingbirdHarvestState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const subscriptionGeneration = useRef(0);
+  const explorerEntitled = me?.role === 'player' &&
+    me.activeConsoleRoleId === 'quellon-explorer' &&
+    typeof me.replacementRoleId !== 'string';
 
   useEffect(() => {
-    if (!session || !me) {
-      setHarvest(null);
-      return undefined;
-    }
-    return subscribeHummingbirdHarvest(session.id, me.uid, setHarvest, () => undefined);
-  }, [me, session]);
+    const generation = ++subscriptionGeneration.current;
+    setHarvest(null);
+    setError('');
+    if (!session || !me || !explorerEntitled) return undefined;
+    const unsubscribe = subscribeHummingbirdHarvest(
+      session.id,
+      me.uid,
+      next => {
+        if (subscriptionGeneration.current === generation) setHarvest(next);
+      },
+      () => undefined,
+    );
+    return () => {
+      if (subscriptionGeneration.current === generation) subscriptionGeneration.current += 1;
+      unsubscribe();
+    };
+  }, [explorerEntitled, me?.activeConsoleRoleId, me?.replacementRoleId, me?.uid, session?.id]);
 
-  const unavailable = !docking || !fuelled || connection !== 'live' ||
-    me?.role !== 'player' || me.activeConsoleRoleId !== 'quellon-explorer' || coordinationBlocked;
-  const pending = harvest?.status === 'pending';
-  const resolved = harvest?.status === 'resolved';
+  // The listener is private, but a previous session or historical console
+  // role may still be in React state for one render while identity changes.
+  // Bind the visible receipt to the current server identity before exposing
+  // dice or allowing a choice.
+  const visibleHarvest = explorerEntitled && session && me &&
+    harvest?.sessionId === session.id && harvest.ownerUid === me.uid
+    ? harvest
+    : null;
+  const unavailable = !docking || !fuelled || connection !== 'live' || !explorerEntitled || coordinationBlocked;
+  const pending = visibleHarvest?.status === 'pending';
+  const resolved = visibleHarvest?.status === 'resolved';
 
   async function roll(): Promise<void> {
     if (busy || unavailable) return;
     setBusy(true);
     setError('');
     try {
-      await rollHummingbirdHarvest(harvest?.revision ?? 0);
+      await rollHummingbirdHarvest(visibleHarvest?.revision ?? 0);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -51,11 +73,11 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
   }
 
   async function allocate(foodDieIndex: 0 | 1): Promise<void> {
-    if (busy || unavailable || !harvest || harvest.status !== 'pending') return;
+    if (busy || unavailable || !visibleHarvest || visibleHarvest.status !== 'pending') return;
     setBusy(true);
     setError('');
     try {
-      await allocateHummingbirdHarvest(harvest.revision, foodDieIndex);
+      await allocateHummingbirdHarvest(visibleHarvest.revision, foodDieIndex);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -85,21 +107,21 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
           </button>
         </div>
       )}
-      {!unavailable && pending && harvest && (
+      {!unavailable && pending && visibleHarvest && (
         <div className="hummingbird-harvest__allocation">
           <p role="status">Roll ready // choose which die becomes food.</p>
           <div className="hummingbird-harvest__dice" aria-label="Hummingbird harvest dice">
-            {harvest.rolls.map((die, index) => (
-              <button key={`${harvest.requestId}-${index}`} className="cic-action-button" type="button"
+            {visibleHarvest.rolls.map((die, index) => (
+              <button key={`${visibleHarvest.requestId}-${index}`} className="cic-action-button" type="button"
                 disabled={busy || unavailable} onClick={() => void allocate(index as 0 | 1)}>
-                Die {index + 1}: {die} food / {harvest.rolls[index === 0 ? 1 : 0]} water
+                Die {index + 1}: {die} food / {visibleHarvest.rolls[index === 0 ? 1 : 0]} water
               </button>
             ))}
           </div>
         </div>
       )}
-      {!unavailable && resolved && harvest && (
-        <p role="status">Resolved this turn // {harvest.food} food and {harvest.water} water added to Hummingbird cargo.</p>
+      {!unavailable && resolved && visibleHarvest && (
+        <p role="status">Resolved this turn // {visibleHarvest.food} food and {visibleHarvest.water} water added to Hummingbird cargo.</p>
       )}
       {error && <p className="hummingbird-harvest__error" role="alert">{error}</p>}
     </section>

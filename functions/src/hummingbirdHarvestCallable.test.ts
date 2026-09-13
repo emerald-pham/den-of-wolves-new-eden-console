@@ -167,6 +167,49 @@ it('denies wrong actor, wrong phase, stale docking, and a second same-turn harve
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
+it('checks the action phase before sampling or writing a new roll', async () => {
+  mock.documents.get('sessions/s1')!.turnPhase = { airspace: { state: 'restricted' } };
+  cryptoMock.randomInt.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request({ ...rollRequest, requestId: 'outside-phase' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/hummingbirdHarvests/u1')).toBeUndefined();
+  expect(mock.documents.get('sessions/s1/hummingbirdHarvestRequests/outside-phase')).toBeUndefined();
+});
+
+it('checks the action phase before allocating a pending roll', async () => {
+  await rollHummingbirdHarvest.run(request(rollRequest));
+  const writesBefore = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  const cargoBefore = mock.documents.get('sessions/s1')?.shuttleCargo;
+  mock.documents.get('sessions/s1')!.turnPhase = { airspace: { state: 'restricted' } };
+
+  await expect(allocateHummingbirdHarvest.run(request({
+    sessionId: 's1', requestId: 'outside-phase-allocation', expectedRevision: 1, foodDieIndex: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesBefore);
+  expect(mock.documents.get('sessions/s1')?.shuttleCargo).toEqual(cargoBefore);
+});
+
+it.each([
+  ['missing dockedAt', (row: Record<string, unknown>, _rows: unknown[]) => { delete row.dockedAt; }],
+  ['blank dockedAt', (row: Record<string, unknown>, _rows: unknown[]) => { row.dockedAt = '  '; }],
+  ['in transit', (row: Record<string, unknown>, _rows: unknown[]) => { row.inTransit = true; }],
+  ['duplicate Hummingbird row', (row: Record<string, unknown>, rows: unknown[]) => { rows.push({ ...row }); }],
+] as const)('rejects a Hummingbird docking row with %s before writing or rolling', async (_label, mutate) => {
+  const session = mock.documents.get('sessions/s1')!;
+  const rows = session.shuttleDockings as unknown[];
+  const row = { ...(rows[0] as Record<string, unknown>) };
+  mutate(row, rows);
+  rows[0] = row;
+  cryptoMock.randomInt.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request({ ...rollRequest, requestId: `malformed-${String(_label).replaceAll(' ', '-')}` })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/hummingbirdHarvests/u1')).toBeUndefined();
+});
+
 it('fails closed on malformed cargo without changing the harvest receipt', async () => {
   mock.documents.get('sessions/s1')!.shuttleCargo = { hummingbird: { ore: 2 } };
   await rollHummingbirdHarvest.run(request(rollRequest));
