@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**256 / 751 prompts complete (34.09%)**
+**259 / 751 prompts complete (34.49%)**
 
-Status breakdown: **256 done · 21 partial · 474 missing**.
+Status breakdown: **259 done · 21 partial · 471 missing**.
 
 Active prompt: **none**
 
@@ -995,17 +995,17 @@ release classification and evidence.
 | 524c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 524d | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 525 | done | feature | 0.3.92 | The GM can author and advance a server-authoritative crisis lifecycle with private facilitator notes, immutable GM audit history, and redacted member-safe events from delivered through closed states. Fresh GM instance manifests gate the private stream, stale callbacks are ignored, and request validation bounds canonical crisis IDs before any write. |
-| 526 | done | non-feature | 0.3.98 | Server-authoritative crisis drafts and delivery enforce configured President and Universal Arbour eligibility for their source-defined crisis kinds. Facilitators can record an explicit private adaptation override; generic crises remain available without a President. GM controls expose kind, eligibility and private override. Legacy clients retain stored configuration across transitions; CAS, current authority, replay and member-event privacy remain enforced. Primary facilitator and crisis-card sources visually verified; focused callable, projection and GM interaction coverage, independent Terra review and compatibility follow-up clear, and four responsive viewport sizes checked in normal and reduced motion. |
-| 527 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 526 | done | feature | 0.3.98, 0.3.100 | Server-authoritative crisis drafts and delivery enforce configured President and Universal Arbour or Wolf Cult eligibility for their source-defined crisis kinds. Facilitators can record an explicit private adaptation override; generic crises remain available without a President. GM controls expose kind, eligibility and private override. Legacy clients retain stored configuration across transitions; CAS, current authority, replay and member-event privacy remain enforced. Primary facilitator and crisis-card sources visually verified; focused callable, projection and GM interaction coverage, independent Terra review and compatibility follow-up clear, and four responsive viewport sizes checked in normal and reduced motion. The alternative Wolf Cult setup now satisfies the same loyalty prerequisite, with a delivery recheck and no individual-alignment read. |
+| 527 | done | feature | 0.3.100 | The facilitator delivers a durable server-authored scouting report through the existing crisis lifecycle. Players can read or hide the report across routes and reconnects. Vessel reality, difficulty reasoning and configuration overrides stay in the GM-only notes and audit; report writes whitelist fixed public facts. Draft replacement removes the prior report, while authority, CAS and exact replay remain enforced. Source crisis card and facilitator guidance visually verified; callable privacy/replay, parser identity/cache boundaries, member-only Firestore rules, App/GM interaction tests and four responsive viewports in normal and reduced motion verified; independent review clear. |
 | 528 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 529 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 530 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 531 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 532 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 532 | done | feature | 0.3.100 | Religious Zealotry delivers the same public movement report for the Universal Arbour and alternate Wolf Cult configurations without revealing the configured variant or any individual alignment. The server rechecks configuration at draft and delivery, retaining the explicit private facilitator override contract from Prompt 526. Private adjudication stays GM-only; players receive the durable report through the shared crisis report panel. Primary crisis card and facilitator guidance visually verified, both configuration paths tested failing-first, shared authority/privacy tests and responsive rendering verified, independent review clear. Response adjudication remains Prompt 533. |
 | 533 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 534 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 535 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
-| 536 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 536 | done | feature | 0.3.100 | The existing President-gated crisis lifecycle publishes a fixed public election introduction. It explicitly leaves voting method, timing, campaigning, electorate, population weighting and supply use for facilitator decisions, without opening ballots or inventing election procedures. The existing private adaptation override remains available. Primary election card visually verified; failing-first callable delivery coverage, GM guidance, four responsive viewport checks and independent delta review clear. Procedure configuration and ballots remain Prompts 537 and 538. |
 | 537 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 538 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 539 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

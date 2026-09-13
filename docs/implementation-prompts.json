@@ -18629,14 +18629,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "President-dependent and loyalty-dependent crises cannot appear in an incompatible roster without an explicit facilitator override.",
         "title": "Gate crises by configuration."
       },
-      "description": "Server-authoritative crisis drafts and delivery enforce configured President and Universal Arbour eligibility for their source-defined crisis kinds. Facilitators can record an explicit private adaptation override; generic crises remain available without a President. GM controls expose kind, eligibility and private override. Legacy clients retain stored configuration across transitions; CAS, current authority, replay and member-event privacy remain enforced. Primary facilitator and crisis-card sources visually verified; focused callable, projection and GM interaction coverage, independent Terra review and compatibility follow-up clear, and four responsive viewport sizes checked in normal and reduced motion.",
+      "description": "Server-authoritative crisis drafts and delivery enforce configured President and Universal Arbour or Wolf Cult eligibility for their source-defined crisis kinds. Facilitators can record an explicit private adaptation override; generic crises remain available without a President. GM controls expose kind, eligibility and private override. Legacy clients retain stored configuration across transitions; CAS, current authority, replay and member-event privacy remain enforced. Primary facilitator and crisis-card sources visually verified; focused callable, projection and GM interaction coverage, independent Terra review and compatibility follow-up clear, and four responsive viewport sizes checked in normal and reduced motion. The alternative Wolf Cult setup now satisfies the same loyalty prerequisite, with a delivery recheck and no individual-alignment read.",
       "evidenceIds": "E-AUDIT-526",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18646,7 +18646,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.98"
+        "0.3.98",
+        "0.3.100"
       ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
@@ -18654,14 +18655,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "players receive the scouting-vessel report while trap/reality state and difficulty reasoning remain facilitator-private.",
         "title": "Deliver Approaching Vessel."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The facilitator delivers a durable server-authored scouting report through the existing crisis lifecycle. Players can read or hide the report across routes and reconnects. Vessel reality, difficulty reasoning and configuration overrides stay in the GM-only notes and audit; report writes whitelist fixed public facts. Draft replacement removes the prior report, while authority, CAS and exact replay remain enforced. Source crisis card and facilitator guidance visually verified; callable privacy/replay, parser identity/cache boundaries, member-only Firestore rules, App/GM interaction tests and four responsive viewports in normal and reduced motion verified; independent review clear.",
       "evidenceIds": "E-AUDIT-527",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18670,10 +18671,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.100"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18769,14 +18772,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the crisis appears only with a compatible Universal Arbour/Cult configuration and preserves secret alignment.",
         "title": "Deliver Religious Zealotry."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Religious Zealotry delivers the same public movement report for the Universal Arbour and alternate Wolf Cult configurations without revealing the configured variant or any individual alignment. The server rechecks configuration at draft and delivery, retaining the explicit private facilitator override contract from Prompt 526. Private adjudication stays GM-only; players receive the durable report through the shared crisis report panel. Primary crisis card and facilitator guidance visually verified, both configuration paths tested failing-first, shared authority/privacy tests and responsive rendering verified, independent review clear. Response adjudication remains Prompt 533.",
       "evidenceIds": "E-AUDIT-532",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18785,10 +18788,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.100"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18861,14 +18866,14 @@
       "tag": "DECISION"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the crisis is available only with the President and declares that voting method, timing, and campaign rules need decisions.",
         "title": "Deliver Presidential Election."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The existing President-gated crisis lifecycle publishes a fixed public election introduction. It explicitly leaves voting method, timing, campaigning, electorate, population weighting and supply use for facilitator decisions, without opening ballots or inventing election procedures. The existing private adaptation override remains available. Primary election card visually verified; failing-first callable delivery coverage, GM guidance, four responsive viewport checks and independent delta review clear. Procedure configuration and ballots remain Prompts 537 and 538.",
       "evidenceIds": "E-AUDIT-536",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18877,10 +18882,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.100"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

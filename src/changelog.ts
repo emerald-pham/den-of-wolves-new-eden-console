@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [526, 527, 532, 536],
+    implementationProgress: {
+      completed: 259,
+      total: 751,
+      percentage: '34.49%',
+      done: 259,
+      partial: 21,
+      active: 0,
+      missing: 471,
+    },
+    changes: [
+      'Players can read delivered scouting, Religious Zealotry and election introductions after reconnecting. Facilitator notes and secret loyalties remain private.',
+      'Religious Zealotry also supports the alternate Wolf Cult setup.',
+      '259 of 751 planned items are complete (34.49%).',
+    ],
+  },
+  {
+    version: '0.3.99',
     implementationPrompts: [628],
     implementationProgress: {
       completed: 256,

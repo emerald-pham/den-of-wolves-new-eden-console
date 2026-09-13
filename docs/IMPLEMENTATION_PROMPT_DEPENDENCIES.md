@@ -681,16 +681,16 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 524d | NEW | missing | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524D | M10 | Enforce presidential authority boundaries. |
 | 525 | NEW | done | 008;522 | none | none | none | none | none | none | none | E-AUDIT-525;E-525-VERIFIED | M3;M11;M12 | Create the crisis state machine. |
 | 526 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-526 | M3;M11;M12 | Gate crises by configuration. |
-| 527 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
+| 527 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
 | 528 | DECISION | missing | 527 | none | none | none | none | none | none | none | E-AUDIT-528 | M3;M11;M12 | Resolve Approaching Vessel choices. |
 | 529 | NEW | missing | 249;527 | none | none | none | none | none | none | none | E-AUDIT-529 | M3;M11;M12 | Integrate Voyage 33-0 arrival. |
 | 530 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-530 | M3;M11;M12 | Deliver Disease Outbreak. |
 | 531 | NEW | missing | 530;149 | none | none | none | none | none | none | none | E-AUDIT-531 | M3;M11;M12 | Resolve quarantine policy. |
-| 532 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-532 | M3;M11;M12 | Deliver Religious Zealotry. |
+| 532 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-532 | M3;M11;M12 | Deliver Religious Zealotry. |
 | 533 | DECISION | missing | 532 | none | none | none | none | none | none | none | E-AUDIT-533 | M3;M11;M12 | Resolve zealotry responses. |
 | 534 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-534 | M3;M11;M12 | Deliver Civil Unrest. |
 | 535 | DECISION | missing | 534 | none | none | none | none | none | none | none | E-AUDIT-535 | M3;M11;M12 | Resolve Civil Unrest. |
-| 536 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-536 | M3;M11;M12 | Deliver Presidential Election. |
+| 536 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-536 | M3;M11;M12 | Deliver Presidential Election. |
 | 537 | DECISION | missing | 536 | none | none | none | none | none | none | none | E-AUDIT-537 | M3;M11;M12 | Configure election procedure. |
 | 538 | NEW | missing | 537 | none | none | none | none | none | none | none | E-AUDIT-538 | M3;M11;M12 | Resolve the election privately. |
 | 539 | NEW | missing | 538;101 | none | none | none | none | none | none | none | E-AUDIT-539 | M3;M11;M12 | Announce binding resolutions at Team start. |
