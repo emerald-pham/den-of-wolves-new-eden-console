@@ -122,6 +122,7 @@ function AppRoutes() {
     let pendingArbourVision: { vision: ArbourVision; generation: number } | null = null;
     let arbourVisionAuthorityGeneration = 0;
     let arbourVisionBlocked = false;
+    let arbourVisionBlockReason: 'entitlement' | 'loyalty' | null = null;
     let arbourVisionRevisionFloor = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
@@ -149,8 +150,22 @@ function AppRoutes() {
         useSessionStore.getState().arbourVision?.revision ?? 0,
       );
       arbourVisionBlocked = true;
+      arbourVisionBlockReason = 'loyalty';
       pendingArbourVision = null;
       useSessionStore.getState().setArbourVision(null);
+    };
+    const retainArbourVisionForEntitlementChange = () => {
+      const store = useSessionStore.getState();
+      const candidate = arbourVisionBlockReason === 'loyalty'
+        ? null
+        : pendingArbourVision?.vision ?? store.arbourVision ?? null;
+      arbourVisionAuthorityGeneration += 1;
+      arbourVisionBlocked = true;
+      arbourVisionBlockReason = 'entitlement';
+      pendingArbourVision = candidate
+        ? { vision: candidate, generation: arbourVisionAuthorityGeneration }
+        : null;
+      store.setArbourVision(null);
     };
     const currentPlayerMayReadCensus = () => {
       const state = useSessionStore.getState();
@@ -264,7 +279,7 @@ function AppRoutes() {
             }
           }
           if (previousEntitlement !== nextEntitlement) {
-            invalidateArbourVision();
+            retainArbourVisionForEntitlementChange();
           }
           const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
           if (!effectiveBriefRoleId) {
@@ -316,12 +331,20 @@ function AppRoutes() {
           store.setPrivateLoyalty(next);
           if (next?.kind === 'universal-arbour') {
             if (arbourVisionBlocked) {
-              // A loyalty change creates a new authority generation. Do not
-              // carry a snapshot from the former holder into the new one.
-              arbourVisionAuthorityGeneration += 1;
+              const candidate = arbourVisionBlockReason === 'entitlement' &&
+                pendingArbourVision?.generation === arbourVisionAuthorityGeneration &&
+                pendingArbourVision.vision.revision > arbourVisionRevisionFloor
+                ? pendingArbourVision.vision
+                : null;
               arbourVisionBlocked = false;
+              arbourVisionBlockReason = null;
               pendingArbourVision = null;
-              store.setArbourVision(null);
+              if (candidate) {
+                arbourVisionRevisionFloor = candidate.revision;
+                store.setArbourVision(candidate);
+              } else {
+                store.setArbourVision(null);
+              }
             } else if (
               pendingArbourVision &&
               pendingArbourVision.generation === arbourVisionAuthorityGeneration &&
@@ -346,7 +369,18 @@ function AppRoutes() {
           if (next.revision <= arbourVisionRevisionFloor || arbourVisionBlocked) {
             // Late snapshots from a former authority generation cannot be
             // buffered for a future holder or replace the current projection.
-            pendingArbourVision = null;
+            if (arbourVisionBlocked && arbourVisionBlockReason === 'entitlement') {
+              const candidate = pendingArbourVision?.vision;
+              if (next.revision > arbourVisionRevisionFloor &&
+                  (!candidate || next.revision > candidate.revision)) {
+                pendingArbourVision = {
+                  vision: next,
+                  generation: arbourVisionAuthorityGeneration,
+                };
+              }
+            } else {
+              pendingArbourVision = null;
+            }
             store.setArbourVision(null);
             return;
           }
