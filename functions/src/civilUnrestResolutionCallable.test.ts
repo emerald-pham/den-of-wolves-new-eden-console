@@ -32,7 +32,7 @@ vi.mock('firebase-functions/v2/https', () => ({
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
 
-import { recordCivilUnrestResolution } from './index';
+import { recordCivilUnrestResolution, transitionCrisis } from './index';
 
 const baseData = {
   sessionId: 's1', instanceId: 'gm-1', requestId: 'resolution-1', expectedRevision: 3,
@@ -103,4 +103,48 @@ it('fails closed outside the current debated Civil Unrest crisis and does not ap
   await expect(recordCivilUnrestResolution.run(request({ ...baseData, expectedRevision: 4 }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect([...mock.documents.keys()].some((path) => path.includes('events/'))).toBe(false);
   expect(SHIPS).toHaveLength(5);
+});
+
+it('accepts grievances submitted during delivery after the crisis advances to debate', async () => {
+  const lifecycle = {
+    ...baseData, title: 'Civil Unrest', details: 'Teams have submitted grievances.', crisisKind: 'civil-unrest',
+  };
+  put('sessions/s1/crisisState/current', {
+    type: 'crisis-state', sessionId: 's1', crisisId: 'unrest-1', crisisKind: 'civil-unrest',
+    state: 'draft', revision: 3, title: lifecycle.title, details: lifecycle.details,
+  });
+  await transitionCrisis.run(request({ ...lifecycle, requestId: 'delivery', expectedRevision: 3, state: 'delivered' }));
+  put('sessions/s1/civilUnrestGrievances/dione', {
+    type: 'civil-unrest-grievance', sessionId: 's1', crisisId: 'unrest-1', shipId: 'dione',
+    visibility: 'public', text: 'The Dione team requests a review.', revision: 3, crisisRevision: 4,
+  });
+  await transitionCrisis.run(request({ ...lifecycle, requestId: 'debated', expectedRevision: 4, state: 'debated' }));
+  await expect(recordCivilUnrestResolution.run(request({
+    ...baseData, requestId: 'resolution-after-delivery-grievance', expectedRevision: 5,
+  }))).resolves.toMatchObject({
+    status: 'committed', crisisRevision: 5,
+    grievanceRevisions: expect.arrayContaining([{ shipId: 'dione', revision: 3 }]),
+  });
+});
+
+it('supersedes a same-crisis resolution after an escalated loop while preserving prior history', async () => {
+  put('sessions/s1/civilUnrestResolutions/current', {
+    type: 'civil-unrest-resolution', sessionId: 's1', crisisId: 'unrest-1', crisisRevision: 3,
+    state: 'debated', revision: 1, presidentResponse: 'Earlier response', consequence: 'Earlier consequence',
+    rationale: 'Earlier rationale', recordedBy: 'facilitator', actorUid: 'u1', instanceId: 'gm-1',
+    grievanceRevisions: SHIPS.map((shipId) => ({ shipId, revision: null })),
+  });
+  const lifecycle = {
+    ...baseData, title: 'Civil Unrest', details: 'Teams have submitted grievances.', crisisKind: 'civil-unrest',
+  };
+  await transitionCrisis.run(request({ ...lifecycle, requestId: 'escalated', expectedRevision: 3, state: 'escalated' }));
+  await transitionCrisis.run(request({ ...lifecycle, requestId: 'debated-again', expectedRevision: 4, state: 'debated' }));
+  await expect(recordCivilUnrestResolution.run(request({
+    ...baseData, requestId: 'resolution-after-escalation', expectedRevision: 5,
+    presidentResponse: 'Revised response', consequence: 'Revised consequence', rationale: 'Revised rationale',
+  }))).resolves.toMatchObject({ status: 'committed', crisisRevision: 5, revision: 2 });
+  expect(mock.documents.get('sessions/s1/civilUnrestResolutions/current')).toMatchObject({
+    crisisRevision: 5, revision: 2, presidentResponse: 'Revised response',
+  });
+  expect(mock.documents.get('sessions/s1/civilUnrestResolutions/history-resolution-after-escalation')).toBeDefined();
 });

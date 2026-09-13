@@ -6325,7 +6325,7 @@ export const recordCivilUnrestResolution = onCall<{
       ? parseStoredCivilUnrestResolution(currentResolutionSnapshot.data()) : null;
     if (currentResolutionSnapshot.exists && (!priorResolution ||
         priorResolution.sessionId !== response.sessionId || priorResolution.crisisId !== response.crisisId ||
-        priorResolution.crisisRevision !== response.expectedRevision)) {
+        priorResolution.crisisRevision > response.expectedRevision)) {
       throw commandError('failed-precondition', 'The current Civil Unrest resolution projection is malformed.', 'malformed-input');
     }
     const grievanceRevisions = grievances.map((snapshot, index) => {
@@ -6336,7 +6336,8 @@ export const recordCivilUnrestResolution = onCall<{
           raw.crisisId !== response.crisisId || raw.shipId !== shipId ||
           (raw.visibility !== 'private' && raw.visibility !== 'public') || typeof raw.text !== 'string' ||
           raw.text.trim().length === 0 || raw.text.length > 2000 || !Number.isSafeInteger(raw.revision) ||
-          (raw.revision as number) < 1 || raw.crisisRevision !== response.expectedRevision) {
+          (raw.revision as number) < 1 || !Number.isSafeInteger(raw.crisisRevision) ||
+          (raw.crisisRevision as number) < 1 || (raw.crisisRevision as number) > response.expectedRevision) {
         throw commandError('failed-precondition', 'A current Civil Unrest grievance is malformed; refresh before recording.', 'malformed-input');
       }
       return { shipId, revision: raw.revision as number };
