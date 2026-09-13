@@ -218,3 +218,29 @@ it('permits Presidential Election with its configured role and rejects an unknow
   await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'presidential-election' })))
     .resolves.toMatchObject({ state: 'draft' });
 });
+
+
+it('preserves a typed crisis and private override across older-client transitions', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: [] });
+  const legacy = { ...baseData, crisisId: 'election-2026' };
+  await transitionCrisis.run(request({ ...legacy, crisisKind: 'presidential-election', configurationOverride: 'Facilitator-approved adaptation.' }));
+  for (const [state, expectedRevision] of [['delivered', 1], ['debated', 2]] as const) {
+    await expect(transitionCrisis.run(request({ ...legacy, requestId: `legacy-${state}`, expectedRevision, state })))
+      .resolves.toMatchObject({ state, revision: expectedRevision + 1 });
+    expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({
+      crisisKind: 'presidential-election', configurationOverride: 'Facilitator-approved adaptation.',
+    });
+  }
+});
+
+it('still rechecks eligibility and rejects explicit kind changes for older-client drafts', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: ['dione-president'] });
+  const legacy = { ...baseData, crisisId: 'election-2026' };
+  await transitionCrisis.run(request({ ...legacy, crisisKind: 'presidential-election' }));
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: [] });
+  const delivered = { ...legacy, requestId: 'legacy-delivered', expectedRevision: 1, state: 'delivered' };
+  await expect(transitionCrisis.run(request(delivered)))
+    .rejects.toMatchObject({ message: expect.stringMatching(/President/i) });
+  await expect(transitionCrisis.run(request({ ...delivered, crisisKind: 'custom' })))
+    .rejects.toMatchObject({ message: expect.stringMatching(/configuration is fixed/i) });
+});

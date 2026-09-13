@@ -5473,16 +5473,25 @@ export const transitionCrisis = onCall<{
         throw commandError('failed-precondition', 'Crisis content is fixed after draft creation.', 'conflict');
       }
     }
+    // Older clients omit configuration fields; continuing the same crisis must
+    // retain its private configuration rather than reclassifying its identifier.
+    const sameCrisis = current.exists && previousCrisisId === crisis.crisisId;
+    const storedKind = current.get('crisisKind');
+    const storedOverride = current.get('configurationOverride');
+    const crisisKind = request.data?.crisisKind === undefined && sameCrisis && isCrisisKind(storedKind)
+      ? storedKind : crisis.crisisKind;
+    const configurationOverride = request.data?.configurationOverride === undefined && sameCrisis && typeof storedOverride === 'string'
+      ? storedOverride : crisis.configurationOverride;
     if (current.exists && !replacingClosedCrisis && (
-      crisis.crisisKind !== (current.get('crisisKind') ?? (isCrisisKind(previousCrisisId) ? previousCrisisId : 'custom')) ||
-      (crisis.state !== 'delivered' && crisis.configurationOverride !== (current.get('configurationOverride') ?? ''))
+      crisisKind !== (current.get('crisisKind') ?? (isCrisisKind(previousCrisisId) ? previousCrisisId : 'custom')) ||
+      (crisis.state !== 'delivered' && configurationOverride !== (current.get('configurationOverride') ?? ''))
     )) throw commandError('failed-precondition', 'Crisis configuration is fixed after draft creation.', 'conflict');
     const activeRoles = authority.session.get('activeRoleIds') ?? DEFAULT_ACTIVE_ROLE_IDS;
-    const blocker = crisisConfigurationBlocker(crisis.crisisKind, {
+    const blocker = crisisConfigurationBlocker(crisisKind, {
       presidentEnabled: authority.session.get('dioneEnabled') !== false && Array.isArray(activeRoles) && activeRoles.includes('dione-president'),
       universalArbourEnabled: authority.session.get('universalArbourEnabled') === true,
     });
-    if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !crisis.configurationOverride) {
+    if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !configurationOverride) {
       throw commandError('failed-precondition', blocker, 'conflict');
     }
     const revision = currentRevision + 1;
@@ -5502,8 +5511,8 @@ export const transitionCrisis = onCall<{
       revision,
       title: crisis.title,
       details: crisis.details,
-      crisisKind: crisis.crisisKind,
-      configurationOverride: crisis.configurationOverride,
+      crisisKind,
+      configurationOverride,
       actorUid: uid,
       instanceId: crisis.instanceId,
       updatedAt: FieldValue.serverTimestamp(),
@@ -5517,8 +5526,8 @@ export const transitionCrisis = onCall<{
       revision,
       title: crisis.title,
       details: crisis.details,
-      crisisKind: crisis.crisisKind,
-      configurationOverride: crisis.configurationOverride,
+      crisisKind,
+      configurationOverride,
       actorUid: uid,
       instanceId: crisis.instanceId,
       createdAt: FieldValue.serverTimestamp(),
