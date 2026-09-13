@@ -576,7 +576,7 @@ export default function GmConsole() {
     setupSynchronized: session?.setup !== undefined && !hasUnconfirmedRosterChanges,
     productionStartAvailable: currentTurn === 0 && session?.phase === 'casting',
     turnPhase: phaseReadout?.kind,
-    timerPaused: Boolean(currentPhase?.timerPause),
+    timerPaused: Boolean(currentPhase?.timerPause && currentPhase.timerPause.reason !== 'empty-session'),
     wolfAttackStatus: wolfWindowStatus,
     debriefActive: debriefMode.active,
     overdueMaintenance,
@@ -3345,7 +3345,7 @@ export default function GmConsole() {
                     : event.type === 'maintenance'
                       ? `${event.shipName} // Maintenance cycle ${event.action === 'begin' ? 'started' : 'completed'}`
                       : event.type === 'timer-pause'
-                        ? `Emergency timer // ${event.action === 'paused' ? 'paused' : 'resumed'} // Turn ${event.turn} // ${event.window} // ${event.actorName}`
+                        ? `${event.reason === 'empty-session' ? 'Session timer' : 'Emergency timer'} // ${event.action === 'paused' ? 'paused' : 'resumed'} // Turn ${event.turn} // ${event.window} // ${event.actorName}`
                         : event.type === 'android-proof-disclosed'
                           ? 'Android proof disclosed to the fleet'
                           : event.type === 'crisis-state'

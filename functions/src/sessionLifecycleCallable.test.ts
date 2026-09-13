@@ -670,3 +670,121 @@ describe('inactive-session reaper', () => {
     expect(read('joinCodes/482109')).toEqual({ sessionId: 's1' });
   });
 });
+
+describe('empty-session clock continuity', () => {
+  const phase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T20:03:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T20:18:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  it('freezes only the last connected participant and preserves the exact remaining window', async () => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: phase });
+    player();
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toEqual({
+      ...phase,
+      timerPause: { reason: 'empty-session', window: 'restricted', remainingMs: 180_000, pausedAt: NOW.toISOString() },
+    });
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toMatchObject({
+      timerPause: { remainingMs: 180_000, pausedAt: NOW.toISOString() },
+    });
+  });
+
+  it('keeps a populated session running', async () => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: phase });
+    player();
+    put('sessions/s1/players/u2', { uid: 'u2', connected: true, lastSeenAt: mock.Timestamp.fromDate(NOW) });
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toEqual(phase);
+  });
+
+  it('freezes the clock when authoritative expiry removes the final vanished participant', async () => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: phase });
+    player({ lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS) });
+    await expireStalePlayers.run({} as Parameters<typeof expireStalePlayers.run>[0]);
+    expect(read('sessions/s1')?.turnPhase).toMatchObject({
+      timerPause: { reason: 'empty-session', remainingMs: 180_000, pausedAt: NOW.toISOString() },
+    });
+  });
+
+  it.each(['closed', 'debrief', 'lobby'])('does not create a hold in a %s session', async (lifecycle) => {
+    session({ phase: lifecycle, currentTurn: 2, turnPhase: phase });
+    player();
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toEqual(phase);
+  });
+
+  it('preserves an emergency pause when the last participant disconnects', async () => {
+    const held = { ...phase, timerPause: { window: 'restricted', remainingMs: 120_000, pausedAt: '2026-09-06T19:59:00.000Z' } };
+    session({ phase: 'active', currentTurn: 2, turnPhase: held });
+    player();
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toEqual(held);
+  });
+
+  it('does not revive a completed timer on disconnect', async () => {
+    const completed = { ...phase, teamPhaseEndsAt: '2026-09-06T19:40:00.000Z', openAirspaceEndsAt: NOW.toISOString() };
+    session({ phase: 'active', currentTurn: 2, turnPhase: completed });
+    player();
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toEqual(completed);
+  });
+});
+
+it('commits elapsed Team expiry once before holding the remaining Coordination window', async () => {
+  session({ phase: 'active', currentTurn: 2, turnPhase: {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T19:59:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T20:14:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  } });
+  player();
+  await disconnectFromSession.run(request({ sessionId: 's1' }));
+  expect(read('sessions/s1')?.turnPhase).toMatchObject({
+    airspace: { state: 'lifted' },
+    timerPause: { reason: 'empty-session', window: 'open', remainingMs: 840_000 },
+  });
+  const opened = [...mock.documents.values()].filter(value => value.type === 'airspace-opened');
+  expect(opened).toHaveLength(1);
+  await disconnectFromSession.run(request({ sessionId: 's1' }));
+  expect([...mock.documents.values()].filter(value => value.type === 'airspace-opened')).toHaveLength(1);
+});
+
+it('keeps the emergency hold when a GM pause wins the disconnect race', async () => {
+  session({ phase: 'active', currentTurn: 2 });
+  player();
+  const hold = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T20:03:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T20:18:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    timerPause: { window: 'restricted', remainingMs: 180_000, pausedAt: NOW.toISOString() },
+  };
+  mock.setBeforeTransaction(() => session({ phase: 'active', currentTurn: 2, turnPhase: hold }));
+  await disconnectFromSession.run(request({ sessionId: 's1' }));
+  expect(read('sessions/s1')?.turnPhase).toEqual(hold);
+});
+
+it('serializes two participant reconnects to one resume without duplicating time or its event', async () => {
+  const held = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T19:03:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T19:18:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    timerPause: { reason: 'empty-session', window: 'restricted', remainingMs: 180_000, pausedAt: '2026-09-06T19:00:00.000Z' },
+  };
+  session({ phase: 'active', currentTurn: 2, turnPhase: held,
+    createdAt: mock.Timestamp.fromDate(NOW), updatedAt: mock.Timestamp.fromDate(NOW) });
+  player({ connected: false, joinedAt: mock.Timestamp.fromDate(NOW) });
+  put('sessions/s1/players/u2', { ...read('sessions/s1/players/u1'), uid: 'u2' });
+  const first = await resumeSession.run(request({ sessionId: 's1' }));
+  vi.setSystemTime(new Date(NOW.getTime() + 30_000));
+  const second = await resumeSession.run(request({ sessionId: 's1' }, 'u2'));
+  expect(first.session.turnPhase).toMatchObject({ teamPhaseEndsAt: '2026-09-06T20:03:00.000Z', openAirspaceEndsAt: '2026-09-06T20:18:00.000Z' });
+  expect(second.session.turnPhase).toEqual(first.session.turnPhase);
+  expect([...mock.documents.values()].filter(value => value.type === 'timer-pause' && value.action === 'resumed')).toHaveLength(1);
+});

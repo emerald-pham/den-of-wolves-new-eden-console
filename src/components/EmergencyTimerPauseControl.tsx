@@ -35,9 +35,10 @@ export default function EmergencyTimerPauseControl({
   const [clickCount, setClickCount] = useState(0);
   const [changing, setChanging] = useState(false);
   const identity = phaseIdentity(phase);
+  const automatic = phase?.timerPause?.reason === 'empty-session';
   const paused = phase?.timerPause !== undefined;
   const timerLive = hasActiveTurnTimer(phase, now);
-  const canAct = connection === 'live' && Boolean(phase) && timerLive && !busy && !changing;
+  const canAct = connection === 'live' && Boolean(phase) && timerLive && !busy && !changing && !automatic;
 
   useEffect(() => {
     setNow(Date.now());
@@ -71,12 +72,12 @@ export default function EmergencyTimerPauseControl({
   const clicksRemaining = REQUIRED_CLICKS - clickCount;
   const actionLabel = paused ? 'Re-arm interlock // Resume timer' : 'Disarm interlock // Pause timer';
   const sequenceLabel = paused ? 'Re-arm interlock' : 'Disarm interlock';
-  const buttonLabel = changing
+  const buttonLabel = automatic ? 'Awaiting reconnect' : changing
     ? `${paused ? 'Resuming' : 'Activating'} emergency timer…`
     : clickCount > 0
       ? `${sequenceLabel} // ${clicksRemaining} ${clicksRemaining === 1 ? 'click' : 'clicks'} remaining`
       : actionLabel;
-  const status = paused
+  const status = automatic ? 'Session timer paused // resumes on reconnect' : paused
     ? 'Emergency timer paused // GM resume required'
     : timerLive
       ? 'Emergency timer // Armed'
@@ -92,7 +93,9 @@ export default function EmergencyTimerPauseControl({
       <h2 className="gm-console__section-title">Emergency timer pause</h2>
       <p className="gm-console__status" role="status" aria-live="polite">{status}</p>
       <p className="gm-emergency-pause__warning">
-        For emergencies only // three deliberate clicks required to {paused ? 'resume' : 'pause'} all fleet clocks.
+        {automatic
+          ? 'The empty-session hold clears when a participant reconnects.'
+          : `For emergencies only // three deliberate clicks required to ${paused ? 'resume' : 'pause'} all fleet clocks.`}
       </p>
       <button
         className={`cic-action-button${clickCount > 0 ? ' cic-action-button--confirm' : ''}`}

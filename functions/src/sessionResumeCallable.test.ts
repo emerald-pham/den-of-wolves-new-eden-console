@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => {
@@ -35,7 +35,7 @@ vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => {
-      const ref = { path, get: () => mock.get(ref) };
+      const ref = { path, id: path.split('/').at(-1) ?? '', get: () => mock.get(ref) };
       return ref;
     },
     collection: (path: string) => ({
@@ -75,7 +75,7 @@ function prepareResume(
   navigationExists = false,
 ) {
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
-  const session = snapshot({
+  const sessionData = {
     name: 'Table one',
     joinCode: '482109',
     phase: 'lobby',
@@ -83,7 +83,8 @@ function prepareResume(
     createdAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
     updatedAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
     ...sessionFields,
-  });
+  };
+  const session = snapshot(sessionData);
   const playerData: Record<string, unknown> = {
     uid: 'u1',
     sessionId: 's1',
@@ -99,6 +100,9 @@ function prepareResume(
   const player = snapshot(playerData);
 
   mock.update.mockImplementation((ref: { path: string }, update: unknown) => {
+    if (ref.path === 'sessions/s1' && typeof update === 'object' && update !== null) {
+      Object.assign(sessionData, update);
+    }
     if (ref.path === 'sessions/s1/players/u1' && typeof update === 'object' && update !== null) {
       Object.assign(playerData, update);
     }
@@ -568,4 +572,43 @@ it('replaces a stale membership lock but refuses an active membership in another
     code: 'failed-precondition',
   });
   expect(mock.delete).not.toHaveBeenCalled();
+});
+
+
+afterEach(() => vi.useRealTimers());
+
+it('resumes an empty-session hold exactly once and returns the shifted authoritative clock', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T18:00:00.000Z'));
+  prepareResume({}, { seatId: null }, {
+    phase: 'active', currentTurn: 2,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T15:03:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T15:18:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      timerPause: { reason: 'empty-session', window: 'restricted', remainingMs: 180_000, pausedAt: '2026-09-06T15:00:00.000Z' },
+    },
+  });
+  const first = await resumeSession.run(request('s1'));
+  expect(first.session.turnPhase).toMatchObject({
+    teamPhaseEndsAt: '2026-09-06T18:03:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T18:18:00.000Z',
+  });
+  expect(first.session.turnPhase).not.toHaveProperty('timerPause');
+  vi.setSystemTime(new Date('2026-09-06T18:00:30.000Z'));
+  const second = await resumeSession.run(request('s1'));
+  expect(second.session.turnPhase).toEqual(first.session.turnPhase);
+});
+
+it('does not release a deliberate emergency hold during reconnect', async () => {
+  const held = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T15:03:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T15:18:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    timerPause: { window: 'restricted', remainingMs: 180_000, pausedAt: '2026-09-06T15:00:00.000Z' },
+  };
+  prepareResume({}, { seatId: null }, { phase: 'active', currentTurn: 2, turnPhase: held });
+  expect((await resumeSession.run(request('s1'))).session.turnPhase).toEqual(held);
 });

@@ -142,9 +142,11 @@ export default function FleetBroadcast() {
         id: `${session.id}:emergency-timer:${phase.turn}:${phase.timerPause.pausedAt}`,
         text: sourceBulletin(
           'AIRSPACE CONTROL',
-          'EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
+          phase.timerPause.reason === 'empty-session'
+            ? 'FLEET CLOCKS ON HOLD // RESUMES WHEN CREW RECONNECT'
+            : 'EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
         ),
-        tone: 'danger' as const,
+        tone: phase.timerPause.reason === 'empty-session' ? 'normal' as const : 'danger' as const,
         gap: 'long' as const,
       }
     : undefined;

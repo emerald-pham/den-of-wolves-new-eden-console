@@ -12,6 +12,8 @@ export const AIRSPACE_EXTENSION_MS = 5 * 60_000;
 export type AirspaceWindow = 'restricted' | 'open';
 
 export type TurnTimerPause = {
+  /** Absent on legacy and deliberate GM emergency holds. */
+  readonly reason?: 'empty-session';
   readonly window: AirspaceWindow;
   readonly remainingMs: number;
   readonly pausedAt: string;
@@ -154,9 +156,10 @@ function timerPauseState(value: unknown): TurnTimerPause | undefined {
   if (
     (window !== 'restricted' && window !== 'open') ||
     typeof remainingMs !== 'number' || !Number.isSafeInteger(remainingMs) || remainingMs < 0 ||
-    !instant(pausedAt)
+    !instant(pausedAt) ||
+    (value.reason !== undefined && value.reason !== 'empty-session')
   ) return undefined;
-  return { window, remainingMs, pausedAt };
+  return { window, remainingMs, pausedAt, ...(value.reason === 'empty-session' ? { reason: value.reason } : {}) };
 }
 
 /** Read a stored phase only when every server-owned detail is structurally safe. */

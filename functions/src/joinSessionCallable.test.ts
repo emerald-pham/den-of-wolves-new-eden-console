@@ -31,7 +31,7 @@ vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => {
-      const ref = { path, get: () => mock.get(ref) };
+      const ref = { path, id: path.split('/').at(-1) ?? '', get: () => mock.get(ref) };
       return ref;
     },
     collection: (path: string) => ({
@@ -552,4 +552,36 @@ it('assigns a joining identity to the stable group once across repeated joins', 
   });
   expect(groupFields).toMatchObject({ id: 'fleet-1', vesselIds: activeVesselIds, memberUids: ['u1'] });
   expect(groupWrites).toBe(1);
+});
+
+it('resumes the preserved timer when a newly authenticated participant joins an empty session', async () => {
+  const now = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-06T18:00:00.000Z'));
+  const sessionData: Record<string, unknown> = {
+    name: 'Table one', phase: 'active', currentTurn: 2,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T15:03:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T15:18:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      timerPause: { reason: 'empty-session', window: 'restricted', remainingMs: 180_000, pausedAt: '2026-09-06T15:00:00.000Z' },
+    },
+  };
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot(sessionData);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    return snapshot({}, false);
+  });
+  mock.update.mockImplementation((ref: { path: string }, fields: object) => {
+    if (ref.path === 'sessions/s1') Object.assign(sessionData, fields);
+  });
+  try {
+    const result = await joinSession.run(request('482109'));
+    expect(result.session.turnPhase).toMatchObject({
+      teamPhaseEndsAt: '2026-09-06T18:03:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T18:18:00.000Z',
+    });
+    expect(result.session.turnPhase).not.toHaveProperty('timerPause');
+    expect(mock.set).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringMatching(/^sessions\/s1\/events\/presence-timer-/) }), expect.objectContaining({ type: 'timer-pause', action: 'resumed', reason: 'empty-session' }));
+  } finally { now.mockRestore(); }
 });

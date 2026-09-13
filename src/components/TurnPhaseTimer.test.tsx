@@ -24,3 +24,17 @@ it('shows a paused phase as a red, frozen emergency instrument', () => {
   expect(timer).toHaveAttribute('data-tone', 'red');
   expect(screen.getByText('GM resume required')).toBeInTheDocument();
 });
+
+it('labels an automatic empty-session hold without implying GM intervention', () => {
+  render(<DradisAirspaceTimer phase={{
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-07T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-07T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    timerPause: { reason: 'empty-session', window: 'restricted', remainingMs: 180_000, pausedAt: '2026-09-07T12:02:00.000Z' },
+  }} />);
+  expect(screen.getByRole('status')).toHaveAccessibleName('Airspace closed // 03:00 remaining // awaiting reconnect');
+  expect(screen.getByRole('status')).toHaveAttribute('data-tone', 'blue');
+  expect(screen.getByText('Resumes on reconnect')).toBeInTheDocument();
+  expect(screen.queryByText('GM resume required')).not.toBeInTheDocument();
+});

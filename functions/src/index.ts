@@ -352,6 +352,7 @@ const FLEET_TICKER_COPY = {
   airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
   airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
+  emptySession: 'AIRSPACE CONTROL // FLEET CLOCKS ON HOLD // RESUMES WHEN CREW RECONNECT',
   standDown: 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
   finale: 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
 } as const;
@@ -373,8 +374,9 @@ function fleetTickerStateFromLegacy(
   if (phase?.timerPause) {
     state = publishFleetTicker(sessionId, state, {
       source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
-      text: FLEET_TICKER_COPY.emergency, tone: 'danger', gap: 'long',
-      sourceId: `emergency:${phase.turn}:${phase.timerPause.pausedAt}`,
+      text: phase.timerPause.reason === 'empty-session' ? FLEET_TICKER_COPY.emptySession : FLEET_TICKER_COPY.emergency,
+      tone: phase.timerPause.reason === 'empty-session' ? 'normal' : 'danger', gap: 'long',
+      sourceId: `${phase.timerPause.reason ?? 'emergency'}:${phase.turn}:${phase.timerPause.pausedAt}`,
     }, now);
   } else if (phase?.airspace.tickerActive) {
     state = publishFleetTicker(sessionId, state, {
@@ -450,6 +452,62 @@ function publishSessionFleetTicker(
   now: string,
 ): FleetTickerState {
   return publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, now), input, now);
+}
+
+/** Presence and clock changes commit together, so rejoin/expiry races retry on
+ * the same session version. A reconnect can release only an automatic hold. */
+function reconcilePresenceTimer(
+  tx: Transaction,
+  sessionRef: DocumentReference,
+  session: DocumentSnapshot,
+  connected: boolean,
+): void {
+  const debrief = session.get('debriefMode') as { active?: unknown } | undefined;
+  if (session.get('phase') !== 'active' || debrief?.active === true) return;
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) return;
+  const now = Date.now();
+  let next: ActiveTurnPhase | undefined;
+  if (connected) {
+    if (phase.timerPause?.reason !== 'empty-session') return;
+    next = resumePausedTurnPhase(phase, now);
+  } else {
+    if (phase.timerPause) return;
+    const paused = pauseActiveTurnPhase(phase, now);
+    if (paused?.timerPause) {
+      next = { ...paused, timerPause: { ...paused.timerPause, reason: 'empty-session' } };
+    }
+  }
+  if (!next) return;
+  const serverTime = new Date(now).toISOString();
+  const turnState = updatedTurnState(session, next);
+  const fleetTicker = publishSessionFleetTicker(sessionRef.id, session, next.timerPause ? {
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
+    text: FLEET_TICKER_COPY.emptySession, tone: 'normal', gap: 'long',
+    sourceId: `empty-session:${next.turn}:${next.timerPause.pausedAt}`,
+  } : {
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+    text: next.airspace.state === 'restricted'
+      ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
+    tone: 'normal', gap: 'long', sourceId: `airspace:${next.turn}:${next.airspace.state}`,
+  }, serverTime);
+  tx.update(sessionRef, {
+    turnPhase: next,
+    ...(turnState ? { turnState } : {}),
+    fleetTicker,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  // If the Team deadline won the race, preserve the ordinary expiry event
+  // before holding the remaining Coordination window.
+  if (phase.airspace.state === 'restricted' && next.airspace.state === 'lifted') {
+    writeAirspaceOpenedEvent(tx, sessionRef.id, phase, serverTime);
+  }
+  const pause = next.timerPause ?? phase.timerPause;
+  tx.set(db.doc(`sessions/${sessionRef.id}/events/presence-timer-${randomUUID()}`), buildPrivacySafeEventRecord({
+    type: 'timer-pause',
+    payload: { action: connected ? 'resumed' : 'paused', reason: 'empty-session', turn: next.turn, window: pause?.window, actorName: 'Session presence' },
+    createdAt: FieldValue.serverTimestamp(),
+  }));
 }
 
 type TurnAdvanceEvent = Readonly<{
@@ -6399,6 +6457,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipGalacticCoordinates: removeLegacyNavigationField(),
         shipNavigationLogs: removeLegacyNavigationField(),
       });
+      reconcilePresenceTimer(tx, sessionRef, sessionDoc, true);
       if (player.exists) {
         const storedGroupId = player.get('fleetGroupId');
         if (storedGroupId !== undefined && storedGroupId !== group.id) {
@@ -6679,6 +6738,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       currentPlayer.get('role') !== 'player' || hasCoreAssignment(currentPlayer) ||
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
+    reconcilePresenceTimer(tx, sessionRef, currentSession, true);
     tx.update(playerRef, {
       fleetGroupId: group.id,
       connected: true,
@@ -9692,6 +9752,7 @@ export const disconnectFromSession = onCall<{ sessionId?: string; instanceId?: s
       tx.delete(membershipRef);
     }
     if (wasConnected && connected.size === 1) {
+      reconcilePresenceTimer(tx, sessionRef, sessionDoc, false);
       tx.update(sessionRef, {
         deleteAfter: Timestamp.fromDate(deletionDeadline(new Date())),
         updatedAt: FieldValue.serverTimestamp(),
@@ -9847,6 +9908,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         tx.delete(membershipRef);
       }
       if (connected.size === 1) {
+        reconcilePresenceTimer(tx, sessionRef, session, false);
         tx.update(sessionRef, {
           deleteAfter: Timestamp.fromDate(deletionDeadline(new Date())),
           updatedAt: FieldValue.serverTimestamp(),

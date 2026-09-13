@@ -2399,6 +2399,7 @@ export function subscribeSessionEvents(
           id: eventId,
           sessionId: eventSessionId,
           type: 'timer-pause' as const,
+          ...(data.reason === 'empty-session' ? { reason: data.reason } : {}),
           action: data.action,
           turn: data.turn,
           window: data.window,

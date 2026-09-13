@@ -88,9 +88,10 @@ function timerPauseState(value: unknown): NonNullable<TurnPhase['timerPause']> |
   if (
     (window !== 'restricted' && window !== 'open') ||
     typeof remainingMs !== 'number' || !Number.isSafeInteger(remainingMs) || remainingMs < 0 ||
-    !instant(pausedAt)
+    !instant(pausedAt) ||
+    (value.reason !== undefined && value.reason !== 'empty-session')
   ) return undefined;
-  return { window, remainingMs, pausedAt };
+  return { window, remainingMs, pausedAt, ...(value.reason === 'empty-session' ? { reason: value.reason } : {}) };
 }
 
 /** Safely read a server-owned phase clock from a live snapshot or callable reply. */

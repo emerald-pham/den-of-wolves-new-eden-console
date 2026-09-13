@@ -113,3 +113,11 @@ describe('persisted turn entity', () => {
     expect(turnStateForPhaseContext({ ...state, startedAt: '2026-09-07T12:00:00.000Z' }, currentPhase, 2, 7)).toBeUndefined();
   });
 });
+
+it('preserves automatic pause provenance through persisted snapshot hydration', () => {
+  const held = { ...phase, timerPause: { reason: 'empty-session', window: 'restricted', remainingMs: 180_000, pausedAt: '2026-09-07T12:02:00.000Z' } };
+  const hydrated = turnPhaseState(JSON.parse(JSON.stringify(held)));
+  expect(hydrated).toEqual(held);
+  expect(turnPhaseReadout(hydrated, Date.parse('2026-09-08T00:00:00.000Z'))).toEqual({ kind: 'team', remainingMs: 180_000 });
+  expect(turnPhaseState({ ...held, timerPause: { ...held.timerPause, reason: 'client-request' } })).toBeUndefined();
+});
