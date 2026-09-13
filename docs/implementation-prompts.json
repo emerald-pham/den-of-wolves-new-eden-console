@@ -4914,7 +4914,7 @@
   },
   "prompts": [
     {
-      "changeClass": "feature",
+      "changeClass": "non-feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
