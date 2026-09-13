@@ -52,20 +52,32 @@ service cloud.firestore {
       return secretId == 'wolf-assignment' || secretId.matches('setup-receipt-.*');
     }
 
-    function isCurrentWolfCultIntelligence(sessionId, intelligenceUid) {
+    function isCanonicalWolfCultProjection(sessionId, intelligenceUid) {
       return isMember(sessionId)
         && intelligenceUid == uid()
         && resource.data.type == 'wolf-cult-intelligence'
         && resource.data.sessionId == sessionId
         && resource.data.recipientUid == uid()
         && resource.data.visibleToUids.size() == 1
-        && resource.data.visibleToUids[0] == uid()
+        && resource.data.visibleToUids[0] == uid();
+    }
+
+    function hasCurrentWolfCultAuthority(sessionId) {
+      return isMember(sessionId)
+        && exists(
+          /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
+        )
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
         ).data.type == 'wolf-cult-intelligence-authority'
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
         ).data.recipientUid == uid();
+    }
+
+    function isCurrentWolfCultIntelligence(sessionId, intelligenceUid) {
+      return isCanonicalWolfCultProjection(sessionId, intelligenceUid)
+        && hasCurrentWolfCultAuthority(sessionId);
     }
 
     // A legacy session can have a current private card before the census
@@ -126,20 +138,32 @@ service cloud.firestore {
         );
     }
 
-    function isCurrentArbourVision(sessionId, visionUid) {
+    function isCanonicalArbourProjection(sessionId, visionUid) {
       return isMember(sessionId)
         && visionUid == uid()
         && resource.data.type == 'arbour-vision'
         && resource.data.sessionId == sessionId
         && resource.data.recipientUid == uid()
         && resource.data.visibleToUids.size() == 1
-        && resource.data.visibleToUids[0] == uid()
+        && resource.data.visibleToUids[0] == uid();
+    }
+
+    function hasCurrentArbourAuthority(sessionId) {
+      return isMember(sessionId)
+        && exists(
+          /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
+        )
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
         ).data.type == 'arbour-vision-authority'
         && get(
           /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
         ).data.recipientUid == uid();
+    }
+
+    function isCurrentArbourVision(sessionId, visionUid) {
+      return isCanonicalArbourProjection(sessionId, visionUid)
+        && hasCurrentArbourAuthority(sessionId);
     }
 
     function isLegacyArbourHolder(sessionId, visionUid) {
@@ -263,15 +287,17 @@ service cloud.firestore {
         allow get: if intelligenceUid == 'current' && isGm(sessionId)
           || (intelligenceUid == uid()
             && (
-              (isLegacyWolfCultHolder(sessionId, intelligenceUid)
-                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current))
-              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current)
-                && get(
-                  /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
-                ).data.type == 'wolf-cult-intelligence-authority'
-                && get(
-                  /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
-                ).data.recipientUid == uid())
+              (!exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/$(intelligenceUid))
+                && hasCurrentWolfCultAuthority(sessionId))
+              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/$(intelligenceUid))
+                && isCurrentWolfCultIntelligence(sessionId, intelligenceUid))
+              || (!exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/$(intelligenceUid))
+                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current)
+                && isLegacyWolfCultHolder(sessionId, intelligenceUid))
+              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligence/$(intelligenceUid))
+                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current)
+                && isLegacyWolfCultHolder(sessionId, intelligenceUid)
+                && isCanonicalWolfCultProjection(sessionId, intelligenceUid))
             ));
         allow list, write: if false;
 
@@ -294,15 +320,17 @@ service cloud.firestore {
         allow get: if visionUid == 'current' && isGm(sessionId)
           || (visionUid == uid()
             && (
-              (isLegacyArbourHolder(sessionId, visionUid)
-                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current))
-              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current)
-                && get(
-                  /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
-                ).data.type == 'arbour-vision-authority'
-                && get(
-                  /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
-                ).data.recipientUid == uid())
+              (!exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/$(visionUid))
+                && hasCurrentArbourAuthority(sessionId))
+              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/$(visionUid))
+                && isCurrentArbourVision(sessionId, visionUid))
+              || (!exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/$(visionUid))
+                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current)
+                && isLegacyArbourHolder(sessionId, visionUid))
+              || (exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisions/$(visionUid))
+                && !exists(/databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current)
+                && isLegacyArbourHolder(sessionId, visionUid)
+                && isCanonicalArbourProjection(sessionId, visionUid))
             ));
         allow list, write: if false;
 

@@ -369,6 +369,36 @@ describe('private projection listener bootstrap', () => {
       });
     });
 
+    // A legacy holder may bootstrap an absent projection, but an existing
+    // document must still carry the complete private projection tuple. Test
+    // each tuple field while the authority pointer is absent.
+    const malformedProjections = [
+      { arbour: { type: 'wrong-type' }, wolf: { type: 'wrong-type' } },
+      { arbour: { sessionId: 'other-session' }, wolf: { sessionId: 'other-session' } },
+      { arbour: { recipientUid: 'press' }, wolf: { recipientUid: 'press' } },
+      { arbour: { visibleToUids: ['alice', 'press'] }, wolf: { visibleToUids: ['cult', 'press'] } },
+    ];
+    for (const malformed of malformedProjections) {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
+          type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
+          visibleToUids: ['alice'], ...malformed.arbour,
+        });
+        await setDoc(doc(db, `${SESSION}/wolfCultIntelligence/cult`), {
+          type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'cult',
+          visibleToUids: ['cult'], ...malformed.wolf,
+        });
+      });
+      await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+      await assertFails(getDoc(doc(as('cult'), `${SESSION}/wolfCultIntelligence/cult`)));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await deleteDoc(doc(db, `${SESSION}/arbourVisions/alice`));
+        await deleteDoc(doc(db, `${SESSION}/wolfCultIntelligence/cult`));
+      });
+    }
+
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
       await setDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`), {
@@ -377,6 +407,33 @@ describe('private projection listener bootstrap', () => {
       await setDoc(doc(db, `${SESSION}/wolfCultIntelligenceAuthority/current`), {
         type: 'wolf-cult-intelligence-authority', sessionId: 's1', recipientUid: 'cult', revision: 9,
       });
+    });
+
+    // The authority pointer does not relax the existing-document shape: its
+    // recipient and type must agree with the private projection as well.
+    for (const malformed of malformedProjections) {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
+          type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
+          visibleToUids: ['alice'], ...malformed.arbour,
+        });
+        await setDoc(doc(db, `${SESSION}/wolfCultIntelligence/cult`), {
+          type: 'wolf-cult-intelligence', sessionId: 's1', recipientUid: 'cult',
+          visibleToUids: ['cult'], ...malformed.wolf,
+        });
+      });
+      await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+      await assertFails(getDoc(doc(as('cult'), `${SESSION}/wolfCultIntelligence/cult`)));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await deleteDoc(doc(db, `${SESSION}/arbourVisions/alice`));
+        await deleteDoc(doc(db, `${SESSION}/wolfCultIntelligence/cult`));
+      });
+    }
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
       await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
         type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
         visibleToUids: ['alice'], revision: 1, kind: 'danger', text: 'Created', label: 'FACILITATOR CALL',
