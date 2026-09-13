@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**261 / 751 prompts complete (34.75%)**
+**262 / 751 prompts complete (34.89%)**
 
-Status breakdown: **261 done · 21 partial · 469 missing**.
+Status breakdown: **262 done · 21 partial · 468 missing**.
 
 Active prompt: **none**
 
@@ -999,7 +999,7 @@ release classification and evidence.
 | 527 | done | feature | 0.3.100 | The facilitator delivers a durable server-authored scouting report through the existing crisis lifecycle. Players can read or hide the report across routes and reconnects. Vessel reality, difficulty reasoning and configuration overrides stay in the GM-only notes and audit; report writes whitelist fixed public facts. Draft replacement removes the prior report, while authority, CAS and exact replay remain enforced. Source crisis card and facilitator guidance visually verified; callable privacy/replay, parser identity/cache boundaries, member-only Firestore rules, App/GM interaction tests and four responsive viewports in normal and reduced motion verified; independent review clear. |
 | 528 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 529 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 530 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 530 | done | feature | 0.3.103 | Facilitators select active affected ships and explicitly public work restrictions and escalation risk for a durable member-visible outbreak report. Private reasoning remains confined to the GM crisis document and audit. Delivery validates active ships and complete details, freezes the published report, and preserves exact retries and legacy omitted-field transitions. Selected ships disabled after drafting remain visible and removable. This reports conditions only; quarantine and docking enforcement remain separate work. Source card, authority and privacy tests, reconnect projection tests, GM interactions, and responsive normal/reduced-motion component renders verified. |
 | 531 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 532 | done | feature | 0.3.100 | Religious Zealotry delivers the same public movement report for the Universal Arbour and alternate Wolf Cult configurations without revealing the configured variant or any individual alignment. The server rechecks configuration at draft and delivery, retaining the explicit private facilitator override contract from Prompt 526. Private adjudication stays GM-only; players receive the durable report through the shared crisis report panel. Primary crisis card and facilitator guidance visually verified, both configuration paths tested failing-first, shared authority/privacy tests and responsive rendering verified, independent review clear. Response adjudication remains Prompt 533. |
 | 533 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |

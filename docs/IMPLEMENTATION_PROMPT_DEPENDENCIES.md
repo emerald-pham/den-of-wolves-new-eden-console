@@ -684,7 +684,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 527 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
 | 528 | DECISION | missing | 527 | none | none | none | none | none | none | none | E-AUDIT-528 | M3;M11;M12 | Resolve Approaching Vessel choices. |
 | 529 | NEW | missing | 249;527 | none | none | none | none | none | none | none | E-AUDIT-529 | M3;M11;M12 | Integrate Voyage 33-0 arrival. |
-| 530 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-530 | M3;M11;M12 | Deliver Disease Outbreak. |
+| 530 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-530 | M3;M11;M12 | Deliver Disease Outbreak. |
 | 531 | NEW | missing | 530;149 | none | none | none | none | none | none | none | E-AUDIT-531 | M3;M11;M12 | Resolve quarantine policy. |
 | 532 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-532 | M3;M11;M12 | Deliver Religious Zealotry. |
 | 533 | DECISION | missing | 532 | none | none | none | none | none | none | none | E-AUDIT-533 | M3;M11;M12 | Resolve zealotry responses. |

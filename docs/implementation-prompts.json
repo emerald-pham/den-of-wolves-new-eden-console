@@ -18742,14 +18742,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "affected ships, work restrictions, escalation risk, and facilitator notes reach only permitted readers.",
         "title": "Deliver Disease Outbreak."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Facilitators select active affected ships and explicitly public work restrictions and escalation risk for a durable member-visible outbreak report. Private reasoning remains confined to the GM crisis document and audit. Delivery validates active ships and complete details, freezes the published report, and preserves exact retries and legacy omitted-field transitions. Selected ships disabled after drafting remain visible and removable. This reports conditions only; quarantine and docking enforcement remain separate work. Source card, authority and privacy tests, reconnect projection tests, GM interactions, and responsive normal/reduced-motion component renders verified.",
       "evidenceIds": "E-AUDIT-530",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18758,10 +18758,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.103"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

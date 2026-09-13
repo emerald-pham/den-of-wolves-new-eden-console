@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [530],
+    implementationProgress: {
+      completed: 262,
+      total: 751,
+      percentage: '34.89%',
+      done: 262,
+      partial: 21,
+      active: 0,
+      missing: 468,
+    },
+    changes: [
+      'Facilitators can deliver outbreak reports naming affected ships, reported work restrictions, and escalation risks while keeping their notes private.',
+      '262 of 751 planned items are complete (34.89%).',
+    ],
+  },
+  {
+    version: '0.3.102',
     implementationPrompts: [674],
     implementationProgress: {
       completed: 261,
