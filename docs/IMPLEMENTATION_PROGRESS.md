@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **273 / 751 prompts complete (36.35%)**
 
-Status breakdown: **273 done · 21 partial · 457 missing**.
+Status breakdown: **273 done · 22 partial · 456 missing**.
 
 Active prompt: **none**
 
@@ -1082,7 +1082,7 @@ release classification and evidence.
 | 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |
 | 606 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 608 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 608 | partial | non-feature | 0.4.3 | Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists. |
 | 609 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 610 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |

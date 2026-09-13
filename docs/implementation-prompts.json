@@ -5068,6 +5068,13 @@
       "language": "Prompt 669 embeds the shared ship-console ShipPlot in the GM DRADIS surface with controlled expansion, shared labels, effects, timer, orientation and accessible 44px controls while retaining GM perspective selection, live roster inputs and existing expansion animation. Non-GM ShipPlot behavior remains covered by its existing suite. The reconciled focused GM/ShipPlot/version checks pass 151 cases, TypeScript and build pass, lint reports only existing warnings, documentation and catalog checks pass, and real Chrome checks cover compact and expanded states at 320x844, 390x844, 844x390 and 1440x900 in normal and reduced motion with keyboard focus and no horizontal overflow. This is a UI-only parity change; it does not alter authorization or server mutation contracts.",
       "source": "src/components/ShipPlot.tsx; src/components/ShipPlot.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; focused validation; /tmp/p669-gm-render-evidence.json; /tmp/p669-gm-phone.png; /tmp/p669-gm-phone-wide.png; /tmp/p669-gm-landscape.png; /tmp/p669-gm-desktop.png",
       "type": "evidence / rendered / responsive / accessibility / build"
+    },
+    {
+      "direction": "608 -> DIALOG-FOCUS",
+      "id": "E-608-DIALOG-FOCUS",
+      "language": "The shared useDialogFocus hook now keeps the topmost existing role=dialog or alertdialog surface keyboard-contained, restores its opener with a page-control fallback, and preserves each surface’s existing Escape policy while its aria-labelledby and aria-describedby semantics announce purpose. It is applied to AppHeader settings, SessionWaiver, MotionSafetyGate, stale-seat intervention, GM observer-write, GM Capybara/Dione/Press confirmations, and GM unrest/population alerts. Focused tests cover Tab/Shift+Tab, Escape, focus-in recovery, nested and replaced dialogs, and removed openers. Local Chrome rendering covered settings, waiver, and motion surfaces at 320x844, 390x844, 844x390, and 1440x900 under normal and reduced motion with no horizontal overflow. Existing private-result, facilitator-call, and endgame content is persistent status/region UI rather than modal dialogs, so this evidence does not claim new modal behavior for absent surfaces.",
+      "source": "src/hooks/useDialogFocus.ts; src/hooks/useDialogFocus.test.tsx; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/components/SessionWaiver.tsx; src/components/SessionWaiver.test.tsx; src/components/MotionSafetyGate.tsx; src/components/MotionSafetyGate.test.tsx; src/components/UnrestAlert.tsx; src/components/UnrestAlert.test.tsx; src/components/PopulationAlert.tsx; src/components/PopulationAlert.test.tsx; src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; /tmp/p608-dialog-focus-render-20260913/evidence.json",
+      "type": "evidence / accessibility / rendered"
     }
   ],
   "plan": {
@@ -20714,8 +20721,8 @@
         "acceptance": "settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.",
         "title": "Own dialog focus correctly."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists.",
+      "evidenceIds": "E-608-DIALOG-FOCUS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20723,10 +20730,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.3"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {

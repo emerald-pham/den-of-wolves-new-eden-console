@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['669'],
+    implementationPrompts: ['608'],
     implementationProgress: {
       completed: 273,
       total: 751,
       percentage: '36.35%',
       done: 273,
-      partial: 21,
+      partial: 22,
       active: 0,
-      missing: 457,
+      missing: 456,
     },
     changes: [
-      'GM DRADIS now uses the same zoom, orientation, timer, and effect controls as ship consoles while keeping facilitator perspective controls.',
+      'Settings and confirmation dialogs now keep keyboard focus inside the active decision and return it to the control that opened them, including when a nested dialog is replaced or dismissed.',
       '273 of 751 planned items are complete (36.35%).',
     ],
   },
