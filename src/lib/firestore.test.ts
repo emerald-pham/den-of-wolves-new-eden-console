@@ -40,7 +40,7 @@ const {
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
-const { onSnapshot } = await import('firebase/firestore');
+const { onSnapshot, where } = await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
@@ -1560,6 +1560,13 @@ it('does not let cached identity projections overwrite accepted server authority
 });
 
 it('drops delayed cached secondary query snapshots after a server snapshot', async () => {
+  useSessionStore.setState({
+    me: {
+      uid: 'secondary-player', sessionId: 'secondary-race', displayName: 'Player',
+      role: 'player', seatId: null, fleetGroupId: 'fleet-1', joinedAt: '',
+    },
+    gmInstance: null,
+  });
   const callbacks: Array<(snapshot: unknown) => void> = [];
   vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
     callbacks.push(callback as (snapshot: unknown) => void);
@@ -1588,6 +1595,7 @@ it('drops delayed cached secondary query snapshots after a server snapshot', asy
   expect(onDraws).toHaveBeenCalledTimes(1);
   stopDraws();
   stopInstances();
+  useSessionStore.getState().reset();
 });
 
 it('shares accepted session authority with secondary queries before their first server callback', () => {
@@ -1612,6 +1620,43 @@ it('shares accepted session authority with secondary queries before their first 
   callbacks[0]?.({ metadata: { fromCache: true }, docs: [] });
 
   expect(onPlayers).not.toHaveBeenCalled();
+  useSessionStore.getState().reset();
+});
+
+it('queries a member roster by its server-owned group and clears stale data on revocation', () => {
+  useSessionStore.setState({
+    me: {
+      uid: 'grouped-player', sessionId: 'grouped-session', displayName: 'Player',
+      role: 'player', seatId: null, fleetGroupId: 'fleet-2', joinedAt: '',
+    },
+    gmInstance: null,
+  });
+  let onSnapshotCallback: ((snapshot: unknown) => void) | undefined;
+  let onSnapshotError: (() => void) | undefined;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error?: unknown) => {
+    onSnapshotCallback = callback as (snapshot: unknown) => void;
+    onSnapshotError = error as (() => void) | undefined;
+    return vi.fn();
+  }) as never);
+
+  const onPlayers = vi.fn();
+  const onError = vi.fn();
+  const stopPlayers = subscribeConnectedPlayers('grouped-session', onPlayers, onError);
+
+  expect(vi.mocked(where)).toHaveBeenCalledWith('connected', '==', true);
+  expect(vi.mocked(where)).toHaveBeenCalledWith('fleetGroupId', '==', 'fleet-2');
+  onSnapshotCallback?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'grouped-player', data: () => ({ role: 'player', connected: true }) }],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([
+    expect.objectContaining({ uid: 'grouped-player' }),
+  ]);
+
+  onSnapshotError?.();
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
+  expect(onError).toHaveBeenCalledTimes(1);
+  stopPlayers();
   useSessionStore.getState().reset();
 });
 

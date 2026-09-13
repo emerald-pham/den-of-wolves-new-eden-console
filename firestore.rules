@@ -32,6 +32,22 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    // A member's operational roster is bounded by the server-owned group
+    // pointer on that member record.  The query must still include the same
+    // group and connected predicates; rules evaluate every candidate document
+    // so a client cannot widen this projection by changing its query literal.
+    function isCurrentOperationalMember(sessionId) {
+      return isMember(sessionId)
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.fleetGroupId is string
+        && resource.data.connected == true
+        && resource.data.fleetGroupId is string
+        && resource.data.fleetGroupId == get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.fleetGroupId;
+    }
+
     function isGmPrivateSecret(secretId) {
       return secretId == 'wolf-assignment' || secretId.matches('setup-receipt-.*');
     }
@@ -66,7 +82,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
 
       match /players/{playerUid} {
-        allow get, list: if isMember(sessionId);
+        // Facilitators may use the explicit full roster view. Ordinary
+        // members receive only connected players in their current
+        // server-owned fleet group; a stale group pointer therefore fails
+        // closed instead of leaving old operational data readable.
+        allow get, list: if isGm(sessionId) || isCurrentOperationalMember(sessionId);
 
         // Join and resume are server-authoritative: knowing a session document
         // id must never be enough to register yourself as a member.

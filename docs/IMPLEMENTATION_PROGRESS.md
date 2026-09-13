@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **217 / 750 prompts complete (28.93%)**
 
-Status breakdown: **217 done · 24 partial · 509 missing**.
+Status breakdown: **217 done · 25 partial · 508 missing**.
 
 Active prompt: **none**
 
@@ -779,7 +779,7 @@ release classification and evidence.
 | 334 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 335 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 336 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 337 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 337 | partial | non-feature | — | The server-owned fleetGroupId now bounds ordinary connected-player roster reads to the caller's current group, while a connected GM retains the explicit full connected-roster view. Member queries include the server-owned group and connected predicates, malformed or stale group membership fails closed in rules, and listener errors clear the prior projection so a split, role change, demotion, or reconnect cannot leave old-group data on screen. The current release still has one canonical fleet-1 group; split creation/rejoin and independent group semantics remain owned by Prompts 336, 346–350 and the pending Prompt 107 decision. |
 | 338 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 339 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 340 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

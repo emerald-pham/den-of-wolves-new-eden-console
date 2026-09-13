@@ -4531,6 +4531,13 @@
       "type": "evidence / authority / related/consumes"
     },
     {
+      "direction": "337 -> group-local operational roster",
+      "id": "E-337-GROUP-ROSTER",
+      "language": "Ordinary connected-player reads now fail closed unless the server-owned fleetGroupId on the caller and candidate match; the client subscription supplies that authoritative group predicate and clears its prior projection when the listener loses permission. A connected GM retains the explicit full connected-player roster through the existing GM authority rule. Focused Firestore rules cases cover same-group allow, cross-group and disconnected denial, stale old-group query denial after a server membership move, and GM demotion; a focused client projection case covers the group query and stale-data clearing. The current P286 producer still creates only fleet-1, so split/rejoin production and independent group clocks remain open under their owning prompts.",
+      "source": "firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; functions/src/fleetGroups.ts; functions/src/index.ts; docs/IMPLEMENTATION_CONTRACTS.md (AMB-10); routed REFERENCE_ONLY_FACILITATION.md split-fleet adjudication",
+      "type": "evidence / authority / partial"
+    },
+    {
       "direction": "426 -> 427;312;421;421a;494",
       "id": "E-426-SCHEDULED-COMPOSITION",
       "language": "The routed private Wolf attack derivative supplies the exact turn-one roster and inclusive 15–24 capacity range for later ordinary scheduled attacks. Three focused tests verify exact composition rather than capacity alone, order independence, both capacity boundaries and adjacent invalid totals, unknown cards/invalid turns, input-copy isolation and frozen output. Functions build and affected-file lint pass. No player-selected hidden-card endpoint or randomness is added. Private staging/declaration consumes this policy in the next prompt; encounter and Commander rules are separate.",
@@ -13394,8 +13401,8 @@
         "acceptance": "members receive only their current group's operational roster except for explicit facilitator access.",
         "title": "Project a group-local roster."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-337",
+      "description": "The server-owned fleetGroupId now bounds ordinary connected-player roster reads to the caller's current group, while a connected GM retains the explicit full connected-roster view. Member queries include the server-owned group and connected predicates, malformed or stale group membership fails closed in rules, and listener errors clear the prior projection so a split, role change, demotion, or reconnect cannot leave old-group data on screen. The current release still has one canonical fleet-1 group; split creation/rejoin and independent group semantics remain owned by Prompts 336, 346–350 and the pending Prompt 107 decision.",
+      "evidenceIds": "E-AUDIT-337;E-337-GROUP-ROSTER",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "286;006",
@@ -13406,7 +13413,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

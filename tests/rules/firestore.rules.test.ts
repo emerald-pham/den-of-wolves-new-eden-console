@@ -62,6 +62,7 @@ beforeEach(async () => {
       displayName: 'Alice',
       seatId: null,
       assignedRoleId: 'admiral',
+      fleetGroupId: 'fleet-1',
       connected: true,
     });
     await setDoc(doc(db, `${SESSION}/players/gm1`), {
@@ -69,6 +70,7 @@ beforeEach(async () => {
       role: 'gm',
       displayName: 'GM',
       seatId: null,
+      fleetGroupId: 'fleet-1',
       connected: true,
     });
     await setDoc(doc(db, `${SESSION}/players/press`), {
@@ -76,6 +78,7 @@ beforeEach(async () => {
       role: 'player',
       displayName: 'Press Officer',
       seatId: null,
+      fleetGroupId: 'fleet-1',
       connected: true,
       activeConsoleRoleId: 'press-officer',
     });
@@ -84,6 +87,7 @@ beforeEach(async () => {
       role: 'observer',
       displayName: 'Observer',
       seatId: null,
+      fleetGroupId: 'fleet-1',
       connected: true,
     });
     await setDoc(doc(db, `${SESSION}/gmInstances/bridge`), {
@@ -698,6 +702,71 @@ describe('seats', () => {
 });
 
 describe('players', () => {
+  it('bounds ordinary roster reads to the caller current connected fleet group', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/players/other-group`), {
+        uid: 'other-group', role: 'player', displayName: 'Other Group', seatId: null,
+        fleetGroupId: 'fleet-2', connected: true,
+      });
+      await setDoc(doc(db, `${SESSION}/players/disconnected`), {
+        uid: 'disconnected', role: 'player', displayName: 'Disconnected', seatId: null,
+        fleetGroupId: 'fleet-1', connected: false,
+      });
+      await setDoc(doc(db, `${SESSION}/players/malformed-group`), {
+        uid: 'malformed-group', role: 'player', displayName: 'Malformed Group', seatId: null,
+        fleetGroupId: ['fleet-1'], connected: true,
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/players/press`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/players/other-group`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/players/disconnected`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/players/malformed-group`)));
+    await assertSucceeds(getDocs(query(
+      collection(as('alice'), `${SESSION}/players`),
+      where('connected', '==', true),
+      where('fleetGroupId', '==', 'fleet-1'),
+    )));
+    await assertFails(getDocs(query(
+      collection(as('alice'), `${SESSION}/players`),
+      where('connected', '==', true),
+      where('fleetGroupId', '==', 'fleet-2'),
+    )));
+
+    // The explicit facilitator view retains the full connected roster.
+    await assertSucceeds(getDocs(query(
+      collection(as('gm1'), `${SESSION}/players`),
+      where('connected', '==', true),
+    )));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/players/other-group`)));
+    await assertSucceeds(getDocs(query(
+      collection(as('gm1'), `${SESSION}/players`),
+      where('connected', '==', true),
+      where('fleetGroupId', '==', 'fleet-1'),
+    )));
+  });
+
+  it('revokes a stale group query immediately after a server membership move', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { fleetGroupId: 'fleet-2' });
+    });
+
+    await assertFails(getDocs(query(
+      collection(as('alice'), `${SESSION}/players`),
+      where('connected', '==', true),
+      where('fleetGroupId', '==', 'fleet-1'),
+    )));
+    await assertSucceeds(getDocs(query(
+      collection(as('alice'), `${SESSION}/players`),
+      where('connected', '==', true),
+      where('fleetGroupId', '==', 'fleet-2'),
+    )));
+  });
+
   it('cannot self-register without redeeming a join code through the callable', async () => {
     await assertFails(
       setDoc(doc(as('bob'), `${SESSION}/players/bob`), {

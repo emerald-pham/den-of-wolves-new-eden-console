@@ -689,7 +689,7 @@ export interface Player {
   readonly shipPreferenceId?: VesselId | null;
   /** Server-authoritative command post held by this device until explicitly released. */
   readonly activeConsoleRoleId?: RoleId | null;
-  /** Server-owned group identity; group rosters remain private server state. */
+  /** Server-owned group identity used to scope the current operational roster; group documents remain private. */
   readonly fleetGroupId?: GroupId | null;
   readonly joinedAt: Timestamp;
 }

@@ -1603,11 +1603,27 @@ export function subscribeConnectedPlayers(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
-  const unsubscribe = onSnapshot(
-    query(
+  const viewer = useSessionStore.getState();
+  const facilitator = viewer.me?.role === 'gm' || viewer.gmInstance !== null;
+  const fleetGroupId = viewer.me?.fleetGroupId;
+  // A member cannot safely subscribe until the callable projection has
+  // supplied its server-owned group pointer. Do not fall back to a fleetwide
+  // query while that identity is still loading.
+  if (!facilitator && typeof fleetGroupId !== 'string') {
+    return () => { subscribed = false; };
+  }
+  const playersQuery = facilitator
+    ? query(
       collection(db(), `sessions/${sessionId}/players`),
       where('connected', '==', true),
-    ),
+    )
+    : query(
+      collection(db(), `sessions/${sessionId}/players`),
+      where('connected', '==', true),
+      where('fleetGroupId', '==', fleetGroupId),
+    );
+  const unsubscribe = onSnapshot(
+    playersQuery,
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -1619,7 +1635,14 @@ export function subscribeConnectedPlayers(
       onPlayers(snapshot.docs.map((player) =>
         playerFrom(sessionId, player.id, player.data())));
     },
-    () => { if (subscribed) onError(); },
+    () => {
+      if (!subscribed) return;
+      // Group changes, demotion, and session teardown can invalidate the
+      // listener. Clear the prior projection before reporting the failure so
+      // a stale callback cannot leave old-group data on screen.
+      onPlayers([]);
+      onError();
+    },
   );
   return () => {
     subscribed = false;
