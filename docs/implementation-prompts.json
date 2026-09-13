@@ -3376,6 +3376,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "518 -> 515",
+      "id": "E-518-COMMISSAR",
+      "language": "The replacement Commissar flow now requires the exact current captain's consent, removes one printed survivor-track step from the selected ship, reduces unrest by 1, and records a server-owned once-per-ship-per-turn receipt with revision/CAS/replay protection. Focused callable tests cover authorization, stale or missing consent, phase and turn denial, endpoint and pending-alert fail-closed behavior, duplicate replay, and the absence of a damage-card draw; the production panel exposes captain consent and Commissar action controls with responsive accessibility evidence.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/commissarPurgeCallable.test.ts; src/components/CommissarPurgePanel.tsx; src/components/CommissarPurgePanel.test.tsx; src/lib/sessionService.ts; src/lib/firestore.ts; src/routes/ShipConsole.tsx; src/routes/ShipRoleSelect.tsx; src/index.css; focused validation; rendered review",
+      "type": "evidence / authority / rendered review"
+    },
+    {
       "direction": "519 -> 515;468",
       "id": "E-AUDIT-519",
       "language": "Militia activation consumes replacement role and defence behavior.",
@@ -18071,8 +18078,8 @@
         "acceptance": "captain consent permits the exact survivor purge and once-per-ship unrest reduction.",
         "title": "Activate the Commissar."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-518",
+      "description": "Partial: the production Commissar consent and purge path now applies the printed survivor-track loss followed by unrest reduction with server-owned actor, captain-consent, phase, turn, revision/CAS, replay, and once-per-ship-per-turn checks. Focused callable and production-panel tests plus narrow phone, desktop, and landscape reduced-motion render evidence are recorded; independent authority review and emulator-backed verification remain.",
+      "evidenceIds": "E-AUDIT-518;E-518-COMMISSAR",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515",
@@ -18083,7 +18090,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

@@ -909,6 +909,33 @@ function shipSurvivors(value: unknown): NonNullable<GameSession['shipSurvivors']
       ? [[shipId, stored[shipId] as number]] : []));
 }
 
+function commissarPurgeConsents(value: unknown): NonNullable<GameSession['commissarPurgeConsents']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.entries(stored).flatMap(([shipId, consent]) => {
+    const raw = recordValue(consent);
+    const parsedShipId = parseEntityId('vessel', shipId);
+    const captainRoleId = parseEntityId('role', raw?.captainRoleId);
+    const turn = nonNegativeInteger(raw?.turn);
+    const vesselRevision = nonNegativeInteger(raw?.vesselRevision);
+    if (!parsedShipId || !captainRoleId || turn === undefined || turn < 1 || vesselRevision === undefined) return [];
+    return [[parsedShipId, { turn, captainRoleId, vesselRevision }]];
+  }));
+}
+
+function commissarPurgeLedger(value: unknown): NonNullable<GameSession['commissarPurgeLedger']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.entries(stored).flatMap(([shipId, entry]) => {
+    const raw = recordValue(entry);
+    const parsedShipId = parseEntityId('vessel', shipId);
+    const turn = nonNegativeInteger(raw?.turn);
+    const revision = nonNegativeInteger(raw?.revision);
+    if (!parsedShipId || turn === undefined || turn < 1 || revision === undefined) return [];
+    return [[parsedShipId, { turn, revision }]];
+  }));
+}
+
 function shipGalacticCoordinates(value: unknown): Record<string, string> {
   const stored = recordValue(value);
   return Object.fromEntries(Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [
@@ -1210,6 +1237,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipUnrest: shipUnrest(data.shipUnrest),
     shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),
+    commissarPurgeConsents: commissarPurgeConsents(data.commissarPurgeConsents),
+    commissarPurgeLedger: commissarPurgeLedger(data.commissarPurgeLedger),
     unrestAlerts: alertMap<UnrestAlert>(data.unrestAlerts, false),
     gmControlsLocked: data.gmControlsLocked === true,
     activeRoleIds,

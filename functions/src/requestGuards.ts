@@ -588,6 +588,29 @@ export function requireVesselActionRequest(data: {
   };
 }
 
+/** The Commissar commands always carry an explicit vessel CAS revision. */
+export function requireCommissarPurgeRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  shipId: string;
+  requestId: string;
+  expectedRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireHummingbirdHarvestRequest(data: {
   sessionId?: unknown;
   requestId?: unknown;

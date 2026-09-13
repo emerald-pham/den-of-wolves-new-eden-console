@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**227 / 750 prompts complete (30.27%)**
+**224 / 750 prompts complete (29.87%)**
 
-Status breakdown: **227 done · 25 partial · 498 missing**.
+Status breakdown: **224 done · 26 partial · 500 missing**.
 
 Active prompt: **none**
 
@@ -971,14 +971,14 @@ release classification and evidence.
 | 508 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 509 | done | non-feature | — | The Android holder has a reachable voluntary proof action. The server verifies the authenticated active player owns the Android secret, records a replay-safe member-readable disclosure event, and rejects disconnected, non-Android, duplicate, forged, or non-player requests; the private card parser and GM event log consume only the allowlisted proof state. |
 | 510 | done | feature | — | The server-owned loyalty assignment path pairs Friend cards by writing reciprocal private records with each partner's assigned console role. The entitled private panel renders the canonical partner role name while omitting the raw partner UID, and Firestore rules retain exact-holder-only reads for the reciprocal secrets. Unrelated players, observers, GMs, and the other holder remain denied; later loyalty mechanics remain outside this prompt. |
-| 511 | done | non-feature | — | The live GM can author a labeled FACILITATOR CALL for the current Universal Arbour loyalty holder through a lease-checked, revisioned callable with shared replay receipt and private audit. The GM projection and recipient RoleBrief are server-filtered, revoked when the canonical loyalty census changes, and never emitted as a public event. Focused callable/client/rules/lifecycle checks and rendered production-component evidence cover the private path and responsive accessibility behavior. |
-| 512 | done | feature | — | Facilitator-authored Wolf Cult delivery accepts the four source-defined facts and projects them only to the current canonical Cult holder and connected facilitators. The server requires a live facilitator lease, authoritative unique Cult and Wolf identities, revisioned replay-safe writes, and deletes stale private projections whenever either identity changes or the pair is no longer unique. Exact absent holder and GM reads are allowed only for the authority-approved path so listeners can bind before first delivery; delayed former-holder callbacks are discarded until a fresh loyalty-authorized snapshot. No automated scout, clue, timing, or effect producer is claimed. |
+| 511 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 512 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 513 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 514 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 515 | done | non-feature | — | The live GM records explicit dead, arrested, removed, or late eligibility and assigns a source-defined replacement role or an already active extra-ship role. Assignment atomically consumes eligibility, releases the old station and console authority, preserves historical role and private loyalty, writes the recipient-only brief, and replaces old-ship navigation entitlement. Server and UI require the canonical active-vessel tuple; stale revisions, conflicting retries, duplicate assignments and unauthorized writes fail closed. Independent authority review and focused callable/rules/client checks cover the boundary. Extra-ship activation and Wolf Commander rerolls remain with their owning prompts. |
 | 516 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 517 | missing | non-feature | — | Source audit confirms the VIP Host maintenance reroll requires a Team Time visit to another ship. Existing console browsing is read-only perspective selection, not an authoritative visit; shuttle docking history does not establish this visit either. The owner decision about who confirms the visit remains pending (GM, destination captain, or Host declaration). Implement the confirmed visit and maintenance-reroll consumption together after that decision, preserving printed scope, server authority, and once-only receipts. No visit, grant, or reroll implementation is claimed; Prompt 517 remains missing. |
-| 518 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 517 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 518 | partial | non-feature | — | Partial: the production Commissar consent and purge path now applies the printed survivor-track loss followed by unrest reduction with server-owned actor, captain-consent, phase, turn, revision/CAS, replay, and once-per-ship-per-turn checks. Focused callable and production-panel tests plus narrow phone, desktop, and landscape reduced-motion render evidence are recorded; independent authority review and emulator-backed verification remain. |
 | 519 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 520 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 521 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -1036,7 +1036,7 @@ release classification and evidence.
 | 564 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 565 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 566 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 567 | done | non-feature | — | Reverified the shipped none, base-capybara, and expansion-capybara configuration boundary. Canonical setup selects one mode, rejects unsupported roster substitutions and incomplete expansion pairs, and locks mode changes from casting onward. Retired legacy toggles cannot bypass setup. Distinct vessel definitions, active-vessel filtering, and direct-route guards keep the base extra and crewed expansion separate; supported 19/20-player expansion sessions retain their full ship. Current production code and existing setup, catalog, selector, and route regressions passed in the 0.3.86 validation and deployed workflow. This is evidence closeout only; no new gameplay or rendered UI is claimed, and lower-count expansion substitutions remain governed by Prompt 252. |
+| 567 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 568 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 569 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 570 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

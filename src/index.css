@@ -2739,6 +2739,69 @@ body {
   text-align: left;
 }
 
+/* Commissar replacement action ---------------------------------- */
+
+.commissar-purge {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border-color: color-mix(in srgb, var(--cic-danger) 62%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-blood) 12%, var(--cic-void));
+  text-transform: none;
+}
+
+.commissar-purge h2,
+.commissar-purge p {
+  margin: 0;
+}
+
+.commissar-purge h2 {
+  color: var(--cic-scream);
+  font: 1.05rem/1.25 var(--cic-mono);
+  text-transform: uppercase;
+}
+
+.commissar-purge__eyebrow {
+  color: var(--cic-amber);
+  font: 0.8rem/1.35 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.commissar-purge__guidance,
+.commissar-purge__status,
+.commissar-purge__message {
+  color: var(--cic-muted);
+  font: 0.875rem/1.45 var(--cic-mono);
+  text-transform: none;
+}
+
+.commissar-purge__target {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--cic-cyan);
+  font: 0.875rem/1.35 var(--cic-mono);
+}
+
+.commissar-purge__target select {
+  min-height: 44px;
+  padding: 0.55rem 0.65rem;
+  color: var(--cic-cyan-hot);
+  background: var(--cic-void);
+  border: 1px solid var(--cic-rule);
+  font: 1rem/1.2 var(--cic-mono);
+}
+
+.commissar-purge .cic-action-button {
+  min-height: 44px;
+  width: 100%;
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+
 /* Jump drive ------------------------------------------------------ */
 
 .jump-drive {

@@ -26,6 +26,7 @@ import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import { projectShipState } from '@/lib/shipStateProjection';
 import type { Player, DamageDraw } from '@/types/game';
 import DioneVipCards from '@/components/DioneVipCards';
+import CommissarPurgePanel from '@/components/CommissarPurgePanel';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
 const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
@@ -58,6 +59,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     !isGm && me?.replacementRoleId === 'vip-host' && me?.activeConsoleRoleId === null &&
     ship?.id === 'dione' && roleId === 'vip-host',
   );
+  const replacementCommissar = Boolean(
+    !isGm && me?.replacementRoleId === 'commissar' && me?.activeConsoleRoleId === null &&
+    ship?.id === 'icebreaker' && roleId === 'commissar',
+  );
   const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
   const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
   const [observerWrite, setObserverWrite] = useState(false);
@@ -69,11 +74,13 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const effectiveRoleId = consoleRole?.id ?? (!observer && roleId === undefined
     ? me?.activeConsoleRoleId
     : undefined);
-  const hasConfirmedRole = !observer && (me?.activeConsoleRoleId === consoleRole?.id || replacementVipHost);
+  const hasConfirmedRole = !observer && (
+    me?.activeConsoleRoleId === consoleRole?.id || replacementVipHost || replacementCommissar
+  );
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
   const configuredShipRoles = ship?.roles.filter(role => activeRoleIds.includes(role.id)) ?? [];
-  const roleEnabled = !roleId || activeRoleIds.includes(roleId) || replacementVipHost;
+  const roleEnabled = !roleId || activeRoleIds.includes(roleId) || replacementVipHost || replacementCommissar;
   const canCoverShortStaffedShip = Boolean(
     !observer && visiting && crew && ship && ownShip === ship.id &&
     configuredShipRoles.length > 0 && !configuredShipRoles.every(role => crew.some(player =>
@@ -82,7 +89,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
   const consoleLocked = shipState?.consoleLocked ?? false;
   const effectiveWritable = writable && !consoleLocked && session?.phase !== 'debrief';
-  const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost;
+  const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost || replacementCommissar;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [hideResources, setHideResources] = useState(false);
@@ -279,8 +286,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </p>
         )}
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />
-        {(consoleRole || observer || replacementVipHost) && (
-          <RoleAssignment value={observer ? 'Observer' : replacementVipHost ? 'VIP Host' : consoleRole?.name ?? ''} />
+        {(consoleRole || observer || replacementVipHost || replacementCommissar) && (
+          <RoleAssignment value={observer
+            ? 'Observer'
+            : replacementVipHost
+              ? 'VIP Host'
+              : replacementCommissar ? 'Commissar' : consoleRole?.name ?? ''} />
         )}
         <section className="ship-console__travel-lock cic-frame" aria-label="ICN console lock">
           <p className="ship-resources__eyebrow">ICN console lock // {consoleLocked ? 'engaged' : 'clear'}</p>
@@ -303,6 +314,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </select>
         </label>}
         {(
+          <>
           <FleetConsoleWorkspace
             ship={ship}
             role={consoleRole}
@@ -316,6 +328,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             consoleLocked={consoleLocked}
             shipState={shipState}
           />
+          {(replacementCommissar || (me.replacementRoleId == null &&
+            me.activeConsoleRoleId === (ship.id === 'aegis' ? 'admiral' : `${ship.id}-captain`))) && (
+            <CommissarPurgePanel shipId={ship.id} />
+          )}
+          </>
         )}
         <DioneVipCards
           shipId={ship.id}

@@ -17,7 +17,8 @@ export default function ShipRoleSelect() {
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
   const replacement = me?.replacementRoleId ? replacementRoleFor(me.replacementRoleId) : undefined;
-  const replacementAboard = replacement?.id === 'vip-host' && replacement.vesselId === shipId;
+  const replacementAboard = Boolean(replacement && replacement.vesselId === shipId &&
+    (replacement.id === 'vip-host' || replacement.id === 'commissar'));
   const aboard = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId === shipId || replacementAboard;
   const roles = rolesForShip(shipId ?? '').filter((role) => aboard || activeRoleIds.includes(role.id));
 
@@ -63,9 +64,15 @@ export default function ShipRoleSelect() {
             </Link>
           ))}
           {replacementAboard && (
-            <Link className="role-card cic-frame" to={`/ships/${ship.id}/roles/vip-host`} aria-label="VIP Host">
-              <span className="role-card__name">VIP Host</span>
-              <span className="role-card__description">Private Dione VIP hand</span>
+            <Link
+              className="role-card cic-frame"
+              to={`/ships/${ship.id}/roles/${replacement?.id}`}
+              aria-label={replacement?.name}
+            >
+              <span className="role-card__name">{replacement?.name}</span>
+              <span className="role-card__description">
+                {replacement?.id === 'commissar' ? 'Captain-consented survivor purge' : 'Private Dione VIP hand'}
+              </span>
             </Link>
           )}
           {isGm && (

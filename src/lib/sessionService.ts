@@ -1143,6 +1143,114 @@ export async function adjustShipPopulation(shipId: string, delta: -1 | 1): Promi
   });
 }
 
+export interface CommissarPurgeResult extends Partial<VesselActionEnvelope> {
+  readonly status: 'committed' | 'replayed' | 'already-consented' | 'stale';
+  readonly shipId: string;
+  readonly captainRoleId?: string;
+  readonly population?: number;
+  readonly survivorsRemoved?: number;
+  readonly unrest?: number;
+  readonly unrestReduced?: number;
+  readonly currentRevision?: number;
+}
+
+function commissarPurgeReply(value: unknown): CommissarPurgeResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (!['committed', 'replayed', 'already-consented', 'stale'].includes(String(raw.status)) ||
+      typeof raw.shipId !== 'string') return null;
+  const phase = sessionPhase(raw.phase);
+  return {
+    status: raw.status as CommissarPurgeResult['status'],
+    shipId: raw.shipId,
+    ...(typeof raw.captainRoleId === 'string' ? { captainRoleId: raw.captainRoleId } : {}),
+    ...(typeof raw.population === 'number' ? { population: raw.population } : {}),
+    ...(typeof raw.survivorsRemoved === 'number' ? { survivorsRemoved: raw.survivorsRemoved } : {}),
+    ...(typeof raw.unrest === 'number' ? { unrest: raw.unrest } : {}),
+    ...(typeof raw.unrestReduced === 'number' ? { unrestReduced: raw.unrestReduced } : {}),
+    ...(typeof raw.currentRevision === 'number' ? { currentRevision: raw.currentRevision } : {}),
+    ...(typeof raw.revision === 'number' ? { revision: raw.revision } : {}),
+    ...(typeof raw.idempotencyKey === 'string' ? { idempotencyKey: raw.idempotencyKey } : {}),
+    ...(typeof raw.auditId === 'string' ? { auditId: raw.auditId } : {}),
+    ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
+    ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null
+      ? { actorRoleId: raw.actorRoleId as string | null } : {}),
+    ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
+    ...(typeof raw.turn === 'number' ? { turn: raw.turn } : {}),
+    ...(phase === undefined ? {} : { phase }),
+  };
+}
+
+async function sendCommissarPurgeCommand(
+  name: 'consentCommissarPurge' | 'applyCommissarPurge',
+  shipId: string,
+): Promise<CommissarPurgeResult> {
+  const before = useSessionStore.getState();
+  if (!before.session || !before.me) throw new Error('Join a session before using the Commissar action.');
+  requireFreshSessionAuthority();
+  const sessionId = before.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(before));
+  const expectedRevision = before.session.vesselActionRevisions?.[shipId] ?? 0;
+  const payload = {
+    sessionId,
+    shipId,
+    requestId: commandId(),
+    expectedRevision,
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), name);
+    const reply = commissarPurgeReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Commissar action result.');
+    const current = useSessionStore.getState().session;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+        reply.status === 'stale') return reply;
+    if (name === 'consentCommissarPurge' && reply.captainRoleId !== undefined && reply.turn !== undefined) {
+      useSessionStore.getState().setSession({
+        ...current,
+        commissarPurgeConsents: {
+          ...(current.commissarPurgeConsents ?? {}),
+          [shipId]: {
+            turn: reply.turn,
+            captainRoleId: reply.captainRoleId,
+            vesselRevision: reply.revision ?? expectedRevision,
+          },
+        },
+      });
+    } else if (name === 'applyCommissarPurge' && reply.population !== undefined &&
+      reply.unrest !== undefined && reply.revision !== undefined) {
+      const nextConsents = { ...(current.commissarPurgeConsents ?? {}) };
+      delete nextConsents[shipId];
+      useSessionStore.getState().setSession({
+        ...current,
+        shipSurvivors: { ...(current.shipSurvivors ?? {}), [shipId]: reply.population },
+        shipUnrest: { ...(current.shipUnrest ?? {}), [shipId]: reply.unrest },
+        commissarPurgeConsents: nextConsents,
+        commissarPurgeLedger: {
+          ...(current.commissarPurgeLedger ?? {}),
+          [shipId]: { turn: reply.turn ?? current.currentTurn ?? 1, revision: reply.revision },
+        },
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          [shipId]: reply.revision,
+        },
+      });
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+export function consentCommissarPurge(shipId: string): Promise<CommissarPurgeResult> {
+  return sendCommissarPurgeCommand('consentCommissarPurge', shipId);
+}
+
+export function applyCommissarPurge(shipId: string): Promise<CommissarPurgeResult> {
+  return sendCommissarPurgeCommand('applyCommissarPurge', shipId);
+}
+
 export async function dismissPopulationAlert(shipId: string): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) return;
