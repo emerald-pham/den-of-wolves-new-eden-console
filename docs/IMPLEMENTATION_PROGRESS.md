@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **273 / 751 prompts complete (36.35%)**
 
-Status breakdown: **273 done · 23 partial · 455 missing**.
+Status breakdown: **273 done · 24 partial · 454 missing**.
 
 Active prompt: **none**
 
@@ -1065,7 +1065,7 @@ release classification and evidence.
 | 591 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 592 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 593 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 594 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 594 | partial | non-feature | 0.4.5 | Partial production-path implementation: existing GM Religious Zealotry, Civil Unrest, and durable facilitator rule-call results now show their source, actor, and recorded time when the authorized projection supplies them. Selected-player rule calls keep actor identity withheld and accurately show time unavailable when the private projection omits the server timestamp; replacement eligibility and assignment statuses identify their facilitator source but retain unavailable actor/time wording because those callable results do not expose that metadata. No player or GM surface invents names or timestamps, so acceptance remains partial for adjudications whose authoritative projection lacks metadata. |
 | 595 | done | non-feature | — | Settings renders APP_VERSION from the shared version module, which imports package metadata. Existing version and Settings tests verify the displayed release reference without handwritten version constants. Documentation verification only; no runtime change. |
 | 596 | done | non-feature | — | Settings exposes changelog entries in a named, keyboard-focusable region with bounded viewport-relative height, independent vertical scrolling and contained overscroll. Existing Settings tests verify opening, accessible region and scroll styles. All 148 entries were verified strictly newest-first at version 0.3.57. Documentation verification only; no runtime change. |
 | 597 | done | non-feature | — | Verified the existing danger-red two-step ARE YOU SURE? Settings action. Confirmation invokes the shared disconnect service and replaces the route with landing; the service captures session and GM-instance cleanup before clearing local identity, mode and private state, retaining cleanup commands for offline acknowledgement. Existing cancellation, offline queue and delayed acknowledgement tests pass; the Settings test now also proves landing navigation. No runtime change. |

@@ -1493,6 +1493,21 @@ body {
   font: 0.66rem/1.45 var(--cic-mono);
 }
 
+.decision-attribution {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--cic-line);
+  color: var(--cic-muted);
+  font: 0.66rem/1.45 var(--cic-mono);
+}
+
+.decision-attribution p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .gm-player-roster,
 .gm-player-roster__group ul {
   margin: 0;

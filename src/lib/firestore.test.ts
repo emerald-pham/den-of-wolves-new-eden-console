@@ -539,6 +539,24 @@ it('parses and monotonically subscribes to the facilitator current rule call', (
   stop();
 });
 
+it('preserves valid facilitator timestamps and does not invent missing rule-call time', () => {
+  const { callbacks } = captureSessionListener();
+  const onCall = vi.fn();
+  subscribeGmFacilitatorRuleCall('s1', onCall);
+  const base = {
+    type: 'facilitator-rule-call', sessionId: 's1', ambiguity: 'Question', source: 'Reference',
+    decision: 'Decision', audience: 'gm-only', actorUid: 'gm1', label: 'FACILITATOR RULE CALL',
+  };
+  callbacks[0]?.({ exists: () => true, data: () => ({ ...base, callId: 'call-valid', revision: 1, createdAt: timestamp(1767225600, 0) }) });
+  expect(onCall).toHaveBeenLastCalledWith(expect.objectContaining({
+    callId: 'call-valid', createdAt: '2026-01-01T00:00:00.000Z',
+  }));
+  callbacks[0]?.({ exists: () => true, data: () => ({ ...base, callId: 'call-missing', revision: 2 }) });
+  expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
+  callbacks[0]?.({ exists: () => true, data: () => ({ ...base, callId: 'call-invalid', revision: 3, createdAt: 'not-a-timestamp' }) });
+  expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
+});
+
 it('drops malformed GM identities without throwing or leaving a stale projection', async () => {
   const { callbacks } = captureSessionListener();
   const onInstances = vi.fn();
@@ -1119,24 +1137,25 @@ it('hydrates only a valid private Zealotry response and never exposes census ide
       actions: ['pressure', 'investigate'],
       customResponse: 'Keep the response informal.',
       rationale: 'Private context.', loyaltyCensusRevision: 9,
-      actorUid: 'u1', censusEntries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
+      actorUid: 'u1', updatedAt: timestamp(1767225600, 0), censusEntries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
     }),
   });
   expect(onResponse).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', crisisId: 'zealotry-1', crisisRevision: 3,
     revision: 2, actions: ['pressure', 'investigate'], loyaltyCensusRevision: 9,
   }));
+  expect(onResponse.mock.lastCall?.[0]).toHaveProperty('updatedAt', '2026-01-01T00:00:00.000Z');
   expect(onResponse.mock.lastCall?.[0]).not.toHaveProperty('censusEntries');
 
   callbacks[0]?.({
     metadata: { fromCache: false }, exists: () => true,
     data: () => ({
       type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-1',
-      crisisRevision: 3, state: 'debated', revision: 1,
-      actions: ['pressure', 'pressure'], rationale: '', loyaltyCensusRevision: 9,
+      crisisRevision: 3, state: 'debated', revision: 3,
+      actions: ['leave'], rationale: 'Valid replacement projection.', loyaltyCensusRevision: 9, updatedAt: 'not-a-timestamp',
     }),
   });
-  expect(onResponse).toHaveBeenLastCalledWith(null);
+  expect(onResponse.mock.lastCall?.[0]).not.toHaveProperty('updatedAt');
   unsubscribe();
   expect(onResponse).toHaveBeenLastCalledWith(null);
 });
@@ -1185,13 +1204,16 @@ it('resets the Civil Unrest resolution revision gate when the current crisis is 
       { shipId: 'dione', revision: null }, { shipId: 'icebreaker', revision: 1 },
       { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null }, { shipId: 'refinery-124', revision: null },
     ],
+    updatedAt: timestamp(1767225600, 0),
   };
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ ...base, crisisId: 'unrest-a' }) });
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => false });
-  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ ...base, crisisId: 'unrest-b', crisisRevision: 1, revision: 1 }) });
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ ...base, crisisId: 'unrest-b', crisisRevision: 1, revision: 1, updatedAt: 'not-a-timestamp' }) });
   expect(onResolution).toHaveBeenNthCalledWith(1, expect.objectContaining({ crisisId: 'unrest-a', revision: 2 }));
+  expect(onResolution.mock.calls[0]?.[0]).toHaveProperty('updatedAt', '2026-01-01T00:00:00.000Z');
   expect(onResolution).toHaveBeenNthCalledWith(2, null);
   expect(onResolution).toHaveBeenNthCalledWith(3, expect.objectContaining({ crisisId: 'unrest-b', revision: 1 }));
+  expect(onResolution.mock.calls[2]?.[0]).not.toHaveProperty('updatedAt');
 });
 
 it('does not let a delayed older census revision overwrite the newer server projection', () => {

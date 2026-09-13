@@ -157,6 +157,20 @@ function iso(value: unknown): string {
   return new Date().toISOString();
 }
 
+function optionalIso(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return Number.isFinite(Date.parse(value)) ? value : undefined;
+  }
+  if (
+    typeof value === 'object' && value !== null && 'toDate' in value &&
+    typeof value.toDate === 'function'
+  ) {
+    const date = value.toDate() as Date;
+    return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+  }
+  return undefined;
+}
+
 function parseEntityIdArray<K extends EntityKind>(kind: K, value: unknown): readonly EntityId<K>[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const parsed = value.map((id) => parseEntityId(kind, id));
@@ -502,6 +516,7 @@ function facilitatorRuleCall(
   const supersededByCallId = raw.supersededByCallId === undefined ? undefined
     : typeof raw.supersededByCallId === 'string' && raw.supersededByCallId.length > 0 ? raw.supersededByCallId : null;
   if (supersedesCallId === null || supersededByCallId === null) return null;
+  const createdAt = optionalIso(raw.createdAt);
   return {
     sessionId: entityId('session', sessionId),
     callId: raw.callId,
@@ -512,7 +527,7 @@ function facilitatorRuleCall(
     audience: raw.audience,
     ...(parsedRecipientUid ? { recipientUid: parsedRecipientUid } : {}),
     ...(actorUid ? { actorUid } : {}),
-    createdAt: iso(raw.createdAt),
+    ...(createdAt ? { createdAt } : {}),
     ...(supersedesCallId ? { supersedesCallId } : {}),
     ...(supersededByCallId ? { supersededByCallId } : {}),
     label: 'FACILITATOR RULE CALL',
@@ -955,7 +970,7 @@ function zealotryResponse(value: unknown, sessionId: string): ZealotryResponse |
     rationale: raw.rationale,
     loyaltyCensusRevision: raw.loyaltyCensusRevision as number | null,
     ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
-    ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
+    ...(optionalIso(raw.updatedAt) ? { updatedAt: optionalIso(raw.updatedAt)! } : {}),
   };
 }
 
@@ -993,7 +1008,7 @@ function civilUnrestResolution(value: unknown, sessionId: string): CivilUnrestRe
     }),
     recordedBy: 'facilitator',
     ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
-    ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
+    ...(optionalIso(raw.updatedAt) ? { updatedAt: optionalIso(raw.updatedAt)! } : {}),
   };
 }
 

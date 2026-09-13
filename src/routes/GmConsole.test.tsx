@@ -461,7 +461,7 @@ it('records a facilitator-attributed Civil Unrest response with grievance links 
     grievanceRevisions: [
       { shipId: 'dione', revision: 2 }, { shipId: 'icebreaker', revision: null },
       { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null }, { shipId: 'refinery-124', revision: null },
-    ], recordedBy: 'facilitator',
+    ], recordedBy: 'facilitator', actorUid: 'gm-1', updatedAt: '2026-01-01T00:00:00.000Z',
   };
   let publishCrisis: ((state: CrisisStateProjection | null) => void) | undefined;
   let publishResolution: ((resolution: CivilUnrestResolution | null) => void) | undefined;
@@ -482,6 +482,9 @@ it('records a facilitator-attributed Civil Unrest response with grievance links 
   const panel = await screen.findByRole('region', { name: 'Private Civil Unrest resolution' });
   expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded President response' })).toHaveValue(responseA.presidentResponse);
   expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded Civil Unrest consequence' })).toHaveValue(responseA.consequence);
+  expect(panel).toHaveTextContent('Decision source // Facilitator response on behalf of the President');
+  expect(panel).toHaveTextContent('Decision actor // facilitator // gm-1');
+  expect(panel).toHaveTextContent('Decision time //');
   await user.click(within(panel).getByRole('button', { name: 'Record private Civil Unrest resolution' }));
   await waitFor(() => expect(recordCivilUnrestResolution).toHaveBeenCalledWith(
     responseA.presidentResponse, responseA.consequence, responseA.rationale,
@@ -848,6 +851,12 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   record.focus();
   await user.keyboard('{Enter}');
   await waitFor(() => expect(setReplacementEligibility).toHaveBeenCalledWith('u2', 'dead', 0, 0));
+  expect(within(panel).getByRole('region', { name: 'Decision attribution' })).toHaveTextContent(
+    'Decision actor // unavailable in this projection',
+  );
+  expect(within(panel).getByRole('region', { name: 'Decision attribution' })).toHaveTextContent(
+    'Decision time // unavailable in this projection',
+  );
   await user.click(within(panel).getByRole('button', { name: 'Assign replacement role' }));
   await waitFor(() => expect(assignReplacementRole).toHaveBeenCalledWith('u2', 'wolf-commander', 1, 5));
 });

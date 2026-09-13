@@ -5,6 +5,7 @@ import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
 import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPanel';
+import DecisionAttribution from '@/components/DecisionAttribution';
 
 function WarriorSalvageDronesStatus() {
   return (
@@ -71,6 +72,11 @@ export default function RoleBrief() {
               <div><dt>Source</dt><dd>{facilitatorRuleCall.source}</dd></div>
               <div><dt>Decision</dt><dd>{facilitatorRuleCall.decision}</dd></div>
             </dl>
+            <DecisionAttribution
+              source={facilitatorRuleCall.source}
+              actorVisibility="withheld"
+              recordedAt={facilitatorRuleCall.createdAt}
+            />
           </section>
         )}
 

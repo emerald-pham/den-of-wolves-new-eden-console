@@ -93,7 +93,30 @@ it('renders a selected facilitator rule call with durable source and decision fi
   expect(call).toHaveTextContent('Does docking happen before movement?');
   expect(call).toHaveTextContent('Facilitator reference');
   expect(call).toHaveTextContent('Use the printed docking state for this turn.');
+  expect(call).toHaveTextContent('Decision source // Facilitator reference');
+  expect(call).toHaveTextContent('Decision actor // facilitator identity withheld');
+  expect(call).toHaveTextContent('Decision time //');
   expect(call).not.toHaveTextContent('gm1');
+});
+
+it('labels a selected rule call with unknown time when its private projection omits server metadata', () => {
+  useSessionStore.getState().setFacilitatorRuleCall({
+    sessionId: 's1', callId: 'call-2', revision: 1,
+    ambiguity: 'Which route applies?', source: 'Facilitator reference', decision: 'Use the printed route.',
+    audience: 'selected-player', recipientUid: 'u1', label: 'FACILITATOR RULE CALL',
+  });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const call = screen.getByRole('region', { name: 'Facilitator rule call' });
+  expect(call).toHaveTextContent('Decision actor // facilitator identity withheld');
+  expect(call).toHaveTextContent('Decision time // unavailable in this projection');
 });
 
 it('returns to role selection when the local assignment no longer matches', () => {

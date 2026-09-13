@@ -8,6 +8,7 @@ import GmStarmapModule from '@/components/GmStarmapModule';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import PursuitTracker from '@/components/PursuitTracker';
 import LiveChangeRegion from '@/components/LiveChangeRegion';
+import DecisionAttribution from '@/components/DecisionAttribution';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -317,6 +318,7 @@ export default function GmConsole() {
   const [replacementRevision, setReplacementRevision] = useState(0);
   const [replacementSetupRevision, setReplacementSetupRevision] = useState(0);
   const [replacementMessage, setReplacementMessage] = useState<string | null>(null);
+  const [replacementDecisionRecorded, setReplacementDecisionRecorded] = useState(false);
   const [replacementBusy, setReplacementBusy] = useState(false);
   const [castingDraftRoles, setCastingDraftRoles] = useState<Readonly<Record<string, string>>>({});
   const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
@@ -1275,6 +1277,7 @@ export default function GmConsole() {
       } else {
         setReplacementRevision(result.revision);
         setReplacementSetupRevision(result.setupRevision);
+        setReplacementDecisionRecorded(true);
         setReplacementMessage(`ELIGIBILITY RECORDED // ${replacementReason.toUpperCase()} // revision ${result.revision}`);
       }
     } catch {
@@ -1299,6 +1302,7 @@ export default function GmConsole() {
       } else {
         setReplacementRevision(result.revision);
         setReplacementSetupRevision(result.setupRevision);
+        setReplacementDecisionRecorded(true);
         setReplacementMessage(`REPLACEMENT COMMITTED // ${replacementRoleId} // revision ${result.revision}`);
       }
     } catch {
@@ -2519,6 +2523,13 @@ export default function GmConsole() {
                     ? `Recorded response // revision ${gmZealotryResponse.revision} // census context ${gmZealotryResponse.loyaltyCensusRevision ?? 'absent'}`
                     : 'No private response recorded for this crisis revision.')}
                 </p>
+                {gmZealotryResponse && (
+                  <DecisionAttribution
+                    source="Facilitator source-approved Religious Zealotry response"
+                    actorUid={gmZealotryResponse.actorUid}
+                    recordedAt={gmZealotryResponse.updatedAt}
+                  />
+                )}
               </section>
             )}
             {gmCrisisState?.crisisKind === 'civil-unrest' && gmCrisisState.state === 'debated' && (
@@ -2582,6 +2593,13 @@ export default function GmConsole() {
                     ? `Recorded resolution // revision ${gmCivilUnrestResolution.revision} // grievance links retained privately`
                     : 'No private resolution recorded for this crisis revision.')}
                 </p>
+                {gmCivilUnrestResolution && (
+                  <DecisionAttribution
+                    source="Facilitator response on behalf of the President"
+                    actorUid={gmCivilUnrestResolution.actorUid}
+                    recordedAt={gmCivilUnrestResolution.updatedAt}
+                  />
+                )}
               </section>
             )}
           </section>
@@ -3224,6 +3242,7 @@ export default function GmConsole() {
                       setReplacementTargetUid(event.target.value);
                       setReplacementRevision(0);
                       setReplacementSetupRevision(session.setupRevision ?? 0);
+                      setReplacementDecisionRecorded(false);
                       setReplacementMessage(null);
                     }}
                   >
@@ -3278,6 +3297,12 @@ export default function GmConsole() {
                 <p className="gm-player-roster__note" role="status" aria-live="polite">
                   {replacementMessage ?? 'No eligibility decision recorded for the selected player.'}
                 </p>
+                {replacementDecisionRecorded && (
+                  <DecisionAttribution
+                    source="Facilitator replacement decision"
+                    actorVisibility="unavailable"
+                  />
+                )}
               </section>
             )}
             {connectedPlayerGroups.length === 0 ? (
@@ -3582,6 +3607,13 @@ export default function GmConsole() {
                     ? `Current call // revision ${gmFacilitatorRuleCall.revision} // ${gmFacilitatorRuleCall.callId}`
                     : 'No facilitator rule call recorded yet.')}
                 </p>
+                {gmFacilitatorRuleCall && (
+                  <DecisionAttribution
+                    source={gmFacilitatorRuleCall.source}
+                    actorUid={gmFacilitatorRuleCall.actorUid}
+                    recordedAt={gmFacilitatorRuleCall.createdAt}
+                  />
+                )}
               </div>
             </section>
           )}

@@ -687,7 +687,8 @@ export interface FacilitatorRuleCall {
   readonly audience: FacilitatorRuleCallAudience;
   readonly recipientUid?: PlayerId;
   readonly actorUid?: PlayerId;
-  readonly createdAt: string;
+  /** Server timestamp is absent from a selected-player projection by design. */
+  readonly createdAt?: string;
   readonly supersedesCallId?: string;
   readonly supersededByCallId?: string;
   readonly label: 'FACILITATOR RULE CALL';

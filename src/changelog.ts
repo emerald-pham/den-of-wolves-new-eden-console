@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['594'],
+    implementationProgress: {
+      completed: 273,
+      total: 751,
+      percentage: '36.35%',
+      done: 273,
+      partial: 24,
+      active: 0,
+      missing: 454,
+    },
+    changes: [
+      'Facilitator decisions now show their source, actor record, and recorded time wherever that metadata is available to the viewer.',
+      'Private player rulings keep hidden actor identities private, while replacement decisions clearly mark unavailable actor and time metadata.',
+      '273 of 751 planned items are complete (36.35%).',
+    ],
+  },
+  {
+    version: '0.4.4',
     implementationPrompts: ['609'],
     implementationProgress: {
       completed: 273,

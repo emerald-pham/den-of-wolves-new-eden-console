@@ -5082,6 +5082,13 @@
       "language": "Existing phase, Wolf attack/parking, denial, pursuit-threshold, and ending presentation paths now use stable keyed live regions or their existing role=status/alert behavior. LiveChangeRegion keeps one region mounted while listener snapshots reconcile, stays quiet for initial hydrated state and identical event keys, and announces only a new event key; it is used for turn transmissions, Wolf declaration/parked-craft results, and pursuit severity transitions. Existing CommunicationError role=alert and DebriefMode revision gating remain the denial and ending paths, and FleetTicker/FleetBroadcast retain their authoritative message IDs. Focused tests cover same snapshot, new revision, initial hydration, threshold severity, declaration parking, denial, and debrief behavior. Real Chrome checks cover representative rendered DOM for threshold, phase, attack/parking, denial, and ending using simulated local session-store events; they do not claim a Firebase/server roundtrip.",
       "source": "src/components/LiveChangeRegion.tsx; src/components/LiveChangeRegion.test.tsx; src/components/TurnStartAnnouncement.tsx; src/components/TurnStartAnnouncement.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/components/PursuitTracker.tsx; src/components/PursuitTracker.test.tsx; src/components/CommunicationError.tsx; src/components/CommunicationError.test.tsx; src/components/DebriefMode.tsx; src/components/DebriefMode.test.tsx; src/components/FleetTicker.tsx; src/components/FleetTicker.test.tsx; src/components/FleetBroadcast.tsx; src/components/FleetBroadcast.test.tsx; /tmp/p609-live-region-render-20260913/evidence.json",
       "type": "evidence / accessibility / rendered / listener-dedupe"
+    },
+    {
+      "direction": "594 -> DECISION-ATTRIBUTION",
+      "id": "E-594-DECISION-ATTRIBUTION",
+      "language": "Existing GM Religious Zealotry, Civil Unrest, replacement, and durable facilitator rule-call result surfaces now include explicit decision source, actor, and time labels. The GM projections use only their existing actorUid and server updatedAt/createdAt fields. Selected-player facilitator rule calls retain the server privacy projection: actor identity is shown as withheld and absent createdAt is shown as unavailable. Replacement callable results provide only revision data, so the UI labels their facilitator source while truthfully showing actor and time unavailable. Focused tests pass 194/194 across firestore parser/listener, DecisionAttribution, RoleBrief, and GmConsole; typecheck, build, and targeted lint pass. Real Chrome rendering checks cover the RoleBrief private projection and GM attribution block at 320x844, 390x844, 844x390, and 1440x900 under normal and reduced motion with no horizontal overflow. The browser fixture uses local simulated projections and makes no Firebase or deployment claim; metadata-missing adjudications remain a documented partial boundary.",
+      "source": "src/components/DecisionAttribution.tsx; src/components/DecisionAttribution.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/lib/firestore.ts; src/types/game.ts; src/index.css; focused tests 194/194; npm run typecheck; npm run build; targeted eslint; /tmp/p594-decision-render-evidence.json; /tmp/p594-role-brief-320x844.png; /tmp/p594-gm-attribution-1440x900.png",
+      "type": "evidence / attribution / privacy / rendered"
     }
   ],
   "plan": {
@@ -20325,8 +20332,8 @@
         "acceptance": "every adjudicated result visibly names the decision source, actor, and time rather than posing as rules automation.",
         "title": "Label facilitator decisions."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-594",
+      "description": "Partial production-path implementation: existing GM Religious Zealotry, Civil Unrest, and durable facilitator rule-call results now show their source, actor, and recorded time when the authorized projection supplies them. Selected-player rule calls keep actor identity withheld and accurately show time unavailable when the private projection omits the server timestamp; replacement eligibility and assignment statuses identify their facilitator source but retain unavailable actor/time wording because those callable results do not expose that metadata. No player or GM surface invents names or timestamps, so acceptance remains partial for adjudications whose authoritative projection lacks metadata.",
+      "evidenceIds": "E-AUDIT-594;E-594-DECISION-ATTRIBUTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "168",
@@ -20334,10 +20341,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.5"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
