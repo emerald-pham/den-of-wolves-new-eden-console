@@ -4587,6 +4587,34 @@
       "type": "evidence / source / catalog"
     },
     {
+      "direction": "419",
+      "id": "E-419-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Unstable Star J as a hostile three-card, one-opportunity mission: repeatable every turn, mining 14/25 for 12 strytium ore plus critical +10 ore, with the printed group-local 4+ maintenance damage hazard. The catalog preserves the printed repeatability and hazard without adding a resolver.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "420",
+      "id": "E-420-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Abandoned Wolf Supply Outpost K as a hostile three-card, one-opportunity mission repeatable every turn. The player-facing difficulty remains null until the facilitator's secret d6 X; typed server-only rules derive success 5X and critical 5X+10, award 2X food, 2X water, 2X strytium fuel and X materials, and trigger a group-local Wolf attack unless critical. No early difficulty leak, coordinate, or resolver is introduced.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "421",
+      "id": "E-421-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Active Wolf Outpost L as a hostile six-card mission with salvage 15/20 for 10 materials plus critical +5, search & rescue 15/20 for 10 strytium ore plus critical +5, and science 25 for upgrading 2 weapon consoles. Site metadata preserves the group-local entry attack minimum of 1 Battlestation and 20 damage from other ships, blocks the away mission while the base is operational, and repeats attack pressure until the base is destroyed or the fleet jumps away.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "421a",
+      "id": "E-421A-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Active Wolf Fortress M as a hostile six-card mission with salvage 15/20 for 12 materials plus critical +6, search & rescue 15/20 for 12 strytium ore plus critical +6, and science 25 for upgrading 3 weapon consoles. Site metadata preserves the group-local entry attack minimum of 2 Battlestations and 25 damage from other ships, blocks the away mission while the base is operational, and repeats attack pressure until the base is destroyed or the fleet jumps away.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
       "direction": "287 -> 288",
       "id": "E-287-GRAPH-CONSOLIDATION",
       "language": "Jump classification now consumes the canonical immutable star-chart graph rather than a duplicate server edge list. The shortest route helper is checked against all 22 printed coordinates from 0000 in both directions, and unprinted 0101 is rejected. Existing product mapping remains one edge short, two edges medium, and three or more edges long. The routed CORE_RULES source defines these lengths as jumps along chart edges but supplies no numeric short/medium/long boundaries, so Prompt 287 remains partial pending an owner decision on those cutoffs. No jump authorization, fuel profile, fleet-group state, or combat behavior changed.",
@@ -15651,8 +15679,8 @@
         "acceptance": "its three-card, one-opportunity mission, repeatability, hazard, and reward are exact.",
         "title": "Encode Unstable Star J."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-419",
+      "description": "The server-owned catalog now encodes Unstable Star J from the authorized local v1.1 primary print review: a hostile three-card, one-opportunity mission repeatable every turn, mining 14/25 for 12 strytium ore plus critical +10 ore, with the printed group-local 4+ maintenance damage hazard. The definition remains catalog-only; no resolver is introduced.",
+      "evidenceIds": "E-AUDIT-419;E-419-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15663,7 +15691,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15674,8 +15702,8 @@
         "acceptance": "facilitator-only X defines 5X/5X+10 and 2X/2X/2X/X rewards without leaking difficulty early.",
         "title": "Encode Wolf Supply Outpost K."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-420",
+      "description": "The server-owned catalog now encodes Abandoned Wolf Supply Outpost K from the authorized local v1.1 primary print review: a hostile three-card, one-opportunity mission repeatable every turn. The player-facing difficulty remains null until the facilitator's secret d6 X; typed server-only rules derive success 5X and critical 5X+10, award the printed 2X/2X/2X/X resource tuple, and trigger a group-local Wolf attack unless critical. No early difficulty leak or resolver is introduced.",
+      "evidenceIds": "E-AUDIT-420;E-420-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15686,7 +15714,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15697,8 +15725,8 @@
         "acceptance": "entry pressure, operational mission lock, clearing state, mission, and recurring attack behavior are exact.",
         "title": "Encode Active Wolf Outpost L."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-421",
+      "description": "The server-owned catalog now encodes Active Wolf Outpost L from the authorized local v1.1 primary print review: hostile six-card salvage 15/20, search & rescue 15/20, and science 25 opportunities with the printed 10-material/+5 critical, 10-ore/+5 critical, and upgrade 2 weapon-console rewards. Site metadata preserves the group-local entry attack minimum, operational mission lock, and recurring attack until the base is destroyed or the fleet jumps away; no resolver is introduced.",
+      "evidenceIds": "E-AUDIT-421;E-421-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15709,7 +15737,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15720,8 +15748,8 @@
         "acceptance": "minimum Battlestation/composition, repeated pressure, mission lock, clearing state, and mission behavior are exact.",
         "title": "Encode Active Wolf Fortress M."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-421A",
+      "description": "The server-owned catalog now encodes Active Wolf Fortress M from the authorized local v1.1 primary print review: hostile six-card salvage 15/20, search & rescue 15/20, and science 25 opportunities with the printed 12-material/+6 critical, 12-ore/+6 critical, and upgrade 3 weapon-console rewards. Site metadata preserves the group-local 2-Battlestation/25-other-damage entry pressure, operational mission lock, and recurring attack until the base is destroyed or the fleet jumps away; no resolver is introduced.",
+      "evidenceIds": "E-AUDIT-421A;E-421A-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15732,7 +15760,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

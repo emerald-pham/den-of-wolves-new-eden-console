@@ -2550,10 +2550,10 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 418
 - [x] Prompt 418a
 - [x] Prompt 418b
-- [ ] Prompt 419
-- [ ] Prompt 420
-- [ ] Prompt 421
-- [ ] Prompt 421a
+- [x] Prompt 419
+- [x] Prompt 420
+- [x] Prompt 421
+- [x] Prompt 421a
 - [ ] Prompt 422
 - [ ] Prompt 423
 - [ ] Prompt 424

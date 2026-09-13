@@ -7,7 +7,7 @@
  * calculate totals, or resolve a mission.
  */
 
-export const CANONICAL_MISSION_CARD_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const;
+export const CANONICAL_MISSION_CARD_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'] as const;
 export type CanonicalMissionCardCode = typeof CANONICAL_MISSION_CARD_CODES[number];
 
 export type MissionOpportunityTrait =
@@ -81,8 +81,8 @@ export interface MissionUpgradeOrRepairConsolesEffect {
 
 export interface MissionUpgradeConsolesEffect {
   readonly kind: 'upgradeConsoles';
-  readonly target: 'any';
-  readonly amount: 1;
+  readonly target: 'any' | 'weapon';
+  readonly amount: 1 | 2 | 3;
 }
 
 export interface MissionUnlockResearchEffect {
@@ -109,6 +109,12 @@ export interface MissionNoFuelOnNebulaExitEffect {
   readonly scope: 'group';
 }
 
+export interface MissionImmediateWolfAttackEffect {
+  readonly kind: 'immediateWolfAttack';
+  readonly scope: 'group';
+  readonly unless: 'critical';
+}
+
 export type MissionRewardEffect =
   | MissionCrossOutResearchBoxesEffect
   | MissionExploreStarSystemsEffect
@@ -117,7 +123,26 @@ export type MissionRewardEffect =
   | MissionUnlockResearchEffect
   | MissionUnlockNamedResearchEffect
   | MissionRemoveNebulaDamageEffect
-  | MissionNoFuelOnNebulaExitEffect;
+  | MissionNoFuelOnNebulaExitEffect
+  | MissionImmediateWolfAttackEffect;
+
+export interface MissionSecretD6DifficultyRule {
+  readonly kind: 'secretD6Difficulty';
+  readonly variable: 'X';
+  readonly successMultiplier: 5;
+  readonly criticalOffset: 10;
+}
+
+export interface MissionSecretD6SuccessRule {
+  readonly kind: 'secretD6Multipliers';
+  readonly variable: 'X';
+  readonly multipliers: Readonly<{
+    readonly food: 2;
+    readonly water: 2;
+    readonly fuel: 2;
+    readonly materials: 1;
+  }>;
+}
 
 export interface MissionPursuitRule {
   readonly kind: 'jumpDoesNotReduce' | 'doesNotRiseWhilePresent';
@@ -126,7 +151,20 @@ export interface MissionPursuitRule {
 
 export interface MissionMaintenanceHazard {
   readonly kind: 'maintenanceDamage';
-  readonly threshold: 3;
+  readonly threshold: 3 | 4;
+  readonly scope: 'group';
+}
+
+export interface MissionWolfEntryAttackRule {
+  readonly kind: 'immediateWolfAttackOnEntry';
+  readonly minimumBattleStations: 1 | 2;
+  readonly minimumOtherShipDamage: 20 | 25;
+  readonly scope: 'group';
+}
+
+export interface MissionRecurringWolfAttackRule {
+  readonly kind: 'wolfAttackWhileOperational';
+  readonly endsWhen: readonly ['baseDestroyed', 'jumpAway'];
   readonly scope: 'group';
 }
 
@@ -135,11 +173,21 @@ export interface MissionSiteRules {
   readonly pursuit: MissionPursuitRule | null;
   /** Printed environmental hazards that apply while the group is present. */
   readonly hazards: readonly MissionMaintenanceHazard[];
+  /** Printed missions that can be attempted again during each turn. */
+  readonly repeatability?: 'everyTurn';
+  /** Printed mission lock while an active Wolf base remains operational. */
+  readonly missionAccess?: 'blockedWhileWolfBaseOperational';
+  /** Printed attack pressure on entering an active Wolf base. */
+  readonly entryAttack?: MissionWolfEntryAttackRule;
+  /** Printed recurring attack pressure until the base is cleared or fleet leaves. */
+  readonly recurringAttack?: MissionRecurringWolfAttackRule;
 }
 
 export interface MissionReward {
   /** The reward on an ordinary success. */
   readonly success: MissionRewardAmounts;
+  /** A printed formula for a variable ordinary success reward. */
+  readonly successRule?: MissionSecretD6SuccessRule;
   /** Non-resource effects on an ordinary success. */
   readonly successEffects: readonly MissionRewardEffect[];
   /** Additional reward granted when the critical threshold is met. */
@@ -152,7 +200,9 @@ export interface MissionOpportunity {
   readonly id: `${CanonicalMissionCardCode}-${number}`;
   readonly description: string;
   readonly traits: readonly MissionOpportunityTrait[];
-  readonly difficulty: number;
+  readonly difficulty: number | null;
+  /** A printed facilitator-only rule for deriving an unknown difficulty. */
+  readonly difficultyRule?: MissionSecretD6DifficultyRule;
   readonly criticalThreshold: number | null;
   /** No card-specific numeric bonus; generic shuttle bonuses remain separate. */
   readonly traitBonus: MissionTraitBonus;
@@ -165,8 +215,8 @@ export interface MissionCardDefinition {
   readonly code: CanonicalMissionCardCode;
   readonly name: string;
   readonly category: 'poor' | 'neutral' | 'hostile';
-  readonly cardsDealt: 6 | 8;
-  readonly opportunityCount: 2 | 3;
+  readonly cardsDealt: 3 | 6 | 8;
+  readonly opportunityCount: 1 | 2 | 3;
   readonly siteRules: MissionSiteRules;
   readonly opportunities: readonly MissionOpportunity[];
 }
@@ -614,6 +664,191 @@ export const ION_NEBULA_I: MissionCardDefinition = {
   ],
 };
 
+export const UNSTABLE_STAR_J: MissionCardDefinition = {
+  code: 'J',
+  name: 'Unstable Star',
+  category: 'hostile',
+  cardsDealt: 3,
+  opportunityCount: 1,
+  siteRules: {
+    pursuit: null,
+    hazards: [{ kind: 'maintenanceDamage', threshold: 4, scope: 'group' }],
+    repeatability: 'everyTurn',
+  },
+  opportunities: [
+    {
+      id: 'J-1',
+      description: 'Mine the rich Strytium Ore deposits from the system’s asteroids.',
+      traits: ['mining'],
+      difficulty: 14,
+      criticalThreshold: 25,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: { ore: 12 },
+        successEffects: [],
+        criticalBonus: { ore: 10 },
+      },
+    },
+  ],
+};
+
+export const ABANDONED_WOLF_SUPPLY_OUTPOST_K: MissionCardDefinition = {
+  code: 'K',
+  name: 'Abandoned Wolf Supply Outpost',
+  category: 'hostile',
+  cardsDealt: 3,
+  opportunityCount: 1,
+  siteRules: { pursuit: null, hazards: [], repeatability: 'everyTurn' },
+  opportunities: [
+    {
+      id: 'K-1',
+      description: 'It’s impossible to tell if danger lurks in the outpost, but there are plenty of supplies.',
+      traits: ['searchAndRescue'],
+      difficulty: null,
+      difficultyRule: {
+        kind: 'secretD6Difficulty',
+        variable: 'X',
+        successMultiplier: 5,
+        criticalOffset: 10,
+      },
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successRule: {
+          kind: 'secretD6Multipliers',
+          variable: 'X',
+          multipliers: { food: 2, water: 2, fuel: 2, materials: 1 },
+        },
+        successEffects: [{ kind: 'immediateWolfAttack', scope: 'group', unless: 'critical' }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
+export const ACTIVE_WOLF_OUTPOST_L: MissionCardDefinition = {
+  code: 'L',
+  name: 'Active Wolf Outpost',
+  category: 'hostile',
+  cardsDealt: 6,
+  opportunityCount: 3,
+  siteRules: {
+    pursuit: null,
+    hazards: [],
+    missionAccess: 'blockedWhileWolfBaseOperational',
+    entryAttack: {
+      kind: 'immediateWolfAttackOnEntry',
+      minimumBattleStations: 1,
+      minimumOtherShipDamage: 20,
+      scope: 'group',
+    },
+    recurringAttack: {
+      kind: 'wolfAttackWhileOperational',
+      endsWhen: ['baseDestroyed', 'jumpAway'],
+      scope: 'group',
+    },
+  },
+  opportunities: [
+    {
+      id: 'L-1',
+      description: 'Salvage materials from the wreckage of the Wolf station.',
+      traits: ['salvage'],
+      difficulty: 15,
+      criticalThreshold: 20,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { materials: 10 }, successEffects: [], criticalBonus: { materials: 5 } },
+    },
+    {
+      id: 'L-2',
+      description: 'Raid the Wolf fuel depot.',
+      traits: ['searchAndRescue'],
+      difficulty: 15,
+      criticalThreshold: 20,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { ore: 10 }, successEffects: [], criticalBonus: { ore: 5 } },
+    },
+    {
+      id: 'L-3',
+      description: 'Salvage advanced Wolf weaponry.',
+      traits: ['science'],
+      difficulty: 25,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{ kind: 'upgradeConsoles', target: 'weapon', amount: 2 }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
+export const ACTIVE_WOLF_FORTRESS_M: MissionCardDefinition = {
+  code: 'M',
+  name: 'Active Wolf Fortress',
+  category: 'hostile',
+  cardsDealt: 6,
+  opportunityCount: 3,
+  siteRules: {
+    pursuit: null,
+    hazards: [],
+    missionAccess: 'blockedWhileWolfBaseOperational',
+    entryAttack: {
+      kind: 'immediateWolfAttackOnEntry',
+      minimumBattleStations: 2,
+      minimumOtherShipDamage: 25,
+      scope: 'group',
+    },
+    recurringAttack: {
+      kind: 'wolfAttackWhileOperational',
+      endsWhen: ['baseDestroyed', 'jumpAway'],
+      scope: 'group',
+    },
+  },
+  opportunities: [
+    {
+      id: 'M-1',
+      description: 'Salvage materials from the wreckage of the Wolf station.',
+      traits: ['salvage'],
+      difficulty: 15,
+      criticalThreshold: 20,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { materials: 12 }, successEffects: [], criticalBonus: { materials: 6 } },
+    },
+    {
+      id: 'M-2',
+      description: 'Raid the Wolf fuel depot.',
+      traits: ['searchAndRescue'],
+      difficulty: 15,
+      criticalThreshold: 20,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { ore: 12 }, successEffects: [], criticalBonus: { ore: 6 } },
+    },
+    {
+      id: 'M-3',
+      description: 'Salvage advanced Wolf weaponry.',
+      traits: ['science'],
+      difficulty: 25,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{ kind: 'upgradeConsoles', target: 'weapon', amount: 3 }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
 export const CANONICAL_MISSION_CARDS: readonly MissionCardDefinition[] = [
   LICHEN_COVERED_ASTEROIDS_A,
   ICE_ASTEROIDS_B,
@@ -624,6 +859,10 @@ export const CANONICAL_MISSION_CARDS: readonly MissionCardDefinition[] = [
   LEVEL_5_SURVIVABLE_PLANET_G,
   DERELICT_RESEARCH_VESSEL_H,
   ION_NEBULA_I,
+  UNSTABLE_STAR_J,
+  ABANDONED_WOLF_SUPPLY_OUTPOST_K,
+  ACTIVE_WOLF_OUTPOST_L,
+  ACTIVE_WOLF_FORTRESS_M,
 ];
 
 export function missionCardForCode(
