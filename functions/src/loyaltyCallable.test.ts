@@ -716,8 +716,10 @@ it('never deletes a corrupt or unrelated secret while replacing a Friend target'
 
 it('allows only the Android holder to disclose proof and makes the disclosure auditable', async () => {
   mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot({ connected: true, role: 'player' }, ref.path);
     if (ref.path === 'sessions/s1/secrets/loyalty-u2') {
-      return snapshot({ payload: { type: 'loyalty', kind: 'android', suspicion: null } }, ref.path);
+      return snapshot({ visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'android', suspicion: null } }, ref.path);
     }
     if (ref.path === 'sessions/s1/events/android-1') return snapshot({}, ref.path, false);
     return snapshot({}, ref.path, false);
@@ -756,6 +758,8 @@ it('does not replay Android proof after the holder secret is missing or stale', 
         result: { disclosed: true, privateDetail: 'prior secret result' },
       }, ref.path);
     }
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot({ connected: true, role: 'player' }, ref.path);
     return snapshot({}, ref.path, false);
   });
 
@@ -772,8 +776,10 @@ it('does not replay Android proof after the holder secret is missing or stale', 
 it('requires refresh before reissuing Android proof when only an old event remains', async () => {
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1/secrets/loyalty-u2') {
-      return snapshot({ payload: { type: 'loyalty', kind: 'android', suspicion: null } }, ref.path);
+      return snapshot({ visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'android', suspicion: null } }, ref.path);
     }
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot({ connected: true, role: 'player' }, ref.path);
     if (ref.path === 'sessions/s1/events/android-legacy') {
       return snapshot({ type: 'android-proof-disclosed', actorUid: 'u2', requestId: 'android-legacy' }, ref.path);
     }
@@ -793,12 +799,60 @@ it('requires refresh before reissuing Android proof when only an old event remai
 it('denies proof disclosure when the private card is not Android', async () => {
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1/secrets/loyalty-u2') {
-      return snapshot({ payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } }, ref.path);
+      return snapshot({ visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } }, ref.path);
     }
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot({ connected: true, role: 'player' }, ref.path);
     return snapshot({}, ref.path, false);
   });
   await expect(revealAndroidProof.run(request({
     sessionId: 's1', requestId: 'android-2',
   }, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies a disconnected Android holder before any proof mutation', async () => {
+  mock.players[1] = { id: 'u2', fields: { connected: false, role: 'player' } };
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: { visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'android', suspicion: null } },
+  }];
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: 'android-disconnected',
+  }, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a GM or forged GM-visible Android secret before any proof mutation', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u1',
+    fields: { visibleToUids: ['u1'], payload: { type: 'loyalty', kind: 'android', suspicion: null } },
+  }];
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: 'android-gm',
+  }, 'u1'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a second Android proof disclosure even with a fresh request id', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: {
+      visibleToUids: ['u2'],
+      payload: { type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: true },
+    },
+  }];
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: 'android-second',
+  }, 'u2'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/already been disclosed|refresh/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });

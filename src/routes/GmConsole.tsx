@@ -2716,7 +2716,9 @@ export default function GmConsole() {
                       ? `${event.shipName} // Maintenance cycle ${event.action === 'begin' ? 'started' : 'completed'}`
                       : event.type === 'timer-pause'
                         ? `Emergency timer // ${event.action === 'paused' ? 'paused' : 'resumed'} // Turn ${event.turn} // ${event.window} // ${event.actorName}`
-                        : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
+                        : event.type === 'android-proof-disclosed'
+                          ? 'Android proof disclosed to the fleet'
+                          : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
                 </li>
                   ))}
                 </>}

@@ -5273,6 +5273,8 @@ export const revealAndroidProof = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const disclosure = requireAndroidDisclosureRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${disclosure.sessionId}`);
+  const playerRef = db.doc(`sessions/${disclosure.sessionId}/players/${uid}`);
   const secretRef = db.doc(`sessions/${disclosure.sessionId}/secrets/loyalty-${uid}`);
   const eventRef = db.doc(`sessions/${disclosure.sessionId}/events/${disclosure.requestId}`);
   const receiptRef = commandReceiptRef(disclosure.sessionId, disclosure.requestId);
@@ -5286,10 +5288,17 @@ export const revealAndroidProof = onCall<{
     payload: {},
   };
   return db.runTransaction(async (tx) => {
-    const [secret, receipt, legacyEvent] = await Promise.all([
-      tx.get(secretRef), tx.get(receiptRef), tx.get(eventRef),
+    const [session, player, secret, receipt, legacyEvent] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(secretRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
+    if (!session.exists || !isConnectedPlayer(player) || player.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only the active Android holder may disclose Android proof.');
+    }
     if (!secret.exists) throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
+    const visibleToUids = secret.get('visibleToUids');
+    if (!Array.isArray(visibleToUids) || visibleToUids.length !== 1 || visibleToUids[0] !== uid) {
+      throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
+    }
     const payload = secret.get('payload');
     if (typeof payload !== 'object' || payload === null || payload.kind !== 'android') {
       throw new HttpsError('permission-denied', 'Only the Android holder may disclose Android proof.');
@@ -5307,6 +5316,13 @@ export const revealAndroidProof = onCall<{
     );
     if (replay) return { disclosed: true as const };
     if (legacyEvent.exists) rejectLegacyEventReplay('Android disclosure');
+    if ((payload as Record<string, unknown>).proofRevealed === true) {
+      throw commandError(
+        'failed-precondition',
+        'Android proof has already been disclosed. Refresh the live session before trying again.',
+        'conflict',
+      );
+    }
     tx.update(secretRef, { payload: { ...payload as Record<string, unknown>, proofRevealed: true } });
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'android-proof-disclosed',

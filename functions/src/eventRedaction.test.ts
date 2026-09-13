@@ -95,6 +95,24 @@ describe('buildPrivacySafeEventRecord', () => {
     })).toMatchObject({ actorUid: 'player-2' });
   });
 
+  it('publishes only the Android proof audit fields', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'android-proof-disclosed',
+      payload: {
+        actorUid: 'android-player',
+        requestId: 'android-proof-1',
+        privateCard: 'android',
+        suspicion: null,
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'android-proof-disclosed',
+      actorUid: 'android-player',
+      requestId: 'android-proof-1',
+      createdAt: 'server-time',
+    });
+  });
+
   it.each([
     EventVisibility.Public,
     EventVisibility.Crew,

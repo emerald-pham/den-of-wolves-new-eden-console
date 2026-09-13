@@ -166,6 +166,7 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
     kind: payload.kind,
     suspicion: payload.suspicion,
     ...(partnerUid ? { partnerUid } : {}),
+    ...(payload.proofRevealed === true ? { proofRevealed: true } : {}),
   };
 }
 
@@ -1850,6 +1851,17 @@ export function subscribeSessionEvents(
           actorName: typeof data.actorName === 'string' ? data.actorName : 'GM',
           createdAt: iso(data.createdAt),
         }];
+        if (data.type === 'android-proof-disclosed') {
+          const actorUid = parseEntityId('player', data.actorUid);
+          if (!actorUid) return [];
+          return [{
+            id: eventId,
+            sessionId: eventSessionId,
+            type: 'android-proof-disclosed' as const,
+            actorUid,
+            createdAt: iso(data.createdAt),
+          }];
+        }
         if (data.type !== 'ship-confetti') return [];
         const shipId = parseEntityId('vessel', data.shipId);
         if (!shipId) return [];

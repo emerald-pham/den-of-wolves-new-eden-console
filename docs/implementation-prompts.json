@@ -4802,6 +4802,13 @@
       "language": "The Vulcan Captain player path and live GM small-ship controls now charge the two distinct Additional Labour uses through one server transaction. Each use consumes one current-turn source charge exactly once, validates the external full-ship console against the shared Reactor eligibility and damage rules, checks source and target revisions, and writes the source cycle, target charge or resolver-backed immediate production result, member-safe event, and replay receipt atomically. Focused pure, callable, route, and GM-console regressions cover two uses, Dione production, duplicate/damaged/invalid targets, wrong actor, Coordination phase, stale CAS, and replay; deferred console producers retain a charge until their own resolver exists.",
       "source": "functions/src/vulcanLabour.ts; functions/src/index.ts; functions/src/maintenance.ts; functions/src/vulcanLabour.test.ts; functions/src/smallShipCallable.test.ts; functions/src/requestGuards.ts; functions/src/maintenanceEvent.ts; src/components/SmallShipOperations.tsx; src/components/VulcanAdditionalLabourPanel.tsx; src/lib/vulcanLabourService.ts; src/data/vulcanLabour.ts; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/routes/GmConsole.test.tsx",
       "type": "evidence / production-path / authority"
+    },
+    {
+      "direction": "509 -> ANDROID-PROOF-DISCLOSURE",
+      "id": "E-509-VERIFIED",
+      "language": "The Android holder has a reachable voluntary proof action. The server transaction verifies the authenticated active connected player owns the Android secret, marks the private card once, and writes a replay-safe member-readable disclosure event containing only actor and request metadata. Disconnected, non-player, non-Android, duplicate, forged, stale, and changed-request attempts fail before mutation. The player card, event parser, and GM audit log consume only the allowlisted proof state; the focused production component was checked at phone, wide desktop, and short landscape sizes with reduced motion, readable text, a 44px control, keyboard focus, and no horizontal overflow.",
+      "source": "functions/src/index.ts; functions/src/loyaltyCallable.test.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; firestore.rules; src/lib/androidProofService.ts; src/lib/androidProofService.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; rendered P509 checks at 390x844, 1440x900, and 844x390 with prefers-reduced-motion: reduce",
+      "type": "evidence / production-path / authority / privacy / accessibility / layout"
     }
   ],
   "plan": {
@@ -17808,8 +17815,8 @@
         "acceptance": "the Android can prove their own non-Wolf card and nobody can forge or compel the event.",
         "title": "Publish Android proof."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The Android holder has a reachable voluntary proof action. The server verifies the authenticated active player owns the Android secret, records a replay-safe member-readable disclosure event, and rejects disconnected, non-Android, duplicate, forged, or non-player requests; the private card parser and GM event log consume only the allowlisted proof state.",
+      "evidenceIds": "E-509-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -17820,7 +17827,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

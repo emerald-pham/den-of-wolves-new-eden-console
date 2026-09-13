@@ -613,6 +613,8 @@ export interface PrivateLoyalty {
   readonly kind: string;
   readonly suspicion: number | null;
   readonly partnerUid?: PlayerId;
+  /** Server-owned marker after the Android holder voluntarily discloses proof. */
+  readonly proofRevealed?: boolean;
 }
 
 /** Server-owned role-private projection for the authenticated player only. */
@@ -776,11 +778,20 @@ export interface TimerPauseEvent {
   readonly createdAt: Timestamp;
 }
 
+export interface AndroidProofEvent {
+  readonly id: EventId;
+  readonly sessionId: SessionId;
+  readonly type: 'android-proof-disclosed';
+  readonly actorUid: PlayerId;
+  readonly createdAt: Timestamp;
+}
+
 export type SessionEvent =
   | ShipConfettiEvent
   | FullscreenAlertEvent
   | MaintenanceEvent
-  | TimerPauseEvent;
+  | TimerPauseEvent
+  | AndroidProofEvent;
 
 export type DamageDraw = {
   readonly id: EventId;

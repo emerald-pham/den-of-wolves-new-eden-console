@@ -653,6 +653,25 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
   }));
 });
 
+it('hydrates the server-owned Android proof disclosure marker only for the current player', () => {
+  const { callbacks } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: true }),
+  });
+
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith({
+    kind: 'android', suspicion: null, proofRevealed: true,
+  });
+});
+
 it('hydrates only the current UID role brief and clears it when the assignment is invalidated', () => {
   const { callbacks } = captureSessionListener();
   const onPlayer = vi.fn();
@@ -1032,6 +1051,12 @@ it('parses only audience-safe maintenance result fields from member events', () 
       }, {
         id: 'maintenance-malformed-results',
         data: () => ({ type: 'maintenance', action: 'end', shipId: 'aegis', shipName: 'AEGIS', results: [] }),
+      }, {
+        id: 'android-proof-1',
+        data: () => ({ type: 'android-proof-disclosed', actorUid: 'android-player', requestId: 'android-proof-1', privateCard: 'android' }),
+      }, {
+        id: 'android-proof-malformed',
+        data: () => ({ type: 'android-proof-disclosed', actorUid: 'events/foreign' }),
       }],
     });
     return vi.fn();
@@ -1051,6 +1076,9 @@ it('parses only audience-safe maintenance result fields from member events', () 
   }, {
     id: 'maintenance-legacy-end', sessionId: 's1', type: 'maintenance',
     shipId: 'aegis', shipName: 'AEGIS', action: 'end', results: {},
+    createdAt: expect.any(String),
+  }, {
+    id: 'android-proof-1', sessionId: 's1', type: 'android-proof-disclosed', actorUid: 'android-player',
     createdAt: expect.any(String),
   }]);
   expect(CLIENT_MAINTENANCE_EVENT_ACTIONS).toEqual(SERVER_MAINTENANCE_EVENT_ACTIONS);

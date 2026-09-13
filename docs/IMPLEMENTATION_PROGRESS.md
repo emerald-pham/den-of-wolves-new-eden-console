@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**222 / 750 prompts complete (29.60%)**
+**223 / 750 prompts complete (29.73%)**
 
-Status breakdown: **222 done · 25 partial · 503 missing**.
+Status breakdown: **223 done · 25 partial · 502 missing**.
 
 Active prompt: **none**
 
@@ -969,7 +969,7 @@ release classification and evidence.
 | 506 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 507 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 508 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 509 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 509 | done | non-feature | — | The Android holder has a reachable voluntary proof action. The server verifies the authenticated active player owns the Android secret, records a replay-safe member-readable disclosure event, and rejects disconnected, non-Android, duplicate, forged, or non-player requests; the private card parser and GM event log consume only the allowlisted proof state. |
 | 510 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 511 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 512 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

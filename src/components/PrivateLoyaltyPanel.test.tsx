@@ -1,8 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, beforeEach, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
+import { revealAndroidProof } from '@/lib/androidProofService';
 import PrivateLoyaltyPanel from './PrivateLoyaltyPanel';
+
+vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
 
 beforeEach(() => useSessionStore.getState().reset());
 afterEach(() => {
@@ -31,6 +35,31 @@ it('shows a Press holder card with its private partner pointer when present', ()
   expect(panel).toHaveTextContent('Fleet Loyalist');
   expect(panel).toHaveTextContent('Suspicion // 5');
   expect(panel).toHaveTextContent('Partner assignment // press-partner-uid');
+});
+
+it('lets the Android holder voluntarily disclose proof and records the committed state', async () => {
+  const user = userEvent.setup();
+  vi.mocked(revealAndroidProof).mockResolvedValue({ disclosed: true });
+  useSessionStore.getState().setSession({ id: 's1' } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('button', { name: /disclose Android proof/i })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: /disclose Android proof/i }));
+
+  await waitFor(() => expect(revealAndroidProof).toHaveBeenCalledTimes(1));
+  expect(await screen.findByRole('status')).toHaveTextContent(/proof disclosed to the fleet/i);
+  expect(screen.queryByRole('button', { name: /disclose Android proof/i })).not.toBeInTheDocument();
+});
+
+it('does not offer a second disclosure after server hydration marks proof revealed', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null, proofRevealed: true });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('status')).toHaveTextContent(/proof disclosed to the fleet/i);
+  expect(screen.queryByRole('button', { name: /disclose Android proof/i })).not.toBeInTheDocument();
 });
 
 it.each([

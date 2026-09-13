@@ -3503,6 +3503,16 @@ body {
 }
 .private-loyalty-panel__suspicion,
 .private-loyalty-panel__partner { color: var(--cic-ink); }
+.private-loyalty-panel__proof {
+  display: grid;
+  gap: 0.5rem;
+}
+.private-loyalty-panel__proof p {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 0.875rem/1.5 var(--cic-mono);
+}
+.private-loyalty-panel__proof .cic-action-button { min-height: 44px; }
 .gm-start-receipt {
   display: grid;
   gap: 0.55rem;
