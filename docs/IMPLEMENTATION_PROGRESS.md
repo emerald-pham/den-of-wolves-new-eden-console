@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**228 / 751 prompts complete (30.36%)**
+**229 / 751 prompts complete (30.49%)**
 
-Status breakdown: **228 done · 25 partial · 498 missing**.
+Status breakdown: **229 done · 25 partial · 497 missing**.
 
 Active prompt: **none**
 
@@ -1160,7 +1160,7 @@ release classification and evidence.
 | 678 | missing | feature | — | Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge. |
 | 679 | missing | feature | — | Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge. During the active blind jump, coordinate digits cosmetically scramble through 0–9 twice per second at randomized staggered timing, with reduced-motion and cleanup behavior. |
 | 680 | done | non-feature | 0.3.47 | Owner-requested fighter-wing observability repair: replace Alpha and Bravo's table-tracking placeholder with authoritative live strength and effective capacity, and align each bay's charge, damage, and upgrade status with the shared ship-console system-status display without inventing values or changing launch/combat rules. New sessions initialize Alpha and Bravo at four fighters each; only an active GM may manually correct count until combat or repair automation exists, while capacity remains sourced separately. |
-| 681 | missing | feature | — | Owner-requested regression repair: authorized GMs know every coordinate on the active star map, while ship views remain limited to their authorized coordinate knowledge. GM knowledge must not become automatic ship discovery. |
+| 681 | done | feature | 0.3.89 | GM map reads restart when the same browser gains GM authority, recovering a listener previously denied while it was a player. Fresh GM projections retain all 22 coordinates independently of selected-ship knowledge. Cached organiser snapshots and callbacks after a terminal read denial cannot restore the chart. Browser persistence and legacy rehydration discard organiser data and multi-ship navigation, retaining only an independently addressed own-ship projection. Existing server-side ship-history filtering and GM-only read rules remain intact. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

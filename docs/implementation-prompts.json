@@ -4879,6 +4879,13 @@
       "language": "The repair consumes existing GM instance authority, entitled session projections, canonical chart graph and locked chart selection. Coordinate lookup, discovery/history, per-ship privacy, sharing and blind jumps are related consumers; do not make the GM full-coordinate correction wait on unrelated future gameplay features.",
       "source": "docs/implementation-prompts.json",
       "type": "hard_prompt / related/consumes"
+    },
+    {
+      "direction": "681 -> GM-AND-SHIP-COORDINATE-PRIVACY",
+      "id": "E-681-VERIFIED",
+      "language": "Failing-first coverage reproduced same-UID promotion without listener restart, cached organiser hydration, and privileged browser persistence. Role changes now rebind the session listener; generation checks reject former callbacks and terminal GM read errors block late snapshots. A shared privacy helper strips every organiser navigation field on save and legacy restore while preserving only the own-player projection. Focused App, Firestore, store and rendered component tests cover recovery and privacy; existing server projection tests prove different ships retain their own visited coordinates. Chrome component fixtures at 320x844 reduced motion, 1440x900 normal motion and 844x390 reduced motion showed all 22 GM coordinate attributes and only the known origin for the ship, with no page overflow. Phone keyboard selection reached all 22 GM nodes and the enlarged selected-fix readout. Existing compact 11px nodes and phone crowding are unchanged; no layout improvement or live gameplay mutation is claimed. Independent Terra review cleared the authority changes and the storage repair. Future scan and sharing producers remain governed by their own prompts.",
+      "source": "src/App.tsx; src/App.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/navigationPrivacy.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts; src/components/GmStarmapModule.test.tsx; src/components/Starmap.test.tsx; functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; firestore.rules",
+      "type": "evidence / regression / privacy / reconnect / rendered"
     }
   ],
   "plan": {
@@ -22301,8 +22308,8 @@
         "acceptance": "An authorized GM knows and can inspect every valid coordinate on the active selected star map, including locations no ship has visited or discovered. Do not apply a selected ship's knowledge filter to the GM map or require ship discovery to reveal GM coordinates. Ship/player maps must continue to expose only coordinates available through their authorized ship-knowledge projection; the GM seeing or selecting a coordinate must not reveal it to ships or mark it discovered. Keep the GM-only full-coordinate data out of unauthorized ship snapshots, callable replies, caches, tooltips, accessibility text and search results, not merely hidden by CSS. Reuse the canonical locked chart and existing navigation/read-authority paths, and coordinate with Prompt 677 for its per-ship knowledge and location-detail privacy work rather than inventing a second knowledge model. Preserve chart selection/locking, legitimate discovery and sharing, jump legality, GM read-only observation, and existing navigation controls. Add focused regression coverage proving that the GM sees all active-chart coordinates, a ship does not receive an unknown coordinate, authorized discovery reveals the appropriate coordinate, and GM-to-player/ship switches, revocation, reconnect and stale callbacks cannot leak the full GM map. Verify both actual rendered GM and ship maps at phone, desktop and short-landscape sizes, including reduced motion and readable coordinate labels. The owner report establishes the expected behavior, not a confirmed underlying cause.",
         "title": "Restore all GM star-map coordinates while preserving ship knowledge limits."
       },
-      "description": "Owner-requested regression repair: authorized GMs know every coordinate on the active star map, while ship views remain limited to their authorized coordinate knowledge. GM knowledge must not become automatic ship discovery.",
-      "evidenceIds": "E-681-OWNER;E-681-DEPENDENCIES",
+      "description": "GM map reads restart when the same browser gains GM authority, recovering a listener previously denied while it was a player. Fresh GM projections retain all 22 coordinates independently of selected-ship knowledge. Cached organiser snapshots and callbacks after a terminal read denial cannot restore the chart. Browser persistence and legacy rehydration discard organiser data and multi-ship navigation, retaining only an independently addressed own-ship projection. Existing server-side ship-history filtering and GM-only read rules remain intact.",
+      "evidenceIds": "E-681-OWNER;E-681-DEPENDENCIES;E-681-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "045;084;281;282",
@@ -22310,10 +22317,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "048;283;313;330;677;678;679",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.89"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     }
   ],

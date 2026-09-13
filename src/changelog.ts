@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [681],
+    implementationProgress: {
+      completed: 229,
+      total: 751,
+      percentage: '30.49%',
+      done: 229,
+      partial: 25,
+      active: 0,
+      missing: 497,
+    },
+    changes: [
+      'The GM map recovers its full coordinates after switching into GM mode. Ships keep their own knowledge limits, and old GM maps no longer reappear from saved browser data.',
+      '229 of 751 planned items are complete (30.49%).',
+    ],
+  },
+  {
+    version: '0.3.88',
     implementationPrompts: [518],
     implementationProgress: {
       completed: 228,
