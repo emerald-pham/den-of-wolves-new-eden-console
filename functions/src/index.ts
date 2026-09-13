@@ -4249,15 +4249,17 @@ function isAwayMissionCardDiscardReply(value: unknown, sessionId: string): value
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
 }
 
-function awayMissionParticipantSnapshots(value: unknown): readonly Record<string, unknown>[] | null {
+function awayMissionParticipantSnapshots(
+  value: unknown,
+): readonly (Record<string, unknown> & { readonly uid: string })[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
   const seen = new Set<string>();
-  const snapshots: Record<string, unknown>[] = [];
+  const snapshots: (Record<string, unknown> & { readonly uid: string })[] = [];
   for (const candidate of value) {
     if (!isRecord(candidate) || typeof candidate.uid !== 'string' || candidate.uid.length === 0 ||
         seen.has(candidate.uid)) return null;
     seen.add(candidate.uid);
-    snapshots.push(candidate);
+    snapshots.push(candidate as Record<string, unknown> & { readonly uid: string });
   }
   return snapshots;
 }
