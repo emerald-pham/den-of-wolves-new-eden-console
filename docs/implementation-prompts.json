@@ -4942,6 +4942,13 @@
       "language": "Presence and clock mutations share the Firestore transaction. Only explicit empty-session pauses resume automatically; persisted remaining milliseconds determine new deadlines. Seventy-three focused lifecycle/join/resume/ticker tests passed after a red-green stored-ticker regression repair. Two concurrent disconnects and two concurrent rejoins against the configured Firestore emulator produced one pause event, one resume event and identical returned deadlines; isolated test documents were removed. Independent Terra review cleared the authority change and ticker repair. Rendered readouts at 320x844,1440x900,844x390 show the preserved countdown, reconnect message and disabled manual control with 44px controls, system monospace fonts and no horizontal overflow.",
       "source": "functions/src/index.ts; functions/src/turnZero.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/joinSessionCallable.test.ts; src/lib/turnPhase.test.ts; /tmp/p675-concurrency.cjs; /tmp/p675-render-evidence.json",
       "type": "evidence / callable / rendered / emulator"
+    },
+    {
+      "direction": "260 -> STARLIGHT-REGISTRATION",
+      "id": "E-260-PRIMARY-VERIFIED",
+      "language": "Full primary-component visual review resolves the earlier unavailable-source assumption. The Starlight component has scouting and away-mission operations without a cargo-transfer permission. Existing cargoTransfer absence, Wing Commander route, scout/fuel envelope, mission modifiers and AEGIS initial docking remain consistent. No source file or private primary content is copied into the repository and no new gameplay action is introduced.",
+      "source": "Authorized local v1.1 A4 Card Duplex primary component, page41; src/data/vessels/starlight.ts; src/data/aegisConsoles.test.ts; src/routes/ShuttleConsole.test.tsx; functions/src/shuttlecraft.test.ts; /tmp/pdfs/p361/starlight-source-verification.json",
+      "type": "evidence / primary-source / preserved"
     }
   ],
   "plan": {
@@ -11730,8 +11737,8 @@
         "acceptance": "its owner, initial dock, scout ranges, fuel exception, cargo, mission bonuses, and UI route match the sheet.",
         "title": "Register Starlight completely."
       },
-      "description": "The canonical catalogs and route already preserve Starlight's Wing Commander ownership, AEGIS initial dock, two-jump scouting with a fuelled second scan, and +3 exploration / +1 salvage mission bonuses. Focused config and route tests verify those facts and keep cargo transfer unadvertised. The routed Starlight derivative does not establish a cargo-transfer contract, and no preserved/provenanced Starlight primary sheet is available in the authorized source index, so this prompt remains partial pending an authoritative cargo decision; no cargo permission was invented.",
-      "evidenceIds": "E-AUDIT-260",
+      "description": "The existing Starlight registration matches the v1.1 primary component: Wing Commander ownership, AEGIS initial dock, scouting and its fuelled additional request, and the distinct exploration/salvage mission modifiers remain aligned across the shared shuttle and AEGIS catalogs. Full visual inspection of the primary component resolves the prior missing-source cargo question: no cargo-transfer ability is printed, and the existing route and catalog expose none. Focused configuration, route and server starting-docking checks confirm the preserved registration. This is a source-verification and roadmap correction only; separate scout, mission and cargo engines are not claimed by registration closure.",
+      "evidenceIds": "E-AUDIT-260;E-260-PRIMARY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162",
@@ -11742,7 +11749,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
