@@ -47,9 +47,14 @@ service cloud.firestore {
         && resource.data.roleId is string
         && resource.data.text is string
         && resource.data.commonRules is string
-        && get(
-          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-        ).data.assignedRoleId == resource.data.roleId;
+        && (
+          get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data.assignedRoleId == resource.data.roleId
+          || get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data.replacementRoleId == resource.data.roleId
+        );
     }
 
     match /sessions/{sessionId} {
@@ -119,6 +124,28 @@ service cloud.firestore {
       match /roleBriefs/{briefUid} {
         allow get: if isAssignedRoleBrief(sessionId, briefUid);
         allow list, write: if false;
+      }
+
+      // Replacement adjudications contain player status and role choice. They
+      // are private GM projections; the callable is the only writer.
+      match /replacementEligibility/{targetUid} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
+      match /replacementAssignments/{assignmentId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if isGm(sessionId);
+          allow write: if false;
+        }
       }
 
       // The facilitator census is a server-written, known-path projection of

@@ -573,7 +573,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 433b | EXTEND | missing | 433 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433B | M9 | Resolve choices in affected player consoles. |
 | 434 | NEW | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434 | M9 | Make attack commands retry-safe. |
 | 434a | EXTEND | missing | 432a;434 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434A | M9 | Intervene and recover safely during an attack. |
-| 435 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Commander target rerolls. |
+| 435 | NEW | missing | 432;515 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT | M9 | Resolve Wolf Commander target rerolls. |
 | 436 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | 435 | E-436;E-WOLF | M9 | Resolve AEGIS Command and Control. |
 | 437 | NEW | missing | 426;428;240 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-437 | M9 | Lock Gorgoneion Force Field timing. |
 | 438 | NEW | missing | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-438 | M9 | Resolve Long Range simultaneously. |
@@ -660,7 +660,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 512 | NEW | missing | none | none | none | none | none | none | none | none | none | M10 | Deliver Wolf Cult intelligence. |
 | 513 | NEW | missing | 497 | none | none | none | none | none | none | none | E-AUDIT-513 | M10 | Calculate arrest posse size privately. |
 | 514 | NEW | missing | 513;098 | none | none | none | none | none | none | none | E-AUDIT-514 | M10 | Resolve arrest and its deadline. |
-| 515 | NEW | missing | 060;062 | none | none | none | none | none | none | none | E-AUDIT-515 | M10 | Assign a replacement role. |
+| 515 | NEW | partial | 060;062 | none | none | none | none | none | none | none | E-AUDIT-515;E-515-REPLACEMENT | M10 | Assign a replacement role. |
 | 516 | NEW | missing | 515;326 | none | none | none | none | none | none | none | E-AUDIT-516 | M10 | Activate the Comms Officer. |
 | 517 | NEW | missing | 515;190 | none | none | none | none | none | none | none | E-AUDIT-517 | M10 | Activate the VIP Host. |
 | 518 | NEW | missing | 515 | none | none | none | none | none | none | none | E-AUDIT-518 | M10 | Activate the Commissar. |
@@ -1529,6 +1529,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-282A-OWNER | owner request / evidence | 282a | Owner request 2026-09-12; src/routes/GmConsole.tsx confirmRoster; src/components/GmStarmapModule.tsx | The GM console has no chart selector. confirmSetup accepts chart changes until the general configurationLocked flag is set at startGame; it does not provide the owner-requested explicit pre-start chart-only lock. Both UI selection and a server-enforced lock are required. |
 | E-282A-DEPENDENCY | hard_prompt | 282a -> 282 | P282 authoritative chart selection contract | Reuse the existing facilitator-only chart confirmation and configuration-lock contract; do not introduce a second local chart authority. |
 | E-282A-VERIFIED | evidence | 282a | functions/src/index.ts confirmSetup; functions/src/createSessionCallable.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/lib/firestore.test.ts; src/lib/sessionService.test.ts; tests/rules/firestore.rules.test.ts; /tmp/p282a-render-evidence.txt | The explicit chart-only pre-start lock is server-owned, revisioned, replay-bound, projected on reconnect and preserved by subsequent setup edits. Direct client writes are denied. Rendered GM controls are 16px with at least 44px targets at 320x844,1440x900,844x390; keyboard Enter reaches the logical parent. |
+| E-515-REPLACEMENT | evidence / partial / authority / hard_prompt / related/consumes | 515 -> 435 | functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/requestGuards.ts; functions/src/roleBriefs.ts; functions/src/replacementCallable.test.ts; functions/src/replacementRoles.test.ts; firestore.rules; src/data/replacementRoles.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md lines 278-314 | The live-GM replacement producer records an explicit dead, arrested, removed, or late eligibility decision, then assigns one source-defined replacement role or active extra-ship role through a transaction with GM-instance authority, eligibility/setup CAS revisions, request fingerprints, and replay receipts. It releases a canonical seat pointer and clears old console authority atomically, preserves the historical printed role and private loyalty, writes a recipient-only replacement brief, and rejects duplicate replacement occupancy. Wolf Commander rerolls remain blocked until this producer and the P432 declaration receipt receive independent authority review. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

@@ -918,6 +918,9 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   const parsedRoleId = data.assignedRoleId === null || data.assignedRoleId === undefined
     ? null
     : parseEntityId('role', data.assignedRoleId);
+  const parsedReplacementRoleId = data.replacementRoleId === null || data.replacementRoleId === undefined
+    ? null
+    : parseEntityId('role', data.replacementRoleId);
   const parsedVesselId = data.shipPreferenceId === null || data.shipPreferenceId === undefined
     ? null
     : parseEntityId('vessel', data.shipPreferenceId);
@@ -934,9 +937,11 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     role: data.role as Player['role'],
     seatId: parsedSeatId,
     ...(parsedRoleId !== undefined ? { assignedRoleId: parsedRoleId } : {}),
+    ...(parsedReplacementRoleId !== undefined ? { replacementRoleId: parsedReplacementRoleId } : {}),
     ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
     ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
     ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),
+    ...(typeof data.connected === 'boolean' ? { connected: data.connected } : {}),
     joinedAt: iso(data.joinedAt),
   };
 }
@@ -1325,6 +1330,31 @@ export function subscribeConnectedPlayers(
       if (!fromCache) hasServerSnapshot = true;
       onPlayers(snapshot.docs.map((player) =>
         playerFrom(sessionId, player.id, player.data())));
+    },
+    () => { if (subscribed) onError(); },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
+}
+
+/** GM-only roster projection, including players whose connection ended after an adjudication. */
+export function subscribeSessionPlayers(
+  sessionId: string,
+  onPlayers: (players: readonly Player[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/players`),
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && hasServerSnapshot) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onPlayers(snapshot.docs.map((player) => playerFrom(sessionId, player.id, player.data())));
     },
     () => { if (subscribed) onError(); },
   );

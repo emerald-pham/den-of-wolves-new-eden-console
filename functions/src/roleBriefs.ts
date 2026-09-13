@@ -143,6 +143,61 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
     vesselName: 'SNN Press Shuttle',
     text: 'Report the fleet\'s public status from the SNN shuttle. Keep dispatches accurate and useful while respecting every player\'s private role and loyalty information.',
   },
+  'wolf-commander': {
+    roleName: 'Wolf Commander',
+    vesselName: 'Wolf Armada',
+    text: 'Command the Wolf armada hunting the fleet. During the targeting phase you may reroll each eligible targeting die once before AEGIS Command and Control; follow the facilitator\'s authoritative attack sequence for every later choice.',
+  },
+  'comms-officer': {
+    roleName: 'Comms Officer',
+    vesselName: 'AEGIS',
+    text: 'Scout one system within one jump of AEGIS each turn. Keep the fleet current with the news and coordinate fleet secrets while protecting the privacy of every player\'s brief.',
+  },
+  'vip-host': {
+    roleName: 'VIP Host',
+    vesselName: 'Dione',
+    text: 'When spending Team Time at a ship other than Dione, help that ship reroll one die during its maintenance cycle. Make sure the fleet remains welcome and coordinated.',
+  },
+  commissar: {
+    roleName: 'Commissar',
+    vesselName: 'Icebreaker',
+    text: 'With the captain\'s agreement, purge survivors as if the ship had taken damage, then reduce unrest by 1. Use this choice carefully and only through the authoritative console.',
+  },
+  'rosal-militia-leader': {
+    roleName: 'Rosal Militia Leader',
+    vesselName: 'Shepherd',
+    text: 'During Boarding, support Shepherd security teams with defence dice when they are outnumbered and lead from the front when the fleet needs it. The authoritative boarding result decides the outcome.',
+  },
+  doctor: {
+    roleName: 'Doctor',
+    vesselName: 'Quellon',
+    text: 'After a Wolf Attack, choose one ship and halve its survivor casualties from damage. Additional ships require the stated food and water cost; the facilitator records every authoritative result.',
+  },
+  'pdf-fighter-ace': {
+    roleName: 'P.D.F. Fighter Ace',
+    vesselName: 'Refinery 124',
+    text: 'Defend the fleet with personal combat during Wolf attacks and pursue the goal of destroying a Wolf capital ship. Use only the authoritative Fighter Ace controls.',
+  },
+  'gorgoneion-captain': {
+    roleName: 'Gorgoneion Captain',
+    vesselName: 'I.C.S.S. Gorgoneion',
+    text: 'Defend the fleet and contribute to away missions using Gorgoneion\'s offensive, defensive, repair, and mission-support systems. Protect the fleet and uphold the Interstellar Council Navy\'s honour.',
+  },
+  'capybara-small-captain': {
+    roleName: 'Capybara Captain // base small ship',
+    vesselName: 'S.A.N.S. Capybara',
+    text: 'Supply and transfer food, water, and materials and assist on away missions. Protect the Capybara and S.A.N. survivors; this brief applies to the base small ship, not the Capybara expansion.',
+  },
+  'warrior-captain': {
+    roleName: 'Warrior Captain',
+    vesselName: 'RSS Warrior',
+    text: 'Supply materials and repair damaged ships through Wolf-attack salvage and away missions. Protect the Warrior and Rosal survivors and preserve Rosal\'s voice.',
+  },
+  'vulcan-captain': {
+    roleName: 'Vulcan Captain',
+    vesselName: 'Vulcan',
+    text: 'Care for and rehabilitate prisoners, identify useful work for them, and manage its risks. Protect the Vulcan and Proxima survivors and preserve Proxima\'s voice.',
+  },
 };
 
 export function roleBriefFor(roleId: string): RoleBriefContent | undefined {

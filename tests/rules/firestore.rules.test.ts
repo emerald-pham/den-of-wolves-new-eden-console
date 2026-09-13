@@ -188,6 +188,31 @@ describe('role-private brief boundary', () => {
     await assertFails(updateDoc(own, { text: 'forged' }));
     await assertFails(deleteDoc(own));
   });
+
+  it('authorizes a replacement brief only through the replacement pointer', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/players/alice`), {
+        replacementRoleId: 'wolf-commander',
+      });
+      await updateDoc(doc(db, `${SESSION}/roleBriefs/alice`), {
+        roleId: 'wolf-commander',
+      });
+      await setDoc(doc(db, `${SESSION}/replacementEligibility/alice`), {
+        eligible: true, reason: 'dead', revision: 1,
+      });
+      await setDoc(doc(db, `${SESSION}/replacementAssignments/assignment-1`), {
+        targetUid: 'alice', replacementRoleId: 'wolf-commander', revision: 1,
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/alice`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/replacementEligibility/alice`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/replacementAssignments/assignment-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/replacementEligibility/alice`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/replacementAssignments/forged`), {
+      targetUid: 'alice', replacementRoleId: 'admiral',
+    }));
+  });
 });
 
 describe('session header', () => {

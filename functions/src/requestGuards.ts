@@ -17,6 +17,7 @@ import {
   type WolfAttackTargetAssignment,
   type WolfAttackTargetMode,
 } from './wolfAttackPreparation';
+import { isReplacementEligibilityReason } from './replacementRoles';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -203,6 +204,77 @@ export function requireRoleReleaseRequest(data: {
     instanceId: requiredId(data.instanceId, 'instanceId'),
     requestId: requiredId(data.requestId, 'requestId'),
     targetUid: requiredId(data.targetUid, 'targetUid'),
+  };
+}
+
+export function requireReplacementEligibilityRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  reason?: unknown;
+  expectedRevision?: unknown;
+  expectedSetupRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  targetUid: string;
+  reason: string;
+  expectedRevision: number;
+  expectedSetupRevision: number;
+} {
+  if (!isReplacementEligibilityReason(data.reason)) {
+    throw new HttpsError('invalid-argument', 'reason must be dead, arrested, removed, or late.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    reason: data.reason as string,
+    expectedRevision: data.expectedRevision as number,
+    expectedSetupRevision: data.expectedSetupRevision as number,
+  };
+}
+
+export function requireReplacementAssignmentRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  replacementRoleId?: unknown;
+  expectedRevision?: unknown;
+  expectedSetupRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  targetUid: string;
+  replacementRoleId: string;
+  expectedRevision: number;
+  expectedSetupRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    replacementRoleId: requiredId(data.replacementRoleId, 'replacementRoleId'),
+    expectedRevision: data.expectedRevision as number,
+    expectedSetupRevision: data.expectedSetupRevision as number,
   };
 }
 

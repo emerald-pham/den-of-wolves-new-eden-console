@@ -58,6 +58,8 @@ const {
   setShipConsoleLock,
   startSinglePlayerDemo,
   triggerDradisContact,
+  setReplacementEligibility,
+  assignReplacementRole,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -610,6 +612,40 @@ it('starts production through one server receipt and hydrates the GM-private set
   expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
     source: 'routine-start', committedSetupRevision: 5,
   });
+});
+
+it('sends replacement eligibility and assignment with both CAS cursors', async () => {
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'active', currentTurn: 1, setupRevision: 4 },
+    { ...player, role: 'gm' },
+  );
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const callable = callableReturning({
+    data: {
+      status: 'committed', sessionId: 's1', targetUid: 'u2', revision: 1,
+      setupRevision: 5, replacementRoleId: 'wolf-commander',
+    },
+  });
+  vi.mocked(httpsCallable).mockReturnValue(callable);
+
+  await expect(setReplacementEligibility('u2', 'dead', 0, 4)).resolves.toMatchObject({ revision: 1 });
+  expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', instanceId: 'instance-1', targetUid: 'u2', reason: 'dead',
+    expectedRevision: 0, expectedSetupRevision: 4,
+  }));
+
+  await expect(assignReplacementRole('u2', 'wolf-commander', 1, 5)).resolves.toMatchObject({
+    replacementRoleId: 'wolf-commander',
+  });
+  expect(callable).toHaveBeenLastCalledWith(expect.objectContaining({
+    sessionId: 's1', instanceId: 'instance-1', targetUid: 'u2',
+    replacementRoleId: 'wolf-commander', expectedRevision: 1, expectedSetupRevision: 5,
+  }));
 });
 
 it('reuses the same start request id after an ambiguous transport failure', async () => {

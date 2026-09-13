@@ -4648,6 +4648,13 @@
       "language": "The explicit chart-only pre-start lock is server-owned, revisioned, replay-bound, projected on reconnect and preserved by subsequent setup edits. Direct client writes are denied. Rendered GM controls are 16px with at least 44px targets at 320x844,1440x900,844x390; keyboard Enter reaches the logical parent.",
       "source": "functions/src/index.ts confirmSetup; functions/src/createSessionCallable.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/lib/firestore.test.ts; src/lib/sessionService.test.ts; tests/rules/firestore.rules.test.ts; /tmp/p282a-render-evidence.txt",
       "type": "evidence"
+    },
+    {
+      "direction": "515 -> 435",
+      "id": "E-515-REPLACEMENT",
+      "language": "The live-GM replacement producer records an explicit dead, arrested, removed, or late eligibility decision, then assigns one source-defined replacement role or active extra-ship role through a transaction with GM-instance authority, eligibility/setup CAS revisions, request fingerprints, and replay receipts. It releases a canonical seat pointer and clears old console authority atomically, preserves the historical printed role and private loyalty, writes a recipient-only replacement brief, and rejects duplicate replacement occupancy. Wolf Commander rerolls remain blocked until this producer and the P432 declaration receipt receive independent authority review.",
+      "source": "functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/requestGuards.ts; functions/src/roleBriefs.ts; functions/src/replacementCallable.test.ts; functions/src/replacementRoles.test.ts; firestore.rules; src/data/replacementRoles.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md lines 278-314",
+      "type": "evidence / partial / authority / hard_prompt / related/consumes"
     }
   ],
   "plan": {
@@ -15791,11 +15798,11 @@
         "acceptance": "the assigned Commander rerolls each eligible die no more than once before Command and Control.",
         "title": "Resolve Wolf Commander target rerolls."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF",
+      "description": "Blocked until P515's reviewed replacement-role producer and P432's reviewed Wolf declaration receipt are available to establish an effective Wolf Commander assignment. The reroll implementation must consume the private replacement-role authority, use server randomness, and preserve the declaration's targeting-stage boundary; it cannot add a fallback assignment field.",
+      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "none",
+      "hardPromptPrerequisites": "432;515",
       "id": "435",
       "milestoneHints": "M9",
       "relatedConsumes": "none",
@@ -17792,8 +17799,8 @@
         "acceptance": "a dead, arrested, removed, or late player receives one valid role/extra ship without duplicate seats or loyalty leakage.",
         "title": "Assign a replacement role."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-515",
+      "description": "Partial production-path implementation: the live GM can record an explicit dead, arrested, removed, or late eligibility decision, then assign one source-defined replacement role or active extra-ship role through a server transaction. The transaction uses a live GM instance, eligibility and setup CAS revisions, request fingerprints and replay receipts; releases any canonical station pointer, clears old console authority, preserves the historical printed role and private loyalty, writes a private replacement brief, and rejects duplicate replacement occupancy. Wolf Commander target rerolls remain blocked on this producer until independent authority review is complete.",
+      "evidenceIds": "E-AUDIT-515;E-515-REPLACEMENT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "060;062",
@@ -17804,7 +17811,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

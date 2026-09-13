@@ -34,6 +34,8 @@ import {
   kickPlayer,
   assignRole,
   releaseRole,
+  setReplacementEligibility,
+  assignReplacementRole,
   confirmSetup,
   setDebriefMode,
   setPressEnabled,
@@ -85,6 +87,7 @@ import type {
   WolfAttackWindowStatus,
   WolfAssignment,
 } from '@/types/game';
+import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
 
 const WOLF_PREPARATION_CARD_TYPES = [
   { id: 'wolf-fighter-wing', label: 'Fighter Wing' },
@@ -287,6 +290,14 @@ export default function GmConsole() {
   );
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
+  const [allPlayers, setAllPlayers] = useState<readonly Player[]>([]);
+  const [replacementTargetUid, setReplacementTargetUid] = useState('');
+  const [replacementReason, setReplacementReason] = useState<typeof REPLACEMENT_ELIGIBILITY_REASONS[number]>('dead');
+  const [replacementRoleId, setReplacementRoleId] = useState('wolf-commander');
+  const [replacementRevision, setReplacementRevision] = useState(0);
+  const [replacementSetupRevision, setReplacementSetupRevision] = useState(0);
+  const [replacementMessage, setReplacementMessage] = useState<string | null>(null);
+  const [replacementBusy, setReplacementBusy] = useState(false);
   const [castingDraftRoles, setCastingDraftRoles] = useState<Readonly<Record<string, string>>>({});
   const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
@@ -542,7 +553,18 @@ export default function GmConsole() {
   const castingPlayers = connectedPlayers
     .filter((player) => player.role === 'player')
     .sort((left, right) =>
-      normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
+    normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
+  const replacementCandidates = allPlayers
+    .filter((player) => player.role === 'player' && !player.replacementRoleId)
+    .sort((left, right) => normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
+  const replacementVesselIds = new Set([
+    ...(session?.activeVesselIds ?? []),
+    ...Object.keys(session?.smallShipStates ?? {}),
+  ]);
+  const replacementRoles = REPLACEMENT_ROLE_CATALOG.filter((role) =>
+    (!role.baseVesselOnly || session?.expansion !== 'capybara') &&
+    (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
+  );
 
   useLayoutEffect(() => {
     const dradis = dradisRef.current;
@@ -579,6 +601,7 @@ export default function GmConsole() {
     let unsubscribe: () => void = () => undefined;
     void import('@/lib/firestore').then(({
       subscribeConnectedPlayers,
+      subscribeSessionPlayers,
       subscribeDamageDraws,
       subscribeGmInstances,
       subscribeGmWolfAttackPreparation,
@@ -645,6 +668,16 @@ export default function GmConsole() {
           message: 'The connected player roster could not be refreshed.',
         }),
       );
+      const stopAllPlayers = typeof subscribeSessionPlayers === 'function'
+        ? subscribeSessionPlayers(
+          sessionId,
+          setAllPlayers,
+          () => useSessionStore.getState().setCommunicationError({
+            code: 'gm-replacement-roster-link',
+            message: 'The replacement roster could not be refreshed.',
+          }),
+        )
+        : () => undefined;
       unsubscribe = () => {
         stopInstances();
         stopWolfAttackWindow();
@@ -654,6 +687,7 @@ export default function GmConsole() {
         stopEvents();
         stopDamageDraws();
         stopPlayers();
+        stopAllPlayers();
       };
     });
     return () => {
@@ -662,6 +696,7 @@ export default function GmConsole() {
       setWolfAssignment(null);
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
+      setAllPlayers([]);
     };
   }, [isGm, sessionId]);
 
@@ -887,6 +922,54 @@ export default function GmConsole() {
       setCastingMutationMessage('CASTING CHANGE REJECTED // REVIEW THE LIVE ROSTER');
     } finally {
       setCastingMutationUid(null);
+    }
+  }
+
+  async function adjudicateReplacement(): Promise<void> {
+    if (!replacementTargetUid) return;
+    setReplacementBusy(true);
+    setReplacementMessage(null);
+    try {
+      const result = await setReplacementEligibility(
+        replacementTargetUid, replacementReason, replacementRevision, replacementSetupRevision,
+      );
+      if (result.status === 'stale') {
+        setReplacementRevision(result.revision);
+        setReplacementSetupRevision(result.setupRevision);
+        setReplacementMessage('ELIGIBILITY STALE // refresh the GM roster and retry');
+      } else {
+        setReplacementRevision(result.revision);
+        setReplacementSetupRevision(result.setupRevision);
+        setReplacementMessage(`ELIGIBILITY RECORDED // ${replacementReason.toUpperCase()} // revision ${result.revision}`);
+      }
+    } catch {
+      setReplacementMessage('ELIGIBILITY REJECTED // active GM authority required');
+    } finally {
+      setReplacementBusy(false);
+    }
+  }
+
+  async function commitReplacement(): Promise<void> {
+    if (!replacementTargetUid || !replacementRoleId) return;
+    setReplacementBusy(true);
+    setReplacementMessage(null);
+    try {
+      const result = await assignReplacementRole(
+        replacementTargetUid, replacementRoleId, replacementRevision, replacementSetupRevision,
+      );
+      if (result.status === 'stale') {
+        setReplacementRevision(result.revision);
+        setReplacementSetupRevision(result.setupRevision);
+        setReplacementMessage('ASSIGNMENT STALE // the eligibility record changed');
+      } else {
+        setReplacementRevision(result.revision);
+        setReplacementSetupRevision(result.setupRevision);
+        setReplacementMessage(`REPLACEMENT COMMITTED // ${replacementRoleId} // revision ${result.revision}`);
+      }
+    } catch {
+      setReplacementMessage('ASSIGNMENT REJECTED // review eligibility, role availability, and station state');
+    } finally {
+      setReplacementBusy(false);
     }
   }
 
@@ -2292,6 +2375,86 @@ export default function GmConsole() {
                 )}
                 <p className="gm-player-roster__note" role="status" aria-live="polite">
                   {castingMutationMessage ?? 'Role assignments commit through the authoritative casting service.'}
+                </p>
+              </section>
+            )}
+            {(session.phase === 'briefing' || session.phase === 'active') && (
+              <section className="gm-casting-board" aria-label="Facilitator replacement roles">
+                <header className="gm-casting-board__header">
+                  <div>
+                    <p className="eyebrow">Live adjudication</p>
+                    <h3>Assign replacement role</h3>
+                  </div>
+                  <span>{replacementCandidates.length} player records</span>
+                </header>
+                <p className="gm-player-roster__hint">
+                  Record dead, arrested, removed, or late status explicitly before assigning one available source role.
+                  Connectivity never creates eligibility. The original role and loyalty card remain private history;
+                  the old station is released atomically.
+                </p>
+                <div className="gm-casting-board__assign">
+                  <label htmlFor="replacement-target">Player record</label>
+                  <select
+                    id="replacement-target"
+                    value={replacementTargetUid}
+                    disabled={replacementBusy || replacementCandidates.length === 0}
+                    onChange={(event) => {
+                      setReplacementTargetUid(event.target.value);
+                      setReplacementRevision(0);
+                      setReplacementSetupRevision(session.setupRevision ?? 0);
+                      setReplacementMessage(null);
+                    }}
+                  >
+                    <option value="">Select a player</option>
+                    {replacementCandidates.map((player) => (
+                      <option key={player.uid} value={player.uid}>
+                        {normalizeDisplayName(player.displayName)}{player.connected === false ? ' // offline' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="replacement-reason">Eligibility reason</label>
+                  <select
+                    id="replacement-reason"
+                    value={replacementReason}
+                    disabled={replacementBusy}
+                    onChange={(event) => setReplacementReason(
+                      event.target.value as typeof replacementReason,
+                    )}
+                  >
+                    {REPLACEMENT_ELIGIBILITY_REASONS.map((reason) => (
+                      <option key={reason} value={reason}>{reason}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="gm-casting-board__action"
+                    type="button"
+                    disabled={replacementBusy || !replacementTargetUid}
+                    onClick={() => void adjudicateReplacement()}
+                  >
+                    {replacementBusy ? 'Recording…' : 'Record eligibility'}
+                  </button>
+                  <label htmlFor="replacement-role">Replacement role</label>
+                  <select
+                    id="replacement-role"
+                    value={replacementRoleId}
+                    disabled={replacementBusy || replacementRoles.length === 0}
+                    onChange={(event) => setReplacementRoleId(event.target.value)}
+                  >
+                    {replacementRoles.map((role) => (
+                      <option key={role.id} value={role.id}>{role.name} // {role.vesselName}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="gm-casting-board__action"
+                    type="button"
+                    disabled={replacementBusy || !replacementTargetUid || !replacementRoleId || replacementRevision === 0}
+                    onClick={() => void commitReplacement()}
+                  >
+                    {replacementBusy ? 'Assigning…' : 'Assign replacement role'}
+                  </button>
+                </div>
+                <p className="gm-player-roster__note" role="status" aria-live="polite">
+                  {replacementMessage ?? 'No eligibility decision recorded for the selected player.'}
                 </p>
               </section>
             )}

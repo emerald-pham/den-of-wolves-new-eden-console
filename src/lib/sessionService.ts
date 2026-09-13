@@ -1168,6 +1168,57 @@ export async function releaseRole(targetUid: string): Promise<CommandDisposition
   });
 }
 
+export interface ReplacementMutationResult {
+  readonly status: 'committed' | 'stale';
+  readonly sessionId: string;
+  readonly targetUid: string;
+  readonly revision: number;
+  readonly setupRevision: number;
+  readonly replacementRoleId?: string;
+}
+
+/** Persist the live GM's adjudication; connectivity never creates eligibility. */
+export async function setReplacementEligibility(
+  targetUid: string,
+  reason: 'dead' | 'arrested' | 'removed' | 'late',
+  expectedRevision = 0,
+  setupRevisionCursor?: number,
+): Promise<ReplacementMutationResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before adjudicating a replacement.');
+  requireFreshSessionAuthority();
+  await ensureSignedIn();
+  const expectedSetupRevisionCursor = setupRevisionCursor ?? expectedSetupRevision(store.session);
+  const payload = {
+    sessionId: store.session.id, instanceId: store.gmInstance.id,
+    requestId: commandId(), targetUid, reason, expectedRevision,
+    expectedSetupRevision: expectedSetupRevisionCursor,
+  } as const;
+  const call = httpsCallable<typeof payload, ReplacementMutationResult>(functions(), 'setReplacementEligibility');
+  return (await call(payload)).data;
+}
+
+/** Commit one typed replacement role through the server CAS transaction. */
+export async function assignReplacementRole(
+  targetUid: string,
+  replacementRoleId: string,
+  expectedRevision: number,
+  setupRevisionCursor?: number,
+): Promise<ReplacementMutationResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before assigning a replacement.');
+  requireFreshSessionAuthority();
+  await ensureSignedIn();
+  const expectedSetupRevisionCursor = setupRevisionCursor ?? expectedSetupRevision(store.session);
+  const payload = {
+    sessionId: store.session.id, instanceId: store.gmInstance.id,
+    requestId: commandId(), targetUid, replacementRoleId, expectedRevision,
+    expectedSetupRevision: expectedSetupRevisionCursor,
+  } as const;
+  const call = httpsCallable<typeof payload, ReplacementMutationResult>(functions(), 'assignReplacementRole');
+  return (await call(payload)).data;
+}
+
 export async function loginGmAccess(password: string): Promise<CommandDisposition> {
   if (!window.navigator.onLine) {
     throw new Error('Reconnect before logging in to GM access.');

@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **204 / 749 prompts complete (27.24%)**
 
-Status breakdown: **204 done · 19 partial · 526 missing**.
+Status breakdown: **204 done · 20 partial · 525 missing**.
 
 Active prompt: **none**
 
@@ -888,7 +888,7 @@ release classification and evidence.
 | 433b | missing | non-feature | — | Planned [EXTEND] affected-player-console choices/results prompt; existing consoles do not yet resolve a playable attack. |
 | 434 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 434a | missing | non-feature | — | Planned [EXTEND] reasoned CAS/idempotent danger-confirmed intervention/recovery/audit prompt; no composed attack override path exists yet. |
-| 435 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 435 | missing | non-feature | — | Blocked until P515's reviewed replacement-role producer and P432's reviewed Wolf declaration receipt are available to establish an effective Wolf Commander assignment. The reroll implementation must consume the private replacement-role authority, use server randomness, and preserve the declaration's targeting-stage boundary; it cannot add a fallback assignment field. |
 | 436 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 437 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 438 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -975,7 +975,7 @@ release classification and evidence.
 | 512 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 513 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 514 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 515 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 515 | partial | non-feature | — | Partial production-path implementation: the live GM can record an explicit dead, arrested, removed, or late eligibility decision, then assign one source-defined replacement role or active extra-ship role through a server transaction. The transaction uses a live GM instance, eligibility and setup CAS revisions, request fingerprints and replay receipts; releases any canonical station pointer, clears old console authority, preserves the historical printed role and private loyalty, writes a private replacement brief, and rejects duplicate replacement occupancy. Wolf Commander target rerolls remain blocked on this producer until independent authority review is complete. |
 | 516 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 517 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 518 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

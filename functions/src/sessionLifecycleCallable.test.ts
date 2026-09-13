@@ -286,6 +286,27 @@ describe('presence lease', () => {
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
   });
 
+  it('does not let a replaced player reclaim the historical console role', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral'] });
+    player({
+      assignedRoleId: 'admiral',
+      replacementRoleId: 'wolf-commander',
+      activeConsoleRoleId: null,
+    });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'admiral',
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/historical.*role|replacement/i),
+    });
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      assignedRoleId: 'admiral',
+      replacementRoleId: 'wolf-commander',
+      activeConsoleRoleId: null,
+    });
+  });
+
   it('keeps Press exclusive to an unassigned player instead of letting a core role holder or GM bypass P061', async () => {
     session({ pressEnabled: true, activeRoleIds: ['admiral'] });
     player({ assignedRoleId: 'admiral' });

@@ -125,7 +125,8 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           playerProjectionFresh = false;
           store.setMe(next);
-          if (!next.assignedRoleId) {
+          const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
+          if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
           } else {
@@ -134,12 +135,12 @@ function AppRoutes() {
             if (
               bufferedBrief &&
               bufferedBrief.assignmentUid === next.uid &&
-              bufferedBrief.roleId === next.assignedRoleId
+              bufferedBrief.roleId === effectiveBriefRoleId
             ) {
               store.setRoleBrief(bufferedBrief);
             } else {
               const currentBrief = store.roleBrief;
-              if (currentBrief && currentBrief.roleId !== next.assignedRoleId) {
+              if (currentBrief && currentBrief.roleId !== effectiveBriefRoleId) {
                 store.setRoleBrief(null);
               }
             }
@@ -171,7 +172,7 @@ function AppRoutes() {
             store.setRoleBrief(null);
             return;
           }
-          if (store.me.assignedRoleId === next.roleId) {
+          if (store.me.replacementRoleId === next.roleId || store.me.assignedRoleId === next.roleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(next);
             return;

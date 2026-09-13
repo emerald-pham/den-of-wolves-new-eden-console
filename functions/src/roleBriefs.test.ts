@@ -16,6 +16,9 @@ describe('role brief projection', () => {
       'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
       'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
       'capybara-captain', 'capybara-recycler', 'press-officer',
+      'wolf-commander', 'comms-officer', 'vip-host', 'commissar',
+      'rosal-militia-leader', 'doctor', 'pdf-fighter-ace',
+      'gorgoneion-captain', 'capybara-small-captain', 'warrior-captain', 'vulcan-captain',
     ];
 
     for (const roleId of roleIds) {
@@ -37,6 +40,17 @@ describe('role brief projection', () => {
     }));
     expect(JSON.stringify(record)).not.toContain('wolf-agent');
     expect(serializedRoleBrief('s1', 'alice', 'unknown-role', 4)).toBeUndefined();
+  });
+
+  it('keeps replacement briefs private and free of loyalty data', () => {
+    const record = serializedRoleBrief('s1', 'alice', 'wolf-commander', 5);
+    expect(record).toMatchObject({
+      roleId: 'wolf-commander',
+      assignmentUid: 'alice',
+      visibleToUids: ['alice'],
+    });
+    expect(JSON.stringify(record)).not.toContain('loyalty');
+    expect(JSON.stringify(record)).not.toContain('wolf-agent');
   });
 
   it('projects only the assigned role’s active craft', () => {

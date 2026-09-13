@@ -575,6 +575,10 @@ export interface Player {
   readonly seatId: SeatId | null;
   /** Server-assigned printed role, separate from local device authority. */
   readonly assignedRoleId?: RoleId | null;
+  /** Historical printed role retained after an in-game replacement. */
+  readonly replacementRoleId?: RoleId | null;
+  /** Presence is included in the GM roster projection. */
+  readonly connected?: boolean;
   /** Nonbinding casting preference; it never grants a role or vessel. */
   readonly shipPreferenceId?: VesselId | null;
   /** Server-authoritative command post held by this device until explicitly released. */

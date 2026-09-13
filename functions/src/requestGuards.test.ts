@@ -31,6 +31,8 @@ import {
   requireCastingPreferenceRequest,
   requireRoleAssignmentRequest,
   requireRoleReleaseRequest,
+  requireReplacementEligibilityRequest,
+  requireReplacementAssignmentRequest,
   requireLoyaltyAssignmentRequest,
   requireAndroidDisclosureRequest,
   requireFacilitatorResponsibilityRequest,
@@ -51,6 +53,23 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
+  it('requires an explicit replacement reason and CAS cursor', () => {
+    expect(requireReplacementEligibilityRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'eligible-1',
+      targetUid: 'u2', reason: 'dead', expectedRevision: 2, expectedSetupRevision: 4,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'eligible-1',
+      targetUid: 'u2', reason: 'dead', expectedRevision: 2, expectedSetupRevision: 4,
+    });
+    expectHttpsError(() => requireReplacementEligibilityRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'eligible-2',
+      targetUid: 'u2', reason: 'offline', expectedRevision: 0,
+    }), 'invalid-argument');
+    expectHttpsError(() => requireReplacementAssignmentRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'assign-1',
+      targetUid: 'u2', replacementRoleId: 'wolf-commander', expectedRevision: -1, expectedSetupRevision: 4,
+    }), 'invalid-argument');
+  });
   it('requires an authenticated uid', () => {
     expectHttpsError(() => requireUid(undefined), 'unauthenticated');
     expect(requireUid({ uid: 'u1' })).toBe('u1');

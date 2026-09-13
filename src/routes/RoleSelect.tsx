@@ -322,7 +322,8 @@ export default function RoleSelect() {
         </section>
       )}
 
-      {me.assignedRoleId && roleBrief && roleBrief.roleId === me.assignedRoleId && (
+      {(me.replacementRoleId || me.assignedRoleId) && roleBrief &&
+        (roleBrief.roleId === me.replacementRoleId || roleBrief.roleId === me.assignedRoleId) && (
         <section className="role-brief-link cic-frame" aria-label="Private role brief">
           <div>
             <p className="eyebrow">Private assignment</p>

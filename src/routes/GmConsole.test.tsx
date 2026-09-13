@@ -18,6 +18,8 @@ vi.mock('@/lib/sessionService', () => ({
   kickPlayer: vi.fn(),
   assignRole: vi.fn(),
   releaseRole: vi.fn(),
+  setReplacementEligibility: vi.fn(),
+  assignReplacementRole: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
   setPressEnabled: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock('@/lib/sessionService', () => ({
 
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
+  subscribeSessionPlayers: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeGmWolfAttackWindow: vi.fn(),
   subscribeGmWolfAttackPreparation: vi.fn(),
@@ -50,12 +53,12 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
+const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 
 const local = {
@@ -97,6 +100,10 @@ beforeEach(() => {
   );
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([]);
     return vi.fn();
   });
   vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
@@ -402,6 +409,42 @@ it('groups connected players by command role in the GM console', async () => {
 
   unmount();
   expect(stopPlayers).toHaveBeenCalledOnce();
+});
+
+it('gives the live GM an explicit replacement adjudication panel with keyboard actions', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral'], expansion: 'base', smallShipStates: {},
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{
+      uid: 'u2', sessionId: 's1', displayName: 'Ari', role: 'player', seatId: 'admiral',
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', connected: false,
+      joinedAt: '2026-01-01T00:01:00.000Z',
+    }]);
+    return vi.fn();
+  });
+  vi.mocked(setReplacementEligibility).mockResolvedValue({
+    status: 'committed', sessionId: 's1', targetUid: 'u2', revision: 1, setupRevision: 5,
+  });
+  vi.mocked(assignReplacementRole).mockResolvedValue({
+    status: 'committed', sessionId: 's1', targetUid: 'u2', revision: 2,
+    setupRevision: 6, replacementRoleId: 'wolf-commander',
+  });
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Facilitator replacement roles' });
+  await user.selectOptions(within(panel).getByLabelText('Player record'), 'u2');
+  const record = within(panel).getByRole('button', { name: 'Record eligibility' });
+  record.focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => expect(setReplacementEligibility).toHaveBeenCalledWith('u2', 'dead', 0, 0));
+  await user.click(within(panel).getByRole('button', { name: 'Assign replacement role' }));
+  await waitFor(() => expect(assignReplacementRole).toHaveBeenCalledWith('u2', 'wolf-commander', 1, 5));
 });
 
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {

@@ -19,7 +19,7 @@ export default function RoleBrief() {
   if (
     !session || !me || !brief ||
     brief.assignmentUid !== me.uid ||
-    me.assignedRoleId !== brief.roleId
+    me.replacementRoleId !== brief.roleId && me.assignedRoleId !== brief.roleId
   ) {
     return <Navigate to="/roles" replace />;
   }

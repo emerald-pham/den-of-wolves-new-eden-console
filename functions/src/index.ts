@@ -79,6 +79,8 @@ import {
   requireCastingPreferenceRequest,
   requireRoleAssignmentRequest,
   requireRoleReleaseRequest,
+  requireReplacementEligibilityRequest,
+  requireReplacementAssignmentRequest,
   requireLoyaltyAssignmentRequest,
   requireAndroidDisclosureRequest,
   requireFacilitatorResponsibilityRequest,
@@ -91,6 +93,12 @@ import {
   requirePressDispatchRequest,
   requireVesselActionRequest,
 } from './requestGuards';
+import {
+  replacementRoleFor,
+  replacementRoleAvailable,
+  replacementAuthorityAllowsRole,
+  type ReplacementRoleDefinition,
+} from './replacementRoles';
 import {
   applyShipNavigationMove,
   type NavigationLogEntry,
@@ -3978,6 +3986,265 @@ export const releaseRole = onCall<{
   });
 });
 
+type ReplacementMutationResult = {
+  readonly status: 'committed' | 'stale';
+  readonly sessionId: string;
+  readonly targetUid: string;
+  readonly revision: number;
+  readonly setupRevision: number;
+  readonly replacementRoleId?: string;
+};
+
+function isReplacementMutationResult(value: unknown, sessionId: string): value is ReplacementMutationResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return result.sessionId === sessionId &&
+    (result.status === 'committed' || result.status === 'stale') &&
+    typeof result.targetUid === 'string' &&
+    Number.isSafeInteger(result.revision) && (result.revision as number) >= 0 &&
+    Number.isSafeInteger(result.setupRevision) && (result.setupRevision as number) >= 0 &&
+    (result.replacementRoleId === undefined || typeof result.replacementRoleId === 'string');
+}
+
+function replacementRevision(snapshot: DocumentSnapshot): number {
+  const value = snapshot.get('revision');
+  return Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : 0;
+}
+
+function replacementVesselIds(session: DocumentSnapshot): readonly string[] {
+  const configured = activeVesselIdsForSession(session);
+  const smallShipStates = session.get('smallShipStates');
+  const smallShips = isRecord(smallShipStates) ? Object.keys(smallShipStates) : [];
+  return [...new Set([...configured, ...smallShips])];
+}
+
+function replacementRoleIsOccupied(
+  players: readonly DocumentSnapshot[],
+  targetUid: string,
+  role: ReplacementRoleDefinition,
+): boolean {
+  return players.some((player) => {
+    if (player.id === targetUid) return false;
+    const assignedRoleId = player.get('replacementRoleId');
+    if (assignedRoleId === role.id) return true;
+    const assigned = typeof assignedRoleId === 'string'
+      ? replacementRoleFor(assignedRoleId)
+      : undefined;
+    return role.vesselId !== undefined && assigned?.vesselId === role.vesselId;
+  });
+}
+
+/** Record the facilitator's explicit live eligibility decision. */
+export const setReplacementEligibility = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  reason?: unknown;
+  expectedRevision?: unknown;
+  expectedSetupRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const decision = requireReplacementEligibilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${decision.sessionId}`);
+  const targetRef = db.doc(`sessions/${decision.sessionId}/players/${decision.targetUid}`);
+  const eligibilityRef = db.doc(`sessions/${decision.sessionId}/replacementEligibility/${decision.targetUid}`);
+  const receiptRef = commandReceiptRef(decision.sessionId, decision.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-replacement-eligibility', sessionId: decision.sessionId,
+    requestId: decision.requestId, actorUid: uid, instanceId: decision.instanceId,
+    expectedRevision: decision.expectedRevision,
+    payload: {
+      targetUid: decision.targetUid, reason: decision.reason,
+      expectedSetupRevision: decision.expectedSetupRevision,
+    },
+  };
+  return db.runTransaction(async (tx): Promise<ReplacementMutationResult> => {
+    const [authority, target, eligibility, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, decision.sessionId, uid, decision.instanceId),
+      tx.get(targetRef), tx.get(eligibilityRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ReplacementMutationResult => isReplacementMutationResult(value, decision.sessionId),
+      'replacement eligibility',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(authority.session);
+    if (!target.exists || target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'Only a player record can receive replacement eligibility.', 'conflict');
+    }
+    if (setupRevision(authority.session) !== decision.expectedSetupRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: decision.sessionId,
+        targetUid: decision.targetUid, revision: replacementRevision(eligibility),
+        setupRevision: setupRevision(authority.session),
+      } satisfies ReplacementMutationResult;
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const currentRevision = replacementRevision(eligibility);
+    if (currentRevision !== decision.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: decision.sessionId,
+        targetUid: decision.targetUid, revision: currentRevision,
+        setupRevision: setupRevision(authority.session),
+      } satisfies ReplacementMutationResult;
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const result = {
+      status: 'committed' as const, sessionId: decision.sessionId,
+      targetUid: decision.targetUid, revision: currentRevision + 1,
+      setupRevision: setupRevision(authority.session) + 1,
+    } satisfies ReplacementMutationResult;
+    tx.set(eligibilityRef, {
+      sessionId: decision.sessionId, targetUid: decision.targetUid,
+      reason: decision.reason, eligible: true, revision: result.revision,
+      actorUid: uid, requestId: decision.requestId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(db.doc(`sessions/${decision.sessionId}/replacementEligibility/${decision.targetUid}/audit/${decision.requestId}`), {
+      sessionId: decision.sessionId, targetUid: decision.targetUid,
+      reason: decision.reason, revision: result.revision, actorUid: uid,
+      requestId: decision.requestId, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Assign one source-defined replacement role after an explicit eligibility decision. */
+export const assignReplacementRole = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  replacementRoleId?: unknown;
+  expectedRevision?: unknown;
+  expectedSetupRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireReplacementAssignmentRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const targetRef = db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`);
+  const eligibilityRef = db.doc(`sessions/${assignment.sessionId}/replacementEligibility/${assignment.targetUid}`);
+  const receiptRef = commandReceiptRef(assignment.sessionId, assignment.requestId);
+  const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'assign-replacement-role', sessionId: assignment.sessionId,
+    requestId: assignment.requestId, actorUid: uid, instanceId: assignment.instanceId,
+    expectedRevision: assignment.expectedRevision,
+    payload: {
+      targetUid: assignment.targetUid, replacementRoleId: assignment.replacementRoleId,
+      expectedSetupRevision: assignment.expectedSetupRevision,
+    },
+  };
+  return db.runTransaction(async (tx): Promise<ReplacementMutationResult> => {
+    const authority = await requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId);
+    const [target, eligibility, players, receipt] = await Promise.all([
+      tx.get(targetRef), tx.get(eligibilityRef),
+      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ReplacementMutationResult => isReplacementMutationResult(value, assignment.sessionId),
+      'replacement assignment',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(authority.session);
+    if (setupRevision(authority.session) !== assignment.expectedSetupRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: assignment.sessionId,
+        targetUid: assignment.targetUid, revision: replacementRevision(eligibility),
+        setupRevision: setupRevision(authority.session),
+      } satisfies ReplacementMutationResult;
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const role = replacementRoleFor(assignment.replacementRoleId);
+    const activeVesselIds = replacementVesselIds(authority.session);
+    if (!role || !replacementRoleAvailable(assignment.replacementRoleId, {
+      activeVesselIds, expansion: String(authority.session.get('expansion') ?? 'base'),
+    })) {
+      throw commandError('failed-precondition', 'That replacement role is not active in this session.', 'conflict');
+    }
+    if (!target.exists || target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'Only a player record can receive a replacement role.', 'conflict');
+    }
+    if (typeof target.get('replacementRoleId') === 'string') {
+      throw commandError('failed-precondition', 'This player already has an active replacement role.', 'conflict');
+    }
+    const currentRevision = replacementRevision(eligibility);
+    if (eligibility.get('eligible') !== true || currentRevision !== assignment.expectedRevision) {
+      throw commandError('failed-precondition', 'The player has no matching live replacement eligibility decision.', 'stale-revision');
+    }
+    if (replacementRoleIsOccupied(players.docs, assignment.targetUid, role)) {
+      throw commandError('failed-precondition', 'That replacement role is already assigned.', 'conflict');
+    }
+    const storedSeatId = target.get('seatId');
+    const targetSeatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+      ? db.doc(`sessions/${assignment.sessionId}/seats/${storedSeatId}`) : undefined;
+    const targetSeat = targetSeatRef ? await tx.get(targetSeatRef) : undefined;
+    if (targetSeatRef && (!targetSeat?.exists || targetSeat.get('holderUid') !== assignment.targetUid ||
+        targetSeat.get('status') !== 'claimed')) {
+      throw commandError('failed-precondition', 'The player station pointer is stale; repair it before replacement.', 'unavailable-service');
+    }
+    const result = {
+      status: 'committed' as const, sessionId: assignment.sessionId,
+      targetUid: assignment.targetUid, revision: currentRevision + 1,
+      setupRevision: setupRevision(authority.session) + 1,
+      replacementRoleId: assignment.replacementRoleId,
+    } satisfies ReplacementMutationResult;
+    const privateBrief = serializedRoleBrief(
+      assignment.sessionId, assignment.targetUid, assignment.replacementRoleId,
+      result.setupRevision, {
+        capybaraExpansion: authority.session.get('expansion') === 'capybara',
+        activeRoleIds: configuredRoleIds(authority.session),
+      },
+    );
+    if (!privateBrief) {
+      throw commandError('failed-precondition', 'Replacement role brief is unavailable.', 'malformed-input');
+    }
+    tx.update(targetRef, {
+      replacementRoleId: assignment.replacementRoleId,
+      activeConsoleRoleId: null,
+      seatId: null,
+    });
+    if (targetSeatRef) tx.update(targetSeatRef, { status: 'open', holderUid: null, claimedAt: null });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/roleBriefs/${assignment.targetUid}`), privateBrief);
+    tx.set(eligibilityRef, {
+      ...eligibility.data(), eligible: false, consumedAt: FieldValue.serverTimestamp(),
+      replacementRoleId: assignment.replacementRoleId, consumedByRequestId: assignment.requestId,
+      revision: result.revision, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/replacementAssignments/${assignment.requestId}`), {
+      sessionId: assignment.sessionId, targetUid: assignment.targetUid,
+      sourceRoleId: typeof target.get('assignedRoleId') === 'string' ? target.get('assignedRoleId') : null,
+      replacementRoleId: assignment.replacementRoleId, reason: eligibility.get('reason'),
+      previousSeatId: storedSeatId ?? null, seatReleased: targetSeatRef !== undefined,
+      loyaltyPreserved: true, actorUid: uid, requestId: assignment.requestId,
+      revision: result.revision, setupRevision: result.setupRevision,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/replacementAssignments/${assignment.requestId}/audit/${assignment.requestId}`), {
+      sessionId: assignment.sessionId, targetUid: assignment.targetUid,
+      replacementRoleId: assignment.replacementRoleId, actorUid: uid,
+      requestId: assignment.requestId, revision: result.revision,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'replacement-assignment',
+      payload: { actorUid: uid, requestId: assignment.requestId, revision: result.revision },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 type LoyaltyAssignmentFingerprint = Readonly<{
   action: 'assign-loyalty';
   sessionId: string;
@@ -4964,6 +5231,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { fleetGroupId: playerSnap.get('fleetGroupId') } : {}),
         ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
           ? { assignedRoleId: playerSnap.get('assignedRoleId') } : {}),
+        ...(typeof playerSnap.get('replacementRoleId') === 'string' || playerSnap.get('replacementRoleId') === null
+          ? { replacementRoleId: playerSnap.get('replacementRoleId') } : {}),
         ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
           ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
         activeConsoleRoleId:
@@ -5180,6 +5449,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { fleetGroupId: playerSnap.get('fleetGroupId') } : {}),
       ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
         ? { assignedRoleId: playerSnap.get('assignedRoleId') } : {}),
+      ...(typeof playerSnap.get('replacementRoleId') === 'string' || playerSnap.get('replacementRoleId') === null
+        ? { replacementRoleId: playerSnap.get('replacementRoleId') } : {}),
       ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
         ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
       activeConsoleRoleId:
@@ -7396,7 +7667,8 @@ export const popShipConfetti = onCall<{
     const used = (session.get('confettiUsedShipIds') as string[] | undefined) ?? [];
     if (shipForRole(activation.roleId) && player.get('role') !== 'gm') {
       const ownRoleId = player.get('activeConsoleRoleId');
-      if (!activeRoleIds.includes(activation.roleId) ||
+      if (!replacementAuthorityAllowsRole(player.get('replacementRoleId'), activation.roleId) ||
+          !activeRoleIds.includes(activation.roleId) ||
           player.get('role') !== 'player' ||
           typeof ownRoleId !== 'string' ||
           !activeRoleIds.includes(ownRoleId) ||
@@ -7582,6 +7854,13 @@ export const refreshPresence = onCall<{
     }
     else if (typeof request.data?.activeConsoleRoleId === 'string') {
       const requestedRoleId = request.data.activeConsoleRoleId;
+      if (typeof player.get('replacementRoleId') === 'string') {
+        throw commandError(
+          'failed-precondition',
+          'The historical printed role is no longer available after replacement.',
+          'conflict',
+        );
+      }
       const isPressRequest = requestedRoleId === 'press-officer';
       if (isPressRequest && session.get('pressEnabled') === false) {
         throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
@@ -8389,6 +8668,10 @@ async function requireShipCounterAuthority(
     return;
   }
   const ownRole = player.get('activeConsoleRoleId');
+  const replacementRoleId = player.get('replacementRoleId');
+  if (!replacementAuthorityAllowsRole(replacementRoleId, String(ownRole ?? ''))) {
+    throw new HttpsError('permission-denied', 'The historical printed role is no longer active after replacement.');
+  }
   const activeRoleIds = configuredRoleIds(session);
   if (typeof ownRole !== 'string' || !activeRoleIds.includes(ownRole) ||
       roleShipId(ownRole) !== shipId) {
@@ -8404,6 +8687,10 @@ async function requireConsoleAuthority(
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
+  const replacementRoleId = player.get('replacementRoleId');
+  if (player.get('role') !== 'gm' && !replacementAuthorityAllowsRole(replacementRoleId, targetRole)) {
+    throw new HttpsError('permission-denied', 'The historical printed role is no longer active after replacement.');
+  }
   if (player.get('role') === 'gm') {
     if (!instanceId) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');

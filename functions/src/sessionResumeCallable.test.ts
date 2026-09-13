@@ -346,13 +346,16 @@ it('rejects a kicked browser before restoring its session', async () => {
 });
 
 it('keeps the old seat when the returning player still holds it', async () => {
-  prepareResume({ status: 'claimed', holderUid: 'u1' });
+  prepareResume({ status: 'claimed', holderUid: 'u1' }, {
+    assignedRoleId: 'admiral', replacementRoleId: 'wolf-commander',
+  });
 
   const response = await resumeSession.run(request('s1')) as {
-    player: { seatId: string | null };
+    player: { seatId: string | null; replacementRoleId?: string | null };
   };
 
   expect(response.player.seatId).toBe('seat-1');
+  expect(response.player.replacementRoleId).toBe('wolf-commander');
   expect(mock.get).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/seats/seat-1' }),
   );
