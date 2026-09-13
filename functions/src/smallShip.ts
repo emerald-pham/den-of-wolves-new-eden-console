@@ -253,7 +253,7 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
       cycle.results['5'] = 'Water Reclimator: generated 4 water.';
     } else {
       const oreAmount = input.productionOreAmount;
-      if (!Number.isSafeInteger(oreAmount) || oreAmount < 1 || oreAmount > 5) {
+      if (oreAmount === undefined || !Number.isSafeInteger(oreAmount) || oreAmount < 1 || oreAmount > 5) {
         throw new Error('Choose between 1 and 5 ore for the Fuel Processor.');
       }
       if (hostResources.ore < oreAmount) {

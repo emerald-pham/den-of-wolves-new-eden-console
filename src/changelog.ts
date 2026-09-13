@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [190, '241e'],
+    implementationProgress: {
+      completed: 215,
+      total: 750,
+      percentage: '28.67%',
+      done: 215,
+      partial: 22,
+      active: 0,
+      missing: 513,
+    },
+    changes: [
+      'Dione’s charged VIP Lounge can draw a private named card that its owner may keep or transfer during Coordination.',
+      'Capybara’s charged Fuel Processor converts up to five ore into fuel in its docked host’s stores.',
+      '215 of 750 planned items are complete (28.67%).',
+    ],
+  },
+  {
+    version: '0.3.76',
     implementationPrompts: ['241d'],
     implementationProgress: {
       completed: 213,
