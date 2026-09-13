@@ -2531,7 +2531,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 403
 - [ ] Prompt 404
 - [ ] Prompt 405
-- [ ] Prompt 406
+- [x] Prompt 406
 - [ ] Prompt 407
 - [ ] Prompt 408
 - [ ] Prompt 409

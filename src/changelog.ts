@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [406],
+    implementationProgress: {
+      completed: 260,
+      total: 751,
+      percentage: '34.62%',
+      done: 260,
+      partial: 21,
+      active: 0,
+      missing: 470,
+    },
+    changes: [
+      'Players can privately discard one owned away-mission card before assignment, with overlapping mission hands kept separate.',
+      'Facilitators can open the discard phase and see readiness without seeing player card identities or contents.',
+      '260 of 751 planned items are complete (34.62%).',
+    ],
+  },
+  {
+    version: '0.3.100',
     implementationPrompts: [526, 527, 532, 536],
     implementationProgress: {
       completed: 259,

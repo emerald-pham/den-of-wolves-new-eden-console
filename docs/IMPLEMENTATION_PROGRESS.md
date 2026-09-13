@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**259 / 751 prompts complete (34.49%)**
+**260 / 751 prompts complete (34.62%)**
 
-Status breakdown: **259 done · 21 partial · 471 missing**.
+Status breakdown: **260 done · 21 partial · 470 missing**.
 
 Active prompt: **none**
 
@@ -848,7 +848,7 @@ release classification and evidence.
 | 403 | done | non-feature | — | Implemented the narrow facilitator-recorded away-mission foundation. dealPrivateInitialCards validates an explicit participant UID list against the current active roster and the source-defined capable craft roles, records an immutable mission participant snapshot in server-only state, deals the next cards from the P402 deck cursor in one transaction, and writes one private hand per participant. Hand reads are limited by current connected membership plus participant identity or current GM role; client writes, public card values, and public participant snapshots remain denied. Same-request replay is deterministic, mission identities cannot be redealt under a different request, and depletion fails before writes. The routed source and current product model do not supply a server-side destination/location or Mission Leader lifecycle, so those validations remain explicitly deferred to the mission-eligibility work rather than inferred here. |
 | 404 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 405 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 406 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 406 | done | non-feature | 0.3.101 | The P403 facilitator deal foundation now exposes a server-recorded awaiting-card-selection phase and a GM-only transition into discarding. Each participant sees a private projection of every simultaneous mission hand they own and can discard exactly one owned card through a transactional, revision-checked callable; the discarded card is consumed and never reassigned, while the hand advances to assignment-ready only after every participant has discarded. Mission-scoped pointer keys preserve overlapping missions, current membership and GM lease checks revoke stale access, and client writes or cross-player/card-content reads remain denied. Focused callable and participant/GM panel tests pass, the Firestore rules suite passes 89 cases, and the reconciled release includes responsive rendered checks for simultaneous hands, keyboard focus, reduced motion, and no GM card-content leak. Assignment, opportunity resolution, destinations, and Mission Leader remain separate prompts. |
 | 407 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 408 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 409 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
