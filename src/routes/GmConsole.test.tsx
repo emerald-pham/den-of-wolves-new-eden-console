@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { CrisisStateProjection, ZealotryResponse } from '@/types/crisis';
+import type { CrisisStateProjection, ZealotryResponse, CivilUnrestResolution } from '@/types/crisis';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
@@ -52,6 +52,7 @@ vi.mock('@/lib/sessionService', () => ({
   authorFacilitatorRuleCall: vi.fn(),
   transitionCrisis: vi.fn(),
   recordZealotryResponse: vi.fn(),
+  recordCivilUnrestResolution: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -69,6 +70,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmFacilitatorRuleCall: vi.fn(),
   subscribeGmCrisisState: vi.fn(),
   subscribeGmZealotryResponse: vi.fn(),
+  subscribeGmCivilUnrestResolution: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
@@ -80,10 +82,10 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, recordZealotryResponse, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -174,6 +176,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmZealotryResponse).mockImplementation((_sessionId, onResponse) => {
     onResponse(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmCivilUnrestResolution).mockImplementation((_sessionId, onResolution) => {
+    onResolution(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -440,6 +446,53 @@ it('clears a prior Zealotry response when a later crisis arrives and ignores lat
   expect(recordZealotryResponse).not.toHaveBeenCalled();
   await user.click(within(panel).getByRole('checkbox', { name: 'Leave' }));
   expect(recordZealotryResponse).not.toHaveBeenCalled();
+});
+
+it('records a facilitator-attributed Civil Unrest response with grievance links and resets stale crisis hydration', async () => {
+  const user = userEvent.setup();
+  const crisisA: CrisisStateProjection = {
+    sessionId: 's1', crisisId: 'unrest-a', state: 'debated', revision: 3,
+    title: 'Civil Unrest A', details: 'Team grievances.', crisisKind: 'civil-unrest',
+  };
+  const crisisB: CrisisStateProjection = { ...crisisA, crisisId: 'unrest-b', revision: 4, title: 'Civil Unrest B' };
+  const responseA: CivilUnrestResolution = {
+    sessionId: 's1', crisisId: 'unrest-a', crisisRevision: 3, state: 'debated', revision: 1,
+    presidentResponse: 'Facilitator-recorded response A', consequence: 'No automatic change A', rationale: 'Private rationale A',
+    grievanceRevisions: [
+      { shipId: 'dione', revision: 2 }, { shipId: 'icebreaker', revision: null },
+      { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null }, { shipId: 'refinery-124', revision: null },
+    ], recordedBy: 'facilitator',
+  };
+  let publishCrisis: ((state: CrisisStateProjection | null) => void) | undefined;
+  let publishResolution: ((resolution: CivilUnrestResolution | null) => void) | undefined;
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    publishCrisis = onState;
+    onState(crisisA);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmCivilUnrestResolution).mockImplementation((_sessionId, onResolution) => {
+    publishResolution = onResolution;
+    onResolution(responseA);
+    return vi.fn();
+  });
+  vi.mocked(recordCivilUnrestResolution).mockResolvedValue('applied');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  const panel = await screen.findByRole('region', { name: 'Private Civil Unrest resolution' });
+  expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded President response' })).toHaveValue(responseA.presidentResponse);
+  expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded Civil Unrest consequence' })).toHaveValue(responseA.consequence);
+  await user.click(within(panel).getByRole('button', { name: 'Record private Civil Unrest resolution' }));
+  await waitFor(() => expect(recordCivilUnrestResolution).toHaveBeenCalledWith(
+    responseA.presidentResponse, responseA.consequence, responseA.rationale,
+  ));
+  expect(within(panel).getByRole('status')).toHaveTextContent(/recorded privately.*no fleet change or public publication/i);
+  act(() => publishCrisis?.(crisisB));
+  expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded President response' })).toHaveValue('');
+  expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded Civil Unrest consequence' })).toHaveValue('');
+  act(() => publishResolution?.(responseA));
+  expect(within(panel).getByRole('textbox', { name: 'Facilitator-recorded President response' })).toHaveValue('');
+  expect(recordCivilUnrestResolution).toHaveBeenCalledTimes(1);
 });
 
 it('withholds the private crisis stream until the fresh manifest confirms this instance', async () => {

@@ -67,7 +67,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection } from '@/types/crisis';
+import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UNREST_SHIP_IDS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection, type CivilUnrestResolution } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -954,6 +954,44 @@ function zealotryResponse(value: unknown, sessionId: string): ZealotryResponse |
     ...(typeof raw.customResponse === 'string' ? { customResponse: raw.customResponse } : {}),
     rationale: raw.rationale,
     loyaltyCensusRevision: raw.loyaltyCensusRevision as number | null,
+    ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
+    ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
+  };
+}
+
+function civilUnrestResolution(value: unknown, sessionId: string): CivilUnrestResolution | null {
+  const raw = recordValue(value);
+  const parsedSessionId = parseEntityId('session', raw?.sessionId ?? sessionId);
+  const crisisRevision = nonNegativeInteger(raw?.crisisRevision);
+  const revision = nonNegativeInteger(raw?.revision);
+  if (!raw || !parsedSessionId || parsedSessionId !== parseEntityId('session', sessionId) ||
+      raw.type !== 'civil-unrest-resolution' || typeof raw.crisisId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) || raw.state !== 'debated' ||
+      crisisRevision === undefined || crisisRevision < 1 || revision === undefined || revision < 1 ||
+      typeof raw.presidentResponse !== 'string' || raw.presidentResponse.trim().length === 0 || raw.presidentResponse.length > 1000 ||
+      typeof raw.consequence !== 'string' || raw.consequence.trim().length === 0 || raw.consequence.length > 1000 ||
+      typeof raw.rationale !== 'string' || raw.rationale.length > 2000 || raw.recordedBy !== 'facilitator' ||
+      !Array.isArray(raw.grievanceRevisions) || raw.grievanceRevisions.length !== CIVIL_UNREST_SHIP_IDS.length ||
+      raw.grievanceRevisions.some((entry, index) => {
+        const item = recordValue(entry);
+        return !item || item.shipId !== CIVIL_UNREST_SHIP_IDS[index] ||
+          (item.revision !== null && (!Number.isSafeInteger(item.revision) || (item.revision as number) < 1));
+      }) ||
+      (raw.actorUid !== undefined && !parseEntityId('player', raw.actorUid))) return null;
+  return {
+    sessionId: parsedSessionId,
+    crisisId: raw.crisisId,
+    crisisRevision,
+    state: 'debated',
+    revision,
+    presidentResponse: raw.presidentResponse,
+    consequence: raw.consequence,
+    rationale: raw.rationale,
+    grievanceRevisions: raw.grievanceRevisions.map((entry) => {
+      const item = entry as Record<string, unknown>;
+      return { shipId: item.shipId as CivilUnrestResolution['grievanceRevisions'][number]['shipId'], revision: item.revision as number | null };
+    }),
+    recordedBy: 'facilitator',
     ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
     ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
   };
@@ -2838,6 +2876,31 @@ export function subscribeGmZealotryResponse(
     subscribed = false;
     unsubscribe();
     onResponse(null);
+  };
+}
+
+/** Subscribe to the facilitator-only current Civil Unrest resolution. */
+export function subscribeGmCivilUnrestResolution(
+  sessionId: string,
+  onResolution: (resolution: CivilUnrestResolution | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  let acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/civilUnrestResolutions/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) acceptsRevision = createMonotonicRevisionGate();
+      const resolution = snapshot.exists() ? civilUnrestResolution(snapshot.data(), sessionId) : null;
+      if (resolution && !acceptsRevision(resolution.revision)) return;
+      onResolution(resolution);
+    },
+    () => { if (subscribed) onResolution(null); },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onResolution(null);
   };
 }
 

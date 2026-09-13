@@ -67,6 +67,7 @@ import {
   requireCrisisTransitionRequest,
   requireZealotryResponseRequest,
   requireCivilUnrestGrievanceRequest,
+  requireCivilUnrestResolutionRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -264,6 +265,10 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { parseStoredZealotryResponse, type ZealotryResponseAction } from './zealotryResponse';
+import {
+  CIVIL_UNREST_RESOLUTION_SHIP_IDS,
+  parseStoredCivilUnrestResolution,
+} from './civilUnrestResolution';
 import { civilUnrestReport, diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
@@ -5851,6 +5856,7 @@ export const transitionCrisis = onCall<{
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
   const zealotryResponseRef = db.doc(`sessions/${crisis.sessionId}/zealotryResponses/current`);
+  const civilUnrestResolutionRef = db.doc(`sessions/${crisis.sessionId}/civilUnrestResolutions/current`);
   const auditRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current/audit/${crisis.requestId}`);
   const receiptRef = commandReceiptRef(crisis.sessionId, crisis.requestId);
   const eventRef = db.doc(
@@ -6034,6 +6040,7 @@ export const transitionCrisis = onCall<{
         // immutable history and audit, but force a fresh decision for the new
         // crisis rather than letting the private projection bleed across IDs.
         tx.delete(zealotryResponseRef);
+        tx.delete(civilUnrestResolutionRef);
       }
       tx.delete(civilUnrestPublicRef);
       civilUnrestCurrentRefs.forEach((ref) => tx.delete(ref));
@@ -6043,6 +6050,9 @@ export const transitionCrisis = onCall<{
         // audit subcollections under the deleted parent documents.
         tx.delete(civilUnrestPublicRef);
         civilUnrestCurrentRefs.forEach((ref) => tx.delete(ref));
+        // A resolution is current only while its debated crisis is live. Its
+        // history and facilitator audit remain immutable for later review.
+        tx.delete(civilUnrestResolutionRef);
       }
       if (playerReport) {
         // Only this fixed player report crosses the private crisis boundary.
@@ -6213,6 +6223,149 @@ export const recordZealotryResponse = onCall<{
       loyaltyCensusRevision: censusRevision,
       actorUid: uid,
       instanceId: response.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type CivilUnrestResolutionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  crisisRevision: number;
+  revision: number;
+  presidentResponse: string;
+  consequence: string;
+  rationale: string;
+  grievanceRevisions: readonly { readonly shipId: typeof CIVIL_UNREST_RESOLUTION_SHIP_IDS[number]; readonly revision: number | null }[];
+  recordedBy: 'facilitator';
+  actorUid: string;
+  instanceId: string;
+  label: 'CIVIL UNREST RESOLUTION';
+}>;
+
+function isCivilUnrestResolutionResult(value: unknown, sessionId: string): value is CivilUnrestResolutionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  const parsed = parseStoredCivilUnrestResolution({
+    type: 'civil-unrest-resolution', sessionId: result.sessionId, crisisId: result.crisisId,
+    crisisRevision: result.crisisRevision, state: 'debated', revision: result.revision,
+    presidentResponse: result.presidentResponse, consequence: result.consequence, rationale: result.rationale,
+    grievanceRevisions: result.grievanceRevisions, recordedBy: result.recordedBy,
+    actorUid: result.actorUid, instanceId: result.instanceId,
+  });
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && parsed !== null && result.label === 'CIVIL UNREST RESOLUTION';
+}
+
+/** Record a private facilitator resolution for the current debated Civil Unrest crisis. */
+export const recordCivilUnrestResolution = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  presidentResponse?: unknown;
+  consequence?: unknown;
+  rationale?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const response = requireCivilUnrestResolutionRequest(request.data ?? {});
+  const currentCrisisRef = db.doc(`sessions/${response.sessionId}/crisisState/current`);
+  const currentResolutionRef = db.doc(`sessions/${response.sessionId}/civilUnrestResolutions/current`);
+  const grievanceRefs = CIVIL_UNREST_RESOLUTION_SHIP_IDS.map((shipId) =>
+    db.doc(`sessions/${response.sessionId}/civilUnrestGrievances/${shipId}`));
+  const historyRef = db.doc(`sessions/${response.sessionId}/civilUnrestResolutions/history-${response.requestId}`);
+  const auditRef = db.doc(`sessions/${response.sessionId}/civilUnrestResolutions/audit-${response.requestId}`);
+  const receiptRef = commandReceiptRef(response.sessionId, response.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'record-civil-unrest-resolution',
+    sessionId: response.sessionId,
+    requestId: response.requestId,
+    actorUid: uid,
+    instanceId: response.instanceId,
+    expectedRevision: response.expectedRevision,
+    payload: {
+      crisisId: response.crisisId,
+      presidentResponse: response.presidentResponse,
+      consequence: response.consequence,
+      rationale: response.rationale,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<CivilUnrestResolutionResult> => {
+    const [authority, crisisSnapshot, currentResolutionSnapshot, receipt, audit, ...grievances] = await Promise.all([
+      requireFacilitatorInstance(tx, response.sessionId, uid, response.instanceId),
+      tx.get(currentCrisisRef),
+      tx.get(currentResolutionRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+      ...grievanceRefs.map((ref) => tx.get(ref)),
+    ]);
+    await rejectForeignLegacyM1Command(tx, response.sessionId, response.requestId, 'Civil Unrest resolution', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CivilUnrestResolutionResult => isCivilUnrestResolutionResult(value, response.sessionId),
+      'Civil Unrest resolution',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Civil Unrest resolution');
+    requireActiveGameplayPhase(authority.session);
+    if (!crisisSnapshot.exists || crisisSnapshot.get('type') !== 'crisis-state' ||
+        crisisSnapshot.get('sessionId') !== response.sessionId || crisisSnapshot.get('crisisId') !== response.crisisId ||
+        crisisSnapshot.get('crisisKind') !== 'civil-unrest' || crisisSnapshot.get('state') !== 'debated' ||
+        crisisSnapshot.get('revision') !== response.expectedRevision ||
+        !Number.isSafeInteger(crisisSnapshot.get('revision')) || (crisisSnapshot.get('revision') as number) < 1) {
+      throw commandError('failed-precondition', 'Record a resolution only for the current debated Civil Unrest crisis.', 'stale-revision');
+    }
+    const priorResolution = currentResolutionSnapshot.exists
+      ? parseStoredCivilUnrestResolution(currentResolutionSnapshot.data()) : null;
+    if (currentResolutionSnapshot.exists && (!priorResolution ||
+        priorResolution.sessionId !== response.sessionId || priorResolution.crisisId !== response.crisisId ||
+        priorResolution.crisisRevision !== response.expectedRevision)) {
+      throw commandError('failed-precondition', 'The current Civil Unrest resolution projection is malformed.', 'malformed-input');
+    }
+    const grievanceRevisions = grievances.map((snapshot, index) => {
+      const shipId = CIVIL_UNREST_RESOLUTION_SHIP_IDS[index]!;
+      if (!snapshot.exists) return { shipId, revision: null };
+      const raw = snapshot.data();
+      if (!raw || raw.type !== 'civil-unrest-grievance' || raw.sessionId !== response.sessionId ||
+          raw.crisisId !== response.crisisId || raw.shipId !== shipId ||
+          (raw.visibility !== 'private' && raw.visibility !== 'public') || typeof raw.text !== 'string' ||
+          raw.text.trim().length === 0 || raw.text.length > 2000 || !Number.isSafeInteger(raw.revision) ||
+          (raw.revision as number) < 1 || raw.crisisRevision !== response.expectedRevision) {
+        throw commandError('failed-precondition', 'A current Civil Unrest grievance is malformed; refresh before recording.', 'malformed-input');
+      }
+      return { shipId, revision: raw.revision as number };
+    });
+    const revision = (priorResolution?.revision ?? 0) + 1;
+    const result: CivilUnrestResolutionResult = {
+      status: 'committed', sessionId: response.sessionId, crisisId: response.crisisId,
+      crisisRevision: response.expectedRevision, revision,
+      presidentResponse: response.presidentResponse, consequence: response.consequence,
+      rationale: response.rationale, grievanceRevisions, recordedBy: 'facilitator', actorUid: uid,
+      instanceId: response.instanceId, label: 'CIVIL UNREST RESOLUTION',
+    };
+    const projection = {
+      type: 'civil-unrest-resolution' as const,
+      sessionId: response.sessionId, crisisId: response.crisisId,
+      crisisRevision: response.expectedRevision, state: 'debated' as const, revision,
+      presidentResponse: response.presidentResponse, consequence: response.consequence,
+      rationale: response.rationale, grievanceRevisions, recordedBy: 'facilitator' as const,
+      actorUid: uid, instanceId: response.instanceId, label: 'CIVIL UNREST RESOLUTION' as const,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(currentResolutionRef, projection);
+    tx.set(historyRef, { ...projection, requestId: response.requestId, createdAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, {
+      type: 'civil-unrest-resolution', action: 'record', sessionId: response.sessionId,
+      crisisId: response.crisisId, crisisRevision: response.expectedRevision, revision,
+      requestId: response.requestId, presidentResponse: response.presidentResponse,
+      consequence: response.consequence, rationale: response.rationale, grievanceRevisions,
+      recordedBy: 'facilitator', actorUid: uid, instanceId: response.instanceId,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

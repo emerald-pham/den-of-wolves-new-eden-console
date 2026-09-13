@@ -20,6 +20,7 @@ import {
 import { isReplacementEligibilityReason } from './replacementRoles';
 import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 import { parseZealotryResponseInput, type ZealotryResponseAction } from './zealotryResponse';
+import { parseCivilUnrestResolutionInput } from './civilUnrestResolution';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1360,6 +1361,49 @@ export function requireCivilUnrestGrievanceRequest(data: {
     visibility: data.visibility,
     text: textValue,
   };
+}
+
+export function requireCivilUnrestResolutionRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  presidentResponse?: unknown;
+  consequence?: unknown;
+  rationale?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  crisisId: string;
+  presidentResponse: string;
+  consequence: string;
+  rationale: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive crisis revision.');
+  }
+  const crisisId = requiredText(data.crisisId, 'crisisId', 80);
+  if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
+    throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
+  }
+  try {
+    const input = parseCivilUnrestResolutionInput(data);
+    return {
+      ...requireGmInstanceRequest(data),
+      requestId: requiredId(data.requestId, 'requestId'),
+      expectedRevision: data.expectedRevision as number,
+      crisisId,
+      ...input,
+    };
+  } catch (cause) {
+    throw new HttpsError(
+      'invalid-argument',
+      cause instanceof Error ? cause.message : 'The Civil Unrest resolution is not valid.',
+    );
+  }
 }
 
 export function requireShipAvailabilityRequest(data: {

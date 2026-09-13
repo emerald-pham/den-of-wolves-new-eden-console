@@ -705,6 +705,16 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // Civil Unrest resolution text is a facilitator-authored private record.
+      // Exact reads are GM-only; clients cannot enumerate or write current,
+      // history, or audit documents, and there is no public projection here.
+      match /civilUnrestResolutions/{documentId} {
+        allow get: if isGm(sessionId) && resource.data.type == 'civil-unrest-resolution' &&
+          resource.data.sessionId == sessionId &&
+          (documentId == 'current' || documentId.matches('history-.*') || documentId.matches('audit-.*'));
+        allow list, write: if false;
+      }
+
       // Mission decks contain the authoritative shuffled order. They are
       // server-only state, including from connected GM devices.
       match /serverState/{document=**} {

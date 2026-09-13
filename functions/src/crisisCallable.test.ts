@@ -366,6 +366,34 @@ it('retires the current Zealotry decision when a closed crisis is replaced', asy
   expect(mock.documents.has('sessions/s1/zealotryResponses/current')).toBe(false);
 });
 
+it('retires the current Civil Unrest resolution at closure and when a new crisis starts', async () => {
+  const crisisA = {
+    ...baseData, crisisId: 'unrest-a', crisisKind: 'civil-unrest',
+    title: 'Civil Unrest A', details: 'First crisis notes.',
+  };
+  await transitionCrisis.run(request(crisisA));
+  for (const [state, expectedRevision] of [['delivered', 1], ['debated', 2]] as const) {
+    await transitionCrisis.run(request({ ...crisisA, requestId: `a-${state}`, expectedRevision, state }));
+  }
+  put('sessions/s1/civilUnrestResolutions/current', {
+    type: 'civil-unrest-resolution', sessionId: 's1', crisisId: 'unrest-a', crisisRevision: 2,
+    state: 'debated', revision: 2, presidentResponse: 'Response A', consequence: 'Consequence A',
+    rationale: 'Private rationale A', recordedBy: 'facilitator', actorUid: 'u1', instanceId: 'gm-1',
+    grievanceRevisions: [
+      { shipId: 'dione', revision: null }, { shipId: 'icebreaker', revision: null },
+      { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null }, { shipId: 'refinery-124', revision: null },
+    ],
+  });
+  put('sessions/s1/civilUnrestResolutions/history-a', { preserved: true });
+  for (const [state, expectedRevision] of [['resolved', 3], ['announced', 4], ['closed', 5]] as const) {
+    await transitionCrisis.run(request({ ...crisisA, requestId: `a-${state}`, expectedRevision, state }));
+  }
+  expect(mock.documents.has('sessions/s1/civilUnrestResolutions/current')).toBe(false);
+  expect(mock.documents.has('sessions/s1/civilUnrestResolutions/history-a')).toBe(true);
+  await transitionCrisis.run(request({ ...crisisA, requestId: 'b-draft', expectedRevision: 6, crisisId: 'unrest-b', state: 'draft', title: 'Civil Unrest B', details: 'Second crisis notes.', crisisKind: 'civil-unrest' }));
+  expect(mock.documents.has('sessions/s1/civilUnrestResolutions/current')).toBe(false);
+});
+
 it('accepts the alternative Wolf Cult configuration and rechecks it before Zealotry delivery', async () => {
   put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false, wolfCultEnabled: true });
   const input = { ...baseData, crisisId: 'zealotry-1', crisisKind: 'religious-zealotry' };

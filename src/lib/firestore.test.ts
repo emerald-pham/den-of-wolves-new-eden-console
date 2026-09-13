@@ -40,6 +40,7 @@ const {
   subscribeGmWolfAssignment,
   subscribeGmFacilitatorRuleCall,
   subscribeGmZealotryResponse,
+  subscribeGmCivilUnrestResolution,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -1170,6 +1171,27 @@ it('resets the Zealotry response revision gate when a crisis projection is delet
   expect(onResponse).toHaveBeenNthCalledWith(3, expect.objectContaining({
     crisisId: 'zealotry-b', revision: 1,
   }));
+});
+
+it('resets the Civil Unrest resolution revision gate when the current crisis is deleted', () => {
+  const { callbacks } = captureSessionListener();
+  const onResolution = vi.fn();
+  subscribeGmCivilUnrestResolution('s1', onResolution);
+  const base = {
+    type: 'civil-unrest-resolution', sessionId: 's1', state: 'debated', crisisRevision: 3,
+    revision: 2, presidentResponse: 'Facilitator-recorded response', consequence: 'No automatic change.',
+    rationale: 'Private rationale.', recordedBy: 'facilitator',
+    grievanceRevisions: [
+      { shipId: 'dione', revision: null }, { shipId: 'icebreaker', revision: 1 },
+      { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null }, { shipId: 'refinery-124', revision: null },
+    ],
+  };
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ ...base, crisisId: 'unrest-a' }) });
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => false });
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ ...base, crisisId: 'unrest-b', crisisRevision: 1, revision: 1 }) });
+  expect(onResolution).toHaveBeenNthCalledWith(1, expect.objectContaining({ crisisId: 'unrest-a', revision: 2 }));
+  expect(onResolution).toHaveBeenNthCalledWith(2, null);
+  expect(onResolution).toHaveBeenNthCalledWith(3, expect.objectContaining({ crisisId: 'unrest-b', revision: 1 }));
 });
 
 it('does not let a delayed older census revision overwrite the newer server projection', () => {

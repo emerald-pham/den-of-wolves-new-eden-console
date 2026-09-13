@@ -18,7 +18,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPointer,
 } from '@/types/game';
-import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection, ZealotryResponse, ZealotryResponseAction } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection, ZealotryResponse, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -302,6 +302,21 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'recordCivilUnrestResolution';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedRevision: number;
+        readonly crisisId: string;
+        readonly presidentResponse: string;
+        readonly consequence: string;
+        readonly rationale: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'claimSeat';
       readonly payload: {
         readonly sessionId: string;
@@ -399,6 +414,7 @@ interface SessionState {
   gmFacilitatorRuleCall: FacilitatorRuleCall | null;
   gmCrisisState: CrisisStateProjection | null;
   gmZealotryResponse: ZealotryResponse | null;
+  gmCivilUnrestResolution: CivilUnrestResolution | null;
   gmSetupReceipt: SetupReceipt | null;
   commissarPurgeAuthority: CommissarPurgeAuthority | null;
   pendingCommands: readonly PendingCommand[];
@@ -432,6 +448,7 @@ interface SessionState {
   setGmFacilitatorRuleCall: (call: FacilitatorRuleCall | null) => void;
   setGmCrisisState: (state: CrisisStateProjection | null) => void;
   setGmZealotryResponse: (response: ZealotryResponse | null) => void;
+  setGmCivilUnrestResolution: (resolution: CivilUnrestResolution | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   setCommissarPurgeAuthority: (authority: CommissarPurgeAuthority | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
@@ -468,6 +485,7 @@ const initial = {
   gmFacilitatorRuleCall: null,
   gmCrisisState: null,
   gmZealotryResponse: null,
+  gmCivilUnrestResolution: null,
   gmSetupReceipt: null,
   commissarPurgeAuthority: null,
   pendingCommands: [] as readonly PendingCommand[],
@@ -479,7 +497,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -508,7 +526,7 @@ export const useSessionStore = create<SessionState>()(
         awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
-        gmFacilitatorRuleCall: null, gmCrisisState: null, gmZealotryResponse: null, commissarPurgeAuthority: null,
+        gmFacilitatorRuleCall: null, gmCrisisState: null, gmZealotryResponse: null, gmCivilUnrestResolution: null, commissarPurgeAuthority: null,
       }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
@@ -540,6 +558,7 @@ export const useSessionStore = create<SessionState>()(
       setGmFacilitatorRuleCall: (gmFacilitatorRuleCall) => set({ gmFacilitatorRuleCall }),
       setGmCrisisState: (gmCrisisState) => set({ gmCrisisState }),
       setGmZealotryResponse: (gmZealotryResponse) => set({ gmZealotryResponse }),
+      setGmCivilUnrestResolution: (gmCivilUnrestResolution) => set({ gmCivilUnrestResolution }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       setCommissarPurgeAuthority: (commissarPurgeAuthority) => set({ commissarPurgeAuthority }),
       enqueueCommand: (command) =>
@@ -580,6 +599,7 @@ export const useSessionStore = create<SessionState>()(
           gmFacilitatorRuleCall: null,
           gmCrisisState: null,
           gmZealotryResponse: null,
+          gmCivilUnrestResolution: null,
           gmSetupReceipt: null,
           commissarPurgeAuthority: null,
           mode: null,

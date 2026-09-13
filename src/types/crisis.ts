@@ -103,6 +103,30 @@ export interface CivilUnrestGrievance {
   readonly crisisRevision: number;
 }
 
+export const CIVIL_UNREST_SHIP_IDS = ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'] as const;
+export type CivilUnrestShipId = (typeof CIVIL_UNREST_SHIP_IDS)[number];
+
+export interface CivilUnrestResolutionGrievanceRevision {
+  readonly shipId: CivilUnrestShipId;
+  readonly revision: number | null;
+}
+
+/** A facilitator-only record of the response attributed to the President. */
+export interface CivilUnrestResolution {
+  readonly sessionId: SessionId;
+  readonly crisisId: string;
+  readonly crisisRevision: number;
+  readonly state: 'debated';
+  readonly revision: number;
+  readonly presidentResponse: string;
+  readonly consequence: string;
+  readonly rationale: string;
+  readonly grievanceRevisions: readonly CivilUnrestResolutionGrievanceRevision[];
+  readonly recordedBy: 'facilitator';
+  readonly actorUid?: string;
+  readonly updatedAt?: string;
+}
+
 export interface CivilUnrestPublicProjection {
   readonly sessionId: string;
   readonly crisisId: string;

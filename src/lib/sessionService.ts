@@ -29,7 +29,7 @@ import { parseEntityId } from '@/types/identifiers';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
-import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, ZealotryResponseAction } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
 import {
@@ -335,7 +335,7 @@ function applyCommandResult(
   if (!isCleanupCommand(command) && !authorityCheckpointIsCurrent(checkpoint, allowConnecting)) return;
   const store = useSessionStore.getState();
   if (
-    (command.kind === 'authorFacilitatorRuleCall' || command.kind === 'recordZealotryResponse') &&
+    (command.kind === 'authorFacilitatorRuleCall' || command.kind === 'recordZealotryResponse' || command.kind === 'recordCivilUnrestResolution') &&
     !facilitatorRuleCallAuthorityCheckpointIsCurrent(
       command.payload.sessionId,
       command.payload.instanceId,
@@ -685,6 +685,44 @@ function applyCommandResult(
         ...(typeof reply.customResponse === 'string' ? { customResponse: reply.customResponse } : {}),
         rationale: reply.rationale,
         loyaltyCensusRevision: reply.loyaltyCensusRevision as number | null,
+      });
+    }
+  }
+  if (
+    command.kind === 'recordCivilUnrestResolution' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const links = Array.isArray(reply.grievanceRevisions) && reply.grievanceRevisions.length === 5 &&
+      reply.grievanceRevisions.every((entry, index) => {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return false;
+        const item = entry as Record<string, unknown>;
+        const shipId = (['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'] as const)[index];
+        return item.shipId === shipId && (item.revision === null ||
+          (Number.isSafeInteger(item.revision) && (item.revision as number) >= 1));
+      }) ? reply.grievanceRevisions as CivilUnrestResolution['grievanceRevisions'] : null;
+    if (
+      (reply.status === 'committed' || reply.status === 'replayed') &&
+      reply.sessionId === command.payload.sessionId && reply.crisisId === command.payload.crisisId &&
+      Number.isSafeInteger(reply.crisisRevision) && reply.crisisRevision === command.payload.expectedRevision &&
+      Number.isSafeInteger(reply.revision) && (reply.revision as number) >= 1 &&
+      typeof reply.presidentResponse === 'string' && reply.presidentResponse.length > 0 && reply.presidentResponse.length <= 1000 &&
+      typeof reply.consequence === 'string' && reply.consequence.length > 0 && reply.consequence.length <= 1000 &&
+      typeof reply.rationale === 'string' && reply.rationale.length <= 2000 && links &&
+      reply.recordedBy === 'facilitator' && reply.label === 'CIVIL UNREST RESOLUTION'
+    ) {
+      store.setGmCivilUnrestResolution({
+        sessionId: command.payload.sessionId,
+        crisisId: command.payload.crisisId,
+        crisisRevision: reply.crisisRevision as number,
+        state: 'debated',
+        revision: reply.revision as number,
+        presidentResponse: reply.presidentResponse,
+        consequence: reply.consequence,
+        rationale: reply.rationale,
+        grievanceRevisions: links,
+        recordedBy: 'facilitator',
       });
     }
   }
@@ -1614,6 +1652,34 @@ export async function recordZealotryResponse(
       crisisId: store.gmCrisisState.crisisId,
       actions,
       ...(customResponse.trim() ? { customResponse: customResponse.trim().slice(0, 1000) } : {}),
+      rationale: rationale.trim().slice(0, 2000),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Record the facilitator's private President response to the debated Civil Unrest crisis. */
+export async function recordCivilUnrestResolution(
+  presidentResponse: string,
+  consequence: string,
+  rationale: string,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || !store.gmCrisisState ||
+      store.gmCrisisState.crisisKind !== 'civil-unrest' || store.gmCrisisState.state !== 'debated') {
+    throw new Error('An active debated Civil Unrest crisis is required before recording a resolution.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'recordCivilUnrestResolution',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmCrisisState.revision,
+      crisisId: store.gmCrisisState.crisisId,
+      presidentResponse: presidentResponse.trim().slice(0, 1000),
+      consequence: consequence.trim().slice(0, 1000),
       rationale: rationale.trim().slice(0, 2000),
     },
     createdAt: new Date().toISOString(),

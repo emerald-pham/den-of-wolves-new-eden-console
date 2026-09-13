@@ -48,6 +48,7 @@ import {
   authorFacilitatorRuleCall,
   transitionCrisis,
   recordZealotryResponse,
+  recordCivilUnrestResolution,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -351,6 +352,7 @@ export default function GmConsole() {
   const gmFacilitatorRuleCall = useSessionStore((state) => state.gmFacilitatorRuleCall);
   const gmCrisisState = useSessionStore((state) => state.gmCrisisState);
   const gmZealotryResponse = useSessionStore((state) => state.gmZealotryResponse);
+  const gmCivilUnrestResolution = useSessionStore((state) => state.gmCivilUnrestResolution);
   const [crisisIdDraft, setCrisisIdDraft] = useState('crisis-1');
   const [crisisTitleDraft, setCrisisTitleDraft] = useState('');
   const [crisisDetailsDraft, setCrisisDetailsDraft] = useState('');
@@ -366,11 +368,21 @@ export default function GmConsole() {
   const [zealotryRationaleDraft, setZealotryRationaleDraft] = useState('');
   const [zealotryMutation, setZealotryMutation] = useState(false);
   const [zealotryMessage, setZealotryMessage] = useState<string | null>(null);
+  const [civilUnrestPresidentDraft, setCivilUnrestPresidentDraft] = useState('');
+  const [civilUnrestConsequenceDraft, setCivilUnrestConsequenceDraft] = useState('');
+  const [civilUnrestRationaleDraft, setCivilUnrestRationaleDraft] = useState('');
+  const [civilUnrestMutation, setCivilUnrestMutation] = useState(false);
+  const [civilUnrestMessage, setCivilUnrestMessage] = useState<string | null>(null);
 
   function clearZealotryResponseDraft(): void {
     setZealotryActionsDraft([]);
     setZealotryCustomDraft('');
     setZealotryRationaleDraft('');
+  }
+  function clearCivilUnrestResolutionDraft(): void {
+    setCivilUnrestPresidentDraft('');
+    setCivilUnrestConsequenceDraft('');
+    setCivilUnrestRationaleDraft('');
   }
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
@@ -681,6 +693,7 @@ export default function GmConsole() {
     let stopInstances: () => void = () => undefined;
     let stopCrisisState: () => void = () => undefined;
     let stopZealotryResponse: () => void = () => undefined;
+    let stopCivilUnrestResolution: () => void = () => undefined;
     let unsubscribe: () => void = () => undefined;
     // A persisted projection is not fresh GM authority. Hold no crisis data
     // while the callable-backed manifest proves this exact instance.
@@ -710,6 +723,8 @@ export default function GmConsole() {
       stopCrisisState = () => undefined;
       stopZealotryResponse();
       stopZealotryResponse = () => undefined;
+      stopCivilUnrestResolution();
+      stopCivilUnrestResolution = () => undefined;
       stopInstances();
       stopInstances = () => undefined;
       setInstances([]);
@@ -719,6 +734,8 @@ export default function GmConsole() {
       const store = useSessionStore.getState();
       store.setGmCrisisState(null);
       store.setGmZealotryResponse(null);
+      store.setGmCivilUnrestResolution(null);
+      clearCivilUnrestResolutionDraft();
       if (
         store.session?.id === sessionId &&
         store.gmInstance?.id === localInstanceId
@@ -742,6 +759,7 @@ export default function GmConsole() {
       subscribeGmFacilitatorRuleCall,
       subscribeGmCrisisState,
       subscribeGmZealotryResponse,
+      subscribeGmCivilUnrestResolution,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -801,6 +819,25 @@ export default function GmConsole() {
                 clearZealotryResponseDraft();
               }
               setCrisisMutationState(null);
+              const civilResolution = store.gmCivilUnrestResolution;
+              const matchesCivilCrisis = Boolean(
+                crisis && civilResolution && crisis.crisisKind === 'civil-unrest' && crisis.state === 'debated' &&
+                civilResolution.crisisId === crisis.crisisId && civilResolution.crisisRevision === crisis.revision,
+              );
+              if (matchesCivilCrisis && civilResolution) {
+                setCivilUnrestPresidentDraft(civilResolution.presidentResponse);
+                setCivilUnrestConsequenceDraft(civilResolution.consequence);
+                setCivilUnrestRationaleDraft(civilResolution.rationale);
+              } else if (!crisis && civilResolution) {
+                // The private resolution listener may win the race with the
+                // crisis listener. Hold the parsed record until the exact
+                // crisis identity and revision arrive, then validate there.
+                // A later mismatched crisis clears it below.
+                store.setGmCivilUnrestResolution(civilResolution);
+              } else {
+                store.setGmCivilUnrestResolution(null);
+                clearCivilUnrestResolutionDraft();
+              }
             }, () => {
               const currentKey = currentAuthorityKey();
               if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
@@ -809,6 +846,33 @@ export default function GmConsole() {
                 message: 'The facilitator crisis projection could not be refreshed.',
               });
               revokeAuthority();
+            })
+            : () => undefined;
+          stopCivilUnrestResolution = typeof subscribeGmCivilUnrestResolution === 'function'
+            ? subscribeGmCivilUnrestResolution(sessionId, (resolution) => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              const store = useSessionStore.getState();
+              const crisis = store.gmCrisisState;
+              const matchesCivilCrisis = Boolean(
+                crisis && resolution && crisis.crisisKind === 'civil-unrest' && crisis.state === 'debated' &&
+                resolution.crisisId === crisis.crisisId && resolution.crisisRevision === crisis.revision,
+              );
+              if (matchesCivilCrisis && resolution) {
+                store.setGmCivilUnrestResolution(resolution);
+                setCivilUnrestPresidentDraft(resolution.presidentResponse);
+                setCivilUnrestConsequenceDraft(resolution.consequence);
+                setCivilUnrestRationaleDraft(resolution.rationale);
+              } else if (!resolution) {
+                store.setGmCivilUnrestResolution(null);
+                clearCivilUnrestResolutionDraft();
+              } else if (!crisis) {
+                store.setGmCivilUnrestResolution(resolution);
+              } else {
+                store.setGmCivilUnrestResolution(null);
+                clearCivilUnrestResolutionDraft();
+              }
+              setCivilUnrestMessage(null);
             })
             : () => undefined;
           stopZealotryResponse = typeof subscribeGmZealotryResponse === 'function'
@@ -933,6 +997,7 @@ export default function GmConsole() {
         stopFacilitatorRuleCall();
         stopCrisisState();
         stopZealotryResponse();
+        stopCivilUnrestResolution();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -950,12 +1015,15 @@ export default function GmConsole() {
       unsubscribe();
       stopCrisisState();
       stopZealotryResponse();
+      stopCivilUnrestResolution();
       setWolfAssignment(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
       useSessionStore.getState().setGmFacilitatorRuleCall(null);
       useSessionStore.getState().setGmCrisisState(null);
       useSessionStore.getState().setGmZealotryResponse(null);
+      useSessionStore.getState().setGmCivilUnrestResolution(null);
+      clearCivilUnrestResolutionDraft();
       setCrisisMutationState(null);
       setCrisisMessage(null);
       setWolfAttackPreparationState(null);
@@ -1594,6 +1662,52 @@ export default function GmConsole() {
     } finally {
       if (currentCrisisAuthorityKey() === authorityKey && verifiedCrisisAuthorityKey.current === authorityKey) {
         setZealotryMutation(false);
+      }
+    }
+  }
+
+  async function saveCivilUnrestResolution(): Promise<void> {
+    const crisis = useSessionStore.getState().gmCrisisState;
+    if (civilUnrestMutation || !crisis || crisis.crisisKind !== 'civil-unrest' || crisis.state !== 'debated') {
+      setCivilUnrestMessage('Record a resolution only while Civil Unrest is debated.');
+      return;
+    }
+    const presidentResponse = civilUnrestPresidentDraft.trim();
+    const consequence = civilUnrestConsequenceDraft.trim();
+    if (!presidentResponse || !consequence) {
+      setCivilUnrestMessage('Enter the facilitator-recorded President response and consequence.');
+      return;
+    }
+    const authorityKey = currentCrisisAuthorityKey();
+    if (!authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) {
+      setCivilUnrestMessage('Live GM authority is still being verified; retry when the manifest is current.');
+      return;
+    }
+    setCivilUnrestMutation(true);
+    setCivilUnrestMessage(null);
+    try {
+      const disposition = await recordCivilUnrestResolution(
+        presidentResponse,
+        consequence,
+        civilUnrestRationaleDraft,
+      );
+      if (currentCrisisAuthorityKey() !== authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      setCivilUnrestMessage(
+        disposition === 'queued'
+          ? 'Civil Unrest resolution queued // waiting for the live facilitator connection.'
+          : 'Civil Unrest resolution recorded privately // no fleet change or public publication.',
+      );
+    } catch (cause) {
+      if (currentCrisisAuthorityKey() !== authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      const error = normalizeCommandError(cause);
+      setCivilUnrestMessage(
+        error.kind === 'stale-revision'
+          ? 'Crisis changed // review the current debated state and retry.'
+          : 'Civil Unrest resolution rejected // the server did not commit this record.',
+      );
+    } finally {
+      if (currentCrisisAuthorityKey() === authorityKey && verifiedCrisisAuthorityKey.current === authorityKey) {
+        setCivilUnrestMutation(false);
       }
     }
   }
@@ -2437,6 +2551,69 @@ export default function GmConsole() {
                   {zealotryMessage ?? (gmZealotryResponse
                     ? `Recorded response // revision ${gmZealotryResponse.revision} // census context ${gmZealotryResponse.loyaltyCensusRevision ?? 'absent'}`
                     : 'No private response recorded for this crisis revision.')}
+                </p>
+              </section>
+            )}
+            {gmCrisisState?.crisisKind === 'civil-unrest' && gmCrisisState.state === 'debated' && (
+              <section className="gm-civil-unrest-resolution" aria-label="Private Civil Unrest resolution">
+                <h3 className="gm-console__section-title">Private Civil Unrest resolution</h3>
+                <p className="gm-console__hint">
+                  Record the facilitator&apos;s response on behalf of the President. This is a facilitator record and
+                  does not impersonate a player&apos;s authorship. The response, consequence, rationale, and current
+                  grievance revision links stay GM-only; no fleet change or public publication occurs here.
+                </p>
+                <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                  <span>Facilitator-recorded President response</span>
+                  <textarea
+                    rows={2}
+                    maxLength={1000}
+                    value={civilUnrestPresidentDraft}
+                    disabled={civilUnrestMutation}
+                    onChange={(event) => setCivilUnrestPresidentDraft(event.target.value)}
+                    aria-label="Facilitator-recorded President response"
+                  />
+                </label>
+                <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                  <span>Facilitator-recorded consequence</span>
+                  <textarea
+                    rows={2}
+                    maxLength={1000}
+                    value={civilUnrestConsequenceDraft}
+                    disabled={civilUnrestMutation}
+                    onChange={(event) => setCivilUnrestConsequenceDraft(event.target.value)}
+                    aria-label="Facilitator-recorded Civil Unrest consequence"
+                  />
+                </label>
+                <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                  <span>Private Civil Unrest rationale</span>
+                  <textarea
+                    rows={2}
+                    maxLength={2000}
+                    value={civilUnrestRationaleDraft}
+                    disabled={civilUnrestMutation}
+                    onChange={(event) => setCivilUnrestRationaleDraft(event.target.value)}
+                    aria-label="Private Civil Unrest rationale"
+                  />
+                </label>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={civilUnrestMutation || !civilUnrestPresidentDraft.trim() || !civilUnrestConsequenceDraft.trim()}
+                  onClick={() => void saveCivilUnrestResolution()}
+                >
+                  {civilUnrestMutation ? 'Recording resolution…' : 'Record private Civil Unrest resolution'}
+                </button>
+                {gmCivilUnrestResolution && (
+                  <p className="gm-console__hint" aria-label="Current Civil Unrest grievance links">
+                    Current grievance links // {gmCivilUnrestResolution.grievanceRevisions.map((entry) =>
+                      `${entry.shipId}: ${entry.revision === null ? 'absent' : `revision ${entry.revision}`}`,
+                    ).join(' // ')}
+                  </p>
+                )}
+                <p className="gm-console__status" role="status" aria-live="polite">
+                  {civilUnrestMessage ?? (gmCivilUnrestResolution
+                    ? `Recorded resolution // revision ${gmCivilUnrestResolution.revision} // grievance links retained privately`
+                    : 'No private resolution recorded for this crisis revision.')}
                 </p>
               </section>
             )}

@@ -5054,6 +5054,13 @@
       "language": "The existing HashRouter keeps allowed hash routes on a static host. The earlier Chrome/WebKit checks used persisted permitted-view routing and are recorded separately from Firebase authentication: production dist served through a plain static HTTP server restored #/ships/aegis/roles/admiral after reload, anonymous protected hashes returned to #/ and the landing heading, an unknown hash retained its hash while rendering the safe NotFound surface with its visible return link, and a disallowed GM hash converged to the persisted player's entitled AEGIS route. A separate Chrome run against isolated Auth, Firestore, and Functions emulators signed in through the app with a real anonymous Auth UID, created a live session membership whose server player record had role=player, loaded the allowlisted #/roles route from the static host, and restored the same route and live role UI after reload with resumeSession HTTP 200. The focused App/PWA suite passed 69 tests, including protected-route, stored-route, invalid-route, and service-worker registration coverage. No production gameplay writes, service-worker change, or runtime production edit was needed.",
       "source": "src/App.tsx; src/App.test.tsx; src/pwa.test.ts; src/lib/sessionRoute.ts; src/routes/NotFound.tsx; firebase.json; /tmp/p623-static-host-evidence.json; /tmp/p623-chrome-authenticated-reload.png; /tmp/p623-webkit-authenticated-reload.png; /tmp/p623-emulator-auth-evidence.json; /tmp/p623-chrome-emulator-auth-reload.png",
       "type": "evidence / rendered / static-host / reconnect"
+    },
+    {
+      "direction": "535 -> production path",
+      "id": "E-535-VERIFIED",
+      "language": "Prompt 535 is implemented as a private facilitator-recorded Civil Unrest resolution at the current debated crisis revision. The callable binds the live GM instance, current crisis and grievance revisions with a CAS/replay receipt, durable current/history/audit records, and no automatic resource, unrest, role, law, lifecycle, event, or public publication effect. The GM panel labels the President response as facilitator-recorded, keeps text and grievance links GM-only, rejects stale crisis identity, and resets current/listener state at lifecycle boundaries.",
+      "source": "functions/src/index.ts; functions/src/civilUnrestResolution.ts; functions/src/civilUnrestResolutionCallable.test.ts; functions/src/crisisCallable.test.ts; functions/src/requestGuards.ts; src/types/crisis.ts; src/lib/sessionService.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/store/useSessionStore.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts; focused validation; rendered review",
+      "type": "evidence/verified"
     }
   ],
   "plan": {
@@ -18888,8 +18895,8 @@
         "acceptance": "the President/facilitator response and consequence are attributable, audience-safe, and do not impersonate deterministic rules.",
         "title": "Resolve Civil Unrest."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-535",
+      "description": "Implemented facilitator-only Civil Unrest resolution records against the current debated crisis, linking current grievance revisions without automatic game effects or public publication.",
+      "evidenceIds": "E-AUDIT-535;E-535-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "534",
@@ -18900,7 +18907,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {

@@ -711,6 +711,37 @@ describe('crisis state boundary', () => {
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/zealotryResponses/current`)));
   });
 
+  it('keeps Civil Unrest resolution current, history, and audit private to connected GMs', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      const fields = {
+        type: 'civil-unrest-resolution', sessionId: 's1', crisisId: 'unrest-1',
+        state: 'debated', crisisRevision: 3, revision: 1,
+        presidentResponse: 'Facilitator-recorded response', consequence: 'Facilitator-recorded consequence',
+        rationale: 'GM-only rationale', recordedBy: 'facilitator', actorUid: 'gm1', instanceId: 'gm-instance',
+        grievanceRevisions: [
+          { shipId: 'dione', revision: null }, { shipId: 'icebreaker', revision: 1 },
+          { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null }, { shipId: 'refinery-124', revision: null },
+        ],
+      };
+      await setDoc(doc(db, `${SESSION}/civilUnrestResolutions/current`), fields);
+      await setDoc(doc(db, `${SESSION}/civilUnrestResolutions/history-resolution-1`), fields);
+      await setDoc(doc(db, `${SESSION}/civilUnrestResolutions/audit-resolution-1`), fields);
+    });
+    for (const documentId of ['current', 'history-resolution-1', 'audit-resolution-1']) {
+      await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/civilUnrestResolutions/${documentId}`)));
+      await assertFails(getDoc(doc(as('alice'), `${SESSION}/civilUnrestResolutions/${documentId}`)));
+      await assertFails(getDoc(doc(as('press'), `${SESSION}/civilUnrestResolutions/${documentId}`)));
+      await assertFails(setDoc(doc(as('gm1'), `${SESSION}/civilUnrestResolutions/${documentId}`), { forged: true }));
+    }
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/civilUnrestResolutions`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/civilUnrestResolutions/current`), { forged: true }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/civilUnrestResolutions/current`)));
+  });
+
   it('keeps private grievances to the live team, publishes public text to members, and revokes stale team reads', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
