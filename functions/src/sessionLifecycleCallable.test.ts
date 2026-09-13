@@ -694,6 +694,23 @@ describe('empty-session clock continuity', () => {
     });
   });
 
+  it('replaces the stored empty-session ticker when the first participant reconnects', async () => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: phase,
+      createdAt: mock.Timestamp.fromDate(NOW), updatedAt: mock.Timestamp.fromDate(NOW) });
+    player({ joinedAt: mock.Timestamp.fromDate(NOW) });
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.fleetTicker).toMatchObject({
+      current: { sourceId: `empty-session:2:${NOW.toISOString()}` },
+    });
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+    await resumeSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.fleetTicker).toMatchObject({
+      current: { sourceId: 'airspace:2:restricted' },
+      queued: [],
+    });
+    expect(read('sessions/s1')?.turnPhase).not.toHaveProperty('timerPause');
+  });
+
   it('keeps a populated session running', async () => {
     session({ phase: 'active', currentTurn: 2, turnPhase: phase });
     player();

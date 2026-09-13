@@ -481,7 +481,12 @@ function reconcilePresenceTimer(
   if (!next) return;
   const serverTime = new Date(now).toISOString();
   const turnState = updatedTurnState(session, next);
-  const fleetTicker = publishSessionFleetTicker(sessionRef.id, session, next.timerPause ? {
+  const priorTicker = fleetTickerForMutation(sessionRef.id, session, serverTime);
+  const resumedTicker = !next.timerPause && phase.timerPause?.reason === 'empty-session'
+    ? dismissFleetTickerSource(sessionRef.id, priorTicker,
+      `empty-session:${phase.turn}:${phase.timerPause.pausedAt}`, serverTime)
+    : priorTicker;
+  const fleetTicker = publishFleetTicker(sessionRef.id, resumedTicker, next.timerPause ? {
     source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
     text: FLEET_TICKER_COPY.emptySession, tone: 'normal', gap: 'long',
     sourceId: `empty-session:${next.turn}:${next.timerPause.pausedAt}`,
