@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
+const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn() }));
+vi.mock('node:crypto', () => cryptoMock);
+
 type Fields = Record<string, unknown>;
 
 const mock = vi.hoisted(() => {
@@ -116,6 +119,7 @@ beforeEach(() => {
   mock.get.mockClear();
   mock.update.mockClear();
   mock.set.mockClear();
+  cryptoMock.randomInt.mockImplementation(() => 0);
   session();
   gm();
   preparation();
@@ -157,9 +161,11 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
 
 it('replays an exact request without a second transaction write', async () => {
   const first = await declareWolfAttack.run(request());
+  const generatedSamples = cryptoMock.randomInt.mock.calls.length;
   mock.update.mockClear();
   mock.set.mockClear();
   await expect(declareWolfAttack.run(request())).resolves.toEqual(first);
+  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(generatedSamples);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
@@ -216,6 +222,58 @@ it('uses the configured expansion target ring when full Capybara is active', asy
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     calculationReceipt: { targeting: { ring: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'] } },
   });
+});
+
+it('records declaration-time base mapping, expansion rerolls, and excludes the small Capybara', async () => {
+  const baseSamples = [0, 1, 2, 3, 4, 5, ...Array<number>(9).fill(0)];
+  cryptoMock.randomInt.mockImplementation((upperBound: number) => {
+    const sample = baseSamples.shift() ?? 0;
+    if (sample >= upperBound) throw new Error(`sample ${sample} is outside ${upperBound}`);
+    return sample;
+  });
+  await declareWolfAttack.run(request({ ...baseData, requestId: 'base-mapping' }));
+  const baseReceipt = mock.documents.get('sessions/s1/wolfAttackState/current')?.calculationReceipt as {
+    targeting: { ring: string[]; rolls: Array<{ target: string; initialDie: number }> };
+  };
+  expect(baseReceipt.targeting.ring).toEqual([
+    'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124',
+  ]);
+  expect(baseReceipt.targeting.rolls.slice(0, 6).map((roll) => roll.target)).toEqual(baseReceipt.targeting.ring);
+  expect(baseReceipt.targeting.rolls.slice(0, 6).map((roll) => roll.initialDie)).toEqual([1, 2, 3, 4, 5, 6]);
+
+  mock.documents.delete('sessions/s1/wolfAttackState/current');
+  mock.documents.delete('sessions/s1/wolfAttackState/current/audit/base-mapping');
+  mock.documents.delete('sessions/s1/events/wolf-attack-base-mapping');
+  mock.documents.delete('sessions/s1/commandReceipts/base-mapping');
+  session({ activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'] });
+  preparation();
+  dueWindow();
+  const expansionSamples = [6, 7, 0, ...Array<number>(12).fill(0)];
+  cryptoMock.randomInt.mockImplementation((upperBound: number) => {
+    const sample = expansionSamples.shift() ?? 0;
+    if (sample >= upperBound) throw new Error(`sample ${sample} is outside ${upperBound}`);
+    return sample;
+  });
+  await declareWolfAttack.run(request({ ...baseData, requestId: 'expansion-reroll' }));
+  const expansionReceipt = mock.documents.get('sessions/s1/wolfAttackState/current')?.calculationReceipt as {
+    targeting: { ring: string[]; rolls: Array<{ target: string; initialDie: number; printedRerolls?: number[] }> };
+  };
+  expect(expansionReceipt.targeting.ring).toEqual([
+    'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara',
+  ]);
+  expect(expansionReceipt.targeting.rolls[0]).toMatchObject({ initialDie: 7, target: 'capybara' });
+  expect(expansionReceipt.targeting.rolls[1]).toMatchObject({ initialDie: 1, target: 'aegis', printedRerolls: [8] });
+
+  mock.documents.delete('sessions/s1/wolfAttackState/current');
+  mock.documents.delete('sessions/s1/wolfAttackState/current/audit/expansion-reroll');
+  mock.documents.delete('sessions/s1/events/wolf-attack-expansion-reroll');
+  mock.documents.delete('sessions/s1/commandReceipts/expansion-reroll');
+  session({ activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara-small'] });
+  preparation();
+  dueWindow();
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'small-capybara' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
 });
 
 it('rejects a legacy request-id collision before an exact-replay shortcut', async () => {

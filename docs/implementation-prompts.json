@@ -2697,6 +2697,20 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "429 -> 428;432",
+      "id": "E-429-DECLARATION-TARGETING",
+      "language": "Superseding dependency correction for this bounded encoding: P429 consumes the already implemented targeting producer slice of partial P428, not P428's later range, boarding, damage, or casualty stages. The production declareWolfAttack path invokes that server-owned targeting resolver after revalidating the persisted active fleet tuple. Base declarations use the printed six-ship d6 ring in order, and the declaration-stage receipt records the generated die and mapped target. A focused callable regression drives each base face through the real declaration caller and verifies the private stage receipt; no client target or outcome is accepted.",
+      "source": "functions/src/index.ts (wolfTargetingStageReceipt; declareWolfAttack); functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts; authorized routed REFERENCE_ONLY_WOLF_ATTACKS.md",
+      "type": "evidence / authority / related/consumes"
+    },
+    {
+      "direction": "430 -> 428;432",
+      "id": "E-430-DECLARATION-TARGETING",
+      "language": "Superseding dependency correction for this bounded encoding: P430 consumes the already implemented targeting producer slice of partial P428, not P428's later range, boarding, damage, or casualty stages. The production declareWolfAttack path selects the expansion ring only when the authoritative active fleet contains the full Capybara resource vessel. Its server-owned d8 rerolls every 8 until a face in the seven-target ring is produced, so 7 maps to Capybara; the persisted active-vessel validator rejects the distinct base small-ship Capybara ID before declaration. A focused callable regression drives the 7, 8-then-1, and base-small rejection cases through the real declaration caller.",
+      "source": "functions/src/index.ts (wolfAttackActiveVesselIds; wolfTargetingStageReceipt; declareWolfAttack); functions/src/wolfCombatMath.ts; functions/src/wolfAttackDeclarationCallable.test.ts; authorized routed REFERENCE_ONLY_CAPYBARA_EXPANSION.md",
+      "type": "evidence / authority / related/consumes"
+    },
+    {
       "direction": "431 -> 425;428",
       "id": "E-AUDIT-431",
       "language": "Targeting consumes Wolf catalog and centralized combat math.",
@@ -15533,19 +15547,19 @@
         "acceptance": "d6 maps exactly to the six core ships from authoritative active configuration.",
         "title": "Encode base targeting."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-429",
+      "description": "The production declareWolfAttack path now revalidates the persisted active fleet tuple and invokes the server-owned targeting resolver with the printed ordered six-ship d6 ring. A declaration-stage calculation receipt records each bounded die and mapped core target, while client-supplied target assignments remain private preparation hints. Focused combat-math coverage and a deterministic declaration-callable regression drive all six base faces through the real production caller; range, boarding, damage, and casualty resolution remain deferred to later attack prompts.",
+      "evidenceIds": "E-AUDIT-429;E-429-DECLARATION-TARGETING",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "425;428",
+      "hardPromptPrerequisites": "425",
       "id": "429",
       "milestoneHints": "M9",
-      "relatedConsumes": "none",
+      "relatedConsumes": "428",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15556,19 +15570,19 @@
         "acceptance": "enabled Capybara uses d8 result 7 while 8 rerolls; base small Capybara is never a full-ship target.",
         "title": "Encode expansion targeting."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-430",
+      "description": "The production declareWolfAttack path selects the expansion target ring only when the authoritative persisted fleet contains the full Capybara resource vessel. Its server-owned d8 maps 7 to Capybara and rerolls 8 until a valid ring face is produced; the distinct base small-ship Capybara ID is rejected by the active-vessel validator before declaration. Focused combat-math coverage plus a deterministic declaration-callable regression drive the 7, 8-then-1, and base-small rejection cases through the production caller; later range, boarding, damage, and casualty stages remain deferred.",
+      "evidenceIds": "E-AUDIT-430;E-430-DECLARATION-TARGETING",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "425;428",
+      "hardPromptPrerequisites": "425",
       "id": "430",
       "milestoneHints": "M9",
-      "relatedConsumes": "none",
+      "relatedConsumes": "428",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
