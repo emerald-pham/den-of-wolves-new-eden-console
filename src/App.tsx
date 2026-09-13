@@ -114,6 +114,7 @@ function AppRoutes() {
   const me = useSessionStore((state) => state.me);
   const sessionId = session?.id;
   const playerUid = me?.uid;
+  const playerRole = me?.role;
   const playerAuthority = playerAuthorityKey(me);
   const playerListenerGeneration = useRef(0);
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
@@ -534,7 +535,7 @@ function AppRoutes() {
       useSessionStore.getState().setArbourVision(null);
       unsubscribe();
     };
-  }, [playerAuthority, playerUid, sessionId]);
+  }, [playerAuthority, playerRole, playerUid, sessionId]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;

@@ -463,6 +463,34 @@ describe('App', () => {
     unmount();
   });
 
+  it('reopens the organiser map listener after a same-UID GM promotion and rejects the former listener', async () => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    const stop = vi.fn();
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      subscriptions.push(next);
+      return stop;
+    });
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    const former = subscriptions[0]!;
+    // The GM-only read was denied while this same browser was a player.
+    act(() => former.onGmDiscovery?.(null));
+    act(() => former.onPlayer(player));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    expect(stop).toHaveBeenCalled();
+    const gm = {
+      organiserSystems: { 'system-01': '0000', 'system-17': '8378' },
+      organiserSites: {}, shipGalacticCoordinates: { aegis: '0000' },
+      shipNavigationLogs: { aegis: [] }, pursuitDistances: { aegis: 0 },
+    };
+    act(() => subscriptions[1]?.onGmDiscovery?.(gm));
+    expect(useSessionStore.getState().session?.organiserSystems).toEqual(gm.organiserSystems);
+    act(() => former.onGmDiscovery?.(null));
+    expect(useSessionStore.getState().session?.organiserSystems).toEqual(gm.organiserSystems);
+    unmount();
+  });
+
   it('keeps the GM fleet projection through own-discovery and public-header updates', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
@@ -485,12 +513,14 @@ describe('App', () => {
     };
     act(() => handlers?.onGmDiscovery?.(gm));
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
+    const previousHandlers = handlers;
     act(() => {
       handlers?.onPlayer(player);
       handlers?.onPlayerDiscovery?.(own);
       handlers?.onSession({ ...session, currentTurn: 3 });
     });
     expect(useSessionStore.getState().session).toMatchObject({ ...gm, playerDiscovery: own, currentTurn: 3 });
+    await waitFor(() => expect(handlers).not.toBe(previousHandlers));
     act(() => handlers?.onPlayerDiscovery?.(null));
     expect(useSessionStore.getState().session).toMatchObject(gm);
     expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
@@ -597,6 +627,12 @@ describe('App', () => {
     });
     expect(subscribeLoyaltyCensus).not.toHaveBeenCalled();
 
+    const memberHandlers = handlers;
+    act(() => {
+      handlers?.onPlayer(player);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    await waitFor(() => expect(handlers).not.toBe(memberHandlers));
     act(() => {
       handlers?.onPlayer(player);
       handlers?.onPlayerFreshness?.(true);

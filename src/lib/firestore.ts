@@ -1380,6 +1380,7 @@ export function subscribeSessionState(
   const database = db();
   let subscribed = true;
   const subscriptionToken = Symbol('session-subscription');
+  let gmDiscoveryTerminated = false;
   currentSessionSubscriptionToken = subscriptionToken;
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
@@ -1459,13 +1460,16 @@ export function subscribeSessionState(
     ...(handlers.onGmDiscovery ? [onSnapshot(
       doc(database, `sessions/${sessionId}/gmDiscovery/current`),
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (!subscribed || gmDiscoveryTerminated || currentSessionSubscriptionToken !== subscriptionToken) return;
+        // The full chart is privileged. A remembered GM role is insufficient
+        // to expose a cached chart before this read is authorized again.
+        if (snapshot.metadata?.fromCache === true) return;
         handlers.onGmDiscovery?.(snapshot.exists() ? gmDiscoveryProjection(snapshot.data()) ?? null : null);
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
+          gmDiscoveryTerminated = true;
           handlers.onGmDiscovery?.(null);
           return;
         }

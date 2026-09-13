@@ -1824,6 +1824,30 @@ it('does not let a late cached callback overwrite accepted server authority', ()
   expect(onFreshness.mock.calls).toEqual([[true]]);
 });
 
+it('does not hydrate the organiser map from cache or a callback after read authority is denied', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onGmDiscovery = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onGmDiscovery,
+  });
+  const snapshot = (fromCache: boolean) => ({
+    metadata: { fromCache }, exists: () => true,
+    data: () => ({ knownSystems: { 'system-17': '8378' } }),
+  });
+  callbacks[2]?.(snapshot(true));
+  expect(onGmDiscovery).not.toHaveBeenCalled();
+  callbacks[2]?.(snapshot(false));
+  expect(onGmDiscovery).toHaveBeenCalledWith(expect.objectContaining({
+    organiserSystems: { 'system-17': '8378' },
+  }));
+  errors[2]?.({ code: 'permission-denied' });
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+  onGmDiscovery.mockClear();
+  callbacks[2]?.(snapshot(false));
+  expect(onGmDiscovery).not.toHaveBeenCalled();
+});
+
 it('does not let reconnect cache replace an authoritative own-ship discovery or GM navigation projection', () => {
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();

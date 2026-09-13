@@ -43,6 +43,22 @@ it('lets the GM select a ship, click a system, and move that ship there', async 
   expect(moveShipToLocation).toHaveBeenCalledWith('aegis', '5143');
 });
 
+it('shows every GM coordinate even when the selected ship knows only its origin', async () => {
+  const user = userEvent.setup();
+  render(<GmStarmapModule session={{ ...session, playerDiscovery: {
+    groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '0000',
+    knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+    navigationLogs: [], pursuitDistance: 0, revision: 0,
+  } }} />);
+  const module = screen.getByRole('region', { name: 'GM starmap' });
+  for (const coordinate of Object.values(ORGANISER_SYSTEMS)) {
+    expect(within(module).getByRole('button', { name: new RegExp(`^System ${coordinate} //`) }))
+      .toHaveAttribute('data-system-coordinate', coordinate);
+  }
+  await user.selectOptions(within(module).getByRole('combobox', { name: /ship to move/i }), 'dione');
+  expect(module.querySelectorAll('[data-system-coordinate]')).toHaveLength(22);
+});
+
 it('freezes ship movement during endgame evaluation', async () => {
   const user = userEvent.setup();
   vi.mocked(moveShipToLocation).mockClear();
