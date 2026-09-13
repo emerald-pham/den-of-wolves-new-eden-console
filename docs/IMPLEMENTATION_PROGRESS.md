@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**234 / 751 prompts complete (31.16%)**
+**235 / 751 prompts complete (31.29%)**
 
-Status breakdown: **234 done · 25 partial · 492 missing**.
+Status breakdown: **235 done · 25 partial · 491 missing**.
 
 Active prompt: **none**
 
@@ -1154,7 +1154,7 @@ release classification and evidence.
 | 672 | missing | feature | — | Owner-requested placement of existing right-sidebar shuttle docking history inside main ship consoles, preserving its data authority, access rules, and existing sidebar behavior. |
 | 673 | done | feature | 0.3.93 | Ship navigation jump maps now show the same galactic orientation compass as the reference DRADIS through one shared component. Existing compass markup, cardinal directions, tilted axes and accessible image label are preserved. The ship-map instance sits below the Ship fix readout, outside the map scene, so markers and controls remain unobscured. Seventy-four focused map, DRADIS and aesthetic checks pass. Chromium rendering at 320x844, 1440x900 and 844x390 verifies nonoverlapping placement, correct cardinal alignment, readable labels, no horizontal overflow, continuing normal scanline motion and both reduced-motion controls. GM maps and jump authority are unchanged. |
 | 674 | missing | feature | — | Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch. |
-| 675 | missing | feature | — | Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority. |
+| 675 | done | feature | — | The authoritative final disconnect and stale-presence expiry paths pause a running clock with its exact remaining window. The first authenticated join or resume releases only an empty-session hold, shifts the deadlines once and clears the obsolete hold ticker. Manual emergency holds, completed clocks, closed sessions and debrief mode are preserved. Server and cached-client parsers retain the explicit pause reason, and ship/GM readouts explain automatic resume on reconnect. Focused presence, join, resume, ticker and parser checks pass. A real Firestore-emulator run with two simultaneous disconnects followed by two simultaneous rejoins committed exactly one pause and one resume event, returned one converged clock and restored the current airspace ticker. Independent Terra authority review and a limited ticker-fix follow-up cleared; phone, desktop and short landscape rendering retains readable controls and no page overflow. |
 | 676 | done | feature | 0.3.90 | The ship navigation map now paints its decorative sweep behind the complete map scene and viewport overlays within the existing isolated, clipped viewport. The override is scoped to ship maps, leaving GM maps and other DRADIS instruments unchanged. Existing animation timing, pointer pass-through, and both OS and app reduced-motion controls are preserved. Real Chromium rendering at 320x844, 1440x900, and 844x390 confirms the current-ship marker paints above a deliberately aligned scanline, no horizontal page overflow, unchanged clipping, and continuing normal-motion sweep. Sixty focused component/style checks pass; this is a layering-only change with no coordinate, selection, or jump-authority mutation. |
 | 677 | missing | feature | — | Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates. |
 | 678 | missing | feature | — | Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge. |

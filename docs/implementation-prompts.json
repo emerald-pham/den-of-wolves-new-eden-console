@@ -4928,6 +4928,13 @@
       "language": "One shared compass retains the reference DRADIS markup and labels and renders inside the ship navigation readout. Real browser geometry confirms the compass remains outside the map scene and inside the page at phone, desktop and short landscape sizes; N/S and W/E directions are retained. Existing map and DRADIS tests, pointer pass-through and both reduced-motion checks pass.",
       "source": "src/components/GalacticOrientationCompass.tsx; src/components/ShipPlot.tsx; src/components/Starmap.tsx; src/styles/starmap.css; /tmp/p673-render-evidence.json",
       "type": "evidence / rendered / production-path"
+    },
+    {
+      "direction": "675 -> AUTHORITATIVE-PRESENCE-TIMER",
+      "id": "E-675-PRESENCE-CLOCK",
+      "language": "Presence and clock mutations share the Firestore transaction. Only explicit empty-session pauses resume automatically; persisted remaining milliseconds determine new deadlines. Seventy-three focused lifecycle/join/resume/ticker tests passed after a red-green stored-ticker regression repair. Two concurrent disconnects and two concurrent rejoins against the configured Firestore emulator produced one pause event, one resume event and identical returned deadlines; isolated test documents were removed. Independent Terra review cleared the authority change and ticker repair. Rendered readouts at 320x844,1440x900,844x390 show the preserved countdown, reconnect message and disabled manual control with 44px controls, system monospace fonts and no horizontal overflow.",
+      "source": "functions/src/index.ts; functions/src/turnZero.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/joinSessionCallable.test.ts; src/lib/turnPhase.test.ts; /tmp/p675-concurrency.cjs; /tmp/p675-render-evidence.json",
+      "type": "evidence / callable / rendered / emulator"
     }
   ],
   "plan": {
@@ -22216,8 +22223,8 @@
         "acceptance": "When authoritative session presence determines that everyone has disconnected, automatically pause a running session timer and persist its exact remaining time. As soon as the first authenticated participant rejoins, resume that automatically paused timer from the preserved remaining time, never restart its full duration. Use existing authoritative disconnect/expiry and reconnect paths rather than a browser-local clock or arbitrary new grace period. Track the automatic empty-session pause separately from a manual or emergency GM pause; rejoining must not undo a deliberate pause or resume a completed or closed phase/session. Serialize concurrent disconnects, rejoins, timer expiry, and manual pause changes so there is one transition and no duplicate time, skipped expiry, stale overwrite, or unauthorized mutation. All clients converge on the resumed server clock. Prove last-person disconnect, abrupt loss detection, first-person rejoin, multiple simultaneous rejoins, offline hydration, manual-pause preservation, and exact remaining-time continuity with focused presence/timer tests.",
         "title": "Pause an empty session timer and resume when someone rejoins."
       },
-      "description": "Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority.",
-      "evidenceIds": "E-675;E-675-DEPENDENCIES",
+      "description": "The authoritative final disconnect and stale-presence expiry paths pause a running clock with its exact remaining window. The first authenticated join or resume releases only an empty-session hold, shifts the deadlines once and clears the obsolete hold ticker. Manual emergency holds, completed clocks, closed sessions and debrief mode are preserved. Server and cached-client parsers retain the explicit pause reason, and ship/GM readouts explain automatic resume on reconnect. Focused presence, join, resume, ticker and parser checks pass. A real Firestore-emulator run with two simultaneous disconnects followed by two simultaneous rejoins committed exactly one pause and one resume event, returned one converged clock and restored the current airspace ticker. Independent Terra authority review and a limited ticker-fix follow-up cleared; phone, desktop and short landscape rendering retains readable controls and no page overflow.",
+      "evidenceIds": "E-675;E-675-DEPENDENCIES;E-675-PRESENCE-CLOCK",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "034;038;040;097;108",
@@ -22228,7 +22235,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     },
     {
