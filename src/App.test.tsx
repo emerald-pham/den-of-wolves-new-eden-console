@@ -1097,8 +1097,8 @@ describe('App', () => {
 
     expect(useSessionStore.getState().session).toMatchObject({ name: 'Cached table' });
     expect(useSessionStore.getState().connection).toBe('offline');
-    expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
-    expect(screen.getByRole('status')).toHaveTextContent('Offline');
+    expect(screen.getByRole('status', { name: 'No connection to Firebase' })).toHaveAttribute('data-status', 'red');
+    expect(screen.getByRole('status', { name: 'No connection to Firebase' })).toHaveTextContent('Offline');
 
     act(() => {
       onSession?.({ ...session, name: 'Server table' });

@@ -26,11 +26,11 @@ it('does not reserve a standalone combat-range key in expanded DRADIS', () => {
   expect(css).not.toContain('range-bands');
 });
 
-it('lets app-wide session chrome scroll away without freezing ship names', () => {
+it('keeps the wide ticker chrome visible without freezing ship names', () => {
   const header = css.match(/\.app-header\s*\{([^}]*)\}/)?.[1] ?? '';
 
-  expect(header).toContain('position: absolute');
-  expect(header).not.toContain('position: fixed');
+  expect(header).toContain('position: fixed');
+  expect(css).toMatch(/@media \(max-width: 48rem\)\s*\{\s*\.app-header\s*\{\s*position: absolute/s);
   expect(css).not.toMatch(/\.ship-console \.ship-console__name\s*\{[^}]*position: sticky/s);
 });
 
