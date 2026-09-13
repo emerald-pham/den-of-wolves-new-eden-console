@@ -4348,6 +4348,16 @@ export const assignReplacementRole = onCall<{
     if (!privateBrief) {
       throw commandError('failed-precondition', 'Replacement role brief is unavailable.', 'malformed-input');
     }
+    const storedNavigation = await tx.get(navigationStateRef(assignment.sessionId));
+    const navigation = navigationStateForSession(storedNavigation, authority.session, activeVesselIds);
+    const rawNavigationRevision = storedNavigation.get('revision');
+    const navigationRevision = typeof rawNavigationRevision === 'number' &&
+      Number.isSafeInteger(rawNavigationRevision) && rawNavigationRevision >= 0 ? rawNavigationRevision : 0;
+    writePlayerDiscoveryProjection(
+      tx, playerDiscoveryProjectionRef(assignment.sessionId, assignment.targetUid),
+      { get: (field: string) => field === 'replacementRoleId' ? assignment.replacementRoleId : target.get(field) },
+      navigation, navigationRevision,
+    );
     tx.update(targetRef, {
       replacementRoleId: assignment.replacementRoleId,
       activeConsoleRoleId: null,

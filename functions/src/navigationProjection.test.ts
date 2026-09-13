@@ -73,3 +73,16 @@ describe('server discovery projections', () => {
     });
   });
 });
+
+it('replacement entitlement supersedes historical assignment without a fallback', () => {
+  const fields = { fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' };
+  const replacement = playerDiscoveryProjection(player({ ...fields, replacementRoleId: 'rosal-militia-leader' }), navigation, 5);
+  expect(replacement.shipId).toBe('shepherd');
+  expect(replacement.knownCoordinates).toEqual(['0000', '1413']);
+  for (const replacementRoleId of ['wolf-commander', 'unknown-role', 7]) {
+    const revoked = playerDiscoveryProjection(player({ ...fields, replacementRoleId }), navigation, 5);
+    expect(revoked.shipId).toBeUndefined();
+    expect(revoked.knownCoordinates).toEqual(['0000']);
+    expect(revoked.navigationLogs).toEqual([]);
+  }
+});

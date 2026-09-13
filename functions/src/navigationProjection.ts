@@ -1,5 +1,6 @@
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { shipForRole } from './crewAccess';
+import { replacementRoleFor } from './replacementRoles';
 import { type NavigationLogEntry, type NavigationLogs } from './navigation';
 import { discoverySystemsForCoordinates, pursuitDistanceForCoordinate } from './starChartProjection';
 
@@ -66,6 +67,10 @@ export function knownCoordinates(
 }
 
 export function playerShipId(player: Pick<DocumentSnapshot, 'get'>): string | undefined {
+  const replacement = player.get('replacementRoleId');
+  if (replacement !== undefined && replacement !== null) {
+    return typeof replacement === 'string' ? replacementRoleFor(replacement)?.vesselId : undefined;
+  }
   return shipForRole(player.get('assignedRoleId'));
 }
 

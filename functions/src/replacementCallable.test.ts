@@ -166,3 +166,25 @@ it('returns a stale result when the shared setup revision changed', async () => 
     expect.anything(),
   );
 });
+
+it.each(['comms-officer', 'wolf-commander'])('atomically replaces former ship discovery on assignment to %s', async (replacementRoleId) => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.session.shipGalacticCoordinates = { aegis: '1413', dione: '5143' };
+  mock.session.shipNavigationLogs = {};
+  mock.target.assignedRoleId = 'dione-captain';
+  mock.target.fleetGroupId = 'fleet-1';
+  mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replace-discovery',
+    targetUid: 'player-1', replacementRoleId, expectedRevision: 1, expectedSetupRevision: 4,
+  }))).resolves.toMatchObject({ status: 'committed' });
+  const write = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/playerDiscoveries/player-1');
+  expect(write).toBeDefined();
+  expect(write?.[1]).toMatchObject({
+    groupId: 'fleet-1', navigationLogs: [],
+    knownCoordinates: replacementRoleId === 'comms-officer' ? ['0000', '1413'] : ['0000'],
+  });
+  expect(write?.[1].shipId).toBe(replacementRoleId === 'comms-officer' ? 'aegis' : undefined);
+  expect(JSON.stringify(write?.[1])).not.toContain('5143');
+  expect(mock.target.assignedRoleId).toBe('dione-captain');
+});
