@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [518],
+    implementationProgress: {
+      completed: 228,
+      total: 750,
+      percentage: '30.40%',
+      done: 228,
+      partial: 25,
+      active: 0,
+      missing: 497,
+    },
+    changes: [
+      'Captains can approve a Commissar purge. The Commissar can then apply the population loss and lower unrest, once per ship per turn.',
+      '228 of 750 planned items are complete (30.40%).',
+    ],
+  },
+  {
+    version: '0.3.87',
     implementationPrompts: [512],
     implementationProgress: {
       completed: 227,
