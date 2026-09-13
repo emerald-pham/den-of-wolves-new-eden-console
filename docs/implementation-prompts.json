@@ -18824,14 +18824,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "leave, pressure, investigate, or arrest is recorded as an explicit facilitator outcome linked to the social-deduction loop.",
         "title": "Resolve zealotry responses."
       },
-      "description": "The facilitator can record an explicit private Religious Zealotry outcome at the current debated crisis revision using any non-empty unique subset of leave, pressure, investigate, and arrest, a bounded custom response, or both. The response links only the authoritative social-deduction census revision when present (or records its absence), preserves request history and replay authority, and keeps rationale, publication, binding-law handling, and automatic loyalty or suspicion effects separate.",
+      "description": "The facilitator can record an explicit private Religious Zealotry outcome at the current debated crisis revision using any non-empty unique subset of leave, pressure, investigate, and arrest, a bounded custom response, or both. The response links only the authoritative social-deduction census revision when present (or records its absence), preserves request history and replay authority, and keeps rationale, publication, binding-law handling, and automatic loyalty or suspicion effects separate. New-crisis replacement retires only the current response, preserving private history; listener and editor boundaries prevent stale responses from carrying into a later crisis.",
       "evidenceIds": "E-AUDIT-533;E-533-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18840,21 +18840,23 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.0"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
       "status": "done",
       "tag": "DECISION"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "named affected teams can submit their own grievances privately or publicly without the app inventing sentiment.",
         "title": "Deliver Civil Unrest."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Named active affected teams can author and revise their own Civil Unrest grievances privately for their team and facilitators, or publicly for session members. The server checks live role and Union pairing, Team Phase, current unresolved crisis, revision and replay authority. Public readers remain available to other members, while facilitators can read private team concerns without submitting on their behalf. Current projections retire at crisis boundaries while private audit history remains. The app does not invent grievances or apply automatic gameplay effects.",
       "evidenceIds": "E-AUDIT-534",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18863,10 +18865,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.0"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

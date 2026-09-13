@@ -688,7 +688,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 531 | NEW | missing | 530;149 | none | none | none | none | none | none | none | E-AUDIT-531 | M3;M11;M12 | Resolve quarantine policy. |
 | 532 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-532 | M3;M11;M12 | Deliver Religious Zealotry. |
 | 533 | DECISION | done | 532 | none | none | none | none | none | none | none | E-AUDIT-533;E-533-VERIFIED | M3;M11;M12 | Resolve zealotry responses. |
-| 534 | NEW | missing | 525 | none | none | none | none | none | none | none | E-AUDIT-534 | M3;M11;M12 | Deliver Civil Unrest. |
+| 534 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-534 | M3;M11;M12 | Deliver Civil Unrest. |
 | 535 | DECISION | missing | 534 | none | none | none | none | none | none | none | E-AUDIT-535 | M3;M11;M12 | Resolve Civil Unrest. |
 | 536 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-536 | M3;M11;M12 | Deliver Presidential Election. |
 | 537 | DECISION | missing | 536 | none | none | none | none | none | none | none | E-AUDIT-537 | M3;M11;M12 | Configure election procedure. |
