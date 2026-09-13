@@ -95,6 +95,8 @@ function AppRoutes() {
     if (!sessionId || !playerUid) return;
     let active = true;
     let pendingRoleBrief: RoleBriefProjection | null = null;
+    let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
+      'organiserSites' | 'organiserSystems' | 'pursuitDistances'> | null = null;
     let unsubscribe: () => void = () => undefined;
     let unsubscribeLoyaltyCensus: () => void = () => undefined;
     let censusSubscribed = false;
@@ -190,11 +192,12 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           const current = store.session;
           if (!current || current.id !== sessionId) return;
+          pendingGmDiscovery = projection;
           if (!projection) {
             store.setSession(stripGmNavigationProjection(current));
             return;
           }
-          store.setSession({ ...current, ...projection });
+          if (store.me?.role === 'gm') store.setSession({ ...current, ...projection });
         },
         onSessionFreshness: (fresh) => {
           const store = useSessionStore.getState();
@@ -226,12 +229,16 @@ function AppRoutes() {
             }
           }
           if (next.role !== 'gm') {
+            pendingGmDiscovery = null;
             clearLoyaltyCensus();
             useSessionStore.getState().setGmSetupReceipt(null);
             const current = useSessionStore.getState().session;
             if (current?.id === sessionId) {
               useSessionStore.getState().setSession(stripGmNavigationProjection(current));
             }
+          } else if (pendingGmDiscovery) {
+            const current = store.session;
+            if (current?.id === sessionId) store.setSession({ ...current, ...pendingGmDiscovery });
           }
         },
         onPlayerFreshness: (fresh) => {

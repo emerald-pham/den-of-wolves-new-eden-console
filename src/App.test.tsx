@@ -467,7 +467,7 @@ describe('App', () => {
       handlers = next;
       return vi.fn();
     });
-    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
     const { unmount } = render(<App />);
     await waitFor(() => expect(handlers).toBeDefined());
     const gm = {
@@ -481,8 +481,10 @@ describe('App', () => {
       knownCoordinates: ['0000', '5143'], knownSystems: { 'system-02': '5143' },
       navigationLogs: [], pursuitDistance: 1, revision: 2,
     };
+    act(() => handlers?.onGmDiscovery?.(gm));
+    expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     act(() => {
-      handlers?.onGmDiscovery?.(gm);
+      handlers?.onPlayer(player);
       handlers?.onPlayerDiscovery?.(own);
       handlers?.onSession({ ...session, currentTurn: 3 });
     });
@@ -562,6 +564,12 @@ describe('App', () => {
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     expect(useSessionStore.getState().session?.organiserSites).toBeUndefined();
     expect(useSessionStore.getState().session?.pursuitDistances).toBeUndefined();
+    act(() => handlers?.onGmDiscovery?.({
+      shipGalacticCoordinates: { dione: '8378' }, shipNavigationLogs: { dione: [] },
+      organiserSystems: { 'system-17': '8378' }, organiserSites: {}, pursuitDistances: { dione: 6 },
+    }));
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
+    expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
     act(() => censusCallback?.({
