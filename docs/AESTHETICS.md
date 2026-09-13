@@ -382,11 +382,11 @@ instrument. They use the same ruled border, near-black ground, compact height,
 and monospaced readout scale; they never attach to the viewport bottom or cover
 the console. On constrained widths the broadcast occupies its own full-width
 row inside that same measured header, so the console offset still accounts for
-it. The SNN ticker remains absent until the Press Officer publishes the first
-dispatch, then returns between finite broadcasts. A freshly joined Turn 0
-member may still see the separate server-owned `AIRSPACE CONTROL // TURN 0 //
-STANDING BY` bulletin before any Press publication; this ATC standing-by copy
-is not an SNN dispatch. Press dispatches leave a
+it. The ticker is always present. ATC supplies `AIRSPACE CONTROL // AIRSPACE
+CLOSED // CYCLE 0` immediately on joining; Press takes over the eligible pool
+when it publishes dispatches, and Aegis takes top priority. Follow
+[Ticker Behavior](TICKER_BEHAVIOR.md) for source selection and physical handoffs.
+Press dispatches leave a
 deliberately long field of empty track between repetitions,
 so each item reads as a discrete wire-service bulletin rather than a dense alert.
 Stable moving broadcasts keep two identical groups, with enough copies in each
@@ -1210,6 +1210,9 @@ navigation, DRADIS, FleetBroadcast, star-map, Press, shuttle, and Turn 0 layout.
 
 ### Fleet broadcast scroller
 
+[Ticker Behavior](TICKER_BEHAVIOR.md) is the canonical source-pool and playback
+contract. The following details specify its shared visual treatment.
+
 Fleet broadcasts use one persistent instrument in the measured top header,
 outside route transitions. Active AEGIS red alerts use hostile red type;
 stand-down and idle copy use normal bone-white type because no threat is active.
@@ -1244,8 +1247,9 @@ beyond the outgoing tail—or at the right edge when the remaining tail is alrea
 inside the window—so it enters at that same rate. Never add a separate entrance,
 exit, fade, easing curve or message-specific speed.
 
-Alert copy repeats until replaced. A stand-down has an authoritative 60-second
-server lifetime; text already visible when that deadline passes finishes locally
+Alert copy repeats until replaced. Stand Down plays exactly twice before the
+next eligible Press message enters; a fixed server lifetime cannot substitute
+for two complete visual passes. Already visible text always finishes locally
 at the same constant speed. Playback identity includes the session and alert
 revision. Prompt 106c moves current, queued, draining, dismissal, replay-cursor,
 and server-deadline truth into one server-owned, revisioned stream with
@@ -1428,10 +1432,10 @@ followed by 15 minutes of open airspace. Every console label says `AIRSPACE
 CLOSED` for the first window and `AIRSPACE OPEN` for the second. The
 current airspace-window countdown is a blue, non-interactive instrument at
 DRADIS’s lower left in both compact and expanded shipboard and fleet views.
-At the same transition, Airspace Control posts a normal, long-gap ticker
-bulletin. During the closed window it reads `AIRSPACE CONTROL // AIRSPACE
+At the same transition, Airspace Control updates its normal, long-gap fallback
+bulletin without interrupting an eligible Press pool. During the closed window it reads `AIRSPACE CONTROL // AIRSPACE
 CLOSED`; during the open window it reads `AIRSPACE CONTROL // AIRSPACE OPEN`. The closed bulletin
-yields while AEGIS or the Press sends newer broadcast copy. When that news ends,
+yields while Aegis or eligible Press news controls the pool. When that news ends,
 ATC supplies the standing bulletin using the current server airspace state.
 The ticker remains visible on every joined screen, including Cycle 0 before role
 selection. While a server dispatch is arriving, the neutral `AIRSPACE CONTROL //

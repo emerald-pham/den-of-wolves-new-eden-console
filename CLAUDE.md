@@ -225,10 +225,15 @@ announcements, accessible names, errors, and release notes. Never label it a
 turn. Existing wire fields, callable names, document IDs, and internal symbols
 such as `currentTurn` remain compatible; this is a product-copy convention.
 
+The canonical pool, priority, and physical handoff contract is
+[Ticker Behavior](docs/TICKER_BEHAVIOR.md). Priority changes future entries,
+never visible text; Stand Down plays twice before Press resumes.
+
 The news ticker has three player-facing sources: Air Traffic Control for
 airspace open/closed status, Press for published news, and Aegis for Red Alert
 and Stand Down. Preserve each source's authoritative state and displayed
-identity. ATC bulletins yield to newer Press or Aegis copy; active Press news
+identity. Eligible Press news takes precedence over ATC regardless of the
+age of a phase notice; Aegis takes precedence over Press. Active Press news
 returns after an Aegis interruption without reviving dismissed news. When no
 news remains, ATC provides the standing bulletin from the current server state.
 The ticker stays visible on every joined screen, including Cycle 0 before role
