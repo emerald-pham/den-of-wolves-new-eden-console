@@ -242,7 +242,7 @@ import {
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
-  VIP_CARD_DEFINITIONS,
+  availableVipCards,
   drawVipCardState,
   emptyVipDeckState,
   parseVipDeckState,
@@ -10647,16 +10647,22 @@ async function requireMaintenanceAuthority(
   }
   if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
   const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
+  const replacementVipHost = player.get('role') === 'player' && shipId === 'dione' &&
+    player.get('replacementRoleId') === 'vip-host' && player.get('activeConsoleRoleId') === null;
   const activeRoleIds = (snapshot.get('activeRoleIds') as string[] | undefined) ??
     DEFAULT_ACTIVE_ROLE_IDS;
   const joint = player.get('role') === 'player' &&
     isJointEngineeringRoleAvailable(activeRoleIds, ownRoleId) &&
     jointEngineeringShipsForRole(ownRoleId).includes(shipId);
-  if (!joint) {
+  if (!joint && !replacementVipHost) {
     await requireShipCounterAuthority(tx, sessionId, uid, shipId, instanceId);
   }
   if (consoleRoleId && player.get('role') !== 'gm') {
-    if (joint) {
+    if (replacementVipHost) {
+      if (consoleRoleId !== 'vip-host') {
+        throw new HttpsError('permission-denied', 'VIP Host may only use the Dione VIP Lounge authority.');
+      }
+    } else if (joint) {
       if (consoleRoleId !== ownRoleId) {
         throw new HttpsError('permission-denied', 'Joint Engineering may only use its assigned console.');
       }
@@ -11029,7 +11035,7 @@ export const drawVipCard = onCall<{
   }
   const data = requireVipCardDrawRequest(raw);
   if (data.shipId !== 'dione' ||
-      (data.consoleRoleId !== undefined && shipForRole(data.consoleRoleId) !== 'dione') ||
+      (data.consoleRoleId !== undefined && data.consoleRoleId !== 'vip-host' && shipForRole(data.consoleRoleId) !== 'dione') ||
       (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId)) ||
       (data.consoleRoleId !== undefined && !/^[\w-]{1,128}$/.test(data.consoleRoleId))) {
     throw new HttpsError('invalid-argument', 'VIP cards may only be drawn from the Dione Lounge.');
@@ -11042,6 +11048,8 @@ export const drawVipCard = onCall<{
     data.expectedRevision, { shipId: data.shipId, consoleRoleId: data.consoleRoleId ?? null },
   );
 
+  let preflightAvailableCount = 0;
+  let preflightDeckRevision = 0;
   const preflight = await db.runTransaction(async tx => {
     const { player, snapshot } = await requireMaintenanceAuthority(
       tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
@@ -11080,7 +11088,9 @@ export const drawVipCard = onCall<{
       throw commandError('failed-precondition', 'A damaged VIP Lounge cannot be charged or used.', 'conflict');
     }
     const deck = vipDeckState(await tx.get(deckRef));
-    if (!drawVipCardState(deck, uid, 0)) {
+    preflightAvailableCount = availableVipCards(deck).length;
+    preflightDeckRevision = deck.revision;
+    if (!preflightAvailableCount) {
       throw commandError('failed-precondition', 'All nine Dione VIP cards have already been dealt.', 'conflict');
     }
     return null;
@@ -11088,7 +11098,7 @@ export const drawVipCard = onCall<{
   if (preflight) return preflight;
 
   // Select entropy only after request identity and actor authority are valid.
-  const randomIndex = randomInt(0, VIP_CARD_DEFINITIONS.length);
+  const randomIndex = randomInt(0, preflightAvailableCount);
   const serverTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const { player, snapshot } = await requireMaintenanceAuthority(
@@ -11129,6 +11139,9 @@ export const drawVipCard = onCall<{
     }
     const deckSnapshot = await tx.get(deckRef);
     const deck = vipDeckState(deckSnapshot);
+    if (deck.revision !== preflightDeckRevision) {
+      throw commandError('failed-precondition', 'The Dione VIP deck changed; retry the draw.', 'conflict');
+    }
     const drawn = drawVipCardState(deck, uid, randomIndex);
     if (!drawn) {
       throw commandError('failed-precondition', 'All nine Dione VIP cards have already been dealt.', 'conflict');

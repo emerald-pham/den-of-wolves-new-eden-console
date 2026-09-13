@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MaintenanceSystems from './MaintenanceSystems';
+import DioneVipCards from './DioneVipCards';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player } from '@/types/game';
 const rollback = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -158,9 +159,9 @@ it('renders the Dione VIP Lounge as a private step-5 action with a later-use bou
     shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
     maintenanceCycles: { dione: { step: 5, revision: 3, results: {}, charges: ['vip-lounge'], refuelled: [] } },
   } });
-  render(<MaintenanceSystems name="Dione" shipId="dione"
-    systems={[{ id: 'vip-lounge', name: 'VIP Lounge', timing: 5 }]}
-    renderSystem={() => null} rations={null} />);
+  render(<DioneVipCards shipId="dione"
+    cycle={{ step: 5, revision: 3, charges: ['vip-lounge'] }}
+    damaged={false} />);
 
   expect(await screen.findByRole('button', { name: 'Draw private VIP card' })).toBeEnabled();
   expect(screen.getByText(/Prompt 191 owns the printed effect/i)).toBeVisible();
@@ -185,9 +186,9 @@ it('keeps an owned card available for Coordination transfer after maintenance ad
     },
     maintenanceCycles: { dione: { step: 6, revision: 3, results: {}, charges: [], refuelled: [] } },
   } });
-  render(<MaintenanceSystems name="Dione" shipId="dione"
-    systems={[{ id: 'vip-lounge', name: 'VIP Lounge', timing: 5 }]}
-    renderSystem={() => null} rations={null} />);
+  render(<DioneVipCards shipId="dione"
+    cycle={{ step: 6, revision: 3, charges: [] }}
+    damaged={false} />);
 
   expect(await screen.findByText('Transfer a VIP card')).toBeVisible();
   expect(screen.getByRole('option', { name: 'Party Deck' })).toBeVisible();

@@ -177,3 +177,19 @@ it('lets an assigned officer view another console without releasing their role, 
   expect(screen.getByText('Wing console')).toBeVisible();
   expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('admiral');
 });
+
+it('makes the current replacement VIP Host console reachable with no active core role', async () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, replacementRoleId: 'vip-host', activeConsoleRoleId: null });
+
+  render(<MemoryRouter initialEntries={['/ships/dione/roles']}><Routes>
+    <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
+    <Route path="/ships/dione/roles/vip-host" element={<p>VIP Host console</p>} />
+  </Routes></MemoryRouter>);
+
+  const vipHost = screen.getByRole('link', { name: 'VIP Host' });
+  expect(vipHost).toHaveAttribute('href', '/ships/dione/roles/vip-host');
+  await userEvent.click(vipHost);
+  expect(screen.getByText('VIP Host console')).toBeVisible();
+});

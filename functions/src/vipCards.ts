@@ -119,8 +119,8 @@ export function drawVipCardState(
   randomIndex: number,
 ): { readonly state: VipDeckState; readonly card: VipDeckCard } | undefined {
   const available = availableVipCards(state);
-  if (!Number.isSafeInteger(randomIndex) || randomIndex < 0 || available.length === 0) return undefined;
-  const card = available[randomIndex % available.length];
+  if (!Number.isSafeInteger(randomIndex) || randomIndex < 0 || randomIndex >= available.length) return undefined;
+  const card = available[randomIndex];
   if (!card) return undefined;
   const next: VipDeckCard = { ...card, ownerUid, status: 'available' };
   return {

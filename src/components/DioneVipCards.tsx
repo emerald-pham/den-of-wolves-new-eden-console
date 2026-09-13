@@ -7,9 +7,11 @@ import { drawVipCard, transferVipCard } from '@/lib/vipCardService';
 import type { Player, VipHand } from '@/types/game';
 
 export default function DioneVipCards({
+  shipId,
   cycle,
   damaged,
 }: {
+  readonly shipId: string;
   readonly cycle: { readonly step: number; readonly revision: number; readonly charges: readonly string[] } | undefined;
   readonly damaged: boolean;
 }) {
@@ -47,9 +49,10 @@ export default function DioneVipCards({
 
   const currentPhase = session ? phaseForSession(session) : undefined;
   const coordination = currentPhase?.airspace.state === 'lifted';
+  const isDione = shipId === 'dione';
   const availableCards = hand?.cards.filter((card) => card.status === 'available') ?? [];
   const recipients = players.filter((player) => player.uid !== me?.uid && player.role === 'player');
-  const drawBlocked = !access.writable || pending || !session || !me || connection !== 'live' ||
+  const drawBlocked = !isDione || !access.writable || pending || !session || !me || connection !== 'live' ||
     session.currentTurn === 0 || coordination || damaged || cycle?.step !== 5 ||
     !cycle.charges.includes('vip-lounge');
   const transferBlocked = !access.writable || pending || !session || !me || connection !== 'live' ||
@@ -71,14 +74,21 @@ export default function DioneVipCards({
     finally { setPending(false); }
   }
 
+  const showDioneDraw = isDione && Boolean(cycle?.charges.includes('vip-lounge'));
+  if (!showDioneDraw && !hand?.cards.length) return null;
+
   return <section className="dione-vip-cards cic-frame" aria-label="Dione VIP cards">
     <p className="ship-resources__eyebrow">VIP Lounge // private card hand</p>
-    <p>Only your signed-in player can read these cards. The charged K♣ Lounge draws one of the nine named cards during maintenance step 5.</p>
+    <p>Only your signed-in player can read these cards. {isDione
+      ? 'The charged K♣ Lounge draws one of the nine named cards during maintenance step 5.'
+      : 'Your active console keeps this private hand available across ships.'}</p>
     {error && <p role="alert">{error}</p>}
-    <button className="cic-action-button" type="button" disabled={drawBlocked} onClick={() => void draw()}>
-      {pending ? 'Drawing…' : 'Draw private VIP card'}
-    </button>
-    {damaged && <p role="status">VIP Lounge damaged // cannot be charged or used.</p>}
+    {showDioneDraw && <>
+      <button className="cic-action-button" type="button" disabled={drawBlocked} onClick={() => void draw()}>
+        {pending ? 'Drawing…' : 'Draw private VIP card'}
+      </button>
+      {damaged && <p role="status">VIP Lounge damaged // cannot be charged or used.</p>}
+    </>}
     {hand?.cards.length ? <ul aria-label="Your private VIP cards">
       {hand.cards.map((card) => <li key={card.id}>
         <strong>{card.name}</strong> <span>// {card.status === 'spent' ? 'SPENT' : 'UNSPENT'}</span>

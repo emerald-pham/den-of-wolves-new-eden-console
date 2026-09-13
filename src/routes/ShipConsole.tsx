@@ -25,6 +25,7 @@ import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import { projectShipState } from '@/lib/shipStateProjection';
 import type { Player, DamageDraw } from '@/types/game';
+import DioneVipCards from '@/components/DioneVipCards';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
 const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
@@ -50,16 +51,20 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const shipState = ship && session ? projectShipState(session, ship.id) : undefined;
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
   const ownShip = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId;
+  const replacementVipHost = Boolean(
+    !isGm && me?.replacementRoleId === 'vip-host' && me?.activeConsoleRoleId === null &&
+    ship?.id === 'dione' && roleId === 'vip-host',
+  );
   const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
   const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
   const [observerWrite, setObserverWrite] = useState(false);
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
-  const hasConfirmedRole = !observer && me?.activeConsoleRoleId === consoleRole?.id;
+  const hasConfirmedRole = !observer && (me?.activeConsoleRoleId === consoleRole?.id || replacementVipHost);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
   const configuredShipRoles = ship?.roles.filter(role => activeRoleIds.includes(role.id)) ?? [];
-  const roleEnabled = !roleId || activeRoleIds.includes(roleId);
+  const roleEnabled = !roleId || activeRoleIds.includes(roleId) || replacementVipHost;
   const canCoverShortStaffedShip = Boolean(
     !observer && visiting && crew && ship && ownShip === ship.id &&
     configuredShipRoles.length > 0 && !configuredShipRoles.every(role => crew.some(player =>
@@ -68,7 +73,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
   const consoleLocked = shipState?.consoleLocked ?? false;
   const effectiveWritable = writable && !consoleLocked && session?.phase !== 'debrief';
-  const validRole = !roleId || consoleRole?.shipId === ship?.id;
+  const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [hideResources, setHideResources] = useState(false);
@@ -263,8 +268,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </p>
         )}
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />
-        {(consoleRole || observer) && (
-          <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
+        {(consoleRole || observer || replacementVipHost) && (
+          <RoleAssignment value={observer ? 'Observer' : replacementVipHost ? 'VIP Host' : consoleRole?.name ?? ''} />
         )}
         <section className="ship-console__travel-lock cic-frame" aria-label="ICN console lock">
           <p className="ship-resources__eyebrow">ICN console lock // {consoleLocked ? 'engaged' : 'clear'}</p>
@@ -301,6 +306,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             shipState={shipState}
           />
         )}
+        <DioneVipCards
+          shipId={ship.id}
+          cycle={ship.id === 'dione' ? shipState?.maintenanceCycle : undefined}
+          damaged={ship.id === 'dione' && (shipState?.damage?.damagedSystemIds.includes('vip-lounge') ?? false)}
+        />
         {damageDraws.some((draw) => draw.shipId === ship.id) && (
           <section className="ship-damage-cards cic-frame" aria-label={`${ship.name} ship systems`}>
             <p className="ship-resources__eyebrow">Ship systems // damage cards</p>

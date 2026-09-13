@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   VIP_CARD_DEFINITIONS,
+  availableVipCards,
   consumeVipCardState,
   drawVipCardState,
   emptyVipDeckState,
@@ -31,6 +32,22 @@ describe('Dione VIP deck', () => {
     const first = drawVipCardState(emptyVipDeckState(), 'alice', 0)!;
     expect(drawVipCardState(first.state, 'bob', 0)?.card.id).not.toBe(first.card.id);
     expect(parseVipDeckState({ revision: 1, cards: [] })).toBeUndefined();
+  });
+
+  it('indexes uniformly within the remaining cards without wrapping high indexes', () => {
+    const state = emptyVipDeckState();
+    const partiallyDepleted = {
+      ...state,
+      revision: 6,
+      cards: state.cards.map((card, index) => index < 6
+        ? { ...card, ownerUid: `owner-${index}` }
+        : card),
+    };
+    expect(availableVipCards(partiallyDepleted).map((card) => card.id)).toEqual([
+      'art-deck', 'family-fun-deck', 'theme-park-deck',
+    ]);
+    expect(drawVipCardState(partiallyDepleted, 'alice', 2)?.card.id).toBe('theme-park-deck');
+    expect(drawVipCardState(partiallyDepleted, 'alice', 3)).toBeUndefined();
   });
 
   it('transfers only the current unspent owner card and rejects stale owners', () => {

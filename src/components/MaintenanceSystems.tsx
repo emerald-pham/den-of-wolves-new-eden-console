@@ -11,7 +11,6 @@ import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
-import DioneVipCards from './DioneVipCards';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -275,10 +274,6 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           </li>;
         })}
       </ol>
-      {shipId === 'dione' && cycle && systems.some(system => system.id === 'vip-lounge') && <DioneVipCards
-        cycle={cycle}
-        damaged={damage?.damagedSystemIds.includes('vip-lounge') ?? false}
-      />}
       <button className="cic-action-button" disabled={endDisabled} onClick={() => void execute('end')}>End maintenance cycle</button>
       {cycle?.results['7'] && <p role="status">{cycle.results['7']}</p>}
       {me?.role === 'gm' && <div className="maintenance-controls" aria-label="GM damage controls">

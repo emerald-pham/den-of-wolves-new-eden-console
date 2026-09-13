@@ -17,10 +17,12 @@ vi.mock('@/lib/sessionService', () => ({
 vi.mock('@/lib/firestore', () => ({
   subscribeShipConfetti: vi.fn(),
   subscribeDamageDraws: vi.fn(),
-  subscribeConnectedPlayers: vi.fn(),
+  subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+  subscribeVipCards: vi.fn(),
 }));
 
 vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
+vi.mock('@/lib/vipCardService', () => ({ drawVipCard: vi.fn(), transferVipCard: vi.fn() }));
 
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
@@ -28,6 +30,8 @@ const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionServ
 const { buildFighter } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 const { subscribeDamageDraws } = await import('@/lib/firestore');
+const { subscribeVipCards } = await import('@/lib/firestore');
+const { drawVipCard, transferVipCard } = await import('@/lib/vipCardService');
 
 beforeEach(() => {
   vi.mocked(popShipConfetti).mockReset();
@@ -49,6 +53,15 @@ beforeEach(() => {
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   vi.mocked(subscribeDamageDraws).mockReset();
   vi.mocked(subscribeDamageDraws).mockReturnValue(vi.fn());
+  vi.mocked(subscribeVipCards).mockReset();
+  vi.mocked(subscribeVipCards).mockImplementation((_sessionId, _uid, onCards) => {
+    onCards({ sessionId: 's1', ownerUid: 'u1', revision: 0, cards: [] });
+    return vi.fn();
+  });
+  vi.mocked(transferVipCard).mockReset();
+  vi.mocked(transferVipCard).mockResolvedValue(undefined);
+  vi.mocked(drawVipCard).mockReset();
+  vi.mocked(drawVipCard).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(
     {
@@ -1250,4 +1263,72 @@ it('redirects a GM away from an inactive expansion ship in a base session', () =
   );
 
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+});
+
+it('lets a transferred recipient view and retransfer a private card from their active ship console', async () => {
+  const { subscribeConnectedPlayers } = await import('@/lib/firestore');
+  const activeSession = useSessionStore.getState().session;
+  const activeMe = useSessionStore.getState().me;
+  if (!activeSession || !activeMe) throw new Error('Expected active session state.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    currentTurn: 1,
+    activeRoleIds: ['admiral'],
+    activeVesselIds: ['aegis', 'dione'],
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-13T00:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-14T00:00:00.000Z',
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+  });
+  useSessionStore.getState().setMe({ ...activeMe, activeConsoleRoleId: 'admiral' });
+  useSessionStore.getState().setConnection('live');
+  vi.mocked(subscribeVipCards).mockImplementationOnce((_sessionId, _uid, onCards) => {
+    onCards({ sessionId: 's1', ownerUid: 'u1', revision: 4, cards: [{ id: 'party-deck', name: 'Party Deck', status: 'available' }] });
+    return vi.fn();
+  });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{ ...activeMe, uid: 'u2', displayName: 'New Owner', activeConsoleRoleId: 'dione-captain' }]);
+    return vi.fn();
+  });
+
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(await screen.findByText('Transfer a VIP card')).toBeVisible();
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'VIP card to transfer' }), 'party-deck');
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'VIP card recipient' }), 'u2');
+  const transfer = screen.getByRole('button', { name: 'Transfer card' });
+  expect(transfer).toBeEnabled();
+  await userEvent.click(transfer);
+  expect(transferVipCard).toHaveBeenCalledWith('party-deck', 'u2', 4);
+});
+
+it('lets the current replacement VIP Host reach the Dione draw control without a core role', async () => {
+  const activeSession = useSessionStore.getState().session;
+  const activeMe = useSessionStore.getState().me;
+  if (!activeSession || !activeMe) throw new Error('Expected active session state.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    currentTurn: 1,
+    activeRoleIds: ['dione-captain'],
+    activeVesselIds: ['dione'],
+    shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { dione: { turn: 1, step: 5, revision: 3, results: {}, charges: ['vip-lounge'], refuelled: [] } },
+  });
+  useSessionStore.getState().setMe({ ...activeMe, replacementRoleId: 'vip-host', activeConsoleRoleId: null });
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter initialEntries={['/ships/dione/roles/vip-host']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+  </Routes></MemoryRouter>);
+
+  const draw = await screen.findByRole('button', { name: 'Draw private VIP card' });
+  expect(draw).toBeEnabled();
+  await userEvent.click(draw);
+  expect(drawVipCard).toHaveBeenCalledWith(3, 'vip-host');
 });

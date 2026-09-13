@@ -5,6 +5,7 @@ import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import { selectIsGm } from '@/store/useSessionStore';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+import { replacementRoleFor } from '@/data/replacementRoles';
 
 export default function ShipRoleSelect() {
   const { shipId } = useParams();
@@ -15,7 +16,9 @@ export default function ShipRoleSelect() {
   const ship = findShip(shipId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
-  const aboard = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId === shipId;
+  const replacement = me?.replacementRoleId ? replacementRoleFor(me.replacementRoleId) : undefined;
+  const replacementAboard = replacement?.id === 'vip-host' && replacement.vesselId === shipId;
+  const aboard = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId === shipId || replacementAboard;
   const roles = rolesForShip(shipId ?? '').filter((role) => aboard || activeRoleIds.includes(role.id));
 
   if (!session || !me) return <Navigate to="/" replace />;
@@ -59,6 +62,12 @@ export default function ShipRoleSelect() {
               <span className="role-card__name">{role.name}</span>
             </Link>
           ))}
+          {replacementAboard && (
+            <Link className="role-card cic-frame" to={`/ships/${ship.id}/roles/vip-host`} aria-label="VIP Host">
+              <span className="role-card__name">VIP Host</span>
+              <span className="role-card__description">Private Dione VIP hand</span>
+            </Link>
+          )}
           {isGm && (
             <Link
               className="role-card cic-frame"

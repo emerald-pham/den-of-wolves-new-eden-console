@@ -22,6 +22,8 @@ vi.mock('firebase-admin/firestore', () => ({
         if (ref.path === 'sessions/s1/players/gm1') return snapshot(gmFields, ref.path);
         if (ref.path === 'sessions/s1/players/alice') return snapshot(aliceFields, ref.path);
         if (ref.path === 'sessions/s1/players/bob') return snapshot(bobFields, ref.path);
+        if (ref.path === 'sessions/s1/players/vip') return snapshot(vipHostFields, ref.path);
+        if (ref.path === 'sessions/s1/players/other') return snapshot(otherReplacementFields, ref.path);
         if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(gmInstanceFields, ref.path);
         return snapshot({}, ref.path, false);
       },
@@ -77,6 +79,8 @@ const sessionFields: Record<string, unknown> = {
 const gmFields = { role: 'gm', connected: true, activeConsoleRoleId: undefined };
 const aliceFields = { role: 'player', connected: true, activeConsoleRoleId: 'dione-captain' };
 const bobFields = { role: 'player', connected: true, activeConsoleRoleId: 'dione-president' };
+const vipHostFields = { role: 'player', connected: true, activeConsoleRoleId: null, replacementRoleId: 'vip-host' };
+const otherReplacementFields = { role: 'player', connected: true, activeConsoleRoleId: null, replacementRoleId: 'comms-officer' };
 const gmInstanceFields = { uid: 'gm1', connected: true, claimedAt: new Date(), lastSeenAt: new Date() };
 
 function request(data: Record<string, unknown>, uid = 'gm1') {
@@ -148,6 +152,51 @@ describe('drawVipCard', () => {
     await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'stale-draw' }))).resolves.toMatchObject({
       status: 'stale', currentRevision: 4,
     });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+  });
+
+  it('rejects a depleted deck before server randomness', async () => {
+    mock.documents.set('sessions/s1/serverState/vipCards', {
+      revision: 9,
+      cards: [
+        ...['party-deck', 'spa-deck', 'gaming-deck', 'casino-deck', 'theatre-deck', 'restaurant-deck', 'art-deck', 'family-fun-deck', 'theme-park-deck']
+          .map(id => ({ id, name: id, ownerUid: 'owner', status: 'available' })),
+      ],
+    });
+    await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'depleted-deck' }, 'alice')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+  });
+
+  it('draws uniformly from the remaining cards after partial depletion', async () => {
+    mock.randomInt.mockReturnValue(2);
+    mock.documents.set('sessions/s1/serverState/vipCards', {
+      revision: 6,
+      cards: [
+        ...['party-deck', 'spa-deck', 'gaming-deck', 'casino-deck', 'theatre-deck', 'restaurant-deck']
+          .map((id, index) => ({ id, name: id, ownerUid: `owner-${index}`, status: 'available' })),
+        ...['art-deck', 'family-fun-deck', 'theme-park-deck']
+          .map(id => ({ id, name: id, ownerUid: null, status: 'available' })),
+      ],
+    });
+
+    await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'partial-deck' }, 'alice')))
+      .resolves.toMatchObject({ status: 'committed', deckRevision: 7 });
+    expect(mock.randomInt).toHaveBeenCalledWith(0, 3);
+    expect(mock.documents.get('sessions/s1/vipHands/alice')).toMatchObject({
+      cards: [{ id: 'theme-park-deck', status: 'available' }],
+    });
+  });
+
+  it('allows the current replacement VIP Host to draw with no active console role', async () => {
+    await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'replacement-vip-host', consoleRoleId: 'vip-host' }, 'vip')))
+      .resolves.toMatchObject({ status: 'committed', deckRevision: 1 });
+    expect(mock.randomInt).toHaveBeenCalledWith(0, 9);
+  });
+
+  it('does not grant Dione VIP authority to another replacement role', async () => {
+    await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'other-replacement', consoleRoleId: 'vip-host' }, 'other')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
     expect(mock.randomInt).not.toHaveBeenCalled();
   });
 });
