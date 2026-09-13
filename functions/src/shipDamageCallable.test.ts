@@ -46,6 +46,14 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path.includes('/private/shipConsoleWriteGrant')) {
+      const instanceId = path.split('/').at(-3) ?? '';
+      const fields = {
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId,
+        uid: mock.owner, shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+      } as Record<string, unknown>;
+      return { exists: true, get: (key: string) => fields[key] };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
@@ -226,6 +234,14 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path.includes('/damageDraws/')) return { exists: true, get: () => undefined };
+    if (path.includes('/private/shipConsoleWriteGrant')) {
+      const instanceId = path.split('/').at(-3) ?? '';
+      const fields = {
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId,
+        uid: mock.owner, shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+      } as Record<string, unknown>;
+      return { exists: true, get: (key: string) => fields[key] };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')

@@ -74,12 +74,17 @@ it('allows an entitled Admiral at Turn 0 and still checks the GM instance', asyn
   mock.role = 'gm';
   const previous = mock.get.getMockImplementation()!;
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/private/shipConsoleWriteGrant')) {
+      return { exists: true, get: (key: string) => ({
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'gm1', uid: 'u1',
+        shipId: 'aegis', grantedAt: new Date().toISOString(),
+      } as Record<string, unknown>)[key] };
+    }
     return path.includes('/gmInstances/')
     ? { exists: true, get: (key: string) => ({
       uid: 'u1', connected: true,
         claimedAt: { toMillis: () => Date.now() },
         lastSeenAt: { toMillis: () => Date.now() },
-        shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
       } as Record<string, unknown>)[key] }
     : previous(path);
   });
@@ -132,28 +137,36 @@ it('allows AEGIS relief only while the connected complement is incomplete', asyn
 it('lets a verified GM observer command the Admiral console without claiming it', async () => {
   mock.role = 'gm'; mock.post = '';
   const previous = mock.get.getMockImplementation()!;
-  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')
+  mock.get.mockImplementation(async (path: string) => path.includes('/private/shipConsoleWriteGrant')
     ? { exists: true, get: (key: string) => ({
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'gm1', uid: 'u1',
+        shipId: 'aegis', grantedAt: new Date().toISOString(),
+      } as Record<string, unknown>)[key] }
+    : path.includes('/gmInstances/')
+      ? { exists: true, get: (key: string) => ({
         uid: 'u1', connected: true,
         claimedAt: { toMillis: () => Date.now() },
         lastSeenAt: { toMillis: () => Date.now() },
-        shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
       } as Record<string, unknown>)[key] }
-    : previous(path));
+      : previous(path));
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>)).resolves.toMatchObject({ revision: 1 });
 });
 
 it('rejects a GM fleet alert when the scoped grant belongs to another ship', async () => {
   mock.role = 'gm'; mock.post = '';
   const previous = mock.get.getMockImplementation()!;
-  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')
+  mock.get.mockImplementation(async (path: string) => path.includes('/private/shipConsoleWriteGrant')
     ? { exists: true, get: (key: string) => ({
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'gm1', uid: 'u1',
+        shipId: 'dione', grantedAt: new Date().toISOString(),
+      } as Record<string, unknown>)[key] }
+    : path.includes('/gmInstances/')
+      ? { exists: true, get: (key: string) => ({
         uid: 'u1', connected: true,
         claimedAt: { toMillis: () => Date.now() },
         lastSeenAt: { toMillis: () => Date.now() },
-        shipConsoleWriteGrant: { shipId: 'dione', grantedAt: new Date().toISOString() },
       } as Record<string, unknown>)[key] }
-    : previous(path));
+      : previous(path));
 
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>))
     .rejects.toMatchObject({ code: 'permission-denied' });

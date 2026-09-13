@@ -59,6 +59,15 @@ vi.mock('firebase-admin/firestore', () => ({
             const updates: Array<readonly [string, Record<string, unknown>]> = [];
             const sets: Array<readonly [string, Record<string, unknown>]> = [];
             const document = (path: string) => {
+              if (path.includes('/private/shipConsoleWriteGrant')) {
+                const instanceId = path.split('/').at(-3) ?? '';
+                const fields = {
+                  type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId,
+                  uid: mock.gmInstanceOwners[instanceId] ?? mock.owner,
+                  shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+                } as Record<string, unknown>;
+                return { exists: true, get: (key: string) => fields[key] };
+              }
               if (path.includes('/commandReceipts/')) {
                 const fields = mock.commandReceipts[path];
                 return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
@@ -203,6 +212,13 @@ vi.mock('firebase-admin/firestore', () => ({
               }
               const fields: Record<string, unknown> = path.includes('/players/')
                 ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId }
+                : path.includes('/private/shipConsoleWriteGrant')
+                  ? {
+                      type: 'gm-ship-console-write-grant', sessionId: 's1',
+                      instanceId: path.split('/').at(-3) ?? '',
+                      uid: mock.gmInstanceOwners[path.split('/').at(-3) ?? ''] ?? mock.owner,
+                      shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+                    }
                 : path.includes('/gmInstances/')
                   ? {
                       uid: mock.gmInstanceOwners[path.split('/').at(-1) ?? ''] ?? mock.owner,
@@ -351,6 +367,15 @@ beforeEach(() => {
     }
     if (path.includes('/maintenanceUndo/')) {
       return { exists: true, get: (key: string) => key === 'entries' ? [] : undefined };
+    }
+    if (path.includes('/private/shipConsoleWriteGrant')) {
+      const instanceId = path.split('/').at(-3) ?? '';
+      const fields = {
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId,
+        uid: mock.gmInstanceOwners[instanceId] ?? mock.owner,
+        shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+      } as Record<string, unknown>;
+      return { exists: true, get: (key: string) => fields[key] };
     }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
@@ -2327,6 +2352,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
       claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
             shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
     },
+    'sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant': {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'u1',
+      shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+    },
     'sessions/s1/events/pre-existing': { type: 'historical-maintenance', revision: 0 },
   };
   const read = (record: Record<string, unknown> | undefined, key: string): unknown => key.split('.').reduce<unknown>((value, part) => value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, record);
@@ -2457,6 +2486,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
     claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
     shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
   };
+  records['sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant'] = {
+    type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'u2',
+    shipId: mock.grantShip, grantedAt: new Date().toISOString(),
+  };
   mock.owner = 'u2';
   mock.update.mockClear();
   mock.set.mockClear();
@@ -2471,6 +2504,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
     uid: 'u1', connected: true,
     claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
     shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() },
+  };
+  records['sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant'] = {
+    type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'u1',
+    shipId: mock.grantShip, grantedAt: new Date().toISOString(),
   };
   mock.update.mockClear();
   mock.set.mockClear();

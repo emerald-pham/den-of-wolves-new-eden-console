@@ -171,6 +171,7 @@ function player(uid: string, fields: StoredDocument = {}) {
 }
 
 function instance(id: string, uid: string, fields: StoredDocument = {}) {
+  const { shipConsoleWriteGrant, ...publicFields } = fields;
   put('sessions/s1/gmInstances/' + id, {
     uid,
     sessionId: 's1',
@@ -179,8 +180,15 @@ function instance(id: string, uid: string, fields: StoredDocument = {}) {
     connected: true,
     claimedAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString(),
-    ...fields,
+    ...publicFields,
   });
+  if (shipConsoleWriteGrant && typeof shipConsoleWriteGrant === 'object') {
+    const grant = shipConsoleWriteGrant as Record<string, unknown>;
+    put(`sessions/s1/gmInstances/${id}/private/shipConsoleWriteGrant`, {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: id, uid,
+      shipId: grant.shipId, grantedAt: grant.grantedAt,
+    });
+  }
 }
 
 async function login() {
@@ -304,21 +312,21 @@ describe('GM instance ownership', () => {
     await expect(setGmShipConsoleWriteGrant.run(request({
       sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
     }))).resolves.toEqual({ enabled: true, shipId: 'aegis' });
-    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
-      shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }),
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
+      shipId: 'aegis',
     });
 
     await expect(setGmShipConsoleWriteGrant.run(request({
       sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: false,
     }))).resolves.toEqual({ enabled: false });
-    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
-      shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }),
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
+      shipId: 'aegis',
     });
 
     await expect(setGmShipConsoleWriteGrant.run(request({
       sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: false,
     }))).resolves.toEqual({ enabled: false });
-    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ shipConsoleWriteGrant: null });
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 
   it.each([
@@ -333,7 +341,7 @@ describe('GM instance ownership', () => {
     await expect(setGmShipConsoleWriteGrant.run(request({
       sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
     }, uid))).rejects.toMatchObject({ code: 'permission-denied' });
-    expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('shipConsoleWriteGrant');
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 
   it('rejects a grant for an inactive ship without a write', async () => {
@@ -344,7 +352,7 @@ describe('GM instance ownership', () => {
     await expect(setGmShipConsoleWriteGrant.run(request({
       sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: true,
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
-    expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('shipConsoleWriteGrant');
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 
   it('keeps sibling browser grants isolated by instance and ship', async () => {
@@ -363,10 +371,10 @@ describe('GM instance ownership', () => {
     await expect(setGmShipConsoleWriteGrant.run(request({
       sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: false,
     }))).resolves.toEqual({ enabled: false });
-    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
-      shipConsoleWriteGrant: expect.objectContaining({ shipId: 'aegis' }),
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
+      shipId: 'aegis',
     });
-    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({ shipConsoleWriteGrant: null });
+    expect(read('sessions/s1/gmInstances/tablet/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 
   it('projects each GM browser grant only to its owning browser', async () => {
@@ -375,13 +383,13 @@ describe('GM instance ownership', () => {
     player('u2', { role: 'gm' });
     instance('bridge', 'u1');
     instance('tablet', 'u2');
-    put('sessions/s1/gmInstances/bridge', {
-      ...read('sessions/s1/gmInstances/bridge'),
-      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
+    put('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant', {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'u1',
+      shipId: 'aegis', grantedAt: new Date().toISOString(),
     });
-    put('sessions/s1/gmInstances/tablet', {
-      ...read('sessions/s1/gmInstances/tablet'),
-      shipConsoleWriteGrant: { shipId: 'dione', grantedAt: new Date().toISOString() },
+    put('sessions/s1/gmInstances/tablet/private/shipConsoleWriteGrant', {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'tablet', uid: 'u2',
+      shipId: 'dione', grantedAt: new Date().toISOString(),
     });
 
     const forBridge = await listGmInstances.run(request({ sessionId: 's1' }, 'u1'));
@@ -591,7 +599,9 @@ describe('GM instance ownership', () => {
   it('logging out releases this browser GM instance', async () => {
     session();
     player('u1', { role: 'gm' });
-    instance('bridge', 'u1');
+    instance('bridge', 'u1', {
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
+    });
     await login();
 
     await expect(logoutGmAccess.run(request({ sessionId: 's1', instanceId: 'bridge' })))
@@ -599,6 +609,7 @@ describe('GM instance ownership', () => {
 
     expect(read('gmAccess/u1')).toBeUndefined();
     expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
   });
 
@@ -763,7 +774,9 @@ describe('GM instance ownership', () => {
   it('demotes only when a release removes the target final browser instance', async () => {
     session();
     player('u1', { role: 'gm' });
-    instance('bridge', 'u1');
+    instance('bridge', 'u1', {
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: new Date().toISOString() },
+    });
 
     await releaseGmInstance.run(request({
       sessionId: 's1',
@@ -772,6 +785,7 @@ describe('GM instance ownership', () => {
     }));
 
     expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
 
     player('u1', { role: 'gm' });

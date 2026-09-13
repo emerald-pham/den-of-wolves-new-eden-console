@@ -25,6 +25,9 @@ vi.mock('firebase-admin/firestore', () => ({
         if (ref.path === 'sessions/s1/players/vip') return snapshot(vipHostFields, ref.path);
         if (ref.path === 'sessions/s1/players/other') return snapshot(otherReplacementFields, ref.path);
         if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(gmInstanceFields, ref.path);
+        if (ref.path === 'sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant') {
+          return gmGrantFields ? snapshot(gmGrantFields, ref.path) : snapshot({}, ref.path, false);
+        }
         return snapshot({}, ref.path, false);
       },
       set: (ref: { path: string }, value: Record<string, unknown>) => {
@@ -83,7 +86,10 @@ const vipHostFields = { role: 'player', connected: true, activeConsoleRoleId: nu
 const otherReplacementFields = { role: 'player', connected: true, activeConsoleRoleId: null, replacementRoleId: 'comms-officer' };
 const gmInstanceFields = {
   uid: 'gm1', connected: true, claimedAt: new Date(), lastSeenAt: new Date(),
-  shipConsoleWriteGrant: { shipId: 'dione', grantedAt: new Date() },
+};
+let gmGrantFields: Record<string, unknown> | undefined = {
+  type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'gm1',
+  shipId: 'dione', grantedAt: new Date(),
 };
 
 function request(data: Record<string, unknown>, uid = 'gm1') {
@@ -100,11 +106,16 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.update.mockReset();
   mock.documents.clear();
+  gmInstanceFields.connected = true;
   sessionFields.phase = 'active';
   sessionFields.currentTurn = 1;
   sessionFields.shipDamage = {};
   sessionFields.maintenanceCycles = {
     dione: { turn: 1, step: 5, revision: 0, charges: ['vip-lounge'], results: {}, refuelled: [] },
+  };
+  gmGrantFields = {
+    type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'gm1',
+    shipId: 'dione', grantedAt: new Date(),
   };
 });
 
@@ -225,6 +236,38 @@ describe('transferVipCard', () => {
 
     await expect(transferVipCard.run(request({ ...command, requestId: 'transfer-2', expectedRevision: 2 }, 'alice'))).rejects.toMatchObject({
       code: 'failed-precondition',
+    });
+  });
+
+  it('rechecks a GM grant before replaying a committed transfer', async () => {
+    mock.documents.set('sessions/s1/serverState/vipCards', {
+      revision: 1,
+      cards: [
+        { id: 'party-deck', name: 'Party Deck', ownerUid: 'gm1', status: 'available' },
+        ...['spa-deck', 'gaming-deck', 'casino-deck', 'theatre-deck', 'restaurant-deck', 'art-deck', 'family-fun-deck', 'theme-park-deck']
+          .map(id => ({ id, name: id, ownerUid: null, status: 'available' })),
+      ],
+    });
+    const command = {
+      sessionId: 's1', requestId: 'transfer-gm-replay', cardId: 'party-deck',
+      targetUid: 'bob', expectedRevision: 1, instanceId: 'bridge',
+    };
+    await expect(transferVipCard.run(request(command))).resolves.toMatchObject({
+      status: 'committed', targetUid: 'bob', committedRevision: 2,
+    });
+
+    gmGrantFields = undefined;
+    await expect(transferVipCard.run(request(command))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+
+    gmGrantFields = {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'gm1',
+      shipId: 'dione', grantedAt: new Date(),
+    };
+    gmInstanceFields.connected = false;
+    await expect(transferVipCard.run(request(command))).rejects.toMatchObject({
+      code: 'permission-denied',
     });
   });
 });

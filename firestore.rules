@@ -355,6 +355,13 @@ service cloud.firestore {
         // Claims, kicks and releases also update player authority, so they are
         // one server-side transaction and never a client write.
         allow write: if false;
+
+        // Ship-console write grants are server-only authority records. The
+        // public instance manifest must remain readable for presence and
+        // handoff, while this nested record stays outside every member read.
+        match /private/{grantId} {
+          allow read, write: if false;
+        }
       }
 
       match /seats/{seatId} {

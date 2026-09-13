@@ -119,6 +119,10 @@ beforeEach(async () => {
       name: 'Bridge laptop',
       deviceLabel: 'macOS / Chrome',
     });
+    await setDoc(doc(db, `${SESSION}/gmInstances/bridge/private/shipConsoleWriteGrant`), {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge',
+      uid: 'gm1', shipId: 'aegis', grantedAt: new Date().toISOString(),
+    });
     await setDoc(doc(db, `${SESSION}/seats/seat1`), {
       label: 'Seat 1',
       status: 'open',
@@ -1376,6 +1380,14 @@ describe('GM instances', () => {
   it('are not readable by non-members', async () => {
     await assertFails(getDoc(doc(as('stranger'), `${SESSION}/gmInstances/bridge`)));
     await assertFails(getDocs(collection(as('stranger'), `${SESSION}/gmInstances`)));
+  });
+
+  it('keeps ship-console write grants server-only', async () => {
+    const grant = `${SESSION}/gmInstances/bridge/private/shipConsoleWriteGrant`;
+    for (const uid of ['alice', 'gm1', 'observer', 'stranger']) {
+      await assertFails(getDoc(doc(as(uid), grant)));
+    }
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/gmInstances/bridge/private`)));
   });
 
   it('cannot be claimed, changed, or released directly by a client', async () => {
