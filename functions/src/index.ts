@@ -254,7 +254,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { APPROACHING_VESSEL_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
+import { APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   availableVipCards,
@@ -5536,7 +5536,8 @@ export const transitionCrisis = onCall<{
     });
     const reportRef = db.doc(`sessions/${crisis.sessionId}/crisisReports/current`);
     const playerReport = crisisKind === 'approaching-vessel' ? APPROACHING_VESSEL_REPORT
-      : crisisKind === 'religious-zealotry' ? RELIGIOUS_ZEALOTRY_REPORT : null;
+      : crisisKind === 'religious-zealotry' ? RELIGIOUS_ZEALOTRY_REPORT
+      : crisisKind === 'presidential-election' ? PRESIDENTIAL_ELECTION_REPORT : null;
     if (crisis.state === 'draft') {
       // A new draft must never retain the previously delivered crisis report.
       tx.delete(reportRef);

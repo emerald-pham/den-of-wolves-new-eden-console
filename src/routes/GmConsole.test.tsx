@@ -345,6 +345,7 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
   await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'religious-zealotry');
   expect(within(panel).getByText(/Delivery publishes the movement report/)).toBeVisible();
   await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'presidential-election');
+  expect(within(panel).getByText(/Delivery introduces the election decision/)).toBeVisible();
   await user.type(within(panel).getByRole('textbox', { name: 'Crisis configuration override' }), 'Alternate decision maker agreed at this table.');
   await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
 

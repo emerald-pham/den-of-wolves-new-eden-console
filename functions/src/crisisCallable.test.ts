@@ -296,3 +296,16 @@ it.each([
   expect(JSON.stringify(report)).not.toMatch(/player-27|adjudication|Wolf Cult|wolfCultEnabled|universalArbourEnabled/);
   expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ details: input.details });
 });
+
+it('introduces an election without inventing voting, timing or campaign procedures', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeRoleIds: ['dione-president'] });
+  const input = { ...baseData, crisisId: 'election-1', crisisKind: 'presidential-election', details: 'Private facilitator preparation.' };
+  await transitionCrisis.run(request(input));
+  await transitionCrisis.run(request({ ...input, requestId: 'election-report', expectedRevision: 1, state: 'delivered' }));
+  const report = mock.documents.get('sessions/s1/crisisReports/current');
+  expect(report).toMatchObject({ title: 'Presidential election', state: 'delivered' });
+  expect(report?.body).toEqual(expect.stringMatching(/voting method.*timing.*campaign rules/));
+  expect(report?.body).toEqual(expect.stringContaining('still need facilitator decisions'));
+  expect(JSON.stringify(report)).not.toContain(input.details);
+  expect([...mock.documents.keys()].some(path => /ballot|electionProcedure/.test(path))).toBe(false);
+});

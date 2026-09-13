@@ -2185,6 +2185,12 @@ export default function GmConsole() {
                 context and adjudication notes in the facilitator notes below.
               </p>
             )}
+            {crisisKindDraft === 'presidential-election' && (
+              <p className="gm-console__hint">
+                Delivery introduces the election decision. Voting method, timing and campaign rules still
+                need facilitator decisions; this introduction does not open voting or configure a ballot.
+              </p>
+            )}
             <label className="gm-wolf-preparation__field">
               <span>Crisis identifier</span>
               <input

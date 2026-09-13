@@ -73,3 +73,9 @@ export const RELIGIOUS_ZEALOTRY_REPORT = {
   title: 'Religious zealotry',
   body: 'Universal Arbour’s following has expanded rapidly from a few dozen survivors to several thousand. The movement teaches that the universe is conscious and has a purpose for humanity, and has long advocated religious government. Its new leader claims to receive messages through dreams. The fleet must decide how to respond to the movement’s growing influence.',
 } as const;
+
+/** Introduces the decision without supplying unchosen election procedures. */
+export const PRESIDENTIAL_ELECTION_REPORT = {
+  title: 'Presidential election',
+  body: 'The fleet is considering whether its current President should remain in office or whether to elect a President, potentially with a Vice President. The voting method, timing and campaign rules still need facilitator decisions. Eligible voters, population weighting and whether supplies may support campaigns must also be settled before voting can open.',
+} as const;
