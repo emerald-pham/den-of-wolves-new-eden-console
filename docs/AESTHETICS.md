@@ -1225,6 +1225,7 @@ for Press dispatches. Keep that prefix first in the moving copy, reduced-motion
 readout, and assistive-technology status so the origin stays clear before a
 bulletin is read.
 
+Cycle 0 always starts with airspace closed: `AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0`.
 From Cycle 0, the same instrument carries the server-owned airspace status:
 `AIRSPACE CONTROL // AIRSPACE CLOSED` or `AIRSPACE CONTROL // AIRSPACE OPEN`.
 An optional `CYCLE X` suffix may identify the current cycle. It is independent

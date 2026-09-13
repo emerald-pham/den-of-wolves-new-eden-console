@@ -511,7 +511,7 @@ describe('presence lease', () => {
       revision: 1,
       current: expect.objectContaining({
         sourceId: 'turn-zero-atc',
-        text: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
+        text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0',
       }),
     });
 

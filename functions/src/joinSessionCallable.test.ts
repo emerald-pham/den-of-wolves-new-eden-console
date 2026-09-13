@@ -210,7 +210,7 @@ it('persists the Turn 0 ATC bulletin when joining an existing empty stream', asy
         revision: 1,
         current: expect.objectContaining({
           sourceId: 'turn-zero-atc',
-          text: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
+          text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0',
         }),
       }),
     }),

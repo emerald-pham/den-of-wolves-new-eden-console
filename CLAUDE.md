@@ -237,6 +237,8 @@ selection, empty projections, and after dismissal or Stand Down. A neutral
 a server dispatch is arriving; it must not guess open/closed status or replay
 old news. Cover these source transitions in the ticker tests.
 
+Cycle 0 always has airspace closed, including before role selection or game start.
+
 The initial server projection is also release-critical: a freshly joined member
 must see `AIRSPACE CONTROL // AIRSPACE CLOSED` or
 `AIRSPACE CONTROL // AIRSPACE OPEN`, matching the authoritative airspace state,

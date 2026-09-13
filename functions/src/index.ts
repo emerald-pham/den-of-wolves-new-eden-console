@@ -383,7 +383,7 @@ type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
 
 const FLEET_TICKER_COPY = {
-  turnZero: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
+  turnZero: 'AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0',
   airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED',
   airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',

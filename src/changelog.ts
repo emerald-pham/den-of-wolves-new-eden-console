@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [638],
+    implementationProgress: {
+      completed: 276, total: 751, percentage: '36.75%',
+      done: 276, partial: 25, active: 0, missing: 450,
+    },
+    changes: [
+      'The game clock now uses Cycle throughout the console. ATC starts with Airspace Closed in Cycle 0 and shows the current open or closed status without outdated announcements returning.',
+      'The ticker stays visible when replacing an old announcement in reduced motion. Reconnecting also preserves your seat when an older session needs its seat records repaired.',
+      '276 of 751 planned items are complete (36.75%).',
+    ],
+  },
+  {
+    version: '0.4.9',
     implementationPrompts: [633],
     implementationProgress: {
       completed: 275, total: 751, percentage: '36.62%',

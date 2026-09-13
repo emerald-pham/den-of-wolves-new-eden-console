@@ -188,7 +188,7 @@ it('persists the Turn 0 ATC bulletin while resuming an existing empty stream', a
 
   expect(response.session.fleetTicker.current).toMatchObject({
     sourceId: 'turn-zero-atc',
-    text: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
+    text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0',
   });
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1' }),
