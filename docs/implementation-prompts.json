@@ -4148,8 +4148,8 @@
     {
       "direction": "632",
       "id": "E-632-VERIFIED",
-      "language": "Production callable boundaries now reject malformed or oversized maintenance payloads before authority preflight: console lists are capped at the largest possible printed Reactor charge set, refuel maps at the largest supported shuttle-bay set, and small-ship console lists at the domain Reactor capacities. The optional refreshPresence activeConsoleRoleId is validated as a canonical ID before its transaction and role-holder query, while omitted and explicit-null release semantics remain distinct. Focused request-guard, maintenance, small-ship, and session-composition tests cover maximum accepted shapes, malformed IDs and counts, and rejection before reads or writes. Other existing bounded callable fields remain unchanged; this is a server security hardening with no new UI or game rule.",
-      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/maintenance.ts; functions/src/shipDamage.ts; functions/src/smallShip.ts; functions/src/requestGuards.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/smallShipCallable.test.ts; functions/src/sessionComposition.test.ts; focused validation",
+      "language": "Production callable boundaries now reject malformed or oversized maintenance payloads before authority preflight: console lists are capped at the largest possible printed Reactor charge set, refuel maps at the largest supported shuttle-bay set, and small-ship console lists at the domain Reactor capacities. Refuel maps preserve the live form's exact empty-string Do not refuel sentinel while bounding nonempty shuttle IDs. The optional refreshPresence activeConsoleRoleId is validated as a canonical ID before its transaction and role-holder query, while omitted and explicit-null release semantics remain distinct. Focused request-guard, maintenance, small-ship, and session-composition tests cover maximum accepted shapes, malformed IDs and counts, sentinel compatibility, and rejection before reads or writes. Other existing bounded callable fields remain unchanged; this is a server security hardening with no new UI or game rule.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/maintenance.ts; functions/src/shipDamage.ts; functions/src/smallShip.ts; functions/src/requestGuards.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/smallShipCallable.test.ts; functions/src/sessionComposition.test.ts; src/components/MaintenanceSystems.tsx; focused validation",
       "type": "evidence / production-path / security / authority"
     },
     {
@@ -21356,7 +21356,7 @@
         "acceptance": "coordinates, IDs, quantities, arrays, messages, notes, and idempotency keys fail schema bounds before transactions.",
         "title": "Reject malformed and oversized payloads."
       },
-      "description": "Production callable boundaries now reject malformed or oversized maintenance and presence payloads before authority preflight. The server derives limits from the printed/domain maintenance catalogs, validates canonical console and refuel IDs, and preserves omitted versus explicit-null presence semantics; broader already-guarded payload fields remain unchanged and no new UI or game rule is claimed.",
+      "description": "Production callable boundaries now reject malformed or oversized maintenance and presence payloads before authority preflight. The server derives limits from the printed/domain maintenance catalogs, validates canonical console and refuel IDs while preserving the form's empty Do not refuel sentinel, and preserves omitted versus explicit-null presence semantics; broader already-guarded payload fields remain unchanged and no new UI or game rule is claimed.",
       "evidenceIds": "E-AUDIT-632;E-632-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",

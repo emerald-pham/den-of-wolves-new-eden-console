@@ -1108,7 +1108,7 @@ release classification and evidence.
 | 629 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 630 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 631 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 632 | done | non-feature | — | Production callable boundaries now reject malformed or oversized maintenance and presence payloads before authority preflight. The server derives limits from the printed/domain maintenance catalogs, validates canonical console and refuel IDs, and preserves omitted versus explicit-null presence semantics; broader already-guarded payload fields remain unchanged and no new UI or game rule is claimed. |
+| 632 | done | non-feature | — | Production callable boundaries now reject malformed or oversized maintenance and presence payloads before authority preflight. The server derives limits from the printed/domain maintenance catalogs, validates canonical console and refuel IDs while preserving the form's empty Do not refuel sentinel, and preserves omitted versus explicit-null presence semantics; broader already-guarded payload fields remain unchanged and no new UI or game rule is claimed. |
 | 633 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 634 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
