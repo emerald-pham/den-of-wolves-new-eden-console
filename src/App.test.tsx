@@ -1107,7 +1107,7 @@ describe('App', () => {
 
     expect(useSessionStore.getState().session).toMatchObject({ name: 'Server table' });
     expect(useSessionStore.getState().connection).toBe('live');
-    expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+    expect(screen.getByRole('status', { name: 'Connected to Firebase and in a session' })).toHaveAttribute('data-status', 'green');
   });
 
   it('returns a kicked browser to the launcher', async () => {

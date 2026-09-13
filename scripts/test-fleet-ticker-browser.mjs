@@ -156,6 +156,18 @@ sourceFixtures['expired-stand-down'] = persistedFixture({
     },
   },
 }, '/console');
+sourceFixtures['pending-stream'] = persistedFixture({
+  ...session,
+  fleetTicker: undefined,
+  currentTurn: 1,
+  pressDispatch: { revision: 1, dispatches: [{ id: 'old-press', text: 'OLD DISMISSED NEWS' }] },
+  turnPhase: {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-13T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-13T12:25:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  },
+}, '/console');
 sourceFixtures['empty-stream'] = persistedFixture({
   ...session,
   fleetTicker: { ...session.fleetTicker, revision: 12, current: null },
@@ -366,6 +378,7 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
         ['red-alert', RED_ALERT_TEXT],
         ['stand-down', STAND_DOWN_TEXT],
         ['press-return', PRESS_TEXT],
+        ['pending-stream', AWAITING_DISPATCH_TEXT],
         ['empty-stream', AWAITING_DISPATCH_TEXT],
         ['expired-stand-down', AWAITING_DISPATCH_TEXT],
       ]) {

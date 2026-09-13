@@ -171,3 +171,27 @@ it('keeps a neutral ticker present before the first server dispatch arrives', ()
   };
   expect(props.message.text).toBe('AIRSPACE CONTROL // AWAITING DISPATCH');
 });
+
+it.each([undefined, {
+  revision: 0, nextSequence: 0, replayCursor: 0,
+  current: null, queued: [], draining: [], dismissed: [],
+}])('does not rebuild historical Press or ATC copy from a pending stream (%j)', (fleetTicker) => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    currentTurn: 1,
+    ...(fleetTicker ? { fleetTicker } : {}),
+    pressDispatch: { revision: 2, dispatches: [{ id: 'old-news', text: 'OLD PRESS COPY' }] },
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-13T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-13T12:25:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    fleetRedAlert: { active: false, revision: 4 },
+  });
+  render(<FleetBroadcast />);
+  const props = (renderTicker.mock.calls[0] as unknown[])[0];
+  expect(props).toMatchObject({ message: { text: 'AIRSPACE CONTROL // AWAITING DISPATCH' } });
+  expect(JSON.stringify(props)).not.toMatch(/OLD PRESS COPY|AIRSPACE OPEN|STAND DOWN/);
+});

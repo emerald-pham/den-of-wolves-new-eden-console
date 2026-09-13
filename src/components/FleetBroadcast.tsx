@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { ADMIRAL_ALERT_PREFIX, DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
-import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { fleetTickerState } from '@/lib/fleetTickerState';
 import type { FleetTickerMessage as AuthoritativeFleetTickerMessage } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
@@ -125,10 +124,6 @@ export default function FleetBroadcast() {
   const alert = session?.fleetRedAlert;
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const phase = phaseForSession(session);
-  const dispatchState = normalizePressDispatch(session?.pressDispatch);
-  const dispatchText = dispatchState.dispatches
-    .map((dispatch) => sourceBulletin('SNN', dispatch.text))
-    .join(' // ');
   const emergencyPauseBulletin = session && phase?.timerPause
     ? {
         id: `${session.id}:emergency-timer:${phase.turn}:${phase.timerPause.pausedAt}`,
@@ -142,25 +137,6 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
-  const pressDispatch = session && dispatchText
-    ? {
-        id: `${session.id}:press-dispatch:${dispatchState.revision}`,
-        text: dispatchText,
-        tone: 'normal' as const,
-        gap: 'long' as const,
-      }
-    : undefined;
-  const airspaceBulletin = session && phase?.airspace.tickerActive
-    ? {
-        id: `${session.id}:airspace:${phase.turn}:${phase.airspace.state}`,
-        text: sourceBulletin('AIRSPACE CONTROL', phase.airspace.state === 'restricted'
-          ? 'AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.'
-          : 'AIRSPACE OPEN'),
-        tone: 'normal' as const,
-        gap: 'long' as const,
-      }
-    : undefined;
-  const standingMessage = emergencyPauseBulletin ?? airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
   // Keep the shared instrument present while a server projection is arriving.
   // This status never reconstructs dismissed news or guesses an airspace state.
@@ -185,6 +161,8 @@ export default function FleetBroadcast() {
     }
     return <FleetBroadcastSurface message={awaitingDispatch} />;
   }
+  // Only explicit active emergency/alert/finale state may bypass a pending
+  // stream. Historical ordinary news and inactive alerts must not replay.
   if (debriefMode.active) {
     return <FleetBroadcastSurface message={{
       id: `${session.id}:finale-credits:${debriefMode.revision}`,
@@ -192,19 +170,15 @@ export default function FleetBroadcast() {
       tone: 'normal',
     }} />;
   }
-  if (!alert || alert.revision === 0) {
-    return <FleetBroadcastSurface
-      message={standingMessage ?? awaitingDispatch}
-    />;
+  if (emergencyPauseBulletin) {
+    return <FleetBroadcastSurface message={emergencyPauseBulletin} />;
+  }
+  if (!alert?.active) {
+    return <FleetBroadcastSurface message={awaitingDispatch} />;
   }
   return <FleetBroadcastSurface message={{
     id: `${session.id}:red-alert:${alert.revision}`,
-    text: alert.active
-      ? formatAdmiralAlert(alert.text ?? DEFAULT_FLEET_ALERT_MESSAGE)
-      : sourceBulletin('AEGIS', 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.'),
-    tone: alert.active ? 'danger' : 'normal',
-    ...(alert.active
-      ? (dispatchText ? { pressText: dispatchText } : {})
-      : { passes: 2 }),
-  }} fallback={standingMessage ?? awaitingDispatch} />;
+    text: formatAdmiralAlert(alert.text ?? DEFAULT_FLEET_ALERT_MESSAGE),
+    tone: 'danger',
+  }} fallback={awaitingDispatch} />;
 }
