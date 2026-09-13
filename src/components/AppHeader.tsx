@@ -430,10 +430,10 @@ export default function AppHeader() {
           role="status"
           aria-live="polite"
           aria-label="Stale session snapshot"
-          title="The saved session snapshot is stale until live authority returns"
+          title="Showing saved session data until the live connection returns."
           data-state="stale"
         >
-          Cached snapshot // reconnect required
+          {connection === 'offline' ? 'Saved view // offline' : 'Saved view // reconnecting'}
         </span>
       )}
       <button

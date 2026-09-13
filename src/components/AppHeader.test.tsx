@@ -236,9 +236,16 @@ it('marks a persisted snapshot stale without changing the connection grace light
   });
   expect(indicator).toHaveAttribute('data-status', 'green');
   expect(screen.getByRole('status', { name: 'Stale session snapshot' }))
-    .toHaveTextContent('Cached snapshot // reconnect required');
+    .toHaveTextContent('Saved view // reconnecting');
 
-  act(() => useSessionStore.getState().setSessionSnapshotFreshness('server'));
+  act(() => useSessionStore.getState().setConnection('offline'));
+  expect(screen.getByRole('status', { name: 'Stale session snapshot' }))
+    .toHaveTextContent('Saved view // offline');
+
+  act(() => {
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
   expect(screen.queryByRole('status', { name: 'Stale session snapshot' })).not.toBeInTheDocument();
   expect(indicator).toHaveAttribute('data-status', 'green');
 });
