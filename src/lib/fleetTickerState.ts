@@ -1,5 +1,7 @@
 import type { FleetTickerMessage, FleetTickerState } from '@/types/game';
 
+const PRESS_PRIORITY = 50;
+
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -38,7 +40,9 @@ function parseMessage(value: unknown): FleetTickerMessage | null {
     id: value.id,
     sequence: value.sequence,
     source: value.source,
-    priority: value.priority,
+    // Normalize cached pre-contract Press records before sorting the next
+    // eligible pool; source identity remains the server authority.
+    priority: value.source === 'press' ? PRESS_PRIORITY : value.priority,
     text,
     tone: value.tone,
     gap: value.gap,

@@ -8,7 +8,6 @@ import {
   recoverActivePressMessages,
   reconcileFleetTicker,
   retireAirspaceFleetTicker,
-  standDownExpiry,
 } from './fleetTickerState';
 
 const now = '2026-09-12T13:00:00.000Z';
@@ -18,7 +17,7 @@ const alert = {
 };
 const airspace = { source: 'automatic' as const, priority: 40, text: 'AIRSPACE CLOSED', tone: 'normal' as const, gap: 'long' as const };
 const pressOne = {
-  source: 'press' as const, priority: 20, text: 'SNN // FIRST REPORT', tone: 'normal' as const,
+  source: 'press' as const, priority: 50, text: 'SNN // FIRST REPORT', tone: 'normal' as const,
   gap: 'long' as const, sourceId: 'press-1',
 };
 const pressTwo = { ...pressOne, text: 'SNN // SECOND REPORT', sourceId: 'press-2' };
@@ -42,6 +41,30 @@ describe('fleet ticker state', () => {
     expect(next.current?.text).toBe('RED ALERT');
     expect(next.queued.map(({ text }) => text)).toEqual(['AIRSPACE CLOSED']);
     expect(next.draining).toHaveLength(0);
+  });
+
+  it('keeps eligible Press ahead of an airspace phase update', () => {
+    const press = publishFleetTicker('s1', emptyFleetTickerState(), pressOne, now);
+    const next = publishFleetTicker('s1', press, airspace, now);
+
+    expect(next.current?.source).toBe('press');
+    expect(next.current?.sourceId).toBe('press-1');
+    expect(next.queued.map(({ sourceId }) => sourceId)).toEqual([undefined]);
+  });
+
+  it('normalizes a persisted pre-contract Press priority before queue sorting', () => {
+    const state = fleetTickerState({
+      ...emptyFleetTickerState(),
+      revision: 2, nextSequence: 2, replayCursor: 2,
+      current: { ...alert, id: 's1:fleet-ticker:2', sequence: 2, createdAt: now },
+      queued: [
+        { ...pressOne, priority: 20, id: 's1:fleet-ticker:1', sequence: 1, createdAt: now },
+        { ...airspace, id: 's1:fleet-ticker:3', sequence: 3, createdAt: now },
+      ],
+    });
+
+    expect(state.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1', undefined]);
+    expect(state.queued[0]?.priority).toBe(50);
   });
 
   it('retires current and queued airspace notices before Press takes over', () => {
@@ -111,19 +134,19 @@ describe('fleet ticker state', () => {
     }]);
   });
 
-  it('keeps an active press dispatch queued through alert and expiring stand-down copy', () => {
+  it('keeps an active press dispatch queued through alert and finite stand-down copy', () => {
     const press = publishFleetTicker('s1', emptyFleetTickerState(), pressOne, now);
     const alertState = publishFleetTicker('s1', press, alert, now);
     const standDown = publishFleetTicker('s1', alertState, {
       source: 'automatic', priority: 80, text: 'RED ALERT CANCELLED', tone: 'normal',
-      passCount: 2, sourceId: 'red-alert:1', expiresAt: standDownExpiry(now),
+      passCount: 2, sourceId: 'red-alert:1',
     }, now);
 
     expect(alertState.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
     expect(standDown.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
-    const afterExpiry = reconcileFleetTicker(standDown, standDownExpiry(now));
-    expect(afterExpiry.current?.sourceId).toBe('press-1');
-    expect(afterExpiry.queued).toHaveLength(0);
+    const afterReconnect = reconcileFleetTicker(standDown, '2026-09-12T13:30:00.000Z');
+    expect(afterReconnect.current?.sourceId).toBe('red-alert:1');
+    expect(afterReconnect.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
   });
 
   it('promotes the older active press when the latest same-priority press is dismissed', () => {
@@ -207,19 +230,18 @@ describe('fleet ticker state', () => {
     expect(published.queued.filter(({ source }) => source !== 'press')).toHaveLength(11);
   });
 
-  it('uses a server deadline for stand-down rather than visual completion', () => {
-    expect(standDownExpiry(now)).toBe('2026-09-12T13:01:00.000Z');
+  it('keeps finite stand-down identity without a server presentation deadline', () => {
     const state = publishFleetTicker('s1', emptyFleetTickerState(), {
       ...alert,
       text: 'RED ALERT CANCELLED',
       tone: 'normal',
       passCount: 2,
-      expiresAt: standDownExpiry(now),
     }, now);
 
-    expect(state.current).toMatchObject({ passCount: 2, expiresAt: '2026-09-12T13:01:00.000Z' });
+    expect(state.current).toMatchObject({ passCount: 2 });
+    expect(state.current).not.toHaveProperty('expiresAt');
     expect(fleetTickerState(state).current?.id).toBe(state.current?.id);
-    expect(reconcileFleetTicker({ ...state, current: { ...state.current!, expiresAt: now } }, standDownExpiry(now)).current).toBeNull();
+    expect(reconcileFleetTicker(state, '2026-09-12T13:01:00.000Z').current?.id).toBe(state.current?.id);
   });
 
   it('fails closed on malformed stream data', () => {
@@ -267,13 +289,15 @@ it('keeps only the latest airspace phase behind an alert, preserving Press and o
     ...airspace, sourceId: 'airspace:2:restricted',
   }, now);
   expect(state.current?.sourceId).toBe('red-alert:1');
-  expect(state.queued.map((entry) => entry.sourceId)).toEqual(['airspace:2:restricted', 'press-1']);
+  expect(state.queued.map((entry) => entry.sourceId)).toEqual(['press-1', 'airspace:2:restricted']);
   state = publishFleetTicker('s1', state, {
     source: 'automatic', sourceId: 'red-alert:2', priority: 80,
-    text: 'STAND DOWN', tone: 'normal', expiresAt: standDownExpiry(now),
+    text: 'STAND DOWN', tone: 'normal', passCount: 2,
   }, now);
-  const resumed = reconcileFleetTicker(state, '2026-09-12T13:01:01.000Z');
-  expect(resumed.current).toMatchObject({ sourceId: 'airspace:2:restricted', text: 'AIRSPACE CLOSED' });
-  expect(resumed.queued.map((entry) => entry.sourceId)).toEqual(['press-1']);
+  expect(state.current).toMatchObject({ sourceId: 'red-alert:2', passCount: 2 });
+  expect(state.queued.map((entry) => entry.sourceId)).toEqual(['press-1', 'airspace:2:restricted']);
+  const resumed = dismissFleetTicker('s1', state, state.current!.id, now);
+  expect(resumed.current).toMatchObject({ sourceId: 'press-1' });
+  expect(resumed.queued.map((entry) => entry.sourceId)).toEqual(['airspace:2:restricted']);
   expect(resumed.queued.some((entry) => entry.sourceId === 'airspace:1:lifted')).toBe(false);
 });

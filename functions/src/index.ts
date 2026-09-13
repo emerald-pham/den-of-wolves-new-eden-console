@@ -332,7 +332,6 @@ import {
   recoverActivePressMessages,
   retireAirspaceFleetTicker,
   reconcileFleetTicker,
-  standDownExpiry,
   fleetTickerState,
   type FleetTickerMessage,
   type FleetTickerState,
@@ -544,6 +543,44 @@ function fleetTickerBaseline(
   }, now);
 }
 
+/**
+ * A finite server notice still needs a truthful next copy when its local
+ * presentation finishes. Keep that fallback in the authoritative stream so a
+ * reconnect never has to guess an airspace bulletin. An eligible Press
+ * dispatch always wins this slot; a dismissed dispatch is never recreated.
+ */
+function fleetTickerFiniteFallback(
+  sessionId: string,
+  session: DocumentSnapshot,
+  state: FleetTickerState,
+  now: string,
+): FleetTickerState {
+  const current = state.current;
+  if (current?.source !== 'automatic' || current.passCount === undefined ||
+      !current.sourceId?.startsWith('red-alert:')) return state;
+  if ([current, ...state.queued].some(entry => entry?.source === 'press')) return state;
+
+  const phase = turnPhaseState(session.get('turnPhase'));
+  const turn = sessionTurn(session.get('currentTurn'));
+  const fallback = turn === 0
+    ? {
+      source: 'automatic' as const, priority: FLEET_TICKER_PRIORITIES.turnZero,
+      text: FLEET_TICKER_COPY.turnZero, tone: 'normal' as const, gap: 'long' as const,
+      sourceId: TURN_ZERO_ATC_SOURCE_ID,
+    }
+    : phase?.turn === turn
+      ? {
+        source: 'automatic' as const, priority: FLEET_TICKER_PRIORITIES.airspace,
+        text: phase.airspace.state === 'restricted'
+          ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
+        tone: 'normal' as const, gap: 'long' as const,
+        sourceId: `airspace:${turn}:${phase.airspace.state}`,
+      }
+      : undefined;
+  if (fallback === undefined) return state;
+  return publishFleetTicker(sessionId, state, fallback, now);
+}
+
 /** Seed an authoritative ATC baseline without disturbing an active stream. */
 function ensureFleetTickerBaseline(
   tx: Transaction,
@@ -553,7 +590,12 @@ function ensureFleetTickerBaseline(
 ): FleetTickerState {
   const stored = session.get('fleetTicker');
   const state = fleetTickerForMutation(sessionRef.id, session, now);
-  const next = fleetTickerBaseline(sessionRef.id, session, state, now);
+  const next = fleetTickerFiniteFallback(
+    sessionRef.id,
+    session,
+    fleetTickerBaseline(sessionRef.id, session, state, now),
+    now,
+  );
   const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
   if (JSON.stringify(previous) !== JSON.stringify(next)) {
     tx.update(sessionRef, { fleetTicker: next, updatedAt: FieldValue.serverTimestamp() });
@@ -14878,7 +14920,7 @@ export const setFleetRedAlert = onCall<{
       phase.airspace.tickerActive
       ? { ...phase, airspace: { ...phase.airspace, tickerActive: false } }
       : undefined;
-    const fleetTicker = data.active
+    const publishedTicker = data.active
       ? publishSessionFleetTicker(data.sessionId, session, {
         source: 'admiral', priority: FLEET_TICKER_PRIORITIES.admiral,
         text: `ICSN ADMIRAL // ${text ?? 'RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS'}`,
@@ -14887,8 +14929,11 @@ export const setFleetRedAlert = onCall<{
       : publishSessionFleetTicker(data.sessionId, session, {
         source: 'automatic', priority: FLEET_TICKER_PRIORITIES.admiral,
         text: FLEET_TICKER_COPY.standDown, tone: 'normal', passCount: 2,
-        expiresAt: standDownExpiry(serverTime), sourceId: `red-alert:${fleetRedAlert.revision}`,
+        sourceId: `red-alert:${fleetRedAlert.revision}`,
       }, serverTime);
+    const fleetTicker = data.active
+      ? publishedTicker
+      : fleetTickerFiniteFallback(data.sessionId, session, publishedTicker, serverTime);
     tx.update(ref, {
       fleetRedAlert,
       fleetTicker,
@@ -15048,10 +15093,15 @@ export const dismissPressDispatch = onCall<{
       data.dispatchId,
       serverTime,
     );
-    const fleetTicker = fleetTickerBaseline(
+    const fleetTicker = fleetTickerFiniteFallback(
       data.sessionId,
       session,
-      retireAirspaceFleetTicker(dismissedTicker, serverTime),
+      fleetTickerBaseline(
+        data.sessionId,
+        session,
+        retireAirspaceFleetTicker(dismissedTicker, serverTime),
+        serverTime,
+      ),
       serverTime,
     );
     tx.update(ref, { pressDispatch, fleetTicker, updatedAt: FieldValue.serverTimestamp() });

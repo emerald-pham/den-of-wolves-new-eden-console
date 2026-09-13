@@ -19,7 +19,7 @@ export interface FleetMessage {
   /** Omit to repeat until replaced. */
   readonly passes?: number;
   readonly expiresAt?: string;
-  /** Server-authored lifecycle state cannot be overruled by sessionStorage. */
+  /** Server-authored lifecycle state; local pass progress is presentation-only. */
   readonly serverAuthoritative?: boolean;
 }
 
@@ -71,11 +71,10 @@ function hasMessageGroup(groups: readonly MovingGroup[], message: FleetMessage |
 }
 
 function storageKey(message: FleetMessage): string {
-  return `fleet-ticker:${message.id}`;
+  return `fleet-ticker:presentation:${message.id}`;
 }
 
 function readCompletedPasses(message: FleetMessage): number {
-  if (message.serverAuthoritative) return 0;
   try {
     return Number(sessionStorage.getItem(storageKey(message))) || 0;
   } catch {
@@ -84,7 +83,6 @@ function readCompletedPasses(message: FleetMessage): number {
 }
 
 function writeCompletedPasses(message: FleetMessage, completed: number): void {
-  if (message.serverAuthoritative) return;
   try {
     sessionStorage.setItem(storageKey(message), String(completed));
   } catch {

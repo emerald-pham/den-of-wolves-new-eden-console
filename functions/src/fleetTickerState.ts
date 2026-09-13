@@ -12,7 +12,7 @@ export type FleetTickerMessage = Readonly<{
   gap: FleetTickerGap;
   sourceId?: string;
   passCount?: number;
-  /** A server deadline for finite notices, independent of viewport geometry. */
+  /** Legacy server deadline; new finite presentation uses local completion. */
   expiresAt?: string;
   createdAt: string;
 }>;
@@ -46,9 +46,10 @@ export type FleetTickerTransmission = Readonly<{
   expiresAt?: string;
 }>;
 
-export const STAND_DOWN_EXPIRY_MS = 60_000;
 export const FLEET_TICKER_PRIORITIES = {
-  press: 20,
+  // Press is the normal eligible bulletin pool. Airspace is its fallback;
+  // urgent AEGIS/Admiral copy still preempts both.
+  press: 50,
   turnZero: 30,
   airspace: 40,
   emergency: 60,
@@ -94,7 +95,9 @@ function message(value: unknown): FleetTickerMessage | null {
     id: value.id,
     sequence: value.sequence,
     source: value.source,
-    priority: value.priority,
+    // Normalize persisted pre-contract Press records so an old priority 20
+    // cannot preempt the source ordering after the next phase update.
+    priority: value.source === 'press' ? FLEET_TICKER_PRIORITIES.press : value.priority,
     text: value.text,
     tone: value.tone,
     gap: value.gap,
@@ -391,9 +394,4 @@ export function recoverActivePressMessages(
     ...normalized,
     queued: queueMessages(normalized.queued, [...recovered.values()], [...recovered.values()]),
   }, now);
-}
-
-/** Stand-down uses a shared server deadline; local animation may outlive it. */
-export function standDownExpiry(now: string): string {
-  return new Date(Date.parse(now) + STAND_DOWN_EXPIRY_MS).toISOString();
 }

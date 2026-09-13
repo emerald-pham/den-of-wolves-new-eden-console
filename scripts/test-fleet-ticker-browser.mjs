@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
@@ -32,7 +32,7 @@ const session = {
       id: 'ticker-browser-smoke:fleet-ticker:7',
       sequence: 7,
       source: 'press',
-      priority: 20,
+      priority: 50,
       text: PRESS_TEXT,
       tone: 'normal',
       gap: 'long',
@@ -132,9 +132,10 @@ const persistedTurnOneSession = persistedFixture(turnOneSession, '/roles', null)
 // Callable tests prove the producer transitions; this smoke does not contact Firebase.
 const sourceFixtures = Object.fromEntries([
   ['airspace-open', AIRSPACE_OPEN_TEXT, 'automatic', 'airspace:1:lifted', 40, 'normal'],
+  ['short-press', 'SNN // OK', 'press', 'press-short-smoke-dispatch', 50, 'normal'],
   ['red-alert', RED_ALERT_TEXT, 'admiral', 'red-alert:1', 80, 'danger'],
   ['stand-down', STAND_DOWN_TEXT, 'automatic', 'red-alert:2', 80, 'normal'],
-  ['press-return', PRESS_TEXT, 'press', 'press-smoke-dispatch', 20, 'normal'],
+  ['press-return', PRESS_TEXT, 'press', 'press-smoke-dispatch', 50, 'normal'],
 ].map(([key, text, source, sourceId, priority, tone], index) => [key, persistedFixture({
   ...session,
   currentTurn: 1,
@@ -296,6 +297,95 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
   }
 }
 
+async function assertTickerGeometry(page, label, reducedMotion) {
+  const snapshot = await page.evaluate(async ({ reduced }) => {
+    const frame = document.querySelector('.fleet-ticker__window');
+    const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    if (!frame) return { reduced, error: 'ticker frame missing' };
+
+    const samples = [];
+    for (let index = 0; index < 8; index += 1) {
+      await waitFrame();
+      const frameBounds = frame.getBoundingClientRect();
+      const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group, groupIndex) => {
+        const bounds = group.getBoundingClientRect();
+        return {
+          id: `${group.getAttribute('data-message-id') ?? ''}:${groupIndex}`,
+          left: bounds.left,
+          right: bounds.right,
+          width: bounds.width,
+          top: bounds.top,
+          bottom: bounds.bottom,
+        };
+      }).filter((group) => group.width > 0 && group.bottom > frameBounds.top && group.top < frameBounds.bottom);
+      samples.push({ frame: { left: frameBounds.left, right: frameBounds.right }, groups });
+    }
+
+    if (reduced) {
+      const message = frame.querySelector('.fleet-ticker__message');
+      const bounds = message?.getBoundingClientRect();
+      return {
+        reduced,
+        stationary: Boolean(message && bounds && bounds.width > 0 && bounds.height > 0),
+        samples,
+      };
+    }
+
+    const overlap = [];
+    for (const sample of samples) {
+      const ordered = [...sample.groups].sort((left, right) => left.left - right.left);
+      for (let index = 1; index < ordered.length; index += 1) {
+        const previous = ordered[index - 1];
+        const current = ordered[index];
+        if (current.left < previous.right - 1) {
+          overlap.push({ previous, current });
+        }
+      }
+    }
+
+    const tracks = new Map();
+    for (const sample of samples) {
+      for (const group of sample.groups) {
+        const entries = tracks.get(group.id) ?? [];
+        entries.push(group.left);
+        tracks.set(group.id, entries);
+      }
+    }
+    const movingTrack = [...tracks.values()].find((positions) => positions.length >= 4);
+    const speedDeltas = movingTrack?.slice(1).map((left, index) => left - movingTrack[index]) ?? [];
+    const maxDelta = speedDeltas.length > 0 ? Math.max(...speedDeltas) : 0;
+    const minDelta = speedDeltas.length > 0 ? Math.min(...speedDeltas) : 0;
+    return {
+      reduced,
+      sampleCount: samples.length,
+      overlap,
+      movingTrackSamples: movingTrack?.length ?? 0,
+      speedDeltas,
+      speedStable: speedDeltas.length >= 3 && maxDelta < 0.5 && minDelta > -4,
+      samples,
+    };
+  }, { reduced: reducedMotion });
+
+  await mkdir(artifactDirectory, { recursive: true });
+  const artifactName = label.replaceAll('/', '-');
+  await writeFile(
+    path.join(artifactDirectory, `geometry-${artifactName}.json`),
+    `${JSON.stringify(snapshot, null, 2)}\n`,
+  );
+
+  if (snapshot.error) throw new Error(`${label}: ${snapshot.error}`);
+  if (reducedMotion) {
+    if (!snapshot.stationary) throw new Error(`${label}: reduced ticker is not stationary and readable: ${JSON.stringify(snapshot)}`);
+    return;
+  }
+  if (snapshot.overlap.length > 0) {
+    throw new Error(`${label}: ticker groups overlap during rAF geometry sampling: ${JSON.stringify(snapshot.overlap[0])}`);
+  }
+  if (snapshot.movingTrackSamples < 4 || !snapshot.speedStable) {
+    throw new Error(`${label}: ticker did not maintain a measurable constant linear track: ${JSON.stringify(snapshot)}`);
+  }
+}
+
 async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -365,6 +455,18 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
     await page.goto(`${appUrl}${scenario === 'turn-zero' ? '#/roles' : '#/ships/aegis'}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(100);
     await assertTicker(page, `${label}/initial`, fontMode, reducedMotion, expectedText);
+    await assertTickerGeometry(page, `${label}/initial-geometry`, reducedMotion);
+    if (scenario === 'press') {
+      await page.evaluate(() => sessionStorage.setItem('ticker-smoke-transition', 'short-press'));
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(100);
+      await assertTicker(page, `${label}/short`, fontMode, reducedMotion, 'SNN // OK');
+      await assertTickerGeometry(page, `${label}/short-geometry`, reducedMotion);
+      await page.evaluate(() => sessionStorage.removeItem('ticker-smoke-transition'));
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(100);
+      await assertTicker(page, `${label}/initial-after-short`, fontMode, reducedMotion, expectedText);
+    }
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await assertTicker(page, `${label}/scrolled`, fontMode, reducedMotion, expectedText);
     await page.evaluate(() => window.scrollTo(0, 0));

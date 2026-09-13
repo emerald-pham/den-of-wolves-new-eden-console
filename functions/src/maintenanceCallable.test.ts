@@ -1734,7 +1734,10 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     }),
     fleetTicker: expect.objectContaining({
-      current: expect.objectContaining({ source: 'automatic', sourceId: 'airspace:2:lifted' }),
+      current: expect.objectContaining({ source: 'press', sourceId: 'earlier' }),
+      queued: expect.arrayContaining([
+        expect.objectContaining({ source: 'automatic', sourceId: 'airspace:2:lifted' }),
+      ]),
     }),
   }));
   expect(mock.set).toHaveBeenCalledWith(

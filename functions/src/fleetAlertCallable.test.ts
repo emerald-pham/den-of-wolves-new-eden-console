@@ -13,7 +13,6 @@ vi.mock('firebase-admin/firestore', () => ({
   FieldValue: { serverTimestamp: () => 'server-time' }, Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 import { setFleetRedAlert } from './index';
-import { reconcileFleetTicker } from './fleetTickerState';
 const data = { sessionId: 's1', active: true, expectedRevision: 0 };
 const request = (input = data) => ({ data: input, auth: { uid: 'u1' } }) as CallableRequest<typeof data>;
 beforeEach(() => {
@@ -70,7 +69,26 @@ it('stops an airspace bulletin when AEGIS sends a new fleet alert', async () => 
     },
   }));
 });
-it('returns a queued Press dispatch after the AEGIS stand-down expires', async () => {
+it('keeps the eligible Press pool behind AEGIS instead of losing it to phase priority', async () => {
+  mock.fleetTicker = {
+    revision: 1, nextSequence: 1, replayCursor: 1,
+    current: {
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 50,
+      text: 'SNN // SUPPLY SHIPS ARRIVING', tone: 'normal', gap: 'long', sourceId: 'dispatch-1',
+      createdAt: '2026-09-06T12:00:00.000Z',
+    },
+    queued: [], draining: [], dismissed: [],
+  };
+
+  await setFleetRedAlert.run(request());
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    current: { source: 'admiral', sourceId: 'red-alert:1' },
+    queued: [{ source: 'press', sourceId: 'dispatch-1', priority: 50 }],
+  });
+});
+it('keeps a queued Press dispatch behind the finite AEGIS stand-down', async () => {
   mock.active = true;
   mock.revision = 1;
   mock.fleetTicker = {
@@ -81,7 +99,7 @@ it('returns a queued Press dispatch after the AEGIS stand-down expires', async (
       createdAt: '2026-09-06T12:00:00.000Z',
     },
     queued: [{
-      id: 's1:fleet-ticker:2', sequence: 2, source: 'press', priority: 20,
+      id: 's1:fleet-ticker:2', sequence: 2, source: 'press', priority: 50,
       text: 'SNN // SUPPLY SHIPS ARRIVING', tone: 'normal', gap: 'long', sourceId: 'dispatch-1',
       createdAt: '2026-09-06T12:01:00.000Z',
     }],
@@ -95,9 +113,35 @@ it('returns a queued Press dispatch after the AEGIS stand-down expires', async (
     current: { source: 'automatic', sourceId: 'red-alert:2' },
     queued: [{ source: 'press', sourceId: 'dispatch-1' }],
   });
-  const standDown = update.fleetTicker as { current: { expiresAt: string } };
-  expect(reconcileFleetTicker(update.fleetTicker, standDown.current.expiresAt).current)
-    .toMatchObject({ source: 'press', sourceId: 'dispatch-1' });
+  expect((update.fleetTicker as { current: { expiresAt?: string } }).current).not.toHaveProperty('expiresAt');
+});
+
+it('persists an ATC fallback behind stand-down when no Press dispatch is eligible', async () => {
+  mock.active = true;
+  mock.revision = 1;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+  };
+  mock.fleetTicker = {
+    revision: 1, nextSequence: 1, replayCursor: 1,
+    current: {
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'admiral', priority: 80,
+      text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger', gap: 'long', sourceId: 'red-alert:1',
+      createdAt: '2026-09-06T12:00:00.000Z',
+    },
+    queued: [], draining: [], dismissed: [],
+  };
+
+  await setFleetRedAlert.run(request({ ...data, active: false, expectedRevision: 1 }));
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    current: { source: 'automatic', sourceId: 'red-alert:2', passCount: 2 },
+    queued: [{ source: 'automatic', sourceId: 'airspace:1:restricted', text: 'AIRSPACE CONTROL // AIRSPACE CLOSED' }],
+  });
 });
 it('allows an entitled Admiral at Turn 0 and still checks the GM instance', async () => {
   mock.currentTurn = 0;

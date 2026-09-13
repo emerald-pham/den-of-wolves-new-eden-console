@@ -57,6 +57,26 @@ describe('fleetTickerState', () => {
     ]);
   });
 
+  it('normalizes a persisted pre-contract Press priority before sorting', () => {
+    const state = fleetTickerState({
+      revision: 3,
+      nextSequence: 3,
+      replayCursor: 3,
+      current: message({ id: 's1:fleet-ticker:3', sequence: 3, priority: 80, text: 'RED ALERT' }),
+      queued: [
+        message({ id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20, text: 'PRESS' }),
+        message({ id: 's1:fleet-ticker:2', sequence: 2, priority: 40, text: 'AIRSPACE OPEN' }),
+      ],
+      draining: [],
+      dismissed: [],
+    });
+
+    expect(state.queued.map(({ id }) => id)).toEqual([
+      's1:fleet-ticker:1', 's1:fleet-ticker:2',
+    ]);
+    expect(state.queued[0]?.priority).toBe(50);
+  });
+
   it('fails closed for malformed or untrusted current copy', () => {
     expect(fleetTickerState({
       revision: 2,

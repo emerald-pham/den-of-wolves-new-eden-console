@@ -168,6 +168,18 @@ it('does not let session storage overrule server-authoritative pass state', () =
 
   expect(screen.getByRole('status', { name: 'AEGIS // STAND DOWN' })).toBeVisible();
 });
+it('uses local pass completion only for the exact server message identity', () => {
+  const first = { id: 'server-stand-down-a', text: 'AEGIS // STAND DOWN A', tone: 'normal' as const, passes: 2, serverAuthoritative: true };
+  const second = { id: 'server-stand-down-b', text: 'AEGIS // STAND DOWN B', tone: 'normal' as const, passes: 2, serverAuthoritative: true };
+  const view = render(<FleetTicker message={first} />);
+  finishMovingPasses(view.container, first.id);
+  expect(screen.queryByRole('status', { name: first.text })).not.toBeInTheDocument();
+
+  view.rerender(<FleetTicker message={second} />);
+  expect(screen.getByRole('status', { name: second.text })).toBeVisible();
+  view.rerender(<FleetTicker message={first} />);
+  expect(screen.queryByRole('status', { name: first.text })).not.toBeInTheDocument();
+});
 it('returns to the supplied standing copy when the server deadline expires', () => {
   vi.useFakeTimers(); setMotionOverride('reduce');
   vi.setSystemTime(new Date('2026-09-12T13:00:00.000Z'));
