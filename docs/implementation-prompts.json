@@ -4914,6 +4914,13 @@
       "language": "The ship-only sweep uses the negative layer inside the already isolated viewport, keeping it above the background and beneath all map content. Browser paint-order hit testing with the sweep aligned through the current marker confirms the marker precedes the sweep at phone, desktop, and short landscape sizes. The sweep retains its 8-second animation and pointer-events:none; OS and app reduced-motion modes stop it. GM sweep z-index remains 3. Sixty existing focused style and map tests passed.",
       "source": "src/styles/starmap.css; src/components/ShipNavigationMap.tsx; src/components/Starmap.tsx; /tmp/p676-render-evidence.json; /tmp/p676-phone.png; /tmp/p676-desktop.png; /tmp/p676-landscape.png",
       "type": "evidence / rendered / production-path"
+    },
+    {
+      "direction": "673 -> SHIP-NAVIGATION-COMPASS",
+      "id": "E-673-SHARED-COMPASS",
+      "language": "One shared compass retains the reference DRADIS markup and labels and renders inside the ship navigation readout. Real browser geometry confirms the compass remains outside the map scene and inside the page at phone, desktop and short landscape sizes; N/S and W/E directions are retained. Existing map and DRADIS tests, pointer pass-through and both reduced-motion checks pass.",
+      "source": "src/components/GalacticOrientationCompass.tsx; src/components/ShipPlot.tsx; src/components/Starmap.tsx; src/styles/starmap.css; /tmp/p673-render-evidence.json",
+      "type": "evidence / rendered / production-path"
     }
   ],
   "plan": {
@@ -22152,8 +22159,8 @@
         "acceptance": "Show the existing galactic orientation compass on the ship navigation jump map, matching its established labels, orientation, visual conventions, and map-coordinate meaning. Reuse the existing shared compass component or configuration where practical instead of maintaining divergent copies. Preserve jump-map coordinates, targets, zoom/pan and selection interactions, route access, and server-authoritative jump behavior. Do not change the reference compass or accepted non-GM DRADIS appearance and behavior. Verify compass alignment, readable nonoverlapping placement, and existing map controls at phone, desktop, and short-landscape sizes, with accessible semantics and reduced-motion behavior.",
         "title": "Mirror the galactic orientation compass on the ship navigation jump map."
       },
-      "description": "Owner-requested addition of the existing galactic orientation compass to ship navigation jump maps, preserving the reference compass, map interactions, coordinate meaning, and jump authority.",
-      "evidenceIds": "none",
+      "description": "Ship navigation jump maps now show the same galactic orientation compass as the reference DRADIS through one shared component. Existing compass markup, cardinal directions, tilted axes and accessible image label are preserved. The ship-map instance sits below the Ship fix readout, outside the map scene, so markers and controls remain unobscured. Seventy-four focused map, DRADIS and aesthetic checks pass. Chromium rendering at 320x844, 1440x900 and 844x390 verifies nonoverlapping placement, correct cardinal alignment, readable labels, no horizontal overflow, continuing normal scanline motion and both reduced-motion controls. GM maps and jump authority are unchanged.",
+      "evidenceIds": "E-673-SHARED-COMPASS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -22164,7 +22171,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     },
     {
