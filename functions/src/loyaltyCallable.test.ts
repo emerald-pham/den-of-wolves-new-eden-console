@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -30,7 +31,13 @@ vi.mock('firebase-admin/firestore', () => ({
     }),
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
-  Timestamp: { now: () => new Date('2026-09-07T12:00:00.000Z') },
+  Timestamp: class MockTimestamp {
+    private readonly value: Date;
+    constructor(value: Date) { this.value = value; }
+    toDate() { return this.value; }
+    static now() { return new MockTimestamp(new Date('2026-09-07T12:00:00.000Z')); }
+    static fromDate(value: Date) { return new MockTimestamp(value); }
+  },
 }));
 
 import { assignLoyalty, releaseRole, revealAndroidProof } from './index';
@@ -745,6 +752,49 @@ it('allows only the Android holder to disclose proof and makes the disclosure au
       result: { disclosed: true },
     }),
   );
+});
+
+it('rejects stale Android holders before replay or mutation', async () => {
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') {
+      return snapshot({
+        connected: true,
+        role: 'player',
+        lastSeenAt: Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000)),
+      }, ref.path);
+    }
+    if (ref.path === 'sessions/s1/secrets/loyalty-u2') {
+      return snapshot({ visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'android', suspicion: null } }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: 'android-stale-presence',
+  }, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['missing loyalty type', { kind: 'android', suspicion: null }],
+  ['wrong loyalty type', { type: 'secret', kind: 'android', suspicion: null }],
+  ['wrong suspicion', { type: 'loyalty', kind: 'android', suspicion: 0 }],
+  ['incompatible partner', { type: 'loyalty', kind: 'android', suspicion: null, partnerUid: 'u3' }],
+  ['malformed proof marker', { type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: false }],
+] as const)('rejects %s Android payload before replay or mutation', async (_label, payload) => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2', fields: { visibleToUids: ['u2'], payload },
+  }];
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: `android-malformed-${_label.replace(/\s+/g, '-')}`,
+  }, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('does not replay Android proof after the holder secret is missing or stale', async () => {

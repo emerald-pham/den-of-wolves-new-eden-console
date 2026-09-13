@@ -159,14 +159,17 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
   const partnerUid = payload.partnerUid === undefined || payload.partnerUid === null
     ? undefined
     : parseEntityId('player', payload.partnerUid);
+  const proofMarker = payload.proofRevealed;
   if (typeof payload.kind !== 'string' ||
       (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
-      (payload.partnerUid !== undefined && payload.partnerUid !== null && !partnerUid)) return null;
+      (payload.partnerUid !== undefined && payload.partnerUid !== null && !partnerUid) ||
+      (proofMarker !== undefined && typeof proofMarker !== 'boolean') ||
+      (payload.kind === 'android' && proofMarker === false)) return null;
   return {
     kind: payload.kind,
     suspicion: payload.suspicion,
     ...(partnerUid ? { partnerUid } : {}),
-    ...(payload.proofRevealed === true ? { proofRevealed: true } : {}),
+    ...(payload.kind === 'android' && proofMarker === true ? { proofRevealed: true } : {}),
   };
 }
 

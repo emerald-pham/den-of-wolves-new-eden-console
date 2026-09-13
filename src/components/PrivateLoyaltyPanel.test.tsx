@@ -1,14 +1,24 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import PrivateLoyaltyPanel from './PrivateLoyaltyPanel';
 
 vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
 
-beforeEach(() => useSessionStore.getState().reset());
+function prepareLivePlayer() {
+  useSessionStore.getState().setSession({ id: 's1' } as never);
+  useSessionStore.getState().setMe({ uid: 'u2', sessionId: 's1', role: 'player' } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+}
+
+beforeEach(() => {
+  useSessionStore.getState().reset();
+  vi.mocked(revealAndroidProof).mockReset();
+});
 afterEach(() => {
   cleanup();
   useSessionStore.getState().reset();
@@ -40,7 +50,7 @@ it('shows a Press holder card with its private partner pointer when present', ()
 it('lets the Android holder voluntarily disclose proof and records the committed state', async () => {
   const user = userEvent.setup();
   vi.mocked(revealAndroidProof).mockResolvedValue({ disclosed: true });
-  useSessionStore.getState().setSession({ id: 's1' } as never);
+  prepareLivePlayer();
   useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
 
   render(<PrivateLoyaltyPanel />);
@@ -51,6 +61,54 @@ it('lets the Android holder voluntarily disclose proof and records the committed
   await waitFor(() => expect(revealAndroidProof).toHaveBeenCalledTimes(1));
   expect(await screen.findByRole('status')).toHaveTextContent(/proof disclosed to the fleet/i);
   expect(screen.queryByRole('button', { name: /disclose Android proof/i })).not.toBeInTheDocument();
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+it('does not resurrect an Android proof marker after the private card switches', async () => {
+  const user = userEvent.setup();
+  const reply = deferred<{ disclosed: boolean }>();
+  vi.mocked(revealAndroidProof).mockReturnValue(reply.promise);
+  prepareLivePlayer();
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+  render(<PrivateLoyaltyPanel />);
+
+  await user.click(screen.getByRole('button', { name: /disclose Android proof/i }));
+  await waitFor(() => expect(revealAndroidProof).toHaveBeenCalledTimes(1));
+  act(() => useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 }));
+  await act(async () => reply.resolve({ disclosed: true }));
+
+  expect(useSessionStore.getState().privateLoyalty).toEqual({ kind: 'wolf-agent', suspicion: 0 });
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.queryByText(/proof disclosed/i)).not.toBeInTheDocument();
+});
+
+it('does not surface a stale Android error after demotion or identity change', async () => {
+  const user = userEvent.setup();
+  const reply = deferred<{ disclosed: boolean }>();
+  vi.mocked(revealAndroidProof).mockReturnValue(reply.promise);
+  prepareLivePlayer();
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+  render(<PrivateLoyaltyPanel />);
+
+  await user.click(screen.getByRole('button', { name: /disclose Android proof/i }));
+  await waitFor(() => expect(revealAndroidProof).toHaveBeenCalledTimes(1));
+  act(() => {
+    useSessionStore.getState().setMe(null);
+    useSessionStore.getState().setPrivateLoyalty(null);
+  });
+  await act(async () => reply.reject(new Error('old identity failed')));
+
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(useSessionStore.getState().privateLoyalty).toBeNull();
 });
 
 it('does not offer a second disclosure after server hydration marks proof revealed', () => {

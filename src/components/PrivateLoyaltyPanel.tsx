@@ -3,6 +3,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { PrivateLoyalty } from '@/types/game';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import { normalizeCommandError } from '@/lib/commandErrors';
+import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
 
 const LOYALTY_LABELS: Readonly<Record<string, string>> = {
   'fleet-loyalist': 'Fleet Loyalist',
@@ -20,6 +21,15 @@ function loyaltyLabel(loyalty: PrivateLoyalty): string {
   return LOYALTY_LABELS[loyalty.kind] ?? loyalty.kind.replace(/[-_]/g, ' ');
 }
 
+function isCurrentAndroidCard(
+  current: PrivateLoyalty | null,
+  dispatched: PrivateLoyalty,
+): boolean {
+  // The object identity is the assignment cursor. A replacement card with
+  // equal-looking fields must not inherit a delayed disclosure result.
+  return current === dispatched && current.kind === 'android' && dispatched.kind === 'android';
+}
+
 /** The current browser's private setup card; never accepts another player's id. */
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
@@ -30,13 +40,25 @@ export default function PrivateLoyaltyPanel() {
 
   const discloseAndroidProof = async () => {
     if (pending || loyalty.kind !== 'android' || loyalty.proofRevealed) return;
+    const state = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
+    const dispatchedCard = loyalty;
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
     setPending(true);
     setError('');
     try {
       const result = await revealAndroidProof();
-      if (result.disclosed) setPrivateLoyalty({ ...loyalty, proofRevealed: true });
+      const current = useSessionStore.getState();
+      if (result.disclosed && isCurrentSessionAuthority(checkpoint) &&
+          isCurrentAndroidCard(current.privateLoyalty, dispatchedCard)) {
+        setPrivateLoyalty({ ...dispatchedCard, proofRevealed: true });
+      }
     } catch (cause) {
-      setError(normalizeCommandError(cause).message);
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) &&
+          isCurrentAndroidCard(current.privateLoyalty, dispatchedCard)) {
+        setError(normalizeCommandError(cause).message);
+      }
     } finally {
       setPending(false);
     }

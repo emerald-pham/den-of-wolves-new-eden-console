@@ -1184,6 +1184,17 @@ function isActivePlayer(player: DocumentSnapshot): boolean {
     !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
+function isCanonicalAndroidPayload(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const payload = value as Record<string, unknown>;
+  const allowedKeys = new Set(['type', 'kind', 'suspicion', 'proofRevealed']);
+  return Object.keys(payload).every((key) => allowedKeys.has(key)) &&
+    payload.type === 'loyalty' &&
+    payload.kind === 'android' &&
+    payload.suspicion === null &&
+    (payload.proofRevealed === undefined || payload.proofRevealed === true);
+}
+
 /** A GM browser owns its own lease; legacy records use their immutable claim time. */
 function gmInstanceLeaseTimestamp(instance: Pick<DocumentSnapshot, 'get'>): string | number | Date | null | undefined {
   // An absent timestamp is an old, unverifiable claim. The empty sentinel is
@@ -5291,7 +5302,7 @@ export const revealAndroidProof = onCall<{
     const [session, player, secret, receipt, legacyEvent] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(secretRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
-    if (!session.exists || !isConnectedPlayer(player) || player.get('role') !== 'player') {
+    if (!session.exists || !isActivePlayer(player) || player.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only the active Android holder may disclose Android proof.');
     }
     if (!secret.exists) throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
@@ -5300,7 +5311,7 @@ export const revealAndroidProof = onCall<{
       throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
     }
     const payload = secret.get('payload');
-    if (typeof payload !== 'object' || payload === null || payload.kind !== 'android') {
+    if (!isCanonicalAndroidPayload(payload)) {
       throw new HttpsError('permission-denied', 'Only the Android holder may disclose Android proof.');
     }
     await rejectForeignLegacyM1Command(

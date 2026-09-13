@@ -672,6 +672,36 @@ it('hydrates the server-owned Android proof disclosure marker only for the curre
   });
 });
 
+it('drops Android proof markers from other or malformed loyalty records', () => {
+  const { callbacks } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5, proofRevealed: true }),
+  });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'fleet-loyalist', suspicion: 5 });
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: false }),
+  });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+
+  callbacks[3]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: 'true' }),
+  });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+});
+
 it('hydrates only the current UID role brief and clears it when the assignment is invalidated', () => {
   const { callbacks } = captureSessionListener();
   const onPlayer = vi.fn();
