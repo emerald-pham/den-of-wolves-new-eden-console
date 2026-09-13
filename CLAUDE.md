@@ -220,6 +220,13 @@ session projection fixture isolated to the smoke and save a viewport screenshot
 when a case fails; do not replace the real ticker with a mock or an offscreen
 DOM assertion.
 
+The news ticker has three player-facing sources: Air Traffic Control for
+airspace open/closed status, Press for published news, and Aegis for Red Alert
+and Stand Down. Preserve each source's authoritative state and displayed
+identity. ATC bulletins yield to newer Press or Aegis copy; active Press news
+returns after an Aegis interruption without reviving dismissed news. Cover
+these source transitions in the ticker tests.
+
 The initial server projection is also release-critical: a freshly joined member
 must see `AIRSPACE CONTROL // TURN 0 // STANDING BY` from the moment a lobby is
 joined, before any Press Officer publication or role-specific dispatch. The

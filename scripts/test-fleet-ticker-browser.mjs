@@ -9,6 +9,9 @@ const appUrl = `http://${host}:${port}/`;
 const artifactDirectory = process.env.TICKER_SMOKE_ARTIFACT_DIR
   ?? path.join('/tmp', 'fleet-ticker-smoke');
 const PRESS_TEXT = 'SNN // CURRENT SERVER BROADCAST';
+const AIRSPACE_OPEN_TEXT = 'AIRSPACE CONTROL // AIRSPACE OPEN';
+const RED_ALERT_TEXT = 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS';
+const STAND_DOWN_TEXT = 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.';
 const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // TURN 0 // STANDING BY';
 const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.';
 
@@ -123,6 +126,23 @@ function persistedFixture(nextSession, lastRoute, activeConsoleRoleId = player.a
 const persistedSession = persistedFixture(session, '/console');
 const persistedTurnZeroSession = persistedFixture(turnZeroSession, '/roles', null);
 const persistedTurnOneSession = persistedFixture(turnOneSession, '/roles', null);
+
+// These isolated projections exercise painting of all three server sources.
+// Callable tests prove the producer transitions; this smoke does not contact Firebase.
+const sourceFixtures = Object.fromEntries([
+  ['airspace-open', AIRSPACE_OPEN_TEXT, 'automatic', 'airspace:1:lifted', 40, 'normal'],
+  ['red-alert', RED_ALERT_TEXT, 'admiral', 'red-alert:1', 80, 'danger'],
+  ['stand-down', STAND_DOWN_TEXT, 'automatic', 'red-alert:2', 80, 'normal'],
+  ['press-return', PRESS_TEXT, 'press', 'press-smoke-dispatch', 20, 'normal'],
+].map(([key, text, source, sourceId, priority, tone], index) => [key, persistedFixture({
+  ...session,
+  currentTurn: 1,
+  fleetTicker: {
+    ...session.fleetTicker,
+    revision: 8 + index,
+    current: { ...session.fleetTicker.current, text, source, sourceId, priority, tone },
+  },
+}, '/console')]));
 
 function startVite() {
   const output = [];
@@ -279,10 +299,11 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
       socket.close();
     }
   });
-  await context.addInitScript(({ fixture, transitionFixture, fontMode: mode, reduced }) => {
-    const activeFixture = transitionFixture && sessionStorage.getItem('ticker-smoke-transition') === 'turn-one'
+  await context.addInitScript(({ fixture, transitionFixture, sourceFixtures, fontMode: mode, reduced }) => {
+    const transition = sessionStorage.getItem('ticker-smoke-transition');
+    const activeFixture = transitionFixture && transition === 'turn-one'
       ? transitionFixture
-      : fixture;
+      : sourceFixtures[transition] ?? fixture;
     localStorage.setItem('dow-new-eden-session', JSON.stringify(activeFixture));
     localStorage.setItem('new-eden-motion-override', reduced ? 'reduce' : 'full');
     localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({
@@ -307,6 +328,7 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   }, {
     fixture: scenario === 'turn-zero' ? persistedTurnZeroSession : persistedSession,
     transitionFixture: scenario === 'turn-zero' ? persistedTurnOneSession : null,
+    sourceFixtures: scenario === 'press' ? sourceFixtures : {},
     fontMode,
     reduced: reducedMotion,
   });
@@ -337,6 +359,19 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
     await page.waitForTimeout(100);
     await assertTicker(page, `${label}/reload`, fontMode, reducedMotion,
       scenario === 'turn-zero' ? TURN_ONE_AIRSPACE_TEXT : expectedText);
+
+    if (scenario === 'press') {
+      for (const [transition, text] of [
+        ['airspace-open', AIRSPACE_OPEN_TEXT],
+        ['red-alert', RED_ALERT_TEXT],
+        ['stand-down', STAND_DOWN_TEXT],
+        ['press-return', PRESS_TEXT],
+      ]) {
+        await page.evaluate((value) => sessionStorage.setItem('ticker-smoke-transition', value), transition);
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await assertTicker(page, `${label}/${transition}`, fontMode, reducedMotion, text);
+      }
+    }
   } catch (error) {
     await mkdir(artifactDirectory, { recursive: true });
     const screenshotPath = path.join(
