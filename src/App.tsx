@@ -328,6 +328,7 @@ function AppRoutes() {
           }
           if (previousEntitlement !== nextEntitlement) {
             retainArbourVisionForEntitlementChange();
+          }
           const authority = store.commissarPurgeAuthority;
           const authorityStillCurrent = authority?.role === 'commissar'
             ? next.replacementRoleId === 'commissar' && next.activeConsoleRoleId === null

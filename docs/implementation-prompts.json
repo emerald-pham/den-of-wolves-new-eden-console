@@ -18078,7 +18078,7 @@
         "acceptance": "captain consent permits the exact survivor purge and once-per-ship unrest reduction.",
         "title": "Activate the Commissar."
       },
-      "description": "Partial: the production Commissar consent and purge path now applies the printed survivor-track loss followed by unrest reduction with exact current-captain UID consent, server-only state, sanitized current-role projections, active-game and turn guards, revision/CAS, replay, and once-per-ship-per-turn checks. Focused callable and production-panel tests plus 81 emulator-backed Firestore-rule cases cover handover revocation, raw-state denial, and private projections; narrow phone, desktop, and landscape reduced-motion render evidence is recorded. Independent authority review remains.",
+      "description": "The production Commissar path applies one printed survivor-track loss followed by unrest reduction by 1, with exact current-captain UID consent and one use per ship per turn. Consent and purge ledgers remain server-only; current captains and the active Commissar receive only sanitized per-UID projections. Active-game, turn, ownership, revision/CAS, replay, handover revocation, and fail-closed counter checks protect the transaction, and no damage-card draw is introduced. Focused callable, private-projection, player-panel, and lifecycle checks pass, with prior emulator-backed rules coverage and responsive reduced-motion render evidence recorded; the reconciled candidate also passes typecheck and Functions build.",
       "evidenceIds": "E-AUDIT-518;E-518-COMMISSAR",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -18090,7 +18090,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
