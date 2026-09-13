@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**211 / 750 prompts complete (28.13%)**
+**212 / 750 prompts complete (28.27%)**
 
-Status breakdown: **211 done · 20 partial · 519 missing**.
+Status breakdown: **212 done · 20 partial · 518 missing**.
 
 Active prompt: **none**
 
@@ -1094,7 +1094,7 @@ release classification and evidence.
 | 616 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 617 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 618 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 618a | missing | feature | — | Owner-reported reconnect failure from the GM manifest communication-error state. Queued for reproduction and automatic subscription recovery; no fix or root cause is claimed. |
+| 618a | done | feature | — | The GM manifest now reattaches a failed realtime listener with capped retry delays and online/foreground recovery while retaining server-authorized projection refresh. Permission denial and missing-session failures stop recovery; cleanup suppresses stale listeners and late callable responses. A recovered manifest clears only its own communication error. Focused subscription and GM-route regressions, independent authority review, and phone/desktop/landscape production-component rendering verify recovery and preserved keyboard navigation. The reported screenshot does not establish the original transport cause. |
 | 619 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 620 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 621 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

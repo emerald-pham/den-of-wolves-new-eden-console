@@ -4718,6 +4718,13 @@
       "language": "The focused repair consumes shipped GM-instance authority and session reconnect foundations. Broader all-projection recovery (618) and retry guidance (633) are related scope, not prerequisites for fixing this reported failure.",
       "source": "docs/implementation-prompts.json; src/routes/GmConsole.tsx; src/lib/firestore.ts",
       "type": "hard_prompt / related/consumes"
+    },
+    {
+      "direction": "618a -> GM-MANIFEST-RECOVERY",
+      "id": "E-618A-VERIFIED",
+      "language": "The GM manifest now reattaches a failed realtime listener with capped retry delays and online/foreground recovery while retaining server-authorized projection refresh. Permission denial and missing-session failures stop recovery; cleanup suppresses stale listeners and late callable responses. A recovered manifest clears only its own communication error. Focused subscription and GM-route regressions, independent authority review, and phone/desktop/landscape production-component rendering verify recovery and preserved keyboard navigation. The reported screenshot does not establish the original transport cause.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; independent review 2df6964",
+      "type": "evidence / verified / production-path"
     }
   ],
   "plan": {
@@ -20612,8 +20619,8 @@
         "acceptance": "Reproduce the owner-reported GM console state showing Error – Wolf Communications Interception, code gm-manifest-link, reference WCI-GM-MANIFEST-LINK, where the live GM instance manifest could not be refreshed and automatic reconnect did not occur. When connectivity or a recoverable authentication interruption clears and the user remains authorized, restore the GM manifest subscription and current server snapshot automatically without requiring reload, route change, modal dismissal, or manual reconnect. Distinguish retryable failures from revoked membership, lost GM authority, and missing sessions; recovery must never restore stale GM write authority or expose protected data. Use bounded backoff and existing reconnect/online/foreground lifecycle seams, avoid duplicate listeners or retry storms, and cancel pending recovery on unmount, session change, logout, or demotion. Clear or replace this specific stale communication error after confirmed recovery without erasing unrelated newer errors. Add a focused production subscription-to-GM-console regression that fails before the repair and proves failure then restored connection updates the manifest automatically, plus repeated interruption, listener cleanup, and authorization-loss coverage. Verify truthful accessible connection status and retained keyboard navigation on narrow phone, wide desktop, and short landscape. The screenshot establishes the symptom, not the underlying transport or authentication cause.",
         "title": "Automatically recover the GM manifest after a transient connection failure."
       },
-      "description": "Owner-reported reconnect failure from the GM manifest communication-error state. Queued for reproduction and automatic subscription recovery; no fix or root cause is claimed.",
-      "evidenceIds": "E-618A-OWNER;E-618A-DEPENDENCIES",
+      "description": "The GM manifest now reattaches a failed realtime listener with capped retry delays and online/foreground recovery while retaining server-authorized projection refresh. Permission denial and missing-session failures stop recovery; cleanup suppresses stale listeners and late callable responses. A recovered manifest clears only its own communication error. Focused subscription and GM-route regressions, independent authority review, and phone/desktop/landscape production-component rendering verify recovery and preserved keyboard navigation. The reported screenshot does not establish the original transport cause.",
+      "evidenceIds": "E-618A-OWNER;E-618A-DEPENDENCIES;E-618A-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "045;084;085;086",
@@ -20624,7 +20631,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {
