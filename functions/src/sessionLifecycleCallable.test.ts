@@ -59,6 +59,9 @@ const mock = vi.hoisted(() => {
 
   const documents = new Map<string, StoredDocument>();
   let beforeTransaction: (() => void) | undefined;
+  let transactionDepth = 0;
+  let transactionWrote = false;
+  let rejectReadsAfterWrite = false;
   const recursiveDelete = vi.fn(async (ref: Ref) => {
     for (const path of [...documents.keys()]) {
       if (path === ref.path || path.startsWith(ref.path + '/')) documents.delete(path);
@@ -138,21 +141,39 @@ const mock = vi.hoisted(() => {
   });
 
   const update = vi.fn((target: Ref, fields: StoredDocument) => {
+    if (transactionDepth > 0) transactionWrote = true;
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
   const set = vi.fn((target: Ref, fields: StoredDocument, options?: { merge?: boolean }) => {
+    if (transactionDepth > 0) transactionWrote = true;
     documents.set(target.path, options?.merge
       ? { ...(documents.get(target.path) ?? {}), ...fields }
       : { ...fields });
   });
-  const remove = vi.fn((target: Ref) => { documents.delete(target.path); });
-  const get = vi.fn(async (target: Ref | Query) =>
-    'query' in target ? querySnapshot(target) : snapshot(target));
+  const remove = vi.fn((target: Ref) => {
+    if (transactionDepth > 0) transactionWrote = true;
+    documents.delete(target.path);
+  });
+  const get = vi.fn(async (target: Ref | Query) => {
+    if (transactionDepth > 0 && rejectReadsAfterWrite && transactionWrote) {
+      throw new Error('Firestore transaction read after write');
+    }
+    return 'query' in target ? querySnapshot(target) : snapshot(target);
+  });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
     const hook = beforeTransaction;
     beforeTransaction = undefined;
     hook?.();
-    return callback({ get, update, set, delete: remove });
+    const previousDepth = transactionDepth;
+    const previousWrote = transactionWrote;
+    transactionDepth += 1;
+    transactionWrote = false;
+    try {
+      return await callback({ get, update, set, delete: remove });
+    } finally {
+      transactionDepth = previousDepth;
+      transactionWrote = previousWrote;
+    }
   });
 
   return {
@@ -165,6 +186,7 @@ const mock = vi.hoisted(() => {
     runTransaction,
     recursiveDelete,
     setBeforeTransaction: (hook: (() => void) | undefined) => { beforeTransaction = hook; },
+    setRejectReadsAfterWrite: (value: boolean) => { rejectReadsAfterWrite = value; },
     db: {
       doc: ref,
       collection,
@@ -261,6 +283,7 @@ beforeEach(() => {
   mock.runTransaction.mockClear();
   mock.recursiveDelete.mockClear();
   mock.setBeforeTransaction(undefined);
+  mock.setRejectReadsAfterWrite(false);
 });
 
 afterEach(() => vi.useRealTimers());
@@ -480,6 +503,7 @@ describe('presence lease', () => {
   it('seeds Turn 0 ATC on the first heartbeat and does not publish it again on cheap renewal', async () => {
     session({ currentTurn: 0 });
     player();
+    mock.setRejectReadsAfterWrite(true);
 
     await refreshPresence.run(request({ sessionId: 's1' }));
     const firstTicker = read('sessions/s1')?.fleetTicker as Record<string, unknown>;

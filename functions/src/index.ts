@@ -10772,7 +10772,6 @@ export const refreshPresence = onCall<{
     if (instanceId && (!instance || !isLiveGmInstance(instance, player, uid))) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    ensureTurnZeroFleetTicker(tx, sessionRef, session, new Date().toISOString());
     const lastFullReconciliationAt = toTimestampMillis(
       reconciliation.get('lastFullReconciliationAt'),
     );
@@ -10780,6 +10779,7 @@ export const refreshPresence = onCall<{
       lastFullReconciliationAt !== undefined &&
       Date.now() - lastFullReconciliationAt < PRESENCE_RECONCILIATION_INTERVAL_MS;
     if (cheapHeartbeat) {
+      ensureTurnZeroFleetTicker(tx, sessionRef, session, new Date().toISOString());
       tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
       if (instanceId && instanceRef) {
         tx.update(instanceRef, {
@@ -10798,6 +10798,7 @@ export const refreshPresence = onCall<{
       tx.get(secretsRef),
       tx.get(censusRef),
     ]);
+    ensureTurnZeroFleetTicker(tx, sessionRef, session, new Date().toISOString());
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
