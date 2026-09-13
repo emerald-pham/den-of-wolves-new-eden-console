@@ -430,6 +430,33 @@ describe('App', () => {
     expect(useSessionStore.getState().connection).toBe('live');
   });
 
+  it.each([true, false])('retains own discovery regardless of GM denial listener order (%s)', async (ownFirst) => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const own = {
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
+      knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
+      pursuitDistance: 1, revision: 2,
+      navigationLogs: [{ id: 'own-jump', type: 'self-jump' as const, shipId: 'aegis', origin: '0000',
+        destination: '5143', occurredAt: '2026-09-12T12:00:00.000Z', stardate: '2026.255.120000' }],
+    };
+    act(() => {
+      if (ownFirst) handlers?.onPlayerDiscovery?.(own);
+      handlers?.onGmDiscovery?.(null);
+      if (!ownFirst) handlers?.onPlayerDiscovery?.(own);
+    });
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
+    expect(useSessionStore.getState().session?.shipNavigationLogs).toEqual({ aegis: own.navigationLogs });
+    expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
+    unmount();
+  });
+
   it('starts and tears down the census at authoritative GM promotion and demotion', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     let censusCallback: ((next: LoyaltyCensus | null) => void) | undefined;
@@ -494,8 +521,8 @@ describe('App', () => {
       handlers?.onPlayerFreshness?.(true);
     });
     expect(useSessionStore.getState().session?.playerDiscovery).toEqual(ownDiscovery);
-    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toBeUndefined();
-    expect(useSessionStore.getState().session?.shipNavigationLogs).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
+    expect(useSessionStore.getState().session?.shipNavigationLogs).toEqual({ aegis: [] });
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     expect(useSessionStore.getState().session?.organiserSites).toBeUndefined();
     expect(useSessionStore.getState().session?.pursuitDistances).toBeUndefined();

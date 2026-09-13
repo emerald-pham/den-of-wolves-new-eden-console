@@ -56,6 +56,11 @@ function stripGmNavigationProjection(session: GameSession): GameSession {
   delete next.organiserSites;
   delete next.organiserSystems;
   delete next.pursuitDistances;
+  const own = next.playerDiscovery;
+  if (own?.shipId) {
+    if (own.currentCoordinate) next.shipGalacticCoordinates = { [own.shipId]: own.currentCoordinate };
+    next.shipNavigationLogs = { [own.shipId]: own.navigationLogs };
+  }
   return next;
 }
 
