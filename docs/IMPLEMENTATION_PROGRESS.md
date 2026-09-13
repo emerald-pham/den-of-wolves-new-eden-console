@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **273 / 751 prompts complete (36.35%)**
 
-Status breakdown: **273 done · 22 partial · 456 missing**.
+Status breakdown: **273 done · 23 partial · 455 missing**.
 
 Active prompt: **none**
 
@@ -1083,7 +1083,7 @@ release classification and evidence.
 | 606 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 608 | partial | non-feature | 0.4.3 | Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists. |
-| 609 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 609 | partial | non-feature | 0.4.4 | Partial production-path implementation: phase, Wolf attack/parking, and pursuit-threshold updates now use stable keyed live regions that stay quiet for initial hydration and identical listener snapshots, while existing denial and ending status paths retain their alert/revision guards. Real Chrome accessibility proof uses simulated local session-store events; no Firebase/server-path browser claim is made. |
 | 610 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |
 | 611a | done | feature | 0.3.105 | Characterized the exact Write / crew incomplete and Read only console-access paragraphs: both inherited 16px system sans, normal tracking and mixed casing rather than the nearby CIC caption family. Both now use the existing cic-overline mono/tracking/uppercase style with the named cyan readout color and safe wrapping. The change preserves copy, paragraph semantics, heading order and all authority behavior; it introduces no global scale or redesign. Before/after actual component renders verified both states at 320x844, 390x844, 844x390 and 1440x900 in normal/reduced motion without horizontal overflow. Readout contrast exceeds 9.7:1 against both named CIC ground surfaces; focused console and aesthetic tests passed. |

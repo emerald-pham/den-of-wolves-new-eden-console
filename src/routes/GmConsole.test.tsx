@@ -2405,12 +2405,15 @@ it('activates the GM declaration control with Enter after the due window and dra
 
   const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
   const declare = within(preparation).getByRole('button', { name: 'Declare Wolf attack' });
+  const declarationStatus = within(preparation).getByRole('status');
   expect(declare).toBeEnabled();
+  expect(declarationStatus).toHaveAttribute('aria-live', 'off');
   declare.focus();
   await user.keyboard('{Enter}');
 
   await waitFor(() => expect(declareWolfAttack).toHaveBeenCalledWith(4));
   expect(preparation).toHaveTextContent(/declared \/\/ turn 1 \/\/ targeting step \/\/ airspace locked \/\/ 2 craft parked/i);
+  expect(declarationStatus).toHaveAttribute('aria-live', 'polite');
 });
 
 it('requires three deliberate clicks to pause and resume the emergency timer', async () => {

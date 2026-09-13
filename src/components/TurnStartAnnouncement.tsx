@@ -5,6 +5,7 @@ import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
+import LiveChangeRegion from './LiveChangeRegion';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
@@ -168,9 +169,6 @@ function FleetTransmission({
         </div>
         {!isFirstTurn && <DradisAirspaceTimer phase={phase} />}
       </Intrusion>
-      <p className="turn-start-announcement__sr" aria-live="assertive" aria-atomic="true">
-        Fleet transmission for Turn {transmission.turn}.
-      </p>
     </>
   );
 }
@@ -238,10 +236,28 @@ export default function TurnStartAnnouncement() {
     });
   }, [localReplay, session?.id]);
 
-  if (!transmission || transmission.sessionId !== session?.id) return null;
-  return <FleetTransmission
-    key={`${transmission.sessionId}-${transmission.turn}-${transmission.revision}-${transmission.localReplayToken ?? 'server'}`}
-    transmission={transmission}
-    onComplete={complete}
-  />;
+  const activeTransmission = transmission?.sessionId === session?.id ? transmission : null;
+  const transmissionKey = activeTransmission
+    ? `${activeTransmission.sessionId}:${activeTransmission.turn}:${activeTransmission.revision}:${activeTransmission.localReplayToken ?? 'server'}`
+    : null;
+
+  return (
+    <>
+      <LiveChangeRegion
+        as="p"
+        className="turn-start-announcement__sr"
+        changeKey={transmissionKey}
+        message={activeTransmission ? `Fleet transmission for Turn ${activeTransmission.turn}.` : ''}
+        politeness="assertive"
+        announceInitial
+      />
+      {activeTransmission && (
+        <FleetTransmission
+          key={transmissionKey!}
+          transmission={activeTransmission}
+          onComplete={complete}
+        />
+      )}
+    </>
+  );
 }

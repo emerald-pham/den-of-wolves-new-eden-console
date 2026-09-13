@@ -5075,6 +5075,13 @@
       "language": "The shared useDialogFocus hook now keeps the topmost existing role=dialog or alertdialog surface keyboard-contained, restores its opener with a page-control fallback, and preserves each surface’s existing Escape policy while its aria-labelledby and aria-describedby semantics announce purpose. It is applied to AppHeader settings, SessionWaiver, MotionSafetyGate, stale-seat intervention, GM observer-write, GM Capybara/Dione/Press confirmations, and GM unrest/population alerts. Focused tests cover Tab/Shift+Tab, Escape, focus-in recovery, nested and replaced dialogs, and removed openers. Local Chrome rendering covered settings, waiver, and motion surfaces at 320x844, 390x844, 844x390, and 1440x900 under normal and reduced motion with no horizontal overflow. Existing private-result, facilitator-call, and endgame content is persistent status/region UI rather than modal dialogs, so this evidence does not claim new modal behavior for absent surfaces.",
       "source": "src/hooks/useDialogFocus.ts; src/hooks/useDialogFocus.test.tsx; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/components/SessionWaiver.tsx; src/components/SessionWaiver.test.tsx; src/components/MotionSafetyGate.tsx; src/components/MotionSafetyGate.test.tsx; src/components/UnrestAlert.tsx; src/components/UnrestAlert.test.tsx; src/components/PopulationAlert.tsx; src/components/PopulationAlert.test.tsx; src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; /tmp/p608-dialog-focus-render-20260913/evidence.json",
       "type": "evidence / accessibility / rendered"
+    },
+    {
+      "direction": "609 -> LIVE-REGIONS",
+      "id": "E-609-LIVE-REGIONS",
+      "language": "Existing phase, Wolf attack/parking, denial, pursuit-threshold, and ending presentation paths now use stable keyed live regions or their existing role=status/alert behavior. LiveChangeRegion keeps one region mounted while listener snapshots reconcile, stays quiet for initial hydrated state and identical event keys, and announces only a new event key; it is used for turn transmissions, Wolf declaration/parked-craft results, and pursuit severity transitions. Existing CommunicationError role=alert and DebriefMode revision gating remain the denial and ending paths, and FleetTicker/FleetBroadcast retain their authoritative message IDs. Focused tests cover same snapshot, new revision, initial hydration, threshold severity, declaration parking, denial, and debrief behavior. Real Chrome checks cover representative rendered DOM for threshold, phase, attack/parking, denial, and ending using simulated local session-store events; they do not claim a Firebase/server roundtrip.",
+      "source": "src/components/LiveChangeRegion.tsx; src/components/LiveChangeRegion.test.tsx; src/components/TurnStartAnnouncement.tsx; src/components/TurnStartAnnouncement.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/components/PursuitTracker.tsx; src/components/PursuitTracker.test.tsx; src/components/CommunicationError.tsx; src/components/CommunicationError.test.tsx; src/components/DebriefMode.tsx; src/components/DebriefMode.test.tsx; src/components/FleetTicker.tsx; src/components/FleetTicker.test.tsx; src/components/FleetBroadcast.tsx; src/components/FleetBroadcast.test.tsx; /tmp/p609-live-region-render-20260913/evidence.json",
+      "type": "evidence / accessibility / rendered / listener-dedupe"
     }
   ],
   "plan": {
@@ -20746,8 +20753,8 @@
         "acceptance": "phase, attack, parking, denial, threshold, and ending updates use appropriate live regions without listener-repeat noise.",
         "title": "Announce live changes once."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Partial production-path implementation: phase, Wolf attack/parking, and pursuit-threshold updates now use stable keyed live regions that stay quiet for initial hydration and identical listener snapshots, while existing denial and ending status paths retain their alert/revision guards. Real Chrome accessibility proof uses simulated local session-store events; no Firebase/server-path browser claim is made.",
+      "evidenceIds": "E-609-LIVE-REGIONS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20755,10 +20762,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.4"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {

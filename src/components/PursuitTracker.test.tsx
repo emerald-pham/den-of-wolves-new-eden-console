@@ -129,3 +129,31 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
   expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 0 cycles');
   expect(tracker).toHaveTextContent('SURROUNDED // GAME OVER');
 });
+
+it('announces threshold severity changes once while keeping hydrated state quiet', () => {
+  const { rerender } = render(
+    <PursuitTracker
+      currentTurn={4}
+      shipId="shepherd"
+      shipName="Shepherd"
+      shipCoordinate="0000"
+      pursuitDistance={0}
+    />,
+  );
+
+  const status = document.querySelector('.pursuit-tracker__status')!;
+  expect(status).toHaveTextContent('CRITICAL // WOLF FORCES CLOSING');
+  expect(status).toHaveAttribute('aria-live', 'off');
+
+  rerender(
+    <PursuitTracker
+      currentTurn={5}
+      shipId="shepherd"
+      shipName="Shepherd"
+      shipCoordinate="0000"
+      pursuitDistance={0}
+    />,
+  );
+  expect(status).toHaveTextContent('SURROUNDED // GAME OVER');
+  expect(status).toHaveAttribute('aria-live', 'polite');
+});

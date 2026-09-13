@@ -4,6 +4,7 @@ import {
   pursuitScoreForPosition,
   pursuitStatusForScore,
 } from '@/data/pursuit';
+import LiveChangeRegion from './LiveChangeRegion';
 
 interface PursuitTrackerProps {
   readonly currentTurn: number;
@@ -97,9 +98,12 @@ export default function PursuitTracker({
         ))}
       </ol>
 
-      <p className={`pursuit-tracker__status pursuit-tracker__status--${status}`}>
-        {statusLabel}
-      </p>
+      <LiveChangeRegion
+        as="p"
+        className={`pursuit-tracker__status pursuit-tracker__status--${status}`}
+        changeKey={`${shipId}:${currentTurn}:${coordinate}:${entitledDistance}:${pursuitScore}:${threatLevel}`}
+        message={statusLabel}
+      />
     </section>
   );
 }

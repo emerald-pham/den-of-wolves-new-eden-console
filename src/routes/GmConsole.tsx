@@ -7,6 +7,7 @@ import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import PursuitTracker from '@/components/PursuitTracker';
+import LiveChangeRegion from '@/components/LiveChangeRegion';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -545,6 +546,14 @@ export default function GmConsole() {
     wolfAttackState === null && currentPhase?.airspace.state === 'lifted' &&
     currentPhase.timerPause === undefined,
   );
+  const wolfDeclarationAnnouncement = wolfAttackState
+    ? `Declaration // committed // Turn ${wolfAttackState.turn} // ${wolfAttackState.currentStep} // deadline ${wolfAttackState.deadlineAt}`
+    : wolfDeclarationMessage ?? 'Declaration // waiting for a due timing marker and saved private draft';
+  const wolfDeclarationAnnouncementKey = wolfAttackState
+    ? `state:${wolfAttackState.turn}:${wolfAttackState.revision}:${wolfAttackState.currentStep}:${wolfAttackState.deadlineAt}`
+    : wolfDeclarationMessage
+      ? `message:${wolfDeclarationMessage}`
+      : null;
   const wolfPreparationTargetOptions = activeShipIds.filter((shipId) =>
     ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'].includes(shipId),
   );
@@ -2338,11 +2347,12 @@ export default function GmConsole() {
                   {wolfDeclarationMutation ? 'Declaring Wolf attack…' : 'Declare Wolf attack'}
                 </button>
               </div>
-              <p className="gm-console__status" role="status" aria-live="polite">
-                Declaration // {wolfAttackState
-                  ? `committed // Turn ${wolfAttackState.turn} // ${wolfAttackState.currentStep} // deadline ${wolfAttackState.deadlineAt}`
-                  : wolfDeclarationMessage ?? 'waiting for a due timing marker and saved private draft'}
-              </p>
+              <LiveChangeRegion
+                as="p"
+                className="gm-console__status"
+                changeKey={wolfDeclarationAnnouncementKey}
+                message={wolfDeclarationAnnouncement}
+              />
             </section>
           </section>
           <section className="gm-console__module gm-crisis cic-frame" aria-label="Crisis state machine">

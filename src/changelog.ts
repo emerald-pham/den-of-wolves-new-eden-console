@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['608'],
+    implementationPrompts: ['609'],
     implementationProgress: {
       completed: 273,
       total: 751,
       percentage: '36.35%',
       done: 273,
-      partial: 22,
+      partial: 23,
       active: 0,
-      missing: 456,
+      missing: 455,
     },
     changes: [
-      'Settings and confirmation dialogs now keep keyboard focus inside the active decision and return it to the control that opened them, including when a nested dialog is replaced or dismissed.',
+      'Live updates now announce new phase, attack, parking, threshold, denial, and ending changes once without repeating the same listener snapshot.',
       '273 of 751 planned items are complete (36.35%).',
     ],
   },
