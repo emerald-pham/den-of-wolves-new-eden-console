@@ -359,6 +359,7 @@ function AppRoutes() {
             pendingGmDiscovery = null;
             clearLoyaltyCensus();
             useSessionStore.getState().setGmSetupReceipt(null);
+            useSessionStore.getState().setGmCrisisState(null);
             const current = useSessionStore.getState().session;
             if (current?.id === sessionId) {
               useSessionStore.getState().setSession(stripGmNavigationProjection(current));

@@ -29,6 +29,7 @@ import {
   requireSessionRequest,
   requireSessionCreationRequest,
   requireCastingPreferenceRequest,
+  requireCrisisTransitionRequest,
   requireRoleAssignmentRequest,
   requireRoleReleaseRequest,
   requireReplacementEligibilityRequest,
@@ -142,6 +143,17 @@ describe('callable request guards', () => {
     });
     expectHttpsError(() => requireCastingPreferenceRequest({
       sessionId: 's1', requestId: 'preference-1', shipId: '',
+    }), 'invalid-argument');
+  });
+
+  it('keeps crisis identifiers aligned with the durable projection bound', () => {
+    expect(requireCrisisTransitionRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'crisis-1', expectedRevision: 0,
+      crisisId: 'x'.repeat(80), state: 'draft', title: 'Approaching vessel', details: '',
+    }).crisisId).toHaveLength(80);
+    expectHttpsError(() => requireCrisisTransitionRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'crisis-1', expectedRevision: 0,
+      crisisId: 'x'.repeat(81), state: 'draft', title: 'Approaching vessel', details: '',
     }), 'invalid-argument');
   });
 

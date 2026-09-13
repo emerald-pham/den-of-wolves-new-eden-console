@@ -853,12 +853,23 @@ export interface AndroidProofEvent {
   readonly createdAt: Timestamp;
 }
 
+export interface CrisisStateEvent {
+  readonly id: EventId;
+  readonly sessionId: SessionId;
+  readonly type: 'crisis-state';
+  readonly crisisId: string;
+  readonly state: import('./crisis').CrisisStateName;
+  readonly title: string;
+  readonly createdAt: Timestamp;
+}
+
 export type SessionEvent =
   | ShipConfettiEvent
   | FullscreenAlertEvent
   | MaintenanceEvent
   | TimerPauseEvent
-  | AndroidProofEvent;
+  | AndroidProofEvent
+  | CrisisStateEvent;
 
 export type DamageDraw = {
   readonly id: EventId;

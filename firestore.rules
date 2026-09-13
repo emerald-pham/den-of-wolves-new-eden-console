@@ -586,6 +586,19 @@ service cloud.firestore {
         }
       }
 
+      // Crisis drafts and facilitator deliberation remain private. Resolved
+      // and later member-facing summaries arrive through the allowlisted
+      // crisis-state event instead of this mutable projection.
+      match /crisisState/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if projectionId == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
       // Mission decks contain the authoritative shuffled order. They are
       // server-only state, including from connected GM devices.
       match /serverState/{document=**} {

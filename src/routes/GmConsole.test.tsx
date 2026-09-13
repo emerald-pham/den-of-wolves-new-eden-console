@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { CrisisStateProjection } from '@/types/crisis';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
@@ -49,6 +50,7 @@ vi.mock('@/lib/sessionService', () => ({
   deliverWolfCultIntelligence: vi.fn(),
   authorUniversalArbourVision: vi.fn(),
   authorFacilitatorRuleCall: vi.fn(),
+  transitionCrisis: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -64,6 +66,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfCultIntelligence: vi.fn(),
   subscribeGmArbourVision: vi.fn(),
   subscribeGmFacilitatorRuleCall: vi.fn(),
+  subscribeGmCrisisState: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
@@ -75,10 +78,10 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -91,6 +94,10 @@ const other = {
   id: 'other-1', sessionId: 's1', uid: 'u2', name: 'Tablet',
   deviceLabel: 'iPad / Safari', claimedAt: '2026-01-01T00:01:00.000Z',
   responsibilities: [] as readonly ('main' | 'assistant')[],
+};
+const liveCrisis: CrisisStateProjection = {
+  sessionId: 's1', crisisId: 'crisis-1', state: 'draft', revision: 1,
+  title: 'Relay pressure', details: 'Facilitator-only deliberation.',
 };
 
 function renderConsole() {
@@ -157,6 +164,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmFacilitatorRuleCall).mockImplementation((_sessionId, onCall) => {
     onCall(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    onState(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -318,6 +329,113 @@ it('records a durable facilitator rule call for a selected player', async () => 
   expect(await within(panel).findByRole('status')).toHaveTextContent(/rule call applied/i);
 });
 
+it('lets the facilitator author and advance a crisis lifecycle from the GM console', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(transitionCrisis).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
+  await user.type(within(panel).getByRole('textbox', { name: 'Crisis title' }), 'Relay pressure');
+  await user.type(within(panel).getByRole('textbox', { name: 'Crisis facilitator notes' }), 'Facilitator-only deliberation.');
+  await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
+
+  await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
+    'crisis-1', 'draft', 'Relay pressure', 'Facilitator-only deliberation.',
+  ));
+  expect(await within(panel).findByRole('status')).toHaveTextContent(/crisis transition committed/i);
+});
+
+it('withholds the private crisis stream until the fresh manifest confirms this instance', async () => {
+  const crisisSubscribe = vi.fn();
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    crisisSubscribe();
+    onState(liveCrisis);
+    return vi.fn();
+  });
+  useSessionStore.getState().setGmCrisisState(liveCrisis);
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([]);
+  renderConsole();
+
+  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+  expect(crisisSubscribe).not.toHaveBeenCalled();
+  expect(useSessionStore.getState().gmInstance).toBeNull();
+  expect(useSessionStore.getState().gmCrisisState).toBeNull();
+});
+
+it('invalidates the crisis stream when the same GM is replaced by another instance', async () => {
+  let publish: ((instances: readonly typeof local[]) => void) | undefined;
+  let crisisPublish: ((state: CrisisStateProjection | null) => void) | undefined;
+  vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
+    publish = onInstances;
+    onInstances([local]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    crisisPublish = onState;
+    onState(liveCrisis);
+    return vi.fn();
+  });
+  useSessionStore.getState().setGmInstance(local);
+  renderConsole();
+  await screen.findByRole('region', { name: 'Crisis state machine' });
+
+  act(() => publish?.([{ ...local, id: 'replacement-1' }]));
+  act(() => crisisPublish?.(liveCrisis));
+
+  expect(useSessionStore.getState().gmInstance).toBeNull();
+  expect(useSessionStore.getState().gmCrisisState).toBeNull();
+  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+});
+
+it('clears demoted GM crisis state and ignores late listener callbacks', async () => {
+  let crisisPublish: ((state: CrisisStateProjection | null) => void) | undefined;
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    crisisPublish = onState;
+    onState(liveCrisis);
+    return vi.fn();
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await screen.findByRole('region', { name: 'Crisis state machine' });
+  expect(useSessionStore.getState().gmCrisisState).toEqual(liveCrisis);
+
+  act(() => {
+    useSessionStore.getState().setIdentity(
+      useSessionStore.getState().session!,
+      { ...useSessionStore.getState().me!, role: 'player' },
+    );
+    crisisPublish?.(liveCrisis);
+  });
+
+  expect(useSessionStore.getState().gmCrisisState).toBeNull();
+  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+});
+
+it('ignores a stale crisis callable result after GM instance replacement', async () => {
+  const user = userEvent.setup();
+  let resolveTransition: ((value: 'applied') => void) | undefined;
+  vi.mocked(transitionCrisis).mockImplementation(() => new Promise((resolve) => {
+    resolveTransition = resolve;
+  }));
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
+  await user.type(within(panel).getByRole('textbox', { name: 'Crisis title' }), 'Relay pressure');
+  await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
+  await waitFor(() => expect(transitionCrisis).toHaveBeenCalled());
+
+  act(() => useSessionStore.getState().setGmInstance({ ...local, id: 'replacement-1' }));
+  act(() => resolveTransition?.('applied'));
+
+  expect(useSessionStore.getState().gmCrisisState).toBeNull();
+  expect(screen.queryByText(/crisis transition committed/i)).not.toBeInTheDocument();
+});
+
 it('returns to role selection', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -469,10 +587,16 @@ it('updates when the live GM instance stream changes', async () => {
   expect(await screen.findByText('Tablet')).toBeInTheDocument();
 });
 
-it('clears the manifest interruption after recovery without clearing an unrelated newer error', async () => {
+it('revokes the local GM authority when the manifest listener fails', async () => {
   let publish: ((instances: readonly typeof local[]) => void) | undefined;
   let fail: (() => void) | undefined;
+  let crisisPublish: ((state: CrisisStateProjection | null) => void) | undefined;
   useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    crisisPublish = onState;
+    onState(liveCrisis);
+    return vi.fn();
+  });
   vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances, onError) => {
     publish = onInstances;
     fail = onError;
@@ -483,17 +607,13 @@ it('clears the manifest interruption after recovery without clearing an unrelate
   await screen.findByText('Bridge laptop');
 
   act(() => fail?.());
+  act(() => crisisPublish?.(liveCrisis));
   expect(useSessionStore.getState().communicationError?.code).toBe('gm-manifest-link');
+  expect(useSessionStore.getState().gmInstance).toBeNull();
+  expect(useSessionStore.getState().gmCrisisState).toBeNull();
+  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
   act(() => publish?.([local, other]));
-  expect(await screen.findByText('Tablet')).toBeInTheDocument();
-  expect(useSessionStore.getState().communicationError).toBeNull();
-
-  act(() => {
-    fail?.();
-    useSessionStore.getState().setCommunicationError({ code: 'gm-event-log-link', message: 'Event log unavailable.' });
-    publish?.([local]);
-  });
-  expect(useSessionStore.getState().communicationError?.code).toBe('gm-event-log-link');
+  expect(screen.queryByText('Tablet')).not.toBeInTheDocument();
 });
 
 it('groups connected players by command role in the GM console', async () => {

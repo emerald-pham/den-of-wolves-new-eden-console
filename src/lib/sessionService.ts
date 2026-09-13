@@ -29,6 +29,7 @@ import { parseEntityId } from '@/types/identifiers';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
+import type { CrisisStateName } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
 import {
@@ -1522,6 +1523,34 @@ export async function authorFacilitatorRuleCall(
       audience: input.audience,
       ...(input.recipientUid ? { recipientUid: input.recipientUid } : {}),
       ...(input.supersedesCallId ? { supersedesCallId: input.supersedesCallId } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Advance the manually authored crisis through the server-owned lifecycle. */
+export async function transitionCrisis(
+  crisisId: string,
+  state: CrisisStateName,
+  title: string,
+  details: string,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before advancing a crisis.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'transitionCrisis',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmCrisisState?.revision ?? 0,
+      crisisId: crisisId.trim(),
+      state,
+      title: title.trim(),
+      details: details.trim(),
     },
     createdAt: new Date().toISOString(),
   });

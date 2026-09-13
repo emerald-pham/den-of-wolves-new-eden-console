@@ -113,6 +113,20 @@ describe('buildPrivacySafeEventRecord', () => {
     });
   });
 
+  it('publishes crisis lifecycle summaries without facilitator notes', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'crisis-state',
+      payload: {
+        crisisId: 'approaching-vessel', state: 'delivered', title: 'Approaching vessel',
+        details: 'Private resolution notes', actorUid: 'gm-secret',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'crisis-state', crisisId: 'approaching-vessel', state: 'delivered',
+      title: 'Approaching vessel', createdAt: 'server-time',
+    });
+  });
+
   it.each([
     EventVisibility.Public,
     EventVisibility.Crew,

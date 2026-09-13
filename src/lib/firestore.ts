@@ -64,6 +64,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
+import type { CrisisStateProjection, CrisisStateName } from '@/types/crisis';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -832,6 +833,34 @@ function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticC
       return parsed === undefined ? [] : [[shipId, parsed]];
     })),
   };
+}
+
+function crisisStateProjection(value: unknown, sessionId: string): CrisisStateProjection | null {
+  const raw = recordValue(value);
+  const parsedSessionId = parseEntityId('session', raw?.sessionId ?? sessionId);
+  const crisisSessionId = parseEntityId('session', sessionId);
+  const revision = nonNegativeInteger(raw?.revision);
+  if (!raw || !parsedSessionId || !crisisSessionId || parsedSessionId !== crisisSessionId ||
+      typeof raw.crisisId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(raw.crisisId) || raw.crisisId.length > 80 ||
+      !isCrisisStateName(raw.state) || revision === undefined ||
+      typeof raw.title !== 'string' || raw.title.length === 0 || raw.title.length > 160 ||
+      typeof raw.details !== 'string' || raw.details.length > 2_000) return null;
+  return {
+    sessionId: parsedSessionId,
+    crisisId: raw.crisisId,
+    state: raw.state,
+    revision,
+    title: raw.title,
+    details: raw.details,
+    ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
+  };
+}
+
+function isCrisisStateName(value: unknown): value is CrisisStateName {
+  return typeof value === 'string' && (
+    value === 'draft' || value === 'delivered' || value === 'debated' ||
+    value === 'resolved' || value === 'escalated' || value === 'announced' || value === 'closed'
+  );
 }
 
 function alertMap<T extends UnrestAlert | PopulationAlert>(value: unknown, population: boolean): Readonly<Record<string, T>> {
@@ -2387,6 +2416,19 @@ export function subscribeSessionEvents(
             createdAt: iso(data.createdAt),
           }];
         }
+        if (
+          data.type === 'crisis-state' && typeof data.crisisId === 'string' &&
+          /^[A-Za-z0-9_-]+$/.test(data.crisisId) && data.crisisId.length <= 80 &&
+          isCrisisStateName(data.state) && typeof data.title === 'string' && data.title.length > 0
+        ) return [{
+          id: eventId,
+          sessionId: eventSessionId,
+          type: 'crisis-state' as const,
+          crisisId: data.crisisId,
+          state: data.state,
+          title: data.title,
+          createdAt: iso(data.createdAt),
+        }];
         if (data.type !== 'ship-confetti') return [];
         const shipId = parseEntityId('vessel', data.shipId);
         if (!shipId) return [];
@@ -2407,6 +2449,40 @@ export function subscribeSessionEvents(
   return () => {
     subscribed = false;
     unsubscribe();
+  };
+}
+
+/** Subscribe to the facilitator-only durable crisis projection. */
+export function subscribeGmCrisisState(
+  sessionId: string,
+  onState: (state: CrisisStateProjection | null) => void,
+  onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
+): Unsubscribe {
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/crisisState/current`),
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (
+        hasServerSnapshot ||
+        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+      )) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onState(snapshot.exists() ? crisisStateProjection(snapshot.data(), sessionId) : null);
+    },
+    () => {
+      if (!subscribed) return;
+      onState(null);
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onState(null);
   };
 }
 

@@ -16,6 +16,7 @@ import type {
   WolfCultIntelligence,
   ArbourVision,
 } from '@/types/game';
+import type { CrisisStateProjection } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -251,6 +252,21 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'transitionCrisis';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedRevision: number;
+        readonly crisisId: string;
+        readonly state: import('@/types/crisis').CrisisStateName;
+        readonly title: string;
+        readonly details: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'claimSeat';
       readonly payload: {
         readonly sessionId: string;
@@ -340,6 +356,7 @@ interface SessionState {
   gmArbourVision: ArbourVision | null;
   facilitatorRuleCall: FacilitatorRuleCall | null;
   gmFacilitatorRuleCall: FacilitatorRuleCall | null;
+  gmCrisisState: CrisisStateProjection | null;
   gmSetupReceipt: SetupReceipt | null;
   commissarPurgeAuthority: CommissarPurgeAuthority | null;
   pendingCommands: readonly PendingCommand[];
@@ -366,6 +383,7 @@ interface SessionState {
   setGmArbourVision: (vision: ArbourVision | null) => void;
   setFacilitatorRuleCall: (call: FacilitatorRuleCall | null) => void;
   setGmFacilitatorRuleCall: (call: FacilitatorRuleCall | null) => void;
+  setGmCrisisState: (state: CrisisStateProjection | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   setCommissarPurgeAuthority: (authority: CommissarPurgeAuthority | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
@@ -395,6 +413,7 @@ const initial = {
   gmArbourVision: null,
   facilitatorRuleCall: null,
   gmFacilitatorRuleCall: null,
+  gmCrisisState: null,
   gmSetupReceipt: null,
   commissarPurgeAuthority: null,
   pendingCommands: [] as readonly PendingCommand[],
@@ -406,7 +425,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -433,7 +452,7 @@ export const useSessionStore = create<SessionState>()(
       setIdentity: (session, me) => set({
         session, me, roleBrief: null, wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
-        gmFacilitatorRuleCall: null, commissarPurgeAuthority: null,
+        gmFacilitatorRuleCall: null, gmCrisisState: null, commissarPurgeAuthority: null,
       }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
@@ -452,6 +471,7 @@ export const useSessionStore = create<SessionState>()(
       setGmArbourVision: (gmArbourVision) => set({ gmArbourVision }),
       setFacilitatorRuleCall: (facilitatorRuleCall) => set({ facilitatorRuleCall }),
       setGmFacilitatorRuleCall: (gmFacilitatorRuleCall) => set({ gmFacilitatorRuleCall }),
+      setGmCrisisState: (gmCrisisState) => set({ gmCrisisState }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       setCommissarPurgeAuthority: (commissarPurgeAuthority) => set({ commissarPurgeAuthority }),
       enqueueCommand: (command) =>
@@ -485,6 +505,7 @@ export const useSessionStore = create<SessionState>()(
           gmArbourVision: null,
           facilitatorRuleCall: null,
           gmFacilitatorRuleCall: null,
+          gmCrisisState: null,
           gmSetupReceipt: null,
           commissarPurgeAuthority: null,
           mode: null,

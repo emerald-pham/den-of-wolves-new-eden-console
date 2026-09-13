@@ -45,6 +45,7 @@ import {
   deliverWolfCultIntelligence,
   authorUniversalArbourVision,
   authorFacilitatorRuleCall,
+  transitionCrisis,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -92,6 +93,7 @@ import type {
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
+import { nextCrisisStates, type CrisisStateName } from '@/types/crisis';
 import { isWireSafeEntityId } from '@/types/identifiers';
 import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
 
@@ -336,6 +338,12 @@ export default function GmConsole() {
   const [ruleCallMutation, setRuleCallMutation] = useState(false);
   const [ruleCallMessage, setRuleCallMessage] = useState<string | null>(null);
   const gmFacilitatorRuleCall = useSessionStore((state) => state.gmFacilitatorRuleCall);
+  const gmCrisisState = useSessionStore((state) => state.gmCrisisState);
+  const [crisisIdDraft, setCrisisIdDraft] = useState('crisis-1');
+  const [crisisTitleDraft, setCrisisTitleDraft] = useState('');
+  const [crisisDetailsDraft, setCrisisDetailsDraft] = useState('');
+  const [crisisMutationState, setCrisisMutationState] = useState<CrisisStateName | null>(null);
+  const [crisisMessage, setCrisisMessage] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
@@ -349,6 +357,8 @@ export default function GmConsole() {
   const [wolfPreparationModifiers, setWolfPreparationModifiers] = useState<Readonly<Record<string, boolean>>>({});
   const [wolfPreparationNotes, setWolfPreparationNotes] = useState('');
   const [clock, setClock] = useState(() => Date.now());
+  const crisisAuthorityGeneration = useRef(0);
+  const verifiedCrisisAuthorityKey = useRef<string | null>(null);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
@@ -555,6 +565,7 @@ export default function GmConsole() {
       case 'kickGmInstance': return 'GM instance removal pending';
       case 'kickPlayer': return 'Player removal pending';
       case 'setPressEnabled': return 'Press availability pending';
+      case 'transitionCrisis': return 'Crisis transition pending';
       default: return 'Authoritative command pending';
     }
   });
@@ -630,8 +641,58 @@ export default function GmConsole() {
 
   useEffect(() => {
     if (!isGm || !sessionId) return;
+    const localInstanceId = local?.id;
+    const generation = crisisAuthorityGeneration.current + 1;
+    crisisAuthorityGeneration.current = generation;
     let active = true;
+    let authorityInvalidated = false;
+    let crisisSubscribed = false;
+    let stopInstances: () => void = () => undefined;
+    let stopCrisisState: () => void = () => undefined;
     let unsubscribe: () => void = () => undefined;
+    // A persisted projection is not fresh GM authority. Hold no crisis data
+    // while the callable-backed manifest proves this exact instance.
+    useSessionStore.getState().setGmCrisisState(null);
+    setCrisisMutationState(null);
+    setCrisisMessage(null);
+    const currentAuthorityKey = (): string | null => {
+      const current = useSessionStore.getState();
+      const currentInstance = current.gmInstance;
+      const currentUid = current.me?.uid;
+      if (
+        !active || authorityInvalidated ||
+        crisisAuthorityGeneration.current !== generation ||
+        current.session?.id !== sessionId || current.me?.role !== 'gm' ||
+        !currentInstance || !currentUid ||
+        currentUid !== currentInstance.uid ||
+        currentInstance.sessionId !== sessionId ||
+        currentInstance.id !== localInstanceId
+      ) return null;
+      return `${sessionId}:${currentUid}:${localInstanceId}:${generation}`;
+    };
+    const revokeAuthority = (): void => {
+      if (!active || authorityInvalidated) return;
+      authorityInvalidated = true;
+      verifiedCrisisAuthorityKey.current = null;
+      stopCrisisState();
+      stopCrisisState = () => undefined;
+      stopInstances();
+      stopInstances = () => undefined;
+      setInstances([]);
+      setLoading(false);
+      setCrisisMutationState(null);
+      setCrisisMessage(null);
+      const store = useSessionStore.getState();
+      store.setGmCrisisState(null);
+      if (
+        store.session?.id === sessionId &&
+        store.gmInstance?.id === localInstanceId
+      ) {
+        store.setGmInstance(null);
+        store.setMode(null);
+        store.setLastRoute('/roles');
+      }
+    };
     void import('@/lib/firestore').then(({
       subscribeConnectedPlayers,
       subscribeSessionPlayers,
@@ -644,29 +705,72 @@ export default function GmConsole() {
       subscribeGmWolfCultIntelligence,
       subscribeGmArbourVision,
       subscribeGmFacilitatorRuleCall,
+      subscribeGmCrisisState,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
-      const stopInstances = subscribeGmInstances(
+      stopInstances = subscribeGmInstances(
         sessionId,
         (next) => {
-          if (!active) return;
+          if (!active || authorityInvalidated) return;
           setInstances(next);
           setLoading(false);
           const store = useSessionStore.getState();
+          const expected = store.gmInstance;
+          const verified = next.find((instance) =>
+            instance.id === localInstanceId &&
+            instance.sessionId === sessionId &&
+            instance.uid === store.me?.uid &&
+            expected?.id === localInstanceId &&
+            expected?.uid === store.me?.uid);
+          if (!verified) {
+            revokeAuthority();
+            return;
+          }
           if (store.communicationError?.code === 'gm-manifest-link') {
             store.setCommunicationError(null);
           }
+          const authorityKey = currentAuthorityKey();
+          if (!authorityKey || crisisSubscribed) return;
+          crisisSubscribed = true;
+          verifiedCrisisAuthorityKey.current = authorityKey;
+          stopCrisisState = typeof subscribeGmCrisisState === 'function'
+            ? subscribeGmCrisisState(sessionId, (crisis) => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              useSessionStore.getState().setGmCrisisState(crisis);
+              if (crisis) {
+                setCrisisIdDraft(crisis.crisisId);
+                setCrisisTitleDraft(crisis.title);
+                setCrisisDetailsDraft(crisis.details);
+              }
+              setCrisisMutationState(null);
+            }, () => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              useSessionStore.getState().setCommunicationError({
+                code: 'gm-crisis-link',
+                message: 'The facilitator crisis projection could not be refreshed.',
+              });
+              revokeAuthority();
+            })
+            : () => undefined;
         },
         () => {
-          if (!active) return;
+          if (!active || authorityInvalidated) return;
           setLoading(false);
           useSessionStore.getState().setCommunicationError({
             code: 'gm-manifest-link',
             message: 'The live GM instance manifest could not be refreshed.',
           });
+          revokeAuthority();
         },
       );
+      if (!active || authorityInvalidated) {
+        stopInstances();
+        stopInstances = () => undefined;
+        return;
+      }
       const stopWolfAttackWindow = subscribeGmWolfAttackWindow(
         sessionId,
         (next) => setWolfAttackWindowState((current) =>
@@ -748,6 +852,7 @@ export default function GmConsole() {
         stopWolfCultIntelligence();
         stopArbourVision();
         stopFacilitatorRuleCall();
+        stopCrisisState();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -756,16 +861,26 @@ export default function GmConsole() {
     });
     return () => {
       active = false;
+      authorityInvalidated = true;
+      crisisAuthorityGeneration.current = Math.max(
+        crisisAuthorityGeneration.current,
+        generation + 1,
+      );
+      verifiedCrisisAuthorityKey.current = null;
       unsubscribe();
+      stopCrisisState();
       setWolfAssignment(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
       useSessionStore.getState().setGmFacilitatorRuleCall(null);
+      useSessionStore.getState().setGmCrisisState(null);
+      setCrisisMutationState(null);
+      setCrisisMessage(null);
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
       setAllPlayers([]);
     };
-  }, [isGm, sessionId]);
+  }, [isGm, local?.id, local?.uid, sessionId]);
 
   useEffect(() => {
     setCensusNotes(Object.fromEntries(
@@ -1281,6 +1396,64 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setChangingDebrief(false);
+    }
+  }
+
+  function currentCrisisAuthorityKey(): string | null {
+    const current = useSessionStore.getState();
+    if (
+      current.me?.role !== 'gm' || !current.session?.id ||
+      !current.gmInstance || current.gmInstance.sessionId !== current.session.id ||
+      current.gmInstance.uid !== current.me.uid
+    ) return null;
+    return `${current.session.id}:${current.me.uid}:${current.gmInstance.id}:${crisisAuthorityGeneration.current}`;
+  }
+
+  async function advanceCrisis(state: CrisisStateName): Promise<void> {
+    if (crisisMutationState || !nextCrisisStates(gmCrisisState).includes(state)) return;
+    const authorityKey = currentCrisisAuthorityKey();
+    if (!authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) {
+      setCrisisMessage('Live GM authority is still being verified; retry when the manifest is current.');
+      return;
+    }
+    const crisisId = crisisIdDraft.trim();
+    const title = (gmCrisisState && gmCrisisState.state !== 'closed'
+      ? gmCrisisState.title : crisisTitleDraft).trim();
+    const details = (gmCrisisState && gmCrisisState.state !== 'closed'
+      ? gmCrisisState.details : crisisDetailsDraft).trim();
+    if (!crisisId || !title) {
+      setCrisisMessage('Add a crisis identifier and title before creating the draft.');
+      return;
+    }
+    setCrisisMutationState(state);
+    setCrisisMessage(null);
+    try {
+      const disposition = await transitionCrisis(crisisId, state, title, details);
+      if (
+        currentCrisisAuthorityKey() !== authorityKey ||
+        verifiedCrisisAuthorityKey.current !== authorityKey
+      ) return;
+      setCrisisMessage(
+        disposition === 'queued'
+          ? 'Crisis transition queued // waiting for the live facilitator connection.'
+          : `Crisis transition committed // ${state}`,
+      );
+    } catch (cause) {
+      if (
+        currentCrisisAuthorityKey() !== authorityKey ||
+        verifiedCrisisAuthorityKey.current !== authorityKey
+      ) return;
+      const error = normalizeCommandError(cause);
+      setCrisisMessage(
+        error.kind === 'stale-revision'
+          ? 'Crisis changed // review the live state and retry.'
+          : 'Crisis transition rejected // the server did not commit this change.',
+      );
+    } finally {
+      if (
+        currentCrisisAuthorityKey() === authorityKey &&
+        verifiedCrisisAuthorityKey.current === authorityKey
+      ) setCrisisMutationState(null);
     }
   }
 
@@ -1959,6 +2132,69 @@ export default function GmConsole() {
                   : wolfDeclarationMessage ?? 'waiting for a due timing marker and saved private draft'}
               </p>
             </section>
+          </section>
+          <section className="gm-console__module cic-frame" aria-label="Crisis state machine">
+            <h2 className="gm-console__section-title">Crisis state machine</h2>
+            <p className="gm-console__status">
+              {gmCrisisState
+                ? `${gmCrisisState.crisisId} // ${gmCrisisState.state} // revision ${gmCrisisState.revision}`
+                : 'No crisis drafted'}
+            </p>
+            <p className="gm-console__hint">
+              Facilitator-authored lifecycle only. Draft and debate notes stay facilitator-private;
+              member events carry the state title after delivery decisions commit.
+            </p>
+            <label className="gm-wolf-preparation__field">
+              <span>Crisis identifier</span>
+              <input
+                type="text"
+                maxLength={80}
+                value={crisisIdDraft}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed') || crisisMutationState !== null}
+                onChange={(event) => setCrisisIdDraft(event.target.value)}
+                aria-label="Crisis identifier"
+              />
+            </label>
+            <label className="gm-wolf-preparation__field">
+              <span>Crisis title</span>
+              <input
+                type="text"
+                maxLength={160}
+                value={crisisTitleDraft}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed') || crisisMutationState !== null}
+                onChange={(event) => setCrisisTitleDraft(event.target.value)}
+                aria-label="Crisis title"
+              />
+            </label>
+            <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+              <span>Facilitator notes</span>
+              <textarea
+                rows={3}
+                maxLength={2000}
+                value={crisisDetailsDraft}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed') || crisisMutationState !== null}
+                onChange={(event) => setCrisisDetailsDraft(event.target.value)}
+                aria-label="Crisis facilitator notes"
+              />
+            </label>
+            <div className="gm-turn-control__actions">
+              {nextCrisisStates(gmCrisisState).map((state) => (
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  key={state}
+                  disabled={!local || crisisMutationState !== null}
+                  onClick={() => void advanceCrisis(state)}
+                >
+                  {crisisMutationState === state ? `Committing ${state}…` : `Mark ${state}`}
+                </button>
+              ))}
+            </div>
+            <p className="gm-console__status" role="status" aria-live="polite">
+              {crisisMessage ?? (gmCrisisState
+                ? `Next allowed state${nextCrisisStates(gmCrisisState).length === 1 ? '' : 's'}: ${nextCrisisStates(gmCrisisState).join(', ')}`
+                : 'Start with a facilitator-authored draft.')}
+            </p>
           </section>
           <EmergencyTimerPauseControl
             phase={currentPhase}
@@ -3112,6 +3348,8 @@ export default function GmConsole() {
                         ? `Emergency timer // ${event.action === 'paused' ? 'paused' : 'resumed'} // Turn ${event.turn} // ${event.window} // ${event.actorName}`
                         : event.type === 'android-proof-disclosed'
                           ? 'Android proof disclosed to the fleet'
+                          : event.type === 'crisis-state'
+                            ? `Crisis // ${event.state} // ${event.title}`
                           : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
                 </li>
                   ))}

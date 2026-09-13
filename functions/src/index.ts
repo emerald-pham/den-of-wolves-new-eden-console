@@ -63,6 +63,7 @@ import {
   requireArbourVisionRequest,
   requireFacilitatorRuleCallRequest,
   isCanonicalRequestId,
+  requireCrisisTransitionRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -253,6 +254,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
+import { canTransitionCrisis, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   availableVipCards,
@@ -5316,6 +5318,173 @@ type ArbourVisionResult = Readonly<{
   text: string;
   label: 'FACILITATOR CALL';
 }>;
+
+type CrisisTransitionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  state: CrisisStateName;
+  revision: number;
+  title: string;
+}>;
+
+function isCrisisTransitionResult(value: unknown, sessionId: string): value is CrisisTransitionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && typeof result.crisisId === 'string' &&
+    isCrisisState(result.state) && Number.isSafeInteger(result.revision) &&
+    (result.revision as number) >= 1 && typeof result.title === 'string' &&
+    result.title.length > 0 && result.title.length <= 160;
+}
+
+/** Advance one manually authored crisis through the durable facilitator lifecycle. */
+export const transitionCrisis = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  state?: unknown;
+  title?: unknown;
+  details?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const crisis = requireCrisisTransitionRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
+  const auditRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current/audit/${crisis.requestId}`);
+  const receiptRef = commandReceiptRef(crisis.sessionId, crisis.requestId);
+  const eventRef = db.doc(
+    `sessions/${crisis.sessionId}/events/crisis-${crisis.crisisId}-${crisis.requestId}`,
+  );
+  const fingerprint: CommandFingerprint = {
+    action: 'transition-crisis',
+    sessionId: crisis.sessionId,
+    requestId: crisis.requestId,
+    actorUid: uid,
+    instanceId: crisis.instanceId,
+    expectedRevision: crisis.expectedRevision,
+    payload: {
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      title: crisis.title,
+      details: crisis.details,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<CrisisTransitionResult> => {
+    const [authority, current, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, crisis.sessionId, uid, crisis.instanceId),
+      tx.get(currentRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, crisis.sessionId, crisis.requestId, 'crisis transition', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CrisisTransitionResult => isCrisisTransitionResult(value, crisis.sessionId),
+      'crisis transition',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('crisis transition');
+    requireActiveGameplayPhase(authority.session);
+
+    const currentRevision = current.exists && Number.isSafeInteger(current.get('revision')) &&
+      (current.get('revision') as number) >= 0 ? current.get('revision') as number : 0;
+    if (current.exists && (
+      current.get('type') !== 'crisis-state' || current.get('sessionId') !== crisis.sessionId ||
+      typeof current.get('crisisId') !== 'string' || current.get('crisisId').length === 0 ||
+      current.get('crisisId').length > 80 || !isCrisisState(current.get('state')) ||
+      !Number.isSafeInteger(current.get('revision')) || (current.get('revision') as number) < 0 ||
+      typeof current.get('title') !== 'string' || current.get('title').length === 0 ||
+      current.get('title').length > 160 ||
+      typeof current.get('details') !== 'string' || current.get('details').length > 2_000
+    )) {
+      throw commandError('failed-precondition', 'The crisis projection is malformed; refresh before retrying.', 'malformed-input');
+    }
+    if (currentRevision !== crisis.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The crisis changed. Refresh the facilitator projection and try again.',
+        'stale-revision',
+      );
+    }
+    const previousState = current.exists ? current.get('state') as CrisisStateName : undefined;
+    const previousCrisisId = current.exists ? current.get('crisisId') as string : undefined;
+    const replacingClosedCrisis = previousState === 'closed' && previousCrisisId !== crisis.crisisId;
+    if (replacingClosedCrisis) {
+      if (crisis.state !== 'draft') {
+        throw commandError('failed-precondition', 'A new crisis must begin in draft.', 'conflict');
+      }
+    } else {
+      if (previousCrisisId !== undefined && previousCrisisId !== crisis.crisisId) {
+        throw commandError('failed-precondition', 'Close the current crisis before starting another.', 'conflict');
+      }
+      if (!canTransitionCrisis(previousState, crisis.state)) {
+        throw commandError('failed-precondition', 'That crisis lifecycle transition is not valid.', 'invalid-phase');
+      }
+      if (current.exists && (crisis.title !== current.get('title') || crisis.details !== current.get('details'))) {
+        throw commandError('failed-precondition', 'Crisis content is fixed after draft creation.', 'conflict');
+      }
+    }
+    const revision = currentRevision + 1;
+    const result: CrisisTransitionResult = {
+      status: 'committed',
+      sessionId: crisis.sessionId,
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      revision,
+      title: crisis.title,
+    };
+    tx.set(currentRef, {
+      type: 'crisis-state',
+      sessionId: crisis.sessionId,
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      revision,
+      title: crisis.title,
+      details: crisis.details,
+      actorUid: uid,
+      instanceId: crisis.instanceId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'crisis-state',
+      action: 'transition',
+      sessionId: crisis.sessionId,
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      revision,
+      title: crisis.title,
+      details: crisis.details,
+      actorUid: uid,
+      instanceId: crisis.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    if (crisis.state !== 'draft') {
+      tx.set(eventRef, buildPrivacySafeEventRecord({
+        type: 'crisis-state',
+        envelope: buildAuthoritativeEventEnvelope({
+          sessionId: crisis.sessionId,
+          actorUid: uid,
+          actorRoleId: null,
+          turn: sessionTurn(authority.session.get('currentTurn')),
+          phase: vesselActionPhase(authority.session),
+          type: 'crisis-state',
+          requestId: crisis.requestId,
+          revision,
+          serverTime: new Date(),
+          visibility: EventVisibility.Member,
+        }),
+        payload: { crisisId: crisis.crisisId, state: crisis.state, title: crisis.title, details: crisis.details },
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+    }
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
 
 function isArbourVisionResult(value: unknown, sessionId: string): value is ArbourVisionResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;

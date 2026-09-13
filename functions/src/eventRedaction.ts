@@ -29,6 +29,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'maintenance': ['shipId', 'shipName', 'action', 'results'],
   'ship-repaired': ['actorUid', 'shipId'],
   'maintenance-rollback': ['actorUid', 'requestId', 'eventId', 'shipId', 'revision'],
+  'crisis-state': ['crisisId', 'state', 'title'],
 };
 
 /**

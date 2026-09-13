@@ -646,6 +646,27 @@ describe('facilitator rule-call boundary', () => {
   });
 });
 
+describe('crisis state boundary', () => {
+  it('keeps the durable crisis projection and audit private to connected GMs', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/crisisState/current`), {
+        type: 'crisis-state', sessionId: 's1', crisisId: 'approaching-vessel',
+        state: 'debated', revision: 3, title: 'Approaching vessel', details: 'Private notes',
+      });
+      await setDoc(doc(db, `${SESSION}/crisisState/current/audit/revision-3`), {
+        type: 'crisis-state', state: 'debated', revision: 3,
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/crisisState/current`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/crisisState/current/audit/revision-3`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/crisisState/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/crisisState/current/audit/revision-3`)));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/crisisState`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/crisisState/current`), { forged: true }));
+  });
+});
+
 describe('Hummingbird harvest boundary', () => {
   it('keeps pending dice private to the active Quellon Explorer and denies client writes', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

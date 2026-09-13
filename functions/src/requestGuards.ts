@@ -18,6 +18,7 @@ import {
   type WolfAttackTargetMode,
 } from './wolfAttackPreparation';
 import { isReplacementEligibilityReason } from './replacementRoles';
+import { isCrisisState, type CrisisStateName } from './crisisState';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1147,6 +1148,55 @@ export function requireFacilitatorRuleCallRequest(data: {
     audience: data.audience,
     ...(recipientUid ? { recipientUid } : {}),
     ...(supersedesCallId ? { supersedesCallId } : {}),
+  };
+}
+
+/** Manual facilitator transition for the server-owned crisis lifecycle. */
+export function requireCrisisTransitionRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  state?: unknown;
+  title?: unknown;
+  details?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  crisisId: string;
+  state: CrisisStateName;
+  title: string;
+  details: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!isCrisisState(data.state)) {
+    throw new HttpsError('invalid-argument', 'state is not a recognized crisis lifecycle state.');
+  }
+  const title = requiredText(data.title, 'title', 160);
+  let details = '';
+  if (data.details !== undefined) {
+    if (typeof data.details !== 'string' || data.details.trim().length > 2_000) {
+      throw new HttpsError('invalid-argument', 'details must be text (maximum 2000 characters).');
+    }
+    details = data.details.trim();
+  }
+  const crisisId = requiredText(data.crisisId, 'crisisId', 80);
+  if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
+    throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    crisisId,
+    state: data.state,
+    title,
+    details,
   };
 }
 
