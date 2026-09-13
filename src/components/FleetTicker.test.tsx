@@ -207,6 +207,23 @@ it('runs press copy on the same surface without pause controls', () => {
   expect(screen.getByRole('status', { name: 'Press missive' })).toBeVisible();
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
 });
+it('keeps moving broadcasts visible while the document font promise is pending', () => {
+  const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
+  const ready = new Promise<void>(() => undefined);
+  Object.defineProperty(document, 'fonts', {
+    configurable: true,
+    value: { status: 'loading', ready },
+  });
+  try {
+    render(<FleetTicker message={{
+      id: 'font-pending', text: 'SNN // CURRENT SERVER BROADCAST', tone: 'normal',
+    }} />);
+    expect(screen.getByRole('status', { name: 'SNN // CURRENT SERVER BROADCAST' })).toBeVisible();
+  } finally {
+    if (originalFonts) Object.defineProperty(document, 'fonts', originalFonts);
+    else Reflect.deleteProperty(document, 'fonts');
+  }
+});
 it('shows readable stationary copy in reduced motion and clears finite messages', () => {
   vi.useFakeTimers(); setMotionOverride('reduce');
   render(<FleetTicker message={cancelled} />);

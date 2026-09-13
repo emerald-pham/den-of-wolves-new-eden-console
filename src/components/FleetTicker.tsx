@@ -395,7 +395,6 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   }, [appendTailGroups, geometryFor, probeFor, setGroups]);
 
   useLayoutEffect(() => {
-    if (!fontReady) return;
     const { message: inputMessage, fallback: requestedFallback, queue } = input.current;
     const requestedMessage = inputMessage?.id === expiredId ? undefined : inputMessage;
     // An expired finite notice leaves its visible tail in place, then returns
@@ -518,7 +517,6 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   }, [appendGroups, geometryFor, onMessageComplete, probeFor, setGroups]);
 
   const waitingForLayout = processedKey !== inputKey;
-  if (!fontReady) return null;
   if (!announcedMessage && groups.length === 0 && !waitingForLayout) {
     return null;
   }
