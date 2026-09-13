@@ -111,6 +111,18 @@ async function call(context, name, data) {
   }
 }
 
+async function callWithEmulatorContentionRetry(context, name, data) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await call(context, name, data);
+    } catch (error) {
+      if (!errorCode(error).endsWith('/internal') || attempt === 2) throw error;
+      await wait(150 * (attempt + 1));
+    }
+  }
+  throw new Error('The bounded emulator contention retry loop did not return.');
+}
+
 async function expectRejected(operation, label, expectedCodes = []) {
   try {
     await operation();
@@ -470,16 +482,22 @@ async function main() {
 
     const tickerBeforeHeartbeat = (await readDoc(owner, sessionPath)).data()?.fleetTicker;
     const heartbeatOperations = [
-      ...coreContexts.map((context) => call(context, 'refreshPresence', { sessionId })),
-      call(owner, 'refreshPresence', { sessionId, instanceId: 'p638-bridge' }),
+      ...coreContexts.map((context) => ({ context, data: { sessionId } })),
+      { context: owner, data: { sessionId, instanceId: 'p638-bridge' } },
     ];
     if (expandedScenario) {
       heartbeatOperations.push(
-        call(extraGm, 'refreshPresence', { sessionId, instanceId: 'p638-observer' }),
-        call(press, 'refreshPresence', { sessionId, activeConsoleRoleId: 'press-officer' }),
+        { context: extraGm, data: { sessionId, instanceId: 'p638-observer' } },
+        { context: press, data: { sessionId, activeConsoleRoleId: 'press-officer' } },
       );
     }
-    const heartbeatResults = await Promise.all(heartbeatOperations);
+    const heartbeatResults = [];
+    const heartbeatBatchSize = 3;
+    for (let index = 0; index < heartbeatOperations.length; index += heartbeatBatchSize) {
+      const batch = heartbeatOperations.slice(index, index + heartbeatBatchSize);
+      heartbeatResults.push(...await Promise.all(batch.map(({ context, data }) =>
+        callWithEmulatorContentionRetry(context, 'refreshPresence', data))));
+    }
     const expectedHeartbeatCount = expandedScenario ? 23 : 21;
     assert(heartbeatResults.length === expectedHeartbeatCount, 'The rehearsal heartbeat fanout was incomplete.');
     const tickerAfterHeartbeat = (await readDoc(owner, sessionPath)).data()?.fleetTicker;
@@ -520,6 +538,7 @@ async function main() {
       startRace: expandedScenario ? ['committed', 'stale'] : ['committed'],
       resourceAction: { committedRevision: committedAction.revision, staleRevision: staleAction.currentRevision, concurrent: concurrentActionResult },
       heartbeatCallCount: heartbeatResults.length,
+      heartbeatMode: 'three-client batches with bounded emulator contention retry',
       listenerCount: sessionListeners.length,
       listenerConvergence: expandedScenario
         ? '23 session listeners plus two collection subscriptions'
@@ -527,7 +546,11 @@ async function main() {
       reconnect: expandedScenario ? 'core role/seat and Press role retained' : 'core role/seat retained',
       privacy: 'GM Wolf read allowed; core Wolf and foreign-loyalty reads denied; public listeners contained no private loyalty/Wolf payload',
       denials: { gmSeatDenial, foreignResumeDenial, foreignReadDenial, extraCoreStartDenial, coreWolfDenial, coreOtherLoyaltyDenial },
-      remainingLimits: ['local emulator rehearsal; no production capacity or 60-client claim', 'full Capybara vertical mechanics remain Prompt 584'],
+      remainingLimits: [
+        'local emulator rehearsal; no production capacity or 60-client claim',
+        'a deliberately simultaneous 23-heartbeat burst can hit Firestore emulator transaction-lock contention; this rehearsal uses three-client batches and does not claim burst capacity',
+        'full Capybara vertical mechanics remain Prompt 584',
+      ],
     };
   } catch (error) {
     evidence.error = redactedError(error);
