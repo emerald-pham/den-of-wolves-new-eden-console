@@ -339,6 +339,9 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
   const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
   await user.type(within(panel).getByRole('textbox', { name: 'Crisis title' }), 'Relay pressure');
   await user.type(within(panel).getByRole('textbox', { name: 'Crisis facilitator notes' }), 'Facilitator-only deliberation.');
+  await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'approaching-vessel');
+  expect(within(panel).getByText('Vessel reality and difficulty reasoning (private)')).toBeVisible();
+  expect(within(panel).getByText(/Delivery publishes the scouting report/)).toBeVisible();
   await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'presidential-election');
   await user.type(within(panel).getByRole('textbox', { name: 'Crisis configuration override' }), 'Alternate decision maker agreed at this table.');
   await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));

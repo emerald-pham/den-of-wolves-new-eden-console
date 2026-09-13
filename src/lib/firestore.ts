@@ -64,7 +64,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import { isCrisisKind, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
+import { isCrisisKind, type CrisisReport, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -2455,6 +2455,34 @@ export function subscribeSessionEvents(
     subscribed = false;
     unsubscribe();
   };
+}
+
+/** Read only the server-published report, never the private crisis document. */
+export function subscribeCrisisReport(
+  sessionId: string,
+  onReport: (report: CrisisReport | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/crisisReports/current`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const raw = snapshot.exists() ? recordValue(snapshot.data()) : undefined;
+      const revision = nonNegativeInteger(raw?.revision);
+      if (!raw || raw.sessionId !== sessionId || typeof raw.crisisId !== 'string' ||
+          !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) || !isCrisisStateName(raw.state) || raw.state === 'draft' ||
+          revision === undefined || typeof raw.title !== 'string' || !raw.title || raw.title.length > 160 ||
+          typeof raw.body !== 'string' || !raw.body || raw.body.length > 4000) {
+        onReport(null);
+        return;
+      }
+      onReport({ sessionId, crisisId: raw.crisisId, state: raw.state, revision, title: raw.title, body: raw.body });
+    },
+    () => { if (subscribed) { onReport(null); onError(); } },
+  );
+  return () => { subscribed = false; unsubscribe(); };
 }
 
 /** Subscribe to the facilitator-only durable crisis projection. */

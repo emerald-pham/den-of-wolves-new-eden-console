@@ -60,3 +60,9 @@ export function crisisConfigurationBlocker(kind: CrisisKind, configuration: {
   }
   return null;
 }
+
+/** Public facts paraphrased from the authorized Approaching Vessel crisis card. */
+export const APPROACHING_VESSEL_REPORT = {
+  title: 'Approaching vessel',
+  body: 'An exhausted pilot from a Gliese scout reported a larger ship approaching and urgently needing help. The pilot stopped communicating and was later found dead, apparently from hunger and exhaustion. The approaching ship’s population, needs and potential value remain unknown. Crew concerns include pressure on supplies, disease and hostile intent; the report could also be false. The scout activated a location beacon, which could increase Wolf attack risk if the fleet stays here.',
+} as const;

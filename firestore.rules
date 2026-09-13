@@ -593,9 +593,13 @@ service cloud.firestore {
         }
       }
 
-      // Crisis drafts and facilitator deliberation remain private. Resolved
-      // and later member-facing summaries arrive through the allowlisted
-      // crisis-state event instead of this mutable projection.
+      // Only the separately authored player report is member-readable.
+      match /crisisReports/{reportId} {
+        allow get: if reportId == 'current' && isMember(sessionId);
+        allow list, write: if false;
+      }
+
+      // Drafts, hidden reality and facilitator reasoning remain GM-private.
       match /crisisState/{projectionId} {
         allow get: if projectionId == 'current' && isGm(sessionId);
         allow list, write: if false;

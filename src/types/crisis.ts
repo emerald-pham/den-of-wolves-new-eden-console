@@ -60,3 +60,13 @@ export const CRISIS_KIND_LABELS: Readonly<Record<CrisisKind, string>> = {
   'civil-unrest': 'Civil Unrest',
   'presidential-election': 'Presidential Election',
 };
+
+/** Member-readable report; no facilitator notes or hidden decisions. */
+export interface CrisisReport {
+  readonly sessionId: string;
+  readonly crisisId: string;
+  readonly state: Exclude<CrisisStateName, 'draft'>;
+  readonly revision: number;
+  readonly title: string;
+  readonly body: string;
+}

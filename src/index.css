@@ -5849,3 +5849,15 @@ body {
 .gm-crisis select,
 .gm-crisis textarea { min-width: 0; width: 100%; }
 .gm-crisis .gm-console__hint { font-size: 0.75rem; line-height: 1.5; }
+
+.crisis-report {
+  width: min(48rem, calc(100% - 2rem));
+  margin: 1rem auto;
+  padding: 1rem;
+  color: var(--cic-text, #d7eef0);
+  background: var(--cic-bg, #071014);
+  overflow-wrap: anywhere;
+}
+.crisis-report h2 { margin: 0 0 .75rem; font-size: 1rem; }
+.crisis-report__status { font-size: .75rem; line-height: 1.5; }
+.crisis-report__body { font-size: .875rem; line-height: 1.7; }

@@ -254,7 +254,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
+import { APPROACHING_VESSEL_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   availableVipCards,
@@ -5533,6 +5533,22 @@ export const transitionCrisis = onCall<{
       instanceId: crisis.instanceId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    const reportRef = db.doc(`sessions/${crisis.sessionId}/crisisReports/current`);
+    if (crisis.state === 'draft') {
+      // A new draft must never retain the previously delivered crisis report.
+      tx.delete(reportRef);
+    } else if (crisisKind === 'approaching-vessel') {
+      // Only this fixed player report crosses the private crisis boundary.
+      // The facilitator's reality, difficulty and override notes stay private.
+      tx.set(reportRef, {
+        sessionId: crisis.sessionId,
+        crisisId: crisis.crisisId,
+        state: crisis.state,
+        revision,
+        ...APPROACHING_VESSEL_REPORT,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     if (crisis.state !== 'draft') {
       tx.set(eventRef, buildPrivacySafeEventRecord({
         type: 'crisis-state',

@@ -2171,6 +2171,13 @@ export default function GmConsole() {
                 disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed' && gmCrisisState.state !== 'draft') || crisisMutationState !== null}
                 onChange={(event) => setCrisisOverrideDraft(event.target.value)} />
             </label>
+            {crisisKindDraft === 'approaching-vessel' && (
+              <p className="gm-console__hint">
+                Delivery publishes the scouting report to all session members. Record whether the vessel is real
+                or a trap and your difficulty reasoning in the private notes below. Those notes and the
+                configuration override are never included in the player report.
+              </p>
+            )}
             <label className="gm-wolf-preparation__field">
               <span>Crisis identifier</span>
               <input
@@ -2194,7 +2201,7 @@ export default function GmConsole() {
               />
             </label>
             <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
-              <span>Facilitator notes</span>
+              <span>{crisisKindDraft === 'approaching-vessel' ? 'Vessel reality and difficulty reasoning (private)' : 'Facilitator notes'}</span>
               <textarea
                 rows={3}
                 maxLength={2000}

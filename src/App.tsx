@@ -34,6 +34,7 @@ import { dockingForShuttle } from '@/data/shuttles';
 import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
+import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
@@ -607,6 +608,7 @@ function AppRoutes() {
         {(screen) => (
           <>
             <PrivateLoyaltyPanel />
+            <CrisisReportPanel />
             <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />

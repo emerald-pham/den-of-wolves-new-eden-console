@@ -2491,3 +2491,27 @@ it('retains private crisis configuration on reconnect and rejects malformed kind
   expect(onState).toHaveBeenLastCalledWith(null);
   stop();
 });
+
+it('reads only valid server crisis reports and drops hidden fields, cached drafts and late callbacks', async () => {
+  const { subscribeCrisisReport } = await import('./firestore');
+  let publish!: (snapshot: unknown) => void;
+  let fail!: () => void;
+  vi.mocked(onSnapshot).mockImplementationOnce(((_ref: unknown, _options: unknown, next: typeof publish, error: typeof fail) => {
+    publish = next; fail = error; return vi.fn();
+  }) as never);
+  const received = vi.fn();
+  const error = vi.fn();
+  const stop = subscribeCrisisReport('s1', received, error);
+  const raw = { sessionId: 's1', crisisId: 'vessel', state: 'delivered', revision: 2, title: 'Report', body: 'Public scouting facts', details: 'Secret trap', configurationOverride: 'Private adaptation' };
+  const snapshot = (data: object, fromCache = false) => ({ exists: () => true, data: () => data, metadata: { fromCache } });
+  publish(snapshot(raw, true));
+  expect(received).not.toHaveBeenCalled();
+  publish(snapshot(raw));
+  expect(received).toHaveBeenLastCalledWith({ sessionId: 's1', crisisId: 'vessel', state: 'delivered', revision: 2, title: 'Report', body: 'Public scouting facts' });
+  for (const invalid of [{ ...raw, state: 'draft' }, { ...raw, sessionId: 's2' }, { ...raw, body: 'x'.repeat(4001) }]) {
+    publish(snapshot(invalid)); expect(received).toHaveBeenLastCalledWith(null);
+  }
+  fail(); expect(error).toHaveBeenCalledOnce();
+  stop(); received.mockClear(); publish(snapshot(raw)); fail();
+  expect(received).not.toHaveBeenCalled(); expect(error).toHaveBeenCalledOnce();
+});

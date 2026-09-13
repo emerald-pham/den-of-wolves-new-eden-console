@@ -651,6 +651,20 @@ describe('facilitator rule-call boundary', () => {
 });
 
 describe('crisis state boundary', () => {
+  it('allows members to read only the public current report and forbids direct publication', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/crisisReports/current`), {
+        sessionId: 's1', crisisId: 'vessel', state: 'delivered', revision: 2, title: 'Report', body: 'Public facts',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/crisisReports/current`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/crisisReports/current`)));
+    await assertFails(getDoc(doc(as('outsider'), `${SESSION}/crisisReports/current`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/crisisReports`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/crisisReports/current`), { body: 'Forged' }));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/crisisReports/current`), { body: 'Forged' }));
+  });
+
   it('keeps the durable crisis projection and audit private to connected GMs', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();

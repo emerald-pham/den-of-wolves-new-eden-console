@@ -24,7 +24,7 @@ const mock = vi.hoisted(() => {
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback({ get, set, update }));
+    callback({ get, set, update, delete: (target: { path: string }) => documents.delete(target.path) }));
   return { documents, get, set, update, runTransaction, db: { doc: ref, runTransaction } };
 });
 
@@ -243,4 +243,30 @@ it('still rechecks eligibility and rejects explicit kind changes for older-clien
     .rejects.toMatchObject({ message: expect.stringMatching(/President/i) });
   await expect(transitionCrisis.run(request({ ...delivered, crisisKind: 'custom' })))
     .rejects.toMatchObject({ message: expect.stringMatching(/configuration is fixed/i) });
+});
+
+it('delivers a durable public scouting report without exposing facilitator reality or difficulty notes', async () => {
+  const input = { ...baseData, crisisId: 'scout-report-1', crisisKind: 'approaching-vessel', details: 'Reality: trap. Difficulty: fleet has ample supplies.' };
+  await transitionCrisis.run(request(input));
+  expect(mock.documents.has('sessions/s1/crisisReports/current')).toBe(false);
+  const delivered = { ...input, requestId: 'report-delivery', expectedRevision: 1, state: 'delivered' };
+  await transitionCrisis.run(request(delivered));
+  const report = mock.documents.get('sessions/s1/crisisReports/current');
+  expect(report).toMatchObject({ sessionId: 's1', crisisId: 'scout-report-1', state: 'delivered', revision: 2,
+    title: 'Approaching vessel', body: expect.stringMatching(/Gliese scout/) });
+  expect(JSON.stringify(report)).not.toMatch(/Reality: trap|Difficulty: fleet|configurationOverride|actorUid/);
+  mock.set.mockClear();
+  await transitionCrisis.run(request(delivered));
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ details: input.details });
+});
+
+it('retires a delivered report when a closed crisis is replaced by a fresh draft', async () => {
+  await transitionCrisis.run(request());
+  for (const [state, expectedRevision] of [['delivered', 1], ['debated', 2], ['resolved', 3], ['announced', 4], ['closed', 5]] as const) {
+    await transitionCrisis.run(request({ ...baseData, requestId: `report-${state}`, expectedRevision, state }));
+  }
+  expect(mock.documents.get('sessions/s1/crisisReports/current')).toMatchObject({ state: 'closed' });
+  await transitionCrisis.run(request({ ...baseData, requestId: 'replacement', expectedRevision: 6, crisisId: 'another-crisis', crisisKind: 'custom' }));
+  expect(mock.documents.has('sessions/s1/crisisReports/current')).toBe(false);
 });
