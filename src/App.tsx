@@ -49,6 +49,16 @@ function stripNavigationProjection(session: GameSession): GameSession {
   return next;
 }
 
+function stripGmNavigationProjection(session: GameSession): GameSession {
+  const next = { ...session };
+  delete next.shipGalacticCoordinates;
+  delete next.shipNavigationLogs;
+  delete next.organiserSites;
+  delete next.organiserSystems;
+  delete next.pursuitDistances;
+  return next;
+}
+
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
@@ -148,7 +158,11 @@ function AppRoutes() {
         onGmDiscovery: (projection) => {
           const store = useSessionStore.getState();
           const current = store.session;
-          if (!projection || !current || current.id !== sessionId) return;
+          if (!current || current.id !== sessionId) return;
+          if (!projection) {
+            store.setSession(stripGmNavigationProjection(current));
+            return;
+          }
           store.setSession({ ...current, ...projection });
         },
         onSessionFreshness: (fresh) => {
@@ -183,6 +197,10 @@ function AppRoutes() {
           if (next.role !== 'gm') {
             clearLoyaltyCensus();
             useSessionStore.getState().setGmSetupReceipt(null);
+            const current = useSessionStore.getState().session;
+            if (current?.id === sessionId) {
+              useSessionStore.getState().setSession(stripGmNavigationProjection(current));
+            }
           }
         },
         onPlayerFreshness: (fresh) => {

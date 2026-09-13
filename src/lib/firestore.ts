@@ -1129,7 +1129,11 @@ export function subscribeSessionState(
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onGmDiscovery?.(null);
+          return;
+        }
+        onError();
       },
     )] : []),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {

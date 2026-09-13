@@ -640,7 +640,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     }, ownerUid));
 
     const sessionPath = `sessions/${sessionId}`;
-    const navigationPath = `${sessionPath}/serverState/navigation/current`;
+    const navigationPath = `${sessionPath}/serverState/navigation`;
     const before = read(sessionPath) as StoredDocument;
     before.shipResources = {
       ...(before.shipResources as Record<string, unknown>),

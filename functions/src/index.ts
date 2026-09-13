@@ -107,6 +107,7 @@ import {
 } from './navigation';
 import {
   navigationState,
+  navigationStateDocumentPath,
   playerDiscoveryProjection,
   writePlayerDiscoveryProjection,
   type NavigationState,
@@ -596,7 +597,7 @@ function fleetGroupRef(sessionId: string) {
 }
 
 function navigationStateRef(sessionId: string) {
-  return db.doc(`sessions/${sessionId}/serverState/navigation/current`);
+  return db.doc(navigationStateDocumentPath(sessionId));
 }
 
 function gmDiscoveryProjectionRef(sessionId: string) {

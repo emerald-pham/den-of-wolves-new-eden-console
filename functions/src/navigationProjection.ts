@@ -1,7 +1,7 @@
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
-import { type NavigationLogEntry, type NavigationLogs } from './navigation';
+import { isStarSystemCoordinate, type NavigationLogEntry, type NavigationLogs } from './navigation';
 import { discoverySystemsForCoordinates, pursuitDistanceForCoordinate } from './starChartProjection';
 
 export interface NavigationState {
@@ -22,6 +22,10 @@ export interface PlayerDiscoveryProjection {
 
 const INITIAL_COORDINATE = '0000';
 
+export function navigationStateDocumentPath(sessionId: string): string {
+  return `sessions/${sessionId}/serverState/navigation`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -30,7 +34,8 @@ function validLog(value: unknown, shipId: string): value is NavigationLogEntry {
   if (!isRecord(value) || value.shipId !== shipId || typeof value.id !== 'string' ||
       (value.type !== 'self-jump' && value.type !== 'ship-jump-away' && value.type !== 'ship-jump-arrival') ||
       typeof value.origin !== 'string' || typeof value.destination !== 'string' ||
-      typeof value.occurredAt !== 'string' || typeof value.stardate !== 'string') return false;
+      typeof value.occurredAt !== 'string' || typeof value.stardate !== 'string' ||
+      !isStarSystemCoordinate(value.origin) || !isStarSystemCoordinate(value.destination)) return false;
   return true;
 }
 
@@ -91,7 +96,9 @@ export function playerDiscoveryProjection(
       revision,
     };
   }
-  const currentCoordinate = navigation.shipGalacticCoordinates[shipId] ?? INITIAL_COORDINATE;
+  const currentCoordinate = isStarSystemCoordinate(navigation.shipGalacticCoordinates[shipId] ?? '')
+    ? navigation.shipGalacticCoordinates[shipId]!
+    : INITIAL_COORDINATE;
   const entries = navigation.shipNavigationLogs[shipId] ?? [];
   return {
     groupId,

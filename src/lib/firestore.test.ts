@@ -1191,14 +1191,16 @@ function sessionSnapshot(
 
 function captureSessionListener() {
   const callbacks: Array<(snapshot: unknown) => void> = [];
+  const errors: Array<(error: unknown) => void> = [];
   const unsubscribeSpies: Array<ReturnType<typeof vi.fn>> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error: unknown) => {
     callbacks.push(callback as (snapshot: unknown) => void);
+    errors.push((error as ((error: unknown) => void) | undefined) ?? (() => undefined));
     const unsubscribe = vi.fn();
     unsubscribeSpies.push(unsubscribe);
     return unsubscribe;
   }) as never);
-  return { callbacks, unsubscribeSpies };
+  return { callbacks, errors, unsubscribeSpies };
 }
 
 it('suppresses delayed older lifecycle snapshots at the session listener boundary', () => {
@@ -1458,6 +1460,18 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
   expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
   });
+});
+
+it('clears the GM navigation projection when its protected listener loses permission', () => {
+  const { errors } = captureSessionListener();
+  const onGmDiscovery = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onGmDiscovery, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  errors[2]?.({ code: 'permission-denied' });
+
+  expect(onGmDiscovery).toHaveBeenCalledWith(null);
 });
 
 it('does not let cached identity projections overwrite accepted server authority', () => {

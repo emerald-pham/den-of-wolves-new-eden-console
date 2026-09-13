@@ -125,7 +125,7 @@ it.each([
   expect(sessionWrite?.shipGalacticCoordinates).toBeUndefined();
   expect(sessionWrite?.shipNavigationLogs).toBeUndefined();
   const navigationWrite = mock.set.mock.calls.find(([ref]) =>
-    (ref as { path: string }).path === 'sessions/generated-session/serverState/navigation/current',
+    (ref as { path: string }).path === 'sessions/generated-session/serverState/navigation',
   )?.[1] as Record<string, unknown> | undefined;
   expect(navigationWrite?.shipGalacticCoordinates).toEqual(expectedCoordinates);
   expect(navigationWrite?.shipNavigationLogs).toEqual(
@@ -168,7 +168,7 @@ it.each([
   expect(session.shipGalacticCoordinates).toBeUndefined();
   expect(session.shipNavigationLogs).toBeUndefined();
   const navigationWrite = mock.set.mock.calls.find(([ref]) =>
-    (ref as { path: string }).path === 'sessions/generated-session/serverState/navigation/current',
+    (ref as { path: string }).path === 'sessions/generated-session/serverState/navigation',
   )?.[1] as Record<string, unknown> | undefined;
   expect(Object.keys(navigationWrite?.shipGalacticCoordinates as Record<string, unknown>)).toEqual(session.activeVesselIds);
   expect(Object.keys(navigationWrite?.shipNavigationLogs as Record<string, unknown>)).toEqual(session.activeVesselIds);

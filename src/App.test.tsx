@@ -472,6 +472,20 @@ describe('App', () => {
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 7 }],
     }));
     expect(useSessionStore.getState().gmLoyaltyCensus).toMatchObject({ revision: 4 });
+    const ownDiscovery = {
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
+      knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
+      pursuitDistance: 1, navigationLogs: [], revision: 2,
+    };
+    act(() => handlers?.onSession?.({
+      ...session,
+      playerDiscovery: ownDiscovery,
+      shipGalacticCoordinates: { aegis: '5143', dione: '8378' },
+      shipNavigationLogs: { aegis: [], dione: [] },
+      organiserSystems: { 'system-01': '0000', 'system-02': '5143' },
+      organiserSites: { '5143': { code: 'DIONE', name: 'Dione', candidate: false, summary: 'GM-only' } },
+      pursuitDistances: { aegis: 1, dione: 6 },
+    }));
     act(() => handlers?.onSetupReceipt?.(receipt));
     expect(useSessionStore.getState().gmSetupReceipt).toEqual(receipt);
 
@@ -479,6 +493,12 @@ describe('App', () => {
       handlers?.onPlayer(member);
       handlers?.onPlayerFreshness?.(true);
     });
+    expect(useSessionStore.getState().session?.playerDiscovery).toEqual(ownDiscovery);
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipNavigationLogs).toBeUndefined();
+    expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
+    expect(useSessionStore.getState().session?.organiserSites).toBeUndefined();
+    expect(useSessionStore.getState().session?.pursuitDistances).toBeUndefined();
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
     act(() => censusCallback?.({

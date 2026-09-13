@@ -196,7 +196,7 @@ it('validates reachability from stored position even when the client supplies a 
     shipGalacticCoordinates: null,
     shipNavigationLogs: null,
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation/current', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '0000' }),
   }));
 });
@@ -232,7 +232,7 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     shipGalacticCoordinates: null,
     shipNavigationLogs: null,
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation/current', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     shipNavigationLogs: expect.objectContaining({
       aegis: expect.arrayContaining([expect.objectContaining({
@@ -273,7 +273,7 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     shipGalacticCoordinates: null,
     shipNavigationLogs: null,
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation/current', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     shipNavigationLogs: expect.objectContaining({
       aegis: expect.arrayContaining([expect.objectContaining({
