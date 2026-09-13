@@ -27,6 +27,7 @@ const mock = vi.hoisted(() => {
     set: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    enforceReadOrder: false,
     Timestamp: MockTimestamp,
   };
 });
@@ -42,12 +43,29 @@ vi.mock('firebase-admin/firestore', () => ({
       path,
       doc: (id?: string) => ({ path: path + '/' + (id ?? 'generated-session') }),
     }),
-    runTransaction: (callback: (tx: unknown) => unknown) => callback({
-      get: mock.get,
-      set: mock.set,
-      update: mock.update,
-      delete: mock.delete,
-    }),
+    runTransaction: (callback: (tx: unknown) => unknown) => {
+      let writeStarted = false;
+      return callback({
+        get: (...args: unknown[]) => {
+          if (mock.enforceReadOrder && writeStarted) {
+            throw new Error('Firestore transactions require all reads to be executed before all writes.');
+          }
+          return mock.get(...args);
+        },
+        set: (...args: unknown[]) => {
+          writeStarted = true;
+          return mock.set(...args);
+        },
+        update: (...args: unknown[]) => {
+          writeStarted = true;
+          return mock.update(...args);
+        },
+        delete: (...args: unknown[]) => {
+          writeStarted = true;
+          return mock.delete(...args);
+        },
+      });
+    },
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
   Timestamp: mock.Timestamp,
@@ -129,6 +147,7 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.update.mockReset();
   mock.delete.mockReset();
+  mock.enforceReadOrder = false;
 });
 
 it('lets a player return after two idle hours, clearing only an occupied old seat', async () => {
@@ -479,6 +498,28 @@ it('reclaims an open old seat before resuming the player after two idle hours', 
       claimedAt: 'server-time',
     },
   );
+});
+
+it('reads the returning seat before canonical resume writes begin', async () => {
+  mock.enforceReadOrder = true;
+  prepareResume(
+    { status: 'claimed', holderUid: 'u1' },
+    {},
+    {
+      playerCount: 8,
+      chartId: 'A',
+      expansion: 'base',
+      turnLimit: 8,
+      dioneEnabled: false,
+      capybaraEnabled: true,
+      activeRoleIds: [...recommendedRoleIds(8)],
+      activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    },
+  );
+
+  await expect(resumeSession.run(request('s1'))).resolves.toMatchObject({
+    player: { seatId: 'seat-1' },
+  });
 });
 
 it('rejects a session that closes after the initial read but before resume commits', async () => {

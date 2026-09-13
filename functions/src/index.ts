@@ -1620,6 +1620,7 @@ function clearPressPrivateState(
 type ReturningSeat = Readonly<{
   seatId: string | null;
   clearPointer: boolean;
+  claimSeat: boolean;
 }>;
 
 /**
@@ -1635,10 +1636,10 @@ async function reconcileReturningSeat(
 ): Promise<ReturningSeat> {
   const storedSeatId = player.get('seatId');
   if (storedSeatId === null || storedSeatId === undefined) {
-    return { seatId: null, clearPointer: false };
+    return { seatId: null, clearPointer: false, claimSeat: false };
   }
   if (typeof storedSeatId !== 'string' || storedSeatId.length === 0) {
-    return { seatId: null, clearPointer: true };
+    return { seatId: null, clearPointer: true, claimSeat: false };
   }
 
   const seatRef = db.doc('sessions/' + sessionId + '/seats/' + storedSeatId);
@@ -1648,17 +1649,16 @@ async function reconcileReturningSeat(
     seat.get('status') === 'claimed' &&
     seat.get('holderUid') === uid
   ) {
-    return { seatId: storedSeatId, clearPointer: false };
+    return { seatId: storedSeatId, clearPointer: false, claimSeat: false };
   }
   if (seat.exists && seat.get('status') === 'open') {
-    tx.update(seatRef, {
-      status: 'claimed',
-      holderUid: uid,
-      claimedAt: FieldValue.serverTimestamp(),
-    });
-    return { seatId: storedSeatId, clearPointer: false };
+    // Defer this write until the caller has completed every transaction read.
+    // Firestore rejects a read after any write in the same transaction, and
+    // resumeSession still needs to hydrate the canonical setup after this
+    // seat check.
+    return { seatId: storedSeatId, clearPointer: false, claimSeat: true };
   }
-  return { seatId: null, clearPointer: true };
+  return { seatId: null, clearPointer: true, claimSeat: false };
 }
 
 function sessionTurn(value: unknown): number {
@@ -7608,8 +7608,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           'conflict',
         );
       }
-      if (membership.exists && !membershipActive) tx.delete(membershipRef);
+      const clearStaleMembership = membership.exists && !membershipActive;
+      const returningSeat = player.exists
+        ? await reconcileReturningSeat(tx, sessionId, uid, player)
+        : null;
       const setup = await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
+      if (clearStaleMembership) tx.delete(membershipRef);
       const memberUids = [...new Set([...activeFleetGroupMemberUids(playerDocs), uid])];
       const group = ensureInitialFleetGroup(
         tx, sessionId, setup.activeVesselIds, memberUids, storedGroup, playerDocs,
@@ -7647,7 +7651,13 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
             'conflict',
           );
         }
-        const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
+        if (returningSeat?.claimSeat && returningSeat.seatId) {
+          tx.update(db.doc(`sessions/${sessionId}/seats/${returningSeat.seatId}`), {
+            status: 'claimed',
+            holderUid: uid,
+            claimedAt: FieldValue.serverTimestamp(),
+          });
+        }
         ensureFleetTickerBaseline(tx, sessionRef, sessionDoc, new Date().toISOString());
         const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
         const storedPressHolderUid = sessionDoc.get('pressHolderUid');
@@ -7663,7 +7673,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ...(releasePress ? releasedPressFields(player) : {}),
           ...(!releasePress && currentPressAuthority && player.get('assignedRoleId') === 'press-officer'
             ? { assignedRoleId: null } : {}),
-          ...(returningSeat.clearPointer ? { seatId: null } : {}),
+          ...(returningSeat?.clearPointer ? { seatId: null } : {}),
         });
         tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
           ...playerDiscoveryProjection(player, navigation, navigationRevision),
@@ -7682,7 +7692,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
             : {}),
         });
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
-        return returningSeat.seatId;
+        return returningSeat?.seatId ?? null;
       } else {
         ensureFleetTickerBaseline(tx, sessionRef, sessionDoc, new Date().toISOString());
         tx.set(playerRef, {
@@ -7873,8 +7883,13 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         'conflict',
       );
     }
-    if (membership.exists && !membershipActive) tx.delete(membershipRef);
+    const clearStaleMembership = membership.exists && !membershipActive;
+    // Read the returning seat before setup hydration can write canonical seat
+    // fields. The claim itself is applied immediately after hydration below so
+    // this transaction never performs a read after its first write.
+    const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
     const setup = await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
+    if (clearStaleMembership) tx.delete(membershipRef);
     const group = ensureInitialFleetGroup(
       tx,
       sessionId,
@@ -7912,7 +7927,13 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         'conflict',
       );
     }
-    const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
+    if (returningSeat.claimSeat && returningSeat.seatId) {
+      tx.update(db.doc(`sessions/${sessionId}/seats/${returningSeat.seatId}`), {
+        status: 'claimed',
+        holderUid: uid,
+        claimedAt: FieldValue.serverTimestamp(),
+      });
+    }
     const currentPressAuthority = currentPlayer.get('activeConsoleRoleId') === 'press-officer';
     const storedPressHolderUid = currentSession.get('pressHolderUid');
     const releasePress = hasPressState(currentPlayer) && (
