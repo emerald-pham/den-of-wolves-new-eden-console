@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [673],
+    implementationProgress: {
+      completed: 234,
+      total: 751,
+      percentage: '31.16%',
+      done: 234,
+      partial: 25,
+      active: 0,
+      missing: 492,
+    },
+    changes: [
+      'Ship jump maps now show the familiar galactic compass beside your navigation readout.',
+      '234 of 751 planned items are complete (31.16%).',
+    ],
+  },
+  {
+    version: '0.3.92',
     implementationPrompts: [525],
     implementationProgress: {
       completed: 232,
