@@ -10,6 +10,7 @@ import FleetBroadcast from './FleetBroadcast';
 import FleetAlertControl from './FleetAlertControl';
 import TurnStartAnnouncement from './TurnStartAnnouncement';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
+import type { FleetTickerMessage, FleetTickerState } from '@/types/game';
 const firestoreMocks = vi.hoisted(() => ({
   onSnapshot: vi.fn(),
 }));
@@ -31,6 +32,33 @@ vi.mock('@/lib/firebaseConfig', () => ({
 }));
 vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
 const { setFleetRedAlert } = await import('@/lib/fleetAlertService');
+
+function tickerMessage(overrides: Partial<FleetTickerMessage> = {}): FleetTickerMessage {
+  return {
+    id: 's1:fleet-ticker:1',
+    sequence: 1,
+    source: 'automatic',
+    priority: 40,
+    text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
+    tone: 'normal',
+    gap: 'long',
+    createdAt: '2026-09-06T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function tickerState(current: FleetTickerMessage | null, revision: number, queued: readonly FleetTickerMessage[] = []): FleetTickerState {
+  const nextSequence = Math.max(current?.sequence ?? 0, ...queued.map((entry) => entry.sequence));
+  return {
+    revision,
+    nextSequence,
+    replayCursor: nextSequence,
+    current,
+    queued,
+    draining: [],
+    dismissed: [],
+  };
+}
 beforeEach(() => {
   vi.mocked(setFleetRedAlert).mockReset();
   useSessionStore.getState().reset(); sessionStorage.clear();
@@ -93,12 +121,17 @@ it('does not expose historical Admiral authority after a replacement assignment'
 it('shows the latest press dispatch while no alert is active', () => {
   act(() => {
     const state = useSessionStore.getState();
+    const press = tickerMessage({
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
+      sourceId: 'dispatch-1', text: 'SNN // Convoy arrival confirmed',
+    });
     state.setSession({
       ...state.session!,
       pressDispatch: {
         dispatches: [{ id: 'dispatch-1', text: 'Convoy arrival confirmed' }],
         revision: 1,
       },
+      fleetTicker: tickerState(press, 1),
     });
   });
   render(<FleetBroadcast />);
@@ -135,6 +168,10 @@ it('posts the current airspace window as a compact looping Airspace Control bull
   act(() => {
     const state = useSessionStore.getState();
     const now = new Date(Date.now());
+    const airspace = tickerMessage({
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'automatic', priority: 40,
+      sourceId: 'airspace:1:restricted',
+    });
     state.setSession({
       ...state.session!,
       currentTurn: 1,
@@ -144,6 +181,7 @@ it('posts the current airspace window as a compact looping Airspace Control bull
         openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
         airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
       },
+      fleetTicker: tickerState(airspace, 1),
     } as never);
   });
   const { container } = render(<FleetBroadcast />);
@@ -154,6 +192,10 @@ it('posts the current airspace window as a compact looping Airspace Control bull
   expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'long');
   act(() => {
     const state = useSessionStore.getState();
+    const press = tickerMessage({
+      id: 's1:fleet-ticker:2', sequence: 2, source: 'press', priority: 20,
+      sourceId: 'dispatch-1', text: 'SNN // Convoy arrival confirmed',
+    });
     state.setSession({
       ...state.session!,
       pressDispatch: {
@@ -164,6 +206,7 @@ it('posts the current airspace window as a compact looping Airspace Control bull
         ...state.session!.turnPhase!,
         airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
       },
+      fleetTicker: tickerState(press, 2),
     } as never);
   });
 
@@ -173,7 +216,7 @@ it('posts the current airspace window as a compact looping Airspace Control bull
 });
 
 it('queues an urgent alert after the standing tail without duplicating or losing it', () => {
-  const airspaceId = 's1:airspace:1:restricted';
+  const airspaceId = 's1:fleet-ticker:1';
   const alertId = 's1:red-alert:1';
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
@@ -184,6 +227,10 @@ it('queues an urgent alert after the standing tail without duplicating or losing
       openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
+    fleetTicker: tickerState(tickerMessage({
+      id: airspaceId, sequence: 1, source: 'automatic', priority: 40,
+      sourceId: 'airspace:1:restricted',
+    }), 1),
   } as never));
   const view = render(<FleetBroadcast />);
   const standingGroups = [...view.container.querySelectorAll<HTMLElement>(
@@ -194,6 +241,10 @@ it('queues an urgent alert after the standing tail without duplicating or losing
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     fleetRedAlert: { active: true, revision: 1, text: 'urgent broadcast' },
+    fleetTicker: tickerState(tickerMessage({
+      id: alertId, sequence: 2, source: 'admiral', priority: 80,
+      text: 'ICSN ADMIRAL // URGENT BROADCAST', tone: 'danger', gap: 'standard',
+    }), 2),
   }));
 
   expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // URGENT BROADCAST' })).toBeVisible();
@@ -470,18 +521,24 @@ it('drains finale credits into the waiting ticker and replays only on a new revi
 
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();
+  const press = tickerMessage({
+    id: 's1:press-dispatch:1', sequence: 1, source: 'press', priority: 20,
+    sourceId: 'dispatch-1', text: 'SNN // Convoy arrival confirmed',
+  });
   state.setSession({
     ...state.session!,
     pressDispatch: {
       dispatches: [{ id: 'dispatch-1', text: 'SNN // Convoy arrival confirmed' }],
       revision: 1,
     },
+    fleetTicker: tickerState(press, 1),
   });
   const view = render(<FleetBroadcast />);
 
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     pressDispatch: { dispatches: [], revision: 2 },
+    fleetTicker: tickerState(null, 2),
   }));
 
   expect(screen.getByLabelText('Fleet broadcasts'))
@@ -495,6 +552,10 @@ it('keeps the last press copy moving until it clears the ticker window', () => {
 it('shows every active press dispatch on the fleet ticker', () => {
   act(() => {
     const state = useSessionStore.getState();
+    const press = tickerMessage({
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
+      sourceId: 'dispatch-2', text: 'SNN // First report // SNN // Second report',
+    });
     state.setSession({
       ...state.session!,
       pressDispatch: {
@@ -504,6 +565,7 @@ it('shows every active press dispatch on the fleet ticker', () => {
         ],
         revision: 2,
       },
+      fleetTicker: tickerState(press, 1),
     });
   });
   render(<FleetBroadcast />);
@@ -512,7 +574,18 @@ it('shows every active press dispatch on the fleet ticker', () => {
   })).toBeVisible();
 });
 it('does not offer the command to other roles and shows fleet messages to them', () => {
-  act(() => { const state = useSessionStore.getState(); state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' }); state.setSession({ ...state.session!, fleetRedAlert: { active: false, revision: 2 } }); });
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' });
+    state.setSession({
+      ...state.session!,
+      fleetRedAlert: { active: false, revision: 2 },
+      fleetTicker: tickerState(tickerMessage({
+        id: 's1:fleet-ticker:2', sequence: 2, source: 'automatic', priority: 40,
+        sourceId: 'red-alert:2', text: 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
+      }), 2),
+    });
+  });
   render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={0} /><FleetBroadcast /></MemoryRouter>);
   expect(screen.queryByRole('button', { name: 'Fleetwide red alert' })).not.toBeInTheDocument();
   expect(screen.getByRole('status', {
@@ -548,9 +621,9 @@ it('prefixes and capitalizes custom Admiral alerts in the active warning sequenc
   const state = useSessionStore.getState();
   state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1, text: 'hold position' }, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1 } });
   render(<FleetBroadcast />);
-  expect(screen.getByRole('status', { name: /ICSN ADMIRAL \/\/ HOLD POSITION.*SNN \/\/ First report/ })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // HOLD POSITION' })).toBeVisible();
   act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }, { id: 'dispatch-2', text: 'SNN // Updated report' }], revision: 2 } }));
-  expect(screen.getByRole('status', { name: /ICSN ADMIRAL \/\/ HOLD POSITION.*Updated report/ })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // HOLD POSITION' })).toBeVisible();
 });
 it('converts the Admiral warning and default message to uppercase as it is written', async () => {
   render(<FleetAlertControl />);
