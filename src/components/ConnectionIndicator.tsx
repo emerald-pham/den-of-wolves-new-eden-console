@@ -15,14 +15,14 @@ const LABELS: Record<IndicatorStatus, string> = {
   red: 'Offline',
   yellow: 'CONNECTED',
   green: 'In session',
-  blue: 'NOT CONNECTED — AWAITING IRIS AUTHENTICATION',
+  blue: 'CONNECTED — AWAITING IRIS AUTHENTICATION',
 };
 
 const TITLES: Record<IndicatorStatus, string> = {
   red: 'No connection to Firebase',
   yellow: 'Connected to Firebase, not in a session',
   green: 'Connected to Firebase and in a session',
-  blue: 'Connected to Firebase and awaiting Iris Authentication during Turn 0',
+  blue: 'CONNECTED — AWAITING IRIS AUTHENTICATION',
 };
 
 export default function ConnectionIndicator({

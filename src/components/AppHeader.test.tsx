@@ -89,13 +89,13 @@ it('shows a blue iris-authentication status while Turn 0 systems are still booti
   await screen.findByText('2 connected to CIC');
 
   const indicator = screen.getByRole('status', {
-    name: /connected to firebase and awaiting iris authentication during turn 0/i,
+    name: 'CONNECTED — AWAITING IRIS AUTHENTICATION',
   });
-  expect(indicator).toHaveTextContent('NOT CONNECTED — AWAITING IRIS AUTHENTICATION');
+  expect(indicator).toHaveTextContent(/^CONNECTED — AWAITING IRIS AUTHENTICATION$/);
   expect(indicator).toHaveAttribute('data-status', 'blue');
   expect(indicator).toHaveAttribute(
     'title',
-    'Connected to Firebase and awaiting Iris Authentication during Turn 0',
+    'CONNECTED — AWAITING IRIS AUTHENTICATION',
   );
 
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));

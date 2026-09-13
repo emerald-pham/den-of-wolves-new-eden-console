@@ -30,7 +30,9 @@ describe('ConnectionIndicator', () => {
 
   it('uses the exact Turn 0 Iris authentication label only for a joined session', () => {
     render(<ConnectionIndicator status="blue" />);
-    expect(screen.getByRole('status')).toHaveTextContent('NOT CONNECTED — AWAITING IRIS AUTHENTICATION');
+    expect(screen.getByRole('status')).toHaveTextContent(/^CONNECTED — AWAITING IRIS AUTHENTICATION$/);
+    expect(screen.getByRole('status')).toHaveAccessibleName('CONNECTED — AWAITING IRIS AUTHENTICATION');
+    expect(screen.getByRole('status')).toHaveAttribute('title', 'CONNECTED — AWAITING IRIS AUTHENTICATION');
   });
 
   it('exposes the status for styling without relying on it for meaning', () => {
