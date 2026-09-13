@@ -4146,6 +4146,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "631",
+      "id": "E-631-PRESENCE-COALESCE",
+      "language": "Passive refreshPresence heartbeat retries now use a server-only per-session/per-UID full-reconciliation marker. Within the five-second marker interval, an authenticated active player and optional live GM instance renew only their own lease and membership while skipping roster, role-holder, secret, and census reads; only the full path advances the marker, and explicit console role claim or release remains full. Focused session lifecycle tests pass 41/41, the Functions build and lint pass with the four existing warnings, and the populated Firestore rules matrix proves the marker is unreadable and unwritable by connected members and GMs. This is a partial P631 slice: resumeSession, getSessionPresence, rollDice, and other expensive callable limiting remain unaddressed.",
+      "source": "functions/src/index.ts; functions/src/sessionLifecycle.ts; functions/src/sessionLifecycleCallable.test.ts; tests/rules/nonmember-reads.rules.test.ts; npm exec vitest -- run --project functions functions/src/sessionLifecycleCallable.test.ts functions/src/sessionLifecycle.test.ts; npm run build --prefix functions; npm run test:rules",
+      "type": "evidence / partial / production-path / security / performance"
+    },
+    {
       "direction": "632",
       "id": "E-632-VERIFIED",
       "language": "Production callable boundaries now reject malformed or oversized maintenance payloads before authority preflight: console lists are capped at the largest possible printed Reactor charge set, refuel maps at the largest supported shuttle-bay set, and small-ship console lists at the domain Reactor capacities. Refuel maps preserve the live form's exact empty-string Do not refuel sentinel while bounding nonempty shuttle IDs. The optional refreshPresence activeConsoleRoleId is validated as a canonical ID before its transaction and role-holder query, while omitted and explicit-null release semantics remain distinct. Focused request-guard, maintenance, small-ship, and session-composition tests cover maximum accepted shapes, malformed IDs and counts, sentinel compatibility, and rejection before reads or writes. Other existing bounded callable fields remain unchanged; this is a server security hardening with no new UI or game rule.",
@@ -21333,8 +21340,8 @@
         "acceptance": "identity/session-aware limits contain abuse without breaking legitimate same-table retries or shared-network users.",
         "title": "Rate-limit expensive callables."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The production refreshPresence path now coalesces rapid passive heartbeat retries with a server-only per-session/per-UID full-reconciliation marker. Authenticated active players still renew their own lease and membership, optional live GM instances still renew their connection, explicit activeConsoleRoleId claim/release requests always run the full authority path, and the marker is private to server code. Focused lifecycle, Functions build/lint, and populated Firestore rules privacy checks are recorded; broader expensive-callable limiting remains open, so P631 is partial.",
+      "evidenceIds": "E-631-PRESENCE-COALESCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -21345,7 +21352,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
