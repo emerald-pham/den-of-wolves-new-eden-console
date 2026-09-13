@@ -13,8 +13,8 @@ const PRESS_TEXT = 'SNN // CURRENT SERVER BROADCAST';
 const AIRSPACE_OPEN_TEXT = 'AIRSPACE CONTROL // AIRSPACE OPEN';
 const RED_ALERT_TEXT = 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS';
 const STAND_DOWN_TEXT = 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.';
-const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // TURN 0 // STANDING BY';
-const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.';
+const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY';
+const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 
 const session = {
   id: 'ticker-browser-smoke',
@@ -154,6 +154,21 @@ sourceFixtures['expired-stand-down'] = persistedFixture({
       source: 'automatic', sourceId: 'red-alert:2', priority: 80,
       text: STAND_DOWN_TEXT, passCount: 2, expiresAt: '2026-01-01T00:00:00.000Z',
     },
+  },
+}, '/console');
+sourceFixtures['stale-airspace'] = persistedFixture({
+  ...session,
+  currentTurn: 2,
+  turnPhase: {
+    turn: 2, teamPhaseEndsAt: '2026-09-13T16:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-13T16:25:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  },
+  fleetTicker: {
+    ...session.fleetTicker,
+    current: { ...turnOneSession.fleetTicker.current, sourceId: 'airspace:1:lifted', text: AIRSPACE_OPEN_TEXT },
+    queued: [{ ...turnOneSession.fleetTicker.current, id: 'ticker-browser-smoke:fleet-ticker:3', sequence: 3,
+      sourceId: 'airspace:2:restricted', text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // OLD LOCKDOWN COPY' }],
   },
 }, '/console');
 sourceFixtures['pending-stream'] = persistedFixture({
@@ -378,6 +393,7 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
         ['red-alert', RED_ALERT_TEXT],
         ['stand-down', STAND_DOWN_TEXT],
         ['press-return', PRESS_TEXT],
+        ['stale-airspace', TURN_ONE_AIRSPACE_TEXT],
         ['pending-stream', AWAITING_DISPATCH_TEXT],
         ['empty-stream', AWAITING_DISPATCH_TEXT],
         ['expired-stand-down', AWAITING_DISPATCH_TEXT],

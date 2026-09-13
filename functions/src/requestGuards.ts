@@ -959,7 +959,7 @@ export function requireWolfAttackPreparationRequest(data: {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
   }
   if (!Number.isSafeInteger(data.turn) || (data.turn as number) < 1) {
-    throw new HttpsError('invalid-argument', 'turn must be a positive integer.');
+    throw new HttpsError('invalid-argument', 'cycle must be a positive integer.');
   }
   if (!Array.isArray(data.shipIds) || data.shipIds.length < 1 || data.shipIds.length > 24 ||
       data.shipIds.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(id))) {

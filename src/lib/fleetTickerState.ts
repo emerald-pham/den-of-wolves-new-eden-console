@@ -27,12 +27,19 @@ function parseMessage(value: unknown): FleetTickerMessage | null {
       (value.passCount !== undefined &&
         (typeof value.passCount !== 'number' || !Number.isSafeInteger(value.passCount) || value.passCount < 1)) ||
       (value.expiresAt !== undefined && !instant(value.expiresAt)) || !instant(value.createdAt)) return null;
+  // Upgrade only server-generated ATC copy in cached projections. Source IDs
+  // retain the authority and identity; authored Press/Admiral text is untouched.
+  const text = value.source !== 'automatic' ? value.text
+    : value.sourceId === 'turn-zero-atc' ? 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY'
+    : /^airspace:[1-9]\d*:restricted$/.test(value.sourceId ?? '') ? 'AIRSPACE CONTROL // AIRSPACE CLOSED'
+    : /^airspace:[1-9]\d*:lifted$/.test(value.sourceId ?? '') ? 'AIRSPACE CONTROL // AIRSPACE OPEN'
+    : value.text;
   return {
     id: value.id,
     sequence: value.sequence,
     source: value.source,
     priority: value.priority,
-    text: value.text,
+    text,
     tone: value.tone,
     gap: value.gap,
     ...(value.sourceId === undefined ? {} : { sourceId: value.sourceId }),

@@ -5,8 +5,8 @@ import FleetBroadcast from './FleetBroadcast';
 
 const renderTicker = vi.hoisted(() => vi.fn(() => null));
 
-const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // TURN 0 // STANDING BY';
-const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.';
+const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY';
+const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 
 vi.mock('./FleetTicker', () => ({ default: renderTicker }));
 
@@ -194,4 +194,32 @@ it.each([undefined, {
   const props = (renderTicker.mock.calls[0] as unknown[])[0];
   expect(props).toMatchObject({ message: { text: 'AIRSPACE CONTROL // AWAITING DISPATCH' } });
   expect(JSON.stringify(props)).not.toMatch(/OLD PRESS COPY|AIRSPACE OPEN|STAND DOWN/);
+});
+
+
+it('never paints a stale queued ATC state from a cached snapshot', () => {
+  const state = useSessionStore.getState();
+  const atc = (sequence: number, sourceId: string, text: string) => ({
+    id: `s1:fleet-ticker:${sequence}`, sequence, source: 'automatic' as const,
+    priority: 40, sourceId, text, tone: 'normal' as const, gap: 'long' as const,
+    createdAt: '2026-09-13T16:00:00.000Z',
+  });
+  state.setSession({
+    ...state.session!, currentTurn: 2,
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-13T16:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-13T16:25:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    fleetTicker: {
+      revision: 3, nextSequence: 2, replayCursor: 2,
+      current: atc(1, 'airspace:1:lifted', 'AIRSPACE CONTROL // AIRSPACE OPEN'),
+      queued: [atc(2, 'airspace:2:restricted', 'AIRSPACE CONTROL // AIRSPACE CLOSED // OLD LOCKDOWN COPY')],
+      draining: [], dismissed: [],
+    },
+  });
+  render(<FleetBroadcast />);
+  const props = (renderTicker.mock.calls[0] as unknown[])[0] as { queue: { text: string }[] };
+  expect(props.queue[0].text).toBe('AIRSPACE CONTROL // AIRSPACE CLOSED');
+  expect(JSON.stringify(props)).not.toMatch(/AIRSPACE OPEN|OLD LOCKDOWN COPY/);
 });

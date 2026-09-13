@@ -38,7 +38,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 274, partial: 25, active: 0, missing: 452,
     },
     changes: [
-      'The fleet ticker stays visible from joining at Turn 0, including while scrolling and between broadcasts. ATC returns when the news ends, and new Press reports no longer get stuck behind ATC.',
+      'The fleet ticker stays visible from joining at Cycle 0, including while scrolling and between broadcasts. ATC returns when the news ends, and new Press reports no longer get stuck behind ATC.',
       '274 of 751 planned items are complete (36.48%).',
     ],
   },
@@ -49,7 +49,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 274, partial: 25, active: 0, missing: 452,
     },
     changes: [
-      'Air Traffic Control broadcasts appear as soon as you join at Turn 0, before any news is published. Existing Turn 0 sessions recover the missing dispatch automatically.',
+      'Air Traffic Control broadcasts appear as soon as you join at Cycle 0, before any news is published. Existing Cycle 0 sessions recover the missing dispatch automatically.',
       '274 of 751 planned items are complete (36.48%).',
     ],
   },
@@ -430,7 +430,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 497,
     },
     changes: [
-      'Captains can approve a Commissar purge. The Commissar can then apply the population loss and lower unrest, once per ship per turn.',
+      'Captains can approve a Commissar purge. The Commissar can then apply the population loss and lower unrest, once per ship per cycle.',
       '228 of 750 planned items are complete (30.40%).',
     ],
   },
@@ -641,7 +641,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 515,
     },
     changes: [
-      'Base Capybara can use its charged Water Reclimator to add four water, or Hydroponics to turn one water into four food, in its docked host’s stores.',
+      'Base Capybara can use its charged Water Reclimator to add four water, or Hydroponics to convert one water into four food, in its docked host’s stores.',
       '213 of 750 planned items are complete (28.40%).',
     ],
   },
@@ -800,7 +800,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 557,
     },
     changes: [
-      'Vessel-console actions now return one traceable result with the acting role, vessel, turn, revision, retry identity, and audit reference, so a reconnect or retry preserves the same authoritative outcome. 180 of 747 planned items are complete (24.10%).',
+      'Vessel-console actions now return one traceable result with the acting role, vessel, cycle, revision, retry identity, and audit reference, so a reconnect or retry preserves the same authoritative outcome. 180 of 747 planned items are complete (24.10%).',
     ],
   },
   {
@@ -972,7 +972,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 582,
     },
     changes: [
-      'The SNN Press Officer Dispatch Desk is restored and usable during Turn 0, so its claimed operator can publish and retire fleet dispatches while stale, duplicate, disabled, and unauthorized actions remain blocked. 158 of 747 planned items are complete (21.15%).',
+      'The SNN Press Officer Dispatch Desk is restored and usable during Cycle 0, so its claimed operator can publish and retire fleet dispatches while stale, duplicate, disabled, and unauthorized actions remain blocked. 158 of 747 planned items are complete (21.15%).',
     ],
   },
   {
@@ -1355,7 +1355,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 615,
     },
     changes: [
-      'Turn and finale transmissions now keep their accessible status visible until the moving tail actually clears, so lifecycle copy remains readable and replays at the correct transition.',
+      'Cycle and finale transmissions now keep their accessible status visible until the moving tail actually clears, so lifecycle copy remains readable and replays at the correct transition.',
     ],
   },
   {
@@ -1371,7 +1371,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 616,
     },
     changes: [
-      'Live session updates now keep every player on the newest turn and phase, so a delayed older update cannot bring back an action from a window that has already closed. — Roadmap progress: 89 of 730 planned items complete (12.19%).',
+      'Live session updates now keep every player on the newest cycle and phase, so a delayed older update cannot bring back an action from a window that has already closed. — Roadmap progress: 89 of 730 planned items complete (12.19%).',
     ],
   },
   {
@@ -1434,7 +1434,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 620,
     },
     changes: [
-      'Turn advancement now waits for the correct game phase. — Roadmap progress: 84 of 728 planned items complete (11.54%).',
+      'Cycle advancement now waits for the correct game phase. — Roadmap progress: 84 of 728 planned items complete (11.54%).',
     ],
   },
   {
@@ -1514,7 +1514,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 622,
     },
     changes: [
-      'Connected consoles now converge on one airspace opening and one authoritative turn handoff at each phase transition, so retries cannot replay either transition.',
+      'Connected consoles now converge on one airspace opening and one authoritative cycle handoff at each phase transition, so retries cannot replay either transition.',
     ],
   },
   {
@@ -1565,7 +1565,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'The production roster now reaches start only from the exact configured 8–20 core cast, canonical occupied seats, reciprocal live player pointers, and private loyalty state.',
       'Routine start now derives one Wolf at 8–13 core players or two at 14–20 on the server; a uniquely claimed Press Officer stays eligible as the distinct optional twenty-first player without adding a third Wolf.',
       'One live GM can now satisfy both facilitator responsibilities and start a ready session, while additional live GMs may collaborate without becoming a readiness dependency.',
-      'Ordinary GM start now locks setup, writes audience-correct private results and a safe calculation receipt, and enters Turn 1 exactly once with pursuit 2 and the existing timer and announcement.',
+      'Ordinary GM start now locks setup, writes audience-correct private results and a safe calculation receipt, and enters Cycle 1 exactly once with pursuit 2 and the existing timer and announcement.',
     ],
   },
   {
@@ -1581,7 +1581,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 616,
     },
     changes: [
-      'Facilitators can now confirm one authoritative setup tuple for the settled 8–20 core roster, including chart, turn limit, Dione, Capybara, and ordered active roles.',
+      'Facilitators can now confirm one authoritative setup tuple for the settled 8–20 core roster, including chart, cycle limit, Dione, Capybara, and ordered active roles.',
       'Players can now claim and release stable core-role seats through the existing role route, with reconnect hydration preserving the server roster and seat state.',
       'Setup evidence now covers the owner-set 8–20 core composition while readiness, start, and the optional Press station remain outside this release boundary.',
       'A single GM can carry both printed facilitation responsibilities while optional additional GMs can share or hand off lanes; the optional Press station remains distinct and outside the core count.',
@@ -1599,7 +1599,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     implementationPrompts: ['275a', 598, 605],
     changes: [
       'SNN Press is default-enabled as an optional, authoritatively toggleable Independent Station: its distinct twenty-first player console stays outside the counted core roster, and its roster-derived starting host is AEGIS at 8–11 players or Dione at 12+ (the 19-player matrix remains open).',
-      'Connection indicators now say exactly CONNECTED before a session and NOT CONNECTED — AWAITING IRIS AUTHENTICATION only for a joined session before its first Turn 1 snapshot.',
+      'Connection indicators now say exactly CONNECTED before a session and NOT CONNECTED — AWAITING IRIS AUTHENTICATION only for a joined session before its first Cycle 1 snapshot.',
       'DRADIS now keeps every complete contact name inside the plot at the top, right, bottom, and left edges across compact, expanded, and reduced-motion views; broader group-local transit and parked-craft projection remains open.',
     ],
   },
@@ -1637,7 +1637,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Players and facilitators now receive stable, nonsecret command errors for authentication, permission, phase, revision, conflict, malformed input, service, and terminal-session failures.',
       'Actions now carry phase eligibility metadata, so a stale control cannot authorize a valid command in the wrong phase.',
-      'Session setup rejects unsupported player counts, charts, expansions, turn limits, duplicate options, and malformed fields before creating state.',
+      'Session setup rejects unsupported player counts, charts, expansions, cycle limits, duplicate options, and malformed fields before creating state.',
       'Creating a session now writes its lobby, facilitator metadata, configuration, join code, and opening event through one authoritative transaction.',
       'Setup now locks base Capybara, expansion Capybara, or neither as an explicit vessel mode before casting.',
       'Expansion setup now loads the Capybara Captain, Recycler, Scrap, Macaw, Boa, and full-ship rules without mixing base definitions.',
@@ -1653,9 +1653,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Starting the game now locks casting and rejects lobby mutations after the authoritative start transaction.',
       'Setup now reports the two physical facilitator responsibilities independently of local GM mode.',
       'Only an active eligible facilitator or GM instance can authorize a ready game start.',
-      'The start transaction now initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, and the opening event together.',
-      'Turn 1 now initializes one server-owned pursuit value at 2 for each initial fleet group.',
-      'Sessions now lock the printed six-to-eight-turn limit and reject unsupported durations.',
+      'The start transaction now initializes lifecycle, cycle, phase, timers, ships, roles, resources, decks, pursuit, and the opening event together.',
+      'Cycle 1 now initializes one server-owned pursuit value at 2 for each initial fleet group.',
+      'Sessions now lock the printed six-to-eight-cycle limit and reject unsupported durations.',
       'Crew snapshots now expose permitted shared vessel state without another crew\'s private role or loyalty facts.',
       'Authorized facilitators can now regain census, suspicion, notes, and hidden resolution state while members remain denied.',
     ],
@@ -1663,7 +1663,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.3.4',
     changes: [
-      'Turn 0 status messages now say Awaiting Iris Authentication so players see the actual authentication gate.',
+      'Cycle 0 status messages now say Awaiting Iris Authentication so players see the actual authentication gate.',
     ],
   },
   {
@@ -1711,7 +1711,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.105',
     changes: [
-      'Turn Zero now keeps game-state controls locked while allowing DRADIS and console viewing, and a solo session can start the Turn One demo from Settings.',
+      'Cycle Zero now keeps game-state controls locked while allowing DRADIS and console viewing, and a solo session can start the Cycle One demo from Settings.',
     ],
   },
   {
@@ -1759,7 +1759,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.92',
     changes: [
-      'Turn handoffs now clear unused console charges and shuttle fuel after Coordination Phase, keep overrunning missions and their docking state in place, and show the numbered successor turn with an AIRSPACE CLOSED, survivor, and OBJECTIVE // SURVIVE. transmission.',
+      'Cycle handoffs now clear unused console charges and shuttle fuel after Coordination Phase, keep overrunning missions and their docking state in place, and show the numbered successor cycle with an AIRSPACE CLOSED, survivor, and OBJECTIVE // SURVIVE. transmission.',
       'GM fleet resource cards now show each ship’s current ship-relative pursuit tracker beneath its resource and census controls, using the shared galactic map even when the fleet is split.',
     ],
   },
@@ -1772,14 +1772,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.86',
     changes: [
-      'GM Console now requires a second click to advance from Turn 0, while Skip to Turn 1 bypasses the fullscreen transmission and keeps its own wording independent.',
+      'GM Console now requires a second click to advance from Cycle 0, while Skip to Cycle 1 bypasses the fullscreen transmission and keeps its own wording independent.',
       'The former launcher hacking transmissions are restored as a future-ready capability, but remain disabled in the current opening experience until Wolf gameplay provides the context.',
     ],
   },
   {
     version: '0.2.85',
     changes: [
-      'The Turn 1 traitor reveal now lingers longer for a clearer read, and the final survivors slide fades out more deliberately.',
+      'The Cycle 1 traitor reveal now lingers longer for a clearer read, and the final survivors slide fades out more deliberately.',
     ],
   },
   {
@@ -1827,7 +1827,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Acknowledging the waiver keeps it cleared across sessions for 24 hours on the same device.',
       'The launcher now keeps Settings available, and creating or joining a session lands at the pre-role device connection screen after any current session has been disconnected.',
       'GMs can kick connected player browsers from the roster; the kicked browser is blocked from returning to that session, while its identity remains free to join another session.',
-      'Turn transmissions now close on one survivor-count beat before fading out, and the fleet survivor readout stays at the reduced total through the next turn transition.',
+      'Cycle transmissions now close on one survivor-count beat before fading out, and the fleet survivor readout stays at the reduced total through the next cycle transition.',
       'Unknown ambient contacts now enter at LONG range, the expanded DRADIS view no longer carries a standalone range key, and the disco ball renders an illuminated rear facet surface.',
       'The mobile fleet ticker reserves the measured wrapped header height and keeps repeated copy in a single centred line box.',
     ],
@@ -1843,7 +1843,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.75',
     changes: [
       'GM registration now requires the facilitator access password before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',
-      'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
+      'During Cycle 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Cycle 1 begins.',
     ],
   },
   {
@@ -1856,7 +1856,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.73',
     changes: [
-      'The Turn 0 → Turn 1 transmission now gives its closing PEOPLE and SURVIVE. beats more room to land, removes the stray dash, and fades out over a full second.',
+      'The Cycle 0 → Cycle 1 transmission now gives its closing PEOPLE and SURVIVE. beats more room to land, removes the stray dash, and fades out over a full second.',
       'GM Console can replay the latest transmission locally or across every connected console, with a codified danger-red second press for the setup skip command.',
     ],
   },
@@ -1882,7 +1882,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.69',
     changes: [
-      'GM Console now keeps the normal Advance to Turn 1 command alongside the fast Skip to Turn 1 shortcut during setup.',
+      'GM Console now keeps the normal Advance to Cycle 1 command alongside the fast Skip to Cycle 1 shortcut during setup.',
     ],
   },
   {
@@ -1902,7 +1902,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.66',
     changes: [
-      'The Turn 0 → Turn 1 fleet transmission scan now travels all the way to the bottom edge of its instrument frame.',
+      'The Cycle 0 → Cycle 1 fleet transmission scan now travels all the way to the bottom edge of its instrument frame.',
     ],
   },
   {
@@ -1921,14 +1921,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.63',
     changes: [
-      'The Turn 1 fleet transmission now delivers “There are traitors among us; that’s kind of sus” as one complete slide.',
-      'GM Console now offers a Skip to Turn 1 control during setup so you can start a live debug session faster.',
+      'The Cycle 1 fleet transmission now delivers “There are traitors among us; that’s kind of sus” as one complete slide.',
+      'GM Console now offers a Skip to Cycle 1 control during setup so you can start a live debug session faster.',
     ],
   },
   {
     version: '0.2.61',
     changes: [
-      'Turn transitions now arrive as a ruled fleet instrument, showing the exact handoff between turns, transmission progress, live survivor count, and the Wolf pursuit status inside the same CIC visual language as the rest of the console.',
+      'Cycle transitions now arrive as a ruled fleet instrument, showing the exact handoff between cycles, transmission progress, live survivor count, and the Wolf pursuit status inside the same CIC visual language as the rest of the console.',
       'The transmission frame tightens cleanly for phones, short landscape screens, and reduced motion while keeping the life-or-death briefing readable, with eased handoffs between each message beat.',
     ],
   },
@@ -1942,7 +1942,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.58',
     changes: [
-      'The Turn 1 warning now identifies the Wolves and reveals “ARE TRAITORS.” in place after a tense pause.',
+      'The Cycle 1 warning now identifies the Wolves and reveals “ARE TRAITORS.” in place after a tense pause.',
       'Survivor totals in fleet transmissions now read in bone-white, fall by one midway through their display, and update the fleet-wide total at the same time.',
     ],
   },
@@ -2021,7 +2021,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.46',
     changes: [
-      'The Turn 0 connection light now reads “Connected, Awaiting Iris Authentication,” and the live Turn 1 briefing opens with “Iris Authentication Confirmed.”',
+      'The Cycle 0 connection light now reads “Connected, Awaiting Iris Authentication,” and the live Cycle 1 briefing opens with “Iris Authentication Confirmed.”',
     ],
   },
   {
@@ -2035,20 +2035,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.44',
     changes: [
       'DRADIS returns now identify their combat range, with every fleet ship reporting SHORT RANGE without changing its plotted position.',
-      'Live-turn instruments and shuttle procedures now say AIRSPACE RESTRICTED and AIRSPACE OPEN.',
+      'Live-cycle instruments and shuttle procedures now say AIRSPACE RESTRICTED and AIRSPACE OPEN.',
       'SNN ticker lettering now has clear vertical room instead of clipping along its lower edge.',
     ],
   },
   {
     version: '0.2.43',
     changes: [
-      'Turn 1 now delivers its opening fleet briefing as clear, individually timed messages, giving everyone time to read the situation before play begins.',
+      'Cycle 1 now delivers its opening fleet briefing as clear, individually timed messages, giving everyone time to read the situation before play begins.',
     ],
   },
   {
     version: '0.2.42',
     changes: [
-      'The top-right connection light now shows blue “Connected, Awaiting Uplink” while Turn 0 systems boot, then returns to green when Turn 1 begins.',
+      'The top-right connection light now shows blue “Connected, Awaiting Uplink” while Cycle 0 systems boot, then returns to green when Cycle 1 begins.',
     ],
   },
   {
@@ -2060,10 +2060,10 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.40',
     changes: [
-      'New games now begin at Turn 0: players can choose and inspect stations while gameplay waits for the GM to start Turn 1.',
-      'Every live turn start now opens with a fleet transmission, including the current survivor count and a longer Turn 1 briefing.',
-      'Turn 1 begins with 10 minutes of restricted airspace and 20 minutes of open airspace; later turns run 5 and 15 minutes. Airspace bulletins yield to the Press’s next dispatch.',
-      'AEGIS can grant the Press an airspace exception from Systems control, and early GM turn advances now require a red confirmation.',
+      'New games now begin at Cycle 0: players can choose and inspect stations while gameplay waits for the GM to start Cycle 1.',
+      'Every live cycle start now opens with a fleet transmission, including the current survivor count and a longer Cycle 1 briefing.',
+      'Cycle 1 begins with 10 minutes of restricted airspace and 20 minutes of open airspace; later cycles run 5 and 15 minutes. Airspace bulletins yield to the Press’s next dispatch.',
+      'AEGIS can grant the Press an airspace exception from Systems control, and early GM cycle advances now require a red confirmation.',
     ],
   },
   {
@@ -2205,8 +2205,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.19',
     changes: [
-      'Maintenance is now limited to one cycle per ship each turn, with the turn shown on every maintenance start control.',
-      'The GM console now shows the current turn and provides the authoritative control for advancing it.',
+      'Each ship can now perform maintenance once per cycle, with the cycle shown on every maintenance start control.',
+      'The GM console now shows the current cycle and provides the authoritative control for advancing it.',
     ],
   },
   {

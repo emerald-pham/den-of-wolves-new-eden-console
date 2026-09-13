@@ -89,7 +89,7 @@ it('allows only one maintenance cycle per turn', () => {
       charges: [], refuelled: [], completedAt: '2026-09-06T12:04:00.000Z',
     },
     expectedRevision: 8,
-  }))).toThrow(/once per turn/i);
+  }))).toThrow(/once per cycle/i);
 
   expect(advanceMaintenance(input({
     currentTurn: 2,

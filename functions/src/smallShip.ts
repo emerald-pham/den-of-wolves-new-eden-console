@@ -168,7 +168,7 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
     throw new Error('This small-ship action is not available at the current step.');
   }
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
-    throw new Error('Small-ship maintenance can only be done once per turn.');
+    throw new Error('Small-ship maintenance can only be done once per cycle.');
   }
   const rules = SMALL_SHIP_RULES[state.id];
   const cycle: SmallShipMaintenanceCycle = {

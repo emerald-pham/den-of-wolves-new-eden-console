@@ -91,7 +91,7 @@ it('creates the factual Turn 0 ATC standing-by bulletin in the authoritative str
     current: {
       source: 'automatic',
       sourceId: 'turn-zero-atc',
-      text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
+      text: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
       sequence: 1,
       createdAt: expect.any(String),
     },

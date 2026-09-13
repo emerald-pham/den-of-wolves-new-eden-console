@@ -148,9 +148,17 @@ export default function FleetBroadcast() {
   };
   const authoritativeTicker = fleetTickerState(session.fleetTicker);
   if (session.fleetTicker && authoritativeTicker.revision > 0) {
-    const streamMessage = authoritativeTicker.current
+    const isCurrentAirspace = (entry: AuthoritativeFleetTickerMessage): boolean => {
+      if (entry.source !== 'automatic') return true;
+      const cycle = session.currentTurn ?? 0;
+      if (entry.sourceId === 'turn-zero-atc') return cycle === 0;
+      const match = /^airspace:([1-9]\d*):(restricted|lifted)$/.exec(entry.sourceId ?? '');
+      if (!match) return true;
+      return Number(match[1]) === cycle && (!phase || phase.airspace.state === match[2]);
+    };
+    const streamMessage = authoritativeTicker.current && isCurrentAirspace(authoritativeTicker.current)
       ? displayFleetTickerMessage(authoritativeTicker.current) : undefined;
-    const queue = authoritativeTicker.queued
+    const queue = authoritativeTicker.queued.filter(isCurrentAirspace)
       .map((entry) => displayFleetTickerMessage(entry));
     if (streamMessage || queue.length > 0) {
       return <FleetBroadcastSurface

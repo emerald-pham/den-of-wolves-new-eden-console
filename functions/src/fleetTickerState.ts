@@ -240,18 +240,23 @@ function withDraining(
     : [...state.draining.filter((entry) => entry.id !== outgoing.id), outgoing].slice(-MAX_DRAINING);
 }
 
-function isAirspaceTickerMessage(entry: FleetTickerMessage): boolean {
+function isAirspaceTickerMessage(entry: Pick<FleetTickerMessage, 'source' | 'sourceId'>): boolean {
   return entry.source === 'automatic' && typeof entry.sourceId === 'string' &&
     (entry.sourceId === 'turn-zero-atc' ||
       /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(entry.sourceId));
 }
 
-/** Retire generated airspace notices before a Press dispatch takes over. */
-export function retireAirspaceFleetTicker(value: unknown, now: string): FleetTickerState {
+/** Retire generated ATC notices, optionally retaining the current phase source. */
+export function retireAirspaceFleetTicker(
+  value: unknown,
+  now: string,
+  keepSourceId?: string,
+): FleetTickerState {
   const normalized = pruneExpired(fleetTickerState(value), now);
-  const currentTarget = normalized.current && isAirspaceTickerMessage(normalized.current)
+  const shouldRetire = (entry: FleetTickerMessage) => isAirspaceTickerMessage(entry) && entry.sourceId !== keepSourceId;
+  const currentTarget = normalized.current && shouldRetire(normalized.current)
     ? normalized.current : null;
-  const queuedTargets = normalized.queued.filter(isAirspaceTickerMessage);
+  const queuedTargets = normalized.queued.filter(shouldRetire);
   if (!currentTarget && queuedTargets.length === 0) return normalized;
 
   const retired = currentTarget ? [currentTarget, ...queuedTargets] : queuedTargets;
@@ -261,7 +266,7 @@ export function retireAirspaceFleetTicker(value: unknown, now: string): FleetTic
     revision,
     replayCursor: Math.max(normalized.replayCursor, ...retired.map(({ sequence }) => sequence)),
     current: currentTarget ? null : normalized.current,
-    queued: normalized.queued.filter((entry) => !isAirspaceTickerMessage(entry)),
+    queued: normalized.queued.filter((entry) => !shouldRetire(entry)),
     draining: currentTarget ? withDraining(normalized, currentTarget) : normalized.draining,
     dismissed: [...normalized.dismissed, ...retired.map((entry) => ({
       id: entry.id,
@@ -283,7 +288,11 @@ export function publishFleetTicker(
   input: FleetTickerTransmission,
   now: string,
 ): FleetTickerState {
-  const normalized = pruneExpired(fleetTickerState(value), now);
+  // Only the latest phase bulletin may wait behind an alert. Preserve the
+  // priorities of other sources and the visible outgoing text's drain.
+  const normalized = isAirspaceTickerMessage(input)
+    ? retireAirspaceFleetTicker(value, now)
+    : pruneExpired(fleetTickerState(value), now);
   const next = nextMessage(sessionId, normalized, input, now);
   const replaces = normalized.current !== null && input.priority >= normalized.current.priority;
   const current = replaces || normalized.current === null ? next : normalized.current;

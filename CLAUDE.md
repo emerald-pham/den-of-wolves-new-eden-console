@@ -220,24 +220,32 @@ session projection fixture isolated to the smoke and save a viewport screenshot
 when a case fails; do not replace the real ticker with a mock or an offscreen
 DOM assertion.
 
+Call the numbered game clock a **cycle** in all player-facing labels, help,
+announcements, accessible names, errors, and release notes. Never label it a
+turn. Existing wire fields, callable names, document IDs, and internal symbols
+such as `currentTurn` remain compatible; this is a product-copy convention.
+
 The news ticker has three player-facing sources: Air Traffic Control for
 airspace open/closed status, Press for published news, and Aegis for Red Alert
 and Stand Down. Preserve each source's authoritative state and displayed
 identity. ATC bulletins yield to newer Press or Aegis copy; active Press news
 returns after an Aegis interruption without reviving dismissed news. When no
 news remains, ATC provides the standing bulletin from the current server state.
-The ticker stays visible on every joined screen, including Turn 0 before role
+The ticker stays visible on every joined screen, including Cycle 0 before role
 selection, empty projections, and after dismissal or Stand Down. A neutral
 `AIRSPACE CONTROL // AWAITING DISPATCH` readout preserves the instrument while
 a server dispatch is arriving; it must not guess open/closed status or replay
 old news. Cover these source transitions in the ticker tests.
 
 The initial server projection is also release-critical: a freshly joined member
-must see `AIRSPACE CONTROL // TURN 0 // STANDING BY` from the moment a lobby is
-joined, before any Press Officer publication or role-specific dispatch. The
-Turn 0 smoke covers a freshly joined member with no claimed role or Press
+must see `AIRSPACE CONTROL // AIRSPACE CLOSED` or
+`AIRSPACE CONTROL // AIRSPACE OPEN`, matching the authoritative airspace state,
+from the moment a lobby is joined. An optional `CYCLE X` suffix may clarify the
+current cycle. No standing-by copy or extra lockdown paragraph replaces that
+status. This is independent of Press Officer publication or role selection. The
+Cycle 0 smoke covers a freshly joined member with no claimed role or Press
 dispatch, pending and ready fonts, normal and reduced motion, 320px and
-390px phones, wide desktop, navigation, reload, and the authoritative Turn 1 airspace transition. The
+390px phones, wide desktop, navigation, reload, and the authoritative Cycle 1 airspace transition. The
 initial ATC projection is separate from the SNN/Press stream and must never
 reintroduce the retired Iris lockout ticker.
 

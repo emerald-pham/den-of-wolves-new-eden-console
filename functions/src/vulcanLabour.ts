@@ -69,7 +69,7 @@ export function applyVulcanAdditionalLabour(input: VulcanLabourInput): VulcanLab
     throw new Error('Unknown Additional Labour console.');
   }
   if (input.sourceCycle.step !== 5 || input.sourceCycle.turn !== input.currentTurn) {
-    throw new Error('Additional Labour is available after Vulcan maintenance in the current turn.');
+    throw new Error('Additional Labour is available after Vulcan maintenance in the current cycle.');
   }
   if (!input.sourceCycle.charges.includes(input.sourceConsoleId)) {
     throw new Error('That Additional Labour console is not charged.');
@@ -84,7 +84,7 @@ export function applyVulcanAdditionalLabour(input: VulcanLabourInput): VulcanLab
 
   const targetCycle = cloneTargetCycle(input.targetCycle);
   if (targetCycle.charges.includes(input.targetConsoleId)) {
-    throw new Error('That console is already charged this turn.');
+    throw new Error('That console is already charged this cycle.');
   }
   const chargedCycle: MaintenanceCycle = {
     ...targetCycle,

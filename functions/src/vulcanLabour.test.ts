@@ -63,7 +63,7 @@ it('rejects a duplicate, damaged, stale-turn, or unknown target before mutation'
     ...base, targetDamage: { damagedSystemIds: ['construction-bay'], destroyed: false },
     targetConsoleId: 'construction-bay',
   })).toThrow(/damaged/i);
-  expect(() => applyVulcanAdditionalLabour({ ...base, currentTurn: 2 })).toThrow(/current turn/i);
+  expect(() => applyVulcanAdditionalLabour({ ...base, currentTurn: 2 })).toThrow(/current cycle/i);
   expect(() => applyVulcanAdditionalLabour({ ...base, targetConsoleId: 'reactor' })).toThrow(/permitted/i);
   expect(() => applyVulcanAdditionalLabour({ ...base, targetShipId: 'vulcan' })).toThrow(/another active ship/i);
 });

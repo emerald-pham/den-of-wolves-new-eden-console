@@ -11,7 +11,7 @@ import { ownedCraftIdsForRole } from './craftOwnership';
 
 const COMMON_ROLE_RULES_BASE = [
   'Keep this brief private. Do not show, photograph, or read another player\'s brief.',
-  'Each turn has a Team Phase followed by a Coordination Phase. Work with your team during the first phase, then coordinate fleet movement and actions during the second.',
+  'Each cycle has a Team Phase followed by a Coordination Phase. Work with your team during the first phase, then coordinate fleet movement and actions during the second.',
   'Your facilitator resolves Wolf attacks in this order: targeting, Long Range, Medium Range, Short Range, then Boarding. Follow the current vessel and shuttle sheets for exact actions.',
   'The fleet objective is to reach New Eden with as many survivors as possible. The facilitator and server-authoritative console state decide results; this brief never grants permission to change shared state.',
 ].join(' ');
@@ -151,7 +151,7 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'comms-officer': {
     roleName: 'Comms Officer',
     vesselName: 'AEGIS',
-    text: 'Scout one system within one jump of AEGIS each turn. Keep the fleet current with the news and coordinate fleet secrets while protecting the privacy of every player\'s brief.',
+    text: 'Scout one system within one jump of AEGIS each cycle. Keep the fleet current with the news and coordinate fleet secrets while protecting the privacy of every player\'s brief.',
   },
   'vip-host': {
     roleName: 'VIP Host',

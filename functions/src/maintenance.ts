@@ -147,7 +147,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
     throw new Error('This action is not available at the current step.');
   }
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
-    throw new Error('Maintenance can only be done once per turn.');
+    throw new Error('Maintenance can only be done once per cycle.');
   }
   const cycle = { ...cycleInput, revision: cycleInput.revision + 1, results: { ...cycleInput.results } };
   let resources = { ...input.resources };

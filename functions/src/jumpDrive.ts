@@ -129,7 +129,7 @@ export function resolveJumpAttempt(input: JumpAttemptInput): JumpAttemptResult {
   const fuelCost = jumpFuelCost(input.shipId, length, input.upgraded);
   if (input.fuel < fuelCost) throw new Error('Insufficient strytium fuel for this jump.');
   if (input.state?.lastJumpTurn === input.currentTurn) {
-    throw new Error('This ship has already jumped this turn.');
+    throw new Error('This ship has already jumped this cycle.');
   }
 
   const failureRollLimit = input.upgraded ? 1 : 3;

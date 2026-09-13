@@ -123,7 +123,7 @@ export function validateWolfAttackPreparation(
   input: WolfAttackPreparationInput,
   activeVesselIds: readonly string[],
 ): Omit<WolfAttackPreparation, 'revision'> {
-  if (!Number.isSafeInteger(input.turn) || input.turn < 1) throw new Error('Invalid attack turn.');
+  if (!Number.isSafeInteger(input.turn) || input.turn < 1) throw new Error('Invalid attack cycle.');
   const composition = scheduledWolfAttackComposition(input.turn, input.shipIds);
   if (!WOLF_ATTACK_TARGET_MODES.includes(input.targetMode)) throw new Error('Invalid targeting mode.');
   if (input.notes.length > 2_000) throw new Error('Preparation notes are too long.');

@@ -331,8 +331,10 @@ import {
   publishFleetTicker,
   recoverActivePressMessages,
   retireAirspaceFleetTicker,
+  reconcileFleetTicker,
   standDownExpiry,
   fleetTickerState,
+  type FleetTickerMessage,
   type FleetTickerState,
   type FleetTickerTransmission,
 } from './fleetTickerState';
@@ -381,8 +383,8 @@ type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
 
 const FLEET_TICKER_COPY = {
-  turnZero: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
-  airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
+  turnZero: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
+  airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED',
   airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
   emptySession: 'AIRSPACE CONTROL // FLEET CLOCKS ON HOLD // RESUMES WHEN CREW RECONNECT',
@@ -482,11 +484,31 @@ function fleetTickerForMutation(
   const state = stored === undefined
     ? fleetTickerStateFromLegacy(sessionId, session, now)
     : fleetTickerState(stored);
-  return recoverActivePressMessages(
+  const recovered = recoverActivePressMessages(
     state,
     pressDispatchState(session.get('pressDispatch')).dispatches.map(({ id }) => id),
     now,
   );
+  const turn = sessionTurn(session.get('currentTurn'));
+  const phase = turnPhaseState(session.get('turnPhase'));
+  const currentSourceId = turn === 0 ? TURN_ZERO_ATC_SOURCE_ID
+    : phase?.turn === turn ? `airspace:${turn}:${phase.airspace.state}` : undefined;
+  const currentState = currentSourceId
+    ? reconcileFleetTicker(retireAirspaceFleetTicker(recovered, now, currentSourceId), now) : recovered;
+  let changed = false;
+  const updateCopy = (entry: FleetTickerMessage): FleetTickerMessage => {
+    if (entry.source !== 'automatic') return entry;
+    const text = entry.sourceId === TURN_ZERO_ATC_SOURCE_ID ? FLEET_TICKER_COPY.turnZero
+      : /^airspace:[1-9]\d*:restricted$/.test(entry.sourceId ?? '') ? FLEET_TICKER_COPY.airspaceClosed
+      : /^airspace:[1-9]\d*:lifted$/.test(entry.sourceId ?? '') ? FLEET_TICKER_COPY.airspaceOpen
+      : entry.text;
+    if (text === entry.text) return entry;
+    changed = true;
+    return { ...entry, text };
+  };
+  const current = currentState.current ? updateCopy(currentState.current) : null;
+  const queued = currentState.queued.map(updateCopy);
+  return changed ? { ...currentState, current, queued, revision: currentState.revision + 1 } : currentState;
 }
 
 function fleetTickerBaseline(
@@ -1727,7 +1749,7 @@ function requireTurnOneForGameplay(session: DocumentSnapshot): void {
   if (sessionTurn(session.get('currentTurn')) === 0) {
     throw commandError(
       'failed-precondition',
-      'Turn 0 is for setup. Wait for the GM to advance to Turn 1.',
+      'Cycle 0 is for setup. Wait for the GM to advance to Cycle 1.',
       'invalid-phase',
     );
   }
@@ -1737,7 +1759,7 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
   if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
     throw commandError(
       'failed-precondition',
-      'The airspace window has closed. Wait for the next turn.',
+      'The airspace window has closed. Wait for the next cycle.',
       'invalid-phase',
     );
   }
@@ -8875,7 +8897,7 @@ export const jumpShip = onCall<{
       ? currentCycle.charges.filter((charge): charge is string => typeof charge === 'string')
       : [];
     if (currentCycle.turn !== currentTurn || !charges.includes('jump-drive')) {
-      throw commandError('failed-precondition', 'Charge the Jump Drive during this turn before departure.', 'invalid-phase');
+      throw commandError('failed-precondition', 'Charge the Jump Drive during this cycle before departure.', 'invalid-phase');
     }
 
     const inventories = shipResources(session.get('shipResources'));
@@ -9212,9 +9234,9 @@ export const advanceTurn = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     await rejectForeignLegacyM1Command(
-      tx, advance.sessionId, advance.requestId, 'turn advance', [],
+      tx, advance.sessionId, advance.requestId, 'cycle advance', [],
     );
-    const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'turn advance');
+    const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'cycle advance');
     if (replay) return replay;
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
@@ -9222,26 +9244,26 @@ export const advanceTurn = onCall<{
     if (session.get('phase') !== undefined && session.get('phase') !== 'active') {
       throw commandError(
         'failed-precondition',
-        'The final turn is already complete; endgame evaluation is in progress.',
+        'The final cycle is already complete; endgame evaluation is in progress.',
         'invalid-phase',
       );
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== advance.expectedTurn) {
-      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
+      throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
     }
     const activePhase = turnPhaseState(session.get('turnPhase'));
     if (currentTurn === 0) {
       throw commandError(
         'failed-precondition',
-        'Turn 0 is for setup. Start the game before advancing turns.',
+        'Cycle 0 is for setup. Start the game before advancing cycles.',
         'invalid-phase',
       );
     }
     if (!activePhase || activePhase.turn !== currentTurn) {
       throw commandError(
         'failed-precondition',
-        'No valid current server phase is available for turn advancement.',
+        'No valid current server phase is available for cycle advancement.',
         'invalid-phase',
       );
     }
@@ -9253,7 +9275,7 @@ export const advanceTurn = onCall<{
         'failed-precondition',
         activePhase.airspace.state !== 'lifted'
           ? 'Advance is available only after the current Team Phase opens Coordination.'
-          : 'A turn phase timer is still active. Confirm the override to advance early.',
+          : 'A cycle phase timer is still active. Confirm the override to advance early.',
         'invalid-phase',
       );
     }
@@ -9306,7 +9328,7 @@ export const startSinglePlayerDemo = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     if (sessionTurn(session.get('currentTurn')) !== 0) {
-      throw commandError('failed-precondition', 'The single-player demo is only available from Turn 0.', 'invalid-phase');
+      throw commandError('failed-precondition', 'The single-player demo is only available from Cycle 0.', 'invalid-phase');
     }
     if (connectedPlayers.docs.length !== 1 || connectedPlayers.docs[0]?.id !== uid) {
       throw commandError(
@@ -9344,7 +9366,7 @@ export const replayTurnStartAnnouncement = onCall<{
     const currentTurn = sessionTurn(session.get('currentTurn'));
     const current = turnStartAnnouncement(session.get('turnStartAnnouncement'));
     if (!current || current.turn !== currentTurn || currentTurn < 1) {
-      throw commandError('failed-precondition', 'No current turn transmission is available to replay.', 'invalid-phase');
+      throw commandError('failed-precondition', 'No current cycle transmission is available to replay.', 'invalid-phase');
     }
     const next = {
       turn: current.turn,
@@ -9380,11 +9402,11 @@ export const beginOpenAirspacePhase = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     if (sessionTurn(session.get('currentTurn')) !== requestData.expectedTurn) {
-      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
+      throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== requestData.expectedTurn) {
-      throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
+      throw commandError('failed-precondition', 'No current cycle phase is available.', 'invalid-phase');
     }
     if (phase.timerPause) {
       throw commandError(
@@ -9448,11 +9470,11 @@ export const extendAirspaceWindow = onCall<{
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== requestData.expectedTurn) {
-      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
+      throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn) {
-      throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
+      throw commandError('failed-precondition', 'No current cycle phase is available.', 'invalid-phase');
     }
     const turnPhase = extendActiveTurnPhase(phase, requestData.window);
     if (!turnPhase) {
@@ -9497,14 +9519,14 @@ export const setEmergencyTimerPaused = onCall<{
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn < 1) {
-      throw commandError('failed-precondition', 'The emergency timer is unavailable during Turn 0.', 'invalid-phase');
+      throw commandError('failed-precondition', 'The emergency timer is unavailable during Cycle 0.', 'invalid-phase');
     }
     if (currentTurn !== requestData.expectedTurn) {
-      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
+      throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn) {
-      throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
+      throw commandError('failed-precondition', 'No current cycle phase is available.', 'invalid-phase');
     }
     const currentlyPaused = phase.timerPause !== undefined;
     if (currentlyPaused === requestData.paused) {
@@ -9519,7 +9541,7 @@ export const setEmergencyTimerPaused = onCall<{
       throw commandError(
         'failed-precondition',
         requestData.paused
-          ? 'The live turn timer has already expired.'
+          ? 'The live cycle timer has already expired.'
           : 'The emergency timer is not currently paused.',
         'stale-revision',
       );
@@ -9655,7 +9677,7 @@ export const setWolfAttackWindow = onCall<{
       if (currentTurn !== 1 || (current && current.status === 'resolved')) {
         throw commandError(
           'failed-precondition',
-          'The first Wolf-attack window can be deferred only during Turn 1.',
+          'The first Wolf-attack window can be deferred only during Cycle 1.',
           'invalid-phase',
         );
       }
@@ -9666,7 +9688,7 @@ export const setWolfAttackWindow = onCall<{
       if (!canMarkDue || (current && current.status === 'resolved')) {
         throw commandError(
           'failed-precondition',
-          'The first Wolf-attack timing marker is unavailable in this turn.',
+          'The first Wolf-attack timing marker is unavailable in this cycle.',
           'invalid-phase',
         );
       }
@@ -9801,13 +9823,13 @@ export const stageWolfAttackPreparation = onCall<{
     if (currentTurn < 1 || change.turn !== currentTurn) {
       throw commandError(
         'failed-precondition',
-        'Prepare the attack for the current live turn.',
+        'Prepare the attack for the current live cycle.',
         'stale-revision',
       );
     }
     const current = projection.exists ? wolfAttackPreparationState(projection.data()) : undefined;
     if (current && current.turn > currentTurn) {
-      throw commandError('failed-precondition', 'The private preparation belongs to a future turn.', 'stale-revision');
+      throw commandError('failed-precondition', 'The private preparation belongs to a future cycle.', 'stale-revision');
     }
     const currentRevision = current?.revision ?? 0;
     if (change.expectedRevision !== currentRevision) {
@@ -9940,7 +9962,7 @@ function validateWolfAttackDeclaration(
   const phase = turnPhaseState(session.get('turnPhase'));
   const currentTurn = sessionTurn(session.get('currentTurn'));
   if (!phase || phase.turn !== currentTurn || currentTurn < 1) {
-    throw commandError('failed-precondition', 'No current server turn phase is available.', 'invalid-phase');
+    throw commandError('failed-precondition', 'No current server cycle phase is available.', 'invalid-phase');
   }
   if (phase.timerPause || phase.airspace.state !== 'lifted') {
     throw commandError(
@@ -10267,7 +10289,7 @@ function wolfCommanderTargetingInputs(
   const revision = state.get('revision');
   const currentTurn = sessionTurn(session.get('currentTurn'));
   if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== currentTurn) {
-    throw commandError('failed-precondition', 'The Wolf targeting state is stale for the current turn.', 'stale-revision');
+    throw commandError('failed-precondition', 'The Wolf targeting state is stale for the current cycle.', 'stale-revision');
   }
   if (!Number.isSafeInteger(revision) || (revision as number) < 1) {
     throw commandError('failed-precondition', 'The Wolf targeting revision is malformed.', 'conflict');
@@ -12089,7 +12111,7 @@ export const consentCommissarPurge = onCall<{
     const priorState = commissarPurgeState(purgeStateSnapshot.get('state') ?? purgeStateSnapshot.data());
     const ledger = priorState.ledger;
     if (ledger[consent.shipId]?.turn === sessionTurn(session.get('currentTurn'))) {
-      throw commandError('already-exists', 'This ship has already used its Commissar purge this turn.', 'conflict');
+      throw commandError('already-exists', 'This ship has already used its Commissar purge this cycle.', 'conflict');
     }
     const consents = { ...priorState.consents };
     const existing = consents[consent.shipId];
@@ -12179,7 +12201,7 @@ export const applyCommissarPurge = onCall<{
     const priorState = commissarPurgeState(purgeStateSnapshot.get('state') ?? purgeStateSnapshot.data());
     const ledger = priorState.ledger;
     if (ledger[purge.shipId]?.turn === currentTurn) {
-      throw commandError('already-exists', 'This ship has already used its Commissar purge this turn.', 'conflict');
+      throw commandError('already-exists', 'This ship has already used its Commissar purge this cycle.', 'conflict');
     }
     const captain = await activeCaptainForShip(tx, purge.sessionId, session, purge.shipId);
     const consents = priorState.consents;
@@ -13003,7 +13025,7 @@ export const buildFighter = onCall<{
     if (!cycle || cycle.turn !== currentTurn || !cycle.charges.includes('construction-bay')) {
       throw commandError(
         'failed-precondition',
-        'Charge the Construction Bay during this turn before building replacement fighters.',
+        'Charge the Construction Bay during this cycle before building replacement fighters.',
         'invalid-phase',
       );
     }
@@ -13299,10 +13321,10 @@ export const rollHummingbirdHarvest = onCall<{
       if (current.status === 'pending' && current.revision === data.expectedRevision) return {
         replay: undefined, authority, fingerprint, current, reusePending: true,
       };
-      throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this turn.', 'conflict');
+      throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this cycle.', 'conflict');
     }
     if (current && current.status === 'pending' && current.turn !== turn) {
-      throw commandError('failed-precondition', 'Resolve the previous Hummingbird harvest before starting a new turn.', 'conflict');
+      throw commandError('failed-precondition', 'Resolve the previous Hummingbird harvest before starting a new cycle.', 'conflict');
     }
     if (current && current.revision !== data.expectedRevision) {
       throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
@@ -13341,10 +13363,10 @@ export const rollHummingbirdHarvest = onCall<{
           createdAt: FieldValue.serverTimestamp() });
         return reply;
       }
-      throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this turn.', 'conflict');
+      throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this cycle.', 'conflict');
     }
     if (current && current.status === 'pending' && current.turn !== turn) {
-      throw commandError('failed-precondition', 'Resolve the previous Hummingbird harvest before starting a new turn.', 'conflict');
+      throw commandError('failed-precondition', 'Resolve the previous Hummingbird harvest before starting a new cycle.', 'conflict');
     }
     if (current && current.revision !== data.expectedRevision) {
       throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
@@ -13406,7 +13428,7 @@ export const allocateHummingbirdHarvest = onCall<{
       throw commandError('failed-precondition', 'No Hummingbird roll is waiting for allocation.', 'conflict');
     }
     if (current.turn !== turn || current.hostShipId !== authority.hostShipId) {
-      throw commandError('failed-precondition', 'The Hummingbird roll is stale after a turn or docking change.', 'stale-revision');
+      throw commandError('failed-precondition', 'The Hummingbird roll is stale after a cycle or docking change.', 'stale-revision');
     }
     if (current.status !== 'pending' || current.revision !== data.expectedRevision) {
       throw commandError('failed-precondition', 'The Hummingbird roll is no longer waiting for allocation.', 'stale-revision');

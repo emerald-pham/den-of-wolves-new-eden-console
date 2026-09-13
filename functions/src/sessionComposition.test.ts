@@ -1081,7 +1081,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
         ...advanceRequests[0], requestId: 'advance-turn-1-retry',
       }, composition.ownerUid))).rejects.toMatchObject({
         code: 'failed-precondition',
-        message: expect.stringMatching(/turn changed/i),
+        message: expect.stringMatching(/cycle changed/i),
       });
       expect(stateSnapshot()).toBe(stateAfterAdvance);
     } finally {

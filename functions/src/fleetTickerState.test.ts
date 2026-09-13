@@ -256,3 +256,24 @@ it('retires obsolete Iris notices from stored and replayed queues without suppre
   expect(next.queued).toEqual([]);
   expect(next.draining).toEqual([]);
 });
+
+it('keeps only the latest airspace phase behind an alert, preserving Press and other sources', () => {
+  let state = publishFleetTicker('s1', emptyFleetTickerState(), pressOne, now);
+  state = publishFleetTicker('s1', state, alert, now);
+  state = publishFleetTicker('s1', state, {
+    ...airspace, sourceId: 'airspace:1:lifted', text: 'AIRSPACE OPEN',
+  }, now);
+  state = publishFleetTicker('s1', state, {
+    ...airspace, sourceId: 'airspace:2:restricted',
+  }, now);
+  expect(state.current?.sourceId).toBe('red-alert:1');
+  expect(state.queued.map((entry) => entry.sourceId)).toEqual(['airspace:2:restricted', 'press-1']);
+  state = publishFleetTicker('s1', state, {
+    source: 'automatic', sourceId: 'red-alert:2', priority: 80,
+    text: 'STAND DOWN', tone: 'normal', expiresAt: standDownExpiry(now),
+  }, now);
+  const resumed = reconcileFleetTicker(state, '2026-09-12T13:01:01.000Z');
+  expect(resumed.current).toMatchObject({ sourceId: 'airspace:2:restricted', text: 'AIRSPACE CLOSED' });
+  expect(resumed.queued.map((entry) => entry.sourceId)).toEqual(['press-1']);
+  expect(resumed.queued.some((entry) => entry.sourceId === 'airspace:1:lifted')).toBe(false);
+});

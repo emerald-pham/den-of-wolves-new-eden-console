@@ -11,7 +11,7 @@ export function scheduledWolfAttackComposition(
   turn: number,
   shipIds: readonly string[],
 ): ScheduledWolfAttackComposition {
-  if (!Number.isSafeInteger(turn) || turn < 1) throw new Error('Invalid attack turn.');
+  if (!Number.isSafeInteger(turn) || turn < 1) throw new Error('Invalid attack cycle.');
   // Every card has at least one capacity, so a legal scheduled attack cannot exceed 24 cards.
   if (!Array.isArray(shipIds) || shipIds.length > 24) throw new Error('Invalid attack composition.');
   const counts = Object.fromEntries(WOLF_SHIP_IDS.map((id) => [id, 0])) as Record<WolfShipId, number>;

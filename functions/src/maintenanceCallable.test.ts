@@ -420,7 +420,7 @@ it('rejects a second maintenance cycle in the same turn', async () => {
     aegis: { step: 0, revision: 8, turn: 1, results: {}, charges: [], refuelled: [] },
   };
   await expect(runMaintenance.run(request({ ...data, expectedRevision: 8 })))
-    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/once per turn/i) });
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/once per cycle/i) });
   expect(mock.update).not.toHaveBeenCalled();
 });
 
@@ -1768,7 +1768,7 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
     sessionId: 's1', expectedTurn: 2,
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/turn changed/i),
+    message: expect.stringMatching(/cycle changed/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -1955,7 +1955,7 @@ it('serializes simultaneous airspace expiry observers into one transition event'
   });
   expect(rejected[0]?.reason).toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/turn changed/i),
+    message: expect.stringMatching(/cycle changed/i),
   });
   expect(mock.currentTurn).toBe(2);
   expect(mock.update).toHaveBeenCalledTimes(1);
@@ -2353,7 +2353,7 @@ it('holds every maintenance cycle at Turn 0, including the GM path', async () =>
 
   await expect(runMaintenance.run(request(data))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/turn 1/i),
+    message: expect.stringMatching(/cycle 1/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
 });

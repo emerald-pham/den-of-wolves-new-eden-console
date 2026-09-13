@@ -1219,17 +1219,20 @@ alongside it and inline errors. Every label, control state, status and error in
 this alert instrument is authored in uppercase.
 
 Every fleet bulletin begins with its source: `AIRSPACE CONTROL //` for the
-server-owned Turn 0 standing-by and airspace notices, `AEGIS //` for automatic
+server-owned airspace notices from Cycle 0, `AEGIS //` for automatic
 stand-down notices, `ICSN ADMIRAL //` for active Admiral warnings, and `SNN //`
 for Press dispatches. Keep that prefix first in the moving copy, reduced-motion
 readout, and assistive-technology status so the origin stays clear before a
 bulletin is read.
 
-During Turn 0, the same instrument carries the server-owned normal long-gap
-boot bulletin `AIRSPACE CONTROL // TURN 0 // STANDING BY`. It is independent
-of Press Officer publication and is replaced by the authoritative Turn 1
-airspace bulletin when the shared turn advances, so the initial standing-by
-copy never becomes an SNN dispatch or reintroduces the retired Iris lockout.
+From Cycle 0, the same instrument carries the server-owned airspace status:
+`AIRSPACE CONTROL // AIRSPACE CLOSED` or `AIRSPACE CONTROL // AIRSPACE OPEN`.
+An optional `CYCLE X` suffix may identify the current cycle. It is independent
+of Press Officer publication and follows the authoritative phase when the
+shared cycle advances. Do not use standing-by copy or append the old lockdown
+paragraph. Cached generated ATC copy is upgraded without changing its identity;
+old queued phase bulletins cannot replace the latest airspace state. The retired
+Iris lockout remains absent.
 
 All moving ticker copy enters from the right and travels left at one constant,
 linear rate. This is the fleetwide press/alert transition convention: when a
@@ -1426,12 +1429,10 @@ current airspace-window countdown is a blue, non-interactive instrument at
 DRADIS’s lower left in both compact and expanded shipboard and fleet views.
 At the same transition, Airspace Control posts a normal, long-gap ticker
 bulletin. During the closed window it reads `AIRSPACE CONTROL // AIRSPACE
-CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN
-THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.`; during the
-open window it reads `AIRSPACE CONTROL // AIRSPACE OPEN`. The closed bulletin
+CLOSED`; during the open window it reads `AIRSPACE CONTROL // AIRSPACE OPEN`. The closed bulletin
 yields while AEGIS or the Press sends newer broadcast copy. When that news ends,
 ATC supplies the standing bulletin using the current server airspace state.
-The ticker remains visible on every joined screen, including Turn 0 before role
+The ticker remains visible on every joined screen, including Cycle 0 before role
 selection. While a server dispatch is arriving, the neutral `AIRSPACE CONTROL //
 AWAITING DISPATCH` readout keeps the instrument present without replaying old
 news or guessing an open/closed state. It never carries the

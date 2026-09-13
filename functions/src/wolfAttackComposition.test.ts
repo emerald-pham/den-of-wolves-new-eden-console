@@ -29,7 +29,7 @@ it('accepts both later capacity boundaries and rejects the immediately adjacent 
 
 it('rejects unknown cards and invalid turns, and isolates a validated roster from later edits', () => {
   for (const turn of [0, -1, 1.5, NaN, Infinity]) {
-    expect(() => scheduledWolfAttackComposition(turn, [])).toThrow(/Invalid attack turn/);
+    expect(() => scheduledWolfAttackComposition(turn, [])).toThrow(/Invalid attack cycle/);
   }
   expect(() => scheduledWolfAttackComposition(2, ['constructor'])).toThrow(/Unknown Wolf ship/);
   expect(() => scheduledWolfAttackComposition(2, [])).toThrow(/15 to 24/);

@@ -511,7 +511,7 @@ describe('presence lease', () => {
       revision: 1,
       current: expect.objectContaining({
         sourceId: 'turn-zero-atc',
-        text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY',
+        text: 'AIRSPACE CONTROL // CYCLE 0 // STANDING BY',
       }),
     });
 
@@ -553,9 +553,42 @@ describe('presence lease', () => {
       current: {
         source: 'automatic',
         sourceId: 'airspace:2:restricted',
-        text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
+        text: 'AIRSPACE CONTROL // AIRSPACE CLOSED',
       },
     });
+  });
+
+  it('migrates an old queued open bulletin to the actual closed cycle after stand-down', async () => {
+    const atc = (sequence: number, sourceId: string, text: string) => ({
+      id: `s1:fleet-ticker:${sequence}`, sequence, source: 'automatic', priority: 40,
+      text, tone: 'normal', gap: 'long', sourceId, createdAt: '2026-09-06T19:58:00.000Z',
+    });
+    session({
+      phase: 'active', currentTurn: 2,
+      turnPhase: {
+        turn: 2, teamPhaseEndsAt: '2026-09-06T20:03:00.000Z',
+        openAirspaceEndsAt: '2026-09-06T20:18:00.000Z',
+        airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+      },
+      fleetTicker: {
+        revision: 3, nextSequence: 3, replayCursor: 3,
+        current: { ...atc(3, 'red-alert:2', 'AEGIS // STAND DOWN'), priority: 80,
+          expiresAt: '2026-09-06T19:59:00.000Z' },
+        queued: [atc(1, 'airspace:1:lifted', 'AIRSPACE CONTROL // AIRSPACE OPEN'),
+          atc(2, 'airspace:2:restricted', 'AIRSPACE CONTROL // AIRSPACE CLOSED // OLD LOCKDOWN COPY')],
+        draining: [], dismissed: [],
+      },
+    });
+    player();
+    mock.setRejectReadsAfterWrite(true);
+    await refreshPresence.run(request({ sessionId: 's1' }));
+    const ticker = read('sessions/s1')?.fleetTicker as { current: { sourceId: string; text: string }; queued: unknown[] };
+    expect(ticker.current).toMatchObject({ sourceId: 'airspace:2:restricted', text: 'AIRSPACE CONTROL // AIRSPACE CLOSED' });
+    expect(ticker.queued).toEqual([]);
+    const firstRevision = (read('sessions/s1')?.fleetTicker as { revision: number }).revision;
+    put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: mock.Timestamp.fromDate(NOW) });
+    await refreshPresence.run(request({ sessionId: 's1' }));
+    expect((read('sessions/s1')?.fleetTicker as { revision: number }).revision).toBe(firstRevision);
   });
 
   it('restores the current-turn ATC baseline after an expired stand-down on heartbeat', async () => {
