@@ -6,6 +6,7 @@ import {
   requireGmAccessLogoutRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
+  requireGmShipConsoleWriteGrantRequest,
   requireDebriefModeRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
@@ -300,6 +301,19 @@ describe('callable request guards', () => {
     })).toEqual({
       sessionId: 's1', instanceId: 'i1', name: 'Bridge laptop',
       deviceLabel: 'macOS / Chrome',
+    });
+  });
+
+  it('requires the canonical GM instance lease for every ship-console grant mutation', () => {
+    expectHttpsError(() => requireGmShipConsoleWriteGrantRequest({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: false,
+    }), 'invalid-argument');
+    expect(requireGmShipConsoleWriteGrantRequest({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+      claimedAt: '2026-01-01T00:00:00.000Z',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+      claimedAt: '2026-01-01T00:00:00.000Z',
     });
   });
 

@@ -3,6 +3,8 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 type StoredDocument = Record<string, unknown>;
 
+const DEFAULT_GM_LEASE = '2026-01-01T00:00:00.000Z';
+
 const mock = vi.hoisted(() => {
   type Ref = {
     path: string;
@@ -223,7 +225,7 @@ function instance(id: string, uid: string, fields: StoredDocument = {}) {
     name: id,
     deviceLabel: 'Test browser',
     connected: true,
-    claimedAt: new Date().toISOString(),
+    claimedAt: DEFAULT_GM_LEASE,
     lastSeenAt: new Date().toISOString(),
     ...publicFields,
   });
@@ -369,27 +371,55 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 
+  it('rejects a lease-less mutation after reclaim without changing the new lease grant', async () => {
+    const oldLease = '2026-01-01T00:00:00.000Z';
+    session({ activeVesselIds: ['aegis', 'dione'] });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1', {
+      connected: false,
+      claimedAt: oldLease,
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: oldLease },
+    });
+    await login();
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1', instanceId: 'bridge', name: 'Reclaimed bridge', deviceLabel: 'New browser',
+    }))).resolves.toMatchObject({ instance: { id: 'bridge', uid: 'u1' } });
+    const claimedAt = read('sessions/s1/gmInstances/bridge').claimedAt as { toMillis: () => number };
+    const currentLease = new Date(claimedAt.toMillis()).toISOString();
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: true, claimedAt: currentLease,
+    }))).resolves.toEqual({ enabled: true, shipId: 'dione' });
+
+    await expect(setGmShipConsoleWriteGrant.run(request({
+      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: false,
+    }))).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
+      shipId: 'dione',
+    });
+  });
+
   it('binds ship-console write access to the live browser instance and target ship', async () => {
     session({ activeVesselIds: ['aegis', 'dione'] });
     player('u1', { role: 'gm' });
     instance('bridge', 'u1');
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true, claimedAt: DEFAULT_GM_LEASE,
     }))).resolves.toEqual({ enabled: true, shipId: 'aegis' });
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
       shipId: 'aegis',
     });
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: false,
+      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: false, claimedAt: DEFAULT_GM_LEASE,
     }))).resolves.toEqual({ enabled: false });
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
       shipId: 'aegis',
     });
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: false,
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: false, claimedAt: DEFAULT_GM_LEASE,
     }))).resolves.toEqual({ enabled: false });
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
@@ -427,7 +457,7 @@ describe('GM instance ownership', () => {
     put('sessions/s1/gmInstances/bridge', { ...read('sessions/s1/gmInstances/bridge'), ...fields });
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true, claimedAt: DEFAULT_GM_LEASE,
     }, uid))).rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
@@ -438,7 +468,7 @@ describe('GM instance ownership', () => {
     instance('bridge', 'u1');
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: true,
+      sessionId: 's1', instanceId: 'bridge', shipId: 'dione', enabled: true, claimedAt: DEFAULT_GM_LEASE,
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
@@ -450,14 +480,14 @@ describe('GM instance ownership', () => {
     instance('tablet', 'u1');
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true,
+      sessionId: 's1', instanceId: 'bridge', shipId: 'aegis', enabled: true, claimedAt: DEFAULT_GM_LEASE,
     }))).resolves.toEqual({ enabled: true, shipId: 'aegis' });
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: true,
+      sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: true, claimedAt: DEFAULT_GM_LEASE,
     }))).resolves.toEqual({ enabled: true, shipId: 'dione' });
 
     await expect(setGmShipConsoleWriteGrant.run(request({
-      sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: false,
+      sessionId: 's1', instanceId: 'tablet', shipId: 'dione', enabled: false, claimedAt: DEFAULT_GM_LEASE,
     }))).resolves.toEqual({ enabled: false });
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toMatchObject({
       shipId: 'aegis',

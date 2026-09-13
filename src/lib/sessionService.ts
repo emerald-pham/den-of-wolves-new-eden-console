@@ -1772,37 +1772,37 @@ export interface GmShipConsoleWriteGrantAuthority {
 export async function setGmShipConsoleWriteGrant(
   shipId: string,
   enabled: boolean,
-  authority?: GmShipConsoleWriteGrantAuthority,
+  authority: GmShipConsoleWriteGrantAuthority,
 ): Promise<boolean> {
   const store = useSessionStore.getState();
-  const cleanupAuthority = authority !== undefined && !enabled;
+  const cleanupAuthority = !enabled;
   if (!cleanupAuthority &&
       (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance)) {
     throw new Error('An active GM instance is required for ship-console write access.');
   }
   if (!cleanupAuthority) {
     requireFreshSessionAuthority();
-    if (authority && (
+    if (
       store.session?.id !== authority.sessionId ||
       store.me?.uid !== authority.uid ||
       store.gmInstance?.id !== authority.instanceId ||
-      store.gmInstance.claimedAt !== authority.claimedAt
-    )) {
+      store.gmInstance?.claimedAt !== authority.claimedAt
+    ) {
       throw new Error('The GM ship-console authority changed before confirmation.');
     }
   }
   await ensureSignedIn();
-  const sessionId = authority?.sessionId ?? store.session!.id;
-  const instanceId = authority?.instanceId ?? store.gmInstance!.id;
+  const sessionId = authority.sessionId;
+  const instanceId = authority.instanceId;
   const call = httpsCallable<{
-    sessionId: string; instanceId: string; shipId: string; enabled: boolean; claimedAt?: string;
+    sessionId: string; instanceId: string; shipId: string; enabled: boolean; claimedAt: string;
   }, { enabled: boolean; shipId?: string }>(functions(), 'setGmShipConsoleWriteGrant');
   const result = (await call({
     sessionId,
     instanceId,
     shipId,
     enabled,
-    ...(authority?.claimedAt ? { claimedAt: authority.claimedAt } : {}),
+    claimedAt: authority.claimedAt,
   })).data;
   const current = useSessionStore.getState();
   if (current.gmInstance?.id === instanceId && result.enabled === true) {

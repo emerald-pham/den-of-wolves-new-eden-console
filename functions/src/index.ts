@@ -7547,8 +7547,7 @@ export const setGmShipConsoleWriteGrant = onCall<{
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    if (grant.claimedAt !== undefined &&
-        gmInstanceClaimedAtToken(instance.get('claimedAt')) !== grant.claimedAt) {
+    if (gmInstanceClaimedAtToken(instance.get('claimedAt')) !== grant.claimedAt) {
       throw new HttpsError('permission-denied', 'This GM instance lease has changed.');
     }
     if (!grant.enabled) {
