@@ -9752,6 +9752,10 @@ export const buildFighter = onCall<{
     ]);
     await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (player.get('role') !== 'gm' &&
+        (!isActivePlayer(player) || player.get('activeConsoleRoleId') !== 'wing-commander')) {
+      throw new HttpsError('permission-denied', 'An active Wing Commander console is required.');
+    }
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
     if (replay) return replay;
@@ -9804,10 +9808,12 @@ export const buildFighter = onCall<{
       );
     }
     const damage = shipDamage(session.get('shipDamage')).aegis;
-    if (damage?.damagedSystemIds.includes('construction-bay')) {
+    if (damage?.destroyed === true || damage?.damagedSystemIds.includes('construction-bay')) {
       throw commandError(
         'failed-precondition',
-        'The Construction Bay is damaged and cannot build replacement fighters.',
+        damage.destroyed
+          ? 'AEGIS is destroyed and cannot build replacement fighters.'
+          : 'The Construction Bay is damaged and cannot build replacement fighters.',
         'conflict',
       );
     }

@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'player', activeRole: 'wing-commander',
   owner: 'u1', connected: true,
+  players: [] as Array<Record<string, unknown>>,
   session: {} as Record<string, unknown>,
   receipts: {} as Record<string, Record<string, unknown>>,
 }));
@@ -44,6 +45,7 @@ beforeEach(() => {
   mock.activeRole = 'wing-commander';
   mock.owner = 'u1';
   mock.connected = true;
+  mock.players = [];
   mock.session = {
     activeVesselIds: ['aegis'], activeRoleIds: ['admiral', 'wing-commander'], phase: 'active', currentTurn: 1,
     turnPhase: { turn: 1, airspace: { state: 'restricted' } }, maintenanceCycles: { aegis: teamCycle() },
@@ -67,7 +69,7 @@ beforeEach(() => {
     if (path.includes('/gmInstances/')) {
       return snapshot({ uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() });
     }
-    if (path.endsWith('/players')) return { exists: true, docs: [] };
+    if (path.endsWith('/players')) return { exists: true, docs: mock.players.map((fields) => snapshot(fields)) };
     return snapshot(mock.session);
   });
 });
@@ -90,12 +92,34 @@ it('rejects a player without the Wing Commander authority', async () => {
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('rejects disconnected short-staffed AEGIS consoles but permits a live GM instance', async () => {
+  for (const [index, activeRole] of ['admiral', 'executive-officer'].entries()) {
+    mock.activeRole = activeRole;
+    mock.connected = true;
+    mock.players = [{ role: 'player', connected: false, activeConsoleRoleId: 'wing-commander' }];
+    await expect(buildFighter.run(request({ ...base, requestId: `build-cover-${index}` })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.update).not.toHaveBeenCalled();
+    mock.update.mockReset();
+  }
+
+  mock.role = 'gm';
+  mock.activeRole = undefined;
+  mock.connected = true;
+  mock.players = [];
+  await expect(buildFighter.run(request({ ...base, requestId: 'build-gm', instanceId: 'gm-1' })))
+    .resolves.toMatchObject({ status: 'committed', count: 4, materials: 1 });
+  expect(mock.update).toHaveBeenCalled();
+});
+
 it('rejects coordination phase, damage, depleted materials, and capacity', async () => {
   mock.session.turnPhase = { turn: 1, airspace: { state: 'lifted' } };
   await expect(buildFighter.run(request(base))).rejects.toMatchObject({ code: 'failed-precondition' });
   mock.session.turnPhase = { turn: 1, airspace: { state: 'restricted' } };
   mock.session.shipDamage = { aegis: { damagedSystemIds: ['construction-bay'], destroyed: false } };
   await expect(buildFighter.run(request({ ...base, requestId: 'build-damaged' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.session.shipDamage = { aegis: { damagedSystemIds: [], destroyed: true } };
+  await expect(buildFighter.run(request({ ...base, requestId: 'build-destroyed' }))).rejects.toMatchObject({ code: 'failed-precondition' });
   mock.session.shipDamage = { aegis: { damagedSystemIds: [], destroyed: false } };
   mock.session.shipResources = { aegis: { materials: 0 } };
   await expect(buildFighter.run(request({ ...base, requestId: 'build-empty' }))).rejects.toMatchObject({ code: 'failed-precondition' });
