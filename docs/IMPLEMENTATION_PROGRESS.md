@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**232 / 751 prompts complete (30.89%)**
+**233 / 751 prompts complete (31.03%)**
 
-Status breakdown: **232 done · 26 partial · 493 missing**.
+Status breakdown: **233 done · 25 partial · 493 missing**.
 
 Active prompt: **none**
 
@@ -985,7 +985,7 @@ release classification and evidence.
 | 521a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 521b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 522 | done | feature | 0.3.57 | One authorized GM instance can now carry both printed responsibilities and the complete next-action queue, while optional GMs can share or hand off lanes. Each GM instance has its own server lease: claim and exact-instance heartbeat renew it, stale or disconnected instances expire independently, and live public projections exclude stale claims. Exact UID and instance checks protect every GM authority path. The accepted Firebase UID trust boundary is explicit: same-origin contexts using the same authorized UID share that principal, so P522 does not claim cryptographic per-tab isolation or introduce an opaque bearer credential. Focused P522 validation covers 308 cases across the affected Functions and client services, with independent Terra review clearing cross-UID, non-GM, and stale exact-claim risks. |
-| 523 | partial | feature | — | A reachable GM console now records a durable facilitator rule call with explicit question, source, decision, audience, actor, server timestamp, revision, and optional supersession. GM history/current projections stay private, selected-player calls use an exact recipient projection, and the player brief renders only the permitted call fields. The callable is lease-authorized, server-transactional, CAS/replay safe, and absent from public events. Focused callable, listener, console, brief, and privacy-boundary checks pass; emulator rules execution and independent authority review remain pending. |
+| 523 | done | feature | 0.3.91 | A reachable GM console now records a durable facilitator rule call with explicit question, source, decision, audience, actor, server timestamp, revision, and optional supersession. GM history/current projections stay private, selected-player calls use an exact recipient projection, and the player brief renders only the permitted call fields. The callable is lease-authorized, server-transactional, CAS/replay safe, and absent from public events. Twelve focused Functions cases, 355 affected unit cases, the 87-case Firestore rules suite, and independent Terra review b08b1e7 pass; release 0.3.91 commit 6d96748 deployed successfully in workflow 34754021920 and live version verification reports 0.3.91. |
 | 523a | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523c | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |

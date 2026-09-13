@@ -3441,9 +3441,16 @@
     {
       "direction": "523 -> 522;167",
       "id": "E-523-IMPLEMENTED",
-      "language": "The GM can record a labeled rule call with durable ambiguity, source, decision, actor, timestamp, audience, revision, and linked supersession. A selected-player call is projected only to that player; GM history and audit remain private, client writes are denied, and the callable transaction uses the existing GM lease, shared command fingerprint, CAS, and replay receipt. Focused callable, listener, GM-console, player-brief, and privacy-boundary regressions cover the production path; emulator rules execution remains pending capacity.",
+      "language": "The GM can record a labeled rule call with durable ambiguity, source, decision, actor, timestamp, audience, revision, and linked supersession. A selected-player call is projected only to that player; GM history and audit remain private, client writes are denied, and the callable transaction uses the existing GM lease, shared command fingerprint, CAS, and replay receipt. Twelve focused Functions cases, 355 affected unit cases, and the 87-case Firestore rules suite pass; independent Terra review b08b1e7 found no actionable authority or privacy issue.",
       "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/facilitatorRuleCallCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx",
       "type": "evidence / production-path / authority / privacy / accessibility"
+    },
+    {
+      "direction": "523 -> 0.3.91",
+      "id": "E-523-RELEASED",
+      "language": "Prompt 523 shipped in release 0.3.91 at commit 6d96748. Deployment workflow 34754021920 completed verification and deploy successfully, and the deployed build-version endpoint reports 0.3.91.",
+      "source": "git commit 6d96748; GitHub Actions workflow 34754021920; https://dow-new-eden-console.web.app/build-version.json",
+      "type": "evidence / release / deployment / live"
     },
     {
       "direction": "523a -> 522",
@@ -18297,8 +18304,8 @@
         "acceptance": "ambiguity, source, decision, actor, timestamp, audience, and supersession are durable and distinguishable from random rules results.",
         "title": "Record facilitator rule calls."
       },
-      "description": "A reachable GM console now records a durable facilitator rule call with explicit question, source, decision, audience, actor, server timestamp, revision, and optional supersession. GM history/current projections stay private, selected-player calls use an exact recipient projection, and the player brief renders only the permitted call fields. The callable is lease-authorized, server-transactional, CAS/replay safe, and absent from public events. Focused callable, listener, console, brief, and privacy-boundary checks pass; emulator rules execution and independent authority review remain pending.",
-      "evidenceIds": "E-AUDIT-523;E-523-IMPLEMENTED",
+      "description": "A reachable GM console now records a durable facilitator rule call with explicit question, source, decision, audience, actor, server timestamp, revision, and optional supersession. GM history/current projections stay private, selected-player calls use an exact recipient projection, and the player brief renders only the permitted call fields. The callable is lease-authorized, server-transactional, CAS/replay safe, and absent from public events. Twelve focused Functions cases, 355 affected unit cases, the 87-case Firestore rules suite, and independent Terra review b08b1e7 pass; release 0.3.91 commit 6d96748 deployed successfully in workflow 34754021920 and live version verification reports 0.3.91.",
+      "evidenceIds": "E-AUDIT-523;E-523-IMPLEMENTED;E-523-RELEASED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522;167",
@@ -18306,10 +18313,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.91"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "DECISION"
     },
     {
