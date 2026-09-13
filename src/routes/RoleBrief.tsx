@@ -10,10 +10,10 @@ function WarriorSalvageDronesStatus() {
     <section className="role-brief__rules role-brief__rules--warrior-salvage" aria-labelledby="warrior-salvage-drones-title">
       <h2 id="warrior-salvage-drones-title">Salvage Drones</h2>
       <p>
-        After a Wolf Attack, this charged console uses one server-owned roll for each point of damage dealt by either side.
+        After a Wolf attack, a charged Salvage Drones console rolls once for each point of damage dealt by either side.
       </p>
       <p role="status">
-        Awaiting the authoritative attack damage ledger. The roll and material award are not available in this workspace yet.
+        Attack damage tracking and salvage rolls are not available yet.
       </p>
     </section>
   );

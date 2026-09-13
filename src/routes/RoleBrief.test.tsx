@@ -98,7 +98,7 @@ it('states the Warrior Salvage Drones trigger while the damage ledger is unavail
   );
 
   expect(screen.getByRole('heading', { name: 'Salvage Drones' })).toBeVisible();
-  expect(screen.getByText(/after a wolf attack/i)).toBeVisible();
-  expect(screen.getByRole('status')).toHaveTextContent(/awaiting the authoritative attack damage ledger/i);
+  expect(screen.getByText(/after a wolf attack, a charged salvage drones console rolls once/i)).toBeVisible();
+  expect(screen.getByRole('status')).toHaveTextContent(/attack damage tracking and salvage rolls are not available yet/i);
   expect(screen.queryByRole('button', { name: /roll|salvage|award/i })).not.toBeInTheDocument();
 });
