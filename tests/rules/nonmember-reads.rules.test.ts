@@ -1,5 +1,5 @@
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -83,3 +83,33 @@ it.each(['signed-out', 'other-table-gm', 'disconnected-gm'] as const)(
     }
   },
 );
+
+it.each(['member', 'gm'] as const)('denies direct gameplay mutations even to a connected %s', async (uid) => {
+  const db = env.authenticatedContext(uid).firestore();
+  const paths = [sessionPath, ...records.map((path) => `${sessionPath}/${path}`)];
+  for (const path of paths) {
+    await expect(setDoc(doc(db, path), { forgedOutcome: 'client decision' }, { merge: true }), path)
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(deleteDoc(doc(db, path)), path)
+      .rejects.toMatchObject({ code: 'permission-denied' });
+  }
+  const collections = new Set(paths.map((path) => path.slice(0, path.lastIndexOf('/'))));
+  for (const path of collections) {
+    await expect(setDoc(doc(db, `${path}/client-created`), {
+      sessionId: 'protected-table', ownerUid: uid, actorUid: uid, revision: 1,
+    }), path).rejects.toMatchObject({ code: 'permission-denied' });
+  }
+});
+
+it('allows a connected player to edit their own display name but not gameplay authority', async () => {
+  const db = env.authenticatedContext('member').firestore();
+  const player = doc(db, `${sessionPath}/players/member`);
+  await updateDoc(player, { displayName: 'Updated callsign' });
+  expect((await getDoc(player)).get('displayName')).toBe('Updated callsign');
+  for (const patch of [
+    { role: 'gm' }, { assignedRoleId: 'president' }, { seatId: 'bridge' },
+    { fleetGroupId: 'other-fleet' }, { connected: false },
+  ]) {
+    await expect(updateDoc(player, patch)).rejects.toMatchObject({ code: 'permission-denied' });
+  }
+});

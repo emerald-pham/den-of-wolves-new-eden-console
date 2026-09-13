@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**269 / 751 prompts complete (35.82%)**
+**270 / 751 prompts complete (35.95%)**
 
-Status breakdown: **269 done · 21 partial · 461 missing**.
+Status breakdown: **270 done · 21 partial · 460 missing**.
 
 Active prompt: **none**
 
@@ -1103,7 +1103,7 @@ release classification and evidence.
 | 624 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 625 | done | non-feature | 0.3.105 | Reconciled existing production enforcement: every exported callable inherits CALLABLE_RUNTIME_OPTIONS through setGlobalOptions, with no per-callable App Check opt-out. Production enforcement is true; only the Firebase FUNCTIONS_EMULATOR value exactly equal to true disables it locally. Runtime option tests verify both paths. During the live 0.3.105 checkpoint, the deployed read-only listGmInstances callable rejected separate missing-token and invalid-token requests with framework HTTP401 UNAUTHENTICATED before the application authentication guard; mutation callables share the same audited global options. Deployment workflows do not set FUNCTIONS_EMULATOR. This records existing enforcement, not a new behavior or a claim to have invoked every production mutation. |
 | 626 | done | non-feature | 0.4.0 | Existing Firestore membership checks and default denial are verified across populated session, gameplay, private-projection, server-only and nested audit records. A dedicated emulator matrix denies document reads and collection enumeration to signed-out users, a facilitator connected only to another table, and a disconnected former facilitator. Member session/report reads and facilitator crisis reads remain positive controls. The combined rules suite passes 97 tests; this closes verification scope without changing rules or application behavior. |
-| 627 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 627 | done | non-feature | 0.4.0 | Existing server-only Firestore write rules are verified across populated session, gameplay, private projection, request and audit paths. Connected player and facilitator clients cannot create, merge into or delete those records, including session state, seats, roles, secrets, events, mission hands, attack/crisis outcomes and server state. The permitted own-display-name update remains a positive control; role, seat, fleet group and presence changes are separately denied. The combined rules suite passes 100 tests. No production rule or gameplay behavior changed. |
 | 628 | done | non-feature | 0.3.99 | Implemented GM-instance authority for ship and role console interventions with private revocable ship grants, owner-only projection, stale-instance cleanup, replay-safe checks, and Observer read-only enforcement. Validated by focused callable/composition tests, Firestore rules coverage, responsive production ShipConsole checks, and independent Terra review. |
 | 629 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 630 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

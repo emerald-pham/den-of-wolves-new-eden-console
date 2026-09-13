@@ -21180,7 +21180,7 @@
         "acceptance": "clients cannot mutate seats, roles, secrets, events, stores, movement, damage, missions, attacks, candidates, or outcomes.",
         "title": "Deny all direct gameplay writes."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "Existing server-only Firestore write rules are verified across populated session, gameplay, private projection, request and audit paths. Connected player and facilitator clients cannot create, merge into or delete those records, including session state, seats, roles, secrets, events, mission hands, attack/crisis outcomes and server state. The permitted own-display-name update remains a positive control; role, seat, fleet group and presence changes are separately denied. The combined rules suite passes 100 tests. No production rule or gameplay behavior changed.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21189,10 +21189,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.0"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

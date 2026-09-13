@@ -788,7 +788,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 624 | EXTEND | missing | 623 | none | none | none | none | none | none | none | E-AUDIT-624 | X | Update the service worker safely. |
 | 625 | EXTEND | done | none | none | none | none | none | none | none | none | none | X | Enforce App Check on mutations. |
 | 626 | EXTEND | done | none | none | none | none | none | none | none | none | none | X | Deny unauthenticated and nonmember reads. |
-| 627 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Deny all direct gameplay writes. |
+| 627 | EXTEND | done | none | none | none | none | none | none | none | none | none | X | Deny all direct gameplay writes. |
 | 628 | EXTEND | done | none | none | none | none | none | none | none | none | E-628-GM-INSTANCE-AUTHORITY | X | Enforce GM-instance authority everywhere. |
 | 629 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Protect private projections comprehensively. |
 | 630 | PROVE | missing | 007;019;428 | none | none | none | none | none | none | none | E-AUDIT-630 | X | Prove server-owned randomness. |
