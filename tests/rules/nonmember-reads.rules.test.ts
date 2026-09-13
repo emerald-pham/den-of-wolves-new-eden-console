@@ -32,6 +32,7 @@ const records = [
   'gmDiscovery/current', 'events/event', 'loyaltyAssignmentRequests/request',
   'commandReceipts/request', 'maintenanceRequests/request',
   'maintenanceRollbackRequests/request', 'smallShipRequests/request',
+  'presenceReconciliations/u1',
   'fighterWingCountRequests/request', 'damageDraws/draw', 'shipConfetti/icebreaker',
   'unrecognizedCollection/current',
 ] as const;
