@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**273 / 751 prompts complete (36.35%)**
+**274 / 751 prompts complete (36.48%)**
 
-Status breakdown: **273 done · 24 partial · 454 missing**.
+Status breakdown: **274 done · 24 partial · 453 missing**.
 
 Active prompt: **none**
 
@@ -1108,7 +1108,7 @@ release classification and evidence.
 | 629 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 630 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 631 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 632 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 632 | done | non-feature | — | Production callable boundaries now reject malformed or oversized maintenance and presence payloads before authority preflight. The server derives limits from the printed/domain maintenance catalogs, validates canonical console and refuel IDs, and preserves omitted versus explicit-null presence semantics; broader already-guarded payload fields remain unchanged and no new UI or game rule is claimed. |
 | 633 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 634 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
