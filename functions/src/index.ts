@@ -7016,6 +7016,11 @@ export const claimGmInstance = onCall<{
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
+    if (existing.exists && !isLiveGmInstance(existing, player, uid)) {
+      // A stale browser may reclaim the same human-readable instance name.
+      // Its old scoped ship grant must not follow that name into the new lease.
+      tx.delete(gmShipConsoleWriteGrantRef(claim.sessionId, claim.instanceId));
+    }
     const visibleToUids = wolfSecret.exists ? wolfSecret.get('visibleToUids') : undefined;
     if (
       wolfSecret.exists &&
@@ -10033,7 +10038,10 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
       ) {
         tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
       }
-      for (const instance of ownedInstances.docs) tx.delete(instance.ref);
+      for (const instance of ownedInstances.docs) {
+        tx.delete(instance.ref);
+        tx.delete(gmShipConsoleWriteGrantRef(sessionId, instance.id));
+      }
       if (membership.exists && membership.get('sessionId') === sessionId) {
         tx.delete(membershipRef);
       }

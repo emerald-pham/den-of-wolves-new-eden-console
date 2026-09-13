@@ -16,6 +16,8 @@ const mock = vi.hoisted(() => {
     query: true;
     path: string;
     filters: ReadonlyArray<readonly [string, unknown]>;
+    group?: boolean;
+    rangeFilters?: ReadonlyArray<readonly [string, string, unknown]>;
     where: (field: string, operator: string, value: unknown) => Query;
     orderBy: () => Query;
     get: () => Promise<{ docs: Array<ReturnType<typeof snapshot>>; size: number }>;
@@ -60,11 +62,23 @@ const mock = vi.hoisted(() => {
   });
   const querySnapshot = (target: Query) => {
     const docs = [...documents.keys()]
-      .filter((path) => path.startsWith(target.path + '/') &&
-        path.split('/').length === target.path.split('/').length + 1)
+      .filter((path) => target.group
+        ? path.split('/').at(-2) === target.path
+        : path.startsWith(target.path + '/') &&
+          path.split('/').length === target.path.split('/').length + 1)
       .map(ref)
       .filter((candidate) => target.filters.every(([field, value]) =>
         snapshot(candidate).get(field) === value))
+      .filter((candidate) => (target.rangeFilters ?? []).every(([field, operator, value]) => {
+        const actual = snapshot(candidate).get(field);
+        if (operator === '<=') {
+          return typeof actual === 'object' && actual !== null && 'toMillis' in actual &&
+            typeof (actual as { toMillis?: unknown }).toMillis === 'function'
+            ? (actual as { toMillis: () => number }).toMillis() <= (value as { toMillis: () => number }).toMillis()
+            : false;
+        }
+        return false;
+      }))
       .map(snapshot);
     return { docs, size: docs.length, empty: docs.length === 0 };
   };
@@ -87,6 +101,30 @@ const mock = vi.hoisted(() => {
     orderBy: () => query(path),
     get: () => query(path).get(),
   });
+  const collectionGroup = (path: string) => ({
+    where: (field: string, operator: string, value: unknown) => {
+      if (operator !== '==') throw new Error('Unsupported query operator: ' + operator);
+      const filters: ReadonlyArray<readonly [string, unknown]> = [[field, value]];
+      const grouped: Query = {
+        query: true, path, filters, group: true, rangeFilters: [],
+        where: (nextField, nextOperator, nextValue) => {
+          if (nextOperator === '==') {
+            return { ...grouped, filters: [...filters, [nextField, nextValue]] };
+          }
+          if (nextOperator === '<=') {
+            return {
+              ...grouped,
+              rangeFilters: [...(grouped.rangeFilters ?? []), [nextField, nextOperator, nextValue]],
+            };
+          }
+          throw new Error('Unsupported query operator: ' + nextOperator);
+        },
+        orderBy: () => grouped,
+        get: async () => querySnapshot(grouped),
+      };
+      return grouped;
+    },
+  });
 
   return {
     documents,
@@ -98,6 +136,7 @@ const mock = vi.hoisted(() => {
     db: {
       doc: ref,
       collection,
+      collectionGroup,
       runTransaction: (callback: (tx: unknown) => unknown) =>
         callback({ get, update, set, delete: remove }),
     },
@@ -113,7 +152,12 @@ vi.mock('firebase-admin/firestore', () => ({
       return { toMillis: () => milliseconds };
     },
   },
-  Timestamp: class {},
+  Timestamp: class MockTimestamp {
+    constructor(private readonly milliseconds = Date.now()) {}
+    static fromMillis(value: number) { return new MockTimestamp(value); }
+    static fromDate(value: Date) { return new MockTimestamp(value.getTime()); }
+    toMillis() { return this.milliseconds; }
+  },
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
@@ -142,6 +186,7 @@ import {
   setFleetRedAlert,
   unlockPressAirspace,
   refreshPresence,
+  expireStalePlayers,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
@@ -304,6 +349,26 @@ describe('elevateToGm', () => {
 });
 
 describe('GM instance ownership', () => {
+  it('clears a stale private grant when the instance name is reclaimed', async () => {
+    session({ activeVesselIds: ['aegis', 'dione'] });
+    player('u1', { role: 'gm' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', name: 'Old bridge', deviceLabel: 'Old browser',
+      connected: false, claimedAt: 'old-server-time', lastSeenAt: 'old-server-time',
+    });
+    put('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant', {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'u1',
+      shipId: 'dione', grantedAt: 'old-server-time',
+    });
+    await login();
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1', instanceId: 'bridge', name: 'New bridge', deviceLabel: 'New browser',
+    }))).resolves.toMatchObject({ instance: { id: 'bridge', uid: 'u1' } });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ connected: true });
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
+  });
+
   it('binds ship-console write access to the live browser instance and target ship', async () => {
     session({ activeVesselIds: ['aegis', 'dione'] });
     player('u1', { role: 'gm' });
@@ -977,5 +1042,25 @@ describe('GM registration lock', () => {
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(read('sessions/s1')).toMatchObject({ gmControlsLocked: false, phase: 'debrief' });
     expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('removes private grants when stale-player cleanup removes a live instance parent', async () => {
+    session({ phase: 'active', currentTurn: 1 });
+    const staleAt = Date.now() - PRESENCE_LEASE_MS - 1;
+    player('u1', { role: 'gm', lastSeenAt: { toMillis: () => staleAt } });
+    put('activeMemberships/u1', { sessionId: 's1', connectedAt: 'old-server-time' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', name: 'Bridge', deviceLabel: 'Browser',
+      connected: true, claimedAt: 'server-time', lastSeenAt: { toMillis: () => Date.now() },
+    });
+    put('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant', {
+      type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: 'u1',
+      shipId: 'aegis', grantedAt: 'server-time',
+    });
+
+    await expireStalePlayers.run({});
+
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 });
