@@ -746,6 +746,43 @@ describe('App', () => {
     expect(useSessionStore.getState().arbourVision).toBeNull();
   });
 
+  it('does not replay a delayed former Arbour call after loyalty changes', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const oldVision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+      text: 'Former holder call.', label: 'FACILITATOR CALL',
+    };
+    const currentVision: ArbourVision = {
+      ...oldVision, revision: 2, text: 'Current holder call.',
+    };
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    // The first callback may race the private loyalty snapshot and is held.
+    act(() => handlers?.onArbourVision?.(oldVision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // Losing Arbour authority invalidates the held revision.
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'fleet-loyalist', suspicion: 5 }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // A delayed callback from the former holder must stay discarded.
+    act(() => handlers?.onArbourVision?.(oldVision));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    // Reacquiring Arbour starts a new generation without reviving old text.
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    act(() => handlers?.onArbourVision?.(currentVision));
+    expect(useSessionStore.getState().arbourVision).toEqual(currentVision);
+  });
+
   it('renders cached session state while showing the existing red Offline indicator', async () => {
     let onFreshness: ((fresh: boolean) => void) | undefined;
     let onSession: ((next: GameSession) => void) | undefined;

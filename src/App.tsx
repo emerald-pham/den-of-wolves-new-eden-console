@@ -119,7 +119,10 @@ function AppRoutes() {
     const listenerGeneration = ++playerListenerGeneration.current;
     const callbackCurrent = () => active && playerListenerGeneration.current === listenerGeneration;
     let pendingRoleBrief: RoleBriefProjection | null = null;
-    let pendingArbourVision: ArbourVision | null = null;
+    let pendingArbourVision: { vision: ArbourVision; generation: number } | null = null;
+    let arbourVisionAuthorityGeneration = 0;
+    let arbourVisionBlocked = false;
+    let arbourVisionRevisionFloor = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
     let unsubscribe: () => void = () => undefined;
@@ -137,6 +140,17 @@ function AppRoutes() {
       unsubscribeLoyaltyCensus();
       unsubscribeLoyaltyCensus = () => undefined;
       useSessionStore.getState().setGmLoyaltyCensus(null);
+    };
+    const invalidateArbourVision = () => {
+      arbourVisionAuthorityGeneration += 1;
+      arbourVisionRevisionFloor = Math.max(
+        arbourVisionRevisionFloor,
+        pendingArbourVision?.vision.revision ?? 0,
+        useSessionStore.getState().arbourVision?.revision ?? 0,
+      );
+      arbourVisionBlocked = true;
+      pendingArbourVision = null;
+      useSessionStore.getState().setArbourVision(null);
     };
     const currentPlayerMayReadCensus = () => {
       const state = useSessionStore.getState();
@@ -250,8 +264,7 @@ function AppRoutes() {
             }
           }
           if (previousEntitlement !== nextEntitlement) {
-            pendingArbourVision = null;
-            store.setArbourVision(null);
+            invalidateArbourVision();
           }
           const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
           if (!effectiveBriefRoleId) {
@@ -302,24 +315,51 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           store.setPrivateLoyalty(next);
           if (next?.kind === 'universal-arbour') {
-            if (pendingArbourVision) {
-              store.setArbourVision(pendingArbourVision);
+            if (arbourVisionBlocked) {
+              // A loyalty change creates a new authority generation. Do not
+              // carry a snapshot from the former holder into the new one.
+              arbourVisionAuthorityGeneration += 1;
+              arbourVisionBlocked = false;
+              pendingArbourVision = null;
+              store.setArbourVision(null);
+            } else if (
+              pendingArbourVision &&
+              pendingArbourVision.generation === arbourVisionAuthorityGeneration &&
+              pendingArbourVision.vision.revision > arbourVisionRevisionFloor
+            ) {
+              store.setArbourVision(pendingArbourVision.vision);
+              arbourVisionRevisionFloor = pendingArbourVision.vision.revision;
               pendingArbourVision = null;
             }
           } else {
-            pendingArbourVision = null;
-            store.setArbourVision(null);
+            invalidateArbourVision();
           }
         },
         onArbourVision: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
-          if (!next || store.privateLoyalty?.kind !== 'universal-arbour') {
-            pendingArbourVision = next;
+          if (!next) {
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+            return;
+          }
+          if (next.revision <= arbourVisionRevisionFloor || arbourVisionBlocked) {
+            // Late snapshots from a former authority generation cannot be
+            // buffered for a future holder or replace the current projection.
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+            return;
+          }
+          if (store.privateLoyalty?.kind !== 'universal-arbour') {
+            pendingArbourVision = {
+              vision: next,
+              generation: arbourVisionAuthorityGeneration,
+            };
             store.setArbourVision(null);
             return;
           }
           pendingArbourVision = null;
+          arbourVisionRevisionFloor = next.revision;
           store.setArbourVision(next);
         },
         onRoleBrief: (next) => {
