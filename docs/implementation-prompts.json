@@ -4830,6 +4830,13 @@
       "language": "The authoritative loyalty assignment path writes reciprocal Friend secrets with each partner's server-assigned console role ID. Each entitled holder hydrates only their own secret through the existing private listener and sees the partner's canonical role name without the raw partner UID; exact-holder Firestore rules keep both reciprocal records private from the other partner, GMs, observers, and strangers. Focused tests cover reciprocal assignment, typed parser hydration, player presentation/redaction, and the 79-case emulator rules matrix.",
       "source": "functions/src/index.ts; functions/src/loyaltyCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; tests/rules/firestore.rules.test.ts; commit 5a9fcdaa",
       "type": "evidence / production-path / authority / privacy"
+    },
+    {
+      "direction": "517 -> VIP-HOST-VISIT-CONFIRMATION",
+      "id": "E-517-VISIT-DECISION",
+      "language": "The production audit found no authoritative Team Time visit or Host reroll grant/consumption path. ShipConsole visiting is console browsing; shuttle visit logs describe docking. The owner has been asked who confirms a Host visit; no answer or policy is inferred. CAS, replay, and consent storage are implementation work after the gameplay confirmation policy is defined.",
+      "source": "src/routes/ShipConsole.tsx; functions/src/index.ts; docs/implementation-prompts.json",
+      "type": "evidence / decision_owner / missing-producer"
     }
   ],
   "plan": {
@@ -18015,13 +18022,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-VIP-HOST-VISIT-CONFIRMATION",
       "definition": {
         "acceptance": "a verified visit grants one hosted ship its printed maintenance reroll once.",
         "title": "Activate the VIP Host."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-517",
+      "description": "Source audit confirms the VIP Host maintenance reroll requires a Team Time visit to another ship. Existing console browsing is read-only perspective selection, not an authoritative visit; shuttle docking history does not establish this visit either. The owner decision about who confirms the visit remains pending (GM, destination captain, or Host declaration). Implement the confirmed visit and maintenance-reroll consumption together after that decision, preserving printed scope, server authority, and once-only receipts. No visit, grant, or reroll implementation is claimed; Prompt 517 remains missing.",
+      "evidenceIds": "E-AUDIT-517;E-517-VISIT-DECISION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;190",
