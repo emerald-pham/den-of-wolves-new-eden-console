@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setMotionOverride } from '@/lib/motionPreference';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -74,7 +74,7 @@ afterEach(() => {
   act(() => setMotionOverride('system'));
 });
 
-it('keeps a narrow ticker pinned with hide/reveal and refolds after one alert pass', () => {
+it('keeps the narrow ticker visible with reserved space when an alert replaces standing copy', () => {
   setTicker(tickerMessage({
     id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
     text: 'SNN // ROUTE CONFIRMED', tone: 'normal',
@@ -82,71 +82,52 @@ it('keeps a narrow ticker pinned with hide/reveal and refolds after one alert pa
   const view = render(<FleetBroadcast />);
 
   const surface = view.container.querySelector('.fleet-broadcast')!;
-  expect(screen.getByRole('button', { name: 'Hide fleet broadcasts' })).toBeVisible();
-  expect(surface).toHaveAttribute('data-hidden', 'false');
-
-  fireEvent.click(screen.getByRole('button', { name: 'Hide fleet broadcasts' }));
-  expect(screen.getByRole('button', { name: 'Reveal fleet broadcasts' })).toHaveAttribute(
-    'aria-expanded', 'false',
-  );
-  expect(surface).toHaveAttribute('data-hidden', 'true');
+  expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
+  expect(view.container.querySelector('.fleet-broadcast__reserve')).toBeInTheDocument();
+  expect(surface).not.toHaveAttribute('data-hidden');
+  expect(surface).not.toHaveAttribute('data-expanded');
+  expect(screen.getByRole('status', { name: /route confirmed/i })).toBeVisible();
 
   act(() => setTicker(tickerMessage({
     id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
     text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger',
   })));
-  expect(surface).toHaveAttribute('data-expanded', 'true');
-  expect(surface).toHaveAttribute('data-hidden', 'false');
+  expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
+  expect(surface).not.toHaveAttribute('data-hidden');
+  expect(surface).not.toHaveAttribute('data-expanded');
+  expect(screen.getByRole('status', { name: /red alert/i })).toBeVisible();
 
-  const alertGroup = view.container.querySelector<HTMLElement>(
-    '.fleet-ticker__group[data-message-id="s1:fleet-ticker:2"]',
-  );
-  expect(alertGroup).toBeInTheDocument();
-  fireEvent.animationEnd(alertGroup!);
-  expect(surface).toHaveAttribute('data-hidden', 'true');
-  expect(surface).toHaveAttribute('data-expanded', 'false');
+  act(() => window.dispatchEvent(new Event('scroll')));
+  expect(screen.getByRole('status', { name: /red alert/i })).toBeVisible();
 });
 
-it('does not refold after a user reveals during an automatic expansion or after a wide crossing', () => {
+it('keeps the pinned ticker visible while crossing narrow and wide viewports', () => {
   setTicker(tickerMessage({
     id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
     text: 'SNN // ROUTE CONFIRMED', tone: 'normal',
   }));
   const view = render(<FleetBroadcast />);
   const surface = view.container.querySelector('.fleet-broadcast')!;
-  fireEvent.click(screen.getByRole('button', { name: 'Hide fleet broadcasts' }));
-
-  act(() => setTicker(tickerMessage({
-    id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
-    text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger',
-  })));
-  fireEvent.click(screen.getByRole('button', { name: 'Hide fleet broadcasts' }));
-  expect(surface).toHaveAttribute('data-hidden', 'false');
-
-  const alertGroup = view.container.querySelector<HTMLElement>(
-    '.fleet-ticker__group[data-message-id="s1:fleet-ticker:2"]',
-  );
-  fireEvent.animationEnd(alertGroup!);
-  expect(surface).toHaveAttribute('data-hidden', 'false');
 
   narrow = false;
   act(() => window.dispatchEvent(new Event('resize')));
   expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
-  expect(surface).toHaveAttribute('data-hidden', 'false');
+  expect(surface).not.toHaveAttribute('data-hidden');
+  expect(screen.getByRole('status', { name: /route confirmed/i })).toBeVisible();
 
   narrow = true;
   act(() => window.dispatchEvent(new Event('resize')));
-  expect(screen.getByRole('button', { name: 'Hide fleet broadcasts' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('status', { name: /route confirmed/i })).toBeVisible();
 });
 
-it('waits for the newest queued restriction before refolding an expanded ticker', () => {
+it('keeps queued live alerts visible without temporary expansion or refolding state', () => {
   setTicker(tickerMessage({
     id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
     text: 'SNN // ROUTE CONFIRMED', tone: 'normal',
   }));
   const view = render(<FleetBroadcast />);
   const surface = view.container.querySelector('.fleet-broadcast')!;
-  fireEvent.click(screen.getByRole('button', { name: 'Hide fleet broadcasts' }));
 
   const alert = tickerMessage({
     id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
@@ -158,20 +139,14 @@ it('waits for the newest queued restriction before refolding an expanded ticker'
     sourceId: 'airspace:1:restricted',
   });
   act(() => setTicker(alert, [restriction]));
-  expect(surface).toHaveAttribute('data-expanded', 'true');
-
-  fireEvent.animationEnd(view.container.querySelector<HTMLElement>(
-    '.fleet-ticker__group[data-message-id="s1:fleet-ticker:2"]',
-  )!);
-  expect(surface).toHaveAttribute('data-hidden', 'false');
-  fireEvent.animationEnd(view.container.querySelector<HTMLElement>(
-    '.fleet-ticker__group[data-message-id="s1:fleet-ticker:3"]',
-  )!);
-  expect(surface).toHaveAttribute('data-hidden', 'true');
-  expect(view.container.querySelectorAll('.fleet-broadcast__toggle')).toHaveLength(1);
+  expect(surface).not.toHaveAttribute('data-hidden');
+  expect(surface).not.toHaveAttribute('data-expanded');
+  expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
+  expect(view.container.querySelector('.fleet-ticker')).toHaveTextContent('RED ALERT');
+  expect(view.container.querySelector('.fleet-ticker')).toHaveTextContent('AIRSPACE CLOSED');
 });
 
-it('uses an immediate readable reduced-motion expansion before refolding', () => {
+it('keeps reduced-motion copy readable and visible without hidden-state restoration', () => {
   vi.useFakeTimers();
   setMotionOverride('reduce');
   setTicker(tickerMessage({
@@ -180,16 +155,18 @@ it('uses an immediate readable reduced-motion expansion before refolding', () =>
   }));
   const view = render(<FleetBroadcast />);
   const surface = view.container.querySelector('.fleet-broadcast')!;
-  fireEvent.click(screen.getByRole('button', { name: 'Hide fleet broadcasts' }));
+  expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('status', { name: /route confirmed/i })).toBeVisible();
 
   act(() => setTicker(tickerMessage({
     id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
     text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger',
   })));
-  expect(surface).toHaveAttribute('data-hidden', 'false');
+  expect(surface).not.toHaveAttribute('data-hidden');
+  expect(surface).not.toHaveAttribute('data-expanded');
   expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // RED ALERT' })).toBeVisible();
 
   act(() => vi.advanceTimersByTime(4_000));
-  expect(surface).toHaveAttribute('data-hidden', 'true');
-  expect(screen.getByRole('button', { name: 'Reveal fleet broadcasts' })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // RED ALERT' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
 });

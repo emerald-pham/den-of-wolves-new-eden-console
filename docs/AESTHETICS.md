@@ -1262,21 +1262,19 @@ truncation, early unmount, or remeasurement to erase any visible lettering;
 the outgoing group retains its exact position and constant linear speed while
 the queued group remains behind its tail.
 
-Prompt 652b keeps the Press ticker pinned at the top on narrow viewports from
-the first paint through scrolling, with the exact block reserved below the
-safe-area and header chrome. A narrow-only hide button leaves a reachable
-reveal control; a new authoritative Red Alert or airspace restriction expands
-a hidden ticker, then refolds it after that notification completes one display
-unless the player revealed it. Repeated updates retain one expansion and one
-announcement, and a newer queued trigger keeps the ticker expanded until its
-own display completes. Crossing to a wide viewport forces the ticker visible,
-resets hidden state, and removes the control from visual, keyboard, and
-assistive-technology navigation. Resize, rotation, software keyboard, and
-safe-area changes remeasure the reserved block so the ticker and reveal control
-never cover content, focus, session ticket, or Role Select. Reduced motion
-applies the same state transitions immediately while keeping announcements and
-wrapped copy readable. This mobile presentation consumes the server-owned
-ticker lifecycle; it never writes animation or visual-pass progress.
+Prompts 652b and 652c keep the Press ticker pinned at the top on narrow
+viewports from the first paint through scrolling, with the exact block reserved
+below the safe-area and header chrome. Prompt 652b's shipped hide/reveal and
+temporary alert-expansion behavior is historical; Prompt 652c supersedes it with
+one continuously visible ticker and no manual hidden-state restoration or
+alert-triggered expansion/refolding. Crossing between narrow and wide
+viewports preserves the visible surface and removes no content from visual,
+keyboard, or assistive-technology navigation. Resize, rotation, software
+keyboard, and safe-area changes remeasure the reserved block so the ticker
+never covers content, focus, session ticket, or Role Select. Reduced motion
+keeps the stationary wrapped announcement readable. This mobile presentation
+consumes the server-owned ticker lifecycle; it never writes animation or
+visual-pass progress.
 
 The SNN shuttle's dispatch desk is a real instrument available to the active
 Press Officer. SNN Press is an added independent station rather than a printed

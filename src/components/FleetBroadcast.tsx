@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ADMIRAL_ALERT_PREFIX, DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { fleetTickerState } from '@/lib/fleetTickerState';
@@ -70,51 +70,20 @@ function useNarrowViewport(): boolean {
   return narrow;
 }
 
-function isAutoExpandTrigger(message: AuthoritativeFleetTickerMessage): boolean {
-  return (message.source === 'admiral' && message.tone === 'danger') ||
-    (message.source === 'automatic' && message.sourceId?.endsWith(':restricted') === true);
-}
-
-function latestAutoExpandTrigger(
-  current: AuthoritativeFleetTickerMessage | null,
-  queue: readonly AuthoritativeFleetTickerMessage[],
-): AuthoritativeFleetTickerMessage | undefined {
-  return [current, ...queue]
-    .filter((message): message is AuthoritativeFleetTickerMessage =>
-      message !== null && isAutoExpandTrigger(message))
-    .sort((left, right) => right.sequence - left.sequence)[0];
-}
-
-function FleetBroadcastSurface({ triggerKey, ...tickerProps }: FleetTickerProps & {
-  readonly triggerKey?: string;
-}) {
+function FleetBroadcastSurface(tickerProps: FleetTickerProps) {
   const hasTickerProps = Boolean(tickerProps.message || tickerProps.fallback ||
     tickerProps.queue?.length);
   const narrow = useNarrowViewport();
-  const [manuallyHidden, setManuallyHidden] = useState(false);
-  const [autoExpanded, setAutoExpanded] = useState(false);
   const [surfaceHeight, setSurfaceHeight] = useState<number | null>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const pendingTriggerRef = useRef<string | undefined>();
   const hadTickerRef = useRef(false);
-  const tickerId = useId();
-  const collapsed = manuallyHidden && !autoExpanded;
   if (hasTickerProps) hadTickerRef.current = true;
 
   useEffect(() => {
     if (!narrow) {
-      setManuallyHidden(false);
-      setAutoExpanded(false);
       setSurfaceHeight(null);
-      pendingTriggerRef.current = undefined;
     }
   }, [narrow]);
-
-  useEffect(() => {
-    if (!triggerKey || pendingTriggerRef.current === triggerKey) return;
-    pendingTriggerRef.current = triggerKey;
-    if (narrow && manuallyHidden) setAutoExpanded(true);
-  }, [manuallyHidden, narrow, triggerKey]);
 
   useEffect(() => {
     const surface = surfaceRef.current;
@@ -131,14 +100,8 @@ function FleetBroadcastSurface({ triggerKey, ...tickerProps }: FleetTickerProps 
     const observer = new ResizeObserver(measure);
     observer.observe(surface);
     return () => observer.disconnect();
-  }, [autoExpanded, collapsed, narrow]);
+  }, [narrow]);
 
-  const handleMessageComplete = useCallback((messageId: string) => {
-    if (!narrow || !manuallyHidden || messageId !== pendingTriggerRef.current) return;
-    setAutoExpanded(false);
-  }, [manuallyHidden, narrow]);
-
-  const toggleLabel = collapsed ? 'Reveal fleet broadcasts' : 'Hide fleet broadcasts';
   const reserveStyle = narrow && surfaceHeight !== null
     ? { height: `${surfaceHeight}px` }
     : undefined;
@@ -148,27 +111,10 @@ function FleetBroadcastSurface({ triggerKey, ...tickerProps }: FleetTickerProps 
       <div className="fleet-broadcast__reserve" aria-hidden="true" style={reserveStyle} />
     )}
     <div ref={surfaceRef} className="fleet-broadcast"
-      data-empty={hasTickerProps ? 'false' : 'true'}
-      data-hidden={collapsed ? 'true' : 'false'}
-      data-expanded={autoExpanded ? 'true' : 'false'}>
-      <div id={tickerId} className="fleet-broadcast__ticker">
-        <FleetTicker {...tickerProps} onMessageComplete={handleMessageComplete} />
+      data-empty={hasTickerProps ? 'false' : 'true'}>
+      <div className="fleet-broadcast__ticker">
+        <FleetTicker {...tickerProps} />
       </div>
-      {narrow && (hasTickerProps || hadTickerRef.current) && <button className="fleet-broadcast__toggle" type="button"
-          aria-controls={tickerId} aria-expanded={!collapsed}
-          aria-label={toggleLabel}
-          onClick={() => {
-            if (manuallyHidden) {
-              setManuallyHidden(false);
-              setAutoExpanded(false);
-            } else {
-              setManuallyHidden(true);
-              setAutoExpanded(false);
-            }
-          }}>
-          <span aria-hidden="true">{collapsed ? '＋' : '－'}</span>
-          <span className="fleet-broadcast__toggle-label">{collapsed ? 'SHOW' : 'HIDE'}</span>
-        </button>}
     </div>
   </>;
 }
@@ -229,14 +175,9 @@ export default function FleetBroadcast() {
     const queue = authoritativeTicker.queued
       .map((entry) => displayFleetTickerMessage(entry));
     if (streamMessage || queue.length > 0) {
-      const trigger = latestAutoExpandTrigger(
-        authoritativeTicker.current,
-        authoritativeTicker.queued,
-      );
       return <FleetBroadcastSurface
         {...(streamMessage ? { message: streamMessage } : {})}
         {...(queue.length > 0 ? { queue } : {})}
-        {...(trigger ? { triggerKey: trigger.id } : {})}
       />;
     }
     return null;

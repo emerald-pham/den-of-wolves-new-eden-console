@@ -4622,6 +4622,13 @@
       "type": "related/consumes"
     },
     {
+      "direction": "652c",
+      "id": "E-652C-VERIFIED",
+      "language": "FleetBroadcast now keeps the authoritative FleetTicker mounted and visible at every supported viewport. The narrow surface remains pinned in the measured header row and retains its reserved content space through replacement, queued alerts, scroll, resize, and return to narrow width; manual hide/reveal state, saved restoration, alert-triggered expansion/refolding, the toggle DOM, and their CSS paths are gone. Wide presentation, server stream identity/order, complete moving tails, and readable reduced-motion copy remain covered. Focused component tests pass 45/45, typecheck and targeted lint pass, and Chrome CDP geometry evidence covers 320x844, 390x844, 844x390, and 1440x900 with no header/content overlap or horizontal overflow; reduced-motion geometry is also verified.",
+      "source": "src/components/FleetBroadcast.tsx; src/components/FleetBroadcastMobile.test.tsx; src/components/FleetBroadcast.test.tsx; src/components/FleetTicker.tsx; src/components/FleetTicker.test.tsx; src/index.css; docs/AESTHETICS.md; focused tests 45/45; npm run typecheck; targeted eslint; /tmp/p652c-geometry-20260912/geometry.json; /tmp/p652c-render-matrix-20260912.txt",
+      "type": "evidence / authority / related/consumes"
+    },
+    {
       "direction": "282a",
       "id": "E-282A-OWNER",
       "language": "The GM console has no chart selector. confirmSetup accepts chart changes until the general configurationLocked flag is set at startGame; it does not provide the owner-requested explicit pre-start chart-only lock. Both UI selection and a server-enforced lock are required.",
@@ -21362,8 +21369,8 @@
         "acceptance": "Remove the mobile Fleet/Press ticker Hide button and its reveal control so the ticker remains visible on every supported viewport. Remove obsolete manual hiding, saved hidden-state restoration, and alert-triggered expand/refold behavior while preserving the pinned narrow-screen layout, reserved content space, authoritative broadcast lifecycle, full moving-tail visibility, readable reduced-motion presentation, and existing wide-screen behavior. The removed controls must also disappear from keyboard and accessibility navigation. Verify fresh and returning clients, live alerts, scrolling, and narrow-wide-narrow resizing at 320×844, 390×844, 844×390, and 1440×900 without overlap or clipping.",
         "title": "Remove the ticker Hide button."
       },
-      "description": "Owner-requested follow-up to the shipped P652b mobile ticker. Supersedes its hide/reveal and temporary expansion/refolding behavior; keep the ticker visible and retain its established pinned layout and broadcast guarantees. Queued only; no implementation or release is claimed.",
-      "evidenceIds": "E-652C-OWNER;E-652C-DEPENDENCY;E-652C-RELATED",
+      "description": "Owner-requested follow-up to the shipped P652b mobile ticker. Supersedes its hide/reveal and temporary expansion/refolding behavior while preserving P652b as the historical release record and retaining its pinned layout and broadcast guarantees. FleetBroadcast now keeps the ticker visible at every supported viewport; focused tests and rendered geometry verify the removal.",
+      "evidenceIds": "E-652C-OWNER;E-652C-DEPENDENCY;E-652C-RELATED;E-652C-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "652b",
@@ -21374,7 +21381,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "TICKER-LIFECYCLE",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
