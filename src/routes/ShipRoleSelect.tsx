@@ -79,10 +79,10 @@ export default function ShipRoleSelect() {
             <Link
               className="role-card cic-frame"
               to={`/ships/${ship.id}/observer`}
-              aria-label="Observer"
+              aria-label="View ship consoles"
             >
-              <span className="role-card__name">Observer</span>
-              <span className="role-card__description">GM ship access</span>
+              <span className="role-card__name">View ship consoles</span>
+              <span className="role-card__description">Quiet GM ship view // read only</span>
             </Link>
           )}
         </div>

@@ -427,7 +427,7 @@ it('keeps ship and role navigation available to the GM', () => {
   expect(screen.getByRole('link', { name: /change role/i })).toBeInTheDocument();
 });
 
-it('gives a GM observer read-only access by default and resets it after leaving', async () => {
+it('gives a GM quiet read-only ship view and requires confirmed write access', async () => {
   const user = userEvent.setup();
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
@@ -448,21 +448,31 @@ it('gives a GM observer read-only access by default and resets it after leaving'
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Role assignment')).toBeInTheDocument();
-  expect(screen.getByText('Observer').tagName).toBe('DD');
-  const writeMode = screen.getByRole('button', { name: /observer write mode/i });
+  expect(screen.queryByText('Observer')).not.toBeInTheDocument();
+  expect(screen.queryByText('Role assignment')).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: /GM ship console access/i })).toBeInTheDocument();
+  const writeMode = screen.getByRole('button', { name: 'GM ship console read write access' });
   expect(writeMode).toHaveAttribute('aria-pressed', 'false');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
-  expect(screen.getByText(/observer access.*read only/i)).toBeInTheDocument();
+  expect(screen.getByText(/GM ship console access.*read only/i)).toBeInTheDocument();
 
   await user.click(writeMode);
+  expect(screen.getByRole('alertdialog', { name: 'Are you sure?' })).toBeInTheDocument();
+  expect(setGmShipConsoleWriteGrant).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: /cancel/i }));
+  expect(writeMode).toHaveAttribute('aria-pressed', 'false');
+  expect(setGmShipConsoleWriteGrant).not.toHaveBeenCalled();
+
+  await user.click(writeMode);
+  await user.click(screen.getByRole('button', { name: /are you sure/i }));
+  expect(setGmShipConsoleWriteGrant).toHaveBeenCalledWith('aegis', true);
   expect(writeMode).toHaveAttribute('aria-pressed', 'true');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'write');
-  expect(screen.getByText(/observer access.*write mode/i)).toBeInTheDocument();
+  expect(screen.getByText(/GM ship console access.*read \/ write/i)).toBeInTheDocument();
 
   await user.click(screen.getByRole('link', { name: /change role/i }));
   await user.click(screen.getByRole('link', { name: /return to observer/i }));
-  expect(screen.getByRole('button', { name: /observer write mode/i }))
+  expect(screen.getByRole('button', { name: 'GM ship console read write access' }))
     .toHaveAttribute('aria-pressed', 'false');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
 });
@@ -1230,32 +1240,36 @@ it.each([
   expect(screen.getByText('Ship consoles')).toBeVisible();
   expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe(ownRole);
 });
-it.each(['aegis', 'capybara'])('lets an observer browse every %s console and toggle read / write without claiming roles', async shipId => {
+it.each(['aegis', 'capybara'])('lets a GM browse every %s console and confirm read / write without claiming roles', async shipId => {
   useSessionStore.setState({ me: { ...useSessionStore.getState().me!, role: 'gm' }, connection: 'live', gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' } });
   const { findShip } = await import('@/data/ships');
   render(<MemoryRouter initialEntries={[`/ships/${shipId}/observer`]}><Routes><Route path="/ships/:shipId/observer" element={<ShipConsole observer />} /></Routes></MemoryRouter>);
-  const select = screen.getByRole('combobox', { name: 'View ship console' });
+  const select = screen.getByRole('combobox', { name: 'View ship console role' });
   for (const role of findShip(shipId)!.roles) {
     await userEvent.selectOptions(select, role.id);
     expect(select).toHaveValue(role.id);
   }
   await userEvent.selectOptions(select, findShip(shipId)!.roles[0]!.id);
   expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
-  const toggle = screen.getByRole('button', { name: /observer write mode/i });
-  expect(toggle).toHaveTextContent(/Read \/ Write/);
+  const toggle = screen.getByRole('button', { name: 'GM ship console read write access' });
+  expect(toggle).toHaveTextContent(/Read only/);
   await userEvent.click(toggle);
+  expect(screen.getByRole('alertdialog', { name: 'Are you sure?' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /are you sure/i }));
   expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeEnabled();
   await userEvent.click(toggle);
   expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
   expect(selectConsoleRole).not.toHaveBeenCalled();
 });
-it('enables observer ship commands only after Write is selected', async () => {
+it('enables GM ship commands only after confirmed write access', async () => {
   useSessionStore.setState({ me: { ...useSessionStore.getState().me!, role: 'gm' }, connection: 'live', gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' } });
   render(<MemoryRouter initialEntries={['/ships/capybara/observer']}><Routes><Route path="/ships/:shipId/observer" element={<ShipConsole observer />} /></Routes></MemoryRouter>);
   const cover = screen.getByRole('button', { name: /open confetti activation cover/i });
   expect(cover).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Assign damage' })).toBeDisabled();
-  await userEvent.click(screen.getByRole('button', { name: /observer write mode/i }));
+  await userEvent.click(screen.getByRole('button', { name: 'GM ship console read write access' }));
+  await userEvent.click(screen.getByRole('button', { name: /are you sure/i }));
   expect(cover).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Assign damage' })).toBeEnabled();
 });

@@ -116,7 +116,7 @@ it('offers only roles the GM has enabled', () => {
   expect(screen.queryByRole('link', { name: /wing commander/i })).not.toBeInTheDocument();
 });
 
-it('hides Observer from players and offers it on every ship to the GM', () => {
+it('hides the old Observer role and offers quiet ship viewing to the GM', () => {
   const { unmount } = render(
     <MemoryRouter initialEntries={['/ships/aegis/roles']}>
       <Routes><Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} /></Routes>
@@ -124,6 +124,7 @@ it('hides Observer from players and offers it on every ship to the GM', () => {
   );
 
   expect(screen.queryByRole('link', { name: /^observer$/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /view ship consoles/i })).not.toBeInTheDocument();
   unmount();
 
   const me = useSessionStore.getState().me;
@@ -140,11 +141,11 @@ it('hides Observer from players and offers it on every ship to the GM', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /^observer$/i }))
+  expect(screen.getByRole('link', { name: /view ship consoles/i }))
     .toHaveAttribute('href', '/ships/aegis/observer');
 });
 
-it('keeps Observer available to the GM when every command role is disabled', () => {
+it('keeps quiet ship viewing available when every command role is disabled', () => {
   const session = useSessionStore.getState().session;
   const me = useSessionStore.getState().me;
   if (!session || !me) throw new Error('Expected test session state.');
@@ -164,7 +165,8 @@ it('keeps Observer available to the GM when every command role is disabled', () 
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /^observer$/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /view ship consoles/i })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /^observer$/i })).not.toBeInTheDocument();
 });
 it('lets an assigned officer view another console without releasing their role, including unstaffed consoles', async () => {
   useSessionStore.setState({ me: { ...useSessionStore.getState().me!, activeConsoleRoleId: 'admiral' }, session: { ...useSessionStore.getState().session!, activeRoleIds: ['admiral'] } });

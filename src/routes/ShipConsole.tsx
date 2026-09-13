@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
@@ -66,6 +66,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
   const [observerWrite, setObserverWrite] = useState(false);
   const [observerWritePending, setObserverWritePending] = useState(false);
+  const [observerWriteConfirm, setObserverWriteConfirm] = useState(false);
+  const observerWriteConfirmRef = useRef<HTMLButtonElement | null>(null);
   const grantedShipId = useSessionStore((state) => state.gmInstance?.shipConsoleWriteGrant?.shipId);
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
@@ -131,7 +133,18 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   useEffect(() => {
     setObserverWrite(observer && grantedShipId === ship?.id);
     setObserverWritePending(false);
+    setObserverWriteConfirm(false);
   }, [ship?.id, observer, grantedShipId]);
+
+  useEffect(() => {
+    if (!observerWriteConfirm) return;
+    observerWriteConfirmRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setObserverWriteConfirm(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [observerWriteConfirm]);
 
   useEffect(() => {
     if (!observer || !ship?.id || !gmInstanceId) return;
@@ -242,10 +255,27 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   async function toggleObserverWrite(): Promise<void> {
     if (!ship?.id || !gmInstanceId || observerWritePending) return;
-    const enabled = !observerWrite;
+    if (!observerWrite) {
+      setObserverWriteConfirm(true);
+      return;
+    }
     setObserverWritePending(true);
     try {
-      const granted = await setGmShipConsoleWriteGrant(ship.id, enabled);
+      const granted = await setGmShipConsoleWriteGrant(ship.id, false);
+      setObserverWrite(granted);
+    } catch {
+      setObserverWrite(false);
+    } finally {
+      setObserverWritePending(false);
+    }
+  }
+
+  async function confirmObserverWrite(): Promise<void> {
+    if (!ship?.id || !gmInstanceId || observerWritePending) return;
+    setObserverWriteConfirm(false);
+    setObserverWritePending(true);
+    try {
+      const granted = await setGmShipConsoleWriteGrant(ship.id, true);
       setObserverWrite(granted);
     } catch {
       setObserverWrite(false);
@@ -311,10 +341,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </p>
         )}
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />
-        {(consoleRole || observer || replacementVipHost || replacementCommissar) && (
-          <RoleAssignment value={observer
-            ? 'Observer'
-            : replacementVipHost
+        {!observer && (consoleRole || replacementVipHost || replacementCommissar) && (
+          <RoleAssignment value={replacementVipHost
               ? 'VIP Host'
               : replacementCommissar ? 'Commissar' : consoleRole?.name ?? ''} />
         )}
@@ -333,8 +361,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         {(visiting || (!observer && !roleEnabled)) && (
           <p>Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>
         )}
-        {observer && <label className="maintenance-controls">View ship console
-          <select aria-label="View ship console" value={viewedRoleId ?? ''} onChange={event => setObserverRoleId(event.target.value)}>
+        {observer && <label className="maintenance-controls">View ship console role
+          <select aria-label="View ship console role" value={viewedRoleId ?? ''} onChange={event => setObserverRoleId(event.target.value)}>
             {ship.roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
           </select>
         </label>}
@@ -454,21 +482,57 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             : {})}
         />
         {observer && (
-          <section className="observer-access cic-frame" aria-label="Observer access">
+          <section className="gm-ship-access cic-frame" aria-label="GM ship console access">
             <p className="ship-shuttlebay__eyebrow">
-              Observer access // {observerWrite ? 'Write mode' : 'Read only'}
+              GM ship console access // {observerWrite ? 'Read / Write' : 'Read only'}
             </p>
             <button
               className="cic-action-button"
               type="button"
-              aria-label="Observer write mode"
+              aria-label="GM ship console read write access"
               aria-pressed={observerWrite}
               disabled={observerWritePending}
               onClick={() => void toggleObserverWrite()}
             >
-              Read / Write // {observerWrite ? 'Write' : 'Read'}
+              GM ship console read write access // {observerWrite ? 'Read / Write' : 'Read only'}
             </button>
           </section>
+        )}
+        {observer && observerWriteConfirm && (
+          <div className="gm-write-confirm-backdrop" role="presentation" onClick={() => setObserverWriteConfirm(false)}>
+            <section
+              className="gm-write-confirm cic-frame"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="gm-write-confirm-title"
+              aria-describedby="gm-write-confirm-copy"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 id="gm-write-confirm-title">Are you sure?</h2>
+              <p id="gm-write-confirm-copy">
+                Enable scoped GM ship console write access for this ship? The grant is server-authorized and will be revoked when you leave this view or change ships.
+              </p>
+              <div className="gm-write-confirm__actions">
+                <button
+                  ref={observerWriteConfirmRef}
+                  className="cic-action-button cic-action-button--confirm"
+                  type="button"
+                  disabled={observerWritePending}
+                  onClick={() => void confirmObserverWrite()}
+                >
+                  ARE YOU SURE?
+                </button>
+                <button
+                  className="cic-text-button"
+                  type="button"
+                  disabled={observerWritePending}
+                  onClick={() => setObserverWriteConfirm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </section>
+          </div>
         )}
         <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
           <p className="ship-shuttlebay__eyebrow">Shuttlebay // docking manifest</p>
