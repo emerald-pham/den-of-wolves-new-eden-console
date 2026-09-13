@@ -166,6 +166,38 @@ it('stops an airspace bulletin when Press publishes new copy', async () => {
   expectAuthoritativeTicker(mock.update.mock.calls[0]?.[1], 'dispatch-new');
 });
 
+it('makes the new Press copy current when an airspace bulletin is still persisted', async () => {
+  mock.fleetTicker = {
+    revision: 1, nextSequence: 1, replayCursor: 1,
+    current: {
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'automatic', priority: 40,
+      text: 'AIRSPACE OPEN', tone: 'normal', gap: 'long', sourceId: 'airspace:1:lifted',
+      createdAt: '2026-09-06T12:00:00.000Z',
+    },
+    queued: [], draining: [], dismissed: [],
+  };
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await publishPressDispatch.run(request());
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  const ticker = update.fleetTicker as {
+    current?: { source?: string; sourceId?: string };
+    queued?: readonly { sourceId?: string }[];
+    draining?: readonly { sourceId?: string }[];
+  };
+  expect(ticker.current).toMatchObject({ source: 'press', sourceId: 'dispatch-new' });
+  expect([
+    ticker.current?.sourceId,
+    ...(ticker.queued ?? []).map(entry => entry.sourceId),
+  ]).not.toContain('airspace:1:lifted');
+});
+
 it('allows the claimed Press Officer to publish during Turn 0', async () => {
   mock.currentTurn = 0;
   await expect(publishPressDispatch.run(request())).resolves.toMatchObject({ revision: 1 });

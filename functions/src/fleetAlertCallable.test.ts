@@ -4,6 +4,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), receipts: new Map<string, Record<string, unknown>>(),
   role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1,
   revision: 0, active: false, raisedAt: undefined as string | undefined, turnPhase: undefined as unknown,
+  fleetTicker: undefined as unknown,
 }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
@@ -12,10 +13,11 @@ vi.mock('firebase-admin/firestore', () => ({
   FieldValue: { serverTimestamp: () => 'server-time' }, Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 import { setFleetRedAlert } from './index';
+import { reconcileFleetTicker } from './fleetTickerState';
 const data = { sessionId: 's1', active: true, expectedRevision: 0 };
 const request = (input = data) => ({ data: input, auth: { uid: 'u1' } }) as CallableRequest<typeof data>;
 beforeEach(() => {
-  Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined, turnPhase: undefined });
+  Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined, turnPhase: undefined, fleetTicker: undefined });
   mock.update.mockReset();
   mock.set.mockReset();
   mock.receipts.clear();
@@ -30,7 +32,7 @@ beforeEach(() => {
     if (path.endsWith('/players')) return { docs: ['admiral', 'executive-officer', 'wing-commander'].map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
-      : { phase: mock.phase, currentTurn: mock.currentTurn, fleetRedAlert: { revision: mock.revision, active: mock.active, ...(mock.raisedAt ? { raisedAt: mock.raisedAt } : {}) }, turnPhase: mock.turnPhase };
+      : { phase: mock.phase, currentTurn: mock.currentTurn, fleetRedAlert: { revision: mock.revision, active: mock.active, ...(mock.raisedAt ? { raisedAt: mock.raisedAt } : {}) }, turnPhase: mock.turnPhase, fleetTicker: mock.fleetTicker };
     return { exists: mock.exists, id: path.includes('/players/') ? 'u1' : 's1', get: (key: string) => fields[key] };
   });
 });
@@ -67,6 +69,35 @@ it('stops an airspace bulletin when AEGIS sends a new fleet alert', async () => 
       airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
     },
   }));
+});
+it('returns a queued Press dispatch after the AEGIS stand-down expires', async () => {
+  mock.active = true;
+  mock.revision = 1;
+  mock.fleetTicker = {
+    revision: 2, nextSequence: 2, replayCursor: 2,
+    current: {
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'admiral', priority: 80,
+      text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger', gap: 'long', sourceId: 'red-alert:1',
+      createdAt: '2026-09-06T12:00:00.000Z',
+    },
+    queued: [{
+      id: 's1:fleet-ticker:2', sequence: 2, source: 'press', priority: 20,
+      text: 'SNN // SUPPLY SHIPS ARRIVING', tone: 'normal', gap: 'long', sourceId: 'dispatch-1',
+      createdAt: '2026-09-06T12:01:00.000Z',
+    }],
+    draining: [], dismissed: [],
+  };
+
+  await setFleetRedAlert.run(request({ ...data, active: false, expectedRevision: 1 }));
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    current: { source: 'automatic', sourceId: 'red-alert:2' },
+    queued: [{ source: 'press', sourceId: 'dispatch-1' }],
+  });
+  const standDown = update.fleetTicker as { current: { expiresAt: string } };
+  expect(reconcileFleetTicker(update.fleetTicker, standDown.current.expiresAt).current)
+    .toMatchObject({ source: 'press', sourceId: 'dispatch-1' });
 });
 it('allows an entitled Admiral at Turn 0 and still checks the GM instance', async () => {
   mock.currentTurn = 0;

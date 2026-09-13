@@ -240,6 +240,37 @@ function withDraining(
     : [...state.draining.filter((entry) => entry.id !== outgoing.id), outgoing].slice(-MAX_DRAINING);
 }
 
+function isAirspaceTickerMessage(entry: FleetTickerMessage): boolean {
+  return entry.source === 'automatic' && typeof entry.sourceId === 'string' &&
+    /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(entry.sourceId);
+}
+
+/** Retire generated airspace notices before a Press dispatch takes over. */
+export function retireAirspaceFleetTicker(value: unknown, now: string): FleetTickerState {
+  const normalized = pruneExpired(fleetTickerState(value), now);
+  const currentTarget = normalized.current && isAirspaceTickerMessage(normalized.current)
+    ? normalized.current : null;
+  const queuedTargets = normalized.queued.filter(isAirspaceTickerMessage);
+  if (!currentTarget && queuedTargets.length === 0) return normalized;
+
+  const retired = currentTarget ? [currentTarget, ...queuedTargets] : queuedTargets;
+  const revision = normalized.revision + 1;
+  return {
+    ...normalized,
+    revision,
+    replayCursor: Math.max(normalized.replayCursor, ...retired.map(({ sequence }) => sequence)),
+    current: currentTarget ? null : normalized.current,
+    queued: normalized.queued.filter((entry) => !isAirspaceTickerMessage(entry)),
+    draining: currentTarget ? withDraining(normalized, currentTarget) : normalized.draining,
+    dismissed: [...normalized.dismissed, ...retired.map((entry) => ({
+      id: entry.id,
+      sequence: entry.sequence,
+      revision,
+      dismissedAt: now,
+    }))].slice(-MAX_DISMISSED),
+  };
+}
+
 /**
  * Append one server-authored transmission. Priority decides whether it
  * replaces the visible current message or waits behind it; sequence order is

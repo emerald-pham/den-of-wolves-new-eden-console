@@ -330,6 +330,7 @@ import {
   FLEET_TICKER_PRIORITIES,
   publishFleetTicker,
   recoverActivePressMessages,
+  retireAirspaceFleetTicker,
   standDownExpiry,
   fleetTickerState,
   type FleetTickerState,
@@ -520,6 +521,22 @@ function publishSessionFleetTicker(
   now: string,
 ): FleetTickerState {
   return publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, now), input, now);
+}
+
+function publishPressFleetTicker(
+  sessionId: string,
+  session: DocumentSnapshot,
+  input: FleetTickerTransmission,
+  now: string,
+): FleetTickerState {
+  const state = fleetTickerForMutation(sessionId, session, now);
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  return publishFleetTicker(
+    sessionId,
+    currentTurn > 0 ? retireAirspaceFleetTicker(state, now) : state,
+    input,
+    now,
+  );
 }
 
 function pressMessageIds(state: FleetTickerState): ReadonlySet<string> {
@@ -14868,7 +14885,7 @@ export const publishPressDispatch = onCall<{
       phase.airspace.tickerActive
       ? { ...phase, airspace: { ...phase.airspace, tickerActive: false } }
       : undefined;
-    const fleetTicker = publishSessionFleetTicker(data.sessionId, session, {
+    const fleetTicker = publishPressFleetTicker(data.sessionId, session, {
       source: 'press', priority: FLEET_TICKER_PRIORITIES.press,
       text: `SNN // ${data.text}`, tone: 'normal', gap: 'long', sourceId: dispatchId,
     }, serverTime);

@@ -7,6 +7,7 @@ import {
   publishFleetTicker,
   recoverActivePressMessages,
   reconcileFleetTicker,
+  retireAirspaceFleetTicker,
   standDownExpiry,
 } from './fleetTickerState';
 
@@ -41,6 +42,38 @@ describe('fleet ticker state', () => {
     expect(next.current?.text).toBe('RED ALERT');
     expect(next.queued.map(({ text }) => text)).toEqual(['AIRSPACE CLOSED']);
     expect(next.draining).toHaveLength(0);
+  });
+
+  it('retires current and queued airspace notices before Press takes over', () => {
+    const current = publishFleetTicker('s1', emptyFleetTickerState(), {
+      ...airspace, sourceId: 'airspace:1:lifted',
+    }, now);
+    const queued = {
+      ...current,
+      revision: 2,
+      nextSequence: 2,
+      replayCursor: 2,
+      queued: [{
+        ...airspace, sourceId: 'airspace:2:restricted', text: 'AIRSPACE CLOSED AGAIN',
+        id: 's1:fleet-ticker:2', sequence: 2, createdAt: now,
+      }],
+    };
+
+    const retired = retireAirspaceFleetTicker(queued, now);
+    expect(retired.current).toBeNull();
+    expect(retired.queued).toHaveLength(0);
+    expect(retired.draining.map(({ sourceId }) => sourceId)).toEqual(['airspace:1:lifted']);
+    expect(retired.dismissed.map(({ id }) => id)).toEqual([
+      current.current!.id, queued.queued[0]!.id,
+    ]);
+
+    const press = publishFleetTicker('s1', retired, pressOne, now);
+    expect(press.current?.sourceId).toBe('press-1');
+    expect([
+      press.current?.sourceId,
+      ...press.queued.map(({ sourceId }) => sourceId),
+      ...press.draining.map(({ sourceId }) => sourceId),
+    ]).not.toContain('airspace:2:restricted');
   });
 
   it('dismisses current copy into the drain and promotes the queued message once', () => {
