@@ -26,6 +26,8 @@ const records = [
   'crisisState/current', 'crisisState/current/audit/request',
   'zealotryResponses/current', 'zealotryResponses/history-request',
   'zealotryResponses/audit-request', 'serverState/current',
+  'civilUnrestResolutions/current', 'civilUnrestResolutions/history-request',
+  'civilUnrestResolutions/audit-request',
   'serverState/current/private/hidden', 'playerDiscoveries/outsider',
   'gmDiscovery/current', 'events/event', 'loyaltyAssignmentRequests/request',
   'commandReceipts/request', 'maintenanceRequests/request',

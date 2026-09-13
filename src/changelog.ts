@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['535'],
+    implementationProgress: {
+      completed: 272,
+      total: 751,
+      percentage: '36.22%',
+      done: 272,
+      partial: 21,
+      active: 0,
+      missing: 458,
+    },
+    changes: [
+      'Facilitators can privately record the President’s response and their chosen consequence for Civil Unrest, linked to the teams’ current grievances.',
+      '272 of 751 planned items are complete (36.22%).',
+    ],
+  },
+  {
+    version: '0.4.0',
     implementationPrompts: ['533', '534'],
     implementationProgress: {
       completed: 268,
