@@ -775,6 +775,52 @@ it('hydrates a reciprocal Friend role without exposing the partner UID to unrela
   });
 });
 
+it('keeps legacy Friend cards incomplete without exposing a UID and rejects malformed tuples', () => {
+  const { callbacks } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u2' }),
+  });
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith({
+    kind: 'friend', suspicion: 0, partnerUid: 'u2',
+  });
+
+  for (const payload of [
+    { kind: 'friend', suspicion: 0, partnerUid: 'u2', partnerRoleId: 'admiral' },
+    { type: 'loyalty', kind: 'friend', suspicion: 1, partnerUid: 'u2', partnerRoleId: 'admiral' },
+    { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u1', partnerRoleId: 'admiral' },
+    { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u2', partnerRoleId: 'unknown-role' },
+  ]) {
+    callbacks[3]?.({ exists: () => true, get: () => payload });
+    expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  }
+});
+
+it.each(['permission-denied', 'not-found'])('clears a private Friend card on terminal secret access loss (%s)', (code) => {
+  const { callbacks, errors } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onError = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onSeats: vi.fn(), onKicked: vi.fn(),
+    onPrivateLoyalty, onError,
+  });
+
+  callbacks[3]?.({
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u2', partnerRoleId: 'admiral' }),
+  });
+  errors[3]?.({ code });
+
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  expect(onError).not.toHaveBeenCalled();
+});
+
 it('hydrates the known facilitator census only from server authority and allowlists its fields', () => {
   const { callbacks } = captureSessionListener();
   const onLoyaltyCensus = vi.fn();

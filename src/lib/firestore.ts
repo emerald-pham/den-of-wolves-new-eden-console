@@ -60,7 +60,8 @@ import type {
   VipHand,
 } from '@/types/game';
 import type { EntityId, EntityKind } from '@/types/identifiers';
-import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
+import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
+import { replacementRoleFor } from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
 import {
@@ -153,7 +154,7 @@ function parseEntityIdArray<K extends EntityKind>(kind: K, value: unknown): read
   return parsed.every((id): id is EntityId<K> => id !== undefined) ? parsed : undefined;
 }
 
-function privateLoyalty(value: unknown): PrivateLoyalty | null {
+function privateLoyalty(value: unknown, ownerUid?: string): PrivateLoyalty | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const payload = value as Record<string, unknown>;
   const partnerUid = payload.partnerUid === undefined || payload.partnerUid === null
@@ -167,17 +168,26 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
     payload.type !== 'loyalty' || payload.suspicion !== null ||
     Object.keys(payload).some((key) => !['type', 'kind', 'suspicion', 'proofRevealed'].includes(key))
   )) return null;
-  if (typeof payload.kind !== 'string' ||
+  if (payload.type !== 'loyalty' || typeof payload.kind !== 'string' ||
       (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
       (payload.partnerUid !== undefined && payload.partnerUid !== null && !partnerUid) ||
       (payload.partnerRoleId !== undefined && payload.partnerRoleId !== null && !partnerRoleId) ||
       (proofMarker !== undefined && typeof proofMarker !== 'boolean') ||
       (payload.kind === 'android' && proofMarker === false)) return null;
+  if (payload.kind === 'friend') {
+    if (payload.suspicion !== 0 || !partnerUid || (ownerUid !== undefined && partnerUid === ownerUid)) return null;
+    // Legacy Friend cards may predate the role pointer. Keep the card itself
+    // visible, but omit the incomplete partner detail rather than exposing a
+    // raw UID; complete tuples must name a current core or replacement role.
+    if (partnerRoleId && !findConsoleRole(partnerRoleId) && !replacementRoleFor(partnerRoleId)) return null;
+  } else if (partnerRoleId !== undefined && partnerRoleId !== null) {
+    return null;
+  }
   return {
     kind: payload.kind,
     suspicion: payload.suspicion,
     ...(partnerUid ? { partnerUid } : {}),
-    ...(partnerRoleId ? { partnerRoleId } : {}),
+    ...(payload.kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
     ...(payload.kind === 'android' && proofMarker === true ? { proofRevealed: true } : {}),
   };
 }
@@ -1296,10 +1306,17 @@ export function subscribeSessionState(
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         handlers.onPrivateLoyalty?.(
-          snapshot.exists() ? privateLoyalty(snapshot.get('payload')) : null,
+          snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null,
         );
       },
-      onError,
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onPrivateLoyalty?.(null);
+          return;
+        }
+        onError();
+      },
     )] : []),
     ...(handlers.onRoleBrief ? [onSnapshot(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),

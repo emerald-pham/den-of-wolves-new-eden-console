@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   target: {} as Record<string, unknown>,
   eligibility: {} as Record<string, unknown>,
   players: [] as Array<{ id: string; fields: Record<string, unknown> }>,
+  secrets: new Map<string, Record<string, unknown>>(),
   receipts: new Map<string, Record<string, unknown>>(),
 }));
 
@@ -46,6 +47,7 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.secrets.clear();
   mock.receipts.clear();
   mock.session = {
     phase: 'active', currentTurn: 2, setupRevision: 4,
@@ -71,6 +73,11 @@ beforeEach(() => {
     if (ref.path === 'sessions/s1/players/player-1') return snapshot(mock.target, ref.path);
     if (ref.path === 'sessions/s1/players') {
       return { exists: true, docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path.startsWith('sessions/s1/secrets/loyalty-')) {
+      const uid = ref.path.slice('sessions/s1/secrets/loyalty-'.length);
+      const fields = mock.secrets.get(uid);
+      return snapshot(fields ?? {}, ref.path, fields !== undefined);
     }
     if (ref.path === 'sessions/s1/gmInstances/bridge') {
       return snapshot({ uid: 'gm-1', connected: true, lastSeenAt: new Date() }, ref.path);
@@ -117,6 +124,62 @@ it('records explicit eligibility and assigns a replacement atomically', async ()
   );
   expect(mock.set).not.toHaveBeenCalledWith(
     expect.objectContaining({ path: expect.stringContaining('/secrets/loyalty-') }),
+    expect.anything(),
+  );
+});
+
+it('updates only the complete reciprocal Friend counterpart to the replacement role', async () => {
+  mock.players.push({ id: 'player-2', fields: {
+    connected: true, role: 'player', assignedRoleId: 'dione-captain', replacementRoleId: null,
+    activeConsoleRoleId: 'dione-captain', seatId: null,
+  } });
+  mock.secrets.set('player-1', {
+    visibleToUids: ['player-1'],
+    payload: {
+      type: 'loyalty', kind: 'friend', suspicion: 0,
+      partnerUid: 'player-2', partnerRoleId: 'dione-captain',
+    },
+  });
+  mock.secrets.set('player-2', {
+    visibleToUids: ['player-2'],
+    payload: {
+      type: 'loyalty', kind: 'friend', suspicion: 0,
+      partnerUid: 'player-1', partnerRoleId: 'admiral',
+    },
+  });
+  mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-friend',
+    targetUid: 'player-1', replacementRoleId: 'wolf-commander', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).resolves.toMatchObject({ status: 'committed', replacementRoleId: 'wolf-commander' });
+
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-player-2' }),
+    { 'payload.partnerRoleId': 'wolf-commander' },
+  );
+});
+
+it('leaves malformed or unrelated Friend secrets untouched during replacement', async () => {
+  mock.secrets.set('player-1', {
+    visibleToUids: ['player-1'],
+    payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'player-2' },
+  });
+  mock.secrets.set('player-2', {
+    visibleToUids: ['player-2'],
+    payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'player-1', partnerRoleId: 'admiral' },
+  });
+  mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-malformed-friend',
+    targetUid: 'player-1', replacementRoleId: 'wolf-commander', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).resolves.toMatchObject({ status: 'committed' });
+
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-player-2' }),
     expect.anything(),
   );
 });

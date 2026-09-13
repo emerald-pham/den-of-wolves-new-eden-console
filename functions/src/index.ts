@@ -4434,6 +4434,7 @@ export const assignReplacementRole = onCall<{
   const assignment = requireReplacementAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
   const targetRef = db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`);
+  const targetSecretRef = db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.targetUid}`);
   const eligibilityRef = db.doc(`sessions/${assignment.sessionId}/replacementEligibility/${assignment.targetUid}`);
   const receiptRef = commandReceiptRef(assignment.sessionId, assignment.requestId);
   const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
@@ -4448,9 +4449,10 @@ export const assignReplacementRole = onCall<{
   };
   return db.runTransaction(async (tx): Promise<ReplacementMutationResult> => {
     const authority = await requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId);
-    const [target, eligibility, players, receipt] = await Promise.all([
+    const [target, eligibility, players, receipt, targetSecret] = await Promise.all([
       tx.get(targetRef), tx.get(eligibilityRef),
       tx.get(db.collection(`sessions/${assignment.sessionId}/players`)), tx.get(receiptRef),
+      tx.get(targetSecretRef),
     ]);
     const replay = replayBoundCommand(
       receipt, fingerprint,
@@ -4495,6 +4497,20 @@ export const assignReplacementRole = onCall<{
     if (targetSeatRef && (!targetSeat?.exists || targetSeat.get('holderUid') !== assignment.targetUid ||
         targetSeat.get('status') !== 'claimed')) {
       throw commandError('failed-precondition', 'The player station pointer is stale; repair it before replacement.', 'unavailable-service');
+    }
+    // A Friend counterpart may need the target's new replacement identity. Read
+    // and update that private secret only for a complete reciprocal pair with
+    // exact audiences; malformed or unrelated legacy records stay untouched.
+    const friendPartnerUid = privateFriendPartnerUid(targetSecret, assignment.targetUid);
+    const friendPartnerSecretRef = friendPartnerUid
+      ? db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${friendPartnerUid}`)
+      : undefined;
+    const friendPartnerSecret = friendPartnerSecretRef ? await tx.get(friendPartnerSecretRef) : undefined;
+    if (friendPartnerUid && friendPartnerSecretRef && isCompleteReciprocalFriendPair(
+      targetSecret, assignment.targetUid, target.get('assignedRoleId'),
+      friendPartnerSecret, friendPartnerUid, assignment.targetUid,
+    )) {
+      tx.update(friendPartnerSecretRef, { 'payload.partnerRoleId': assignment.replacementRoleId });
     }
     const result = {
       status: 'committed' as const, sessionId: assignment.sessionId,
@@ -5002,6 +5018,35 @@ function privateFriendPartnerUid(secret: DocumentSnapshot | undefined, uid: stri
   return typeof record.partnerUid === 'string' && record.partnerUid.length > 0 && record.partnerUid !== uid
     ? record.partnerUid
     : null;
+}
+
+function isKnownFriendRoleId(value: unknown): value is string {
+  return typeof value === 'string' && (
+    (ROLE_IDS as readonly string[]).includes(value) || replacementRoleFor(value) !== undefined
+  );
+}
+
+function isCompleteReciprocalFriendPair(
+  holderSecret: DocumentSnapshot | undefined,
+  holderUid: string,
+  holderRoleId: unknown,
+  partnerSecret: DocumentSnapshot | undefined,
+  partnerUid: string,
+  expectedPartnerUid: string,
+): boolean {
+  if (!holderSecret?.exists || !partnerSecret?.exists || !isKnownFriendRoleId(holderRoleId)) return false;
+  if (!hasExactPrivateSecretAudience(holderSecret, holderUid) ||
+      !hasExactPrivateSecretAudience(partnerSecret, partnerUid)) return false;
+  const holderPayload = holderSecret.get('payload');
+  const partnerPayload = partnerSecret.get('payload');
+  if (typeof holderPayload !== 'object' || holderPayload === null || Array.isArray(holderPayload) ||
+      typeof partnerPayload !== 'object' || partnerPayload === null || Array.isArray(partnerPayload)) return false;
+  const holderRecord = holderPayload as Record<string, unknown>;
+  const partnerRecord = partnerPayload as Record<string, unknown>;
+  return holderRecord.type === 'loyalty' && holderRecord.kind === 'friend' && holderRecord.suspicion === 0 &&
+    holderRecord.partnerUid === partnerUid && isKnownFriendRoleId(holderRecord.partnerRoleId) &&
+    partnerRecord.type === 'loyalty' && partnerRecord.kind === 'friend' && partnerRecord.suspicion === 0 &&
+    partnerRecord.partnerUid === expectedPartnerUid && partnerRecord.partnerRoleId === holderRoleId;
 }
 
 /** Assign a private loyalty card through the facilitator boundary. */

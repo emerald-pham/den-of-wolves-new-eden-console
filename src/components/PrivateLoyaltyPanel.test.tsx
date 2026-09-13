@@ -120,6 +120,23 @@ it('does not offer a second disclosure after server hydration marks proof reveal
   expect(screen.queryByRole('button', { name: /disclose Android proof/i })).not.toBeInTheDocument();
 });
 
+it('uses the replacement role catalog and never falls back to a Friend UID', () => {
+  useSessionStore.getState().setPrivateLoyalty({
+    kind: 'friend', suspicion: 0, partnerUid: 'legacy-partner-uid', partnerRoleId: 'wolf-commander',
+  });
+
+  const { rerender } = render(<PrivateLoyaltyPanel />);
+  const panel = screen.getByRole('region', { name: /private loyalty card/i });
+  expect(panel).toHaveTextContent('Friend trust // partner role // Wolf Commander');
+  expect(panel).not.toHaveTextContent('legacy-partner-uid');
+
+  act(() => useSessionStore.getState().setPrivateLoyalty({
+    kind: 'friend', suspicion: 0, partnerUid: 'legacy-partner-uid',
+  }));
+  rerender(<PrivateLoyaltyPanel />);
+  expect(screen.getByRole('region', { name: /private loyalty card/i })).not.toHaveTextContent('legacy-partner-uid');
+});
+
 it.each([
   ['universal-arbour', 'Universal Arbour'],
   ['wolf-cult', 'Wolf Cult'],

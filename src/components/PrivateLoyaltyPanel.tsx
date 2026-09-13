@@ -5,6 +5,7 @@ import { findConsoleRole } from '@/data/roles';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
+import { replacementRoleFor } from '@/data/replacementRoles';
 
 const LOYALTY_LABELS: Readonly<Record<string, string>> = {
   'fleet-loyalist': 'Fleet Loyalist',
@@ -33,9 +34,9 @@ function isCurrentAndroidCard(
 
 function partnerLabel(loyalty: PrivateLoyalty): string | undefined {
   if (loyalty.kind === 'friend' && loyalty.partnerRoleId) {
-    return findConsoleRole(loyalty.partnerRoleId)?.name ?? loyalty.partnerRoleId;
+    return findConsoleRole(loyalty.partnerRoleId)?.name ?? replacementRoleFor(loyalty.partnerRoleId)?.name;
   }
-  return loyalty.partnerUid;
+  return loyalty.kind === 'friend' ? undefined : loyalty.partnerUid;
 }
 
 /** The current browser's private setup card; never accepts another player's id. */
