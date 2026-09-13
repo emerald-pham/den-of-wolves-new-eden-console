@@ -20763,14 +20763,14 @@
       "tag": "EXTEND"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "characterize the exact rendered `CONSOLE ACCESS // WRITE // CREW INCOMPLETE` surface and other directly comparable label/readout outliers, then make only proven inconsistencies use the named CIC mono type, tracking, casing, contrast, and wrapping tokens. Preserve copy ownership, semantic heading order, long-label accessibility, normal/reduced motion, safe-area/rotation behavior, and 320×844, 390×844, 1440×900, and 844×390 containment; do not introduce a global type scale, broad recasing, or visual redesign.",
         "title": "Repair CIC status typography without redesign."
       },
-      "description": "Future CIC typography repair: characterize the exact `CONSOLE ACCESS // WRITE // CREW INCOMPLETE` surface and directly comparable label/readout outliers, then repair only proven token/tracking/casing/contrast/wrapping inconsistencies. No redesign or global type-scale change; require accessibility and responsive evidence at all four supported viewports.",
+      "description": "Characterized the exact Write / crew incomplete and Read only console-access paragraphs: both inherited 16px system sans, normal tracking and mixed casing rather than the nearby CIC caption family. Both now use the existing cic-overline mono/tracking/uppercase style with the named cyan readout color and safe wrapping. The change preserves copy, paragraph semantics, heading order and all authority behavior; it introduces no global scale or redesign. Before/after actual component renders verified both states at 320x844, 390x844, 844x390 and 1440x900 in normal/reduced motion without horizontal overflow. Readout contrast exceeds 9.7:1 against both named CIC ground surfaces; focused console and aesthetic tests passed.",
       "evidenceIds": "E-PRESENTATION",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20779,10 +20779,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.105"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "PRESENTATION-INDEPENDENT",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

@@ -771,7 +771,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 609 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Announce live changes once. |
 | 610 | EXTEND | missing | 589a | none | none | none | none | none | none | none | E-AUDIT-610 | X | Honor reduced motion globally. |
 | 611 | EXTEND | missing | 601 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-611 | X | Distinguish status without color alone. |
-| 611a | REPAIR | missing | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION | X | Repair CIC status typography without redesign. |
+| 611a | REPAIR | done | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION | X | Repair CIC status typography without redesign. |
 | 612 | PRESERVE | partial | 088;089 | none | none | none | none | none | none | none | E-AUDIT-612;E-612-RESTORE-PARTIAL | X | Render a persisted snapshot before resume. |
 | 613 | PRESERVE | missing | 612 | none | none | none | none | none | none | none | E-AUDIT-613 | X | Clear invalid persisted sessions. |
 | 614 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | X | Reconcile presence leases under load. |

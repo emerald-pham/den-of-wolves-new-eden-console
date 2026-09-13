@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['611a'],
+    implementationProgress: {
+      completed: 264,
+      total: 751,
+      percentage: '35.15%',
+      done: 264,
+      partial: 21,
+      active: 0,
+      missing: 466,
+    },
+    changes: [
+      'Console access status now matches the CIC readout style and wraps cleanly on narrow screens.',
+      '264 of 751 planned items are complete (35.15%).',
+    ],
+  },
+  {
+    version: '0.3.104',
     implementationPrompts: ['602a'],
     implementationProgress: {
       completed: 263,
