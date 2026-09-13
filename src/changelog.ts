@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [523],
+    implementationProgress: {
+      completed: 231,
+      total: 751,
+      percentage: '30.76%',
+      done: 231,
+      partial: 26,
+      active: 0,
+      missing: 494,
+    },
+    changes: [
+      'Facilitators can record durable rule calls with the question, source, decision, and audience.',
+      'Selected players can read their private facilitator ruling in the role brief.',
+      '231 of 751 planned items are complete (30.76%).',
+    ],
+  },
+  {
+    version: '0.3.90',
     implementationPrompts: [676],
     implementationProgress: {
       completed: 231,
