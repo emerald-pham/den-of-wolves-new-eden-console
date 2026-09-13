@@ -473,7 +473,7 @@ service cloud.firestore {
       match /facilitatorRuleCalls/{documentId} {
         allow get: if documentId == 'gm-current' && isGm(sessionId) &&
           resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId
-          || (documentId.matches('recipient-.*') &&
+          || (documentId == 'recipient-' + uid() &&
             ((resource == null && isEligibleFacilitatorRuleRecipient(sessionId, uid())) ||
               isCurrentFacilitatorRuleCall(sessionId, uid())))
           || (isGm(sessionId) &&

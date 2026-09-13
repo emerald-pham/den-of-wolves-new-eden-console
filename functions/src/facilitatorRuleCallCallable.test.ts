@@ -55,6 +55,13 @@ const baseData = {
   decision: 'Treat it as docked for this turn.', audience: 'gm-only',
 };
 
+const validStoredCall: Fields = {
+  type: 'facilitator-rule-call', sessionId: 's1', callId: 'old', revision: 1,
+  ambiguity: 'Question', source: 'Reference', decision: 'Decision', audience: 'gm-only',
+  actorUid: 'u1', label: 'FACILITATOR RULE CALL', createdAt: 'server-time',
+};
+const overlengthId = 'x'.repeat(129);
+
 function request(data: Record<string, unknown> = baseData, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
@@ -165,6 +172,31 @@ it.each([
   const before = new Map(mock.documents);
   await expect(authorFacilitatorRuleCall.run(request({
     ...baseData, requestId: 'malformed-current', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+  expect(mock.documents).toEqual(before);
+});
+
+it.each([
+  { name: 'a call id with invalid characters', fields: { ...validStoredCall, callId: 'old/call' } },
+  { name: 'a call id longer than 128 characters', fields: { ...validStoredCall, callId: overlengthId } },
+  {
+    name: 'a selected recipient id with invalid characters',
+    fields: { ...validStoredCall, audience: 'selected-player', recipientUid: 'u2/forged' },
+  },
+  {
+    name: 'a selected recipient id longer than 128 characters',
+    fields: { ...validStoredCall, audience: 'selected-player', recipientUid: overlengthId },
+  },
+  { name: 'a superseded call id with invalid characters', fields: { ...validStoredCall, supersedesCallId: 'old/call' } },
+  { name: 'a superseded call id longer than 128 characters', fields: { ...validStoredCall, supersedesCallId: overlengthId } },
+])('fails closed without writes when current projection has $name', async ({ fields }) => {
+  put('sessions/s1/facilitatorRuleCalls/gm-current', fields);
+  const before = new Map(mock.documents);
+  await expect(authorFacilitatorRuleCall.run(request({
+    ...baseData, requestId: 'malformed-id', expectedRevision: 1,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();

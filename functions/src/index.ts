@@ -62,6 +62,7 @@ import {
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
   requireFacilitatorRuleCallRequest,
+  isCanonicalRequestId,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -5501,16 +5502,16 @@ function isFacilitatorRuleCallResult(
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   return (result.status === 'committed' || result.status === 'replayed') &&
-    result.sessionId === sessionId && typeof result.callId === 'string' && result.callId.length > 0 &&
+    result.sessionId === sessionId && isCanonicalRequestId(result.callId) &&
     Number.isSafeInteger(result.revision) && (result.revision as number) >= 1 &&
     typeof result.ambiguity === 'string' && result.ambiguity.length > 0 && result.ambiguity.length <= 240 &&
     typeof result.source === 'string' && result.source.length > 0 && result.source.length <= 240 &&
     typeof result.decision === 'string' && result.decision.length > 0 && result.decision.length <= 500 &&
     (result.audience === 'gm-only' || result.audience === 'selected-player') &&
-    (result.recipientUid === undefined || typeof result.recipientUid === 'string') &&
+    (result.recipientUid === undefined || isCanonicalRequestId(result.recipientUid)) &&
     typeof result.actorUid === 'string' && result.actorUid.length > 0 &&
     typeof result.createdAt === 'string' && result.createdAt.length > 0 &&
-    (result.supersedesCallId === undefined || typeof result.supersedesCallId === 'string') &&
+    (result.supersedesCallId === undefined || isCanonicalRequestId(result.supersedesCallId)) &&
     result.label === 'FACILITATOR RULE CALL';
 }
 
@@ -5529,7 +5530,7 @@ function isStoredFacilitatorRuleCall(value: unknown, sessionId: string): boolean
     : typeof createdAt === 'object' && createdAt !== null &&
       typeof (createdAt as { toMillis?: unknown }).toMillis === 'function';
   return record.type === 'facilitator-rule-call' && record.sessionId === sessionId &&
-    typeof record.callId === 'string' && record.callId.length > 0 &&
+    isCanonicalRequestId(record.callId) &&
     Number.isSafeInteger(record.revision) && (record.revision as number) >= 1 &&
     typeof record.ambiguity === 'string' && record.ambiguity.length > 0 && record.ambiguity.length <= 240 &&
     typeof record.source === 'string' && record.source.length > 0 && record.source.length <= 240 &&
@@ -5537,11 +5538,11 @@ function isStoredFacilitatorRuleCall(value: unknown, sessionId: string): boolean
     (record.audience === 'gm-only' || record.audience === 'selected-player') &&
     (record.audience === 'gm-only'
       ? record.recipientUid === undefined
-      : typeof record.recipientUid === 'string' && record.recipientUid.length > 0) &&
+      : isCanonicalRequestId(record.recipientUid)) &&
     typeof record.actorUid === 'string' && record.actorUid.length > 0 &&
     record.label === 'FACILITATOR RULE CALL' && hasStoredTimestamp &&
     (record.supersedesCallId === undefined ||
-      (typeof record.supersedesCallId === 'string' && record.supersedesCallId.length > 0 &&
+      (isCanonicalRequestId(record.supersedesCallId) &&
         record.supersedesCallId !== record.callId));
 }
 

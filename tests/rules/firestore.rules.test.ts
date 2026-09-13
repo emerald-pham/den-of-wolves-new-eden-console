@@ -619,7 +619,9 @@ describe('facilitator rule-call boundary', () => {
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/facilitatorRuleCalls/history-call-1`)));
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/facilitatorRuleCalls/audit-call-1`)));
     await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipient-alice`)));
-    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipient-missing`)));
+    await assertSucceeds(getDoc(doc(as('press'), `${SESSION}/facilitatorRuleCalls/recipient-press`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipient-press`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipient-missing`)));
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/facilitatorRuleCalls/recipient-alice`), {
         actorUid: 'gm1',

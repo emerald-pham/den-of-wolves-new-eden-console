@@ -565,9 +565,13 @@ function requiredText(value: unknown, field: string, max: number): string {
   return text;
 }
 
+export function isCanonicalRequestId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 128 && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 function requiredId(value: unknown, field: string): string {
   const id = requiredText(value, field, 128);
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+  if (!isCanonicalRequestId(id)) {
     throw new HttpsError('invalid-argument', `${field} contains invalid characters.`);
   }
   return id;
