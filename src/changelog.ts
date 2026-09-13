@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['652c', '282a'],
+    implementationProgress: {
+      completed: 204,
+      total: 749,
+      percentage: '27.24%',
+      done: 204,
+      partial: 19,
+      active: 0,
+      missing: 526,
+    },
+    changes: [
+      'The fleet ticker stays visible on small screens, with no Hide or Reveal button.',
+      'GMs can choose and lock star chart A, B, or C before starting while keeping roster setup editable.',
+      '204 of 749 planned items are complete (27.24%).',
+    ],
+  },
+  {
+    version: '0.3.71',
     implementationPrompts: ['432', '140d', '314', '286'],
     implementationProgress: {
       completed: 200,
