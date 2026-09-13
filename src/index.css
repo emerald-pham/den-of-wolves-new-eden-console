@@ -4738,6 +4738,34 @@ body {
 
 .console-workspace__section > .aegis-system-grid { padding-right: 0; padding-bottom: 0; padding-left: 0; }
 
+.hummingbird-harvest {
+  display: grid;
+  gap: 0.75rem;
+  color: var(--cic-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.hummingbird-harvest h3 { margin: 0; }
+.hummingbird-harvest p { margin: 0; }
+.hummingbird-harvest__guidance { color: var(--cic-muted); }
+.hummingbird-harvest__actions,
+.hummingbird-harvest__dice { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.hummingbird-harvest .cic-action-button {
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  white-space: normal;
+}
+.hummingbird-harvest__error { color: var(--cic-danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hummingbird-harvest *,
+  .hummingbird-harvest *::before,
+  .hummingbird-harvest *::after { animation: none !important; transition: none !important; }
+}
+
 .aegis-system,
 .aegis-craft,
 .aegis-doctrine {

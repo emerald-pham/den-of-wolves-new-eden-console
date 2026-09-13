@@ -219,6 +219,46 @@ describe('role-private brief boundary', () => {
   });
 });
 
+describe('Hummingbird harvest boundary', () => {
+  it('keeps pending dice private to the active Quellon Explorer and denies client writes', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'quellon-explorer',
+      });
+      await setDoc(doc(db, `${SESSION}/hummingbirdHarvests/alice`), {
+        sessionId: 's1', ownerUid: 'alice', turn: 1, hostShipId: 'quellon', revision: 1,
+        status: 'pending', rolls: [2, 5], requestId: 'roll-1', createdAt: '2026-09-12T00:00:00.000Z',
+      });
+      await setDoc(doc(db, `${SESSION}/hummingbirdHarvestRequests/roll-1`), {
+        actorUid: 'alice', reply: { status: 'committed' },
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));
+    for (const uid of ['gm1', 'observer', 'stranger']) {
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/hummingbirdHarvests/alice`)));
+    }
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/hummingbirdHarvests`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`), { forged: true }));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvestRequests/roll-1`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'admiral',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'quellon-explorer', replacementRoleId: 'wolf-commander',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));
+  });
+});
+
 describe('session header', () => {
   it('denies chart selection and chart-lock writes from player and GM clients', async () => {
     for (const uid of ['alice', 'gm1']) {

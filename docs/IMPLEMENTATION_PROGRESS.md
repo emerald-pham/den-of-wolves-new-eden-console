@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**219 / 750 prompts complete (29.20%)**
+**220 / 750 prompts complete (29.33%)**
 
-Status breakdown: **219 done · 25 partial · 506 missing**.
+Status breakdown: **220 done · 25 partial · 505 missing**.
 
 Active prompt: **none**
 
@@ -832,7 +832,7 @@ release classification and evidence.
 | 387 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 388 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 389 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 390 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 390 | done | non-feature | — | Production path implemented: the active Quellon Explorer player rolls Hummingbird's two server dice once per active turn, privately chooses which die becomes food, and credits the other as water to Hummingbird's current shuttleCargo record. Current docking, fuelled state, role authority, active phase, turn, and revision are rechecked in the transaction; exact retries replay without another sample, malformed or stale state fails closed, and the host ship resource ledger is unchanged. The owner-only projection and shared player workspace expose pending dice, the two allocation choices, and the resolved cargo result. Focused server/pure coverage (8 tests), the 29-test player/route suite, the 76-test Firestore rules suite, Functions build, app typecheck, and reduced-motion 320x844/1440x900/844x390 render checks passed. |
 | 391 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 392 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 393 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

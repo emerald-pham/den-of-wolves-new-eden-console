@@ -19,6 +19,7 @@ import type {
   DamageDraw,
   GameSession,
   GmInstance,
+  HummingbirdHarvest,
   LoyaltyCensus,
   PopulationAlert,
   Player,
@@ -940,6 +941,43 @@ function shuttleVisit(value: unknown): ShuttleVisit | undefined {
   return { id, shuttleId, shipId, action: raw.action, occurredAt: raw.occurredAt };
 }
 
+function hummingbirdHarvest(value: unknown, sessionId: string, uid: string): HummingbirdHarvest | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const ownerUid = parseEntityId('player', raw.ownerUid);
+  const hostShipId = parseEntityId('vessel', raw.hostShipId);
+  const turn = raw.turn;
+  const revision = raw.revision;
+  const rolls = Array.isArray(raw.rolls) && raw.rolls.length === 2 ? raw.rolls : undefined;
+  const foodDieIndex = raw.foodDieIndex === 0 || raw.foodDieIndex === 1 ? raw.foodDieIndex : undefined;
+  const food = raw.food;
+  const water = raw.water;
+  if (
+    raw.sessionId !== sessionId || ownerUid !== uid || !hostShipId ||
+    !Number.isSafeInteger(turn) || (turn as number) < 0 ||
+    !Number.isSafeInteger(revision) || (revision as number) < 0 ||
+    !rolls || rolls.some((die) => !Number.isSafeInteger(die) || (die as number) < 1 || (die as number) > 6) ||
+    (raw.status !== 'pending' && raw.status !== 'resolved') ||
+    typeof raw.requestId !== 'string' || typeof raw.createdAt !== 'string'
+  ) return null;
+  if (raw.status === 'pending' && (foodDieIndex !== undefined || food !== undefined || water !== undefined)) return null;
+  if (raw.status === 'resolved' && (
+    foodDieIndex === undefined || !Number.isSafeInteger(food) || (food as number) < 0 ||
+    !Number.isSafeInteger(water) || (water as number) < 0 || typeof raw.resolvedAt !== 'string' ||
+    food !== rolls[foodDieIndex] || water !== rolls[foodDieIndex === 0 ? 1 : 0]
+  )) return null;
+  return {
+    sessionId: entityId('session', sessionId), ownerUid, turn: turn as number,
+    hostShipId, revision: revision as number, status: raw.status,
+    rolls: [rolls[0] as number, rolls[1] as number],
+    ...(foodDieIndex === undefined ? {} : { foodDieIndex }),
+    ...(food === undefined ? {} : { food: food as number }),
+    ...(water === undefined ? {} : { water: water as number }),
+    requestId: raw.requestId, createdAt: raw.createdAt,
+    ...(typeof raw.resolvedAt === 'string' ? { resolvedAt: raw.resolvedAt } : {}),
+  };
+}
+
 export function sessionFrom(id: string, data: DocumentData): GameSession {
   const sessionId = entityId('session', id);
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
@@ -1335,6 +1373,42 @@ export function subscribeVipCards(
     subscribed = false;
     unsubscribe();
     onCards(null);
+  };
+}
+
+/** Subscribe to the current Quellon Explorer's private Hummingbird receipt. */
+export function subscribeHummingbirdHarvest(
+  sessionId: string,
+  uid: string,
+  onHarvest: (harvest: HummingbirdHarvest | null) => void,
+  onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
+): Unsubscribe {
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const authority = suppliedAuthority ?? projectionSessionAuthority(sessionId, undefined);
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/hummingbirdHarvests/${uid}`),
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (hasServerSnapshot || authority?.hasServerSessionAuthority)) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onHarvest(snapshot.exists() ? hummingbirdHarvest(snapshot.data(), sessionId, uid) : null);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        onHarvest(null);
+        return;
+      }
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onHarvest(null);
   };
 }
 

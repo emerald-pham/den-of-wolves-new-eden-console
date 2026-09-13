@@ -4,6 +4,7 @@ import PressConfetti from './PressConfetti';
 import PressDispatch from './PressDispatch';
 import RoleAssignment from './RoleAssignment';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
+import HummingbirdHarvest from './HummingbirdHarvest';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
@@ -101,6 +102,7 @@ export default function ShuttleConsoleTemplate({
             </div>
           </section>}
           {workspaceCapabilities.map(renderCapability)}
+          {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>
       </section>
 

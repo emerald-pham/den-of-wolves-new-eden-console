@@ -97,6 +97,7 @@ import {
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
   requireVesselActionRequest,
+  requireHummingbirdHarvestRequest,
 } from './requestGuards';
 import {
   replacementRoleFor,
@@ -314,6 +315,12 @@ import {
   type SmallShipId,
   type SmallShipState,
 } from './smallShip';
+import {
+  addHarvestToCargo,
+  parseHummingbirdHarvestState,
+  resolvedHarvestValues,
+  type HummingbirdHarvestState,
+} from './hummingbirdHarvest';
 
 /**
  * Server-side authority for the companion console.
@@ -10304,6 +10311,319 @@ export const dismissPopulationAlert = onCall<{
 function smallShipId(value: string): SmallShipId | undefined {
   return (SMALL_SHIP_IDS as readonly string[]).includes(value) ? value as SmallShipId : undefined;
 }
+
+function hummingbirdHarvestRef(sessionId: string, uid: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/hummingbirdHarvests/${uid}`);
+}
+
+function hummingbirdHarvestRequestRef(sessionId: string, requestId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/hummingbirdHarvestRequests/${requestId}`);
+}
+
+type HummingbirdHarvestFingerprint = Readonly<{
+  kind: 'roll' | 'allocate';
+  sessionId: string;
+  actorUid: string;
+  expectedRevision: number;
+  hostShipId: string;
+  turn: number;
+  foodDieIndex?: 0 | 1;
+}>;
+
+function sameHummingbirdHarvestFingerprint(
+  value: unknown,
+  expected: HummingbirdHarvestFingerprint,
+): boolean {
+  if (!isRecord(value)) return false;
+  return value.kind === expected.kind && value.sessionId === expected.sessionId &&
+    value.actorUid === expected.actorUid && value.expectedRevision === expected.expectedRevision &&
+    value.hostShipId === expected.hostShipId && value.turn === expected.turn &&
+    value.foodDieIndex === (expected.foodDieIndex ?? undefined);
+}
+
+function hummingbirdHarvestReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: HummingbirdHarvestFingerprint,
+  uid: string,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (prior.get('actorUid') !== uid ||
+      !sameHummingbirdHarvestFingerprint(prior.get('fingerprint'), fingerprint)) {
+    throw commandError(
+      'failed-precondition',
+      'This request id was already used for a different Hummingbird harvest or actor.',
+      'conflict',
+    );
+  }
+  const reply = prior.get('reply');
+  if (!isRecord(reply)) {
+    throw commandError('failed-precondition', 'This Hummingbird request has no replayable result.', 'conflict');
+  }
+  return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
+}
+
+function hummingbirdDocking(session: DocumentSnapshot): { readonly shipId: string } | undefined {
+  const stored = session.get('shuttleDockings');
+  if (!Array.isArray(stored)) return undefined;
+  const docking = stored.find((entry) => isRecord(entry) && entry.shuttleId === 'hummingbird');
+  if (!isRecord(docking) || typeof docking.shipId !== 'string' || !isResourceShipId(docking.shipId)) return undefined;
+  return { shipId: docking.shipId };
+}
+
+function hummingbirdCargo(session: DocumentSnapshot): { readonly food: number; readonly water: number } {
+  const stored = session.get('shuttleCargo');
+  if (stored === undefined) return { food: 0, water: 0 };
+  if (!isRecord(stored)) {
+    throw commandError('failed-precondition', 'The Hummingbird cargo ledger is malformed.', 'malformed-input');
+  }
+  const raw = stored.hummingbird;
+  if (raw === undefined) return { food: 0, water: 0 };
+  if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'food' && key !== 'water')) {
+    throw commandError('failed-precondition', 'The Hummingbird cargo ledger is malformed.', 'malformed-input');
+  }
+  const food = raw.food === undefined ? 0 : raw.food;
+  const water = raw.water === undefined ? 0 : raw.water;
+  if (!Number.isSafeInteger(food) || (food as number) < 0 ||
+      !Number.isSafeInteger(water) || (water as number) < 0) {
+    throw commandError('failed-precondition', 'The Hummingbird cargo ledger is malformed.', 'malformed-input');
+  }
+  return { food: food as number, water: water as number };
+}
+
+function storedHummingbirdHarvest(
+  snapshot: DocumentSnapshot,
+  sessionId: string,
+  uid: string,
+): HummingbirdHarvestState | undefined {
+  if (!snapshot.exists) return undefined;
+  const state = parseHummingbirdHarvestState(snapshot.data());
+  if (!state || state.sessionId !== sessionId || state.ownerUid !== uid || !isResourceShipId(state.hostShipId)) {
+    throw commandError('failed-precondition', 'The Hummingbird harvest receipt is malformed.', 'malformed-input');
+  }
+  return state;
+}
+
+async function requireHummingbirdAuthority(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  enforceActionPhase: boolean,
+): Promise<{ readonly player: DocumentSnapshot; readonly session: DocumentSnapshot; readonly hostShipId: string }> {
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const [session, player] = await Promise.all([
+    tx.get(sessionRef),
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isActivePlayer(player) || player.get('role') !== 'player') {
+    throw new HttpsError('permission-denied', 'Only the connected Quellon Explorer may operate Hummingbird harvesting.');
+  }
+  const activeRoleIds = configuredRoleIds(session);
+  const activeRole = player.get('activeConsoleRoleId');
+  if (activeRole !== 'quellon-explorer' || !activeRoleIds.includes('quellon-explorer') ||
+      !replacementAuthorityAllowsRole(player.get('replacementRoleId'), 'quellon-explorer')) {
+    throw new HttpsError('permission-denied', 'The active Quellon Explorer console is required.');
+  }
+  if (!activeVesselIdsForSession(session).includes('quellon')) {
+    throw commandError('failed-precondition', 'Quellon is not active in this session.', 'conflict');
+  }
+  const docking = hummingbirdDocking(session);
+  if (!docking) {
+    throw commandError('failed-precondition', 'Hummingbird must be docked with an active fleet ship.', 'conflict');
+  }
+  if (!activeVesselIdsForSession(session).includes(docking.shipId)) {
+    throw commandError('failed-precondition', 'Hummingbird must be docked with an active fleet ship.', 'conflict');
+  }
+  const fuelled = session.get('shuttleFuelled');
+  if (!isRecord(fuelled) || fuelled.hummingbird !== true) {
+    throw commandError('failed-precondition', 'Hummingbird must be fuelled during the Team Phase first.', 'conflict');
+  }
+  requireActiveGameplayPhase(session);
+  requireTurnOneForGameplay(session);
+  requireTurnOneForPlayer(session, player);
+  if (enforceActionPhase) requireActionPhase(session, 'scouting', 'player');
+  return { player, session, hostShipId: docking.shipId };
+}
+
+function hummingbirdHarvestReply(
+  state: HummingbirdHarvestState,
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  uid: string,
+  requestId: string,
+  status: 'committed' | 'replayed' | 'stale',
+  cargo?: { readonly food: number; readonly water: number },
+): Record<string, unknown> {
+  return {
+    status,
+    requestId,
+    sessionId: state.sessionId,
+    harvest: state,
+    ...(cargo ? { cargo } : {}),
+    ...vesselActionEnvelope(session, player, uid, 'hummingbird', state.revision,
+      requestId, 'hummingbird-harvest', state.hostShipId),
+  };
+}
+
+/** Roll Hummingbird's private 2d6 harvest receipt. The player allocates it in a second call. */
+export const rollHummingbirdHarvest = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !['sessionId', 'requestId', 'expectedRevision'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid Hummingbird harvest roll request.');
+  }
+  const data = requireHummingbirdHarvestRequest(raw);
+  const requestRef = hummingbirdHarvestRequestRef(data.sessionId, data.requestId);
+  const harvestRef = hummingbirdHarvestRef(data.sessionId, uid);
+  const preflight = await db.runTransaction(async tx => {
+    const prior = await tx.get(requestRef);
+    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, false);
+    const fingerprint: HummingbirdHarvestFingerprint = {
+      kind: 'roll', sessionId: data.sessionId, actorUid: uid,
+      expectedRevision: data.expectedRevision, hostShipId: authority.hostShipId,
+      turn: sessionTurn(authority.session.get('currentTurn')),
+    };
+    const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
+    if (replay) return { replay, authority, fingerprint, reusePending: false };
+    const stored = await tx.get(harvestRef);
+    const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
+    const turn = sessionTurn(authority.session.get('currentTurn'));
+    if (current && current.turn === turn) {
+      if (current.status === 'pending' && current.revision === data.expectedRevision) return {
+        replay: undefined, authority, fingerprint, current, reusePending: true,
+      };
+      throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this turn.', 'conflict');
+    }
+    if (current && current.status === 'pending' && current.turn !== turn) {
+      throw commandError('failed-precondition', 'Resolve the previous Hummingbird harvest before starting a new turn.', 'conflict');
+    }
+    if (current && current.revision !== data.expectedRevision) {
+      throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
+    }
+    if (!current && data.expectedRevision !== 0) {
+      throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
+    }
+    return { replay: undefined, authority, fingerprint, current, reusePending: false };
+  });
+  if (preflight.replay) return preflight.replay;
+  const rolls: [number, number] | undefined = preflight.reusePending
+    ? undefined
+    : [randomInt(1, 7), randomInt(1, 7)];
+  const createdAt = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, true);
+    const prior = await tx.get(requestRef);
+    const fingerprint: HummingbirdHarvestFingerprint = {
+      kind: 'roll', sessionId: data.sessionId, actorUid: uid,
+      expectedRevision: data.expectedRevision, hostShipId: authority.hostShipId,
+      turn: sessionTurn(authority.session.get('currentTurn')),
+    };
+    const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    const stored = await tx.get(harvestRef);
+    const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
+    const turn = sessionTurn(authority.session.get('currentTurn'));
+    if (current && current.turn === turn) {
+      if (current.status === 'pending') {
+        if (current.revision !== data.expectedRevision) {
+          throw commandError('failed-precondition', 'A Hummingbird roll is already waiting for allocation.', 'stale-revision');
+        }
+        const reply = hummingbirdHarvestReply(current, authority.session, authority.player, uid,
+          data.requestId, 'committed');
+        tx.set(requestRef, { ...fingerprint, fingerprint, requestId: data.requestId, actorUid: uid, reply,
+          createdAt: FieldValue.serverTimestamp() });
+        return reply;
+      }
+      throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this turn.', 'conflict');
+    }
+    if (current && current.status === 'pending' && current.turn !== turn) {
+      throw commandError('failed-precondition', 'Resolve the previous Hummingbird harvest before starting a new turn.', 'conflict');
+    }
+    if (current && current.revision !== data.expectedRevision) {
+      throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
+    }
+    if (!current && data.expectedRevision !== 0) {
+      throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
+    }
+    if (!rolls) {
+      throw commandError('failed-precondition', 'Hummingbird harvest changed. Refresh before rolling.', 'stale-revision');
+    }
+    const next: HummingbirdHarvestState = {
+      sessionId: data.sessionId, ownerUid: uid, turn,
+      hostShipId: authority.hostShipId, revision: data.expectedRevision + 1,
+      status: 'pending', rolls, requestId: data.requestId, createdAt,
+    };
+    const reply = hummingbirdHarvestReply(next, authority.session, authority.player, uid,
+      data.requestId, 'committed');
+    tx.set(harvestRef, { ...next, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(requestRef, { ...fingerprint, fingerprint, requestId: data.requestId, actorUid: uid,
+      reply, serverRolls: rolls, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+/** Commit the player's food-die allocation and credit only Hummingbird cargo. */
+export const allocateHummingbirdHarvest = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown; foodDieIndex?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !['sessionId', 'requestId', 'expectedRevision', 'foodDieIndex'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid Hummingbird harvest allocation request.');
+  }
+  const data = requireHummingbirdHarvestRequest(raw);
+  const foodDieIndex = data.foodDieIndex;
+  if (foodDieIndex === undefined) {
+    throw new HttpsError('invalid-argument', 'Choose which rolled die becomes food.');
+  }
+  const requestRef = hummingbirdHarvestRequestRef(data.sessionId, data.requestId);
+  const harvestRef = hummingbirdHarvestRef(data.sessionId, uid);
+  return db.runTransaction(async tx => {
+    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, false);
+    const prior = await tx.get(requestRef);
+    const turn = sessionTurn(authority.session.get('currentTurn'));
+    const fingerprint: HummingbirdHarvestFingerprint = {
+      kind: 'allocate', sessionId: data.sessionId, actorUid: uid,
+      expectedRevision: data.expectedRevision, hostShipId: authority.hostShipId,
+      turn, foodDieIndex,
+    };
+    const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    const stored = await tx.get(harvestRef);
+    const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
+    if (!current) {
+      throw commandError('failed-precondition', 'No Hummingbird roll is waiting for allocation.', 'conflict');
+    }
+    if (current.turn !== turn || current.hostShipId !== authority.hostShipId) {
+      throw commandError('failed-precondition', 'The Hummingbird roll is stale after a turn or docking change.', 'stale-revision');
+    }
+    if (current.status !== 'pending' || current.revision !== data.expectedRevision) {
+      throw commandError('failed-precondition', 'The Hummingbird roll is no longer waiting for allocation.', 'stale-revision');
+    }
+    const priorCargo = hummingbirdCargo(authority.session);
+    const cargo = addHarvestToCargo(priorCargo, current.rolls, foodDieIndex);
+    const values = resolvedHarvestValues(current.rolls, foodDieIndex);
+    const next: HummingbirdHarvestState = {
+      ...current, revision: current.revision + 1, status: 'resolved',
+      foodDieIndex, food: values.food, water: values.water,
+      resolvedAt: new Date().toISOString(), requestId: data.requestId,
+    };
+    const reply = hummingbirdHarvestReply(next, authority.session, authority.player, uid,
+      data.requestId, 'committed', cargo);
+    tx.update(db.doc(`sessions/${data.sessionId}`), {
+      'shuttleCargo.hummingbird': cargo,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(harvestRef, { ...next, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(requestRef, { ...fingerprint, fingerprint, requestId: data.requestId, actorUid: uid,
+      reply, food: values.food, water: values.water, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
 
 function storedSmallShipState(session: DocumentSnapshot, id: SmallShipId): SmallShipState | undefined {
   const stored = session.get('smallShipStates');

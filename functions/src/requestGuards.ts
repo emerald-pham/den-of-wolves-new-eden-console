@@ -545,6 +545,31 @@ export function requireVesselActionRequest(data: {
   };
 }
 
+export function requireHummingbirdHarvestRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  foodDieIndex?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  expectedRevision: number;
+  foodDieIndex?: 0 | 1;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (data.foodDieIndex !== undefined && data.foodDieIndex !== 0 && data.foodDieIndex !== 1) {
+    throw new HttpsError('invalid-argument', 'foodDieIndex must be 0 or 1.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    ...(data.foodDieIndex === undefined ? {} : { foodDieIndex: data.foodDieIndex as 0 | 1 }),
+  };
+}
+
 export function requireGmClaimRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -157,6 +157,38 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // Hummingbird's server dice and pending allocation are private to the
+      // currently active Quellon Explorer. The public session may expose only
+      // the completed food/water cargo projection.
+      match /hummingbirdHarvests/{harvestUid} {
+        allow get: if isMember(sessionId)
+          && harvestUid == uid()
+          && get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data.role == 'player'
+          && get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data.activeConsoleRoleId == 'quellon-explorer'
+          && (
+            !('replacementRoleId' in get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data)
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.replacementRoleId == null
+            || get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.replacementRoleId == 'quellon-explorer'
+          )
+          && resource.data.sessionId == sessionId
+          && resource.data.ownerUid == uid();
+        allow list, write: if false;
+      }
+
+      match /hummingbirdHarvestRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       // Replacement adjudications contain player status and role choice. They
       // are private GM projections; the callable is the only writer.
       match /replacementEligibility/{targetUid} {

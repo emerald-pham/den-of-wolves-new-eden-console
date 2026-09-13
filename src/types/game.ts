@@ -656,6 +656,25 @@ export interface ShuttleVisit {
   readonly occurredAt: Timestamp;
 }
 
+export type HummingbirdHarvestStatus = 'pending' | 'resolved';
+
+/** Private server-owned Hummingbird roll and player allocation receipt. */
+export interface HummingbirdHarvest {
+  readonly sessionId: SessionId;
+  readonly ownerUid: PlayerId;
+  readonly turn: number;
+  readonly hostShipId: VesselId;
+  readonly revision: number;
+  readonly status: HummingbirdHarvestStatus;
+  readonly rolls: readonly [number, number];
+  readonly foodDieIndex?: 0 | 1;
+  readonly food?: number;
+  readonly water?: number;
+  readonly requestId: string;
+  readonly createdAt: Timestamp;
+  readonly resolvedAt?: Timestamp;
+}
+
 export type SeatStatus = 'open' | 'claimed' | 'locked';
 
 export interface Seat {
