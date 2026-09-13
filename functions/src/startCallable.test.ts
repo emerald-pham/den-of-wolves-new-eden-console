@@ -504,6 +504,28 @@ it('blocks a known inactive craft row before the start transaction writes', asyn
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['missing dockedAt', (docking: Record<string, unknown>) => {
+    const copy = { ...docking };
+    delete copy.dockedAt;
+    return copy;
+  }],
+  ['blank dockedAt', (docking: Record<string, unknown>) => ({ ...docking, dockedAt: ' ' })],
+  ['in-transit marker', (docking: Record<string, unknown>) => ({ ...docking, status: 'in-transit' })],
+] as const)('blocks a %s docking before the start transaction writes', async (_label, mutate) => {
+  mock.session.shuttleDockings = (mock.session.shuttleDockings as Array<Record<string, unknown>>).map((docking) =>
+    docking.shuttleId === 'starlight' ? mutate(docking) : docking);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `start-malformed-docking-${_label.replace(/\W+/g, '-')}`, expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Start blocked: craft-starting-manifest.',
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('leaves GM-controlled Union craft disabled until an explicit host is persisted', async () => {
   mock.session.shuttleDockings = initialShuttleDockingsForRoles(roleIds);
 

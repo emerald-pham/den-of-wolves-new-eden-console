@@ -525,6 +525,44 @@ it('rejects a duplicate moved-host row before filtering can hide it', async () =
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['missing dockedAt', (docking: Record<string, unknown>) => {
+    const copy = { ...docking };
+    delete copy.dockedAt;
+    return copy;
+  }],
+  ['blank dockedAt', (docking: Record<string, unknown>) => ({ ...docking, dockedAt: ' ' })],
+  ['in-transit marker', (docking: Record<string, unknown>) => ({ ...docking, inTransit: true })],
+] as const)('rejects a %s docking before any setup write', async (_label, mutate) => {
+  const activeRoleIds = recommendedRoleIds(8);
+  const malformedDockings = initialShuttleDockingsForRoles(activeRoleIds).map((docking) =>
+    docking.shuttleId === 'starlight' ? mutate({ ...docking }) : docking);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: false, capybaraEnabled: true,
+        activeRoleIds, activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+        shuttleDockings: malformedDockings,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `malformed-docking-${_label.replace(/\W+/g, '-')}`, expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/malformed craft docking/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('reconciles a removed role craft instead of retaining an inactive docking row', async () => {
   const currentRoleIds = recommendedRoleIds(9);
   const nextRoleIds = recommendedRoleIds(8);

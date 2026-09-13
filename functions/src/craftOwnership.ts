@@ -135,6 +135,26 @@ export function shuttleDockingsAreKnownAndUnique(
   return true;
 }
 
+/** Require every persisted docking row to describe a currently parked craft. */
+export function shuttleDockingsAreParked(
+  shuttleDockings: readonly unknown[],
+  activeVesselIds: readonly string[],
+): boolean {
+  if (!shuttleDockingsAreKnownAndUnique(
+    shuttleDockings as readonly { shuttleId: string; shipId: string }[],
+  )) return false;
+  const activeHosts = new Set(activeVesselIds);
+  return shuttleDockings.every((docking) => {
+    if (typeof docking !== 'object' || docking === null || Array.isArray(docking)) return false;
+    const record = docking as Record<string, unknown>;
+    return activeHosts.has(record.shipId as string) &&
+      typeof record.dockedAt === 'string' && record.dockedAt.trim().length > 0 &&
+      record.inTransit !== true && record.transit !== true &&
+      record.status !== 'in-transit' && record.state !== 'in-transit' &&
+      record.dockingState !== 'in-transit';
+  });
+}
+
 /** Require one current docking row for every enabled role-owned shuttle. */
 export function shuttleDockingsMatchRoleOwnedCraft(
   activeRoleIds: readonly string[],
