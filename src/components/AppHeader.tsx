@@ -485,7 +485,7 @@ export default function AppHeader() {
                 <h3 id="single-player-demo-title">Single-player demo</h3>
                 <p>Start the Turn One demo for this session.</p>
                 <button
-                  className="settings-dialog__gm-access-button"
+                  className="settings-dialog__gm-access-button cic-action-button"
                   type="button"
                   disabled={singlePlayerDemoBusy}
                   onClick={() => void startDemo()}
@@ -515,7 +515,7 @@ export default function AppHeader() {
                     after 24 hours.
                   </p>
                   <button
-                    className="settings-dialog__gm-access-button"
+                    className="settings-dialog__gm-access-button cic-action-button"
                     type="button"
                     disabled={gmAccessBusy}
                     onClick={() => void logoutGm()}
@@ -539,7 +539,7 @@ export default function AppHeader() {
                     onChange={(event) => setGmAccessPassword(event.target.value)}
                   />
                   <button
-                    className="settings-dialog__gm-access-button"
+                    className="settings-dialog__gm-access-button cic-action-button"
                     type="submit"
                     disabled={gmAccessBusy || gmAccessPassword.trim().length === 0}
                   >
@@ -564,7 +564,7 @@ export default function AppHeader() {
               <div className="settings-changelog__header">
                 <h3 id="changelog-title">Changelog</h3>
                 <button
-                  className="settings-changelog__toggle"
+                  className="settings-changelog__toggle cic-action-button"
                   type="button"
                   aria-expanded={changelogOpen}
                   aria-controls="settings-changelog-entries"
@@ -602,7 +602,7 @@ export default function AppHeader() {
                 )}
                 {gmInstance !== null && (
                   <button
-                    className="settings-dialog__disconnect"
+                    className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
                     type="button"
                     disabled={releaseQueued}
                     onClick={() => void releaseGm()}
@@ -612,7 +612,7 @@ export default function AppHeader() {
                 )}
                 {activeConsoleRoleId && (
                   <button
-                    className="settings-dialog__disconnect"
+                    className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
                     type="button"
                     onClick={() => void releaseRole()}
                   >
@@ -620,7 +620,7 @@ export default function AppHeader() {
                   </button>
                 )}
                 <button
-                  className="settings-dialog__disconnect"
+                  className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
                   type="button"
                   disabled={disconnectQueued}
                   style={confirmDisconnect

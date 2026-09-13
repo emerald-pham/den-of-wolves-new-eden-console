@@ -406,11 +406,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         </div>
         <section className="ship-console__privacy-controls cic-frame" aria-label="Ship view privacy controls">
           <p className="ship-resources__eyebrow">Ship view privacy</p>
-          <button className="cic-text-button" type="button" aria-pressed={hideResources}
+          <button className="cic-action-button" type="button" aria-pressed={hideResources}
             onClick={() => setHideResources((current) => !current)}>
             {hideResources ? 'Show resource stores' : 'Hide resource stores'}
           </button>
-          <button className="cic-text-button" type="button" aria-pressed={hideCensus}
+          <button className="cic-action-button" type="button" aria-pressed={hideCensus}
             onClick={() => setHideCensus((current) => !current)}>
             {hideCensus ? 'Show unrest and population' : 'Hide unrest and population'}
           </button>
@@ -432,7 +432,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               Observer access // {observerWrite ? 'Write mode' : 'Read only'}
             </p>
             <button
-              className="cic-text-button"
+              className="cic-action-button"
               type="button"
               aria-label="Observer write mode"
               aria-pressed={observerWrite}

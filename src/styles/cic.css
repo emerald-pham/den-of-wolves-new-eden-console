@@ -84,6 +84,12 @@
   cursor: pointer;
 }
 
+.cic-action-button[aria-pressed='true'] {
+  border-color: var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-cyan) 9%, transparent);
+  color: var(--cic-cyan-hot);
+}
+
 .cic-action-button:hover:not(:disabled) {
   border-color: var(--cic-amber);
   background: color-mix(in srgb, var(--cic-cyan-dim) 18%, transparent);

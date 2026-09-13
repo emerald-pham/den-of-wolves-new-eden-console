@@ -617,21 +617,10 @@ body {
 
 .settings-dialog__disconnect {
   width: 100%;
-  min-height: 2.75rem;
   margin-top: 1.25rem;
-  border: 1px solid var(--cic-danger);
-  border-radius: var(--cic-radius);
-  background: #e0392a1a;
-  color: var(--cic-scream);
-  font: 0.75rem/1 var(--cic-mono);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  cursor: pointer;
 }
 
-.settings-dialog__disconnect:hover {
-  background: #e0392a33;
-}
+
 
 .session-readouts {
   display: flex;
@@ -1463,24 +1452,14 @@ body {
 }
 
 .gm-casting-board__assign select,
-.gm-casting-board__action {
-  min-height: 44px;
-  border: 1px solid var(--cic-amber-dim);
-  background: transparent;
-  color: var(--cic-amber);
-  font: 600 0.62rem/1.2 var(--cic-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
+
 
 .gm-casting-board__assign select {
   min-width: 12rem;
   padding: 0.45rem 0.55rem;
 }
 
-.gm-casting-board__action {
-  padding: 0.45rem 0.65rem;
-}
+
 
 .gm-casting-board__restriction {
   max-width: 25rem;
@@ -1492,8 +1471,6 @@ body {
   text-transform: uppercase;
 }
 
-.gm-casting-board__action:hover:not(:disabled),
-.gm-casting-board__action:focus-visible,
 .gm-casting-board__assign select:focus-visible {
   border-color: var(--cic-amber);
   color: var(--cic-scream);
@@ -1647,22 +1624,10 @@ body {
 
 .gm-census-note__save {
   display: block;
-  min-height: 2rem;
   margin-top: 0.35rem;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--cic-amber-dim);
-  background: transparent;
-  color: var(--cic-amber);
-  font: 0.6rem/1.2 var(--cic-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
-.gm-census-note__save:hover:not(:disabled),
-.gm-census-note__save:focus-visible {
-  border-color: var(--cic-amber);
-  color: var(--cic-scream);
-}
+
 
 .gm-arbour-vision__form {
   display: grid;
@@ -1827,7 +1792,7 @@ body {
   margin-top: 0.45rem;
 }
 
-.gm-fleet-resources__access .cic-text-button {
+.gm-fleet-resources__access .cic-action-button {
   flex: none;
 }
 
@@ -2196,22 +2161,12 @@ body {
 
 .gm-controls-lock {
   width: 100%;
-  min-height: 44px;
   margin: 0.65rem 0 1rem;
-  border: 1px solid var(--cic-amber-dim);
-  background: color-mix(in srgb, var(--cic-amber) 7%, transparent);
-  color: var(--cic-amber);
-  font: 0.68rem/1.4 var(--cic-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
-.gm-controls-lock:disabled { opacity: 0.45; }
 
-.gm-controls-lock:focus-visible {
-  outline: 2px solid var(--cic-amber);
-  outline-offset: 2px;
-}
+
+
 
 .gm-event-log {
   display: grid;
@@ -2342,26 +2297,12 @@ body {
 }
 
 .settings-dialog__gm-access-button {
-  min-height: 44px;
   margin-top: 0.25rem;
-  border: 1px solid var(--cic-cyan);
-  border-radius: var(--cic-radius);
-  background: transparent;
-  color: var(--cic-cyan);
-  font: 0.72rem/1 var(--cic-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
 }
 
-.settings-dialog__gm-access-button:hover {
-  background: color-mix(in srgb, var(--cic-cyan) 12%, transparent);
-}
 
-.settings-dialog__gm-access-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
+
+
 
 .settings-dialog__gm-access a {
   color: var(--cic-cyan);
@@ -2786,7 +2727,7 @@ body {
   grid-column: 1 / -1;
 }
 
-.ship-console__privacy-controls .cic-text-button {
+.ship-console__privacy-controls .cic-action-button {
   justify-self: start;
   text-align: left;
 }
@@ -4624,18 +4565,7 @@ body {
   text-transform: uppercase;
 }
 
-.settings-changelog__toggle {
-  min-height: 2.75rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--cic-amber-dim);
-  border-radius: var(--cic-radius);
-  background: transparent;
-  color: var(--cic-cyan);
-  font: 0.68rem/1.3 var(--cic-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
+
 
 .settings-changelog__entries {
   max-height: min(22rem, 45dvh);

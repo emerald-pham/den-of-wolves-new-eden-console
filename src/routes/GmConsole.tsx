@@ -2257,7 +2257,7 @@ export default function GmConsole() {
                 Ship number access // {shipNumberWrite ? 'Write mode' : 'Read only'}
               </p>
               <button
-                className="cic-text-button"
+                className="cic-action-button"
                 type="button"
                 aria-label="Ship numbers write mode"
                 aria-pressed={shipNumberWrite}
@@ -2431,7 +2431,7 @@ export default function GmConsole() {
 
           <section className="gm-console__module cic-frame" aria-label="Setup">
             <button
-              className="gm-controls-lock"
+              className="gm-controls-lock cic-action-button"
               type="button"
               aria-expanded={setupOpen}
               onClick={() => setSetupOpen((open) => !open)}
@@ -2441,7 +2441,7 @@ export default function GmConsole() {
             {setupOpen && (
               <div className="gm-setup" aria-label="Setup controls">
                 <button
-                  className="gm-dradis__availability"
+                  className="gm-dradis__availability cic-action-button"
                   type="button"
                   aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
                   aria-pressed={capybaraEnabled}
@@ -2451,7 +2451,7 @@ export default function GmConsole() {
                   Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
                 </button>
                 <button
-                  className="gm-dradis__availability"
+                  className="gm-dradis__availability cic-action-button"
                   type="button"
                   aria-label={`Turn Dione ${dioneEnabled ? 'off' : 'on'}`}
                   aria-pressed={dioneEnabled}
@@ -2461,7 +2461,7 @@ export default function GmConsole() {
                   Dione // {dioneQueued ? 'Change queued' : dioneEnabled ? 'In convoy' : 'Offline'}
                 </button>
                 <button
-                  className="gm-dradis__availability"
+                  className="gm-dradis__availability cic-action-button"
                   type="button"
                   aria-label={`Turn Universal Arbour ${universalArbourEnabled ? 'off' : 'on'}`}
                   aria-pressed={universalArbourEnabled}
@@ -2471,7 +2471,7 @@ export default function GmConsole() {
                   Universal Arbour // {universalArbourEnabled ? 'Configured' : 'Off'}
                 </button>
                 <button
-                  className="gm-dradis__availability"
+                  className="gm-dradis__availability cic-action-button"
                   type="button"
                   aria-label={`Turn Wolf Cult ${wolfCultEnabled ? 'off' : 'on'}`}
                   aria-pressed={wolfCultEnabled}
@@ -2487,7 +2487,7 @@ export default function GmConsole() {
                     : ' Confirm setup locks this public choice; individual loyalty cards remain private.'}
                 </p>
                 <button
-                  className="gm-dradis__availability"
+                  className="gm-dradis__availability cic-action-button"
                   type="button"
                   aria-label={`Turn Press ${pressEnabled ? 'off' : 'on'}`}
                   aria-pressed={pressEnabled}
@@ -2762,7 +2762,7 @@ export default function GmConsole() {
                           </div>
                           {player.assignedRoleId && !restriction ? (
                             <button
-                              className="gm-casting-board__action"
+                              className="gm-casting-board__action cic-action-button"
                               type="button"
                               disabled={castingMutationUid !== null}
                               onClick={() => void changeCastingRole(player, null)}
@@ -2790,7 +2790,7 @@ export default function GmConsole() {
                                 ))}
                               </select>
                               <button
-                                className="gm-casting-board__action"
+                                className="gm-casting-board__action cic-action-button"
                                 type="button"
                                 disabled={castingMutationUid !== null || draftRole.length === 0}
                                 onClick={() => void changeCastingRole(player, draftRole)}
@@ -2857,7 +2857,7 @@ export default function GmConsole() {
                     ))}
                   </select>
                   <button
-                    className="gm-casting-board__action"
+                    className="gm-casting-board__action cic-action-button"
                     type="button"
                     disabled={replacementBusy || !replacementTargetUid}
                     onClick={() => void adjudicateReplacement()}
@@ -2876,7 +2876,7 @@ export default function GmConsole() {
                     ))}
                   </select>
                   <button
-                    className="gm-casting-board__action"
+                    className="gm-casting-board__action cic-action-button"
                     type="button"
                     disabled={replacementBusy || !replacementTargetUid || !replacementRoleId || replacementRevision === 0}
                     onClick={() => void commitReplacement()}
@@ -2964,7 +2964,7 @@ export default function GmConsole() {
                               }))}
                             />
                             <button
-                              className="gm-census-note__save"
+                              className="gm-census-note__save cic-action-button"
                               type="button"
                               disabled={censusNoteMutationUid !== null}
                               onClick={() => void saveCensusNote(entry.uid)}
@@ -3030,7 +3030,7 @@ export default function GmConsole() {
                     onChange={(event) => setWolfCultCodeWord(event.target.value)}
                   />
                   <button
-                    className="gm-census-note__save"
+                    className="gm-census-note__save cic-action-button"
                     type="button"
                     disabled={wolfCultIntelMutation || !wolfCultFortressCoordinate || !wolfCultSuppliesCoordinate || !wolfCultAgentUid || !wolfCultCodeWord.trim()}
                     onClick={() => void deliverWolfCultIntel()}
@@ -3089,7 +3089,7 @@ export default function GmConsole() {
                     onChange={(event) => setArbourVisionText(event.target.value)}
                   />
                   <button
-                    className="gm-census-note__save"
+                    className="gm-census-note__save cic-action-button"
                     type="button"
                     disabled={arbourVisionMutation || !arbourVisionText.trim()}
                     onClick={() => void saveArbourVision()}
@@ -3179,7 +3179,7 @@ export default function GmConsole() {
                   onChange={(event) => setRuleCallSupersedesCallId(event.target.value)}
                 />
                 <button
-                  className="gm-census-note__save"
+                  className="gm-census-note__save cic-action-button"
                   type="button"
                   disabled={ruleCallMutation || !ruleCallAmbiguity.trim() || !ruleCallSource.trim() || !ruleCallDecision.trim() || (ruleCallAudience === 'selected-player' && !ruleCallRecipientUid)}
                   onClick={() => void saveFacilitatorRuleCall()}
@@ -3210,7 +3210,7 @@ export default function GmConsole() {
           <section className="gm-console__module cic-frame" aria-label="GM instances">
             <h2 className="gm-console__section-title">GM instances</h2>
             <button
-              className="gm-controls-lock"
+              className="gm-controls-lock cic-action-button"
               type="button"
               aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration`}
               aria-pressed={controlsLocked}
@@ -3439,7 +3439,7 @@ export default function GmConsole() {
               Cancel convoy change
             </button>
             <button
-              className="settings-dialog__disconnect"
+              className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
               type="button"
               disabled={changingCapybara}
               onClick={() => void changeCapybara(pendingCapybaraEnabled)}
@@ -3478,7 +3478,7 @@ export default function GmConsole() {
               Cancel convoy change
             </button>
             <button
-              className="settings-dialog__disconnect"
+              className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
               type="button"
               disabled={changingDione}
               onClick={() => void changeDione(pendingDioneEnabled)}
