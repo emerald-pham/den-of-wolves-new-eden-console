@@ -2178,6 +2178,13 @@ export default function GmConsole() {
                 configuration override are never included in the player report.
               </p>
             )}
+            {crisisKindDraft === 'religious-zealotry' && (
+              <p className="gm-console__hint">
+                Delivery publishes the movement report to all session members. The report does not identify
+                any player’s secret loyalty or reveal which loyalty configuration is enabled. Keep private
+                context and adjudication notes in the facilitator notes below.
+              </p>
+            )}
             <label className="gm-wolf-preparation__field">
               <span>Crisis identifier</span>
               <input

@@ -281,3 +281,18 @@ it('accepts the alternative Wolf Cult configuration and rechecks it before Zealo
   put('sessions/s1', { phase: 'active', currentTurn: 2, universalArbourEnabled: false, wolfCultEnabled: true });
   await expect(transitionCrisis.run(request(delivered))).resolves.toMatchObject({ state: 'delivered' });
 });
+
+it.each([
+  { universalArbourEnabled: true, wolfCultEnabled: false },
+  { universalArbourEnabled: false, wolfCultEnabled: true },
+])('delivers the same public Zealotry report for either compatible loyalty configuration: %j', async (configuration) => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, ...configuration });
+  const input = { ...baseData, crisisId: 'zealotry-public', crisisKind: 'religious-zealotry', details: 'Secret holder: player-27. Private adjudication notes.' };
+  await transitionCrisis.run(request(input));
+  expect(mock.documents.has('sessions/s1/crisisReports/current')).toBe(false);
+  await transitionCrisis.run(request({ ...input, requestId: 'zealotry-delivery', expectedRevision: 1, state: 'delivered' }));
+  const report = mock.documents.get('sessions/s1/crisisReports/current');
+  expect(report).toMatchObject({ title: 'Religious zealotry', body: expect.stringContaining('Universal Arbour'), state: 'delivered' });
+  expect(JSON.stringify(report)).not.toMatch(/player-27|adjudication|Wolf Cult|wolfCultEnabled|universalArbourEnabled/);
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ details: input.details });
+});

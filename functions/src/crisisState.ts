@@ -67,3 +67,9 @@ export const APPROACHING_VESSEL_REPORT = {
   title: 'Approaching vessel',
   body: 'An exhausted pilot from a Gliese scout reported a larger ship approaching and urgently needing help. The pilot stopped communicating and was later found dead, apparently from hunger and exhaustion. The approaching ship’s population, needs and potential value remain unknown. Crew concerns include pressure on supplies, disease and hostile intent; the report could also be false. The scout activated a location beacon, which could increase Wolf attack risk if the fleet stays here.',
 } as const;
+
+/** Public movement report; neither loyalty variant nor its private holder is disclosed. */
+export const RELIGIOUS_ZEALOTRY_REPORT = {
+  title: 'Religious zealotry',
+  body: 'Universal Arbour’s following has expanded rapidly from a few dozen survivors to several thousand. The movement teaches that the universe is conscious and has a purpose for humanity, and has long advocated religious government. Its new leader claims to receive messages through dreams. The fleet must decide how to respond to the movement’s growing influence.',
+} as const;
