@@ -20263,7 +20263,7 @@
         "acceptance": "repair the stale default/Turn-0 copy contract so connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default remains exactly `CONNECTED`, while a live joined Turn 0 session says exactly `CONNECTED — AWAITING IRIS AUTHENTICATION` in its visible copy and accessible name/title. `NOT CONNECTED` never describes live transport or session state. Preserve the blue boot-gate if desired and the 30-second sustained-pre-outage grace.",
         "title": "Explain connectivity truthfully."
       },
-      "description": "Historical releases provide the connected/offline grace primitive and earlier no-session copy repair, but the current live joined Turn 0 surface still needs the exact `CONNECTED — AWAITING IRIS AUTHENTICATION` visible copy and accessible name/title; `NOT CONNECTED` must never describe live transport or session state. Preserve the 30-second sustained-pre-outage grace and do not remap Prompt 041.",
+      "description": "Live joined Turn 0 now displays and exposes the exact CONNECTED — AWAITING IRIS AUTHENTICATION label and title. Anchored accessibility assertions prevent the old NOT CONNECTED substring false positive. The existing 30-second grace and first-turn presentation ceremony remain intact; neither grants nor blocks authority. Independent review clear; narrow phone through desktop rendered checks passed.",
       "evidenceIds": "E-AUDIT-598",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20274,11 +20274,12 @@
       "releaseBoundaries": "none",
       "releases": [
         "0.3.6",
-        "0.3.10"
+        "0.3.10",
+        "0.3.95"
       ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "REPAIR"
     },
     {
@@ -21727,7 +21728,7 @@
         "acceptance": "for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.",
         "title": "Remove the ICN/Iris fleet-wide console lock."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "Removed the obsolete fleet-wide Iris/Turn 0 console permission gate while preserving action-specific authority, phase, safety, resource, damage, cooldown, and manual travel-lock checks. Legacy automatic turn-zero bulletins are filtered on both server and client, including cached queues. Failing-first callable, route, and ticker coverage; independent Terra review of the authority change and limited follow-up clear. Real component layout checked at 320, 390, 844, and 1440 widths in normal and reduced motion.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21736,10 +21737,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.95"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

@@ -754,7 +754,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 595 | PRESERVE | done | none | none | none | none | none | none | none | none | E-595-VERIFIED | X | Display the derived application version. |
 | 596 | PRESERVE | done | none | none | none | none | none | none | none | none | E-596-VERIFIED | X | Display bounded changelog history. |
 | 597 | PRESERVE | done | none | none | none | none | none | none | none | none | E-597-VERIFIED | X | Complete exact disconnect confirmation. |
-| 598 | REPAIR | partial | 041;042 | none | none | none | none | none | none | none | E-AUDIT-598 | X | Explain connectivity truthfully. |
+| 598 | REPAIR | done | 041;042 | none | none | none | none | none | none | none | E-AUDIT-598 | X | Explain connectivity truthfully. |
 | 599 | EXTEND | missing | 586;589 | none | none | none | none | none | none | none | E-AUDIT-599 | X | Build the single-facilitator setup checklist. |
 | 600 | PROVE | missing | 590;599 | none | none | none | none | none | none | none | E-AUDIT-600 | X | Run the onboarding-to-first-action scenario. |
 | 601 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Make primary status universal. |
@@ -817,7 +817,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 652a | REPAIR | done | 106c;652 | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER;E-AUDIT-652A | none | Keep every moving ticker glyph visible through its real exit. |
 | 652b | NEW | done | 106c;603a;652;652a | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER;E-AUDIT-652B | none | Keep the mobile Press ticker pinned with reversible hiding and alert expansion. |
 | 652c | EXTEND | done | 652b | none | none | none | none | TICKER-LIFECYCLE | none | 106c;603a;652;652a | E-652C-OWNER;E-652C-DEPENDENCY;E-652C-RELATED;E-652C-VERIFIED | none | Remove the ticker Hide button. |
-| 653 | EXTEND | missing | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
+| 653 | EXTEND | done | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
 | 654 | REPAIR | missing | none | M1 | none | OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
 | 655 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
 | 656 | REPAIR | done | 034;050 | none | none | none | none | none | none | none | E-AUDIT-656 | none | Route an already-connected launcher to its current session. |

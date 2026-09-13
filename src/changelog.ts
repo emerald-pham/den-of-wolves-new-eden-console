@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [653, 598],
+    implementationProgress: {
+      completed: 241,
+      total: 751,
+      percentage: '32.09%',
+      done: 241,
+      partial: 21,
+      active: 0,
+      missing: 489,
+    },
+    changes: [
+      'Ship controls no longer wait for fleet-wide Iris authentication; each action still follows its own permissions and game rules.',
+      'Connected crews awaiting Iris authentication now see an accurate connection label, and obsolete console-lock notices disappear.',
+      '241 of 751 planned items are complete (32.09%).',
+    ],
+  },
+  {
+    version: '0.3.94',
     implementationPrompts: [675],
     implementationProgress: {
       completed: 235,
