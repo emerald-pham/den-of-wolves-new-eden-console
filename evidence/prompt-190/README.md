@@ -1,6 +1,6 @@
 # Prompt 190 visual evidence
 
-The production `DioneVipCards` component was rendered from the isolated Vite fixture at `p190-fixture.html` with the existing CIC stylesheet. The fixture uses the live component and session store shape, while the Firestore listener is allowed to remain empty so no private card data is fabricated.
+The production `DioneVipCards` component was rendered from a temporary isolated Vite fixture with the existing CIC stylesheet. The fixture used the live component and session store shape, while the Firestore listener remained empty so no private card data was fabricated. The temporary fixture source was removed after capture and is not part of the deployable tree.
 
 | viewport | reduced motion | VIP frame | draw control | horizontal overflow |
 | --- | --- | --- | --- | --- |
