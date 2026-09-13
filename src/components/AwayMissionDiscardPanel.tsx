@@ -11,61 +11,85 @@ function failureMessage(error: unknown): string {
 }
 
 function ParticipantPanel() {
-  const pointer = useSessionStore((state) => state.awayMissionHandPointer);
-  const hand = useSessionStore((state) => state.awayMissionHand);
-  const [busy, setBusy] = useState(false);
+  const pointers = useSessionStore((state) => state.awayMissionHandPointers);
+  const legacyPointer = useSessionStore((state) => state.awayMissionHandPointer);
+  const hands = useSessionStore((state) => state.awayMissionHands);
+  const legacyHand = useSessionStore((state) => state.awayMissionHand);
+  const visiblePointers = useMemo(
+    () => pointers.length > 0 ? pointers : legacyPointer ? [legacyPointer] : [],
+    [legacyPointer, pointers],
+  );
+  const visibleHands = useMemo(
+    () => hands.length > 0 ? hands : legacyHand ? [legacyHand] : [],
+    [hands, legacyHand],
+  );
+  const handsById = useMemo(() => new Map(visibleHands.map((hand) => [hand.handId, hand])), [visibleHands]);
+  const [busyHandId, setBusyHandId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  if (!pointer) return null;
-  const discarded = pointer.discarded || hand?.discarded === true;
-  const discard = async () => {
-    if (!hand || busy || pointer.phase !== 'discarding' || discarded) return;
-    setBusy(true);
+  if (visiblePointers.length === 0) return null;
+  const discard = async (pointer: AwayMissionHandPointer, hand: typeof visibleHands[number]) => {
+    if (!hand || busyHandId || pointer.phase !== 'discarding' || pointer.discarded || hand.discarded) return;
+    setBusyHandId(hand.handId);
     setMessage(null);
     try {
       await discardPrivateMissionCard(pointer.missionId, hand.cardId);
     } catch (error) {
       setMessage(failureMessage(error));
     } finally {
-      setBusy(false);
+      setBusyHandId(null);
     }
   };
 
   return (
-    <section className="away-mission-private-panel role-card cic-frame" aria-label="Private away mission card">
-      <h2 className="gm-console__section-title">Away mission // private card</h2>
-      {pointer.phase === 'awaiting-card-selection' && (
-        <p className="gm-console__status" role="status">
-          Waiting for the facilitator to finish extra-card selection.
-        </p>
-      )}
-      {pointer.phase === 'discarding' && discarded && (
-        <p className="gm-console__status" role="status">
-          Your card was discarded secretly. Keep the remaining mission cards for assignment.
-        </p>
-      )}
-      {pointer.phase === 'assignment-ready' && (
-        <p className="gm-console__status" role="status">
-          Private discards are complete. Keep the remaining mission cards for assignment.
-        </p>
-      )}
-      {pointer.phase === 'discarding' && !discarded && !hand && (
-        <p className="gm-console__status" role="status">Receiving your private card…</p>
-      )}
-      {pointer.phase === 'discarding' && !discarded && hand && (
-        <>
-          <dl className="away-mission-private-panel__card" aria-label="Private mission card details">
-            <div><dt>Card</dt><dd>{hand.cardId}</dd></div>
-            <div><dt>Value</dt><dd>{hand.value}</dd></div>
-          </dl>
-          <p className="gm-console__hint">
-            Discard exactly one card secretly before the remaining cards are assigned.
-          </p>
-          <button type="button" className="cic-text-button" onClick={() => void discard()} disabled={busy}>
-            {busy ? 'Discarding…' : 'Discard this card secretly'}
-          </button>
-        </>
-      )}
+    <section className="away-mission-private-panel role-card cic-frame" aria-label="Private away mission cards">
+      <h2 className="gm-console__section-title">Away mission // private cards</h2>
+      {visiblePointers.map((pointer) => {
+        const hand = handsById.get(pointer.handId);
+        const discarded = pointer.discarded || hand?.discarded === true;
+        return (
+          <article key={pointer.handId} className="away-mission-private-panel__mission" aria-label={`Private away mission card ${pointer.missionId}`}>
+            <h3 className="gm-console__status">Mission {pointer.missionId}</h3>
+            {pointer.phase === 'awaiting-card-selection' && (
+              <p className="gm-console__status" role="status">
+                Waiting for the facilitator to finish extra-card selection.
+              </p>
+            )}
+            {pointer.phase === 'discarding' && discarded && (
+              <p className="gm-console__status" role="status">
+                Your card was discarded secretly. Keep the remaining mission cards for assignment.
+              </p>
+            )}
+            {pointer.phase === 'assignment-ready' && (
+              <p className="gm-console__status" role="status">
+                Private discards are complete. Keep the remaining mission cards for assignment.
+              </p>
+            )}
+            {pointer.phase === 'discarding' && !discarded && !hand && (
+              <p className="gm-console__status" role="status">Receiving your private card…</p>
+            )}
+            {pointer.phase === 'discarding' && !discarded && hand && (
+              <>
+                <dl className="away-mission-private-panel__card" aria-label="Private mission card details">
+                  <div><dt>Card</dt><dd>{hand.cardId}</dd></div>
+                  <div><dt>Value</dt><dd>{hand.value}</dd></div>
+                </dl>
+                <p className="gm-console__hint">
+                  Discard exactly one card secretly before the remaining cards are assigned.
+                </p>
+                <button
+                  type="button"
+                  className="cic-text-button"
+                  onClick={() => void discard(pointer, hand)}
+                  disabled={busyHandId !== null}
+                >
+                  {busyHandId === hand.handId ? 'Discarding…' : 'Discard this card secretly'}
+                </button>
+              </>
+            )}
+          </article>
+        );
+      })}
       {message && <p className="gm-console__status" role="alert">{message}</p>}
     </section>
   );

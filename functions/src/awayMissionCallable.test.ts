@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   discardHand: undefined as Record<string, unknown> | undefined,
   discardPointer: undefined as Record<string, unknown> | undefined,
   discardMarker: undefined as Record<string, unknown> | undefined,
+  readyMarker: undefined as Record<string, unknown> | undefined,
   discardEvent: false,
 }));
 
@@ -87,6 +88,7 @@ beforeEach(() => {
   mock.discardHand = undefined;
   mock.discardPointer = undefined;
   mock.discardMarker = undefined;
+  mock.readyMarker = undefined;
   mock.discardEvent = false;
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(sessionFields, ref.path);
@@ -108,6 +110,9 @@ beforeEach(() => {
     if (ref.path === 'sessions/s1/commandReceipts/discard-1' && mock.discardMarker) {
       return snapshot(mock.discardMarker, ref.path);
     }
+    if (ref.path === 'sessions/s1/commandReceipts/ready-1' && mock.readyMarker) {
+      return snapshot(mock.readyMarker, ref.path);
+    }
     if (ref.path === 'sessions/s1/events/mission-card-discarded-discard-1' && mock.discardEvent) {
       return snapshot({ type: 'mission-card-discarded' }, ref.path);
     }
@@ -117,7 +122,7 @@ beforeEach(() => {
     if (ref.path === 'sessions/s1/awayMissionHands/m9_mission-1u5_alice' && mock.discardHand) {
       return snapshot(mock.discardHand, ref.path);
     }
-    if (ref.path === 'sessions/s1/awayMissionHandPointers/alice' && mock.discardPointer) {
+    if (ref.path === 'sessions/s1/awayMissionHandPointers/m9_mission-1u5_alice' && mock.discardPointer) {
       return snapshot(mock.discardPointer, ref.path);
     }
     if (ref.path.includes('/serverState/awayMissions/instances/')) return snapshot({}, ref.path, false);
@@ -171,6 +176,9 @@ describe('discardPrivateMissionCard', () => {
     const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/mission-card-discarded-discard-1');
     expect(eventWrite?.[1]).not.toHaveProperty('cardId');
     expect(eventWrite?.[1]).not.toHaveProperty('participantUid');
+    expect(mock.get).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/awayMissionHandPointers/m9_mission-1u5_alice' }),
+    );
   });
 
   it('replays the same request without consuming a second card', async () => {
@@ -255,6 +263,10 @@ describe('openPrivateMissionDiscards', () => {
       expect.objectContaining({ phase: 'discarding', revision: 1 }),
     );
     expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))).toHaveLength(2);
+    expect(mock.set.mock.calls.map(([ref]) => ref.path)).toEqual(expect.arrayContaining([
+      'sessions/s1/awayMissionHandPointers/m9_mission-1u5_alice',
+      'sessions/s1/awayMissionHandPointers/m9_mission-1u3_bob',
+    ]));
   });
 
   it('fails closed when a legacy mission has no explicit selection phase', async () => {
@@ -268,6 +280,33 @@ describe('openPrivateMissionDiscards', () => {
       sessionId: 's1', instanceId: 'bridge', requestId: 'ready-legacy',
       expectedSetupRevision: 1, missionId: 'mission-1',
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('replays a stale readiness receipt with its zero participant count', async () => {
+    mock.discardMission = {
+      schemaVersion: 1,
+      missionId: 'mission-1',
+      phase: 'awaiting-card-selection',
+      revision: 0,
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+      handIds: ['m9_mission-1u5_alice'],
+    };
+    const command = {
+      sessionId: 's1', instanceId: 'bridge', requestId: 'ready-1',
+      expectedSetupRevision: 0, missionId: 'mission-1',
+    };
+    await expect(openPrivateMissionDiscards.run(request(command))).resolves.toMatchObject({
+      status: 'stale', participantCount: 0, currentSetupRevision: 1,
+    });
+    const markerWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/ready-1');
+    mock.readyMarker = markerWrite?.[1];
+    mock.set.mockClear();
+    mock.update.mockClear();
+    await expect(openPrivateMissionDiscards.run(request(command))).resolves.toMatchObject({
+      status: 'replayed', participantCount: 0, currentSetupRevision: 1,
+    });
+    expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
   });
 });
@@ -317,5 +356,24 @@ describe('dealPrivateInitialCards', () => {
     await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps overlapping missions for the same participant on distinct pointers', async () => {
+    const first = {
+      ...command, requestId: 'deal-m1', missionId: 'mission-1', participantUids: ['alice'],
+    };
+    const second = {
+      ...command, requestId: 'deal-m2', missionId: 'mission-2', participantUids: ['alice'],
+    };
+    await expect(dealPrivateInitialCards.run(request(first))).resolves.toMatchObject({ missionId: 'mission-1' });
+    await expect(dealPrivateInitialCards.run(request(second))).resolves.toMatchObject({ missionId: 'mission-2' });
+    const pointerPaths = mock.set.mock.calls
+      .filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))
+      .map(([ref]) => ref.path);
+    expect(pointerPaths).toEqual(expect.arrayContaining([
+      'sessions/s1/awayMissionHandPointers/m9_mission-1u5_alice',
+      'sessions/s1/awayMissionHandPointers/m9_mission-2u5_alice',
+    ]));
+    expect(new Set(pointerPaths).size).toBe(2);
   });
 });

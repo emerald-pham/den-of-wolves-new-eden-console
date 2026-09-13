@@ -69,3 +69,29 @@ it('shows the GM readiness control without exposing card content', async () => {
   await user.click(within(panel).getByRole('button', { name: /open private discards/i }));
   expect(openPrivateMissionDiscards).toHaveBeenCalledWith('mission-1');
 });
+
+it('keeps two overlapping participant missions visible and isolated', async () => {
+  const user = userEvent.setup();
+  vi.mocked(discardPrivateMissionCard).mockResolvedValue({
+    status: 'committed', sessionId: 's1', requestId: 'r1', missionId: 'mission-2', expectedSetupRevision: 1,
+  });
+  const store = useSessionStore.getState();
+  store.setSession({ id: 's1', setupRevision: 1 } as never);
+  store.setMe({ uid: 'alice', sessionId: 's1', role: 'player' } as never);
+  store.setAwayMissionHandPointers([
+    { sessionId: 's1', participantUid: 'alice', missionId: 'mission-1', handId: 'hand-1', phase: 'discarding', revision: 1, discarded: false },
+    { sessionId: 's1', participantUid: 'alice', missionId: 'mission-2', handId: 'hand-2', phase: 'discarding', revision: 1, discarded: false },
+  ]);
+  store.setAwayMissionHands([
+    { sessionId: 's1', participantUid: 'alice', missionId: 'mission-1', handId: 'hand-1', cardId: 'A♥', rank: 'A', suit: 'hearts', value: 10, discarded: false },
+    { sessionId: 's1', participantUid: 'alice', missionId: 'mission-2', handId: 'hand-2', cardId: '4♥', rank: '4', suit: 'hearts', value: 4, discarded: false },
+  ]);
+
+  render(<AwayMissionDiscardPanel />);
+
+  expect(screen.getByRole('article', { name: /mission-1/i })).toHaveTextContent('A♥');
+  const second = screen.getByRole('article', { name: /mission-2/i });
+  expect(second).toHaveTextContent('4♥');
+  await user.click(within(second).getByRole('button', { name: /discard this card secretly/i }));
+  expect(discardPrivateMissionCard).toHaveBeenCalledWith('mission-2', '4♥');
+});

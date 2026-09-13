@@ -1552,6 +1552,67 @@ it('keeps away-mission hands private to the participant and current GMs', async 
   await assertSucceeds(getDoc(doc(as('gm2'), handPath)));
 });
 
+it('keeps overlapping away-mission pointers private and revokes stale GM access', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    const pointer = (missionId: string, handId: string) => ({
+      type: 'away-mission-hand-pointer',
+      sessionId: 's1',
+      participantUid: 'alice',
+      missionId,
+      handId,
+      phase: 'discarding',
+      revision: 1,
+      discarded: false,
+    });
+    await setDoc(doc(db, `${SESSION}/awayMissionHandPointers/m9_mission-1u5_alice`), pointer('mission-1', 'm9_mission-1u5_alice'));
+    await setDoc(doc(db, `${SESSION}/awayMissionHandPointers/m9_mission-2u5_alice`), pointer('mission-2', 'm9_mission-2u5_alice'));
+  });
+
+  const pointers = `${SESSION}/awayMissionHandPointers`;
+  await assertSucceeds(getDoc(doc(as('alice'), `${pointers}/m9_mission-1u5_alice`)));
+  await assertSucceeds(getDoc(doc(as('alice'), `${pointers}/m9_mission-2u5_alice`)));
+  await assertFails(getDoc(doc(as('bob'), `${pointers}/m9_mission-1u5_alice`)));
+  await assertSucceeds(getDoc(doc(as('gm1'), `${pointers}/m9_mission-1u5_alice`)));
+  await assertSucceeds(getDocs(collection(as('gm1'), pointers)));
+  await assertSucceeds(getDocs(query(collection(as('alice'), pointers), where('participantUid', '==', 'alice'))));
+  await assertFails(getDocs(collection(as('alice'), pointers)));
+
+  for (const uid of ['alice', 'gm1']) {
+    await assertFails(setDoc(doc(as(uid), `${pointers}/forged`), { forged: true }));
+    await assertFails(updateDoc(doc(as(uid), `${pointers}/m9_mission-1u5_alice`), { phase: 'assignment-ready' }));
+    await assertFails(deleteDoc(doc(as(uid), `${pointers}/m9_mission-1u5_alice`)));
+  }
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `${SESSION}/awayMissionHandPointers/wrong-session`), {
+      ...{
+        type: 'away-mission-hand-pointer', participantUid: 'alice', missionId: 'mission-x',
+        handId: 'm9_mission-xu5_alice', phase: 'discarding', revision: 1, discarded: false,
+      },
+      sessionId: 's2',
+    });
+    await setDoc(doc(db, `${SESSION}/awayMissionHandPointers/field-mismatch`), {
+      type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'bob',
+      missionId: 'mission-x', handId: 'm9_mission-xu3_bob', phase: 'discarding',
+      revision: 1, discarded: false,
+    });
+  });
+  await assertFails(getDoc(doc(as('alice'), `${pointers}/wrong-session`)));
+  await assertFails(getDoc(doc(as('alice'), `${pointers}/field-mismatch`)));
+  await assertFails(getDoc(doc(as('gm1'), `${pointers}/wrong-session`)));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+  });
+  await assertFails(getDoc(doc(as('gm1'), `${pointers}/m9_mission-1u5_alice`)));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'gm', connected: false });
+  });
+  await assertFails(getDoc(doc(as('gm1'), `${pointers}/m9_mission-1u5_alice`)));
+});
+
 it('keeps Dione VIP hands private to the owner and server-written', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), `${SESSION}/vipHands/alice`), {

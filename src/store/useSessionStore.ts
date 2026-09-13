@@ -356,6 +356,8 @@ interface SessionState {
   roleBrief: RoleBrief | null;
   awayMissionHandPointer: AwayMissionHandPointer | null;
   awayMissionHand: AwayMissionHand | null;
+  awayMissionHandPointers: readonly AwayMissionHandPointer[];
+  awayMissionHands: readonly AwayMissionHand[];
   gmAwayMissionHandPointers: readonly AwayMissionHandPointer[];
   gmLoyaltyCensus: LoyaltyCensus | null;
   wolfCultIntelligence: WolfCultIntelligence | null;
@@ -386,6 +388,8 @@ interface SessionState {
   setRoleBrief: (brief: RoleBrief | null) => void;
   setAwayMissionHandPointer: (pointer: AwayMissionHandPointer | null) => void;
   setAwayMissionHand: (hand: AwayMissionHand | null) => void;
+  setAwayMissionHandPointers: (pointers: readonly AwayMissionHandPointer[]) => void;
+  setAwayMissionHands: (hands: readonly AwayMissionHand[]) => void;
   setGmAwayMissionHandPointers: (pointers: readonly AwayMissionHandPointer[]) => void;
   setGmLoyaltyCensus: (census: LoyaltyCensus | null) => void;
   setWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
@@ -419,6 +423,8 @@ const initial = {
   roleBrief: null,
   awayMissionHandPointer: null,
   awayMissionHand: null,
+  awayMissionHandPointers: [] as readonly AwayMissionHandPointer[],
+  awayMissionHands: [] as readonly AwayMissionHand[],
   gmAwayMissionHandPointers: [] as readonly AwayMissionHandPointer[],
   gmLoyaltyCensus: null,
   wolfCultIntelligence: null,
@@ -439,7 +445,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -465,6 +471,7 @@ export const useSessionStore = create<SessionState>()(
       setSession: (session) => set({ session }),
       setIdentity: (session, me) => set({
         session, me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
+        awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
         gmFacilitatorRuleCall: null, gmCrisisState: null, commissarPurgeAuthority: null,
@@ -481,6 +488,14 @@ export const useSessionStore = create<SessionState>()(
       setRoleBrief: (roleBrief) => set({ roleBrief }),
       setAwayMissionHandPointer: (awayMissionHandPointer) => set({ awayMissionHandPointer }),
       setAwayMissionHand: (awayMissionHand) => set({ awayMissionHand }),
+      setAwayMissionHandPointers: (awayMissionHandPointers) => set({
+        awayMissionHandPointers,
+        awayMissionHandPointer: awayMissionHandPointers[0] ?? null,
+      }),
+      setAwayMissionHands: (awayMissionHands) => set({
+        awayMissionHands,
+        awayMissionHand: awayMissionHands[0] ?? null,
+      }),
       setGmAwayMissionHandPointers: (gmAwayMissionHandPointers) => set({ gmAwayMissionHandPointers }),
       setGmLoyaltyCensus: (gmLoyaltyCensus) => set({ gmLoyaltyCensus }),
       setWolfCultIntelligence: (wolfCultIntelligence) => set({ wolfCultIntelligence }),
@@ -518,6 +533,8 @@ export const useSessionStore = create<SessionState>()(
           roleBrief: null,
           awayMissionHandPointer: null,
           awayMissionHand: null,
+          awayMissionHandPointers: [],
+          awayMissionHands: [],
           gmAwayMissionHandPointers: [],
           gmLoyaltyCensus: null,
           wolfCultIntelligence: null,

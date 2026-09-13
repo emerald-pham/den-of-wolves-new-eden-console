@@ -394,12 +394,12 @@ service cloud.firestore {
       // can use it to discover their private hand, while the current GM may
       // enumerate pointers to operate the facilitator readiness control. It
       // never contains a card identity or card content.
-      match /awayMissionHandPointers/{participantUid} {
+      match /awayMissionHandPointers/{pointerId} {
         allow get: if isMember(sessionId)
           && resource.data.sessionId == sessionId
-          && resource.data.participantUid == participantUid
-          && (participantUid == uid() || isGm(sessionId));
-        allow list: if isGm(sessionId);
+          && (resource.data.participantUid == uid() || isGm(sessionId));
+        allow list: if isMember(sessionId)
+          && (resource.data.participantUid == uid() || isGm(sessionId));
         allow write: if false;
       }
 

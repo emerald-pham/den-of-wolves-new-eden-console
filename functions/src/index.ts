@@ -4047,7 +4047,7 @@ export const dealPrivateInitialCards = onCall<{
         value: allocation.card.value,
         createdAt: FieldValue.serverTimestamp(),
       });
-      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${allocation.participant.uid}`), {
+      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId}`), {
         type: 'away-mission-hand-pointer',
         sessionId: command.sessionId,
         participantUid: allocation.participant.uid,
@@ -4094,7 +4094,10 @@ function isAwayMissionDiscardReadyReply(value: unknown, sessionId: string): valu
     (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
     typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
     Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) >= 0 &&
-    (reply.status === 'stale' || (reply.participantCount as number) > 0) &&
+    ((reply.status === 'stale' || (reply.participantCount as number) > 0) ||
+      (reply.status === 'replayed' && (reply.participantCount as number) === 0 &&
+        Number.isSafeInteger(reply.currentSetupRevision) &&
+        reply.currentSetupRevision !== reply.expectedSetupRevision)) &&
     Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
     (reply.currentSetupRevision === undefined ||
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
@@ -4203,7 +4206,8 @@ export const openPrivateMissionDiscards = onCall<{
       updatedAt: FieldValue.serverTimestamp(),
     });
     participants.forEach((participant, index) => {
-      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${participant.uid}`), {
+      const handId = storedHandIds[index];
+      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId}`), {
         type: 'away-mission-hand-pointer',
         sessionId: command.sessionId,
         participantUid: participant.uid,
@@ -4296,7 +4300,7 @@ export const discardPrivateMissionCard = onCall<{
   );
   const handId = awayMissionHandId(command.missionId, uid);
   const handRef = db.doc(`sessions/${command.sessionId}/awayMissionHands/${handId}`);
-  const pointerRef = db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${uid}`);
+  const pointerRef = db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId}`);
   const markerFingerprint: CommandFingerprint = {
     action: 'discard-private-mission-card',
     sessionId: command.sessionId,
@@ -4446,7 +4450,7 @@ export const discardPrivateMissionCard = onCall<{
     if (allParticipantsDiscarded) {
       participants.forEach((candidate) => {
         if (candidate.uid === uid) return;
-        tx.update(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${candidate.uid}`), {
+        tx.update(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${awayMissionHandId(command.missionId, candidate.uid)}`), {
           phase: 'assignment-ready',
           revision: revision + 1,
           updatedAt: FieldValue.serverTimestamp(),

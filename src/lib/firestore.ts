@@ -1503,6 +1503,8 @@ export interface SessionStateHandlers {
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
   readonly onAwayMissionHandPointer?: (pointer: AwayMissionHandPointer | null) => void;
   readonly onAwayMissionHand?: (hand: AwayMissionHand | null) => void;
+  readonly onAwayMissionHandPointers?: (pointers: readonly AwayMissionHandPointer[]) => void;
+  readonly onAwayMissionHands?: (hands: readonly AwayMissionHand[]) => void;
   readonly onGmAwayMissionHandPointers?: (pointers: readonly AwayMissionHandPointer[]) => void;
   readonly onCommissarPurgeAuthority?: (authority: CommissarPurgeAuthority | null) => void;
   readonly onFacilitatorRuleCall?: (call: FacilitatorRuleCall | null) => void;
@@ -1543,38 +1545,54 @@ export function subscribeSessionState(
   let startWolfCultListener: (resetRevision: boolean) => void = () => undefined;
   let startArbourVisionListener: (resetRevision: boolean) => void = () => undefined;
   let startPrivateLoyaltyListener: () => void = () => undefined;
-  let unsubscribeAwayMissionHand: Unsubscribe = () => undefined;
+  let unsubscribeAwayMissionHands: Unsubscribe[] = [];
   let awayMissionHandListenerGeneration = 0;
   const onError = () => {
     if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
   };
-  const startAwayMissionHandListener = (pointer: AwayMissionHandPointer | null) => {
-    unsubscribeAwayMissionHand();
+  const startAwayMissionHandListeners = (pointers: readonly AwayMissionHandPointer[]) => {
+    unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
+    unsubscribeAwayMissionHands = [];
     const generation = ++awayMissionHandListenerGeneration;
-    if (!pointer || !handlers.onAwayMissionHand) {
+    if (pointers.length === 0 || (!handlers.onAwayMissionHand && !handlers.onAwayMissionHands)) {
       handlers.onAwayMissionHand?.(null);
+      handlers.onAwayMissionHands?.([]);
       return;
     }
-    unsubscribeAwayMissionHand = onSnapshot(
-      doc(database, `sessions/${sessionId}/awayMissionHands/${pointer.handId}`),
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
-            generation !== awayMissionHandListenerGeneration) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        handlers.onAwayMissionHand?.(
-          snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null,
-        );
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
-            generation !== awayMissionHandListenerGeneration) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onAwayMissionHand?.(null);
-          return;
-        }
-        onError();
-      },
-    );
+    const hands = new Map<string, AwayMissionHand>();
+    const publishHands = () => {
+      const next = pointers.flatMap((pointer) => {
+        const hand = hands.get(pointer.handId);
+        return hand ? [hand] : [];
+      });
+      handlers.onAwayMissionHands?.(next);
+      handlers.onAwayMissionHand?.(next[0] ?? null);
+    };
+    pointers.forEach((pointer) => {
+      const unsubscribe = onSnapshot(
+        doc(database, `sessions/${sessionId}/awayMissionHands/${pointer.handId}`),
+        (snapshot) => {
+          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+              generation !== awayMissionHandListenerGeneration) return;
+          if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+          const hand = snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null;
+          if (hand) hands.set(pointer.handId, hand);
+          else hands.delete(pointer.handId);
+          publishHands();
+        },
+        (error: { readonly code?: string }) => {
+          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+              generation !== awayMissionHandListenerGeneration) return;
+          if (error.code === 'permission-denied' || error.code === 'not-found') {
+            hands.delete(pointer.handId);
+            publishHands();
+            return;
+          }
+          onError();
+        },
+      );
+      unsubscribeAwayMissionHands.push(unsubscribe);
+    });
   };
   const unsubscribes = [
     onSnapshot(doc(database, `sessions/${sessionId}`), (snapshot) => {
@@ -1755,22 +1773,28 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
-    ...(handlers.onAwayMissionHandPointer ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/awayMissionHandPointers/${uid}`),
+    ...((handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
+      handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands) ? [onSnapshot(
+      query(
+        collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+        where('participantUid', '==', uid),
+      ),
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        const pointer = snapshot.exists()
-          ? awayMissionHandPointer(snapshot.data(), sessionId, uid)
-          : null;
-        handlers.onAwayMissionHandPointer?.(pointer);
-        startAwayMissionHandListener(pointer);
+        const pointers = snapshot.docs
+          .map((entry) => awayMissionHandPointer(entry.data(), sessionId, uid))
+          .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null);
+        handlers.onAwayMissionHandPointers?.(pointers);
+        handlers.onAwayMissionHandPointer?.(pointers[0] ?? null);
+        startAwayMissionHandListeners(pointers);
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onAwayMissionHandPointers?.([]);
           handlers.onAwayMissionHandPointer?.(null);
-          startAwayMissionHandListener(null);
+          startAwayMissionHandListeners([]);
           return;
         }
         onError();
@@ -1925,7 +1949,8 @@ export function subscribeSessionState(
     privateLoyaltyListenerGeneration += 1;
     unsubscribeWolfCult();
     unsubscribeArbourVision();
-    unsubscribeAwayMissionHand();
+    unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
+    unsubscribeAwayMissionHands = [];
     awayMissionHandListenerGeneration += 1;
     wolfCultListenerGeneration += 1;
     arbourVisionListenerGeneration += 1;
@@ -1943,6 +1968,8 @@ export function subscribeSessionState(
       handlers.onRoleBrief?.(null);
       handlers.onAwayMissionHandPointer?.(null);
       handlers.onAwayMissionHand?.(null);
+      handlers.onAwayMissionHandPointers?.([]);
+      handlers.onAwayMissionHands?.([]);
       handlers.onGmAwayMissionHandPointers?.([]);
       handlers.onCommissarPurgeAuthority?.(null);
       handlers.onFacilitatorRuleCall?.(null);

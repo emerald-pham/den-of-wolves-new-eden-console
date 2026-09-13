@@ -334,7 +334,9 @@ function AppRoutes() {
             store.setGmAwayMissionHandPointers([]);
           }
           if (next.role !== 'player') {
+            store.setAwayMissionHandPointers([]);
             store.setAwayMissionHandPointer(null);
+            store.setAwayMissionHands([]);
             store.setAwayMissionHand(null);
           }
           if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
@@ -386,7 +388,9 @@ function AppRoutes() {
           if (!callbackCurrent()) return;
           clearLoyaltyCensus();
           clearWolfCultIntelligence();
+          useSessionStore.getState().setAwayMissionHandPointers([]);
           useSessionStore.getState().setAwayMissionHandPointer(null);
+          useSessionStore.getState().setAwayMissionHands([]);
           useSessionStore.getState().setAwayMissionHand(null);
           useSessionStore.getState().setGmAwayMissionHandPointers([]);
           useSessionStore.getState().disconnect();
@@ -526,26 +530,28 @@ function AppRoutes() {
           pendingRoleBrief = next;
           store.setRoleBrief(null);
         },
-        onAwayMissionHandPointer: (next) => {
+        onAwayMissionHandPointers: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           if ((store.me && store.me.uid !== playerUid) || store.me?.role === 'gm') {
+            store.setAwayMissionHandPointers([]);
             store.setAwayMissionHandPointer(null);
+            store.setAwayMissionHands([]);
             store.setAwayMissionHand(null);
             return;
           }
-          store.setAwayMissionHandPointer(next);
-          if (!next) store.setAwayMissionHand(null);
+          store.setAwayMissionHandPointers(next);
         },
-        onAwayMissionHand: (next) => {
+        onAwayMissionHands: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           if ((store.me && store.me.uid !== playerUid) || store.me?.role === 'gm' ||
-              (next && store.awayMissionHandPointer?.handId !== next.handId)) {
+              next.some((hand) => !store.awayMissionHandPointers.some((pointer) => pointer.handId === hand.handId))) {
+            store.setAwayMissionHands([]);
             store.setAwayMissionHand(null);
             return;
           }
-          store.setAwayMissionHand(next);
+          store.setAwayMissionHands(next);
         },
         onGmAwayMissionHandPointers: (next) => {
           if (!callbackCurrent()) return;
