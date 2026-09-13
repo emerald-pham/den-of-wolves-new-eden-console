@@ -205,13 +205,13 @@ it('does not let a stale connected officer block a ship dispenser approval', asy
     .resolves.toMatchObject({ status: 'fired' });
 });
 
-it('holds bridge confetti until Turn 1 for a player console', async () => {
+it('allows an entitled bridge dispenser at Turn 0 without an Iris gate', async () => {
   mock.currentTurn = 0;
   mock.full = false;
 
   await expect(popShipConfetti.run({ data, auth: { uid: 'u1' } } as CallableRequest<typeof data>))
-    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/turn 1/i) });
-  expect(mock.set).not.toHaveBeenCalled();
+    .resolves.toMatchObject({ shipId: 'dione', status: 'fired' });
+  expect(mock.set).toHaveBeenCalled();
 });
 
 it('denies the Press dispenser when Press is disabled without changing its history', async () => {
