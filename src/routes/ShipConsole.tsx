@@ -63,6 +63,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [observerWrite, setObserverWrite] = useState(false);
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
+  // The base ship route is also a valid return path after a player has
+  // claimed a station. Keep the Admiral instrument discoverable there while
+  // retaining the explicit role segment as the stronger route selection.
+  const effectiveRoleId = consoleRole?.id ?? (!observer && roleId === undefined
+    ? me?.activeConsoleRoleId
+    : undefined);
   const hasConfirmedRole = !observer && (me?.activeConsoleRoleId === consoleRole?.id || replacementVipHost);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
@@ -435,7 +441,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             </ol>
           ) : <p>No recorded shuttle dockings</p>}
         </section>
-        {ship.id === 'aegis' && consoleRole?.id === 'admiral' ? (
+        {ship.id === 'aegis' && effectiveRoleId === 'admiral' ? (
           <FleetAlertControl />
         ) : ship.id !== 'aegis' ? (
           <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">

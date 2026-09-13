@@ -3682,6 +3682,36 @@ body {
   flex: 0 0 auto;
 }
 
+/* Fleetwide Alert is an operational command surface; keep its copy readable
+   when it reuses the compact morale instrument structure. */
+.confetti-dispenser--fleet-alert .confetti-dispenser__label,
+.confetti-dispenser--fleet-alert .confetti-dispenser__status,
+.confetti-dispenser--fleet-alert .confetti-dispenser__notice {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.confetti-dispenser--fleet-alert .fleet-alert-editor {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.confetti-dispenser--fleet-alert textarea {
+  font: 0.875rem/1.45 var(--cic-mono);
+}
+.confetti-dispenser--fleet-alert .cic-action-button,
+.confetti-dispenser--fleet-alert .confetti-dispenser__trigger,
+.confetti-dispenser--fleet-alert .confetti-dispenser__cover {
+  font-size: 0.875rem;
+}
+
+/* The fleet alert is a command surface, so the compact morale transform must
+   not shrink its confirmation controls below the shared 44px touch target. */
+@media (max-width: 60rem) {
+  .ship-console .ship-console__instruments > .confetti-dispenser--fleet-alert {
+    transform: none;
+    transform-origin: initial;
+  }
+}
+
 .press-dispatch {
   padding: 0.8rem;
   background: color-mix(in srgb, var(--cic-void) 94%, transparent);

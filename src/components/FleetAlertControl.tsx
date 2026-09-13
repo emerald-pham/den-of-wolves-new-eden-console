@@ -31,7 +31,8 @@ export default function FleetAlertControl() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [lockout]);
-  if ((access.roleId ?? me?.activeConsoleRoleId) !== 'admiral') return null;
+  const authorizedRoleId = access.roleId ?? me?.activeConsoleRoleId;
+  if (authorizedRoleId !== 'admiral' || typeof me?.replacementRoleId === 'string') return null;
   const lockoutMinutes = lockout
     ? Math.ceil((FLEET_ALERT_COOLDOWN_MS - (now - lastRaisedMs)) / 60_000)
     : 0;

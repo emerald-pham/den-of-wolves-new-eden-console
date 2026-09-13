@@ -500,6 +500,17 @@ describe('ship console instrument layout', () => {
     );
   });
 
+  it('keeps the fleet alert command surface at full compact size', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /@media \(max-width: 60rem\)\s*\{\s*\.ship-console \.ship-console__instruments > \.confetti-dispenser--fleet-alert\s*\{[^}]*transform: none;[^}]*\}/,
+    );
+    expect(index).toMatch(
+      /\.confetti-dispenser--fleet-alert \.fleet-alert-editor\s*\{[^}]*font-size: 0\.875rem;[^}]*\}/,
+    );
+  });
+
   it('lets the pursuit frame override the shared amber frame in computed styles', () => {
     const cic = readFileSync('src/styles/cic.css', 'utf8');
     const index = readFileSync('src/index.css', 'utf8').replace(/@import[^;]+;/g, '');

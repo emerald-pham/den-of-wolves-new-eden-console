@@ -4272,6 +4272,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "663",
+      "id": "E-663-VERIFIED",
+      "language": "The composed AEGIS console now keeps the Admiral Fleetwide Red Alert surface visible on the explicit Admiral route and the base AEGIS return route, while preserving the existing server callable, confirmation cover, phase/connection/write/turn-zero/stand-down guards, and replacement-role denial. The responsive command cover is 52px high at 320x844, 390x844, 844x390, and 1440x900 with no horizontal overflow; reduced-motion rendering and keyboard Enter on the visible cover were verified in a local composed browser fixture. No live Firebase mutation or deployment claim is included.",
+      "source": "src/routes/ShipConsole.tsx; src/components/FleetAlertControl.tsx; src/index.css; src/routes/ShipConsole.test.tsx; src/components/FleetAlert.test.tsx; src/styles/aesthetic.test.ts; docs/AESTHETICS.md; focused tests; npm run typecheck; npm run build; targeted eslint; /tmp/p663-red-alert-geometry-20260913.json; /tmp/p663-red-alert-render-matrix-20260913.txt",
+      "type": "evidence / authority / rendered review"
+    },
+    {
       "direction": "672 -> 361;367",
       "id": "E-AUDIT-672",
       "language": "Docking history consumes manifest and authoritative arrival history.",
@@ -21798,11 +21805,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "The Fleetwide Red Alert button in the AEGIS console is currently missing on most layouts. Audit its route, entitlement and responsive rendering, then make the authorized AEGIS Admiral trigger visible, discoverable, keyboard-accessible, and usable across supported layouts without hiding it behind clipping, overflow, overlays, or layout-dependent omission. Retain truthful disabled/pending states when existing action rules do not permit activation. Prove the actual composed AEGIS console at 320×844, 390×844, 844×390, and 1440×900, including viewport resizing, reduced motion, keyboard focus, minimum touch target, and unobscured placement. Preserve server-authoritative role, session, phase, callable and confirmation checks, direct client-write denial, private/audience boundaries, alert/stand-down behavior, and the accepted non-GM DRADIS rendering. Also retain the earlier requirement that the resulting Fleetwide Red Alert appears and remains usable in a normal browser. Existing text-only or isolated component assertions do not substitute for rendered route proof; leave this item missing until separately implemented.",
+        "acceptance": "The Fleetwide Red Alert button in the AEGIS console is currently missing on most layouts. Audit its route, entitlement and responsive rendering, then make the authorized AEGIS Admiral trigger visible, discoverable, keyboard-accessible, and usable across supported layouts without hiding it behind clipping, overflow, overlays, or layout-dependent omission. Retain truthful disabled/pending states when existing action rules do not permit activation. Prove the actual composed AEGIS console at 320×844, 390×844, 844×390, and 1440×900, including viewport resizing, reduced motion, keyboard focus, minimum touch target, and unobscured placement. Preserve server-authoritative role, session, phase, callable and confirmation checks, direct client-write denial, private/audience boundaries, alert/stand-down behavior, and the accepted non-GM DRADIS rendering. Also retain the earlier requirement that the resulting Fleetwide Red Alert appears and remains usable in a normal browser. Existing text-only or isolated component assertions do not substitute for rendered route proof.",
         "title": "Make the AEGIS Fleetwide Red Alert button visible across layouts."
       },
-      "description": "Owner-reported AEGIS Fleetwide Red Alert button is missing on most layouts. Repair responsive visibility and discoverability of the authorized trigger and verify actual phone, desktop, short-landscape, resize, and reduced-motion layouts, preserving existing authority and the non-GM DRADIS experience.",
-      "evidenceIds": "E-AUDIT-663",
+      "description": "The composed AEGIS console now keeps the authorized Admiral Fleetwide Red Alert surface discoverable on the explicit Admiral route and the base AEGIS return route. A focused responsive CSS repair preserves 44px-or-larger command controls at phone, short-landscape, and desktop sizes while retaining the existing server-authoritative confirmation, callable, phase, connection, write, turn-zero, stand-down, and replacement-role guards; local reduced-motion browser evidence covers all four required viewports.",
+      "evidenceIds": "E-AUDIT-663;E-663-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "106c",
@@ -21813,7 +21820,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

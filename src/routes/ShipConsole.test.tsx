@@ -182,6 +182,25 @@ it('replaces the AEGIS confetti launcher with the Admiral red-alert command inst
   })).not.toBeInTheDocument();
 });
 
+it('keeps the Admiral red-alert instrument on the base AEGIS return route', () => {
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setSession({ ...session, phase: 'active' });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'admiral' });
+  useSessionStore.getState().setConnection('live');
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const instruments = screen.getByRole('complementary', { name: 'AEGIS instruments' });
+  expect(within(instruments).getByRole('region', { name: 'FLEETWIDE RED ALERT' })).toBeVisible();
+  expect(within(instruments).getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }))
+    .toHaveTextContent('COMMAND LOCK');
+});
+
 it.each([
   ['aegis', 'AEGIS', [0, 4, 8, 6, 1, 9]],
   ['dione', 'Dione', [0, 3, 13, 14, 0, 2]],

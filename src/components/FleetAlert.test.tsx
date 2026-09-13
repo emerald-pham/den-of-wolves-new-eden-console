@@ -81,6 +81,15 @@ it('holds the Admiral alert controls during Turn 0 for a player', () => {
   expect(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' })).toBeDisabled();
   expect(screen.getByText('FLEET COMMAND // TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
 });
+
+it('does not expose historical Admiral authority after a replacement assignment', () => {
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementRoleId: 'doctor', activeConsoleRoleId: 'admiral',
+  });
+  render(<FleetAlertControl />);
+
+  expect(screen.queryByRole('region', { name: 'FLEETWIDE RED ALERT' })).not.toBeInTheDocument();
+});
 it('shows the latest press dispatch while no alert is active', () => {
   act(() => {
     const state = useSessionStore.getState();
