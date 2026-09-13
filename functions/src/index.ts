@@ -489,8 +489,41 @@ function fleetTickerForMutation(
   );
 }
 
-/** Seed the standing Turn 0 ATC bulletin without disturbing an active stream. */
-function ensureTurnZeroFleetTicker(
+function fleetTickerBaseline(
+  sessionId: string,
+  session: DocumentSnapshot,
+  state: FleetTickerState,
+  now: string,
+): FleetTickerState {
+  if (state.current !== null || state.queued.length > 0 || session.get('phase') === 'closed') {
+    return state;
+  }
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (phase?.timerPause) return state;
+  const redAlert = session.get('fleetRedAlert') as { active?: unknown } | undefined;
+  if (redAlert?.active === true) return state;
+  const debrief = session.get('debriefMode') as { active?: unknown } | undefined;
+  if (debrief?.active === true) return state;
+
+  const turn = sessionTurn(session.get('currentTurn'));
+  if (turn === 0) {
+    return publishFleetTicker(sessionId, state, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
+      text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long',
+      sourceId: TURN_ZERO_ATC_SOURCE_ID,
+    }, now);
+  }
+  if (!phase || phase.turn !== turn) return state;
+  return publishFleetTicker(sessionId, state, {
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+    text: phase.airspace.state === 'restricted'
+      ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
+    tone: 'normal', gap: 'long', sourceId: `airspace:${turn}:${phase.airspace.state}`,
+  }, now);
+}
+
+/** Seed an authoritative ATC baseline without disturbing an active stream. */
+function ensureFleetTickerBaseline(
   tx: Transaction,
   sessionRef: DocumentReference,
   session: DocumentSnapshot,
@@ -498,17 +531,9 @@ function ensureTurnZeroFleetTicker(
 ): FleetTickerState {
   const stored = session.get('fleetTicker');
   const state = fleetTickerForMutation(sessionRef.id, session, now);
-  if (session.get('phase') === 'closed' || sessionTurn(session.get('currentTurn')) !== 0 ||
-      state.current !== null || state.queued.length > 0) {
-    return state;
-  }
-  const next = publishFleetTicker(sessionRef.id, state, {
-    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
-    text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long',
-    sourceId: TURN_ZERO_ATC_SOURCE_ID,
-  }, now);
+  const next = fleetTickerBaseline(sessionRef.id, session, state, now);
   const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
-  if (stored === undefined || JSON.stringify(previous) !== JSON.stringify(next)) {
+  if (JSON.stringify(previous) !== JSON.stringify(next)) {
     tx.update(sessionRef, { fleetTicker: next, updatedAt: FieldValue.serverTimestamp() });
   }
   return next;
@@ -530,10 +555,9 @@ function publishPressFleetTicker(
   now: string,
 ): FleetTickerState {
   const state = fleetTickerForMutation(sessionId, session, now);
-  const currentTurn = sessionTurn(session.get('currentTurn'));
   return publishFleetTicker(
     sessionId,
-    currentTurn > 0 ? retireAirspaceFleetTicker(state, now) : state,
+    retireAirspaceFleetTicker(state, now),
     input,
     now,
   );
@@ -7586,7 +7610,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipGalacticCoordinates: removeLegacyNavigationField(),
         shipNavigationLogs: removeLegacyNavigationField(),
       });
-      ensureTurnZeroFleetTicker(tx, sessionRef, sessionDoc, new Date().toISOString());
       reconcilePresenceTimer(tx, sessionRef, sessionDoc, true);
       if (player.exists) {
         const storedGroupId = player.get('fleetGroupId');
@@ -7598,6 +7621,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           );
         }
         const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
+        ensureFleetTickerBaseline(tx, sessionRef, sessionDoc, new Date().toISOString());
         const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
         const storedPressHolderUid = sessionDoc.get('pressHolderUid');
         const releasePress = hasPressState(player) && (
@@ -7633,6 +7657,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
         return returningSeat.seatId;
       } else {
+        ensureFleetTickerBaseline(tx, sessionRef, sessionDoc, new Date().toISOString());
         tx.set(playerRef, {
           uid,
           sessionId,
@@ -7868,7 +7893,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       currentPlayer.get('role') !== 'player' || hasCoreAssignment(currentPlayer) ||
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
-    ensureTurnZeroFleetTicker(tx, sessionRef, currentSession, new Date().toISOString());
+    ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
     reconcilePresenceTimer(tx, sessionRef, currentSession, true);
     tx.update(playerRef, {
       fleetGroupId: group.id,
@@ -10796,7 +10821,7 @@ export const refreshPresence = onCall<{
       lastFullReconciliationAt !== undefined &&
       Date.now() - lastFullReconciliationAt < PRESENCE_RECONCILIATION_INTERVAL_MS;
     if (cheapHeartbeat) {
-      ensureTurnZeroFleetTicker(tx, sessionRef, session, new Date().toISOString());
+      ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
       tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
       if (instanceId && instanceRef) {
         tx.update(instanceRef, {
@@ -10815,7 +10840,7 @@ export const refreshPresence = onCall<{
       tx.get(secretsRef),
       tx.get(censusRef),
     ]);
-    ensureTurnZeroFleetTicker(tx, sessionRef, session, new Date().toISOString());
+    ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
@@ -14960,12 +14985,13 @@ export const dismissPressDispatch = onCall<{
       dispatches: current.dispatches.filter(dispatch => dispatch.id !== data.dispatchId),
       revision: data.expectedRevision + 1,
     };
-    const fleetTicker = dismissFleetTickerSource(
+    const dismissedTicker = dismissFleetTickerSource(
       data.sessionId,
       fleetTickerForMutation(data.sessionId, session, serverTime),
       data.dispatchId,
       serverTime,
     );
+    const fleetTicker = fleetTickerBaseline(data.sessionId, session, dismissedTicker, serverTime);
     tx.update(ref, { pressDispatch, fleetTicker, updatedAt: FieldValue.serverTimestamp() });
     writeFleetTickerAudit(tx, data.sessionId, 'dismiss', fleetTicker, data.dispatchId, serverTime);
     if (receiptRef && fingerprint) {

@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   activeRoleIds: undefined as readonly string[] | undefined,
   pressEnabled: true,
   pressHolderUid: undefined as string | undefined,
+  fleetRedAlertActive: true,
   randomUUID: vi.fn(() => 'dispatch-new'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: vi.fn(), randomUUID: mock.randomUUID }));
@@ -57,6 +58,7 @@ beforeEach(() => {
     activeRoleIds: undefined,
     pressEnabled: true,
     pressHolderUid: undefined,
+    fleetRedAlertActive: true,
   });
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('dispatch-new');
@@ -76,7 +78,7 @@ beforeEach(() => {
       : {
         phase: mock.phase,
         currentTurn: mock.currentTurn,
-        fleetRedAlert: { active: true, revision: 1 },
+        fleetRedAlert: { active: mock.fleetRedAlertActive, revision: 1 },
         pressDispatch: mock.pressDispatch,
         fleetTicker: mock.fleetTicker,
         turnPhase: mock.turnPhase,
@@ -209,6 +211,26 @@ it('allows the claimed Press Officer to publish during Turn 0', async () => {
   }));
 });
 
+it('lets a Turn 0 Press dispatch replace the standing ATC bulletin', async () => {
+  mock.currentTurn = 0;
+  mock.fleetTicker = {
+    revision: 1, nextSequence: 1, replayCursor: 1,
+    current: {
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'automatic', priority: 30,
+      text: 'AIRSPACE CONTROL // TURN 0 // STANDING BY', tone: 'normal', gap: 'long',
+      sourceId: 'turn-zero-atc', createdAt: '2026-09-06T12:00:00.000Z',
+    },
+    queued: [], draining: [], dismissed: [],
+  };
+
+  await publishPressDispatch.run(request());
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    current: { source: 'press', sourceId: 'dispatch-new' },
+  });
+});
+
 it('allows the claimed Press Officer to dismiss during Turn 0', async () => {
   mock.currentTurn = 0;
   mock.pressDispatch = {
@@ -254,6 +276,37 @@ it('dismisses only the selected active dispatch and advances the collection revi
   ]).not.toContain('dispatch-1');
   expect(ticker.current?.sourceId).toBe('red-alert:1');
   expect(ticker.queued?.map((entry) => entry.sourceId)).toContain('dispatch-2');
+});
+
+it('restores the current-turn ATC baseline after the last Press dispatch is dismissed', async () => {
+  mock.fleetRedAlertActive = false;
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
+  };
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+  };
+  mock.fleetTicker = {
+    revision: 1, nextSequence: 1, replayCursor: 1,
+    current: {
+      id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
+      text: 'SNN // First report', tone: 'normal', gap: 'long', sourceId: 'dispatch-1',
+      createdAt: '2026-09-06T12:00:00.000Z',
+    },
+    queued: [], draining: [], dismissed: [],
+  };
+
+  await dismissPressDispatch.run(request({
+    sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 1,
+  }));
+
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(update.fleetTicker).toMatchObject({
+    current: { source: 'automatic', sourceId: 'airspace:1:lifted', text: 'AIRSPACE CONTROL // AIRSPACE OPEN' },
+  });
 });
 
 it('removes a dismissed Press copy recovered from an authoritative drain', async () => {

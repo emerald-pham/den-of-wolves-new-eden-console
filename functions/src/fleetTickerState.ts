@@ -242,7 +242,8 @@ function withDraining(
 
 function isAirspaceTickerMessage(entry: FleetTickerMessage): boolean {
   return entry.source === 'automatic' && typeof entry.sourceId === 'string' &&
-    /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(entry.sourceId);
+    (entry.sourceId === 'turn-zero-atc' ||
+      /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(entry.sourceId));
 }
 
 /** Retire generated airspace notices before a Press dispatch takes over. */

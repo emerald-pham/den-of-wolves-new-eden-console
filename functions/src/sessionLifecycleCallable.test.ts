@@ -533,6 +533,60 @@ describe('presence lease', () => {
     expect((read('sessions/s1')?.fleetTicker as Record<string, unknown>).revision).toBe(1);
   });
 
+  it('seeds the current-turn ATC baseline when reconnecting to an empty stream', async () => {
+    session({
+      phase: 'active',
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-09-06T20:03:00.000Z',
+        openAirspaceEndsAt: '2026-09-06T20:18:00.000Z',
+        airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+      },
+    });
+    player();
+    mock.setRejectReadsAfterWrite(true);
+
+    await refreshPresence.run(request({ sessionId: 's1' }));
+
+    expect(read('sessions/s1')?.fleetTicker).toMatchObject({
+      current: {
+        source: 'automatic',
+        sourceId: 'airspace:2:restricted',
+        text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
+      },
+    });
+  });
+
+  it('restores the current-turn ATC baseline after an expired stand-down on heartbeat', async () => {
+    session({
+      phase: 'active',
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-09-06T20:03:00.000Z',
+        openAirspaceEndsAt: '2026-09-06T20:18:00.000Z',
+        airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+      },
+      fleetTicker: {
+        revision: 1, nextSequence: 1, replayCursor: 1,
+        current: {
+          id: 's1:fleet-ticker:1', sequence: 1, source: 'automatic', priority: 80,
+          text: 'AEGIS // STAND DOWN', tone: 'normal', gap: 'long', sourceId: 'red-alert:2',
+          expiresAt: '2026-09-06T19:59:00.000Z', createdAt: '2026-09-06T19:58:00.000Z',
+        },
+        queued: [], draining: [], dismissed: [],
+      },
+    });
+    player();
+
+    await refreshPresence.run(request({ sessionId: 's1' }));
+
+    expect(read('sessions/s1')?.fleetTicker).toMatchObject({
+      current: { sourceId: 'airspace:2:lifted', text: 'AIRSPACE CONTROL // AIRSPACE OPEN' },
+    });
+  });
+
   it.each([
     ['a later turn', { currentTurn: 1 }],
     ['a closed Turn 0 session', { phase: 'closed', currentTurn: 0 }],

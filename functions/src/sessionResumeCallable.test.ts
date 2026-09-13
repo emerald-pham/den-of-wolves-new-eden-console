@@ -173,6 +173,28 @@ it('persists the Turn 0 ATC bulletin while resuming an existing empty stream', a
   );
 });
 
+it('persists the current-turn ATC baseline while resuming an empty stream', async () => {
+  prepareResume({ status: 'open', holderUid: null }, {}, {
+    phase: 'active',
+    currentTurn: 2,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T20:03:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T20:18:00.000Z',
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+    },
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    session: { fleetTicker: { current: { sourceId: string; text: string } } };
+  };
+
+  expect(response.session.fleetTicker.current).toMatchObject({
+    sourceId: 'airspace:2:lifted',
+    text: 'AIRSPACE CONTROL // AIRSPACE OPEN',
+  });
+});
+
 it('defaults a legacy resume reply with no Press toggle to enabled', async () => {
   prepareResume({ status: 'open', holderUid: null });
 

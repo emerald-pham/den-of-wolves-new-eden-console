@@ -56,19 +56,23 @@ describe('fleet ticker state', () => {
       queued: [{
         ...airspace, sourceId: 'airspace:2:restricted', text: 'AIRSPACE CLOSED AGAIN',
         id: 's1:fleet-ticker:2', sequence: 2, createdAt: now,
+      }, {
+        source: 'automatic', priority: 60, text: 'FLEET CLOCKS ON HOLD', tone: 'normal', gap: 'long',
+        sourceId: 'empty-session:2:paused', id: 's1:fleet-ticker:3', sequence: 3, createdAt: now,
       }],
     };
 
     const retired = retireAirspaceFleetTicker(queued, now);
     expect(retired.current).toBeNull();
-    expect(retired.queued).toHaveLength(0);
+    expect(retired.queued.map(({ sourceId }) => sourceId)).toEqual(['empty-session:2:paused']);
     expect(retired.draining.map(({ sourceId }) => sourceId)).toEqual(['airspace:1:lifted']);
     expect(retired.dismissed.map(({ id }) => id)).toEqual([
       current.current!.id, queued.queued[0]!.id,
     ]);
 
     const press = publishFleetTicker('s1', retired, pressOne, now);
-    expect(press.current?.sourceId).toBe('press-1');
+    expect(press.current?.sourceId).toBe('empty-session:2:paused');
+    expect(press.queued.map(({ sourceId }) => sourceId)).toContain('press-1');
     expect([
       press.current?.sourceId,
       ...press.queued.map(({ sourceId }) => sourceId),
