@@ -374,6 +374,33 @@ it('updates when the live GM instance stream changes', async () => {
   expect(await screen.findByText('Tablet')).toBeInTheDocument();
 });
 
+it('clears the manifest interruption after recovery without clearing an unrelated newer error', async () => {
+  let publish: ((instances: readonly typeof local[]) => void) | undefined;
+  let fail: (() => void) | undefined;
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances, onError) => {
+    publish = onInstances;
+    fail = onError;
+    onInstances([local]);
+    return vi.fn();
+  });
+  renderConsole();
+  await screen.findByText('Bridge laptop');
+
+  act(() => fail?.());
+  expect(useSessionStore.getState().communicationError?.code).toBe('gm-manifest-link');
+  act(() => publish?.([local, other]));
+  expect(await screen.findByText('Tablet')).toBeInTheDocument();
+  expect(useSessionStore.getState().communicationError).toBeNull();
+
+  act(() => {
+    fail?.();
+    useSessionStore.getState().setCommunicationError({ code: 'gm-event-log-link', message: 'Event log unavailable.' });
+    publish?.([local]);
+  });
+  expect(useSessionStore.getState().communicationError?.code).toBe('gm-event-log-link');
+});
+
 it('groups connected players by command role in the GM console', async () => {
   const user = userEvent.setup();
   const stopPlayers = vi.fn();

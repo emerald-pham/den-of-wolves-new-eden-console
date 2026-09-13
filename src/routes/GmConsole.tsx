@@ -620,10 +620,16 @@ export default function GmConsole() {
       const stopInstances = subscribeGmInstances(
         sessionId,
         (next) => {
+          if (!active) return;
           setInstances(next);
           setLoading(false);
+          const store = useSessionStore.getState();
+          if (store.communicationError?.code === 'gm-manifest-link') {
+            store.setCommunicationError(null);
+          }
         },
         () => {
+          if (!active) return;
           setLoading(false);
           useSessionStore.getState().setCommunicationError({
             code: 'gm-manifest-link',
