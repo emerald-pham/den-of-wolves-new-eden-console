@@ -3815,6 +3815,11 @@ body {
   font-size: 0.75rem;
   line-height: 1.4;
 }
+
+.confetti-dispenser--newspaper .confetti-dispenser__notice {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
 .confetti-dispenser--fleet-alert .fleet-alert-editor {
   font-size: 0.875rem;
   line-height: 1.4;
@@ -3831,7 +3836,8 @@ body {
 /* The fleet alert is a command surface, so the compact morale transform must
    not shrink its confirmation controls below the shared 44px touch target. */
 @media (max-width: 60rem) {
-  .ship-console .ship-console__instruments > .confetti-dispenser--fleet-alert {
+  .ship-console .ship-console__instruments > .confetti-dispenser--fleet-alert,
+  .ship-console .ship-console__instruments > .confetti-dispenser--newspaper {
     transform: none;
     transform-origin: initial;
   }

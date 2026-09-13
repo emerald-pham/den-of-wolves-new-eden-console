@@ -1,5 +1,5 @@
 import type { Shuttlecraft } from '@/data/shuttles';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useState, type CSSProperties } from 'react';
 import { popShipConfetti } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 
@@ -23,6 +23,7 @@ export default function PressConfetti({ shuttle }: {
   const [coverOpen, setCoverOpen] = useState(false);
   const [firing, setFiring] = useState(false);
   const [burst, setBurst] = useState(0);
+  const noticeId = useId();
   const queued = Boolean(session && pendingCommands.some((command) =>
     command.kind === 'popShipConfetti' &&
     command.payload.sessionId === session.id &&
@@ -82,6 +83,7 @@ export default function PressConfetti({ shuttle }: {
             className="confetti-dispenser__trigger"
             type="button"
             aria-label="Activate newspaper confetti"
+            aria-describedby={noticeId}
             disabled={!authorized || gameplayFrozen || !coverOpen || queued || firing}
             onClick={() => void activate()}
           >{queued ? 'QUEUED' : 'EXTRA!'}</button>
@@ -94,10 +96,10 @@ export default function PressConfetti({ shuttle }: {
             onClick={() => setCoverOpen((open) => !open)}
           >{coverOpen ? 'EDITION READY' : 'HOLD THE PRESSES'}</button>
         </div>
-        <p className="confetti-dispenser__notice">
+        <p id={noticeId} className="confetti-dispenser__notice">
           {gameplayFrozen
             ? 'ENDGAME EVALUATION // GAMEPLAY CONFETTI FROZEN'
-            : 'WARNING // WARNING // THIS WILL CAUSE SHREDDED PAPER TO ENTER THE BRIDGE OF ANY DOCKED SHIP'}
+            : 'WARNING // FIRING SENDS SHREDDED EVIDENCE INTO COCKPITS OF DOCKED SHIPS AS WELL'}
         </p>
       </section>
       {burst > 0 && <div className="confetti-burst" key={burst} aria-hidden="true">
