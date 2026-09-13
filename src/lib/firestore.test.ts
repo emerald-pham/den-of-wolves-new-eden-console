@@ -1140,6 +1140,38 @@ it('hydrates only a valid private Zealotry response and never exposes census ide
   expect(onResponse).toHaveBeenLastCalledWith(null);
 });
 
+it('resets the Zealotry response revision gate when a crisis projection is deleted', () => {
+  const { callbacks } = captureSessionListener();
+  const onResponse = vi.fn();
+  subscribeGmZealotryResponse('s1', onResponse);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({
+      type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-a',
+      crisisRevision: 3, state: 'debated', revision: 2,
+      actions: ['pressure'], rationale: 'Crisis A.', loyaltyCensusRevision: null,
+    }),
+  });
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => false });
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({
+      type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-b',
+      crisisRevision: 1, state: 'debated', revision: 1,
+      actions: ['investigate'], rationale: 'Crisis B.', loyaltyCensusRevision: null,
+    }),
+  });
+
+  expect(onResponse).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    crisisId: 'zealotry-a', revision: 2,
+  }));
+  expect(onResponse).toHaveBeenNthCalledWith(2, null);
+  expect(onResponse).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    crisisId: 'zealotry-b', revision: 1,
+  }));
+});
+
 it('does not let a delayed older census revision overwrite the newer server projection', () => {
   const { callbacks } = captureSessionListener();
   const onCensus = vi.fn();

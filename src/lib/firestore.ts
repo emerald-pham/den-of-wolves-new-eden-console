@@ -2813,11 +2813,14 @@ export function subscribeGmZealotryResponse(
   onResponse: (response: ZealotryResponse | null) => void,
 ): Unsubscribe {
   let subscribed = true;
-  const acceptsRevision = createMonotonicRevisionGate();
+  let acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/zealotryResponses/current`),
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      // A closed crisis removes the current projection. The next crisis starts
+      // its response revisions from one, so its gate must start with it.
+      if (!snapshot.exists()) acceptsRevision = createMonotonicRevisionGate();
       const response = snapshot.exists() ? zealotryResponse(snapshot.data(), sessionId) : null;
       if (response && !acceptsRevision(response.revision)) return;
       onResponse(response);
