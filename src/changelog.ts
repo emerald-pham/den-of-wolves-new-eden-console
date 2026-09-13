@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [390, 658],
+    implementationProgress: {
+      completed: 220,
+      total: 750,
+      percentage: '29.33%',
+      done: 220,
+      partial: 25,
+      active: 0,
+      missing: 505,
+    },
+    changes: [
+      'Hummingbird’s Explorer can harvest during Coordination, choosing which of two dice supplies food and which supplies water to the shuttle.',
+      'Seat confirmation now uses CIC language.',
+      '220 of 750 planned items are complete (29.33%).',
+    ],
+  },
+  {
+    version: '0.3.81',
     implementationPrompts: [657],
     implementationProgress: {
       completed: 218,
