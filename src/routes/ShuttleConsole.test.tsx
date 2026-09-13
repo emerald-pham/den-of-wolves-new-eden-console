@@ -1,8 +1,11 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { SHUTTLECRAFT } from '@/data/shuttles';
+import { findConsoleRole } from '@/data/roles';
+import { consoleRoleRoute } from '@/lib/consoleRole';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import ShuttleConsole from './ShuttleConsole';
 
@@ -733,4 +736,97 @@ it('keeps a GM-controlled Union shuttle out of the default roster', () => {
 
   expect(screen.getByText('Role selection')).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'U.S. Wobbly' })).not.toBeInTheDocument();
+});
+
+
+function ShuttleHistoryControls() {
+  const navigate = useNavigate();
+  return <><button onClick={() => navigate(-1)}>History back</button><button onClick={() => navigate(1)}>History forward</button></>;
+}
+
+it('preserves owner authority and queued work through return, history and docking reconnect updates', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon', 'aegis'],
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'aegis', dockedAt: 'TURN 2' }], shuttleFuelled: { hummingbird: true } });
+  state.setMe({ ...state.me!, seatId: 'held-seat', activeConsoleRoleId: 'quellon-explorer' });
+  state.enqueueCommand({ id: 'pending-1', kind: 'popShipConfetti', payload: { sessionId: 's1', shipId: 'quellon', roleId: 'quellon-explorer' }, createdAt: '2026-01-01T00:00:00.000Z' });
+  const identity = useSessionStore.getState().me;
+  const pending = useSessionStore.getState().pendingCommands;
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><ShuttleHistoryControls /><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    <Route path="/ships/quellon/roles/quellon-explorer" element={<p>Quellon owner console</p>} />
+    <Route path="/console" element={<p>Role selection parent</p>} />
+  </Routes></MemoryRouter>);
+  const backName = 'Back to Quellon Explorer console';
+  expect(screen.getByRole('link', { name: backName })).toHaveAttribute('href', '/ships/quellon/roles/quellon-explorer');
+  await user.click(screen.getByRole('link', { name: backName }));
+  expect(screen.getByText('Quellon owner console')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'History back' }));
+  expect(screen.getByRole('link', { name: backName })).toBeVisible();
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, shuttleDockings: [] }));
+  expect(screen.getByRole('link', { name: backName })).toHaveAttribute('href', '/ships/quellon/roles/quellon-explorer');
+  await user.click(screen.getByRole('button', { name: 'History forward' }));
+  expect(screen.getByText('Quellon owner console')).toBeInTheDocument();
+  expect(useSessionStore.getState().me).toEqual(identity);
+  expect(useSessionStore.getState().pendingCommands).toEqual(pending);
+  expect(useSessionStore.getState().session?.shuttleFuelled).toEqual({ hummingbird: true });
+  expect(releaseConsoleRole).not.toHaveBeenCalled();
+});
+
+it('offers the safe role-selection parent when an ordinary shuttle owner ship becomes unavailable', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, activeRoleIds: ['dione-engineer'], activeVesselIds: ['aegis', 'dione'], dioneEnabled: true });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'dione-engineer' });
+  render(<MemoryRouter initialEntries={['/shuttles/maliades']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    <Route path="/console" element={<p>Role selection parent</p>} />
+  </Routes></MemoryRouter>);
+  expect(screen.getByRole('link', { name: /Back to Dione Engineer console/ })).toBeVisible();
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, activeVesselIds: ['aegis'], dioneEnabled: false }));
+  const back = screen.getByRole('link', { name: 'Back to role selection' });
+  expect(back).toHaveAttribute('href', '/console');
+  await user.click(back);
+  expect(screen.getByText('Role selection parent')).toBeInTheDocument();
+  expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('dione-engineer');
+  expect(releaseConsoleRole).not.toHaveBeenCalled();
+});
+
+
+it.each(SHUTTLECRAFT.filter(shuttle => {
+  const role = findConsoleRole(shuttle.captainRoleId);
+  return role && role.shipId !== 'press' && role.shipId !== 'joint-engineering-union';
+}))('offers one canonical owning-console return for ordinary shuttle $id', (shuttle) => {
+  const role = findConsoleRole(shuttle.captainRoleId)!;
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, activeRoleIds: [role.id], activeVesselIds: [role.shipId], dioneEnabled: true, capybaraEnabled: true, shuttleDockings: [] });
+  state.setMe({ ...state.me!, activeConsoleRoleId: role.id });
+  render(<MemoryRouter initialEntries={[`/shuttles/${shuttle.id}`]}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+  const returns = screen.getAllByRole('link', { name: /^Back to / });
+  expect(returns).toHaveLength(1);
+  expect(returns[0]).toHaveAttribute('href', consoleRoleRoute(role.id));
+  expect(returns[0]).toHaveAttribute('aria-label', returns[0].textContent);
+  expect(releaseConsoleRole).not.toHaveBeenCalled();
+});
+
+it('replaces an unentitled deep link with the held console without claiming the requested shuttle', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, activeRoleIds: ['quellon-explorer', 'dione-engineer'] });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer' });
+  render(<MemoryRouter initialEntries={['/console', '/shuttles/maliades']} initialIndex={1}><ShuttleHistoryControls /><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    <Route path="/ships/quellon/roles/quellon-explorer" element={<p>Held console</p>} />
+    <Route path="/console" element={<p>Role selection parent</p>} />
+  </Routes></MemoryRouter>);
+  expect(await screen.findByText('Held console')).toBeVisible();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'History back' }));
+  expect(screen.getByText('Role selection parent')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'History forward' }));
+  expect(screen.getByText('Held console')).toBeVisible();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
 });

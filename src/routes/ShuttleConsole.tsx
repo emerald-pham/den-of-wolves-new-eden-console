@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
-import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
+import { activeFleetShipIds, DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { findShip } from '@/data/ships';
 import { SHUTTLECRAFT, dockingForShuttle, isShuttleEnabled } from '@/data/shuttles';
 import { isJointEngineeringRoleId } from '@/data/rolePresets';
@@ -64,16 +64,22 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     }
   }
 
+  const activeShips = activeFleetShipIds(activeRoles, session.activeVesselIds);
+  const ownerShipAvailable = captainRole && activeShips.includes(captainRole.shipId) &&
+    (captainRole.shipId !== 'dione' || session.dioneEnabled !== false) &&
+    (captainRole.shipId !== 'capybara' || session.capybaraEnabled !== false);
   const ownerParent = captainRole && isJointEngineeringRoleId(captainRole.id)
     ? {
         to: consoleRoleRoute(captainRole.id),
         label: 'Back to Joint Engineering Union',
       }
-    : !isGm && captainRole && !isPressShuttle
+    : !isGm && captainRole && !isPressShuttle && ownerShipAvailable
     ? {
         to: consoleRoleRoute(captainRole.id),
         label: `Back to ${findShip(captainRole.shipId)?.name ?? captainRole.shipId} ${captainRole.name} console`,
       }
+    : !isGm && !isPressShuttle
+    ? { to: '/console', label: 'Back to role selection' }
     : undefined;
   const returnTo = isPressShuttle && !isGm
     ? me.activeConsoleRoleId === shuttle.captainRoleId

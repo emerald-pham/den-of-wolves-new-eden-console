@@ -62,16 +62,17 @@ export default function ShuttleConsoleTemplate({
           <button
             className="ship-console__back cic-text-button"
             type="button"
+            aria-label={returnTo.label}
             disabled={returnTo.busy}
             onClick={returnTo.onClick}
           >
             {returnTo.label}
           </button>
         ) : (
-          <Link className="ship-console__back cic-text-button" to={returnTo.to}>{returnTo.label}</Link>
+          <Link className="ship-console__back cic-text-button" to={returnTo.to} aria-label={returnTo.label}>{returnTo.label}</Link>
         ))}
         {canLeave && (
-          <Link className="ship-console__back cic-text-button" to="/console">Leave shuttle</Link>
+          <Link className="ship-console__back cic-text-button" to="/console" aria-label="Leave shuttle">Leave shuttle</Link>
         )}
         <p className="ship-console__nation">{shuttle.operator} // {shuttle.operatorShort}</p>
         <h1 className="ship-console__name" id="shuttle-name">{shuttle.consoleName}</h1>
