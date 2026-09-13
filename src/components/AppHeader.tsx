@@ -110,7 +110,7 @@ function useConnectionStatusGrace(
     lastPlayerActivityAt.current = null;
   };
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const becameOffline = previousStatus.current !== 'red' && status === 'red';
     const gainedCachedSession = !previousHasCachedSession.current && hasCachedSession;
     previousStatus.current = status;
@@ -221,8 +221,11 @@ export default function AppHeader() {
     measure();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(element);
+    const mutationObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(measure);
+    mutationObserver?.observe(element, { childList: true, subtree: true, attributes: true });
     return () => {
       observer?.disconnect();
+      mutationObserver?.disconnect();
       document.documentElement.style.removeProperty('--app-header-height');
     };
   }, []);
@@ -250,6 +253,16 @@ export default function AppHeader() {
   const hasStaleSessionSnapshot = useSessionStore(
     (state) => state.sessionSnapshotFreshness === 'cache',
   );
+  // These status rows can appear after the first header measurement. Refresh
+  // the shared reservation immediately after each row changes so short role
+  // routes keep their title below the complete header.
+  useEffect(() => {
+    const element = header.current;
+    if (!element) return;
+    document.documentElement.style.setProperty(
+      '--app-header-height', `${element.getBoundingClientRect().height}px`,
+    );
+  }, [hasStaleSessionSnapshot, persistedSessionSnapshot, serviceWorkerUpdate.activated, serviceWorkerUpdate.available]);
   const connection = useSessionStore((state) => state.connection);
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);

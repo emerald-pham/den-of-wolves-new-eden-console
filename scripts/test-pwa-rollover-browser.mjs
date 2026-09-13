@@ -127,23 +127,38 @@ try {
     { width: 1440, height: 900 },
   ]) {
     await page.setViewportSize(viewport);
+    await page.waitForTimeout(100);
     const measurement = await page.evaluate(() => {
       const header = document.querySelector('.app-header')?.getBoundingClientRect();
+      const intro = document.querySelector('.role-select__intro')?.getBoundingClientRect();
       const notice = document.querySelector('.app-update-notice')?.getBoundingClientRect();
+      const snapshot = document.querySelector('.session-snapshot-status')?.getBoundingClientRect();
       const button = document.querySelector('.app-update-notice button')?.getBoundingClientRect();
       return {
         viewport: { width: window.innerWidth, height: window.innerHeight },
         bodyScrollWidth: document.documentElement.scrollWidth,
+        rootHeaderHeight: getComputedStyle(document.documentElement).getPropertyValue('--app-header-height').trim(),
+        roleSelectPaddingTop: getComputedStyle(document.querySelector('.role-select')).paddingTop,
         header: header ? { top: header.top, bottom: header.bottom, width: header.width } : null,
+        intro: intro ? { top: intro.top, bottom: intro.bottom } : null,
         notice: notice ? { left: notice.left, right: notice.right, top: notice.top, bottom: notice.bottom } : null,
+        snapshot: snapshot ? { left: snapshot.left, right: snapshot.right, top: snapshot.top, bottom: snapshot.bottom } : null,
         button: button ? { width: button.width, height: button.height } : null,
       };
     });
-    if (!measurement.notice || !measurement.header || !measurement.button
+    const noticesOverlap = measurement.notice && measurement.snapshot
+      && measurement.notice.right > measurement.snapshot.left
+      && measurement.snapshot.right > measurement.notice.left
+      && measurement.notice.bottom > measurement.snapshot.top
+      && measurement.snapshot.bottom > measurement.notice.top;
+    if (!measurement.notice || !measurement.snapshot || !measurement.header || !measurement.intro || !measurement.button
       || measurement.bodyScrollWidth > measurement.viewport.width + 1
       || measurement.notice.left < -1
       || measurement.notice.right > measurement.viewport.width + 1
       || measurement.notice.bottom > measurement.header.bottom + 1
+      || measurement.snapshot.bottom > measurement.header.bottom + 1
+      || measurement.intro.top < measurement.header.bottom - 1
+      || noticesOverlap
       || measurement.button.width < 44
       || measurement.button.height < 44) {
       throw new Error(`Update notice clearance failed: ${JSON.stringify(measurement)}`);
