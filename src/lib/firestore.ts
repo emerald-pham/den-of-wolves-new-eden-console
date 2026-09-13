@@ -188,7 +188,9 @@ function optionalIso(value: unknown): string | undefined {
           typeof (date as { getTime?: unknown }).getTime !== 'function' ||
           typeof (date as { toISOString?: unknown }).toISOString !== 'function') return undefined;
       const milliseconds = (date as Date).getTime();
-      return Number.isFinite(milliseconds) ? (date as Date).toISOString() : undefined;
+      if (!Number.isFinite(milliseconds)) return undefined;
+      const normalized = (date as { toISOString: () => unknown }).toISOString();
+      return typeof normalized === 'string' ? optionalIso(normalized) : undefined;
     } catch {
       return undefined;
     }

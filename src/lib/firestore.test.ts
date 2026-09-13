@@ -559,6 +559,11 @@ it('preserves valid facilitator timestamps and does not invent missing rule-call
     ...base, callId: 'call-malformed', revision: 4, createdAt: { toDate: () => { throw new Error('malformed timestamp'); } },
   }) });
   expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
+  callbacks[0]?.({ exists: () => true, data: () => ({
+    ...base, callId: 'call-forged', revision: 5,
+    createdAt: { toDate: () => ({ getTime: () => 0, toISOString: () => ({ forged: true }) }) },
+  }) });
+  expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
 });
 
 it('drops malformed GM identities without throwing or leaving a stale projection', async () => {
