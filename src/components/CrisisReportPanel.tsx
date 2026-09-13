@@ -17,7 +17,7 @@ export function CrisisReportContent({ report }: { report: CrisisReport }) {
       </button>
       {expanded && <p id="fleet-crisis-report-body" className="crisis-report__body">{report.body}</p>}
       {report.crisisKind === 'civil-unrest' && (
-        <CivilUnrestGrievancePanel crisisId={report.crisisId} crisisRevision={report.revision} />
+        <CivilUnrestGrievancePanel crisisId={report.crisisId} crisisRevision={report.revision} crisisState={report.state} />
       )}
     </section>
   );

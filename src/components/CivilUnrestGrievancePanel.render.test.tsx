@@ -34,6 +34,13 @@ beforeEach(() => {
     {
       id: 's1', name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'gm', createdAt: '', updatedAt: '',
       activeVesselIds: ['icebreaker'],
+      currentTurn: 1,
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: '2026-09-13T12:05:00.000Z',
+        openAirspaceEndsAt: '2026-09-13T12:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
     },
     {
       uid: 'u1', sessionId: 's1', displayName: 'Miner', role: 'player', seatId: null,
@@ -44,20 +51,12 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-it('renders the audience contract at phone, landscape, tablet, and desktop viewports', () => {
-  for (const width of [320, 390, 844, 1440]) {
-    window.innerWidth = width;
-    render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} />);
-    expect(screen.getByRole('region', { name: 'Civil Unrest team grievances' })).toBeVisible();
-    expect(screen.getByText('Private — your current team and facilitators')).toBeVisible();
-    expect(screen.getByText('Public — all session members')).toBeVisible();
-    expect(screen.getByLabelText("Your team's grievance")).toBeVisible();
-    cleanup();
-  }
-});
-
-it('shows a pending submit, public result, and server error with keyboard focusable controls', async () => {
-  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} />);
+it('renders the audience contract and shows pending, success, and error states with keyboard controls', async () => {
+  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+  expect(screen.getByRole('region', { name: 'Civil Unrest team grievances' })).toBeVisible();
+  expect(screen.getByText('Private — your current team and facilitators')).toBeVisible();
+  expect(screen.getByText('Public — all session members')).toBeVisible();
+  expect(screen.getByLabelText("Your team's grievance")).toBeVisible();
   act(() => mocks.teamCallbacks[0]!(privateGrievance));
   act(() => mocks.publicCallbacks[0]!({
     type: 'civil-unrest-public', sessionId: 's1', crisisId: 'civil-unrest', state: 'delivered', revision: 4,
@@ -81,4 +80,72 @@ it('shows a pending submit, public result, and server error with keyboard focusa
   mocks.submit.mockRejectedValueOnce(new Error('The grievance changed. Refresh before revising it.'));
   fireEvent.click(screen.getByRole('button', { name: 'Revise grievance' }));
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The grievance changed. Refresh before revising it.'));
+});
+
+it('resolves every eligible replacement role to its affected team editor', () => {
+  const replacements = [
+    ['vip-host', 'dione'],
+    ['commissar', 'icebreaker'],
+    ['rosal-militia-leader', 'shepherd'],
+    ['doctor', 'quellon'],
+    ['pdf-fighter-ace', 'refinery-124'],
+  ] as const;
+  for (const [replacementRoleId, shipId] of replacements) {
+    useSessionStore.getState().setIdentity(
+      { ...useSessionStore.getState().session!, activeVesselIds: [shipId] },
+      {
+        ...useSessionStore.getState().me!, replacementRoleId,
+        assignedRoleId: null, activeConsoleRoleId: null,
+      },
+    );
+    const view = render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+    expect(screen.getByRole('region', { name: 'Civil Unrest team grievances' })).toBeVisible();
+    expect(screen.getByLabelText("Your team's grievance")).toBeEnabled();
+    view.unmount();
+  }
+});
+
+it('keeps public records readable to unaffected members and private records readable to the GM', () => {
+  useSessionStore.getState().setIdentity(
+    { ...useSessionStore.getState().session!, activeVesselIds: ['aegis'] },
+    { ...useSessionStore.getState().me!, assignedRoleId: null, activeConsoleRoleId: 'press-officer' },
+  );
+  const member = render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+  act(() => mocks.publicCallbacks[0]!({
+    type: 'civil-unrest-public', sessionId: 's1', crisisId: 'civil-unrest', state: 'delivered', revision: 4,
+    grievances: [{ shipId: 'icebreaker', text: 'A public account.', revision: 1 }],
+  }));
+  expect(screen.getByText('A public account.')).toBeVisible();
+  expect(screen.queryByLabelText("Your team's grievance")).not.toBeInTheDocument();
+  member.unmount();
+
+  useSessionStore.getState().setIdentity(
+    { ...useSessionStore.getState().session!, activeVesselIds: ['icebreaker', 'dione'] },
+    { ...useSessionStore.getState().me!, role: 'gm', assignedRoleId: null, activeConsoleRoleId: null },
+  );
+  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+  act(() => mocks.teamCallbacks[0]!(privateGrievance));
+  expect(screen.getByRole('region', { name: 'GM private grievance records' })).toBeVisible();
+  expect(screen.getByText('A private team concern.')).toBeVisible();
+  expect(screen.queryByLabelText("Your team's grievance")).not.toBeInTheDocument();
+});
+
+it('disables editing outside Team Phase and after the crisis resolves', () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    turnPhase: { ...session.turnPhase!, airspace: { ...session.turnPhase!.airspace, state: 'lifted' } },
+  });
+  const coordination = render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="delivered" />);
+  expect(screen.getByLabelText("Your team's grievance")).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('only during Team Phase');
+  coordination.unmount();
+
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: { ...useSessionStore.getState().session!.turnPhase!, airspace: { ...useSessionStore.getState().session!.turnPhase!.airspace, state: 'restricted' } },
+  });
+  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="resolved" />);
+  expect(screen.getByLabelText("Your team's grievance")).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('delivered, debated, or escalated');
 });
