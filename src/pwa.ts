@@ -17,6 +17,7 @@ let registration: ServiceWorkerRegistration | null = null;
 let waitingWorker: ServiceWorker | null = null;
 let applyRequested = false;
 const listeners = new Set<ServiceWorkerUpdateListener>();
+const observedInstallingWorkers = new WeakSet<ServiceWorker>();
 
 function publishUpdateState(next: Partial<ServiceWorkerUpdateState>): void {
   updateState = { ...updateState, ...next };
@@ -33,17 +34,27 @@ function markWaiting(worker: ServiceWorker | null): void {
   }
 }
 
+function observeInstalling(installing: ServiceWorker | null): void {
+  if (!installing || observedInstallingWorkers.has(installing)) return;
+  observedInstallingWorkers.add(installing);
+  installing.addEventListener('statechange', () => {
+    if (installing.state === 'installed' && installing !== navigator.serviceWorker.controller) {
+      markWaiting(installing);
+    }
+  });
+  // updatefound can precede registration resolution, so inspect the already
+  // installed worker as soon as the registration becomes observable.
+  if (installing.state === 'installed' && installing !== navigator.serviceWorker.controller) {
+    markWaiting(installing);
+  }
+}
+
 function observeRegistration(nextRegistration: ServiceWorkerRegistration): void {
   registration = nextRegistration;
   markWaiting(nextRegistration.waiting);
+  observeInstalling(nextRegistration.installing);
   nextRegistration.addEventListener('updatefound', () => {
-    const installing = nextRegistration.installing;
-    if (!installing) return;
-    installing.addEventListener('statechange', () => {
-      if (installing.state === 'installed' && installing !== navigator.serviceWorker.controller) {
-        markWaiting(installing);
-      }
-    });
+    observeInstalling(nextRegistration.installing);
   });
 }
 
@@ -64,7 +75,12 @@ export function subscribeServiceWorkerUpdates(
 /** Ask the browser to discover the waiting worker after a fresh build marker. */
 export function markServiceWorkerUpdateAvailable(): void {
   publishUpdateState({ available: true, activated: false });
-  void registration?.update().catch(() => undefined);
+  void registration?.update().then(() => {
+    if (registration) {
+      markWaiting(registration.waiting);
+      observeInstalling(registration.installing);
+    }
+  }).catch(() => undefined);
 }
 
 /** Apply only an explicitly requested update; this never reloads the page. */

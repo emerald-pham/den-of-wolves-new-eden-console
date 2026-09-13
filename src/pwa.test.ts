@@ -140,6 +140,39 @@ it('never turns an update notice race or registration failure into an automatic 
   vi.unstubAllGlobals();
 });
 
+it('applies a worker that was already installing when registration resolves', async () => {
+  vi.resetModules();
+  const { applyServiceWorkerUpdate, markServiceWorkerUpdateAvailable, registerServiceWorker } =
+    await import('./pwa');
+  const installing = {
+    state: 'installed',
+    addEventListener: vi.fn(),
+    postMessage: vi.fn(),
+  } as unknown as ServiceWorker;
+  const registration = {
+    waiting: null,
+    installing,
+    update: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn(),
+  } as unknown as ServiceWorkerRegistration;
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: {
+      controller: {} as ServiceWorker,
+      register: vi.fn().mockResolvedValue(registration),
+      addEventListener: vi.fn(),
+    },
+  });
+
+  markServiceWorkerUpdateAvailable();
+  applyServiceWorkerUpdate();
+  registerServiceWorker();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(installing.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+});
+
 it('keeps a waiting worker non-blocking until the player explicitly applies it', async () => {
   const eventListeners = new Map<string, EventListener>();
   const worker = {
