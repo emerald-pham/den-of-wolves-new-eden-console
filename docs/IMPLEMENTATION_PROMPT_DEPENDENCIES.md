@@ -286,7 +286,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 175 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-175 | M3;M5 | Resolve Shuttle Bay Zeta. |
 | 176 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-176 | M3;M5 | Resolve Shuttle Bay Omega. |
 | 177 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M3;M5 | Audit the AEGIS Jump Drive. |
-| 178 | NEW | missing | 161;162;262 | none | none | none | none | none | none | none | E-AUDIT-178 | M3;M5 | Resolve the Construction Bay. |
+| 178 | NEW | done | 161;162;262 | none | none | none | none | none | none | none | E-AUDIT-178;E-178-VERIFIED | M3;M5 | Resolve the Construction Bay. |
 | 179 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-179 | M3;M5 | Create the Admiral policy workspace. |
 | 180 | NEW | missing | 166;182 | none | none | none | none | none | none | none | E-AUDIT-180 | M3;M5 | Create the Executive Officer workspace. |
 | 181 | NEW | missing | 166;260;262 | none | none | none | none | none | none | none | E-AUDIT-181 | M3;M5 | Create the Wing Commander workspace. |
@@ -994,6 +994,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-175 | hard_prompt | 175 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
 | E-AUDIT-176 | hard_prompt | 176 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
 | E-AUDIT-178 | hard_prompt | 178 -> 161;162;262 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Construction Bay uses vessel data and the registered fighter-wing state. |
+| E-178-VERIFIED | evidence / authority | 178 -> CONSTRUCTION-BAY-RESOLVER | functions/src/index.ts; functions/src/consoleMetadata.ts; functions/src/fighterBuildCallable.test.ts; src/lib/sessionService.ts; src/components/AegisConsoleWorkspace.tsx; src/routes/ShipConsole.test.tsx | The AEGIS Construction Bay callable now enforces Wing Commander authority, Team-phase charge, J♥ damage, live fighter strength, materials, upgrade capacity, vessel CAS, and receipt replay before atomically debiting one material and adding one fighter; focused callable, metadata, client, and render checks cover denial and retry boundaries. |
 | E-AUDIT-179 | hard_prompt | 179 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
 | E-AUDIT-180 | hard_prompt | 180 -> 166;182 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Executive Officer actions consume role binding and AEGIS combat-console registration. |
 | E-AUDIT-181 | hard_prompt | 181 -> 166;260;262 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Wing Commander workspace consumes role binding and the registered scouting/fighter craft. |

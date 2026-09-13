@@ -1073,6 +1073,34 @@ export function requireFighterWingCountRequest(data: {
   };
 }
 
+export function requireFighterBuildRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  wingId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId?: string;
+  requestId: string;
+  wingId: FighterWingId;
+  expectedRevision: number;
+} {
+  if (!(FIGHTER_WING_IDS as readonly string[]).includes(data.wingId as string)) {
+    throw new HttpsError('invalid-argument', 'Unknown fighter wing.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    requestId: requiredId(data.requestId, 'requestId'),
+    wingId: data.wingId as FighterWingId,
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export type ShipCounterStep = -1 | 1;
 
 export type ShipCounterBatchRequest = {

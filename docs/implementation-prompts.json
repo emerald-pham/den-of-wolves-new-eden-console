@@ -905,6 +905,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "178 -> CONSTRUCTION-BAY-RESOLVER",
+      "id": "E-178-VERIFIED",
+      "language": "The AEGIS Construction Bay callable now enforces Wing Commander authority, Team-phase charge, J♥ damage, live fighter strength, materials, upgrade capacity, vessel CAS, and receipt replay before atomically debiting one material and adding one fighter; focused callable, metadata, client, and render checks cover denial and retry boundaries.",
+      "source": "functions/src/index.ts; functions/src/consoleMetadata.ts; functions/src/fighterBuildCallable.test.ts; src/lib/sessionService.ts; src/components/AegisConsoleWorkspace.tsx; src/routes/ShipConsole.test.tsx",
+      "type": "evidence / authority"
+    },
+    {
       "direction": "179 -> 166",
       "id": "E-AUDIT-179",
       "language": "Role workspaces consume authoritative role-to-action binding.",
@@ -9184,8 +9191,8 @@
         "acceptance": "one material builds one fighter up to four per wing, or six after the authoritative upgrade.",
         "title": "Resolve the Construction Bay."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-178",
+      "description": "The server-owned AEGIS Construction Bay action now builds one replacement fighter per material for the Wing Commander during Team Phase when the Construction Bay is charged and undamaged. It rejects missing server fighter strength, depleted materials, stale vessel revisions, wrong role authority, wrong phase, damage, and standard/upgraded capacity overflow; the transaction increments the wing revision, debits AEGIS materials, advances the shared vessel action revision, and persists a replayable command receipt. The existing Wing Commander AEGIS console renders live strength, capacity, materials, charge/damage state, and a touch-sized Build 1 fighter control. Focused callable, metadata, client, typecheck, and responsive accessibility checks pass; release metadata remains with the root batch.",
+      "evidenceIds": "E-AUDIT-178;E-178-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162;262",
@@ -9196,7 +9203,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

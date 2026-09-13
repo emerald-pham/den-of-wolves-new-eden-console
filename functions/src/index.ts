@@ -64,6 +64,7 @@ import {
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireFighterWingCountRequest,
+  requireFighterBuildRequest,
   requireShipDamageRequest,
   requireMaintenanceRollbackRequest,
   requireShipJumpRequest,
@@ -9718,6 +9719,130 @@ export const setFighterWingCount = onCall<{
       reply,
       createdAt: FieldValue.serverTimestamp(),
     });
+    return reply;
+  });
+});
+
+/** Build one replacement fighter through the charged, server-owned AEGIS Construction Bay. */
+export const buildFighter = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  wingId?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'instanceId', 'requestId', 'wingId', 'expectedRevision'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid fighter construction request.');
+  }
+  const change = requireFighterBuildRequest(raw);
+  const identity = requireVesselActionRequest(raw);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'fighter-build', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
+    change.expectedRevision, { shipId: 'aegis', wingId: change.wingId },
+  );
+  return db.runTransaction(async tx => {
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(sessionRef),
+    ]);
+    await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
+    if (replay) return replay;
+    requireTurnOneForPlayer(session, player);
+    requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+
+    const currentRevision = vesselActionRevision(session, 'aegis');
+    const currentCounts = fighterWingCounts(session.get('fighterWingCounts'));
+    const currentWing = currentCounts[change.wingId];
+    const capacity = fighterWingCapacity(session.get('shipUpgrades'));
+    if (!currentWing) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter-wing strength is unavailable; wait for a server snapshot before building replacements.',
+        'conflict',
+      );
+    }
+    if (change.expectedRevision !== currentRevision) {
+      const stale = {
+        status: 'stale' as const,
+        sessionId: change.sessionId,
+        requestId: identity.requestId,
+        wingId: change.wingId,
+        count: currentWing.count,
+        fighterWingRevision: currentWing.revision,
+        materials: shipResources(session.get('shipResources')).aegis?.materials ?? 0,
+        capacity,
+        currentRevision,
+        ...vesselActionEnvelope(session, player, uid, 'aegis', currentRevision,
+          identity.requestId, 'fighter-build'),
+      };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    if (currentWing.count >= capacity) {
+      throw commandError(
+        'failed-precondition',
+        `That wing is already at its current ${capacity}-fighter capacity.`,
+        'conflict',
+      );
+    }
+    const cycles = isRecord(session.get('maintenanceCycles')) ? session.get('maintenanceCycles') : {};
+    const cycle = parseMaintenanceCycle(cycles.aegis);
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (!cycle || cycle.turn !== currentTurn || !cycle.charges.includes('construction-bay')) {
+      throw commandError(
+        'failed-precondition',
+        'Charge the Construction Bay during this turn before building replacement fighters.',
+        'invalid-phase',
+      );
+    }
+    const damage = shipDamage(session.get('shipDamage')).aegis;
+    if (damage?.damagedSystemIds.includes('construction-bay')) {
+      throw commandError(
+        'failed-precondition',
+        'The Construction Bay is damaged and cannot build replacement fighters.',
+        'conflict',
+      );
+    }
+    const resources = shipResources(session.get('shipResources')).aegis;
+    if (!resources || resources.materials < 1) {
+      throw commandError(
+        'failed-precondition',
+        'AEGIS has no materials available for a replacement fighter.',
+        'conflict',
+      );
+    }
+    const revision = currentRevision + 1;
+    const nextCount = currentWing.count + 1;
+    const reply = {
+      status: 'committed' as const,
+      sessionId: change.sessionId,
+      requestId: identity.requestId,
+      wingId: change.wingId,
+      count: nextCount,
+      fighterWingRevision: currentWing.revision + 1,
+      materials: resources.materials - 1,
+      capacity,
+      ...vesselActionEnvelope(session, player, uid, 'aegis', revision,
+        identity.requestId, 'fighter-build'),
+    };
+    tx.update(sessionRef, {
+      [`fighterWingCounts.${change.wingId}`]: {
+        count: nextCount,
+        revision: currentWing.revision + 1,
+      },
+      'shipResources.aegis.materials': resources.materials - 1,
+      ...vesselActionRevisionPatch('aegis', revision),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });

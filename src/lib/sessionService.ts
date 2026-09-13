@@ -949,6 +949,91 @@ export async function setFighterWingCount(
   }
 }
 
+export interface FighterBuildResult extends Partial<VesselActionEnvelope> {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly wingId: string;
+  readonly count?: number;
+  readonly fighterWingRevision?: number;
+  readonly materials?: number;
+  readonly capacity: number;
+  readonly currentRevision?: number;
+}
+
+function fighterBuildReply(value: unknown): FighterBuildResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if ((raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
+    typeof raw.wingId !== 'string' || typeof raw.capacity !== 'number' ||
+    !Number.isSafeInteger(raw.capacity) || raw.capacity < 0) return null;
+  const phase = sessionPhase(raw.phase);
+  return {
+    status: raw.status,
+    wingId: raw.wingId,
+    capacity: raw.capacity,
+    ...(typeof raw.count === 'number' && Number.isSafeInteger(raw.count) ? { count: raw.count } : {}),
+    ...(typeof raw.fighterWingRevision === 'number' && Number.isSafeInteger(raw.fighterWingRevision)
+      ? { fighterWingRevision: raw.fighterWingRevision } : {}),
+    ...(typeof raw.materials === 'number' && Number.isSafeInteger(raw.materials) ? { materials: raw.materials } : {}),
+    ...(typeof raw.currentRevision === 'number' && Number.isSafeInteger(raw.currentRevision)
+      ? { currentRevision: raw.currentRevision } : {}),
+    ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
+    ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null ? { actorRoleId: raw.actorRoleId as string | null } : {}),
+    ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
+    ...(typeof raw.turn === 'number' ? { turn: raw.turn } : {}),
+    ...(phase === undefined ? {} : { phase }),
+    ...(typeof raw.idempotencyKey === 'string' ? { idempotencyKey: raw.idempotencyKey } : {}),
+    ...(typeof raw.auditId === 'string' ? { auditId: raw.auditId } : {}),
+  };
+}
+
+/** Build one fighter through the server-owned, charged AEGIS Construction Bay. */
+export async function buildFighter(wingId: string): Promise<FighterBuildResult | null> {
+  const store = useSessionStore.getState();
+  if (!store.session) throw new Error('Join a session before building a fighter.');
+  requireFreshSessionAuthority();
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  const expectedRevision = store.session.vesselActionRevisions?.aegis ?? 0;
+  const payload = {
+    sessionId,
+    requestId: commandId(),
+    wingId,
+    expectedRevision,
+    ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'buildFighter');
+    const reply = fighterBuildReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid fighter construction result.');
+    const current = useSessionStore.getState().session;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+      reply.status === 'stale' || reply.count === undefined || reply.fighterWingRevision === undefined ||
+      reply.materials === undefined) return reply;
+    useSessionStore.getState().setSession({
+      ...current,
+      fighterWingCounts: {
+        ...current.fighterWingCounts,
+        [reply.wingId]: { count: reply.count, revision: reply.fighterWingRevision },
+      },
+      ...(current.shipResources?.aegis ? {
+        shipResources: {
+          ...current.shipResources,
+          aegis: { ...current.shipResources.aegis, materials: reply.materials },
+        },
+      } : {}),
+      vesselActionRevisions: {
+        ...(current.vesselActionRevisions ?? {}),
+        ...(reply.revision === undefined ? {} : { aegis: reply.revision }),
+      },
+    });
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    return null;
+  }
+}
+
 export async function adjustShipResource(
   shipId: string,
   resourceId: ResourceId,

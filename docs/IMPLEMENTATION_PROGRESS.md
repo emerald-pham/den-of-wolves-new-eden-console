@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**206 / 749 prompts complete (27.50%)**
+**207 / 749 prompts complete (27.64%)**
 
-Status breakdown: **206 done · 19 partial · 524 missing**.
+Status breakdown: **207 done · 19 partial · 523 missing**.
 
 Active prompt: **none**
 
@@ -601,7 +601,7 @@ release classification and evidence.
 | 175 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 176 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 177 | done | feature | 0.3.17 | Focused domain/callable evidence preserves AEGIS's printed 2/3/6 costs, upgrade discount, damaged-drive roll thresholds, charge/fuel bounds, route lockout, once-per-turn denial, retry-stable server roll, atomic transition, and navigation audit; emergency jumps and broader concurrency remain out of scope. |
-| 178 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 178 | done | non-feature | — | The server-owned AEGIS Construction Bay action now builds one replacement fighter per material for the Wing Commander during Team Phase when the Construction Bay is charged and undamaged. It rejects missing server fighter strength, depleted materials, stale vessel revisions, wrong role authority, wrong phase, damage, and standard/upgraded capacity overflow; the transaction increments the wing revision, debits AEGIS materials, advances the shared vessel action revision, and persists a replayable command receipt. The existing Wing Commander AEGIS console renders live strength, capacity, materials, charge/damage state, and a touch-sized Build 1 fighter control. Focused callable, metadata, client, typecheck, and responsive accessibility checks pass; release metadata remains with the root batch. |
 | 179 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 180 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 181 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

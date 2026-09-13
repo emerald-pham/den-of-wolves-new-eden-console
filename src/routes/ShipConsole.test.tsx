@@ -9,6 +9,7 @@ import type { Player } from '@/types/game';
 vi.mock('@/lib/sessionService', () => ({
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
+  buildFighter: vi.fn(),
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
+const { buildFighter } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 const { subscribeDamageDraws } = await import('@/lib/firestore');
 
@@ -33,6 +35,8 @@ beforeEach(() => {
   vi.mocked(adjustShipResource).mockResolvedValue(undefined);
   vi.mocked(adjustShipUnrest).mockReset();
   vi.mocked(adjustShipUnrest).mockResolvedValue(undefined);
+  vi.mocked(buildFighter).mockReset();
+  vi.mocked(buildFighter).mockResolvedValue(null);
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockImplementation(async (roleId) => {
     const current = useSessionStore.getState().me;
@@ -1095,6 +1099,66 @@ it('embeds AEGIS consoles in maintenance order and leaves armour and FTL outside
   expect(steps[6]).toContainElement(screen.getByRole('heading', { name: 'Shuttle Bay Omega' }));
   expect(track).not.toContainElement(screen.getByRole('heading', { name: 'Jump Drive' }));
   expect(track).not.toContainElement(screen.getByRole('heading', { name: 'Armoured Hull I' }));
+});
+
+it('exposes the live Construction Bay action on the Wing Commander cards', async () => {
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'active',
+    currentTurn: 1,
+    turnPhase: { turn: 1, teamPhaseEndsAt: '2026-01-01T00:10:00.000Z', openAirspaceEndsAt: '2026-01-01T00:30:00.000Z', airspace: { state: 'restricted', tickerActive: false, pressAccess: false } },
+    maintenanceCycles: { aegis: { turn: 1, step: 5, revision: 3, results: {}, charges: ['construction-bay'], refuelled: [] } },
+    shipUpgrades: { aegis: [] },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 2, securityTeams: 9 } },
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 3, revision: 0 },
+      'fighter-wing-bravo': { count: 4, revision: 0 },
+    },
+    vesselActionRevisions: { aegis: 0 },
+  });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'wing-commander' });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(buildFighter).mockResolvedValue({
+    status: 'committed', wingId: 'fighter-wing-alpha', count: 4, fighterWingRevision: 1,
+    materials: 1, capacity: 4,
+  });
+  const user = userEvent.setup();
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+
+  const alpha = screen.getByRole('heading', { name: 'Fighter Wing Alpha' }).closest('article');
+  if (!alpha) throw new Error('Expected Fighter Wing Alpha card.');
+  const build = within(alpha).getByRole('button', { name: /build 1 fighter/i });
+  expect(build).toBeEnabled();
+  expect(build).toHaveClass('cic-action-button');
+  await user.click(build);
+  expect(buildFighter).toHaveBeenCalledWith('fighter-wing-alpha');
+  expect(screen.getByRole('link', { name: /view ship consoles/i })).toBeVisible();
+});
+
+it('keeps Construction Bay building disabled when the server says it is damaged', () => {
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'active', currentTurn: 1,
+    maintenanceCycles: { aegis: { turn: 1, step: 5, revision: 3, results: {}, charges: ['construction-bay'], refuelled: [] } },
+    shipDamage: { aegis: { damagedSystemIds: ['construction-bay'], destroyed: false } },
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 2, securityTeams: 9 } },
+    fighterWingCounts: { 'fighter-wing-alpha': { count: 3, revision: 0 }, 'fighter-wing-bravo': { count: 4, revision: 0 } },
+  });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'wing-commander' });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+  expect(screen.getAllByRole('button', { name: /build 1 fighter/i })[0]).toBeDisabled();
 });
 
 it('names the FTL maintenance group Faster Than Light', () => {

@@ -17,6 +17,7 @@ export type ImplementedConsoleResolverId =
   | 'maintenance.reactor'
   | 'maintenance.bays'
   | 'maintenance.production'
+  | 'fighter.build'
   | 'jump.resolve';
 
 export type ConsoleResolver =
@@ -34,6 +35,8 @@ export interface ConsoleMetadata {
   /** The card identity is server-only; do not copy it into the client catalog. */
   readonly card: string;
   readonly phase: ConsolePhase;
+  /** Printed role that owns an interactive console action, when the source names one. */
+  readonly ownerRoleId?: string;
   /** The maintenance step that charges/resolves this console, when printed. */
   readonly step: ConsoleStep;
   readonly charge: ConsoleRule;
@@ -45,6 +48,7 @@ export interface ConsoleMetadata {
 
 interface ConsoleBlueprint {
   readonly phase: ConsolePhase;
+  readonly ownerRoleId?: string;
   readonly step: ConsoleStep;
   readonly charge: ConsoleRule;
   readonly damage: ConsoleRule;
@@ -126,11 +130,11 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'aegis:shuttle-bay-omega': { ...commonShuttleBay(7, implemented('maintenance.bays')), effect: 'Spend 1 fuel to refuel one docked shuttle.' },
   'aegis:jump-drive': commonJumpDrive('2 / 3 / 6'),
   'aegis:construction-bay': {
-    phase: 'Team', step: 5, charge: reactorCharge,
+    phase: 'Team', ownerRoleId: 'wing-commander', step: 5, charge: reactorCharge,
     damage: printed('Cannot add fighters when damaged.'),
     upgrade: printed('Each fighter wing may hold up to 6 fighters.'),
     effect: 'When charged, spend 1 material per replacement fighter; add fighters to one wing, up to 4.',
-    resolver: deferred('Construction Bay has typed printed data but no authoritative build resolver.', ['178']),
+    resolver: implemented('fighter.build'),
   },
   'aegis:fighter-bay-alpha': {
     phase: 'Wolf attack', step: null, charge: reactorCharge,

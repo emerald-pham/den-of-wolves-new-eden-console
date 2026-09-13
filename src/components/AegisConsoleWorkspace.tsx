@@ -17,6 +17,9 @@ import aegis from '@/data/vessels/aegis';
 import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
+import { useConsoleAccess } from '@/lib/consoleAccess';
+import { phaseForSession } from '@/lib/turnPhase';
+import { buildFighter as buildFighterAction } from '@/lib/sessionService';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -145,6 +148,10 @@ function FighterWingCard({
   authoritativeDamage,
   constructionBayUpgraded,
   fighterWingCount,
+  materials,
+  canBuild,
+  buildPending,
+  onBuild,
   hasServerSnapshot,
   maintenance,
   snapshotLabel,
@@ -154,6 +161,10 @@ function FighterWingCard({
   readonly authoritativeDamage: ShipDamageState | undefined;
   readonly constructionBayUpgraded: boolean | null;
   readonly fighterWingCount: { readonly count: number; readonly revision: number } | undefined;
+  readonly materials: number | undefined;
+  readonly canBuild: boolean;
+  readonly buildPending: boolean;
+  readonly onBuild: () => void;
   readonly hasServerSnapshot: boolean;
   readonly maintenance: MaintenanceCycle | undefined;
   readonly snapshotLabel: string;
@@ -185,6 +196,13 @@ function FighterWingCard({
   const capacity = constructionBayUpgraded === null
     ? 'Unavailable // awaiting live server state'
     : `${constructionBayUpgraded ? fighterCapacity.upgraded : fighterCapacity.standard} fighters // Construction Bay ${constructionBayUpgraded ? 'upgraded' : 'standard'}`;
+  const buildLabel = !hasServerSnapshot
+    ? 'Build unavailable // awaiting live server state'
+    : fighterWingCount === undefined
+      ? 'Build unavailable // fighter strength is not published'
+      : !canBuild
+        ? 'Build unavailable // charge, damage, phase, or materials guard'
+        : `${materials ?? 0} material${materials === 1 ? '' : 's'} available`;
 
   return (
     <article
@@ -203,7 +221,18 @@ function FighterWingCard({
           : hasServerSnapshot
             ? 'Unavailable // server has not published a fighter count'
             : 'Unavailable // awaiting fighter count from the server'}</dd></div>
+        <div><dt>Construction materials</dt><dd>{hasServerSnapshot && materials !== undefined
+          ? `${materials} material${materials === 1 ? '' : 's'}`
+          : 'Unavailable // awaiting live resource state'}</dd></div>
       </dl>
+      <div className="aegis-craft__construction-action">
+        <p>{buildLabel}</p>
+        <button className="cic-action-button" type="button" disabled={!canBuild || buildPending}
+          aria-busy={buildPending}
+          onClick={onBuild}>
+          {buildPending ? 'Building fighter…' : 'Build 1 fighter // 1 material'}
+        </button>
+      </div>
       {baySystem && <>
         <p className="aegis-craft__system-label">Assigned system // {baySystem.name}</p>
         <p>{baySystem.baseline}</p>
@@ -293,16 +322,25 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   const session = useSessionStore((state) => state.session);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const connection = useSessionStore((state) => state.connection);
+  const access = useConsoleAccess();
+  const [buildingWing, setBuildingWing] = useState<string | null>(null);
   const starlight = console.craft[0];
   if (!starlight) return null;
   const hasServerSnapshot = Boolean(session && sessionSnapshotFreshness === 'server');
   const snapshotLabel = liveStateLabel(sessionSnapshotFreshness, connection);
   const maintenance = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
+  const resources = shipState ? shipState.resources : session?.shipResources?.aegis;
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
   const authoritativeDamage = damage ?? (shipState ? shipState.damage : session?.shipDamage?.aegis);
   const constructionBayUpgraded = hasServerSnapshot
     ? upgrades.includes('construction-bay')
     : null;
+  const constructionBayDamaged = hasServerSnapshot
+    ? authoritativeDamage?.damagedSystemIds.includes('construction-bay') ?? false
+    : null;
+  const constructionBayCharged = hasServerSnapshot && maintenance?.charges.includes('construction-bay') === true;
+  const teamPhaseAvailable = !session?.turnPhase || phaseForSession(session)?.airspace.state === 'restricted';
+  const constructionTurnAvailable = session?.currentTurn !== 0;
   const fighterWingCounts = shipState?.fighterWingCounts ?? session?.fighterWingCounts;
   const fighterWings = console.craft.filter((craft) => craft.fighterWing);
   const fighterWingCombat = fighterWings[0]?.fighterWing?.combat;
@@ -350,6 +388,22 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               authoritativeDamage={authoritativeDamage}
               constructionBayUpgraded={constructionBayUpgraded}
               fighterWingCount={craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined}
+              materials={resources?.materials}
+              canBuild={Boolean(
+                access.writable && connection === 'live' && hasServerSnapshot &&
+                constructionBayCharged && constructionBayDamaged === false && teamPhaseAvailable &&
+                constructionTurnAvailable && craft.fighterWing &&
+                fighterWingCounts?.[craft.fighterWing.countId] &&
+                fighterWingCounts[craft.fighterWing.countId]!.count <
+                  (constructionBayUpgraded ? craft.fighterWing.capacity.upgraded : craft.fighterWing.capacity.standard) &&
+                (resources?.materials ?? 0) >= 1,
+              )}
+              buildPending={buildingWing === craft.fighterWing?.countId}
+              onBuild={() => {
+                if (!craft.fighterWing || buildingWing !== null) return;
+                setBuildingWing(craft.fighterWing.countId);
+                void buildFighterAction(craft.fighterWing.countId).finally(() => setBuildingWing(null));
+              }}
               hasServerSnapshot={hasServerSnapshot}
               maintenance={maintenance}
               snapshotLabel={snapshotLabel}

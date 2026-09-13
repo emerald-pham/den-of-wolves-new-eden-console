@@ -47,6 +47,10 @@ describe('server-only console metadata', () => {
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
     expect(consoleMetadataFor('capybara', 'water-production')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.production' });
+    expect(consoleMetadataFor('aegis', 'construction-bay')).toMatchObject({
+      ownerRoleId: 'wing-commander',
+      resolver: { status: 'implemented', id: 'fighter.build' },
+    });
   });
 
   it('records identity-only vessel console gaps instead of inventing systems', () => {
