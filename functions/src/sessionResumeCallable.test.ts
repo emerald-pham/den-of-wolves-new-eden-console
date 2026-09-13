@@ -71,6 +71,8 @@ function prepareResume(
   seat: Readonly<Record<string, unknown>>,
   playerFields: Readonly<Record<string, unknown>> = {},
   sessionFields: Readonly<Record<string, unknown>> = {},
+  navigationFields: Readonly<Record<string, unknown>> = {},
+  navigationExists = false,
 ) {
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
   const session = snapshot({
@@ -110,7 +112,10 @@ function prepareResume(
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/seats/seat-1') return snapshot(seat);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
-    if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/navigation') {
+      const navigation = snapshot(navigationFields, navigationExists);
+      return navigationExists ? { ...navigation, data: () => navigationFields } : navigation;
+    }
     throw new Error('Unexpected read: ' + path);
   });
 }
@@ -155,6 +160,55 @@ it('defaults a legacy resume reply with no Press toggle to enabled', async () =>
   };
 
   expect(response.session.pressEnabled).toBe(true);
+});
+
+it('rebuilds private history from the server navigation snapshot during resume', async () => {
+  prepareResume(
+    { status: 'open', holderUid: null },
+    { assignedRoleId: 'admiral', fleetGroupId: 'fleet-1' },
+    {
+      playerCount: 12,
+      activeRoleIds: ['admiral', 'dione-captain'],
+      activeVesselIds: ['aegis', 'dione'],
+      dioneEnabled: true,
+    },
+    {
+      revision: 4,
+      shipGalacticCoordinates: { aegis: '5143', dione: '8378' },
+      shipNavigationLogs: { aegis: [], dione: [] },
+      systemHistory: {
+        aegis: {
+          '5143': {
+            coordinate: '5143',
+            attempts: [{ id: 'aegis-attempt', occurredAt: '2026-09-13T00:00:00.000Z' }],
+            hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+          },
+        },
+        dione: {
+          '8378': {
+            coordinate: '8378',
+            attempts: [{ id: 'dione-attempt', occurredAt: '2026-09-13T00:00:00.000Z' }],
+            hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+          },
+        },
+      },
+    },
+    true,
+  );
+
+  await resumeSession.run(request('s1'));
+
+  const privateProjection = mock.set.mock.calls.find(([ref]) =>
+    ref.path === 'sessions/s1/playerDiscoveries/u1')?.[1] as Record<string, unknown> | undefined;
+  expect(privateProjection).toMatchObject({
+    revision: 4,
+    systemHistory: { '5143': { attempts: [{ id: 'aegis-attempt' }] } },
+  });
+  expect(privateProjection?.systemHistory).not.toHaveProperty('8378');
+
+  const gmProjection = mock.set.mock.calls.find(([ref]) =>
+    ref.path === 'sessions/s1/gmDiscovery/current')?.[1] as Record<string, unknown> | undefined;
+  expect(gmProjection?.systemHistory).toHaveProperty('dione.8378');
 });
 
 it('projects only public fleet ticker fields on resume', async () => {

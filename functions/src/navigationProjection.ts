@@ -3,10 +3,17 @@ import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
 import { isStarSystemCoordinate, type NavigationLogEntry, type NavigationLogs } from './navigation';
 import { discoverySystemsForCoordinates, pursuitDistanceForCoordinate } from './starChartProjection';
+import {
+  systemHistory,
+  systemHistoryForShip,
+  type SystemHistory,
+  type SystemHistoryForShip,
+} from './systemHistory';
 
 export interface NavigationState {
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
   readonly shipNavigationLogs: NavigationLogs;
+  readonly systemHistory?: SystemHistory;
 }
 
 export interface PlayerDiscoveryProjection {
@@ -17,6 +24,7 @@ export interface PlayerDiscoveryProjection {
   readonly knownSystems: Readonly<Record<string, string>>;
   readonly pursuitDistance: number;
   readonly navigationLogs: readonly NavigationLogEntry[];
+  readonly systemHistory?: SystemHistoryForShip;
   readonly revision: number;
 }
 
@@ -48,6 +56,11 @@ export function navigationState(value: unknown, activeVesselIds: readonly string
   const raw = isRecord(value) ? value : {};
   const coordinates = isRecord(raw.shipGalacticCoordinates) ? raw.shipGalacticCoordinates : {};
   const logs = isRecord(raw.shipNavigationLogs) ? raw.shipNavigationLogs : {};
+  const shipNavigationLogs = Object.fromEntries(activeVesselIds.map((shipId) => [
+    shipId,
+    logsForShip(logs[shipId], shipId),
+  ])) as NavigationLogs;
+  const normalizedHistory = systemHistory(raw.systemHistory, activeVesselIds, shipNavigationLogs);
   return {
     // Keep a malformed current fix for the movement authority to reject with
     // its integrity guard; player projections sanitize it to the origin below.
@@ -55,10 +68,8 @@ export function navigationState(value: unknown, activeVesselIds: readonly string
       shipId,
       typeof coordinates[shipId] === 'string' ? coordinates[shipId] : INITIAL_COORDINATE,
     ])),
-    shipNavigationLogs: Object.fromEntries(activeVesselIds.map((shipId) => [
-      shipId,
-      logsForShip(logs[shipId], shipId),
-    ])),
+    shipNavigationLogs,
+    ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
   };
 }
 
@@ -102,6 +113,7 @@ export function playerDiscoveryProjection(
     ? navigation.shipGalacticCoordinates[shipId]!
     : INITIAL_COORDINATE;
   const entries = navigation.shipNavigationLogs[shipId] ?? [];
+  const ownHistory = systemHistoryForShip(navigation.systemHistory, shipId);
   return {
     groupId,
     shipId,
@@ -110,6 +122,7 @@ export function playerDiscoveryProjection(
     knownSystems: discoverySystemsForCoordinates(knownCoordinates(currentCoordinate, entries)),
     pursuitDistance: pursuitDistanceForCoordinate(currentCoordinate),
     navigationLogs: entries,
+    ...(ownHistory ? { systemHistory: ownHistory } : {}),
     revision,
   };
 }

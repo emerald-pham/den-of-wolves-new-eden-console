@@ -36,6 +36,10 @@ import type {
   ShuttleVisit,
   ShipNavigationLogEntry,
   PlayerDiscoveryProjection,
+  SystemHistory,
+  SystemHistoryEntry,
+  SystemHistoryForShip,
+  SystemHistoryEvent,
   OrganiserSiteProjection,
   ShipJumpStates,
   ShipJumpTransitions,
@@ -483,6 +487,63 @@ function shipNavigationLogs(value: unknown): ShipNavigationLogs {
   ])) as ShipNavigationLogs;
 }
 
+function systemHistoryEvent(value: unknown): SystemHistoryEvent | undefined {
+  const raw = recordValue(value);
+  const occurredAtValue = raw?.occurredAt;
+  const occurredAt = occurredAtValue && typeof (occurredAtValue as { toDate?: unknown }).toDate === 'function'
+    ? iso(occurredAtValue)
+    : typeof occurredAtValue === 'string' ? occurredAtValue : undefined;
+  if (!raw || typeof raw.id !== 'string' || !raw.id || !occurredAt) return undefined;
+  return { id: raw.id, occurredAt };
+}
+
+function systemHistoryEvents(value: unknown): readonly SystemHistoryEvent[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((candidate) => {
+    const event = systemHistoryEvent(candidate);
+    if (!event || seen.has(event.id)) return [];
+    seen.add(event.id);
+    return [event];
+  });
+}
+
+function systemHistoryEntry(value: unknown, coordinate: string): SystemHistoryEntry | undefined {
+  const raw = recordValue(value);
+  if (!raw || raw.coordinate !== coordinate || !/^\d{4}$/.test(coordinate)) return undefined;
+  const discovery = raw.discovery === undefined ? undefined : systemHistoryEvent(raw.discovery);
+  if (raw.discovery !== undefined && !discovery) return undefined;
+  return {
+    coordinate,
+    ...(discovery ? { discovery } : {}),
+    attempts: systemHistoryEvents(raw.attempts),
+    hazards: systemHistoryEvents(raw.hazards),
+    rewards: systemHistoryEvents(raw.rewards),
+    clearedThreats: systemHistoryEvents(raw.clearedThreats),
+    candidateProgress: systemHistoryEvents(raw.candidateProgress),
+  };
+}
+
+function systemHistoryForShip(value: unknown): SystemHistoryForShip | undefined {
+  const raw = recordValue(value);
+  if (!raw) return undefined;
+  const entries = Object.fromEntries(Object.entries(raw).flatMap(([coordinate, candidate]) => {
+    const parsed = systemHistoryEntry(candidate, coordinate);
+    return parsed ? [[coordinate, parsed]] : [];
+  }));
+  return Object.keys(entries).length > 0 ? entries : undefined;
+}
+
+function systemHistory(value: unknown): SystemHistory | undefined {
+  const raw = recordValue(value);
+  if (!raw) return undefined;
+  const histories = Object.fromEntries(Object.entries(raw).flatMap(([shipId, candidate]) => {
+    const parsed = systemHistoryForShip(candidate);
+    return parsed ? [[shipId, parsed]] : [];
+  }));
+  return Object.keys(histories).length > 0 ? histories : undefined;
+}
+
 function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | undefined {
   const raw = recordValue(value);
   const groupId = parseEntityId('group', raw?.groupId);
@@ -499,6 +560,7 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
   const logs = shipNavigationLogs(raw?.navigationLogs === undefined
     ? {}
     : { [shipId ?? 'unknown']: raw.navigationLogs });
+  const ownHistory = systemHistoryForShip(raw?.systemHistory);
   return {
     groupId,
     ...(shipId ? { shipId } : {}),
@@ -507,6 +569,7 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
     knownSystems,
     pursuitDistance: nonNegativeInteger(raw?.pursuitDistance) ?? 0,
     navigationLogs: shipId ? logs[shipId] ?? [] : [],
+    ...(ownHistory ? { systemHistory: ownHistory } : {}),
     revision,
   };
 }
@@ -518,9 +581,10 @@ function organiserSiteProjection(value: unknown): OrganiserSiteProjection | unde
   return { code: raw.code, name: raw.name, candidate: raw.candidate, summary: raw.summary };
 }
 
-function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'pursuitDistances'> | undefined {
+function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | undefined {
   const raw = recordValue(value);
   if (!raw) return undefined;
+  const parsedSystemHistory = systemHistory(raw.systemHistory);
   const sitesRaw = recordValue(raw.organiserSites);
   const organiserSites = Object.fromEntries(Object.entries(sitesRaw ?? {}).flatMap(([coordinate, site]) => {
     const parsed = organiserSiteProjection(site);
@@ -532,6 +596,7 @@ function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticC
     organiserSites,
     organiserSystems: Object.fromEntries(Object.entries(recordValue(raw.knownSystems) ?? {}).flatMap(([systemId, coordinate]) =>
       typeof coordinate === 'string' ? [[systemId, coordinate]] : [])),
+    ...(parsedSystemHistory ? { organiserSystemHistory: parsedSystemHistory } : {}),
     pursuitDistances: Object.fromEntries(Object.entries(recordValue(raw.pursuitDistances) ?? {}).flatMap(([shipId, distance]) => {
       const parsed = nonNegativeInteger(distance);
       return parsed === undefined ? [] : [[shipId, parsed]];
@@ -1062,7 +1127,7 @@ export interface SessionStateHandlers {
   /** Audience-scoped navigation/discovery projection for this member. */
   readonly onPlayerDiscovery?: (projection: PlayerDiscoveryProjection | null) => void;
   /** Facilitator-only organiser navigation/chart projection. */
-  readonly onGmDiscovery?: (projection: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'pursuitDistances'> | null) => void;
+  readonly onGmDiscovery?: (projection: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null) => void;
   /** Whether the accepted session snapshot is backed by server authority. */
   readonly onSessionFreshness?: (fresh: boolean) => void;
   /** Retain accepted server authority when an equivalent listener is restarted. */

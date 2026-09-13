@@ -1422,6 +1422,13 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
       knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
       pursuitDistance: 1, navigationLogs: [], revision: 2,
+      systemHistory: {
+        '5143': {
+          coordinate: '5143',
+          attempts: [{ id: 'attempt-1', occurredAt: '2026-09-13T00:00:00.000Z' }],
+          hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        },
+      },
     }),
   });
   callbacks[3]?.({
@@ -1430,6 +1437,20 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     data: () => ({
       shipGalacticCoordinates: { aegis: '5143' }, shipNavigationLogs: { aegis: [] },
       knownSystems: { 'system-01': '0000', 'system-02': '5143' }, revision: 2,
+      systemHistory: {
+        aegis: {
+          '5143': {
+            coordinate: '5143', attempts: [{ id: 'attempt-1', occurredAt: '2026-09-13T00:00:00.000Z' }],
+            hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+          },
+        },
+        dione: {
+          '8378': {
+            coordinate: '8378', attempts: [{ id: 'attempt-2', occurredAt: '2026-09-13T00:00:00.000Z' }],
+            hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+          },
+        },
+      },
     }),
   });
 
@@ -1440,6 +1461,12 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '8378',
       knownCoordinates: ['0000', '8378'], knownSystems: { 'system-01': '0000', 'system-17': '8378' },
       pursuitDistance: 6, navigationLogs: [], revision: 1,
+      systemHistory: {
+        '8378': {
+          coordinate: '8378', attempts: [{ id: 'stale-attempt', occurredAt: '2026-09-13T00:00:00.000Z' }],
+          hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        },
+      },
     }),
   });
   callbacks[3]?.({
@@ -1448,6 +1475,14 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     data: () => ({
       shipGalacticCoordinates: { aegis: '8378' }, shipNavigationLogs: { aegis: [] },
       knownSystems: { 'system-01': '0000', 'system-17': '8378' }, revision: 1,
+      systemHistory: {
+        aegis: {
+          '8378': {
+            coordinate: '8378', attempts: [{ id: 'stale-attempt', occurredAt: '2026-09-13T00:00:00.000Z' }],
+            hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+          },
+        },
+      },
     }),
   });
 
@@ -1456,10 +1491,15 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
   expect(onPlayerDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({
     currentCoordinate: '5143', knownCoordinates: ['0000', '5143'],
   }));
+  const ownProjection = onPlayerDiscovery.mock.lastCall?.[0] as { systemHistory?: Record<string, { attempts: readonly { id: string }[] }> };
+  expect(ownProjection.systemHistory?.['5143']?.attempts[0]?.id).toBe('attempt-1');
   expect(onGmDiscovery).toHaveBeenCalledTimes(1);
   expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
   });
+  const gmProjection = onGmDiscovery.mock.lastCall?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[] }>> };
+  expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.attempts[0]?.id).toBe('attempt-1');
+  expect(gmProjection.organiserSystemHistory?.dione?.['8378']?.attempts[0]?.id).toBe('attempt-2');
 });
 
 it('clears the GM navigation projection when its protected listener loses permission', () => {

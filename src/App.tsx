@@ -55,6 +55,7 @@ function stripGmNavigationProjection(session: GameSession): GameSession {
   delete next.shipNavigationLogs;
   delete next.organiserSites;
   delete next.organiserSystems;
+  delete next.organiserSystemHistory;
   delete next.pursuitDistances;
   const own = next.playerDiscovery;
   if (own?.shipId) {
@@ -96,7 +97,7 @@ function AppRoutes() {
     let active = true;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
-      'organiserSites' | 'organiserSystems' | 'pursuitDistances'> | null = null;
+      'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
     let unsubscribe: () => void = () => undefined;
     let unsubscribeLoyaltyCensus: () => void = () => undefined;
     let censusSubscribed = false;
@@ -156,6 +157,7 @@ function AppRoutes() {
             ...(current.shipNavigationLogs ? { shipNavigationLogs: current.shipNavigationLogs } : {}),
             ...(current.organiserSystems ? { organiserSystems: current.organiserSystems } : {}),
             ...(current.organiserSites ? { organiserSites: current.organiserSites } : {}),
+            ...(current.organiserSystemHistory ? { organiserSystemHistory: current.organiserSystemHistory } : {}),
             ...(current.pursuitDistances ? { pursuitDistances: current.pursuitDistances } : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));

@@ -13,6 +13,7 @@ const mock = vi.hoisted(() => ({
   fuel: 4,
   charges: ['jump-drive'] as string[],
   jumpStates: {} as Record<string, unknown>,
+  systemHistory: {} as Record<string, unknown>,
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
   transactionRetries: 0,
@@ -70,6 +71,7 @@ beforeEach(() => {
   mock.fuel = 4;
   mock.charges = ['jump-drive'];
   mock.jumpStates = {};
+  mock.systemHistory = {};
   mock.upgrades = {};
   mock.damage = {};
   mock.transactionRetries = 0;
@@ -108,10 +110,14 @@ beforeEach(() => {
           shipDamage: mock.damage,
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
+          systemHistory: mock.systemHistory,
           maintenanceCycles: {
             aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
           },
         };
+    if (path === 'sessions/s1/serverState/navigation') {
+      return { exists: true, data: () => fields, get: (key: string) => fields[key] };
+    }
     return { exists: true, get: (key: string) => fields[key] };
   });
 });
@@ -239,7 +245,26 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
         id: 'jump-test-jump-0', type: 'self-jump', origin: '0000', destination: '5143',
       })]),
     }),
+    systemHistory: {
+      aegis: {
+        '5143': expect.objectContaining({
+          coordinate: '5143',
+          discovery: { id: 'jump-test-jump-0', occurredAt: expect.any(String) },
+          attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        }),
+      },
+    },
   }));
+
+  mock.systemHistory = {
+    aegis: {
+      '1413': {
+        coordinate: '1413',
+        attempts: [{ id: 'attempt-before-jump', occurredAt: '2026-09-13T00:00:00.000Z' }],
+        hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
 
   mock.transactionRetries = 0;
   mock.coordinate = '0000';
@@ -283,6 +308,16 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
         destination: '5143',
         navigationalError: false,
       })]),
+    }),
+    systemHistory: expect.objectContaining({
+      aegis: expect.objectContaining({
+        '1413': expect.objectContaining({
+          attempts: [expect.objectContaining({ id: 'attempt-before-jump' })],
+        }),
+        '5143': expect.objectContaining({
+          discovery: expect.objectContaining({ id: 'jump-test-jump-0' }),
+        }),
+      }),
     }),
   }));
 });

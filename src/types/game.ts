@@ -94,6 +94,26 @@ export interface ShipNavigationLogEntry {
 export type ShipNavigationLogs = Readonly<Record<string, readonly ShipNavigationLogEntry[]>>;
 export type ShipConsoleLocks = Readonly<Record<string, boolean>>;
 
+/** Server-authored history identity; category owners add meaning later. */
+export interface SystemHistoryEvent {
+  readonly id: string;
+  readonly occurredAt: Timestamp;
+}
+
+/** Durable state for one printed system, scoped to the entitled ship. */
+export interface SystemHistoryEntry {
+  readonly coordinate: GalacticCoordinate;
+  readonly discovery?: SystemHistoryEvent;
+  readonly attempts: readonly SystemHistoryEvent[];
+  readonly hazards: readonly SystemHistoryEvent[];
+  readonly rewards: readonly SystemHistoryEvent[];
+  readonly clearedThreats: readonly SystemHistoryEvent[];
+  readonly candidateProgress: readonly SystemHistoryEvent[];
+}
+
+export type SystemHistoryForShip = Readonly<Record<string, SystemHistoryEntry>>;
+export type SystemHistory = Readonly<Record<string, SystemHistoryForShip>>;
+
 /** Server-owned navigation knowledge for one entitled player/ship view. */
 export interface PlayerDiscoveryProjection {
   readonly groupId: GroupId;
@@ -104,6 +124,7 @@ export interface PlayerDiscoveryProjection {
   readonly knownSystems: Readonly<Record<string, GalacticCoordinate>>;
   readonly pursuitDistance: number;
   readonly navigationLogs: readonly ShipNavigationLogEntry[];
+  readonly systemHistory?: SystemHistoryForShip;
   readonly revision: number;
 }
 
@@ -510,6 +531,8 @@ export interface GameSession {
   readonly organiserSites?: Readonly<Record<string, OrganiserSiteProjection>>;
   /** Facilitator-only coordinate mapping for the opaque map topology. */
   readonly organiserSystems?: Readonly<Record<string, GalacticCoordinate>>;
+  /** Facilitator-only complete system history across active ships. */
+  readonly organiserSystemHistory?: SystemHistory;
   /** Server-authored pursuit depth for the current entitled ship/fleet view. */
   readonly pursuitDistance?: number;
   /** Server-authorized travel lock state, by ship. */

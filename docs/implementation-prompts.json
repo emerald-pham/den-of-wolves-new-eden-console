@@ -4753,6 +4753,13 @@
       "language": "The base small-ship Capybara Fuel Processor now runs through the server-owned small-ship maintenance transaction: at step 5, a charged console converts a server-validated 1–5 ore amount one-for-one into host fuel, using the docked host ledger because the printed small-ship sheet says resources are typically drawn from the larger docked vessel and Cargo Transfer moves ore/fuel to and from docked ships. Authority, Team/turn phase, revision CAS, exact replay, uncharged, invalid amount, insufficient ore, overflow, wrong actor, and expansion-mode boundaries are covered before any ledger write. The normal GM console offers the named Fuel Processor in the two-console reactor selection and a readable 1–5 ore control, while Water Reclimator, Hydroponics, generic small ships, and expansion Capybara remain separate.",
       "source": "functions/src/smallShip.ts; functions/src/index.ts; functions/src/smallShip.test.ts; functions/src/smallShipCallable.test.ts; src/lib/smallShipService.ts; src/components/SmallShipOperations.tsx; src/routes/GmConsole.test.tsx",
       "type": "evidence / production-path / authority"
+    },
+    {
+      "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
+      "id": "E-313-HISTORY-PERSISTENCE",
+      "language": "A server-owned, typed per-ship history envelope now round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; future attempts, hazards, rewards, cleared-threat, and candidate-progress buckets are preserved only as producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. P313 remains partial until later owning producers write the future categories.",
+      "source": "functions/src/systemHistory.ts; functions/src/navigationProjection.ts; functions/src/index.ts; functions/src/systemHistory.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/jumpCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; src/App.tsx; authorized routed REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md",
+      "type": "evidence / partial / production-path"
     }
   ],
   "plan": {
@@ -12828,15 +12835,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive reconnect without revealing other systems.",
         "title": "Persist system history."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-313",
+      "description": "Server-owned navigation now persists a typed per-ship system-history envelope beside the denied navigation state. Existing self-jump arrivals become durable discovery events, and setup, join, resume, replacement, relocation, and jump projections round-trip only the entitled ship history while the GM projection retains active-fleet history. Attempts, hazards, rewards, cleared threats, and candidate progress are explicit producer-owned buckets that survive when an authorized producer writes them; no current mission, scout, hazard, reward, threat, or candidate producer exists in this slice, so P313 remains partial and invents no outcomes.",
+      "evidenceIds": "E-AUDIT-313;E-313-HISTORY-PERSISTENCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -12847,7 +12854,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **217 / 750 prompts complete (28.93%)**
 
-Status breakdown: **217 done · 23 partial · 510 missing**.
+Status breakdown: **217 done · 24 partial · 509 missing**.
 
 Active prompt: **none**
 
@@ -755,7 +755,7 @@ release classification and evidence.
 | 310 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 311 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 312 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 313 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 313 | partial | feature | — | Server-owned navigation now persists a typed per-ship system-history envelope beside the denied navigation state. Existing self-jump arrivals become durable discovery events, and setup, join, resume, replacement, relocation, and jump projections round-trip only the entitled ship history while the GM projection retains active-fleet history. Attempts, hazards, rewards, cleared threats, and candidate progress are explicit producer-owned buckets that survive when an authorized producer writes them; no current mission, scout, hazard, reward, threat, or candidate producer exists in this slice, so P313 remains partial and invents no outcomes. |
 | 314 | partial | non-feature | — | Partial production-path implementation for existing full-ship destruction state: moveShipToLocation and jumpShip now fail closed for destroyed ships before any coordinate, fuel, charge, jump-state, or navigation-log mutation, while the shared DRADIS projection excludes destroyed full ships and keeps surviving active contacts visible. The existing P140d catastrophe record continues to expose ship-destroyed pod capacity, survivors, resources, and retained shuttle records through their existing paths. Small/base-vessel destruction producers and pod-capacity state are not present in the authoritative source, so this prompt remains partial and does not invent those mechanics. |
 | 315 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 316 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

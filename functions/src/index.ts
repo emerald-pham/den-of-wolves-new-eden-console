@@ -657,6 +657,7 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   return {
     shipGalacticCoordinates: navigation.shipGalacticCoordinates,
     shipNavigationLogs: navigation.shipNavigationLogs,
+    ...(navigation.systemHistory ? { systemHistory: navigation.systemHistory } : {}),
   };
 }
 
@@ -6429,6 +6430,7 @@ export const moveShipToLocation = onCall<{
     const nextNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
+      systemHistory: currentNavigation.systemHistory,
     }, activeVesselIds);
     const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
@@ -6644,6 +6646,7 @@ export const jumpShip = onCall<{
     const nextNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
+      systemHistory: currentNavigation.systemHistory,
     }, activeVesselIds);
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision,
