@@ -42,7 +42,6 @@ function SystemCard({
   charged,
   upgraded,
   consoleLocked,
-  turnZeroLocked,
   integrityLockedUntil,
 }: {
   readonly system: AegisShipSystem;
@@ -52,7 +51,6 @@ function SystemCard({
   readonly charged: boolean;
   readonly upgraded: boolean;
   readonly consoleLocked: boolean;
-  readonly turnZeroLocked: boolean;
   readonly integrityLockedUntil?: string | undefined;
 }) {
   return (
@@ -81,7 +79,6 @@ function SystemCard({
         damaged={damaged}
         upgraded={upgraded}
         consoleLocked={consoleLocked}
-        turnZeroLocked={turnZeroLocked}
         integrityLockedUntil={integrityLockedUntil}
       />}
       <dl>
@@ -259,7 +256,6 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
   const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.aegis;
-  const currentTurn = shipState ? shipState.currentTurn : session?.currentTurn;
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
 
   return (
@@ -294,7 +290,6 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
           charged={maintenanceCycle?.charges.includes('jump-drive') ?? false}
           upgraded={upgrades.includes('jump-drive')}
           consoleLocked={consoleLocked ?? false}
-          turnZeroLocked={currentTurn === 0}
           integrityLockedUntil={jumpState?.integrityLockedUntil} />}
         rations={<>
           <div className="aegis-ration-table">

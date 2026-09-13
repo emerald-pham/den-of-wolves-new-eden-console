@@ -60,11 +60,11 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const maintenanceDamageDraw = cycle?.damageDrawId
     ? damageDraws.find(draw => draw.id === cycle.damageDrawId)
     : undefined;
-  const turnZeroLocked = session?.currentTurn === 0;
+  const awaitingMaintenanceStart = session?.currentTurn === 0;
   const maintenancePhaseBlocked = session?.turnPhase !== undefined &&
     phaseForSession(session)?.airspace.state !== 'restricted';
   const maintenanceRollbackHelpId = `${shipId}-maintenance-rollback-phase-help`;
-  const blocked = !access.writable || pending || !session || !me || connection !== 'live' || turnZeroLocked;
+  const blocked = !access.writable || pending || !session || !me || connection !== 'live' || awaitingMaintenanceStart;
   const disabled = (at: number) => blocked || step !== at ||
     (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7) ||
     (shipId === 'aegis' && at === 7 && cycle?.results['7'] !== undefined);
@@ -143,7 +143,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           setConfirmBegin(false);
           void execute('begin');
         }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Turn ${currentTurn}`}</button>
-      {turnZeroLocked && <p role="status">Turn 0 // Awaiting Iris Authentication</p>}
+      {awaitingMaintenanceStart && <p role="status">Maintenance begins on Turn 1</p>}
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

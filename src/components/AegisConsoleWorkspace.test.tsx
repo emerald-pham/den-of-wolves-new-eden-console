@@ -42,7 +42,7 @@ it('keeps the Press airspace exception under AEGIS systems control and makes tim
   expect(unlockPressAirspace).toHaveBeenCalledOnce();
 });
 
-it('holds the Press exception at Turn 0 for a non-GM Admiral', async () => {
+it('holds the Press exception when no matching authoritative airspace phase exists', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected a session.');
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });

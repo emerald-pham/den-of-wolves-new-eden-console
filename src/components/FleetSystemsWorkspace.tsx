@@ -63,7 +63,6 @@ export default function FleetSystemsWorkspace({
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[ship.id];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[ship.id] ?? [];
   const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.[ship.id];
-  const currentTurn = shipState ? shipState.currentTurn : session?.currentTurn;
   const renderSystem = (system: (typeof systems)[number]) => {
     const { baseline, rules } = systemEffectRows(system.effect);
     const damaged = damage?.damagedSystemIds.includes(system.id) ?? false;
@@ -85,7 +84,6 @@ export default function FleetSystemsWorkspace({
         damaged={damaged}
         upgraded={upgrades.includes('jump-drive')}
         consoleLocked={consoleLocked}
-        turnZeroLocked={currentTurn === 0}
         integrityLockedUntil={jumpState?.integrityLockedUntil}
       />}
       <dl><div className="aegis-system__condition">

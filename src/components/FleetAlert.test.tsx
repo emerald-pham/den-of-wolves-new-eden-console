@@ -72,14 +72,14 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
   await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(false));
 });
 
-it('holds the Admiral alert controls during Turn 0 for a player', () => {
+it('keeps entitled Admiral alert controls independent of the Iris gate', () => {
   const state = useSessionStore.getState();
   state.setSession({ ...state.session!, currentTurn: 0 });
   render(<FleetAlertControl />);
 
-  expect(screen.getByRole('textbox', { name: 'ALERT MESSAGE' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' })).toBeDisabled();
-  expect(screen.getByText('FLEET COMMAND // TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'ALERT MESSAGE' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' })).toBeEnabled();
+  expect(screen.queryByText('FLEET COMMAND // TURN 0 // AWAITING IRIS AUTHENTICATION')).not.toBeInTheDocument();
 });
 
 it('does not expose historical Admiral authority after a replacement assignment', () => {
@@ -105,70 +105,30 @@ it('shows the latest press dispatch while no alert is active', () => {
   expect(screen.getByRole('status', { name: 'SNN // Convoy arrival confirmed' })).toBeVisible();
 });
 
-it('warns about the Turn 0 console lockout and drains it when Turn 1 begins', () => {
-  act(() => {
-    const state = useSessionStore.getState();
-    state.setSession({ ...state.session!, currentTurn: 0 });
-  });
-
-  const view = render(<FleetBroadcast />);
-
-  expect(screen.getByRole('status', {
-    name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
-  })).toBeVisible();
-  expect(screen.getByLabelText('Fleet broadcasts')).toHaveAttribute('data-gap', 'long');
-
-  act(() => {
-    const state = useSessionStore.getState();
-    state.setSession({ ...state.session!, currentTurn: 1 });
-  });
-
-  expect(screen.getByRole('status', {
-    name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
-  })).toBeVisible();
-  view.container.querySelectorAll<HTMLElement>(
-    '.fleet-ticker__group[data-message-id="s1:turn-zero-console-lockout"]',
-  ).forEach((group) => fireEvent.animationEnd(group));
-  expect(screen.queryByRole('status', {
-    name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
-  })).not.toBeInTheDocument();
+it('does not invent an Iris lockout bulletin for a legacy Turn 0 snapshot', () => {
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, currentTurn: 0,
+  }));
+  render(<FleetBroadcast />);
+  expect(screen.queryByRole('status', { name: /consoles locked out/i })).not.toBeInTheDocument();
 });
 
-it('drains the Turn 0 lockout tail before replaying it when setup returns', () => {
-  const lockoutId = 's1:turn-zero-console-lockout';
-  const lockoutName = 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE';
+it('drops a persisted obsolete Iris notice without hiding a queued legitimate dispatch', () => {
+  const message = {
+    id: 'old-iris', sequence: 1, source: 'automatic' as const, sourceId: 'turn-zero', priority: 10,
+    text: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
+    tone: 'normal' as const, gap: 'long' as const, createdAt: '2026-09-01T12:00:00.000Z',
+  };
   act(() => useSessionStore.getState().setSession({
-    ...useSessionStore.getState().session!,
-    currentTurn: 0,
+    ...useSessionStore.getState().session!, currentTurn: 0,
+    fleetTicker: { revision: 2, nextSequence: 2, replayCursor: 0, current: message,
+      queued: [{ ...message, id: 'news', sequence: 2, source: 'press', sourceId: 'news', text: 'SNN // Convoy arrival confirmed' }],
+      draining: [message], dismissed: [],
+    },
   }));
-  const view = render(<FleetBroadcast />);
-
-  expect(screen.getByRole('status', { name: lockoutName })).toBeVisible();
-  const outgoing = [...view.container.querySelectorAll<HTMLElement>(
-    `.fleet-ticker__group[data-message-id="${lockoutId}"]`,
-  )];
-  expect(outgoing).toHaveLength(2);
-
-  act(() => useSessionStore.getState().setSession({
-    ...useSessionStore.getState().session!,
-    currentTurn: 1,
-  }));
-
-  expect(view.container.querySelectorAll(
-    `.fleet-ticker__group[data-message-id="${lockoutId}"]`,
-  )).toHaveLength(2);
-  expect(view.container.querySelector('.fleet-ticker')).toHaveTextContent(lockoutName);
-  expect(screen.getByRole('status', { name: lockoutName })).toBeVisible();
-
-  outgoing.forEach((group) => fireEvent.animationEnd(group));
-  expect(view.container.querySelector('.fleet-ticker')).toBeNull();
-
-  act(() => useSessionStore.getState().setSession({
-    ...useSessionStore.getState().session!,
-    currentTurn: 0,
-  }));
-
-  expect(screen.getByRole('status', { name: lockoutName })).toBeVisible();
+  render(<FleetBroadcast />);
+  expect(screen.queryByRole('status', { name: /consoles locked out/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('status', { name: 'SNN // Convoy arrival confirmed' })).toBeVisible();
 });
 
 it('posts the current airspace window as a compact looping Airspace Control bulletin', () => {

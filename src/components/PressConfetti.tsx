@@ -1,8 +1,7 @@
 import type { Shuttlecraft } from '@/data/shuttles';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { popShipConfetti } from '@/lib/sessionService';
-import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
+import { useSessionStore } from '@/store/useSessionStore';
 
 type PaperStyle = CSSProperties & Record<`--${string}`, string | number>;
 const PAPER = Array.from({ length: 32 }, (_, index) => ({
@@ -20,7 +19,6 @@ export default function PressConfetti({ shuttle }: {
 }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
-  const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const [coverOpen, setCoverOpen] = useState(false);
   const [firing, setFiring] = useState(false);
@@ -30,7 +28,6 @@ export default function PressConfetti({ shuttle }: {
     command.payload.sessionId === session.id &&
     command.payload.shipId === shuttle.id));
   const authorized = me?.activeConsoleRoleId === shuttle.captainRoleId;
-  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
   const gameplayFrozen = session?.phase === 'debrief' || session?.phase === 'closed';
 
   useEffect(() => {
@@ -62,7 +59,7 @@ export default function PressConfetti({ shuttle }: {
   }, [burst]);
 
   async function activate() {
-    if (!authorized || gameplayFrozen || turnZeroLocked || queued || firing) return;
+    if (!authorized || gameplayFrozen || queued || firing) return;
     setFiring(true);
     try {
       await popShipConfetti(shuttle.id, shuttle.captainRoleId);
@@ -85,7 +82,7 @@ export default function PressConfetti({ shuttle }: {
             className="confetti-dispenser__trigger"
             type="button"
             aria-label="Activate newspaper confetti"
-            disabled={!authorized || gameplayFrozen || turnZeroLocked || !coverOpen || queued || firing}
+            disabled={!authorized || gameplayFrozen || !coverOpen || queued || firing}
             onClick={() => void activate()}
           >{queued ? 'QUEUED' : 'EXTRA!'}</button>
           <button
@@ -93,15 +90,13 @@ export default function PressConfetti({ shuttle }: {
             type="button"
             aria-label={`${coverOpen ? 'Close' : 'Open'} newspaper confetti cover`}
             aria-pressed={coverOpen}
-            disabled={!authorized || gameplayFrozen || turnZeroLocked || queued}
+            disabled={!authorized || gameplayFrozen || queued}
             onClick={() => setCoverOpen((open) => !open)}
           >{coverOpen ? 'EDITION READY' : 'HOLD THE PRESSES'}</button>
         </div>
         <p className="confetti-dispenser__notice">
           {gameplayFrozen
             ? 'ENDGAME EVALUATION // GAMEPLAY CONFETTI FROZEN'
-            : turnZeroLocked
-            ? 'TURN 0 // AWAITING IRIS AUTHENTICATION'
             : 'WARNING // WARNING // THIS WILL CAUSE SHREDDED PAPER TO ENTER THE BRIDGE OF ANY DOCKED SHIP'}
         </p>
       </section>

@@ -572,7 +572,7 @@ it('opens a digital cover before activating a non-AEGIS one-shot Emergency Bridg
   expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
 });
 
-it('holds a player ship dispenser at Turn 0', () => {
+it('does not apply a global Iris lock to an otherwise active player ship console', () => {
   const session = useSessionStore.getState().session;
   const me = useSessionStore.getState().me;
   if (!session || !me) throw new Error('Expected test session state.');
@@ -584,8 +584,8 @@ it('holds a player ship dispenser at Turn 0', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeDisabled();
-  expect(screen.getByText('ONE USE // TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
+  expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeEnabled();
+  expect(screen.queryByText('ONE USE // TURN 0 // AWAITING IRIS AUTHENTICATION')).not.toBeInTheDocument();
 });
 
 it('tells a lone non-captain that a second person must fire the cannon', async () => {

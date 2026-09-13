@@ -106,3 +106,14 @@ describe('fleet ticker state', () => {
     expect(projected.current).toMatchObject({ id: 's1:fleet-ticker:1', text: 'AIRSPACE OPEN' });
   });
 });
+
+it('retires obsolete Iris notices from stored and replayed queues without suppressing current airspace', () => {
+  const old = { ...airspace, id: 'old-iris', sequence: 1, sourceId: 'turn-zero', createdAt: now };
+  const stored = { ...emptyFleetTickerState(), revision: 2, nextSequence: 2, current: old,
+    queued: [old], draining: [old] };
+  expect(fleetTickerState(stored)).toMatchObject({ current: null, queued: [], draining: [] });
+  const next = publishFleetTicker('s1', stored, { ...airspace, sourceId: 'airspace:1:restricted' }, now);
+  expect(next.current?.sourceId).toBe('airspace:1:restricted');
+  expect(next.queued).toEqual([]);
+  expect(next.draining).toEqual([]);
+});

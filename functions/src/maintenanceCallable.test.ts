@@ -2240,18 +2240,14 @@ it('denies Press airspace unlock while Press is disabled without writing', async
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('holds the player ICN travel lock at Turn 0', async () => {
+it('allows an entitled player travel-lock action without the obsolete Turn 0 gate', async () => {
   mock.role = 'player';
   mock.activeConsoleRoleId = 'admiral';
   mock.currentTurn = 0;
-
   await expect(setShipConsoleLock.run(request({
     sessionId: 's1', shipId: 'aegis', locked: true, requestId: 'lock-turn-zero',
-  }))).rejects.toMatchObject({
-    code: 'failed-precondition',
-    message: expect.stringMatching(/turn 1/i),
-  });
-  expect(mock.update).not.toHaveBeenCalled();
+  }))).resolves.toMatchObject({ locked: true });
+  expect(mock.update).toHaveBeenCalled();
 });
 
 it('holds every maintenance cycle at Turn 0, including the GM path', async () => {

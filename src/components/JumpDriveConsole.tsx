@@ -17,7 +17,6 @@ interface Props {
   readonly damaged: boolean;
   readonly upgraded: boolean;
   readonly consoleLocked?: boolean | undefined;
-  readonly turnZeroLocked?: boolean | undefined;
   readonly integrityLockedUntil?: string | undefined;
 }
 
@@ -46,7 +45,6 @@ export default function JumpDriveConsole({
   damaged,
   upgraded,
   consoleLocked = false,
-  turnZeroLocked = false,
   integrityLockedUntil,
 }: Props) {
   const access = useConsoleAccess();
@@ -80,7 +78,7 @@ export default function JumpDriveConsole({
     return () => window.clearTimeout(timer);
   }, [effectiveLockout, lockoutActive, clock]);
 
-  const disabled = !access.writable || consoleLocked || turnZeroLocked || pending || lockoutActive;
+  const disabled = !access.writable || consoleLocked || pending || lockoutActive;
   const powerDisabled = disabled || !locked || !charged;
   const [short = 0, medium = 0, long = 0] = jumpCosts;
 

@@ -68,12 +68,9 @@ it('stops an airspace bulletin when AEGIS sends a new fleet alert', async () => 
     },
   }));
 });
-it('holds the player Admiral command at Turn 0 but lets an active GM intervene', async () => {
+it('allows an entitled Admiral at Turn 0 and still checks the GM instance', async () => {
   mock.currentTurn = 0;
-  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({
-    code: 'failed-precondition',
-    message: expect.stringMatching(/turn 1/i),
-  });
+  await expect(setFleetRedAlert.run(request())).resolves.toMatchObject({ revision: 1 });
   mock.role = 'gm';
   const previous = mock.get.getMockImplementation()!;
   mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')

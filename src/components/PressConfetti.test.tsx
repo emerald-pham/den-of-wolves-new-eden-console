@@ -63,15 +63,15 @@ it('binds reusable equipment to the configured craft and captain', async () => {
   );
 });
 
-it('holds the evidence shredder at Turn 0 for a non-GM player', () => {
+it('keeps an entitled evidence shredder available without the Iris gate', () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected a session.');
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
 
   render(<PressConfetti shuttle={snnPressShuttle} />);
 
-  expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
-  expect(screen.getByText('TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
+  expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeEnabled();
+  expect(screen.queryByText('TURN 0 // AWAITING IRIS AUTHENTICATION')).not.toBeInTheDocument();
 });
 
 it('freezes the evidence shredder during endgame evaluation', () => {

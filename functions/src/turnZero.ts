@@ -1,8 +1,3 @@
-/** Turn 0 is setup time: only an active GM may issue gameplay commands. */
-export function isPlayerGameplayLockedAtTurnZero(currentTurn: unknown, role: unknown): boolean {
-  return currentTurn === 0 && role !== 'gm';
-}
-
 export const TURN_ONE_TEAM_PHASE_DURATION_MS = 10 * 60_000;
 export const TURN_ONE_COORDINATION_PHASE_DURATION_MS = 20 * 60_000;
 export const SUBSEQUENT_TEAM_PHASE_DURATION_MS = 5 * 60_000;

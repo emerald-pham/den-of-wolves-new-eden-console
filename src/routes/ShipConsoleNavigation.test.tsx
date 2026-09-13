@@ -75,10 +75,10 @@ it('shows the ICN travel lock and disables console actions while it is engaged',
   expect(setShipConsoleLock).toHaveBeenCalledWith('aegis', false);
 });
 
-it('keeps the ICN travel lock read-only during Turn 0', () => {
+it('allows the entitled local travel lock independently of the Iris gate', () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
   renderShip();
 
-  expect(screen.getByRole('button', { name: /engage ICN console lock/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /engage ICN console lock/i })).toBeEnabled();
 });

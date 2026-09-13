@@ -231,7 +231,6 @@ import {
   type JoinCodeAttemptState,
 } from './joinCodeSecurity';
 import {
-  isPlayerGameplayLockedAtTurnZero,
   extendActiveTurnPhase,
   isTurnPhaseTimerActive,
   pauseActiveTurnPhase,
@@ -348,7 +347,6 @@ type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
 
 const FLEET_TICKER_COPY = {
-  turnZero: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
   airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
   airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
@@ -363,13 +361,6 @@ function fleetTickerStateFromLegacy(
   now: string,
 ): FleetTickerState {
   let state = emptyFleetTickerState();
-  const currentTurn = sessionTurn(session.get('currentTurn'));
-  if (currentTurn === 0) {
-    state = publishFleetTicker(sessionId, state, {
-      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
-      text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long', sourceId: 'turn-zero',
-    }, now);
-  }
   const phase = turnPhaseState(session.get('turnPhase'));
   if (phase?.timerPause) {
     state = publishFleetTicker(sessionId, state, {
@@ -1558,16 +1549,6 @@ function fleetSurvivorPopulation(session: DocumentSnapshot): number {
   return Number.isSafeInteger(adjustedPopulation) ? Math.max(0, adjustedPopulation) : basePopulation;
 }
 
-function requireTurnOneForPlayer(session: DocumentSnapshot, player: DocumentSnapshot): void {
-  if (isPlayerGameplayLockedAtTurnZero(session.get('currentTurn'), player.get('role'))) {
-    throw commandError(
-      'failed-precondition',
-      'Turn 0 is for GM setup. Wait for the GM to advance to Turn 1.',
-      'invalid-phase',
-    );
-  }
-}
-
 function requireTurnOneForGameplay(session: DocumentSnapshot): void {
   if (sessionTurn(session.get('currentTurn')) === 0) {
     throw commandError(
@@ -2013,10 +1994,7 @@ export const createSession = onCall<{
       const sessionRef = db.collection('sessions').doc();
       const eventRef = db.doc(`sessions/${sessionRef.id}/events/create-${creation.requestId}`);
       const now = new Date().toISOString();
-      const initialFleetTicker = publishFleetTicker(sessionRef.id, emptyFleetTickerState(), {
-        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
-        text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long', sourceId: 'turn-zero',
-      }, now);
+      const initialFleetTicker = emptyFleetTickerState();
       // The expansion mode is persisted now, but its two-role composition is
       // deliberately resolved by the casting/start slice. Adding both roles
       // here would silently create more role holders than configured players
@@ -7572,7 +7550,7 @@ export const jumpShip = onCall<{
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
-    requireTurnOneForPlayer(session, player);
+
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -7785,7 +7763,7 @@ export const setShipConsoleLock = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActiveGameplayPhase(session);
-    requireTurnOneForPlayer(session, player);
+
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -9217,7 +9195,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
     if (session.get('pressEnabled') === false) {
       throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
     }
-    requireTurnOneForPlayer(session, player);
+
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
@@ -9331,7 +9309,7 @@ export const popShipConfetti = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     requireActiveGameplayPhase(session);
-    requireTurnOneForPlayer(session, player);
+
     if (shipId !== 'snn-press-shuttle' && !activeVesselIdsForSession(session).includes(shipId)) {
       throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
     }
@@ -11145,7 +11123,7 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
     }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireActiveGameplayPhase(session);
-    requireTurnOneForPlayer(session, player);
+
 
     const rolls = Array.from({ length: count }, () => randomInt(1, sides + 1));
     const id = randomUUID();
@@ -11604,7 +11582,7 @@ export const buildFighter = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
     if (replay) return replay;
-    requireTurnOneForPlayer(session, player);
+
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
     const currentRevision = vesselActionRevision(session, 'aegis');
@@ -11885,7 +11863,7 @@ async function requireHummingbirdAuthority(
   }
   requireActiveGameplayPhase(session);
   requireTurnOneForGameplay(session);
-  requireTurnOneForPlayer(session, player);
+
   if (enforceActionPhase) requireActionPhase(session, 'scouting', 'player');
   return { player, session, hostShipId: docking.shipId };
 }
@@ -12390,7 +12368,7 @@ export const runSmallShipMaintenance = onCall<{
     if (replay) return replay;
     requireTurnOneForGameplay(session);
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    requireTurnOneForPlayer(session, player);
+
     if (state.cycle.revision !== data.expectedRevision) {
       const stale = {
         status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
@@ -12582,7 +12560,7 @@ export const runVulcanAdditionalLabour = onCall<{
     if (replay) return replay;
     requireTurnOneForGameplay(session);
     requireActionPhase(session, 'transfer', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    requireTurnOneForPlayer(session, player);
+
     if (!isResourceShipId(data.targetShipId) || data.targetShipId === 'vulcan' ||
         !activeVesselIdsForSession(session).includes(data.targetShipId)) {
       throw commandError('failed-precondition', 'Choose another active fleet ship.', 'conflict');
@@ -12898,7 +12876,7 @@ export const runMaintenance = onCall<{
     if (replay) return replay;
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    requireTurnOneForPlayer(snapshot, player);
+
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
         snapshot.get('phase') === 'closed') {
@@ -13179,7 +13157,7 @@ export const drawVipCard = onCall<{
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    requireTurnOneForPlayer(snapshot, player);
+
     if (snapshot.get('phase') === 'closed' || snapshot.get('dioneEnabled') === false ||
         !activeVesselIdsForSession(snapshot).includes('dione')) {
       throw commandError('failed-precondition', 'Dione is not available in this session.', 'conflict');
@@ -13229,7 +13207,7 @@ export const drawVipCard = onCall<{
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    requireTurnOneForPlayer(snapshot, player);
+
     if (snapshot.get('phase') === 'closed' || snapshot.get('dioneEnabled') === false ||
         !activeVesselIdsForSession(snapshot).includes('dione')) {
       throw commandError('failed-precondition', 'Dione is not available in this session.', 'conflict');
@@ -13343,7 +13321,7 @@ export const transferVipCard = onCall<{
     }
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'transfer', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    requireTurnOneForPlayer(snapshot, player);
+
     if (snapshot.get('dioneEnabled') === false || !activeVesselIdsForSession(snapshot).includes('dione')) {
       throw commandError('failed-precondition', 'Dione is not available in this session.', 'conflict');
     }
@@ -13433,7 +13411,7 @@ export const setFleetRedAlert = onCall<{
       const replay = replayBoundCommand(receipt, fingerprint, isFleetAlertResult, 'fleet red alert');
       if (replay) return replay;
     }
-    requireTurnOneForPlayer(session, player);
+
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     requireActiveGameplayPhase(session);
     const current = session.get('fleetRedAlert') as

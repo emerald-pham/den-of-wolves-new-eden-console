@@ -1,9 +1,8 @@
 import { DEFAULT_FLEET_ALERT_MESSAGE, MAX_FLEET_ALERT_LENGTH } from '@/lib/fleetAlertMessage';
 import { useEffect, useRef, useState } from 'react';
 import { useConsoleAccess } from '@/lib/consoleAccess';
-import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
+import { useSessionStore } from '@/store/useSessionStore';
 import { setFleetRedAlert } from '@/lib/fleetAlertService';
-import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 const FLEET_ALERT_COOLDOWN_MINUTES = 10;
@@ -14,7 +13,6 @@ export default function FleetAlertControl() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
-  const isGm = useSessionStore(selectIsGm);
   const defaultMessage = DEFAULT_FLEET_ALERT_MESSAGE.toUpperCase();
   const [text, setText] = useState((session?.fleetRedAlert?.text ?? defaultMessage).toUpperCase());
   const [coverOpen, setCoverOpen] = useState(false);
@@ -39,8 +37,7 @@ export default function FleetAlertControl() {
   const cooldownNotice = lockout
     ? `${lockoutMinutes} ${lockoutMinutes === 1 ? 'MINUTE' : 'MINUTES'} REMAINING // FLEET ALERT COOLDOWN`
     : null;
-  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
-  const unavailable = turnZeroLocked || !access.writable || connection !== 'live' ||
+  const unavailable = !access.writable || connection !== 'live' ||
     session?.phase === 'debrief' || session?.phase === 'closed';
   const execute = async (nextActive = !active) => {
     if (busy.current || unavailable) return;
@@ -84,9 +81,7 @@ export default function FleetAlertControl() {
       </button>
     </div>
     <p className="confetti-dispenser__status">
-      FLEET COMMAND // {turnZeroLocked
-        ? 'TURN 0 // AWAITING IRIS AUTHENTICATION'
-        : session?.phase === 'debrief'
+      FLEET COMMAND // {session?.phase === 'debrief'
           ? 'ENDGAME EVALUATION // COMMAND FROZEN'
           : pending
             ? 'TRANSMITTING'

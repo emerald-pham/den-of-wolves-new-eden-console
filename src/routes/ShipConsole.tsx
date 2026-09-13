@@ -19,7 +19,6 @@ import {
   setShipConsoleLock,
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
-import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
@@ -50,7 +49,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
-  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
   const ship = findShip(shipId);
   const shipState = ship && session ? projectShipState(session, ship.id) : undefined;
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
@@ -216,7 +214,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const shipCoordinate = shipState?.galacticCoordinate ?? '0000';
 
   async function activate(): Promise<void> {
-    if (!ship || !consoleRole || !effectiveWritable || turnZeroLocked || spent || queued || activating) return;
+    if (!ship || !consoleRole || !effectiveWritable || spent || queued || activating) return;
     setActivating(true);
     try {
       const result = await popShipConfetti(ship.id, consoleRole.id);
@@ -230,7 +228,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   async function toggleConsoleLock(): Promise<void> {
-    if (!ship || !writable || session?.phase === 'debrief' || turnZeroLocked || lockPending) return;
+    if (!ship || !writable || session?.phase === 'debrief' || lockPending) return;
     setLockPending(true);
     try {
       await setShipConsoleLock(ship.id, !consoleLocked);
@@ -242,7 +240,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   return (
-    <ConsoleAccessContext.Provider value={{ writable: effectiveWritable && !turnZeroLocked, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
+    <ConsoleAccessContext.Provider value={{ writable: effectiveWritable, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
     <main
       className={`ship-console ship-console--${ship.id}${
         hasConsoleWorkspace
@@ -299,7 +297,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <button
             className="cic-action-button"
             type="button"
-            disabled={!writable || session.phase === 'debrief' || turnZeroLocked || lockPending}
+            disabled={!writable || session.phase === 'debrief' || lockPending}
             onClick={() => void toggleConsoleLock()}
           >
             {consoleLocked ? 'Release ICN console lock' : 'Engage ICN console lock'}
@@ -472,7 +470,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                   : queued
                     ? 'Emergency Bridge Confetti Dispenser activation queued'
                     : 'Activate Emergency Bridge Confetti Dispenser'}
-                disabled={!effectiveWritable || turnZeroLocked || !coverOpen || !consoleRole || spent || queued || activating}
+                disabled={!effectiveWritable || !coverOpen || !consoleRole || spent || queued || activating}
                 onClick={() => void activate()}
               >
                 {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
@@ -482,7 +480,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                 type="button"
                 aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
                 aria-pressed={coverOpen}
-                disabled={!effectiveWritable || turnZeroLocked || spent || queued}
+                disabled={!effectiveWritable || spent || queued}
                 onClick={() => setCoverOpen((current) => !current)}
               >
                 {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
@@ -491,7 +489,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             <p className="confetti-dispenser__status">
               ONE USE // {session.phase === 'debrief'
                 ? 'ENDGAME EVALUATION // COMMAND FROZEN'
-                : turnZeroLocked ? 'TURN 0 // AWAITING IRIS AUTHENTICATION' : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+                : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
             </p>
             {confettiActor && (
               <p className="confetti-dispenser__notice" role="status">

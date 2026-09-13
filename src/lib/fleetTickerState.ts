@@ -14,6 +14,8 @@ function instant(value: unknown): value is string {
 }
 
 function parseMessage(value: unknown): FleetTickerMessage | null {
+  // Retire the obsolete global Iris lock from live and persisted streams.
+  if (record(value) && value.source === 'automatic' && value.sourceId === 'turn-zero') return null;
   if (!record(value) || typeof value.id !== 'string' || value.id.length === 0 ||
       typeof value.sequence !== 'number' || !Number.isSafeInteger(value.sequence) || value.sequence < 1 ||
       (value.source !== 'automatic' && value.source !== 'admiral' && value.source !== 'press') ||
