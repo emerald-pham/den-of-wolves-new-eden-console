@@ -4585,6 +4585,27 @@
       "language": "The declaration callable is a server-owned atomic boundary: it rechecks the live GM/session/phase/preparation CAS and active target configuration, consumes P427 private preparation and P428 targeting-stage math, selects the printed base d6 ring or expansion Capybara d8 ring, locks the existing turn airspace, validates every represented shuttle's authoritative active-host docking plus fighter-wing bay state, snapshots only after that parking check succeeds, resolves the due marker, persists a GM-only stage receipt/state plus audit, and writes one member-safe announcement in the same transaction. Shared command receipts make exact retries replay without new writes; client outcome fields, wrong actors, stale preparation, inactive target rings, malformed deadlines, missing or malformed docking rows, and in-transit craft fail closed without writes. No nearest-host relocation is attempted: a craft requiring relocation or an unresolved P146 tie remains a denied declaration until the P373/P146 owners provide that movement policy; range/boarding/damage/casualty stages remain later action owners.",
       "source": "functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackPreparation.ts; functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; /tmp/p432-render-evidence.txt",
       "type": "evidence / authority / related/consumes"
+    },
+    {
+      "direction": "652c",
+      "id": "E-652C-OWNER",
+      "language": "Add a prompt to remove the ticker Hide button. This explicitly supersedes the older mobile hide/reveal requirement.",
+      "source": "Owner request 2026-09-12",
+      "type": "owner request"
+    },
+    {
+      "direction": "652c -> 652b",
+      "id": "E-652C-DEPENDENCY",
+      "language": "The removal modifies the hide/reveal behavior introduced by the shipped P652b mobile ticker.",
+      "source": "Owner request 2026-09-12; src/components/FleetBroadcast.tsx; src/components/FleetTicker.tsx",
+      "type": "hard_prompt / sequence"
+    },
+    {
+      "direction": "652c -> 106c;603a;652;652a",
+      "id": "E-652C-RELATED",
+      "language": "Preserve the existing server-owned message lifecycle, mobile layout reservation, constant-speed ticker and complete visible-tail behavior while removing hiding controls.",
+      "source": "Owner request 2026-09-12; ticker lifecycle contracts",
+      "type": "related/consumes"
     }
   ],
   "plan": {
@@ -21283,6 +21304,29 @@
       "tag": "NEW"
     },
     {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Remove the mobile Fleet/Press ticker Hide button and its reveal control so the ticker remains visible on every supported viewport. Remove obsolete manual hiding, saved hidden-state restoration, and alert-triggered expand/refold behavior while preserving the pinned narrow-screen layout, reserved content space, authoritative broadcast lifecycle, full moving-tail visibility, readable reduced-motion presentation, and existing wide-screen behavior. The removed controls must also disappear from keyboard and accessibility navigation. Verify fresh and returning clients, live alerts, scrolling, and narrow-wide-narrow resizing at 320×844, 390×844, 844×390, and 1440×900 without overlap or clipping.",
+        "title": "Remove the ticker Hide button."
+      },
+      "description": "Owner-requested follow-up to the shipped P652b mobile ticker. Supersedes its hide/reveal and temporary expansion/refolding behavior; keep the ticker visible and retain its established pinned layout and broadcast guarantees. Queued only; no implementation or release is claimed.",
+      "evidenceIds": "E-652C-OWNER;E-652C-DEPENDENCY;E-652C-RELATED",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "652b",
+      "id": "652c",
+      "milestoneHints": "none",
+      "relatedConsumes": "106c;603a;652;652a",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "TICKER-LIFECYCLE",
+      "status": "missing",
+      "tag": "EXTEND"
+    },
+    {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
@@ -21960,7 +22004,7 @@
       ],
       "hardDependency": "No; only hard fields block.",
       "id": "TICKER-LIFECYCLE",
-      "order": "Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b mobile ticker change; 652b runs only after its listed lifecycle/layout prerequisites"
+      "order": "Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b mobile ticker change; 652b runs only after its listed lifecycle/layout prerequisites; 652c follows 652b and supersedes its hide/reveal and temporary refolding behavior"
     },
     {
       "evidenceIds": [

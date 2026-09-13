@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**200 / 747 prompts complete (26.77%)**
+**200 / 748 prompts complete (26.74%)**
 
-Status breakdown: **200 done · 19 partial · 528 missing**.
+Status breakdown: **200 done · 19 partial · 529 missing**.
 
 Active prompt: **none**
 
@@ -1129,6 +1129,7 @@ release classification and evidence.
 | 652 | done | non-feature | 0.3.49 | FleetTicker now reconciles queue-only authoritative updates without duplicating lifecycle identities. Each queued message is measured against its own copy before it is placed after the visible tail, so rapid automatic, Admiral, and Press updates keep one non-overlapping lane with one screen-reader status surface. Reduced motion remains readable, and the browser geometry matrix covers phone, desktop, and short-landscape viewports plus authoritative replacement. |
 | 652a | done | non-feature | 0.3.50 | FleetTicker now waits for document fonts before measuring moving copy, observes the frame and per-message probes through ResizeObserver, rebases changed painted widths with a delay that preserves each group’s current linear position, and extends repeating tails across widened or rotated frames without overlap. The focused lifecycle tests and Chrome CDP evidence prove replacement/queue continuity, reduced-motion readability, late font-width remeasurement, exact phone/desktop/short-landscape geometry, and the final painted bounds crossing the viewport before cleanup. |
 | 652b | done | feature | 0.3.52 | Owner-requested mobile ticker behavior supersedes the earlier optional scroll-threshold experiment: always pin the Press ticker on narrow viewports, allow narrow-only hide/reveal, temporarily expand hidden content for Red Alert or airspace-restriction changes, and refold after the newest notification display. Wide viewports force visible state and remove hiding controls; preserve lifecycle, layout, accessibility, and non-GM DRADIS guarantees. Focused unit and Chrome CDP evidence cover keyboard operation, overlapping triggers, reduced motion, responsive reset, and nonoverlap across all required viewports. |
+| 652c | missing | feature | — | Owner-requested follow-up to the shipped P652b mobile ticker. Supersedes its hide/reveal and temporary expansion/refolding behavior; keep the ticker visible and retain its established pinned layout and broadcast guarantees. Queued only; no implementation or release is claimed. |
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 654 | missing | non-feature | — | Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1. |
 | 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
