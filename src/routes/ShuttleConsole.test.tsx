@@ -808,7 +808,7 @@ it.each(SHUTTLECRAFT.filter(shuttle => {
   const returns = screen.getAllByRole('link', { name: /^Back to / });
   expect(returns).toHaveLength(1);
   expect(returns[0]).toHaveAttribute('href', consoleRoleRoute(role.id));
-  expect(returns[0]).toHaveAttribute('aria-label', returns[0].textContent);
+  expect(returns[0]).toHaveAttribute('aria-label', returns[0]!.textContent);
   expect(releaseConsoleRole).not.toHaveBeenCalled();
 });
 
