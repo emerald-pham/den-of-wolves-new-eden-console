@@ -2092,7 +2092,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 <!-- BEGIN GENERATED PROMPT CATALOG: plan -->
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 #### Prompt checklist
-#### Execution checklist — all 748 prompts (catalog view)
+#### Execution checklist — all 749 prompts (catalog view)
 - [x] Prompt 001
 - [x] Prompt 002
 - [x] Prompt 003
@@ -2407,6 +2407,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 280
 - [x] Prompt 281
 - [x] Prompt 282
+- [ ] Prompt 282a
 - [x] Prompt 283
 - [ ] Prompt 284
 - [x] Prompt 285
@@ -3165,6 +3166,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 #### Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)
 - **Prompt 281 — [PRESERVE] Encode the canonical star-chart graph.** Acceptance: every printed system returns its exact adjacency list from server-safe immutable data.
 - **Prompt 282 — [NEW] Select and lock chart A, B, or C.** Acceptance: only a facilitator chooses once before start and every later code lookup uses that chart.
+- **Prompt 282a — [EXTEND] Select and lock the star map from the GM console.** Acceptance: Provide an accessible GM-console setup control to select star chart A, B, or C and explicitly confirm the selection through the existing authoritative setup/locking path. Show the selected chart and its confirmed or locked status truthfully. Only an authorized live facilitator may commit the choice; after the existing configuration lock, all clients retain the same locked chart and cannot change it through the interface or a forged request. Stale or concurrent GM edits must fail safely without silently overwriting the confirmed choice, and refresh/reconnect must restore server state. The GM organiser map and subsequent code lookups must use the confirmed chart rather than an independent local preview selection. Preserve player discovery privacy, existing setup rules, and accessible responsive controls and navigation.
 - **Prompt 283 — [NEW] Resolve system codes by chart.** Acceptance: a coordinate returns the selected chart's title/code, including L/M threats and N/O/P candidates.
 - **Prompt 284 — [NEW] Redact unknown systems.** Acceptance: players receive only discoveries entitled to their fleet group while facilitators retain the organiser view.
 - **Prompt 285 — [NEW] Model per-ship position.** Acceptance: every active ship has one authoritative arrived coordinate or explicit transition state.

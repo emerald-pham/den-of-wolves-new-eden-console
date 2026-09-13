@@ -409,6 +409,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 280 | EXTEND | missing | 060;166 | none | none | none | none | none | none | none | E-AUDIT-280 | M3;M5;M6 | Build replacement-role workspace shells. |
 | 281 | PRESERVE | done | none | none | none | none | none | none | none | none | E-281-SHARED-GRAPH | M4;M5 | Encode the canonical star-chart graph. |
 | 282 | NEW | done | 281 | none | none | none | none | none | none | none | E-282-SESSION-CHART;E-AUDIT-282 | M4;M5 | Select and lock chart A, B, or C. |
+| 282a | EXTEND | missing | 282 | none | none | none | none | none | none | none | E-282A-OWNER;E-282A-DEPENDENCY | M4;M5 | Select and lock the star map from the GM console. |
 | 283 | NEW | done | 281;282 | none | none | none | none | none | none | none | E-283-VERIFIED;E-AUDIT-283 | M4;M5 | Resolve system codes by chart. |
 | 284 | NEW | missing | 283;006;286 | none | none | none | none | none | none | none | E-AUDIT-284;E-284-GROUP-PRODUCER | M4;M5 | Redact unknown systems. |
 | 285 | NEW | done | 281 | none | none | none | none | none | none | none | E-AUDIT-285;E-285-POSITION | M4;M5 | Model per-ship position. |
@@ -1522,6 +1523,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-652C-OWNER | owner request | 652c | Owner request 2026-09-12 | Add a prompt to remove the ticker Hide button. This explicitly supersedes the older mobile hide/reveal requirement. |
 | E-652C-DEPENDENCY | hard_prompt / sequence | 652c -> 652b | Owner request 2026-09-12; src/components/FleetBroadcast.tsx; src/components/FleetTicker.tsx | The removal modifies the hide/reveal behavior introduced by the shipped P652b mobile ticker. |
 | E-652C-RELATED | related/consumes | 652c -> 106c;603a;652;652a | Owner request 2026-09-12; ticker lifecycle contracts | Preserve the existing server-owned message lifecycle, mobile layout reservation, constant-speed ticker and complete visible-tail behavior while removing hiding controls. |
+| E-282A-OWNER | owner request / evidence | 282a | Owner request 2026-09-12; src/routes/GmConsole.tsx confirmRoster; src/components/GmStarmapModule.tsx | The server supports selecting and locking A/B/C, but the GM console has no selector and confirms the already persisted chart. Add the missing GM selection and explicit confirmation interface. |
+| E-282A-DEPENDENCY | hard_prompt | 282a -> 282 | P282 authoritative chart selection contract | Reuse the existing facilitator-only chart confirmation and configuration-lock contract; do not introduce a second local chart authority. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

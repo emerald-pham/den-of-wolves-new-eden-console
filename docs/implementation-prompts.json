@@ -4606,6 +4606,20 @@
       "language": "Preserve the existing server-owned message lifecycle, mobile layout reservation, constant-speed ticker and complete visible-tail behavior while removing hiding controls.",
       "source": "Owner request 2026-09-12; ticker lifecycle contracts",
       "type": "related/consumes"
+    },
+    {
+      "direction": "282a",
+      "id": "E-282A-OWNER",
+      "language": "The server supports selecting and locking A/B/C, but the GM console has no selector and confirms the already persisted chart. Add the missing GM selection and explicit confirmation interface.",
+      "source": "Owner request 2026-09-12; src/routes/GmConsole.tsx confirmRoster; src/components/GmStarmapModule.tsx",
+      "type": "owner request / evidence"
+    },
+    {
+      "direction": "282a -> 282",
+      "id": "E-282A-DEPENDENCY",
+      "language": "Reuse the existing facilitator-only chart confirmation and configuration-lock contract; do not introduce a second local chart authority.",
+      "source": "P282 authoritative chart selection contract",
+      "type": "hard_prompt"
     }
   ],
   "plan": {
@@ -11966,6 +11980,29 @@
       "sequenceRules": "none",
       "status": "done",
       "tag": "NEW"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Provide an accessible GM-console setup control to select star chart A, B, or C and explicitly confirm the selection through the existing authoritative setup/locking path. Show the selected chart and its confirmed or locked status truthfully. Only an authorized live facilitator may commit the choice; after the existing configuration lock, all clients retain the same locked chart and cannot change it through the interface or a forged request. Stale or concurrent GM edits must fail safely without silently overwriting the confirmed choice, and refresh/reconnect must restore server state. The GM organiser map and subsequent code lookups must use the confirmed chart rather than an independent local preview selection. Preserve player discovery privacy, existing setup rules, and accessible responsive controls and navigation.",
+        "title": "Select and lock the star map from the GM console."
+      },
+      "description": "Owner requested a GM-console star-map selector with explicit locking if absent. P282 already supplies server-side A/B/C confirmation/locking and an authoritative GM overlay, but the current GM confirmRoster path resubmits the existing chart and offers no chart chooser. Queue this missing usable selection interface without reverting the shipped server behavior.",
+      "evidenceIds": "E-282A-OWNER;E-282A-DEPENDENCY",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "282",
+      "id": "282a",
+      "milestoneHints": "M4;M5",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "EXTEND"
     },
     {
       "changeClass": "non-feature",

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**200 / 748 prompts complete (26.74%)**
+**200 / 749 prompts complete (26.70%)**
 
-Status breakdown: **200 done · 19 partial · 529 missing**.
+Status breakdown: **200 done · 19 partial · 530 missing**.
 
 Active prompt: **none**
 
@@ -724,6 +724,7 @@ release classification and evidence.
 | 280 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 281 | done | non-feature | — | One platform-independent immutable graph now supplies all 22 printed systems and 40 undirected edges to both the browser star chart and server coordinate validation. Every adjacency set was checked against the authorized routed source table. Frozen coordinate/edge arrays and returned neighbor lists resist consumer mutation, and unknown or unprinted coordinates have no entry. Existing topology, overlay presentation and coordinate acceptance are unchanged; no new jump authorization or scouting behavior is claimed. |
 | 282 | done | non-feature | — | The GM starmap now derives its overlay from the canonical session setup chart, falling back to the legacy session chart and the established A default only when setup is absent. It no longer offers an independent local chart selector. Existing facilitator-only confirmSetup owns A/B/C choice before configuration locks; new focused tests verify each choice, rejection after lock, and non-facilitator denial. Every current labelled-map lookup follows that authoritative selection, including fresh snapshots and setup precedence. No callable authorization, setup locking or chart topology was changed. |
+| 282a | missing | feature | — | Owner requested a GM-console star-map selector with explicit locking if absent. P282 already supplies server-side A/B/C confirmation/locking and an authoritative GM overlay, but the current GM confirmRoster path resubmits the existing chart and offers no chart chooser. Queue this missing usable selection interface without reverting the shipped server behavior. |
 | 283 | done | non-feature | — | The existing coordinate lookup returns the correct selected-chart code and full site title for all 21 labelled systems on charts A, B and C. Source-table checks cover all 63 assignments, including L/M hostile sites and N/O/P candidates, and preserve the full Athena mission title where the chart table abbreviates it. The start and unprinted 0101 coordinate return no site. P282 supplies the authoritative session chart to the current GM lookup consumer; this closes lookup evidence without adding discovery permissions or mission execution. |
 | 284 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 285 | done | non-feature | — | Every ship in the canonical active roster receives an explicit starting coordinate in both the stored session and creation reply. Existing authoritative relocation and jump transactions change only the selected ship position; other ships retain their own coordinates. A successful jump atomically stores its arrived destination and identified transition record alongside its resource changes. This verifies the current immediate-arrival model; the transition record is event metadata, not a separate in-transit authority state. Fleet groups and later jump eligibility rules remain separate prompts. |
