@@ -367,7 +367,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 241d | NEW | done | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241D;E-241D-VERIFIED | M3;M5;M6 | Resolve base Capybara food and water production. |
 | 241e | NEW | done | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241E;E-241E-VERIFIED | M3;M5;M6 | Resolve the base Capybara Fuel Processor. |
 | 242 | NEW | done | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-242;E-242-VERIFIED | M3;M5;M6 | Complete Warrior identity and maintenance. |
-| 243 | NEW | missing | 242;402 | none | none | none | none | none | none | none | E-AUDIT-243 | M3;M5;M6 | Resolve Warrior Reclamator. |
+| 243 | NEW | missing | 242;401;402;407;413 | none | none | none | none | none | none | none | E-AUDIT-243 | M3;M5;M6 | Resolve Warrior Reclamator. |
 | 244 | NEW | missing | 234;361 | none | none | none | none | none | none | none | E-AUDIT-244 | M3;M5;M6 | Resolve Warrior Repair Drones. |
 | 245 | NEW | missing | 242 | none | none | none | none | none | none | none | E-AUDIT-245 | M3;M5;M6 | Register Warrior Salvage Drones. |
 | 246 | NEW | done | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-246;E-246-VERIFIED | M3;M5;M6 | Complete Vulcan identity and maintenance. |
@@ -1077,7 +1077,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-241D | hard_prompt | 241d -> 241;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara production consumes identity and Reactor eligibility. |
 | E-AUDIT-241E | hard_prompt | 241e -> 241;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara fuel processing consumes identity and Reactor eligibility. |
 | E-AUDIT-242 | hard_prompt | 242 -> 234;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Warrior identity consumes shared small-ship and printed vessel data. |
-| E-AUDIT-243 | hard_prompt | 243 -> 242;402 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Warrior salvage consumes Warrior identity and the mission deck. |
+| E-AUDIT-243 | hard_prompt | 243 -> 242;401;402;407;413 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Warrior salvage consumes Warrior identity, mission eligibility/opportunity state, the participant current-hand/assignment ledger, the server mission deck, and Mission Leader reward custody; P242/P402 alone do not provide those producers. |
 | E-AUDIT-244 | hard_prompt | 244 -> 234;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship repair actions consume small-ship identity and craft authority. |
 | E-AUDIT-245 | hard_prompt | 245 -> 242 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Warrior Salvage Drones consume Warrior identity. |
 | E-AUDIT-246 | hard_prompt | 246 -> 234;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship identity lanes consume shared small-ship rules and printed vessel data. |

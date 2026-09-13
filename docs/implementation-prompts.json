@@ -1479,9 +1479,9 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "243 -> 242;402",
+      "direction": "243 -> 242;401;402;407;413",
       "id": "E-AUDIT-243",
-      "language": "Warrior salvage consumes Warrior identity and the mission deck.",
+      "language": "Warrior salvage consumes Warrior identity, mission eligibility/opportunity state, the participant current-hand/assignment ledger, the server mission deck, and Mission Leader reward custody; P242/P402 alone do not provide those producers.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -11137,11 +11137,11 @@
         "acceptance": "discarding the participant's entire hand salvages one opportunity for the exact per-card food/water/material choice.",
         "title": "Resolve Warrior Reclamator."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Source audit remains complete, but the runtime producer is intentionally deferred: the routed Warrior card establishes Away Mission full-hand discard and per-card food/water choice, while current code has no authoritative mission eligibility/opportunity ledger, remaining-hand assignment state, or Mission Leader reward custody. P242 and P402 provide Warrior identity and the deck only; P401, P407, and P413 must land before this prompt can add a callable or UI without inventing opportunity availability, recipient policy, or repeat timing.",
       "evidenceIds": "E-AUDIT-243",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "242;402",
+      "hardPromptPrerequisites": "242;401;402;407;413",
       "id": "243",
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
