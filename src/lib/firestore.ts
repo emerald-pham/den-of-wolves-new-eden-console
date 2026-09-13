@@ -159,14 +159,39 @@ function iso(value: unknown): string {
 
 function optionalIso(value: unknown): string | undefined {
   if (typeof value === 'string') {
-    return Number.isFinite(Date.parse(value)) ? value : undefined;
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+    if (!match) return undefined;
+    const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;
+    const offset = match[7];
+    if (!offset) return undefined;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+    const offsetHours = offset === 'Z' ? 0 : Number(offset.slice(1, 3));
+    const offsetMinutes = offset === 'Z' ? 0 : Number(offset.slice(4, 6));
+    const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+    if (!daysInMonth || day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59 ||
+        offsetHours > 23 || offsetMinutes > 59 || !Number.isFinite(Date.parse(value))) return undefined;
+    return value;
   }
   if (
     typeof value === 'object' && value !== null && 'toDate' in value &&
     typeof value.toDate === 'function'
   ) {
-    const date = value.toDate() as Date;
-    return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+    try {
+      const date = value.toDate() as unknown;
+      if (typeof date !== 'object' || date === null ||
+          typeof (date as { getTime?: unknown }).getTime !== 'function' ||
+          typeof (date as { toISOString?: unknown }).toISOString !== 'function') return undefined;
+      const milliseconds = (date as Date).getTime();
+      return Number.isFinite(milliseconds) ? (date as Date).toISOString() : undefined;
+    } catch {
+      return undefined;
+    }
   }
   return undefined;
 }

@@ -553,7 +553,11 @@ it('preserves valid facilitator timestamps and does not invent missing rule-call
   }));
   callbacks[0]?.({ exists: () => true, data: () => ({ ...base, callId: 'call-missing', revision: 2 }) });
   expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
-  callbacks[0]?.({ exists: () => true, data: () => ({ ...base, callId: 'call-invalid', revision: 3, createdAt: 'not-a-timestamp' }) });
+  callbacks[0]?.({ exists: () => true, data: () => ({ ...base, callId: 'call-invalid', revision: 3, createdAt: '2026-02-30T00:00:00.000Z' }) });
+  expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
+  callbacks[0]?.({ exists: () => true, data: () => ({
+    ...base, callId: 'call-malformed', revision: 4, createdAt: { toDate: () => { throw new Error('malformed timestamp'); } },
+  }) });
   expect(onCall.mock.lastCall?.[0]).not.toHaveProperty('createdAt');
 });
 
