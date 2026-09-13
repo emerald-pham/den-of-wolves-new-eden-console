@@ -244,8 +244,8 @@ describe('connect', () => {
       payload: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer' },
       createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
     });
-    const fire = vi.fn().mockRejectedValueOnce({ code: 'functions/unavailable' })
-      .mockResolvedValueOnce({ data: { shipId: 'snn-press-shuttle', status: 'fired' } });
+    const fire = callableReturning({ data: { shipId: 'snn-press-shuttle', status: 'fired' } })
+      .mockRejectedValueOnce({ code: 'functions/unavailable' });
     vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
       ? callableReturning({ data: { session, player } }) : fire);
     await connect();
