@@ -9,7 +9,6 @@
 import type {
   EntityId,
   EntityKind,
-  GroupId,
   EventId,
   GroupId,
   PlayerId,
