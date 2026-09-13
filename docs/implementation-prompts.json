@@ -4526,21 +4526,42 @@
     {
       "direction": "416",
       "id": "E-416-SOURCE-VERIFIED",
-      "language": "The server-owned catalog encodes Lichen-Covered Asteroids A with two six-card opportunities: exploration 17 for 8 food, and mining 24 for 3 ore, with no printed critical threshold. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success reward. Focused six-case Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
+      "language": "The server-owned catalog encodes Lichen-Covered Asteroids A with two six-card opportunities: exploration 17 for 8 food, and mining 24 for 3 ore, with no printed critical threshold. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success reward. Focused Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
       "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
       "type": "evidence / source / catalog"
     },
     {
       "direction": "416a",
       "id": "E-416A-SOURCE-VERIFIED",
-      "language": "The server-owned catalog encodes Ice Asteroids B with two six-card opportunities: exploration 17 for 6 water, and mining 24/30 for 8 water plus a critical +1 material. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused six-case Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
+      "language": "The server-owned catalog encodes Ice Asteroids B with two six-card opportunities: exploration 17 for 6 water, and mining 24/30 for 8 water plus a critical +1 material. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
       "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
       "type": "evidence / source / catalog"
     },
     {
       "direction": "416b",
       "id": "E-416B-SOURCE-VERIFIED",
-      "language": "The server-owned catalog encodes Rare Element Moon C with two six-card opportunities: mining/exploration 20 for 2 minerals, and science 25 for the Endeavour to cross out one chosen research box. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused six-case Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
+      "language": "The server-owned catalog encodes Rare Element Moon C with two six-card opportunities: mining/exploration 20 for 2 minerals, and science 25 for the Endeavour to cross out one chosen research box. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "417",
+      "id": "E-417-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Abandoned Explorer Outpost D as a neutral six-card mission with three opportunities: salvage 14/20 for 10 food plus critical 8 water; salvage 14/20 for 6 ore plus critical 3 materials; and science 24 for exploring 2 star systems. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "417a",
+      "id": "E-417A-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes I.C.S.S. Athena Survivors E as a neutral six-card mission with three opportunities: search & rescue 8/15 for 750 survivors plus critical 500; salvage 14/25 for 4 materials plus critical 3; and science 24 for exploring 2 Wolf star systems, restricted to printed codes L or M. The chart restriction is represented as a small allowed-code set without chart coordinates. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
+      "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
+      "type": "evidence / source / catalog"
+    },
+    {
+      "direction": "417b",
+      "id": "E-417B-SOURCE-VERIFIED",
+      "language": "The server-owned catalog encodes Abandoned Refuelling Station F as a neutral six-card mission with three opportunities: engineering 8 for 10 strytium fuel; salvage 14/25 for 7 strytium ore plus critical 4 ore; and science 14 for the printed choice to upgrade 1 or repair 2 consoles on Refinery 124. Every opportunity records the absence of a card-specific numeric trait bonus while preserving the generic contributing-shuttle rule, the generic automatic empty-opportunity failure, and the printed success rewards. Focused Functions catalog coverage and the Functions build pass; mission dealing and resolution remain separate prompts.",
       "source": "functions/src/missionCards.ts; functions/src/missionCards.test.ts; authorized local v1.1 primary away-mission, player, and facilitator print review",
       "type": "evidence / source / catalog"
     },
@@ -15471,8 +15492,8 @@
         "acceptance": "exact opportunities, discoveries, upgrades, failures, and rewards resolve from the catalog.",
         "title": "Encode Abandoned Explorer Outpost D."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-417",
+      "description": "The server-owned catalog now encodes Abandoned Explorer Outpost D from the authorized local v1.1 primary print review: three six-card opportunities, salvage 14/20 for 10 food plus critical 8 water, salvage 14/20 for 6 ore plus critical 3 materials, and science 24 for exploring 2 star systems. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts.",
+      "evidenceIds": "E-AUDIT-417;E-417-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -15483,7 +15504,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15494,8 +15515,8 @@
         "acceptance": "exact rescue opportunities, Wolf-system discovery, survivors, failures, and rewards resolve without chart leakage.",
         "title": "Encode Athena Survivors E."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The server-owned catalog now encodes I.C.S.S. Athena Survivors E from the authorized local v1.1 primary print review: three six-card opportunities, search & rescue 8/15 for 750 survivors plus critical 500, salvage 14/25 for 4 materials plus critical 3, and science 24 for exploring 2 Wolf star systems with printed codes L or M. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward; the chart restriction remains a small allowed-code set without coordinates. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts.",
+      "evidenceIds": "E-417A-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -15506,7 +15527,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15517,8 +15538,8 @@
         "acceptance": "exact opportunities, fuel/material rewards, repairs, failures, and critical results resolve once.",
         "title": "Encode Abandoned Refuelling Station F."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The server-owned catalog now encodes Abandoned Refuelling Station F from the authorized local v1.1 primary print review: three six-card opportunities, engineering 8 for 10 fuel, salvage 14/25 for 7 ore plus critical 4 ore, and science 14 for upgrading 1 or repairing 2 consoles on Refinery 124. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts.",
+      "evidenceIds": "E-417B-SOURCE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -15529,7 +15550,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

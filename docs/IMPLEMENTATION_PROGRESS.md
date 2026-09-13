@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**241 / 751 prompts complete (32.09%)**
+**244 / 751 prompts complete (32.49%)**
 
-Status breakdown: **241 done · 21 partial · 489 missing**.
+Status breakdown: **244 done · 21 partial · 486 missing**.
 
 Active prompt: **none**
 
@@ -861,9 +861,9 @@ release classification and evidence.
 | 416 | done | non-feature | — | The server-owned catalog now encodes Lichen-Covered Asteroids A from the authorized local v1.1 primary print review: two opportunities, six cards, exploration 17 for 8 food, mining 24 for 3 ore, and no printed critical threshold. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
 | 416a | done | non-feature | — | The server-owned catalog now encodes Ice Asteroids B from the authorized local v1.1 primary print review: two opportunities, six cards, exploration 17 for 6 water, mining 24/30 for 8 water plus a critical +1 material, explicit card-level trait-bonus absence with generic shuttle bonuses preserved, automatic empty-opportunity failure, below-difficulty facilitator consequences, and exact rewards. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
 | 416b | done | non-feature | — | The server-owned catalog now encodes Rare Element Moon C from the authorized local v1.1 primary print review: two opportunities, six cards, mining/exploration 20 for 2 minerals, science 25 for the Endeavour to cross out one chosen research box, explicit card-level trait-bonus absence with generic shuttle bonuses preserved, automatic empty-opportunity failure, below-difficulty facilitator consequences, and exact rewards. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
-| 417 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 417a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 417b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 417 | done | non-feature | — | The server-owned catalog now encodes Abandoned Explorer Outpost D from the authorized local v1.1 primary print review: three six-card opportunities, salvage 14/20 for 10 food plus critical 8 water, salvage 14/20 for 6 ore plus critical 3 materials, and science 24 for exploring 2 star systems. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
+| 417a | done | non-feature | — | The server-owned catalog now encodes I.C.S.S. Athena Survivors E from the authorized local v1.1 primary print review: three six-card opportunities, search & rescue 8/15 for 750 survivors plus critical 500, salvage 14/25 for 4 materials plus critical 3, and science 24 for exploring 2 Wolf star systems with printed codes L or M. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward; the chart restriction remains a small allowed-code set without coordinates. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
+| 417b | done | non-feature | — | The server-owned catalog now encodes Abandoned Refuelling Station F from the authorized local v1.1 primary print review: three six-card opportunities, engineering 8 for 10 fuel, salvage 14/25 for 7 ore plus critical 4 ore, and science 14 for upgrading 1 or repairing 2 consoles on Refinery 124. Each opportunity carries explicit card-level trait-bonus absence, the generic contributing-shuttle bonus rule, automatic failure when no card is placed, below-difficulty facilitator consequences, and the printed reward. Focused catalog tests and Functions build pass; mission dealing and resolution remain separate prompts. |
 | 418 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 418a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 418b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

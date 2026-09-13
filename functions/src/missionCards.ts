@@ -7,10 +7,16 @@
  * calculate totals, or resolve a mission.
  */
 
-export const CANONICAL_MISSION_CARD_CODES = ['A', 'B', 'C'] as const;
+export const CANONICAL_MISSION_CARD_CODES = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 export type CanonicalMissionCardCode = typeof CANONICAL_MISSION_CARD_CODES[number];
 
-export type MissionOpportunityTrait = 'exploration' | 'mining' | 'science';
+export type MissionOpportunityTrait =
+  | 'exploration'
+  | 'mining'
+  | 'science'
+  | 'searchAndRescue'
+  | 'salvage'
+  | 'engineering';
 
 /** The printed card has no numeric bonus of its own. */
 export interface MissionTraitBonus {
@@ -30,8 +36,9 @@ export interface MissionFailure {
 }
 
 /**
- * `minerals` is a printed mission reward and is intentionally kept in this
- * catalog type rather than added to the ship inventory resource model.
+ * `minerals` and `survivors` are printed mission rewards and are intentionally
+ * kept in this catalog type rather than added to the ship inventory resource
+ * model.
  */
 export type MissionRewardResourceId =
   | 'ore'
@@ -41,15 +48,41 @@ export type MissionRewardResourceId =
   | 'materials'
   | 'securityTeams'
   | 'scrap'
-  | 'minerals';
+  | 'minerals'
+  | 'survivors';
 export type MissionRewardAmounts = Readonly<Partial<Record<MissionRewardResourceId, number>>>;
 
-export interface MissionRewardEffect {
+export interface MissionCrossOutResearchBoxesEffect {
   readonly kind: 'crossOutResearchBoxes';
   readonly target: 'endeavour';
   readonly amount: number;
   readonly selection: 'choice';
 }
+
+export interface MissionExploreStarSystemsEffect {
+  readonly kind: 'exploreStarSystems';
+  readonly amount: number;
+  readonly scope: 'any' | 'wolf';
+  /** The printed E reward names codes L or M without exposing chart coordinates. */
+  readonly allowedCodes: readonly ('L' | 'M')[] | null;
+}
+
+export interface MissionConsoleRewardChoice {
+  readonly action: 'upgrade' | 'repair';
+  readonly amount: number;
+}
+
+export interface MissionUpgradeOrRepairConsolesEffect {
+  readonly kind: 'upgradeOrRepairConsoles';
+  readonly target: 'refinery-124';
+  readonly choices: readonly MissionConsoleRewardChoice[];
+  readonly selection: 'choice';
+}
+
+export type MissionRewardEffect =
+  | MissionCrossOutResearchBoxesEffect
+  | MissionExploreStarSystemsEffect
+  | MissionUpgradeOrRepairConsolesEffect;
 
 export interface MissionReward {
   /** The reward on an ordinary success. */
@@ -76,9 +109,9 @@ export interface MissionOpportunity {
 export interface MissionCardDefinition {
   readonly code: CanonicalMissionCardCode;
   readonly name: string;
-  readonly category: 'poor';
+  readonly category: 'poor' | 'neutral';
   readonly cardsDealt: 6;
-  readonly opportunityCount: 2;
+  readonly opportunityCount: 2 | 3;
   readonly opportunities: readonly MissionOpportunity[];
 }
 
@@ -200,10 +233,163 @@ export const RARE_ELEMENT_MOON_C: MissionCardDefinition = {
   ],
 };
 
+export const ABANDONED_EXPLORER_OUTPOST_D: MissionCardDefinition = {
+  code: 'D',
+  name: 'Abandoned Explorer Outpost',
+  category: 'neutral',
+  cardsDealt: 6,
+  opportunityCount: 3,
+  opportunities: [
+    {
+      id: 'D-1',
+      description: 'Salvage from the kitchen supplies.',
+      traits: ['salvage'],
+      difficulty: 14,
+      criticalThreshold: 20,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { food: 10 }, successEffects: [], criticalBonus: { water: 8 } },
+    },
+    {
+      id: 'D-2',
+      description: 'Salvage from the engineering supplies.',
+      traits: ['salvage'],
+      difficulty: 14,
+      criticalThreshold: 20,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { ore: 6 }, successEffects: [], criticalBonus: { materials: 3 } },
+    },
+    {
+      id: 'D-3',
+      description: 'Download exploration data from the output computers.',
+      traits: ['science'],
+      difficulty: 24,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{
+          kind: 'exploreStarSystems',
+          amount: 2,
+          scope: 'any',
+          allowedCodes: null,
+        }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
+export const ICSS_ATHENA_SURVIVORS_E: MissionCardDefinition = {
+  code: 'E',
+  name: 'I.C.S.S. Athena Survivors',
+  category: 'neutral',
+  cardsDealt: 6,
+  opportunityCount: 3,
+  opportunities: [
+    {
+      id: 'E-1',
+      description: 'Rescue survivors from the wrecks.',
+      traits: ['searchAndRescue'],
+      difficulty: 8,
+      criticalThreshold: 15,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { survivors: 750 }, successEffects: [], criticalBonus: { survivors: 500 } },
+    },
+    {
+      id: 'E-2',
+      description: 'Salvage materials from the wreckage.',
+      traits: ['salvage'],
+      difficulty: 14,
+      criticalThreshold: 25,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { materials: 4 }, successEffects: [], criticalBonus: { materials: 3 } },
+    },
+    {
+      id: 'E-3',
+      description: 'Download military intel from the Athena’s computer cores.',
+      traits: ['science'],
+      difficulty: 24,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{
+          kind: 'exploreStarSystems',
+          amount: 2,
+          scope: 'wolf',
+          allowedCodes: ['L', 'M'],
+        }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
+export const ABANDONED_REFUELLING_STATION_F: MissionCardDefinition = {
+  code: 'F',
+  name: 'Abandoned Refuelling Station',
+  category: 'neutral',
+  cardsDealt: 6,
+  opportunityCount: 3,
+  opportunities: [
+    {
+      id: 'F-1',
+      description: 'Drain station fuel reserves.',
+      traits: ['engineering'],
+      difficulty: 8,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { fuel: 10 }, successEffects: [], criticalBonus: null },
+    },
+    {
+      id: 'F-2',
+      description: 'Extract raw ore from the refinery process.',
+      traits: ['salvage'],
+      difficulty: 14,
+      criticalThreshold: 25,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: { success: { ore: 7 }, successEffects: [], criticalBonus: { ore: 4 } },
+    },
+    {
+      id: 'F-3',
+      description: 'Identify spare parts to repair damage on Refinery 124.',
+      traits: ['science'],
+      difficulty: 14,
+      criticalThreshold: null,
+      traitBonus: NO_CARD_TRAIT_BONUS,
+      failure: GENERIC_FAILURE,
+      reward: {
+        success: {},
+        successEffects: [{
+          kind: 'upgradeOrRepairConsoles',
+          target: 'refinery-124',
+          choices: [
+            { action: 'upgrade', amount: 1 },
+            { action: 'repair', amount: 2 },
+          ],
+          selection: 'choice',
+        }],
+        criticalBonus: null,
+      },
+    },
+  ],
+};
+
 export const CANONICAL_MISSION_CARDS: readonly MissionCardDefinition[] = [
   LICHEN_COVERED_ASTEROIDS_A,
   ICE_ASTEROIDS_B,
   RARE_ELEMENT_MOON_C,
+  ABANDONED_EXPLORER_OUTPOST_D,
+  ICSS_ATHENA_SURVIVORS_E,
+  ABANDONED_REFUELLING_STATION_F,
 ];
 
 export function missionCardForCode(
