@@ -9402,7 +9402,8 @@ export const popShipConfetti = onCall<{
     } catch {
       throw new HttpsError('permission-denied', 'That role cannot fire this ship dispenser.');
     }
-    if (receiptRef && fingerprint) {
+    if (receiptRef && fingerprint && identity) {
+      await rejectForeignLegacyM1Command(tx, activation.sessionId, identity.requestId, 'Press dispenser', []);
       const prior = await tx.get(receiptRef);
       const replay = replayBoundCommand(prior, fingerprint,
         (value): value is 'fired' => value === 'fired', 'Press dispenser');

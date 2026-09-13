@@ -241,6 +241,7 @@ it('does not let an enabled Press dispenser be forged by a connected non-Press m
 it('replays a Press request without firing twice and rejects another actor', async () => {
   mock.post = 'press-officer';
   mock.full = false;
+  let legacyCollision = false;
   const receipts = new Map<string, Record<string, unknown>>();
   const get = mock.get.getMockImplementation()!;
   mock.get.mockImplementation(async (ref) => {
@@ -249,6 +250,10 @@ it('replays a Press request without firing twice and rejects another actor', asy
     if (path.includes('/commandReceipts/')) {
       const value = receipts.get(path);
       return { exists: Boolean(value), get: (key: string) => value?.[key] };
+    }
+    if (path.includes('/events/')) return { exists: legacyCollision, get: () => undefined };
+    if (path !== 'sessions/s1' && !path.includes('/players/') && !path.includes('/shipConfetti')) {
+      return { exists: false, get: () => undefined };
     }
     return get(ref);
   });
@@ -262,5 +267,9 @@ it('replays a Press request without firing twice and rejects another actor', asy
   expect(mock.set).toHaveBeenCalledTimes(writes);
   await expect(popShipConfetti.run({ data: press, auth: { uid: 'u2' } } as CallableRequest<typeof press>))
     .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).toHaveBeenCalledTimes(writes);
+  legacyCollision = true;
+  await expect(popShipConfetti.run({ data: { ...press, requestId: 'legacy-collision' }, auth: { uid: 'u1' } } as CallableRequest<typeof press>))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/legacy command/i) });
   expect(mock.set).toHaveBeenCalledTimes(writes);
 });
