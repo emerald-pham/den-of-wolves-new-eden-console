@@ -2620,3 +2620,27 @@ it('stages a star chart locally and locks it through explicit setup confirmation
   expect(screen.getByRole('status', { name: 'Star chart lock status' })).toHaveTextContent('Current chart C // Locked');
   expect(screen.getByRole('combobox', { name: 'Recommended player count' })).not.toBeDisabled();
 });
+
+
+it('labels outbreak fields as public and submits them separately from private notes', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(transitionCrisis).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+  const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
+  await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'disease-outbreak');
+  expect(within(panel).getByText('Outbreak report — visible to all session members on delivery')).toBeVisible();
+  await user.click(within(panel).getByRole('checkbox', { name: /AEGIS/ }));
+  await user.type(within(panel).getByLabelText('Reported work restrictions (public)'), 'Affected crew cannot work.');
+  await user.type(within(panel).getByLabelText('Escalation risk (public)'), 'Further spread is possible.');
+  await user.type(within(panel).getByLabelText('Crisis title'), 'Outbreak');
+  await user.type(within(panel).getByLabelText('Crisis facilitator notes'), 'Private adjudication.');
+  await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
+  await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
+    'crisis-1', 'draft', 'Outbreak', 'Private adjudication.',
+    { crisisKind: 'disease-outbreak', configurationOverride: '', diseaseOutbreak: {
+      affectedShipIds: ['aegis'], workRestrictions: 'Affected crew cannot work.', escalationRisk: 'Further spread is possible.',
+    } },
+  ));
+});

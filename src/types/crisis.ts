@@ -31,6 +31,7 @@ export interface CrisisStateProjection {
   readonly details: string;
   readonly crisisKind?: CrisisKind;
   readonly configurationOverride?: string;
+  readonly diseaseOutbreak?: DiseaseOutbreakDetails;
   readonly updatedAt?: string;
 }
 
@@ -69,4 +70,21 @@ export interface CrisisReport {
   readonly revision: number;
   readonly title: string;
   readonly body: string;
+}
+
+export interface DiseaseOutbreakDetails {
+  readonly affectedShipIds: readonly string[];
+  readonly workRestrictions: string;
+  readonly escalationRisk: string;
+}
+
+export function parseDiseaseOutbreak(value: unknown): DiseaseOutbreakDetails | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (!Array.isArray(raw.affectedShipIds) || raw.affectedShipIds.length === 0 || raw.affectedShipIds.length > 20 ||
+      raw.affectedShipIds.some(id => typeof id !== 'string' || !/^[a-z0-9-]{1,80}$/.test(id)) ||
+      new Set(raw.affectedShipIds).size !== raw.affectedShipIds.length ||
+      typeof raw.workRestrictions !== 'string' || !raw.workRestrictions.trim() || raw.workRestrictions.trim().length > 1000 ||
+      typeof raw.escalationRisk !== 'string' || !raw.escalationRisk.trim() || raw.escalationRisk.trim().length > 1000) return null;
+  return { affectedShipIds: [...raw.affectedShipIds] as string[], workRestrictions: raw.workRestrictions.trim(), escalationRisk: raw.escalationRisk.trim() };
 }

@@ -29,7 +29,7 @@ import { parseEntityId } from '@/types/identifiers';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
-import type { CrisisKind, CrisisStateName } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
 import {
@@ -1536,7 +1536,7 @@ export async function transitionCrisis(
   state: CrisisStateName,
   title: string,
   details: string,
-  configuration?: { crisisKind: CrisisKind; configurationOverride: string },
+  configuration?: { crisisKind: CrisisKind; configurationOverride: string; diseaseOutbreak?: DiseaseOutbreakDetails },
 ): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
@@ -1554,7 +1554,7 @@ export async function transitionCrisis(
       state,
       title: title.trim(),
       details: details.trim(),
-      ...(configuration ? { crisisKind: configuration.crisisKind, configurationOverride: configuration.configurationOverride.trim() } : {}),
+      ...(configuration ? { crisisKind: configuration.crisisKind, configurationOverride: configuration.configurationOverride.trim(), ...(configuration.diseaseOutbreak ? { diseaseOutbreak: configuration.diseaseOutbreak } : {}) } : {}),
     },
     createdAt: new Date().toISOString(),
   });

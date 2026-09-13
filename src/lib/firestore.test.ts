@@ -2515,3 +2515,26 @@ it('reads only valid server crisis reports and drops hidden fields, cached draft
   stop(); received.mockClear(); publish(snapshot(raw)); fail();
   expect(received).not.toHaveBeenCalled(); expect(error).toHaveBeenCalledOnce();
 });
+
+
+it('restores valid outbreak details and rejects malformed private projections', async () => {
+  const { subscribeGmCrisisState } = await import('./firestore');
+  let publish!: (snapshot: unknown) => void;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    publish = callback as typeof publish;
+    return vi.fn();
+  }) as never);
+  const onState = vi.fn();
+  const stop = subscribeGmCrisisState('s1', onState);
+  const diseaseOutbreak = { affectedShipIds: ['aegis'], workRestrictions: 'Limited work.', escalationRisk: 'Further spread.' };
+  const record = { sessionId: 's1', crisisId: 'outbreak', state: 'draft', revision: 1,
+    title: 'Outbreak', details: 'Private', crisisKind: 'disease-outbreak', configurationOverride: '', diseaseOutbreak };
+  const emit = (value: unknown) => publish({ metadata: { fromCache: false }, exists: () => true, data: () => ({ ...record, diseaseOutbreak: value }) });
+  emit(diseaseOutbreak);
+  expect(onState).toHaveBeenLastCalledWith(record);
+  for (const value of [null, { ...diseaseOutbreak, workRestrictions: ' ' }, { ...diseaseOutbreak, affectedShipIds: ['aegis', 'aegis'] }]) {
+    emit(value);
+    expect(onState).toHaveBeenLastCalledWith(null);
+  }
+  stop();
+});

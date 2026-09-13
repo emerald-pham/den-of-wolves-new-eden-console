@@ -67,7 +67,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import { isCrisisKind, type CrisisReport, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
+import { parseDiseaseOutbreak, isCrisisKind, type CrisisReport, type CrisisStateProjection, type CrisisStateName } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -902,7 +902,8 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
   const parsedSessionId = parseEntityId('session', raw?.sessionId ?? sessionId);
   const crisisSessionId = parseEntityId('session', sessionId);
   const revision = nonNegativeInteger(raw?.revision);
-  if (!raw || !parsedSessionId || !crisisSessionId || parsedSessionId !== crisisSessionId ||
+  const disease = raw?.diseaseOutbreak === undefined ? undefined : parseDiseaseOutbreak(raw.diseaseOutbreak);
+  if (disease === null || !raw || !parsedSessionId || !crisisSessionId || parsedSessionId !== crisisSessionId ||
       typeof raw.crisisId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(raw.crisisId) || raw.crisisId.length > 80 ||
       !isCrisisStateName(raw.state) || revision === undefined ||
       typeof raw.title !== 'string' || raw.title.length === 0 || raw.title.length > 160 ||
@@ -918,6 +919,7 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
     details: raw.details,
     crisisKind: isCrisisKind(raw.crisisKind) ? raw.crisisKind : (isCrisisKind(raw.crisisId) ? raw.crisisId : 'custom'),
     configurationOverride: typeof raw.configurationOverride === 'string' ? raw.configurationOverride : '',
+    ...(disease ? { diseaseOutbreak: disease } : {}),
     ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
   };
 }

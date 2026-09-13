@@ -18,7 +18,7 @@ import {
   type WolfAttackTargetMode,
 } from './wolfAttackPreparation';
 import { isReplacementEligibilityReason } from './replacementRoles';
-import { isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
+import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1213,6 +1213,7 @@ export function requireCrisisTransitionRequest(data: {
   details?: unknown;
   crisisKind?: unknown;
   configurationOverride?: unknown;
+  diseaseOutbreak?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
@@ -1224,6 +1225,7 @@ export function requireCrisisTransitionRequest(data: {
   details: string;
   crisisKind: CrisisKind;
   configurationOverride: string;
+  diseaseOutbreak?: DiseaseOutbreakDetails;
 } {
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
@@ -1247,6 +1249,8 @@ export function requireCrisisTransitionRequest(data: {
   if (!isCrisisKind(crisisKind)) throw new HttpsError('invalid-argument', 'Unknown crisis kind.');
   const configurationOverride = data.configurationOverride === undefined || data.configurationOverride === ''
     ? '' : requiredText(data.configurationOverride, 'configurationOverride', 1000);
+  const diseaseOutbreak = data.diseaseOutbreak === undefined ? undefined : parseDiseaseOutbreak(data.diseaseOutbreak);
+  if (diseaseOutbreak === null) throw new HttpsError('invalid-argument', 'Complete the affected ships, work restrictions and escalation risk (maximum 1000 characters each).');
   return {
     ...requireGmInstanceRequest(data),
     requestId: requiredId(data.requestId, 'requestId'),
@@ -1257,6 +1261,7 @@ export function requireCrisisTransitionRequest(data: {
     details,
     crisisKind,
     configurationOverride,
+    ...(diseaseOutbreak ? { diseaseOutbreak } : {}),
   };
 }
 

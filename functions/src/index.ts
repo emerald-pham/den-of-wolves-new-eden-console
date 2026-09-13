@@ -256,7 +256,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
+import { diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   availableVipCards,
@@ -5803,6 +5803,7 @@ export const transitionCrisis = onCall<{
   details?: unknown;
   crisisKind?: unknown;
   configurationOverride?: unknown;
+  diseaseOutbreak?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
@@ -5826,6 +5827,11 @@ export const transitionCrisis = onCall<{
       details: crisis.details,
       ...(request.data?.crisisKind === undefined ? {} : { crisisKind: crisis.crisisKind }),
       ...(request.data?.configurationOverride === undefined ? {} : { configurationOverride: crisis.configurationOverride }),
+      ...(request.data?.diseaseOutbreak === undefined ? {} : {
+        diseaseAffectedShipIds: crisis.diseaseOutbreak?.affectedShipIds ?? [],
+        diseaseWorkRestrictions: crisis.diseaseOutbreak?.workRestrictions ?? '',
+        diseaseEscalationRisk: crisis.diseaseOutbreak?.escalationRisk ?? '',
+      }),
     },
   };
 
@@ -5907,6 +5913,24 @@ export const transitionCrisis = onCall<{
     if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !configurationOverride) {
       throw commandError('failed-precondition', blocker, 'conflict');
     }
+    const storedDisease = sameCrisis ? current.get('diseaseOutbreak') : undefined;
+    const diseaseValue = request.data?.diseaseOutbreak === undefined ? storedDisease : crisis.diseaseOutbreak;
+    const disease = diseaseValue === undefined ? undefined : parseDiseaseOutbreak(diseaseValue);
+    if (disease === null || (disease && crisisKind !== 'disease-outbreak')) {
+      throw commandError('failed-precondition', 'The outbreak details are not valid for this crisis.', 'malformed-input');
+    }
+    if (sameCrisis && crisis.state !== 'delivered' && JSON.stringify(disease) !== JSON.stringify(storedDisease)) {
+      throw commandError('failed-precondition', 'Outbreak details are fixed after delivery.', 'conflict');
+    }
+    if (crisisKind === 'disease-outbreak' && crisis.state === 'delivered' && !disease) {
+      throw commandError('failed-precondition', 'Record affected ships, work restrictions and escalation risk before delivery.', 'conflict');
+    }
+    if (disease && (crisis.state === 'draft' || crisis.state === 'delivered')) {
+      const activeShips = activeVesselIdsForSession(authority.session);
+      if (disease.affectedShipIds.some(id => !activeShips.includes(id) || !isFleetShipId(id))) {
+        throw commandError('failed-precondition', 'Every affected ship must be active in this session.', 'conflict');
+      }
+    }
     const revision = currentRevision + 1;
     const result: CrisisTransitionResult = {
       status: 'committed',
@@ -5926,6 +5950,7 @@ export const transitionCrisis = onCall<{
       details: crisis.details,
       crisisKind,
       configurationOverride,
+      ...(disease ? { diseaseOutbreak: disease } : {}),
       actorUid: uid,
       instanceId: crisis.instanceId,
       updatedAt: FieldValue.serverTimestamp(),
@@ -5941,6 +5966,7 @@ export const transitionCrisis = onCall<{
       details: crisis.details,
       crisisKind,
       configurationOverride,
+      ...(disease ? { diseaseOutbreak: disease } : {}),
       actorUid: uid,
       instanceId: crisis.instanceId,
       createdAt: FieldValue.serverTimestamp(),
@@ -5948,7 +5974,8 @@ export const transitionCrisis = onCall<{
     const reportRef = db.doc(`sessions/${crisis.sessionId}/crisisReports/current`);
     const playerReport = crisisKind === 'approaching-vessel' ? APPROACHING_VESSEL_REPORT
       : crisisKind === 'religious-zealotry' ? RELIGIOUS_ZEALOTRY_REPORT
-      : crisisKind === 'presidential-election' ? PRESIDENTIAL_ELECTION_REPORT : null;
+      : crisisKind === 'presidential-election' ? PRESIDENTIAL_ELECTION_REPORT
+      : crisisKind === 'disease-outbreak' && disease ? diseaseOutbreakReport(disease, disease.affectedShipIds.map(id => (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[id] ?? id)) : null;
     if (crisis.state === 'draft') {
       // A new draft must never retain the previously delivered crisis report.
       tx.delete(reportRef);

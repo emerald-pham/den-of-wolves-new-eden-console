@@ -18,7 +18,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPointer,
 } from '@/types/game';
-import type { CrisisKind, CrisisStateProjection } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -266,6 +266,7 @@ export type PendingCommand = (
         readonly details: string;
         readonly crisisKind?: CrisisKind;
         readonly configurationOverride?: string;
+        readonly diseaseOutbreak?: DiseaseOutbreakDetails;
       };
       readonly createdAt: string;
     }

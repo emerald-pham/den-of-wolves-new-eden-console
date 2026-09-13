@@ -79,3 +79,28 @@ export const PRESIDENTIAL_ELECTION_REPORT = {
   title: 'Presidential election',
   body: 'The fleet is considering whether its current President should remain in office or whether to elect a President, potentially with a Vice President. The voting method, timing and campaign rules still need facilitator decisions. Eligible voters, population weighting and whether supplies may support campaigns must also be settled before voting can open.',
 } as const;
+
+export interface DiseaseOutbreakDetails {
+  readonly affectedShipIds: readonly string[];
+  readonly workRestrictions: string;
+  readonly escalationRisk: string;
+}
+
+export function parseDiseaseOutbreak(value: unknown): DiseaseOutbreakDetails | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (!Array.isArray(raw.affectedShipIds) || raw.affectedShipIds.length === 0 || raw.affectedShipIds.length > 20 ||
+      raw.affectedShipIds.some(id => typeof id !== 'string' || !/^[a-z0-9-]{1,80}$/.test(id)) ||
+      new Set(raw.affectedShipIds).size !== raw.affectedShipIds.length ||
+      typeof raw.workRestrictions !== 'string' || !raw.workRestrictions.trim() || raw.workRestrictions.trim().length > 1000 ||
+      typeof raw.escalationRisk !== 'string' || !raw.escalationRisk.trim() || raw.escalationRisk.trim().length > 1000) return null;
+  return { affectedShipIds: [...raw.affectedShipIds] as string[], workRestrictions: raw.workRestrictions.trim(), escalationRisk: raw.escalationRisk.trim() };
+}
+
+export function diseaseOutbreakReport(details: DiseaseOutbreakDetails, shipNames: readonly string[]) {
+  return {
+    title: 'Disease outbreak',
+    body: 'A contagious disease has appeared in the fleet. Fatal cases are uncommon, but symptoms can prevent people from working. The outbreak may worsen without an effective response.' +
+      `\n\nAffected ships: ${shipNames.join(', ')}.\n\nReported work restrictions: ${details.workRestrictions}\n\nEscalation risk: ${details.escalationRisk}`,
+  };
+}

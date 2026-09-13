@@ -1,3 +1,4 @@
+import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
@@ -343,6 +344,9 @@ export default function GmConsole() {
   const [crisisTitleDraft, setCrisisTitleDraft] = useState('');
   const [crisisDetailsDraft, setCrisisDetailsDraft] = useState('');
   const [crisisKindDraft, setCrisisKindDraft] = useState<CrisisKind>('custom');
+  const [diseaseShipIds, setDiseaseShipIds] = useState<string[]>([]);
+  const [diseaseWork, setDiseaseWork] = useState('');
+  const [diseaseRisk, setDiseaseRisk] = useState('');
   const [crisisOverrideDraft, setCrisisOverrideDraft] = useState('');
   const [crisisMutationState, setCrisisMutationState] = useState<CrisisStateName | null>(null);
   const [crisisMessage, setCrisisMessage] = useState<string | null>(null);
@@ -747,6 +751,9 @@ export default function GmConsole() {
                 setCrisisDetailsDraft(crisis.details);
                 setCrisisKindDraft(crisis.crisisKind ?? (isCrisisKind(crisis.crisisId) ? crisis.crisisId : 'custom'));
                 setCrisisOverrideDraft(crisis.configurationOverride ?? '');
+                setDiseaseShipIds([...(crisis.diseaseOutbreak?.affectedShipIds ?? [])]);
+                setDiseaseWork(crisis.diseaseOutbreak?.workRestrictions ?? '');
+                setDiseaseRisk(crisis.diseaseOutbreak?.escalationRisk ?? '');
               }
               setCrisisMutationState(null);
             }, () => {
@@ -1436,6 +1443,10 @@ export default function GmConsole() {
       const disposition = await transitionCrisis(crisisId, state, title, details, {
         crisisKind: locked ? (locked.crisisKind ?? (isCrisisKind(locked.crisisId) ? locked.crisisId : 'custom')) : crisisKindDraft,
         configurationOverride: locked && state !== 'delivered' ? locked.configurationOverride ?? '' : crisisOverrideDraft,
+        ...(crisisKindDraft === 'disease-outbreak' && (state !== 'draft' || diseaseShipIds.length || diseaseWork || diseaseRisk)
+          ? { diseaseOutbreak: locked && state !== 'delivered' ? locked.diseaseOutbreak : {
+              affectedShipIds: diseaseShipIds, workRestrictions: diseaseWork, escalationRisk: diseaseRisk,
+            } } : {}),
       });
       if (
         currentCrisisAuthorityKey() !== authorityKey ||
@@ -2190,6 +2201,13 @@ export default function GmConsole() {
                 Delivery introduces the election decision. Voting method, timing and campaign rules still
                 need facilitator decisions; this introduction does not open voting or configure a ballot.
               </p>
+            )}
+            {crisisKindDraft === 'disease-outbreak' && (
+              <DiseaseOutbreakFields
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed' && gmCrisisState.state !== 'draft') || crisisMutationState !== null}
+                ships={availableShips} diseaseShipIds={diseaseShipIds} diseaseWork={diseaseWork} diseaseRisk={diseaseRisk}
+                setDiseaseShipIds={setDiseaseShipIds} setDiseaseWork={setDiseaseWork} setDiseaseRisk={setDiseaseRisk}
+              />
             )}
             <label className="gm-wolf-preparation__field">
               <span>Crisis identifier</span>

@@ -309,3 +309,56 @@ it('introduces an election without inventing voting, timing or campaign procedur
   expect(JSON.stringify(report)).not.toContain(input.details);
   expect([...mock.documents.keys()].some(path => /ballot|electionProcedure/.test(path))).toBe(false);
 });
+
+it('delivers explicitly public outbreak details while keeping facilitator notes private', async () => {
+  const diseaseOutbreak = { affectedShipIds: ['aegis'], workRestrictions: 'Medical staff report reduced work capacity.', escalationRisk: 'Further spread is possible without a response.' };
+  const input = { ...baseData, crisisId: 'outbreak-1', crisisKind: 'disease-outbreak', details: 'Private: review pressure after the next turn.', diseaseOutbreak };
+  await transitionCrisis.run(request(input));
+  expect(mock.documents.has('sessions/s1/crisisReports/current')).toBe(false);
+  await transitionCrisis.run(request({ ...input, requestId: 'outbreak-delivery', expectedRevision: 1, state: 'delivered' }));
+  const report = mock.documents.get('sessions/s1/crisisReports/current');
+  expect(report).toMatchObject({ title: 'Disease outbreak', body: expect.stringContaining('AEGIS') });
+  expect(report?.body).toEqual(expect.stringContaining(diseaseOutbreak.workRestrictions));
+  expect(report?.body).toEqual(expect.stringContaining(diseaseOutbreak.escalationRisk));
+  expect(JSON.stringify(report)).not.toContain(input.details);
+  await transitionCrisis.run(request({ ...baseData, crisisId: input.crisisId, crisisKind: input.crisisKind, details: input.details, requestId: 'legacy-outbreak-debate', expectedRevision: 2, state: 'debated' }));
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ diseaseOutbreak });
+  expect(mock.documents.get('sessions/s1/crisisReports/current')?.body).toEqual(report?.body);
+});
+
+it('requires complete outbreak details at delivery and permits adding them to an existing draft', async () => {
+  const input = { ...baseData, crisisId: 'outbreak-1', crisisKind: 'disease-outbreak' };
+  await transitionCrisis.run(request(input));
+  const delivered = { ...input, requestId: 'outbreak-delivery', expectedRevision: 1, state: 'delivered' };
+  await expect(transitionCrisis.run(request(delivered))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(transitionCrisis.run(request({ ...delivered, diseaseOutbreak: { affectedShipIds: ['aegis'], workRestrictions: 'Affected crew cannot work.', escalationRisk: 'Conditions may worsen.' } })))
+    .resolves.toMatchObject({ state: 'delivered' });
+});
+
+it('rejects unknown outbreak ships and rechecks current ship availability before delivery', async () => {
+  const diseaseOutbreak = { affectedShipIds: ['not-a-ship'], workRestrictions: 'Reported restriction.', escalationRisk: 'Reported risk.' };
+  const input = { ...baseData, crisisKind: 'disease-outbreak', diseaseOutbreak };
+  await expect(transitionCrisis.run(request(input))).rejects.toMatchObject({ code: 'failed-precondition' });
+  diseaseOutbreak.affectedShipIds = ['dione'];
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeVesselIds: ['aegis', 'dione'], dioneEnabled: true });
+  await transitionCrisis.run(request(input));
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeVesselIds: ['aegis'], dioneEnabled: false });
+  await expect(transitionCrisis.run(request({ ...input, requestId: 'outbreak-delivery', expectedRevision: 1, state: 'delivered' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+
+it('binds outbreak retries to their public details and freezes the delivered report', async () => {
+  const diseaseOutbreak = { affectedShipIds: ['aegis'], workRestrictions: 'Limited work.', escalationRisk: 'Further spread.' };
+  const input = { ...baseData, crisisKind: 'disease-outbreak', diseaseOutbreak };
+  await transitionCrisis.run(request(input));
+  const delivered = { ...input, requestId: 'disease-delivery', expectedRevision: 1, state: 'delivered' };
+  await transitionCrisis.run(request(delivered));
+  mock.set.mockClear();
+  await transitionCrisis.run(request(delivered));
+  expect(mock.set).not.toHaveBeenCalled();
+  const changed = { ...diseaseOutbreak, escalationRisk: 'Different risk.' };
+  await expect(transitionCrisis.run(request({ ...delivered, diseaseOutbreak: changed }))).rejects.toThrow();
+  await expect(transitionCrisis.run(request({ ...delivered, requestId: 'changed-debate', expectedRevision: 2, state: 'debated', diseaseOutbreak: changed }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ diseaseOutbreak });
+});
