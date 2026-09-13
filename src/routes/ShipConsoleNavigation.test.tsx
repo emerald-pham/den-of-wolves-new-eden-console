@@ -6,6 +6,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 
 vi.mock('@/lib/sessionService', () => ({
+  refreshCommissarPurgeAuthority: vi.fn(async () => null),
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn(),
   setShipConsoleLock: vi.fn(),

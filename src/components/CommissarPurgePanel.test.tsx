@@ -33,7 +33,7 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   consentCommissarPurge.mockClear();
   applyCommissarPurge.mockClear();
-  refreshCommissarPurgeAuthority.mockClear();
+  refreshCommissarPurgeAuthority.mockReset().mockResolvedValue(null);
 });
 
 it('offers captain consent as an accessible 44px action and activates it with Enter', async () => {
@@ -45,6 +45,13 @@ it('offers captain consent as an accessible 44px action and activates it with En
   button.focus();
   await user.keyboard('{Enter}');
   expect(consentCommissarPurge).toHaveBeenCalledWith('icebreaker');
+});
+
+it('does not request or show player-only authority for a GM viewing a captain console', () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'gm' });
+  render(<CommissarPurgePanel shipId="icebreaker" />);
+  expect(screen.queryByRole('region', { name: 'Commissar purge' })).not.toBeInTheDocument();
+  expect(refreshCommissarPurgeAuthority).not.toHaveBeenCalled();
 });
 
 it('lets the replacement select a consented active ship and submit the purge with Enter', async () => {
@@ -59,7 +66,11 @@ it('lets the replacement select a consented active ship and submit the purge wit
     sessionId: 's1', role: 'commissar', revision: 0,
     consents: { icebreaker: { turn: 1, vesselRevision: 0 } }, ledger: {},
   } as never);
-  refreshCommissarPurgeAuthority.mockResolvedValue(useSessionStore.getState().commissarPurgeAuthority);
+  const authority = useSessionStore.getState().commissarPurgeAuthority;
+  refreshCommissarPurgeAuthority.mockImplementation(async () => {
+    useSessionStore.getState().setCommissarPurgeAuthority(authority);
+    return authority;
+  });
   const user = userEvent.setup();
   render(<CommissarPurgePanel shipId="icebreaker" />);
   expect(screen.getByRole('combobox', { name: /target ship/i })).toBeVisible();
@@ -83,7 +94,11 @@ it('shows a plain unavailable state after the once-per-turn receipt is present',
     consents: { icebreaker: { turn: 1, vesselRevision: 0 } },
     ledger: { icebreaker: { turn: 1, revision: 1 } },
   } as never);
-  refreshCommissarPurgeAuthority.mockResolvedValue(useSessionStore.getState().commissarPurgeAuthority);
+  const authority = useSessionStore.getState().commissarPurgeAuthority;
+  refreshCommissarPurgeAuthority.mockImplementation(async () => {
+    useSessionStore.getState().setCommissarPurgeAuthority(authority);
+    return authority;
+  });
   render(<CommissarPurgePanel shipId="icebreaker" />);
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/already used its purge this turn/i));
   expect(screen.getByRole('button', { name: /purge survivors/i })).toBeDisabled();

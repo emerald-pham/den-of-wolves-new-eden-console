@@ -21,20 +21,16 @@ export default function CommissarPurgePanel({ shipId }: { readonly shipId: strin
   const [message, setMessage] = useState<string | null>(null);
 
   const captain = Boolean(
-    me && me.replacementRoleId == null && me.activeConsoleRoleId === captainRoleForShip(shipId),
+    me?.role === 'player' && me.replacementRoleId == null && me.activeConsoleRoleId === captainRoleForShip(shipId),
   );
-  const commissar = me?.replacementRoleId === 'commissar';
+  const commissar = me?.role === 'player' && me.replacementRoleId === 'commissar';
   const sessionId = session?.id;
   const uid = me?.uid;
   const canRefreshAuthority = Boolean(sessionId && uid && (captain || commissar));
   useEffect(() => {
     useSessionStore.getState().setCommissarPurgeAuthority(null);
     if (!canRefreshAuthority) return;
-    void refreshCommissarPurgeAuthority()
-      .then((next) => {
-        if (next) useSessionStore.getState().setCommissarPurgeAuthority(next);
-      })
-      .catch(() => undefined);
+    void refreshCommissarPurgeAuthority().catch(() => undefined);
   }, [sessionId, uid, me?.activeConsoleRoleId, me?.replacementRoleId, canRefreshAuthority]);
   const activeShips = useMemo(() => (session?.activeVesselIds ?? [])
     .filter((candidate) => findShip(candidate) !== undefined), [session?.activeVesselIds]);

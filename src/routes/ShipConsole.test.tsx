@@ -7,6 +7,7 @@ import ShipConsole from './ShipConsole';
 import type { Player } from '@/types/game';
 
 vi.mock('@/lib/sessionService', () => ({
+  refreshCommissarPurgeAuthority: vi.fn(async () => null),
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
   buildFighter: vi.fn(),
@@ -639,7 +640,7 @@ it('marks who fired ship confetti on receiving non-AEGIS consoles', async () => 
   await waitFor(() => expect(signal).toBeDefined());
   act(() => signal?.('aegis', 'Admiral', 'Alice'));
 
-  expect(screen.getByRole('status')).toHaveTextContent(/discharged by.*admiral.*alice/i);
+  expect(screen.getByText(/discharged by.*admiral.*alice/i)).toHaveAttribute('role', 'status');
 });
 
 it('shows Admiral ship systems alongside the maintenance cycle', () => {
@@ -693,9 +694,9 @@ it('freezes ship gameplay controls while showing the final-turn evaluation state
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('status')).toHaveTextContent(
+  expect(screen.getByText(
     /final turn complete.*endgame evaluation in progress.*gameplay controls are frozen/i,
-  );
+  )).toHaveAttribute('role', 'status');
   expect(screen.getByRole('button', { name: /engage icn console lock/i })).toBeDisabled();
 });
 

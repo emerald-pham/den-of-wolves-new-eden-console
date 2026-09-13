@@ -1,3 +1,4 @@
+import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
@@ -1210,7 +1211,7 @@ function commissarPurgeAuthorityReply(
 
 export async function refreshCommissarPurgeAuthority(): Promise<CommissarPurgeAuthority | null> {
   const before = useSessionStore.getState();
-  if (!before.session || !before.me) return null;
+  if (!before.session || !before.me || before.me.role !== 'player') return null;
   requireFreshSessionAuthority();
   const sessionId = before.session.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(before));
@@ -1220,7 +1221,8 @@ export async function refreshCommissarPurgeAuthority(): Promise<CommissarPurgeAu
     const authority = commissarPurgeAuthorityReply((await call({ sessionId })).data, sessionId);
     if (!authority) throw new Error('The server returned an invalid Commissar authority projection.');
     const current = useSessionStore.getState();
-    if (current.session?.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint)) return null;
+    if (current.session?.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+        !commissarPurgeAuthorityIsCurrent(authority, current.session, current.me)) return null;
     current.setCommissarPurgeAuthority(authority);
     return authority;
   } catch (cause) {

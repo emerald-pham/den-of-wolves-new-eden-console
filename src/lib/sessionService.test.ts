@@ -28,6 +28,7 @@ const {
   logoutGmAccess,
   popShipConfetti,
   refreshPresence,
+  refreshCommissarPurgeAuthority,
   releaseConsoleRole,
   reconcileGmAuthority,
   resumeSession,
@@ -2634,4 +2635,48 @@ describe('authoritative setup and seating wrappers', () => {
     }));
     await expect(authorityService.releaseSeat('admiral', 'Retry after live refresh')).resolves.toBe('stale');
   });
+});
+
+
+describe('Commissar authority refresh ownership', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
+    useSessionStore.getState().setIdentity({ ...session, activeVesselIds: ['aegis'] }, {
+      ...player, replacementRoleId: 'commissar', activeConsoleRoleId: null,
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(['unchanged', 'demoted', 'replacement', 'console'] as const)(
+    'only hydrates a delayed reply while still entitled: %s', async (transition) => {
+      const projection = {
+        type: 'commissar-purge-authority', sessionId: 's1', role: 'commissar',
+        revision: 1, consents: {}, ledger: {},
+      };
+      let resolveReply!: (value: { data: typeof projection }) => void;
+      const callable = Object.assign(vi.fn(() => new Promise<{ data: typeof projection }>((resolve) => {
+        resolveReply = resolve;
+      })), { stream: vi.fn() });
+      vi.mocked(httpsCallable).mockReturnValue(callable);
+      const pending = refreshCommissarPurgeAuthority();
+      await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+      const current = useSessionStore.getState().me!;
+      if (transition === 'demoted') useSessionStore.getState().setMe({ ...current, role: 'gm' });
+      if (transition === 'replacement') useSessionStore.getState().setMe({ ...current, replacementRoleId: 'wolf-commander' });
+      if (transition === 'console') useSessionStore.getState().setMe({ ...current, activeConsoleRoleId: 'admiral' });
+      resolveReply({ data: projection });
+      const result = await pending;
+      if (transition === 'unchanged') {
+        expect(result).toMatchObject({ role: 'commissar', revision: 1 });
+        expect(useSessionStore.getState().commissarPurgeAuthority).toEqual(result);
+      } else {
+        expect(result).toBeNull();
+        expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+      }
+    },
+  );
 });
