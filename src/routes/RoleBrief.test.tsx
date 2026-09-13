@@ -1,9 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import RoleBrief from './RoleBrief';
+
+vi.mock('@/lib/vulcanLabourService', () => ({
+  runVulcanAdditionalLabour: vi.fn(async () => ({ message: 'Hydroponics: spent 1 water, generated 3 food.' })),
+}));
+const { runVulcanAdditionalLabour } = await import('@/lib/vulcanLabourService');
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -101,4 +106,54 @@ it('states the Warrior Salvage Drones trigger while the damage ledger is unavail
   expect(screen.getByText(/after a wolf attack, a charged salvage drones console rolls once/i)).toBeVisible();
   expect(screen.getByRole('status')).toHaveTextContent(/attack damage tracking and salvage rolls are not available yet/i);
   expect(screen.queryByRole('button', { name: /roll|salvage|award/i })).not.toBeInTheDocument();
+});
+
+it('exposes the charged Vulcan Additional Labour flow on the private role brief', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setIdentity(
+    {
+      id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'gm1', currentTurn: 1,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      activeVesselIds: ['aegis', 'dione'],
+      turnPhase: {
+        turn: 1, teamPhaseEndsAt: '2026-09-12T17:00:00.000Z', openAirspaceEndsAt: '2026-09-12T18:00:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+      smallShipStates: {
+        vulcan: {
+          id: 'vulcan', hostShipId: 'aegis', dockingRevision: 1, population: 15_000, unrest: 0,
+          cycle: { step: 5, revision: 3, turn: 1, results: {}, charges: ['additional-labour-1', 'additional-labour-2'] },
+        },
+      },
+      maintenanceCycles: {
+        dione: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
+      },
+      shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+    },
+    {
+      uid: 'u1', sessionId: 's1', displayName: 'Player', role: 'player', seatId: null,
+      assignedRoleId: null, replacementRoleId: 'vulcan-captain', joinedAt: '2026-01-01T00:00:00.000Z',
+    },
+  );
+  useSessionStore.getState().setRoleBrief({
+    assignmentUid: 'u1', roleId: 'vulcan-captain', roleName: 'Vulcan Captain', vesselName: 'Vulcan',
+    text: 'Manage the Vulcan.', commonRules: 'Keep this brief private.', setupRevision: 1,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Additional Labour' })).toBeVisible();
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target ship' }), 'dione');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target console' }), 'hydroponics');
+  await user.click(screen.getByRole('button', { name: /use additional labour/i }));
+  expect(runVulcanAdditionalLabour).toHaveBeenCalledWith('additional-labour-1', 'dione', 'hydroponics', 3, 0, undefined);
+  expect(screen.getByText(/Hydroponics: spent 1 water/i)).toBeVisible();
+  expect(screen.getByRole('link', { name: /return to role selection/i })).toBeVisible();
 });

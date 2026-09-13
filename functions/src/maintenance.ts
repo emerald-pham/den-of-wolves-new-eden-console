@@ -32,6 +32,15 @@ export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water:
 export { MAINTENANCE_ORDERS } from './maintenanceOrder';
 export const emptyMaintenanceCycle = (): MaintenanceCycle => ({ step: 0, revision: 0, results: {}, charges: [], refuelled: [] });
 
+/** Consoles the printed Reactor can charge. Keep extra charge actions aligned
+ * with the normal maintenance lane instead of maintaining a second allowlist. */
+export function chargeableConsoleIds(shipId: string): readonly string[] {
+  return (SHIP_DAMAGE_DECKS[shipId] ?? [])
+    .filter(c => !['storage', 'reactor'].includes(c.systemId) &&
+      !c.systemId.startsWith('shuttle-bay') && !c.systemId.startsWith('armoured-hull'))
+    .map(c => c.systemId);
+}
+
 interface ProductionRule {
   readonly label: string;
   readonly waterCost: number;
@@ -204,7 +213,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
   } else if (action === 'reactor') {
     const capacity = Math.max(0, rules.reactor + (input.upgraded?.includes('reactor') ? 1 : 0) - (damage.damagedSystemIds.includes('reactor') ? rules.damagedPenalty : 0));
     const consoles = input.consoles ?? [];
-    const eligible = SHIP_DAMAGE_DECKS[shipId]!.filter(c => !['storage', 'reactor'].includes(c.systemId) && !c.systemId.startsWith('shuttle-bay') && !c.systemId.startsWith('armoured-hull')).map(c => c.systemId);
+    const eligible = chargeableConsoleIds(shipId);
     if (consoles.length > capacity) throw new Error('Reactor capacity exceeded.');
     // A damaged Jump Drive remains chargeable so its printed integrity check can run on departure.
     if (new Set(consoles).size !== consoles.length || consoles.some(id => !eligible.includes(id) || (id !== 'jump-drive' && damage.damagedSystemIds.includes(id)))) throw new Error('Invalid or damaged console selected.');
@@ -317,4 +326,22 @@ export function advanceMaintenance(input: MaintenanceInput) {
     if (cycle.results['7'] === undefined) cycle.results['7'] = 'Maintenance cycle complete.';
   }
   return { cycle, resources, damage, unrest, population, cargo, fuelled, damageDraw };
+}
+
+/**
+ * Resolve a production console that was charged outside the normal Team
+ * maintenance step. Additional Labour is printed in Coordination but says a
+ * maintenance-cycle effect triggers immediately. The shared production
+ * resolver still owns all resource, damage, upgrade, and ordering rules; the
+ * temporary step only admits that resolver and is never persisted.
+ */
+export function resolveMaintenanceProduction(input: MaintenanceInput) {
+  const cycle = parseMaintenanceCycle(input.cycle);
+  if (!cycle) throw new Error('Malformed maintenance cycle.');
+  return advanceMaintenance({
+    ...input,
+    cycle: cycle.step === 6 ? cycle : { ...cycle, step: 6 },
+    expectedRevision: cycle.revision,
+    action: 'production',
+  });
 }

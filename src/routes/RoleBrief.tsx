@@ -4,6 +4,7 @@ import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
+import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPanel';
 
 function WarriorSalvageDronesStatus() {
   return (
@@ -69,6 +70,8 @@ export default function RoleBrief() {
         {me.replacementRoleId === 'wolf-commander' && <WolfCommanderTargetingPanel />}
 
         {me.replacementRoleId === 'warrior-captain' && <WarriorSalvageDronesStatus />}
+
+        {me.replacementRoleId === 'vulcan-captain' && <VulcanAdditionalLabourPanel />}
 
         <Link className="cic-action-button role-brief__return" to="/roles">
           Return to role selection

@@ -747,7 +747,7 @@ export interface FullscreenAlertEvent {
 }
 
 export const MAINTENANCE_EVENT_ACTIONS = [
-  'begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'production', 'bays', 'end',
+  'begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'production', 'bays', 'end', 'additional-labour',
 ] as const;
 export type MaintenanceEventAction = typeof MAINTENANCE_EVENT_ACTIONS[number];
 export const MAINTENANCE_EVENT_RESULT_STEPS = ['1', '2', '3', '4', '5', '6', '7'] as const;

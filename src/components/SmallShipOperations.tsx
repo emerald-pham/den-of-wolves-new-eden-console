@@ -4,6 +4,7 @@ import type { SmallShipId, SmallShipState } from '@/types/game';
 import { runSmallShipMaintenance, setSmallShipDocking } from '@/lib/smallShipService';
 import { useSessionStore } from '@/store/useSessionStore';
 import { normalizeCommandError } from '@/lib/commandErrors';
+import { VULCAN_ADDITIONAL_LABOUR_CONSOLES } from '@/data/vulcanLabour';
 
 const SMALL_SHIP_IDS: readonly SmallShipId[] = ['gorgoneion', 'capybara-small', 'warrior', 'vulcan'];
 const SMALL_SHIP_RULES: Readonly<Record<SmallShipId, { readonly reactorCapacity: number; readonly food: readonly number[]; readonly water: readonly number[] }>> = {
@@ -19,6 +20,9 @@ const BASE_CAPYBARA_PRODUCTION_CONSOLES = [
   { id: 'hydroponics', name: 'Hydroponics', effect: 'Spend 1 water → generate 4 food' },
   { id: 'fuel-processor', name: 'Fuel Processor', effect: 'Spend up to 5 ore → generate 1 fuel each' },
 ] as const;
+const VULCAN_REACTOR_CONSOLES = VULCAN_ADDITIONAL_LABOUR_CONSOLES.map((id, index) => ({
+  id, name: `Additional Labour ${index + 1}`,
+}));
 
 interface SmallShipCardProps {
   readonly id: SmallShipId;
@@ -118,7 +122,9 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
           {step === 4 && <fieldset disabled={pending} className="maintenance-controls"><legend>Step 4 // Reactor // up to {rules.reactorCapacity}</legend>
             {(id === 'capybara-small'
               ? BASE_CAPYBARA_PRODUCTION_CONSOLES
-              : Array.from({ length: rules.reactorCapacity }, (_, index) => ({ id: `console-${index + 1}`, name: `Console ${index + 1}` })))
+              : id === 'vulcan'
+                ? VULCAN_REACTOR_CONSOLES
+                : Array.from({ length: rules.reactorCapacity }, (_, index) => ({ id: `console-${index + 1}`, name: `Console ${index + 1}` })))
               .map((console) => {
                 const checked = consoles.includes(console.id);
                 const atCapacity = consoles.length >= rules.reactorCapacity;

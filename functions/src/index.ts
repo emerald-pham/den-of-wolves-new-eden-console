@@ -2,6 +2,7 @@ import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoFie
 import { projectMaintenanceEvent } from './maintenanceEvent';
 import { canOperateRole, shipForRole } from './crewAccess';
 import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
+import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
   INITIAL_SHIP_SURVIVORS,
   acknowledgePopulationAlert,
@@ -80,6 +81,7 @@ import {
   requireVipCardTransferRequest,
   requireSmallShipDockingRequest,
   requireSmallShipMaintenanceRequest,
+  requireVulcanAdditionalLabourRequest,
   requireSessionCreationRequest,
   requireCastingPreferenceRequest,
   requireRoleAssignmentRequest,
@@ -11011,6 +11013,224 @@ export const runSmallShipMaintenance = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     }));
     tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply, eventId, serverRolls: randomStep ? stableRolls : null, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+type VulcanLabourCommandFingerprint = Readonly<{
+  kind: 'additional-labour';
+  sessionId: string;
+  actorUid: string;
+  instanceId: string | null;
+  expectedRevision: number;
+  targetExpectedRevision: number;
+  sourceConsoleId: string;
+  targetShipId: string;
+  targetConsoleId: string;
+  productionScrap: boolean | null;
+}>;
+
+function sameVulcanLabourFingerprint(
+  value: unknown,
+  expected: VulcanLabourCommandFingerprint,
+): boolean {
+  if (!isRecord(value)) return false;
+  return value.kind === expected.kind && value.sessionId === expected.sessionId &&
+    value.actorUid === expected.actorUid && value.instanceId === expected.instanceId &&
+    value.expectedRevision === expected.expectedRevision &&
+    value.targetExpectedRevision === expected.targetExpectedRevision &&
+    value.sourceConsoleId === expected.sourceConsoleId &&
+    value.targetShipId === expected.targetShipId && value.targetConsoleId === expected.targetConsoleId &&
+    (value.productionScrap ?? null) === expected.productionScrap;
+}
+
+function vulcanLabourReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: VulcanLabourCommandFingerprint,
+  uid: string,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (prior.get('actorUid') !== uid || !sameVulcanLabourFingerprint(prior.get('fingerprint'), fingerprint)) {
+    throw commandError('failed-precondition', 'This request id was already used for a different Additional Labour command or actor.', 'conflict');
+  }
+  const stored = prior.get('reply');
+  if (!isRecord(stored) || !isVesselActionResult(stored)) {
+    throw commandError('failed-precondition', 'This Additional Labour request has no replayable result.', 'conflict');
+  }
+  return stored.status === 'stale' ? stored : { ...stored, status: 'replayed' };
+}
+
+async function requireVulcanLabourAuthority(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  instanceId: string | undefined,
+): Promise<{ player: DocumentSnapshot; session: DocumentSnapshot; state: SmallShipState }> {
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const [player, session] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(sessionRef),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+    throw new HttpsError('permission-denied', 'An active Vulcan Captain or GM is required.');
+  }
+  if (player.get('role') === 'gm') {
+    if (!instanceId || !isLiveGmInstance(
+      await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)), player, uid,
+    )) {
+      throw new HttpsError('permission-denied', 'Active GM instance required.');
+    }
+  } else if (!isActivePlayer(player) ||
+      player.get('replacementRoleId') !== 'vulcan-captain' ||
+      player.get('activeConsoleRoleId') !== 'vulcan-captain') {
+    throw new HttpsError('permission-denied', 'An active Vulcan Captain console is required.');
+  }
+  const state = storedSmallShipState(session, 'vulcan');
+  if (hasStoredSmallShipState(session, 'vulcan') && !state) {
+    throw commandError('failed-precondition', 'The stored Vulcan state is malformed. Refresh the session before operating it.', 'conflict');
+  }
+  if (!state?.hostShipId || !isResourceShipId(state.hostShipId) ||
+      !activeVesselIdsForSession(session).includes(state.hostShipId)) {
+    throw commandError('failed-precondition', 'Vulcan must remain docked with an active fleet host.', 'conflict');
+  }
+  return { player, session, state: state ?? emptySmallShipState('vulcan') };
+}
+
+/** Resolve one of Vulcan's two Coordination-phase Additional Labour charges. */
+export const runVulcanAdditionalLabour = onCall<{
+  sessionId?: unknown; requestId?: unknown; instanceId?: unknown; expectedRevision?: unknown;
+  targetExpectedRevision?: unknown; sourceConsoleId?: unknown; targetShipId?: unknown;
+  targetConsoleId?: unknown; productionScrap?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = [
+    'sessionId', 'requestId', 'instanceId', 'expectedRevision', 'targetExpectedRevision',
+    'sourceConsoleId', 'targetShipId', 'targetConsoleId', 'productionScrap',
+  ];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid Additional Labour request.');
+  }
+  const data = requireVulcanAdditionalLabourRequest(raw);
+  if (!VULCAN_ADDITIONAL_LABOUR_CONSOLES.includes(data.sourceConsoleId as VulcanAdditionalLabourConsole) ||
+      (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId))) {
+    throw new HttpsError('invalid-argument', 'Invalid Additional Labour console or GM instance.');
+  }
+  const fingerprint: VulcanLabourCommandFingerprint = {
+    kind: 'additional-labour', sessionId: data.sessionId, actorUid: uid,
+    instanceId: data.instanceId ?? null, expectedRevision: data.expectedRevision,
+    targetExpectedRevision: data.targetExpectedRevision, sourceConsoleId: data.sourceConsoleId,
+    targetShipId: data.targetShipId, targetConsoleId: data.targetConsoleId,
+    productionScrap: data.productionScrap ?? null,
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const requestRef = db.doc(`sessions/${data.sessionId}/vulcanLabourRequests/${data.requestId}`);
+  const preflight = await db.runTransaction(async tx => {
+    const { player, session, state } = await requireVulcanLabourAuthority(
+      tx, data.sessionId, uid, data.instanceId,
+    );
+    const prior = await tx.get(requestRef);
+    const replay = vulcanLabourReceiptReply(prior, fingerprint, uid);
+    return { player, session, state, replay };
+  });
+  if (preflight.replay) return preflight.replay;
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const { player, session, state } = await requireVulcanLabourAuthority(
+      tx, data.sessionId, uid, data.instanceId,
+    );
+    const prior = await tx.get(requestRef);
+    const replay = vulcanLabourReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    requireTurnOneForGameplay(session);
+    requireActionPhase(session, 'transfer', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    requireTurnOneForPlayer(session, player);
+    if (!isResourceShipId(data.targetShipId) || data.targetShipId === 'vulcan' ||
+        !activeVesselIdsForSession(session).includes(data.targetShipId)) {
+      throw commandError('failed-precondition', 'Choose another active fleet ship.', 'conflict');
+    }
+    const currentSourceCycle = state.cycle;
+    const currentTargetRaw = isRecord(session.get('maintenanceCycles'))
+      ? (session.get('maintenanceCycles') as Record<string, unknown>)[data.targetShipId]
+      : undefined;
+    if (currentTargetRaw !== undefined && !parseMaintenanceCycle(currentTargetRaw)) {
+      throw commandError('failed-precondition', 'The target maintenance cycle is malformed. Refresh the session before operating it.', 'conflict');
+    }
+    const currentTarget = parseMaintenanceCycle(currentTargetRaw) ?? emptyTargetMaintenanceCycle();
+    if (currentSourceCycle.revision !== data.expectedRevision ||
+        currentTarget.revision !== data.targetExpectedRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: data.sessionId, requestId: data.requestId,
+        expectedRevision: data.expectedRevision, currentRevision: currentSourceCycle.revision,
+        targetExpectedRevision: data.targetExpectedRevision, targetCurrentRevision: currentTarget.revision,
+        targetShipId: data.targetShipId, targetConsoleId: data.targetConsoleId,
+        ...vesselActionEnvelope(session, player, uid, 'vulcan', currentSourceCycle.revision,
+          data.requestId, 'vulcan-additional-labour', state.hostShipId ?? undefined),
+      };
+      tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint,
+        reply: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const resources = shipResources(session.get('shipResources'))[data.targetShipId];
+    if (!resources) throw commandError('failed-precondition', 'The target resource ledger is unavailable.', 'conflict');
+    const damages = shipDamage(session.get('shipDamage'))[data.targetShipId] ?? { damagedSystemIds: [], destroyed: false };
+    const unrest = shipUnrest(session.get('shipUnrest'))[data.targetShipId] ?? 0;
+    const population = populationForShip(data.targetShipId, session.get('shipSurvivors')) ?? 0;
+    const upgrades = isRecord(session.get('shipUpgrades')) && Array.isArray(
+      (session.get('shipUpgrades') as Record<string, unknown>)[data.targetShipId],
+    ) ? (session.get('shipUpgrades') as Record<string, unknown>)[data.targetShipId] as string[] : [];
+    let result: ReturnType<typeof applyVulcanAdditionalLabour>;
+    try {
+      result = applyVulcanAdditionalLabour({
+        sourceCycle: currentSourceCycle, sourceConsoleId: data.sourceConsoleId as VulcanAdditionalLabourConsole,
+        currentTurn: sessionTurn(session.get('currentTurn')), targetShipId: data.targetShipId,
+        targetConsoleId: data.targetConsoleId, targetCycle: currentTarget, targetResources: resources,
+        targetDamage: damages, targetUnrest: unrest, targetPopulation: population,
+        targetDockings: Array.isArray(session.get('shuttleDockings')) ? session.get('shuttleDockings') as { shipId: string; shuttleId: string }[] : [],
+        targetCargo: isRecord(session.get('shuttleCargo')) ? session.get('shuttleCargo') as Record<string, Record<string, number>> : {},
+        targetFuelled: isRecord(session.get('shuttleFuelled')) ? session.get('shuttleFuelled') as Record<string, boolean> : {},
+        targetUpgrades: upgrades, now: serverTime, productionScrap: data.productionScrap,
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Additional Labour failed.', 'conflict');
+    }
+    const eventId = `vulcan-additional-labour-${data.requestId}`;
+    const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
+      ? player.get('activeConsoleRoleId') as string : null;
+    const reply = {
+      status: 'committed' as const, sessionId: data.sessionId, requestId: data.requestId,
+      sourceConsoleId: data.sourceConsoleId, targetShipId: data.targetShipId,
+      targetConsoleId: data.targetConsoleId, immediate: result.immediate, message: result.message,
+      expectedRevision: data.expectedRevision, committedRevision: result.sourceCycle.revision,
+      targetExpectedRevision: data.targetExpectedRevision, targetCommittedRevision: result.targetCycle.revision,
+      currentTurn: sessionTurn(session.get('currentTurn')), serverTime, cycle: result.sourceCycle,
+      ...vesselActionEnvelope(session, player, uid, 'vulcan', result.sourceCycle.revision,
+        data.requestId, 'vulcan-additional-labour', state.hostShipId ?? undefined),
+    };
+    tx.update(sessionRef, {
+      [`smallShipStates.vulcan.cycle`]: result.sourceCycle,
+      [`maintenanceCycles.${data.targetShipId}`]: result.targetCycle,
+      [`shipResources.${data.targetShipId}`]: result.targetResources,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+      type: 'maintenance',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId,
+        turn: sessionTurn(session.get('currentTurn')), phase: 'active', type: 'maintenance',
+        requestId: data.requestId, revision: result.sourceCycle.revision,
+        serverTime, visibility: EventVisibility.Member,
+      }),
+      payload: projectMaintenanceEvent({
+        shipId: 'vulcan', shipName: SMALL_SHIP_RULES.vulcan.name, action: 'additional-labour',
+        results: { '5': result.message },
+      }),
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid,
+      fingerprint, reply, eventId, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });

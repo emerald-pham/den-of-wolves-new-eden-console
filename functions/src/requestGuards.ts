@@ -190,6 +190,49 @@ export function requireSmallShipMaintenanceRequest(data: {
   };
 }
 
+export function requireVulcanAdditionalLabourRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  instanceId?: unknown;
+  expectedRevision?: unknown;
+  targetExpectedRevision?: unknown;
+  sourceConsoleId?: unknown;
+  targetShipId?: unknown;
+  targetConsoleId?: unknown;
+  productionScrap?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  instanceId?: string;
+  expectedRevision: number;
+  targetExpectedRevision: number;
+  sourceConsoleId: string;
+  targetShipId: string;
+  targetConsoleId: string;
+  productionScrap?: boolean;
+} {
+  const revision = (value: unknown, field: string): number => {
+    if (!Number.isSafeInteger(value) || (value as number) < 0) {
+      throw new HttpsError('invalid-argument', `${field} must be a non-negative integer.`);
+    }
+    return value as number;
+  };
+  if (data.productionScrap !== undefined && typeof data.productionScrap !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'productionScrap must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    expectedRevision: revision(data.expectedRevision, 'expectedRevision'),
+    targetExpectedRevision: revision(data.targetExpectedRevision, 'targetExpectedRevision'),
+    sourceConsoleId: requiredId(data.sourceConsoleId, 'sourceConsoleId'),
+    targetShipId: requiredId(data.targetShipId, 'targetShipId'),
+    targetConsoleId: requiredId(data.targetConsoleId, 'targetConsoleId'),
+    ...(data.productionScrap === undefined ? {} : { productionScrap: data.productionScrap }),
+  };
+}
+
 export function requireSessionCreationRequest(data: {
   requestId?: unknown;
   playerCount?: unknown;

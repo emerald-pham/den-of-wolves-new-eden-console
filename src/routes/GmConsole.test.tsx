@@ -518,6 +518,34 @@ it('renders charged base Capybara production controls in the live GM console', (
   expect(within(card).getByRole('button', { name: 'End small-ship cycle' })).toBeEnabled();
 });
 
+it('exposes the real Additional Labour consoles in the Vulcan reactor controls', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral'],
+    smallShipStates: {
+      vulcan: {
+        id: 'vulcan', hostShipId: 'aegis', dockingRevision: 1,
+        population: 15_000, unrest: 0,
+        cycle: { step: 4, revision: 4, results: {}, charges: [] },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const card = screen.getByRole('region', { name: 'Vulcan small-ship operations' });
+  expect(within(card).getByText('Additional Labour 1')).toBeVisible();
+  expect(within(card).getByText('Additional Labour 2')).toBeVisible();
+  await user.click(within(card).getByLabelText('Additional Labour 1'));
+  await user.click(within(card).getByRole('button', { name: 'Charge selected consoles' }));
+  await waitFor(() => expect(runSmallShipMaintenance).toHaveBeenCalledWith(
+    'vulcan', 'reactor', 4, { consoles: ['additional-labour-1'] },
+  ));
+});
+
 it('charges named base Capybara consoles before exposing their production actions', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setSession({

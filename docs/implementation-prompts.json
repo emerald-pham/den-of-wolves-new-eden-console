@@ -4788,6 +4788,13 @@
       "language": "The retained /roles screen renders the exact requested default seat status in its existing polite live region. Sixteen RoleSelect tests pass, including the accessible text and existing claim/release route flow. The production route fixture exposes the exact status at 390x844, 1440x900, and 844x390 with reduced motion and no horizontal body overflow; existing CSS and authority behavior are unchanged.",
       "source": "src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; production route fixture at phone, desktop, short landscape",
       "type": "evidence / player-copy / accessibility"
+    },
+    {
+      "direction": "248 -> VULCAN-ADDITIONAL-LABOUR",
+      "id": "E-248-VERIFIED",
+      "language": "The Vulcan Captain player path and live GM small-ship controls now charge the two distinct Additional Labour uses through one server transaction. Each use consumes one current-turn source charge exactly once, validates the external full-ship console against the shared Reactor eligibility and damage rules, checks source and target revisions, and writes the source cycle, target charge or resolver-backed immediate production result, member-safe event, and replay receipt atomically. Focused pure, callable, route, and GM-console regressions cover two uses, Dione production, duplicate/damaged/invalid targets, wrong actor, Coordination phase, stale CAS, and replay; deferred console producers retain a charge until their own resolver exists.",
+      "source": "functions/src/vulcanLabour.ts; functions/src/index.ts; functions/src/maintenance.ts; functions/src/vulcanLabour.test.ts; functions/src/smallShipCallable.test.ts; functions/src/requestGuards.ts; functions/src/maintenanceEvent.ts; src/components/SmallShipOperations.tsx; src/components/VulcanAdditionalLabourPanel.tsx; src/lib/vulcanLabourService.ts; src/data/vulcanLabour.ts; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/routes/GmConsole.test.tsx",
+      "type": "evidence / production-path / authority"
     }
   ],
   "plan": {
@@ -11287,15 +11294,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "each independently charges one permitted external console once, triggering immediate effects exactly once.",
         "title": "Resolve both Vulcan Additional Labour consoles."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-248",
+      "description": "The Vulcan Captain can spend either independently charged Additional Labour console during Coordination to charge one eligible console on another active fleet ship. The server transaction enforces replacement-role or live-GM authority, current-turn charges, target damage and duplicate-charge rules, dual revision CAS, and exact replay receipts; resolver-backed Dione and expansion Capybara maintenance effects execute atomically once, while consoles whose own producer remains deferred retain the charge for that producer.",
+      "evidenceIds": "E-AUDIT-248;E-248-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "246;122;125",
@@ -11306,7 +11313,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

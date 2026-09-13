@@ -22,7 +22,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { runSmallShipMaintenance, setSmallShipDocking } from './index';
+import { runSmallShipMaintenance, runVulcanAdditionalLabour, setSmallShipDocking } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -59,7 +59,7 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
-    if (path.includes('/smallShipRequests/')) {
+    if (path.includes('/smallShipRequests/') || path.includes('/vulcanLabourRequests/')) {
       const fields = mock.receipts[path];
       return fields ? snapshot(fields) : snapshot({}, false);
     }
@@ -365,4 +365,85 @@ it('runs the charged base Capybara Fuel Processor against the host ore and fuel 
     productionOreAmount: 6,
   }))).rejects.toMatchObject({ code: 'invalid-argument' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('runs Vulcan Additional Labour atomically for two independent charges, immediate production, CAS, replay, and authority', async () => {
+  const vulcan = {
+    ...emptySmallShipState('vulcan', 'aegis'),
+    cycle: {
+      step: 5, revision: 0, turn: 1, results: {},
+      charges: ['additional-labour-1', 'additional-labour-2'],
+    },
+  };
+  mock.session = {
+    activeVesselIds: ['aegis', 'dione'], phase: 'active', currentTurn: 1,
+    turnPhase: { turn: 1, airspace: { state: 'lifted' } },
+    shipResources: {
+      aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+      dione: { ore: 0, fuel: 3, food: 2, water: 4, materials: 0, securityTeams: 2 },
+    },
+    shipDamage: {},
+    smallShipStates: { vulcan },
+    maintenanceCycles: {
+      dione: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
+    },
+  };
+  const first = {
+    sessionId: 's1', requestId: 'vulcan-labour-1', instanceId: 'gm1',
+    expectedRevision: 0, targetExpectedRevision: 0,
+    sourceConsoleId: 'additional-labour-1', targetShipId: 'dione', targetConsoleId: 'hydroponics',
+  };
+  await expect(runVulcanAdditionalLabour.run(request(first))).resolves.toMatchObject({
+    status: 'committed', immediate: true, committedRevision: 1,
+    targetCommittedRevision: 1, targetShipId: 'dione', targetConsoleId: 'hydroponics',
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'smallShipStates.vulcan.cycle': expect.objectContaining({ charges: ['additional-labour-2'] }),
+    'maintenanceCycles.dione': expect.objectContaining({ charges: [] }),
+    'shipResources.dione': expect.objectContaining({ food: 5, water: 3 }),
+  }));
+
+  const receiptPath = 'sessions/s1/vulcanLabourRequests/vulcan-labour-1';
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.receipts[receiptPath] = receipt;
+  mock.update.mockReset();
+  mock.set.mockReset();
+  await expect(runVulcanAdditionalLabour.run(request(first))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.session.smallShipStates = {
+    vulcan: { ...vulcan, cycle: { ...vulcan.cycle, revision: 1, charges: ['additional-labour-2'] } },
+  };
+  mock.session.maintenanceCycles = {
+    dione: { step: 0, revision: 1, results: { '5': 'Hydroponics: spent 1 water, generated 3 food.' }, charges: [], refuelled: [] },
+    aegis: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
+  };
+  mock.update.mockReset();
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-2', expectedRevision: 1, targetExpectedRevision: 0,
+    targetShipId: 'aegis', targetConsoleId: 'jump-drive', sourceConsoleId: 'additional-labour-2',
+  }))).resolves.toMatchObject({ status: 'committed', immediate: false, committedRevision: 2 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'smallShipStates.vulcan.cycle': expect.objectContaining({ charges: [] }),
+    'maintenanceCycles.aegis': expect.objectContaining({ charges: ['jump-drive'] }),
+  }));
+
+  mock.session.smallShipStates = {
+    vulcan: { ...vulcan, cycle: { ...vulcan.cycle, revision: 2, charges: [] } },
+  };
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-stale', expectedRevision: 1, targetExpectedRevision: 0,
+  }))).resolves.toMatchObject({ status: 'stale', currentRevision: 2 });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+
+  mock.role = 'player';
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-player', expectedRevision: 2,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.role = 'gm';
+  mock.session.turnPhase = { turn: 1, airspace: { state: 'restricted' } };
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-team', expectedRevision: 2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
 });

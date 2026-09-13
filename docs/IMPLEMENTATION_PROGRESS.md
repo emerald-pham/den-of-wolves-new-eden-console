@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**220 / 750 prompts complete (29.33%)**
+**221 / 750 prompts complete (29.47%)**
 
-Status breakdown: **220 done · 25 partial · 505 missing**.
+Status breakdown: **221 done · 25 partial · 504 missing**.
 
 Active prompt: **none**
 
@@ -687,7 +687,7 @@ release classification and evidence.
 | 245 | done | feature | — | The actual Warrior Captain private role brief states the after-Wolf-Attack Salvage Drones trigger and reports that the server-owned attack damage ledger, roll, and material award are unavailable until their authoritative producer exists. No client control pretends to resolve the deferred roll or award. |
 | 246 | done | non-feature | — | The existing shared small-ship production path closes Vulcan identity and maintenance: the typed supplemental vessel records 15,000 survivors, two reactor charges, 1/1/2 jump costs, and steps 1–4, while the server-owned rules apply Vulcan’s printed host food/water table and two-console cap. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; the focused production-path regression proves Vulcan’s distinct population and host ration costs alongside the other audited small ships. Vulcan laser and Additional Labour mechanics remain deferred to their later prompts. |
 | 247 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 248 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 248 | done | feature | — | The Vulcan Captain can spend either independently charged Additional Labour console during Coordination to charge one eligible console on another active fleet ship. The server transaction enforces replacement-role or live-GM authority, current-turn charges, target damage and duplicate-charge rules, dual revision CAS, and exact replay receipts; resolver-backed Dione and expansion Capybara maintenance effects execute atomically once, while consoles whose own producer remains deferred retain the charge for that producer. |
 | 249 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 250 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 251 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
