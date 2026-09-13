@@ -5,7 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import FleetBroadcast from './FleetBroadcast';
 
 const session = {
-  id: 's1', name: 'Table', joinCode: '1234', phase: 'active' as const, ownerUid: 'u1',
+  id: 's1', name: 'Table', joinCode: '1234', phase: 'active' as const, ownerUid: 'u1', currentTurn: 1,
   createdAt: '2026-09-12T13:00:00.000Z', updatedAt: '2026-09-12T13:00:00.000Z',
 };
 const player = {

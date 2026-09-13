@@ -187,7 +187,7 @@ it('posts the current airspace window as a compact looping Airspace Control bull
   const { container } = render(<FleetBroadcast />);
 
   expect(screen.getByRole('status', {
-    name: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
+    name: 'AIRSPACE CONTROL // AIRSPACE CLOSED',
   })).toBeVisible();
   expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'long');
   act(() => {
@@ -420,7 +420,7 @@ it('rehydrates the latest turn transmission after reconnect without replaying it
   feed(first.sessionListener, turnOneSnapshot);
   const view = render(<TurnStartAnnouncement />);
   feed(first.sessionListener, turnTwoSnapshot);
-  expect(screen.getByText('TURN 2')).toBeVisible();
+  expect(screen.getByText('CYCLE 2')).toBeVisible();
   view.unmount();
   first.stop();
   listeners.length = 0;
@@ -434,7 +434,7 @@ it('rehydrates the latest turn transmission after reconnect without replaying it
     turnStartAnnouncement: { turn: 2, survivorPopulation: 237_000 },
     turnPhase: { turn: 2 },
   });
-  expect(screen.queryByText('TURN 2')).not.toBeInTheDocument();
+  expect(screen.queryByText('CYCLE 2')).not.toBeInTheDocument();
   reconnect.stop();
 });
 
