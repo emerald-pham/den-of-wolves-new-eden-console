@@ -65,6 +65,7 @@ const authorityService = await import('./sessionService') as unknown as {
   confirmSetup: (setup: {
     playerCount: number;
     chartId: 'A' | 'B' | 'C';
+    lockChart?: boolean;
     expansion: 'base' | 'capybara' | 'none';
     turnLimit: 6 | 7 | 8;
     dioneEnabled: boolean;
