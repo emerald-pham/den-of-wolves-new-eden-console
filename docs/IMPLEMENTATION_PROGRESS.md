@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**205 / 749 prompts complete (27.37%)**
+**206 / 749 prompts complete (27.50%)**
 
-Status breakdown: **205 done · 20 partial · 524 missing**.
+Status breakdown: **206 done · 19 partial · 524 missing**.
 
 Active prompt: **none**
 
@@ -975,7 +975,7 @@ release classification and evidence.
 | 512 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 513 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 514 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 515 | partial | non-feature | — | Partial production-path implementation: the live GM can record an explicit dead, arrested, removed, or late eligibility decision, then assign one source-defined replacement role or active extra-ship role through a server transaction. The transaction uses a live GM instance, eligibility and setup CAS revisions, request fingerprints and replay receipts; releases any canonical station pointer, clears old console authority, preserves the historical printed role and private loyalty, writes a private replacement brief, and rejects duplicate replacement occupancy. Wolf Commander target rerolls remain blocked on this producer until independent authority review is complete. |
+| 515 | done | non-feature | — | The live GM records explicit dead, arrested, removed, or late eligibility and assigns a source-defined replacement role or an already active extra-ship role. Assignment atomically consumes eligibility, releases the old station and console authority, preserves historical role and private loyalty, writes the recipient-only brief, and replaces old-ship navigation entitlement. Server and UI require the canonical active-vessel tuple; stale revisions, conflicting retries, duplicate assignments and unauthorized writes fail closed. Independent authority review and focused callable/rules/client checks cover the boundary. Extra-ship activation and Wolf Commander rerolls remain with their owning prompts. |
 | 516 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 517 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 518 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

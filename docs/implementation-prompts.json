@@ -4659,9 +4659,9 @@
     {
       "direction": "515 -> 435",
       "id": "E-515-REPLACEMENT",
-      "language": "The live-GM replacement producer records an explicit dead, arrested, removed, or late eligibility decision, then assigns one source-defined replacement role or active extra-ship role through a transaction with GM-instance authority, eligibility/setup CAS revisions, request fingerprints, and replay receipts. It releases a canonical seat pointer and clears old console authority atomically, preserves the historical printed role and private loyalty, writes a recipient-only replacement brief, and rejects duplicate replacement occupancy. Wolf Commander rerolls remain blocked until this producer and the P432 declaration receipt receive independent authority review.",
-      "source": "functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/requestGuards.ts; functions/src/roleBriefs.ts; functions/src/replacementCallable.test.ts; functions/src/replacementRoles.test.ts; firestore.rules; src/data/replacementRoles.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md lines 278-314",
-      "type": "evidence / partial / authority / hard_prompt / related/consumes"
+      "language": "The live GM records explicit dead, arrested, removed, or late eligibility and assigns a source-defined replacement role or an already active extra-ship role. Assignment atomically consumes eligibility, releases the old station and console authority, preserves historical role and private loyalty, writes the recipient-only brief, and replaces old-ship navigation entitlement. Server and UI require the canonical active-vessel tuple; stale revisions, conflicting retries, duplicate assignments and unauthorized writes fail closed. Independent authority review and focused callable/rules/client checks cover the boundary. Extra-ship activation and Wolf Commander rerolls remain with their owning prompts.",
+      "source": "functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/requestGuards.ts; functions/src/roleBriefs.ts; functions/src/replacementCallable.test.ts; functions/src/replacementRoles.test.ts; firestore.rules; src/data/replacementRoles.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md lines 278-314; src/App.test.tsx; functions/src/navigationProjection.test.ts",
+      "type": "evidence / verified / authority / hard_prompt / related/consumes"
     }
   ],
   "plan": {
@@ -17806,7 +17806,7 @@
         "acceptance": "a dead, arrested, removed, or late player receives one valid role/extra ship without duplicate seats or loyalty leakage.",
         "title": "Assign a replacement role."
       },
-      "description": "Partial production-path implementation: the live GM can record an explicit dead, arrested, removed, or late eligibility decision, then assign one source-defined replacement role or active extra-ship role through a server transaction. The transaction uses a live GM instance, eligibility and setup CAS revisions, request fingerprints and replay receipts; releases any canonical station pointer, clears old console authority, preserves the historical printed role and private loyalty, writes a private replacement brief, and rejects duplicate replacement occupancy. Wolf Commander target rerolls remain blocked on this producer until independent authority review is complete.",
+      "description": "The live GM records explicit dead, arrested, removed, or late eligibility and assigns a source-defined replacement role or an already active extra-ship role. Assignment atomically consumes eligibility, releases the old station and console authority, preserves historical role and private loyalty, writes the recipient-only brief, and replaces old-ship navigation entitlement. Server and UI require the canonical active-vessel tuple; stale revisions, conflicting retries, duplicate assignments and unauthorized writes fail closed. Independent authority review and focused callable/rules/client checks cover the boundary. Extra-ship activation and Wolf Commander rerolls remain with their owning prompts.",
       "evidenceIds": "E-AUDIT-515;E-515-REPLACEMENT",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -17818,7 +17818,7 @@
       "releases": [],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {

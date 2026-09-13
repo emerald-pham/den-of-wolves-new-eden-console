@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['284', '515'],
+    implementationProgress: {
+      completed: 206,
+      total: 749,
+      percentage: '27.50%',
+      done: 206,
+      partial: 19,
+      active: 0,
+      missing: 524,
+    },
+    changes: [
+      'Player maps now receive only their own ship’s known locations; GMs retain the full organiser view.',
+      'GMs can assign replacement roles with private briefs while safely releasing the player’s previous station and access.',
+      '206 of 749 planned items are complete (27.50%).',
+    ],
+  },
+  {
+    version: '0.3.72',
     implementationPrompts: ['652c', '282a'],
     implementationProgress: {
       completed: 204,
