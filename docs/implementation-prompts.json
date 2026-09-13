@@ -21119,7 +21119,7 @@
         "acceptance": "production callables reject missing/invalid tokens while emulator behavior remains explicit and does not weaken deployment.",
         "title": "Enforce App Check on mutations."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "Reconciled existing production enforcement: every exported callable inherits CALLABLE_RUNTIME_OPTIONS through setGlobalOptions, with no per-callable App Check opt-out. Production enforcement is true; only the Firebase FUNCTIONS_EMULATOR value exactly equal to true disables it locally. Runtime option tests verify both paths. During the live 0.3.105 checkpoint, the deployed read-only listGmInstances callable rejected separate missing-token and invalid-token requests with framework HTTP401 UNAUTHENTICATED before the application authentication guard; mutation callables share the same audited global options. Deployment workflows do not set FUNCTIONS_EMULATOR. This records existing enforcement, not a new behavior or a claim to have invoked every production mutation.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21128,10 +21128,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.105"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
