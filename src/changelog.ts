@@ -21,6 +21,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 274, total: 751, percentage: '36.48%',
+      done: 274, partial: 24, active: 0, missing: 453,
+    },
+    changes: [
+      'News stays visible while fonts load and returns after an alert ends. Dismissing newer news restores earlier active dispatches.',
+      '274 of 751 planned items are complete (36.48%).',
+    ],
+  },
+  {
+    version: '0.4.5',
     implementationPrompts: ['594'],
     implementationProgress: {
       completed: 273,
