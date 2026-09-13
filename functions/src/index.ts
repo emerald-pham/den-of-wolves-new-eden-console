@@ -3849,8 +3849,7 @@ function isAwayMissionDealReply(value: unknown, sessionId: string): value is Awa
   return reply.sessionId === sessionId &&
     (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
     typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
-    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) >= 0 &&
-    (reply.status === 'stale' || (reply.participantCount as number) > 0) &&
+    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) > 0 &&
     Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
     (reply.currentSetupRevision === undefined ||
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
@@ -4094,7 +4093,8 @@ function isAwayMissionDiscardReadyReply(value: unknown, sessionId: string): valu
   return reply.sessionId === sessionId &&
     (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
     typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
-    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) > 0 &&
+    Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) >= 0 &&
+    (reply.status === 'stale' || (reply.participantCount as number) > 0) &&
     Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
     (reply.currentSetupRevision === undefined ||
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
