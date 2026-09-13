@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
+            'gm-console': ['./src/routes/GmConsole.tsx'],
             'react-vendor': ['react', 'react-dom', 'react-router-dom', 'zustand'],
             'firebase-app': ['firebase/app'],
             'firebase-auth': ['firebase/auth'],
