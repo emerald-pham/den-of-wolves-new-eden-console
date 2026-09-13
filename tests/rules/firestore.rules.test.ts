@@ -588,6 +588,47 @@ describe('Universal Arbour vision boundary', () => {
   });
 });
 
+describe('facilitator rule-call boundary', () => {
+  it('keeps GM history private and exposes only an exact selected-player projection', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/facilitatorRuleCalls/gm/current`), {
+        type: 'facilitator-rule-call', sessionId: 's1', callId: 'call-1', revision: 1,
+        ambiguity: 'Question', source: 'Reference', decision: 'Decision',
+        audience: 'selected-player', recipientUid: 'alice', actorUid: 'gm1',
+        label: 'FACILITATOR RULE CALL',
+      });
+      await setDoc(doc(db, `${SESSION}/facilitatorRuleCalls/history/call-1`), {
+        type: 'facilitator-rule-call', sessionId: 's1', callId: 'call-1', revision: 1,
+        ambiguity: 'Question', source: 'Reference', decision: 'Decision',
+        audience: 'selected-player', recipientUid: 'alice', actorUid: 'gm1',
+        label: 'FACILITATOR RULE CALL',
+      });
+      await setDoc(doc(db, `${SESSION}/facilitatorRuleCalls/audit/call-1`), {
+        type: 'facilitator-rule-call-audit', sessionId: 's1', callId: 'call-1', actorUid: 'gm1',
+      });
+      await setDoc(doc(db, `${SESSION}/facilitatorRuleCalls/recipients/alice`), {
+        type: 'facilitator-rule-call', sessionId: 's1', callId: 'call-1', revision: 1,
+        ambiguity: 'Question', source: 'Reference', decision: 'Decision',
+        audience: 'selected-player', recipientUid: 'alice', visibleToUids: ['alice'],
+        label: 'FACILITATOR RULE CALL',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/facilitatorRuleCalls/gm/current`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/facilitatorRuleCalls/history/call-1`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/facilitatorRuleCalls/audit/call-1`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipients/alice`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipients/missing`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/gm/current`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/facilitatorRuleCalls/recipients/alice`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/facilitatorRuleCalls/recipients`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/facilitatorRuleCalls/recipients/alice`), {
+      type: 'facilitator-rule-call', sessionId: 's1', audience: 'selected-player', recipientUid: 'alice',
+    }));
+  });
+});
+
 describe('Hummingbird harvest boundary', () => {
   it('keeps pending dice private to the active Quellon Explorer and denies client writes', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

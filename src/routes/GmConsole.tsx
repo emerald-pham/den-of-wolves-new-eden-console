@@ -44,6 +44,7 @@ import {
   setFacilitatorCensusNote,
   deliverWolfCultIntelligence,
   authorUniversalArbourVision,
+  authorFacilitatorRuleCall,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -89,6 +90,7 @@ import type {
   WolfAttackWindowStatus,
   WolfAssignment,
   ArbourVision,
+  FacilitatorRuleCall,
 } from '@/types/game';
 import { isWireSafeEntityId } from '@/types/identifiers';
 import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
@@ -325,6 +327,15 @@ export default function GmConsole() {
   const [arbourVisionMutation, setArbourVisionMutation] = useState(false);
   const [arbourVisionMessage, setArbourVisionMessage] = useState<string | null>(null);
   const gmArbourVision = useSessionStore((state) => state.gmArbourVision);
+  const [ruleCallAmbiguity, setRuleCallAmbiguity] = useState('');
+  const [ruleCallSource, setRuleCallSource] = useState('');
+  const [ruleCallDecision, setRuleCallDecision] = useState('');
+  const [ruleCallAudience, setRuleCallAudience] = useState<FacilitatorRuleCall['audience']>('gm-only');
+  const [ruleCallRecipientUid, setRuleCallRecipientUid] = useState('');
+  const [ruleCallSupersedesCallId, setRuleCallSupersedesCallId] = useState('');
+  const [ruleCallMutation, setRuleCallMutation] = useState(false);
+  const [ruleCallMessage, setRuleCallMessage] = useState<string | null>(null);
+  const gmFacilitatorRuleCall = useSessionStore((state) => state.gmFacilitatorRuleCall);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
@@ -632,6 +643,7 @@ export default function GmConsole() {
       subscribeGmWolfAssignment,
       subscribeGmWolfCultIntelligence,
       subscribeGmArbourVision,
+      subscribeGmFacilitatorRuleCall,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -687,6 +699,12 @@ export default function GmConsole() {
           useSessionStore.getState().setGmArbourVision(next);
         })
         : () => undefined;
+      const stopFacilitatorRuleCall = typeof subscribeGmFacilitatorRuleCall === 'function'
+        ? subscribeGmFacilitatorRuleCall(sessionId, (next) => {
+          setRuleCallMessage(null);
+          useSessionStore.getState().setGmFacilitatorRuleCall(next);
+        })
+        : () => undefined;
       const stopEvents = subscribeSessionEvents(
         sessionId,
         setEvents,
@@ -729,6 +747,7 @@ export default function GmConsole() {
         stopWolfAssignment();
         stopWolfCultIntelligence();
         stopArbourVision();
+        stopFacilitatorRuleCall();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -741,6 +760,7 @@ export default function GmConsole() {
       setWolfAssignment(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
+      useSessionStore.getState().setGmFacilitatorRuleCall(null);
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
       setAllPlayers([]);
@@ -1501,6 +1521,43 @@ export default function GmConsole() {
       setArbourVisionMessage('CALL REJECTED // active facilitator authority required');
     } finally {
       setArbourVisionMutation(false);
+    }
+  }
+
+  async function saveFacilitatorRuleCall(): Promise<void> {
+    if (
+      ruleCallMutation ||
+      !ruleCallAmbiguity.trim() ||
+      !ruleCallSource.trim() ||
+      !ruleCallDecision.trim() ||
+      (ruleCallAudience === 'selected-player' && !ruleCallRecipientUid)
+    ) return;
+    setRuleCallMutation(true);
+    setRuleCallMessage(null);
+    try {
+      const disposition = await authorFacilitatorRuleCall({
+        ambiguity: ruleCallAmbiguity,
+        source: ruleCallSource,
+        decision: ruleCallDecision,
+        audience: ruleCallAudience,
+        ...(ruleCallAudience === 'selected-player' ? { recipientUid: ruleCallRecipientUid } : {}),
+        ...(ruleCallSupersedesCallId.trim() ? { supersedesCallId: ruleCallSupersedesCallId.trim() } : {}),
+      });
+      setRuleCallMessage(
+        disposition === 'queued'
+          ? 'RULE CALL QUEUED // awaiting reconnection'
+          : disposition === 'stale'
+            ? 'CALL STALE // refresh the current record and retry'
+            : `RULE CALL ${disposition.toUpperCase()}`,
+      );
+      if (disposition === 'applied') {
+        setRuleCallDecision('');
+        setRuleCallSupersedesCallId('');
+      }
+    } catch {
+      setRuleCallMessage('CALL REJECTED // active facilitator authority required');
+    } finally {
+      setRuleCallMutation(false);
     }
   }
 
@@ -2810,6 +2867,95 @@ export default function GmConsole() {
                   </p>
                 </div>
               )}
+            </section>
+          )}
+
+          {isGm && (
+            <section className="gm-console__module cic-frame gm-arbour-vision" aria-label="Facilitator rule call">
+              <h2 className="gm-console__section-title">Facilitator rule call</h2>
+              <p className="gm-player-roster__hint">
+                Record a durable ruling when the table needs an ambiguity resolved. This call is labeled separately from random or dice results.
+              </p>
+              <div className="gm-arbour-vision__form">
+                <label htmlFor="rule-call-ambiguity">Question or ambiguity</label>
+                <textarea
+                  id="rule-call-ambiguity"
+                  value={ruleCallAmbiguity}
+                  maxLength={240}
+                  rows={2}
+                  disabled={ruleCallMutation}
+                  onChange={(event) => setRuleCallAmbiguity(event.target.value)}
+                />
+                <label htmlFor="rule-call-source">Source or reference</label>
+                <textarea
+                  id="rule-call-source"
+                  value={ruleCallSource}
+                  maxLength={240}
+                  rows={2}
+                  disabled={ruleCallMutation}
+                  onChange={(event) => setRuleCallSource(event.target.value)}
+                />
+                <label htmlFor="rule-call-decision">Decision</label>
+                <textarea
+                  id="rule-call-decision"
+                  value={ruleCallDecision}
+                  maxLength={500}
+                  rows={3}
+                  disabled={ruleCallMutation}
+                  onChange={(event) => setRuleCallDecision(event.target.value)}
+                />
+                <label htmlFor="rule-call-audience">Audience</label>
+                <select
+                  id="rule-call-audience"
+                  value={ruleCallAudience}
+                  disabled={ruleCallMutation}
+                  onChange={(event) => setRuleCallAudience(event.target.value as FacilitatorRuleCall['audience'])}
+                >
+                  <option value="gm-only">Facilitator only</option>
+                  <option value="selected-player">One selected player</option>
+                </select>
+                {ruleCallAudience === 'selected-player' && (
+                  <>
+                    <label htmlFor="rule-call-recipient">Recipient</label>
+                    <select
+                      id="rule-call-recipient"
+                      value={ruleCallRecipientUid}
+                      disabled={ruleCallMutation}
+                      onChange={(event) => setRuleCallRecipientUid(event.target.value)}
+                    >
+                      <option value="">Choose a player</option>
+                      {allPlayers
+                        .filter((player) => player.role === 'player')
+                        .map((player) => (
+                          <option key={player.uid} value={player.uid}>
+                            {normalizeDisplayName(player.displayName)} // {player.uid}
+                          </option>
+                        ))}
+                    </select>
+                  </>
+                )}
+                <label htmlFor="rule-call-supersedes">Supersedes call ID (optional)</label>
+                <input
+                  id="rule-call-supersedes"
+                  value={ruleCallSupersedesCallId}
+                  maxLength={120}
+                  disabled={ruleCallMutation}
+                  onChange={(event) => setRuleCallSupersedesCallId(event.target.value)}
+                />
+                <button
+                  className="gm-census-note__save"
+                  type="button"
+                  disabled={ruleCallMutation || !ruleCallAmbiguity.trim() || !ruleCallSource.trim() || !ruleCallDecision.trim() || (ruleCallAudience === 'selected-player' && !ruleCallRecipientUid)}
+                  onClick={() => void saveFacilitatorRuleCall()}
+                >
+                  {ruleCallMutation ? 'Recording…' : 'Record rule call'}
+                </button>
+                <p className="gm-player-roster__note" role="status" aria-live="polite">
+                  {ruleCallMessage ?? (gmFacilitatorRuleCall
+                    ? `Current call // revision ${gmFacilitatorRuleCall.revision} // ${gmFacilitatorRuleCall.callId}`
+                    : 'No facilitator rule call recorded yet.')}
+                </p>
+              </div>
             </section>
           )}
 

@@ -5,6 +5,7 @@ import { auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type {
+  FacilitatorRuleCall,
   GameSession,
   GmInstance,
   Player,
@@ -590,6 +591,40 @@ function applyCommandResult(
         ...store.session,
         confettiUsedShipIds: [...used, command.payload.shipId],
       });
+    }
+  }
+  if (
+    command.kind === 'authorFacilitatorRuleCall' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    if (
+      (reply.status === 'committed' || reply.status === 'replayed') &&
+      reply.sessionId === command.payload.sessionId &&
+      typeof reply.callId === 'string' && reply.callId === command.payload.requestId &&
+      Number.isSafeInteger(reply.revision) && (reply.revision as number) >= 1 &&
+      typeof reply.ambiguity === 'string' && reply.ambiguity.length > 0 && reply.ambiguity.length <= 240 &&
+      typeof reply.source === 'string' && reply.source.length > 0 && reply.source.length <= 240 &&
+      typeof reply.decision === 'string' && reply.decision.length > 0 && reply.decision.length <= 500 &&
+      (reply.audience === 'gm-only' || reply.audience === 'selected-player') &&
+      typeof reply.actorUid === 'string' && typeof reply.createdAt === 'string' &&
+      reply.label === 'FACILITATOR RULE CALL'
+    ) {
+      store.setGmFacilitatorRuleCall({
+        sessionId: command.payload.sessionId,
+        callId: reply.callId,
+        revision: reply.revision as number,
+        ambiguity: reply.ambiguity,
+        source: reply.source,
+        decision: reply.decision,
+        audience: reply.audience,
+        ...(typeof reply.recipientUid === 'string' ? { recipientUid: reply.recipientUid } : {}),
+        actorUid: reply.actorUid,
+        createdAt: reply.createdAt,
+        ...(typeof reply.supersedesCallId === 'string' ? { supersedesCallId: reply.supersedesCallId } : {}),
+        label: 'FACILITATOR RULE CALL',
+      } satisfies FacilitatorRuleCall);
     }
   }
 }
@@ -1432,6 +1467,34 @@ export async function deliverWolfCultIntelligence(
       suppliesCoordinate: suppliesCoordinate.trim(),
       agentUid: agentUid.trim(),
       codeWord: codeWord.trim().slice(0, 80),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Record a durable facilitator ruling for an ambiguity or source gap. */
+export async function authorFacilitatorRuleCall(
+  input: Pick<FacilitatorRuleCall, 'ambiguity' | 'source' | 'decision' | 'audience'> &
+    Partial<Pick<FacilitatorRuleCall, 'recipientUid' | 'supersedesCallId'>>,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('An active GM instance is required before recording a rule call.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'authorFacilitatorRuleCall',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmFacilitatorRuleCall?.revision ?? 0,
+      ambiguity: input.ambiguity.trim().slice(0, 240),
+      source: input.source.trim().slice(0, 240),
+      decision: input.decision.trim().slice(0, 500),
+      audience: input.audience,
+      ...(input.recipientUid ? { recipientUid: input.recipientUid } : {}),
+      ...(input.supersedesCallId ? { supersedesCallId: input.supersedesCallId } : {}),
     },
     createdAt: new Date().toISOString(),
   });

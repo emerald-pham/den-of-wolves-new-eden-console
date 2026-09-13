@@ -33,6 +33,7 @@ export default function RoleBrief() {
   const brief = useSessionStore((state) => state.roleBrief);
   const privateLoyalty = useSessionStore((state) => state.privateLoyalty);
   const arbourVision = useSessionStore((state) => state.arbourVision);
+  const facilitatorRuleCall = useSessionStore((state) => state.facilitatorRuleCall);
 
   if (
     !session || !me || !brief ||
@@ -58,6 +59,18 @@ export default function RoleBrief() {
             <p className="eyebrow">{arbourVision.label}</p>
             <h2 id="arbour-vision-title">Universal Arbour vision // {arbourVision.kind}</h2>
             <p>{arbourVision.text}</p>
+          </section>
+        )}
+
+        {facilitatorRuleCall && (
+          <section className="role-brief__rules role-brief__rules--facilitator-call" aria-labelledby="facilitator-rule-call-title">
+            <p className="eyebrow">{facilitatorRuleCall.label}</p>
+            <h2 id="facilitator-rule-call-title">Facilitator rule call</h2>
+            <dl>
+              <div><dt>Question</dt><dd>{facilitatorRuleCall.ambiguity}</dd></div>
+              <div><dt>Source</dt><dd>{facilitatorRuleCall.source}</dd></div>
+              <div><dt>Decision</dt><dd>{facilitatorRuleCall.decision}</dd></div>
+            </dl>
           </section>
         )}
 

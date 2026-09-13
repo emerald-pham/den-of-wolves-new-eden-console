@@ -1086,6 +1086,66 @@ export function requireArbourVisionRequest(data: {
   };
 }
 
+/** A durable, facilitator-authored ruling for a printed ambiguity. */
+export function requireFacilitatorRuleCallRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  ambiguity?: unknown;
+  source?: unknown;
+  decision?: unknown;
+  audience?: unknown;
+  recipientUid?: unknown;
+  supersedesCallId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  ambiguity: string;
+  source: string;
+  decision: string;
+  audience: 'gm-only' | 'selected-player';
+  recipientUid?: string;
+  supersedesCallId?: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  const text = (value: unknown, name: string, max: number): string => {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    if (!normalized || normalized.length > max) {
+      throw new HttpsError('invalid-argument', `${name} must contain 1 to ${max} characters.`);
+    }
+    return normalized;
+  };
+  if (data.audience !== 'gm-only' && data.audience !== 'selected-player') {
+    throw new HttpsError('invalid-argument', 'audience must be gm-only or selected-player.');
+  }
+  const recipientUid = data.recipientUid === undefined
+    ? undefined : requiredId(data.recipientUid, 'recipientUid');
+  if (data.audience === 'selected-player' && !recipientUid) {
+    throw new HttpsError('invalid-argument', 'selected-player calls require recipientUid.');
+  }
+  if (data.audience === 'gm-only' && recipientUid) {
+    throw new HttpsError('invalid-argument', 'gm-only calls cannot include recipientUid.');
+  }
+  const supersedesCallId = data.supersedesCallId === undefined
+    ? undefined : requiredId(data.supersedesCallId, 'supersedesCallId');
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    ambiguity: text(data.ambiguity, 'ambiguity', 240),
+    source: text(data.source, 'source', 240),
+    decision: text(data.decision, 'decision', 500),
+    audience: data.audience,
+    ...(recipientUid ? { recipientUid } : {}),
+    ...(supersedesCallId ? { supersedesCallId } : {}),
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

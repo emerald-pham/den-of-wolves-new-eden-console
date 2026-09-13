@@ -70,6 +70,32 @@ it('renders a facilitator-labeled Universal Arbour call only on the private brie
   expect(screen.getByText('There is danger at the outer relay.')).toBeVisible();
 });
 
+it('renders a selected facilitator rule call with durable source and decision fields', () => {
+  useSessionStore.getState().setFacilitatorRuleCall({
+    sessionId: 's1', callId: 'call-1', revision: 1,
+    ambiguity: 'Does docking happen before movement?',
+    source: 'Facilitator reference',
+    decision: 'Use the printed docking state for this turn.',
+    audience: 'selected-player', recipientUid: 'u1',
+    actorUid: 'gm1', createdAt: '2026-01-01T00:00:00.000Z',
+    label: 'FACILITATOR RULE CALL',
+  });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const call = screen.getByRole('region', { name: 'Facilitator rule call' });
+  expect(call).toHaveTextContent('Does docking happen before movement?');
+  expect(call).toHaveTextContent('Facilitator reference');
+  expect(call).toHaveTextContent('Use the printed docking state for this turn.');
+  expect(call).not.toHaveTextContent('gm1');
+});
+
 it('returns to role selection when the local assignment no longer matches', () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, assignedRoleId: null });
   render(

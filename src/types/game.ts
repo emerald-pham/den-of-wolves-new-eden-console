@@ -643,6 +643,25 @@ export interface ArbourVision {
   readonly label: 'FACILITATOR CALL';
 }
 
+export type FacilitatorRuleCallAudience = 'gm-only' | 'selected-player';
+
+/** Durable facilitator adjudication, separate from random or dice results. */
+export interface FacilitatorRuleCall {
+  readonly sessionId: SessionId;
+  readonly callId: string;
+  readonly revision: number;
+  readonly ambiguity: string;
+  readonly source: string;
+  readonly decision: string;
+  readonly audience: FacilitatorRuleCallAudience;
+  readonly recipientUid?: PlayerId;
+  readonly actorUid?: PlayerId;
+  readonly createdAt: string;
+  readonly supersedesCallId?: string;
+  readonly supersededByCallId?: string;
+  readonly label: 'FACILITATOR RULE CALL';
+}
+
 /** Server-owned role-private projection for the authenticated player only. */
 export interface RoleBrief {
   readonly assignmentUid: PlayerId;

@@ -311,6 +311,9 @@ function AppRoutes() {
           if (!authorityStillCurrent) {
             store.setCommissarPurgeAuthority(null);
           }
+          if (next.role === 'gm') {
+            store.setFacilitatorRuleCall(null);
+          }
           if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
             const current = useSessionStore.getState().session;
             if (current?.id === sessionId) {
@@ -456,6 +459,20 @@ function AppRoutes() {
           pendingArbourVision = null;
           arbourVisionRevisionFloor = next.revision;
           store.setArbourVision(next);
+        },
+        onFacilitatorRuleCall: (next) => {
+          if (!callbackCurrent()) return;
+          const store = useSessionStore.getState();
+          if (
+            !next ||
+            store.me?.role !== 'player' ||
+            next.audience !== 'selected-player' ||
+            next.recipientUid !== store.me.uid
+          ) {
+            store.setFacilitatorRuleCall(null);
+            return;
+          }
+          store.setFacilitatorRuleCall(next);
         },
         onRoleBrief: (next) => {
           if (!callbackCurrent()) return;

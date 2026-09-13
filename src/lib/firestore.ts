@@ -18,6 +18,7 @@ import { emulatorPorts, useEmulators } from './firebaseConfig';
 import type {
   CommissarPurgeAuthority,
   DamageDraw,
+  FacilitatorRuleCall,
   GameSession,
   GmInstance,
   HummingbirdHarvest,
@@ -406,6 +407,52 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
     commonRules: raw.commonRules,
     ...(ownedCraftIds ? { ownedCraftIds } : {}),
     setupRevision: raw.setupRevision,
+  };
+}
+
+function facilitatorRuleCall(
+  value: unknown,
+  sessionId: string,
+  recipientUid?: string,
+): FacilitatorRuleCall | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    raw.type !== 'facilitator-rule-call' || raw.sessionId !== sessionId ||
+    typeof raw.callId !== 'string' || raw.callId.length === 0 || raw.callId.length > 120 ||
+    !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+    typeof raw.ambiguity !== 'string' || raw.ambiguity.trim().length === 0 || raw.ambiguity.length > 240 ||
+    typeof raw.source !== 'string' || raw.source.trim().length === 0 || raw.source.length > 240 ||
+    typeof raw.decision !== 'string' || raw.decision.trim().length === 0 || raw.decision.length > 500 ||
+    (raw.audience !== 'gm-only' && raw.audience !== 'selected-player') ||
+    raw.label !== 'FACILITATOR RULE CALL'
+  ) return null;
+  const parsedRecipientUid = raw.recipientUid === undefined
+    ? undefined : parseEntityId('player', raw.recipientUid);
+  if (raw.audience === 'selected-player' && !parsedRecipientUid) return null;
+  if (recipientUid !== undefined && parsedRecipientUid !== recipientUid) return null;
+  if (raw.audience === 'gm-only' && (raw.recipientUid !== undefined || recipientUid !== undefined)) return null;
+  const actorUid = raw.actorUid === undefined ? undefined : parseEntityId('player', raw.actorUid);
+  if (raw.actorUid !== undefined && !actorUid) return null;
+  const supersedesCallId = raw.supersedesCallId === undefined ? undefined
+    : typeof raw.supersedesCallId === 'string' && raw.supersedesCallId.length > 0 ? raw.supersedesCallId : null;
+  const supersededByCallId = raw.supersededByCallId === undefined ? undefined
+    : typeof raw.supersededByCallId === 'string' && raw.supersededByCallId.length > 0 ? raw.supersededByCallId : null;
+  if (supersedesCallId === null || supersededByCallId === null) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    callId: raw.callId,
+    revision: raw.revision as number,
+    ambiguity: raw.ambiguity,
+    source: raw.source,
+    decision: raw.decision,
+    audience: raw.audience,
+    ...(parsedRecipientUid ? { recipientUid: parsedRecipientUid } : {}),
+    ...(actorUid ? { actorUid } : {}),
+    createdAt: iso(raw.createdAt),
+    ...(supersedesCallId ? { supersedesCallId } : {}),
+    ...(supersededByCallId ? { supersededByCallId } : {}),
+    label: 'FACILITATOR RULE CALL',
   };
 }
 
@@ -1360,6 +1407,7 @@ export interface SessionStateHandlers {
   readonly onArbourVision?: (vision: ArbourVision | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
   readonly onCommissarPurgeAuthority?: (authority: CommissarPurgeAuthority | null) => void;
+  readonly onFacilitatorRuleCall?: (call: FacilitatorRuleCall | null) => void;
   /** Whether the accepted player projection came from the server. */
   readonly onPlayerFreshness?: (fresh: boolean) => void;
   readonly onSetupReceipt?: (receipt: SetupReceipt | null) => void;
@@ -1561,6 +1609,24 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
+    ...(handlers.onFacilitatorRuleCall ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/facilitatorRuleCalls/recipients/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onFacilitatorRuleCall?.(
+          snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId, uid) : null,
+        );
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onFacilitatorRuleCall?.(null);
+          return;
+        }
+        onError();
+      },
+    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -1705,6 +1771,7 @@ export function subscribeSessionState(
       handlers.onArbourVision?.(null);
       handlers.onRoleBrief?.(null);
       handlers.onCommissarPurgeAuthority?.(null);
+      handlers.onFacilitatorRuleCall?.(null);
       handlers.onSetupReceipt?.(null);
     }
   };
@@ -1875,6 +1942,32 @@ export function subscribeGmArbourVision(
   };
 }
 
+/** Subscribe to the facilitator-only current rule call. */
+export function subscribeGmFacilitatorRuleCall(
+  sessionId: string,
+  onCall: (call: FacilitatorRuleCall | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/facilitatorRuleCalls/gm/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const call = snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId) : null;
+      if (call && !acceptsRevision(call.revision)) return;
+      onCall(call);
+    },
+    () => {
+      if (!subscribed) return;
+      onCall(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onCall(null);
+  };
+}
 
 /** Subscribe to the facilitator-only first Wolf-attack timing marker. */
 export function subscribeGmWolfAttackWindow(

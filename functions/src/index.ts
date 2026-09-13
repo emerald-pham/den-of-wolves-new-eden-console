@@ -61,6 +61,7 @@ import {
   requireFacilitatorCensusNoteRequest,
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
+  requireFacilitatorRuleCallRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -5472,6 +5473,211 @@ export const authorArbourVision = onCall<{
       instanceId: vision.instanceId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type FacilitatorRuleCallResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  callId: string;
+  revision: number;
+  ambiguity: string;
+  source: string;
+  decision: string;
+  audience: 'gm-only' | 'selected-player';
+  recipientUid?: string;
+  actorUid: string;
+  createdAt: string;
+  supersedesCallId?: string;
+  label: 'FACILITATOR RULE CALL';
+}>;
+
+function isFacilitatorRuleCallResult(
+  value: unknown,
+  sessionId: string,
+): value is FacilitatorRuleCallResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && typeof result.callId === 'string' && result.callId.length > 0 &&
+    Number.isSafeInteger(result.revision) && (result.revision as number) >= 1 &&
+    typeof result.ambiguity === 'string' && result.ambiguity.length > 0 && result.ambiguity.length <= 240 &&
+    typeof result.source === 'string' && result.source.length > 0 && result.source.length <= 240 &&
+    typeof result.decision === 'string' && result.decision.length > 0 && result.decision.length <= 500 &&
+    (result.audience === 'gm-only' || result.audience === 'selected-player') &&
+    (result.recipientUid === undefined || typeof result.recipientUid === 'string') &&
+    typeof result.actorUid === 'string' && result.actorUid.length > 0 &&
+    typeof result.createdAt === 'string' && result.createdAt.length > 0 &&
+    (result.supersedesCallId === undefined || typeof result.supersedesCallId === 'string') &&
+    result.label === 'FACILITATOR RULE CALL';
+}
+
+/** Record one durable facilitator ruling without publishing a public event. */
+export const authorFacilitatorRuleCall = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  ambiguity?: unknown;
+  source?: unknown;
+  decision?: unknown;
+  audience?: unknown;
+  recipientUid?: unknown;
+  supersedesCallId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const call = requireFacilitatorRuleCallRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/gm/current`);
+  const historyRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history/${call.requestId}`);
+  const auditRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/audit/${call.requestId}`);
+  const receiptRef = commandReceiptRef(call.sessionId, call.requestId);
+  const supersededRef = call.supersedesCallId
+    ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history/${call.supersedesCallId}`)
+    : null;
+  const recipientRef = call.recipientUid
+    ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/recipients/${call.recipientUid}`)
+    : null;
+  const fingerprint: CommandFingerprint = {
+    action: 'author-facilitator-rule-call',
+    sessionId: call.sessionId,
+    requestId: call.requestId,
+    actorUid: uid,
+    instanceId: call.instanceId,
+    expectedRevision: call.expectedRevision,
+    payload: {
+      ambiguity: call.ambiguity,
+      source: call.source,
+      decision: call.decision,
+      audience: call.audience,
+      recipientUid: call.recipientUid ?? null,
+      supersedesCallId: call.supersedesCallId ?? null,
+    },
+  };
+  const committedAt = new Date().toISOString();
+
+  return db.runTransaction(async tx => {
+    const [authority, current, receipt, superseded, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, call.sessionId, uid, call.instanceId),
+      tx.get(currentRef),
+      tx.get(receiptRef),
+      supersededRef ? tx.get(supersededRef) : Promise.resolve(null),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, call.sessionId, call.requestId, 'facilitator rule call', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is FacilitatorRuleCallResult => isFacilitatorRuleCallResult(value, call.sessionId),
+      'facilitator rule call',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('facilitator rule call');
+    if (authority.session.get('phase') === 'closed' || authority.session.get('phase') === 'retained-empty') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    const currentRevision = current.exists && current.get('type') === 'facilitator-rule-call' &&
+      Number.isSafeInteger(current.get('revision')) && (current.get('revision') as number) >= 1
+      ? current.get('revision') as number : 0;
+    if (current.exists && current.get('type') !== 'facilitator-rule-call') {
+      throw commandError('failed-precondition', 'The facilitator rule-call projection is malformed.', 'malformed-input');
+    }
+    if (currentRevision !== call.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'Facilitator rule calls changed. Refresh the live call record and try again.',
+        'stale-revision',
+      );
+    }
+    if (call.supersedesCallId) {
+      if (!superseded?.exists || superseded.get('type') !== 'facilitator-rule-call') {
+        throw commandError('failed-precondition', 'The superseded rule call is not available.', 'conflict');
+      }
+      if (superseded.get('supersededByCallId') !== undefined) {
+        throw commandError('failed-precondition', 'That rule call has already been superseded.', 'conflict');
+      }
+      if (call.supersedesCallId === call.requestId) {
+        throw commandError('failed-precondition', 'A rule call cannot supersede itself.', 'conflict');
+      }
+    }
+    if (call.audience === 'selected-player') {
+      const target = await tx.get(db.doc(`sessions/${call.sessionId}/players/${call.recipientUid}`));
+      if (!target.exists || !isActivePlayer(target) || target.get('role') !== 'player') {
+        throw commandError('failed-precondition', 'The selected recipient is not an active player.', 'conflict');
+      }
+    }
+    const revision = currentRevision + 1;
+    const result: FacilitatorRuleCallResult = {
+      status: 'committed',
+      sessionId: call.sessionId,
+      callId: call.requestId,
+      revision,
+      ambiguity: call.ambiguity,
+      source: call.source,
+      decision: call.decision,
+      audience: call.audience,
+      ...(call.recipientUid ? { recipientUid: call.recipientUid } : {}),
+      actorUid: uid,
+      createdAt: committedAt,
+      ...(call.supersedesCallId ? { supersedesCallId: call.supersedesCallId } : {}),
+      label: 'FACILITATOR RULE CALL',
+    };
+    const storedCall = {
+      type: 'facilitator-rule-call',
+      sessionId: call.sessionId,
+      callId: call.requestId,
+      revision,
+      ambiguity: call.ambiguity,
+      source: call.source,
+      decision: call.decision,
+      audience: call.audience,
+      ...(call.recipientUid ? { recipientUid: call.recipientUid } : {}),
+      actorUid: uid,
+      label: 'FACILITATOR RULE CALL',
+      ...(call.supersedesCallId ? { supersedesCallId: call.supersedesCallId } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    const recipientCall = call.recipientUid
+      ? {
+        type: storedCall.type,
+        sessionId: storedCall.sessionId,
+        callId: storedCall.callId,
+        revision: storedCall.revision,
+        ambiguity: storedCall.ambiguity,
+        source: storedCall.source,
+        decision: storedCall.decision,
+        audience: storedCall.audience,
+        recipientUid: call.recipientUid,
+        label: storedCall.label,
+        visibleToUids: [call.recipientUid],
+      }
+      : null;
+    tx.set(currentRef, storedCall);
+    tx.set(historyRef, storedCall);
+    tx.set(auditRef, {
+      type: 'facilitator-rule-call-audit',
+      callId: call.requestId,
+      sessionId: call.sessionId,
+      revision,
+      ambiguity: call.ambiguity,
+      source: call.source,
+      decision: call.decision,
+      audience: call.audience,
+      ...(call.recipientUid ? { recipientUid: call.recipientUid } : {}),
+      actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+      ...(call.supersedesCallId ? { supersedesCallId: call.supersedesCallId } : {}),
+    });
+    if (supersededRef) tx.update(supersededRef, { supersededByCallId: call.requestId });
+    if (recipientRef && recipientCall) tx.set(recipientRef, recipientCall);
+    if (call.supersedesCallId && superseded?.get('audience') === 'selected-player' &&
+        superseded.get('recipientUid') !== call.recipientUid) {
+      const previousRecipientUid = superseded.get('recipientUid');
+      if (typeof previousRecipientUid === 'string') {
+        tx.delete(db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/recipients/${previousRecipientUid}`));
+      }
+    }
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

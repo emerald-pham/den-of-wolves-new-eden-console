@@ -38,6 +38,7 @@ const {
   subscribeGmWolfAttackState,
   subscribeGmWolfAttackWindow,
   subscribeGmWolfAssignment,
+  subscribeGmFacilitatorRuleCall,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -501,6 +502,38 @@ it('projects a sole legacy GM responsibility into both canonical lanes from the 
       responsibilities: ['main', 'assistant'],
     }),
   ]);
+  stop();
+});
+
+it('parses and monotonically subscribes to the facilitator current rule call', () => {
+  const onCall = vi.fn();
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    (callback as (snapshot: unknown) => void)({
+      exists: () => true,
+      data: () => ({
+        type: 'facilitator-rule-call', sessionId: 's1', callId: 'call-1', revision: 2,
+        ambiguity: 'Question', source: 'Reference', decision: 'Decision',
+        audience: 'selected-player', recipientUid: 'u2', actorUid: 'gm1',
+        createdAt: '2026-09-13T00:00:00.000Z', label: 'FACILITATOR RULE CALL',
+      }),
+      metadata: { fromCache: false },
+    });
+    (callback as (snapshot: unknown) => void)({
+      exists: () => true,
+      data: () => ({
+        type: 'facilitator-rule-call', sessionId: 's1', callId: 'call-old', revision: 1,
+        ambiguity: 'Old', source: 'Old', decision: 'Old',
+        audience: 'gm-only', actorUid: 'gm1',
+        createdAt: '2026-09-13T00:00:00.000Z', label: 'FACILITATOR RULE CALL',
+      }),
+      metadata: { fromCache: false },
+    });
+    return vi.fn();
+  }) as never);
+
+  const stop = subscribeGmFacilitatorRuleCall('s1', onCall);
+  expect(onCall).toHaveBeenCalledTimes(1);
+  expect(onCall).toHaveBeenCalledWith(expect.objectContaining({ callId: 'call-1', revision: 2 }));
   stop();
 });
 

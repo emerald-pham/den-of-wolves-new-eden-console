@@ -225,8 +225,26 @@ service cloud.firestore {
               /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
             ).data.activeConsoleRoleId == 'refinery-124-captain'
             || get(
-              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
             ).data.activeConsoleRoleId == 'capybara-captain'));
+    }
+
+    function isEligibleFacilitatorRuleRecipient(sessionId, recipientUid) {
+      return isMember(sessionId)
+        && recipientUid == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.role == 'player';
+    }
+
+    function isCurrentFacilitatorRuleCall(sessionId, recipientUid) {
+      return isEligibleFacilitatorRuleRecipient(sessionId, recipientUid)
+        && resource.data.type == 'facilitator-rule-call'
+        && resource.data.sessionId == sessionId
+        && resource.data.audience == 'selected-player'
+        && resource.data.recipientUid == uid()
+        && resource.data.visibleToUids.size() == 1
+        && resource.data.visibleToUids[0] == uid();
     }
 
     match /sessions/{sessionId} {
@@ -424,6 +442,25 @@ service cloud.firestore {
 
       match /arbourVisionAuthority/{projectionId} {
         allow read, write: if false;
+      }
+
+      // Facilitator rule calls have separate GM history/current and exact
+      // selected-player projections. They never enter the public event feed.
+      match /facilitatorRuleCalls/gm/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId) &&
+          resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId;
+        allow list, write: if false;
+      }
+
+      match /facilitatorRuleCalls/recipients/{recipientUid} {
+        allow get: if (resource == null && isEligibleFacilitatorRuleRecipient(sessionId, recipientUid))
+          || isCurrentFacilitatorRuleCall(sessionId, recipientUid);
+        allow list, write: if false;
+      }
+
+      match /facilitatorRuleCalls/{collectionId}/{callId} {
+        allow get, list: if (collectionId == 'history' || collectionId == 'audit') && isGm(sessionId);
+        allow write: if false;
       }
 
       // Hummingbird's server dice and pending allocation are private to the
