@@ -813,6 +813,33 @@ describe('App', () => {
     expect(useSessionStore.getState().arbourVision).toEqual(vision);
   });
 
+  it('keeps the current Arbour call through duplicate and older snapshots', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const current: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 2, kind: 'suspicion',
+      text: 'The signal is compromised.', label: 'FACILITATOR CALL',
+    };
+    const older: ArbourVision = { ...current, revision: 1, text: 'Older call.' };
+    useSessionStore.getState().setIdentity(session, {
+      ...player, role: 'player', assignedRoleId: 'admiral',
+    });
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPrivateLoyalty?.({ kind: 'universal-arbour', suspicion: 10 }));
+    act(() => handlers?.onArbourVision?.(current));
+    expect(useSessionStore.getState().arbourVision).toEqual(current);
+
+    act(() => handlers?.onArbourVision?.(current));
+    expect(useSessionStore.getState().arbourVision).toEqual(current);
+    act(() => handlers?.onArbourVision?.(older));
+    expect(useSessionStore.getState().arbourVision).toEqual(current);
+  });
+
   it('renders cached session state while showing the existing red Offline indicator', async () => {
     let onFreshness: ((fresh: boolean) => void) | undefined;
     let onSession: ((next: GameSession) => void) | undefined;

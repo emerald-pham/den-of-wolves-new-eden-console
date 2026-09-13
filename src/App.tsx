@@ -366,10 +366,15 @@ function AppRoutes() {
             store.setArbourVision(null);
             return;
           }
-          if (next.revision <= arbourVisionRevisionFloor || arbourVisionBlocked) {
+          if (next.revision <= arbourVisionRevisionFloor) {
+            // Firestore may replay an equal or older non-null snapshot during
+            // reconnect. Keep the already-authorized projection intact.
+            return;
+          }
+          if (arbourVisionBlocked) {
             // Late snapshots from a former authority generation cannot be
             // buffered for a future holder or replace the current projection.
-            if (arbourVisionBlocked && arbourVisionBlockReason === 'entitlement') {
+            if (arbourVisionBlockReason === 'entitlement') {
               const candidate = pendingArbourVision?.vision;
               if (next.revision > arbourVisionRevisionFloor &&
                   (!candidate || next.revision > candidate.revision)) {
