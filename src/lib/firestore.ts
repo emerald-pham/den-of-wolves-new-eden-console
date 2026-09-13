@@ -67,7 +67,7 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse } from '@/types/crisis';
+import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -2687,9 +2687,88 @@ export function subscribeCrisisReport(
         onReport(null);
         return;
       }
-      onReport({ sessionId, crisisId: raw.crisisId, state: raw.state, revision, title: raw.title, body: raw.body });
+      onReport({
+        sessionId, crisisId: raw.crisisId, state: raw.state, revision, title: raw.title, body: raw.body,
+        ...(isCrisisKind(raw.crisisKind) ? { crisisKind: raw.crisisKind } : {}),
+      });
     },
     () => { if (subscribed) { onReport(null); onError(); } },
+  );
+  return () => { subscribed = false; unsubscribe(); };
+}
+
+function civilUnrestGrievance(value: unknown, sessionId: string, shipId: string): CivilUnrestGrievance | null {
+  const raw = recordValue(value);
+  if (!raw || raw.type !== 'civil-unrest-grievance' || raw.sessionId !== sessionId ||
+      typeof raw.crisisId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) ||
+      raw.shipId !== shipId || !['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'].includes(shipId) ||
+      (raw.visibility !== 'private' && raw.visibility !== 'public') || typeof raw.text !== 'string' ||
+      !raw.text.trim() || raw.text.length > 2000 || nonNegativeInteger(raw.revision) === undefined ||
+      nonNegativeInteger(raw.revision) === 0 || nonNegativeInteger(raw.crisisRevision) === undefined) return null;
+  return {
+    sessionId, crisisId: raw.crisisId as string, shipId,
+    visibility: raw.visibility, text: raw.text, revision: raw.revision as number,
+    crisisRevision: raw.crisisRevision as number,
+  };
+}
+
+export function subscribeCivilUnrestPublic(
+  sessionId: string,
+  onProjection: (projection: CivilUnrestPublicProjection | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/civilUnrestPublic/current`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const raw = recordValue(snapshot.data());
+      const revision = nonNegativeInteger(raw?.revision);
+      const entries = Array.isArray(raw?.grievances) ? raw.grievances : [];
+      if (!raw || raw.type !== 'civil-unrest-public' || raw.sessionId !== sessionId ||
+          typeof raw.crisisId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) ||
+          !isCrisisStateName(raw.state) || !['delivered', 'debated', 'escalated'].includes(raw.state) ||
+          revision === undefined || entries.length > 5) {
+        onProjection(null);
+        return;
+      }
+      const grievances = entries.flatMap((entry) => {
+        const item = recordValue(entry);
+        const itemRevision = nonNegativeInteger(item?.revision);
+        if (!item || typeof item.shipId !== 'string' || !['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'].includes(item.shipId) || typeof item.text !== 'string' ||
+            !item.text.trim() || item.text.length > 2000 || itemRevision === undefined || itemRevision < 1) return [];
+        return [{ shipId: item.shipId, text: item.text, revision: itemRevision }];
+      });
+      if (grievances.length !== entries.length || new Set(grievances.map((item) => item.shipId)).size !== grievances.length) {
+        onProjection(null);
+        return;
+      }
+      onProjection({
+        sessionId, crisisId: raw.crisisId,
+        state: raw.state as CivilUnrestPublicProjection['state'], revision, grievances,
+      });
+    },
+    () => { if (subscribed) { onProjection(null); onError(); } },
+  );
+  return () => { subscribed = false; unsubscribe(); };
+}
+
+export function subscribeCivilUnrestGrievance(
+  sessionId: string,
+  shipId: string,
+  onGrievance: (grievance: CivilUnrestGrievance | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/civilUnrestGrievances/${shipId}`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onGrievance(snapshot.exists() ? civilUnrestGrievance(snapshot.data(), sessionId, shipId) : null);
+    },
+    () => { if (subscribed) { onGrievance(null); onError(); } },
   );
   return () => { subscribed = false; unsubscribe(); };
 }

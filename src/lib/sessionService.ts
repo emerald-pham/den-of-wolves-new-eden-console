@@ -1620,6 +1620,34 @@ export async function recordZealotryResponse(
   });
 }
 
+/** Submit or revise one team-owned Civil Unrest grievance through the server CAS. */
+export async function submitCivilUnrestGrievance(input: {
+  crisisId: string;
+  affectedShipId?: string;
+  visibility: 'private' | 'public';
+  text: string;
+  expectedGrievanceRevision: number;
+  expectedCrisisRevision: number;
+}): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before submitting a grievance.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'submitCivilUnrestGrievance',
+    payload: {
+      sessionId: store.session.id,
+      requestId: commandId(),
+      crisisId: input.crisisId.trim(),
+      expectedCrisisRevision: input.expectedCrisisRevision,
+      expectedGrievanceRevision: input.expectedGrievanceRevision,
+      ...(input.affectedShipId ? { affectedShipId: input.affectedShipId } : {}),
+      visibility: input.visibility,
+      text: input.text.trim(),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
 /** Claim a stable role seat through the server-owned CAS transaction. */
 export async function claimSeat(seatId: string): Promise<CommandDisposition> {
   const store = useSessionStore.getState();

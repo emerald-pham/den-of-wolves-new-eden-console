@@ -710,6 +710,45 @@ describe('crisis state boundary', () => {
     });
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/zealotryResponses/current`)));
   });
+
+  it('keeps private grievances to the live team, publishes public text to members, and revokes stale team reads', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), {
+        activeVesselIds: ['icebreaker'],
+      });
+      await setDoc(doc(db, `${SESSION}/crisisState/current`), {
+        type: 'crisis-state', sessionId: 's1', crisisId: 'civil-unrest', crisisKind: 'civil-unrest',
+        state: 'delivered', revision: 4, title: 'Civil unrest', details: 'GM notes',
+      });
+      await setDoc(doc(db, `${SESSION}/civilUnrestGrievances/icebreaker`), {
+        type: 'civil-unrest-grievance', sessionId: 's1', crisisId: 'civil-unrest', shipId: 'icebreaker',
+        visibility: 'private', text: 'Private team concern', revision: 1, crisisRevision: 4,
+      });
+      await setDoc(doc(db, `${SESSION}/civilUnrestGrievances/icebreaker/audit/request-1`), {
+        type: 'civil-unrest-grievance', actorUid: 'captain', text: 'Private team concern', revision: 1,
+      });
+      await setDoc(doc(db, `${SESSION}/civilUnrestPublic/current`), {
+        type: 'civil-unrest-public', sessionId: 's1', crisisId: 'civil-unrest', state: 'delivered',
+        revision: 4, grievances: [{ shipId: 'icebreaker', text: 'Public concern', revision: 1 }],
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('captain'), `${SESSION}/civilUnrestGrievances/icebreaker`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/civilUnrestGrievances/icebreaker`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/civilUnrestPublic/current`)));
+    await assertSucceeds(getDoc(doc(as('press'), `${SESSION}/civilUnrestPublic/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/civilUnrestGrievances/icebreaker`)));
+    await assertFails(getDoc(doc(as('captain'), `${SESSION}/civilUnrestGrievances/icebreaker/audit/request-1`)));
+    await assertFails(getDocs(collection(as('captain'), `${SESSION}/civilUnrestGrievances`)));
+    await assertFails(setDoc(doc(as('captain'), `${SESSION}/civilUnrestGrievances/icebreaker`), { forged: true }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/captain`), {
+        assignedRoleId: 'shepherd-captain', activeConsoleRoleId: 'shepherd-captain',
+      });
+    });
+    await assertFails(getDoc(doc(as('captain'), `${SESSION}/civilUnrestGrievances/icebreaker`)));
+  });
 });
 
 describe('Hummingbird harvest boundary', () => {

@@ -287,6 +287,21 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'submitCivilUnrestGrievance';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly requestId: string;
+        readonly crisisId: string;
+        readonly expectedCrisisRevision: number;
+        readonly expectedGrievanceRevision: number;
+        readonly affectedShipId?: string;
+        readonly visibility: 'private' | 'public';
+        readonly text: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'claimSeat';
       readonly payload: {
         readonly sessionId: string;

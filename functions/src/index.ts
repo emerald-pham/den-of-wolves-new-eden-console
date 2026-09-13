@@ -66,6 +66,7 @@ import {
   isCanonicalRequestId,
   requireCrisisTransitionRequest,
   requireZealotryResponseRequest,
+  requireCivilUnrestGrievanceRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -111,6 +112,11 @@ import {
   requireHummingbirdHarvestRequest,
   requireCommissarPurgeRequest,
 } from './requestGuards';
+import {
+  CIVIL_UNREST_SHIP_IDS,
+  civilUnrestShipId,
+  civilUnrestShipsForRole,
+} from './civilUnrest';
 import {
   replacementRoleFor,
   replacementRoleAvailable,
@@ -258,7 +264,7 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { parseStoredZealotryResponse, type ZealotryResponseAction } from './zealotryResponse';
-import { diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
+import { civilUnrestReport, diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   availableVipCards,
@@ -6009,6 +6015,1221 @@ export const transitionCrisis = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     });
     const reportRef = db.doc(`sessions/${crisis.sessionId}/crisisReports/current`);
+    const civilUnrestPublicRef = db.doc(`sessions/${crisis.sessionId}/civilUnrestPublic/current`);
+    const civilUnrestCurrentRefs = CIVIL_UNREST_SHIP_IDS.map((shipId) =>
+      db.doc(`sessions/${crisis.sessionId}/civilUnrestGrievances/${shipId}`));
+    const civilUnrestShips = activeVesselIdsForSession(authority.session)
+      .filter((shipId) => CIVIL_UNREST_SHIP_IDS.includes(shipId as (typeof CIVIL_UNREST_SHIP_IDS)[number]))
+      .map((shipId) => (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[shipId] ?? shipId);
+    const playerReport = crisisKind === 'approaching-vessel' ? APPROACHING_VESSEL_REPORT
+      : crisisKind === 'religious-zealotry' ? RELIGIOUS_ZEALOTRY_REPORT
+      : crisisKind === 'presidential-election' ? PRESIDENTIAL_ELECTION_REPORT
+      : crisisKind === 'civil-unrest' ? civilUnrestReport(civilUnrestShips)
+      : crisisKind === 'disease-outbreak' && disease ? diseaseOutbreakReport(disease, disease.affectedShipIds.map(id => (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[id] ?? id)) : null;
+    if (crisis.state === 'draft') {
+      // A new draft must never retain the previously delivered crisis report.
+      tx.delete(reportRef);
+      if (replacingClosedCrisis) {
+        // The current facilitator decision belongs to the closed crisis. Keep
+        // immutable history and audit, but force a fresh decision for the new
+        // crisis rather than letting the private projection bleed across IDs.
+        tx.delete(zealotryResponseRef);
+      }
+      tx.delete(civilUnrestPublicRef);
+      civilUnrestCurrentRefs.forEach((ref) => tx.delete(ref));
+    } else {
+      if (crisis.state === 'closed') {
+        // Retire the current grievance projections while preserving their GM-only
+        // audit subcollections under the deleted parent documents.
+        tx.delete(civilUnrestPublicRef);
+        civilUnrestCurrentRefs.forEach((ref) => tx.delete(ref));
+      }
+      if (playerReport) {
+      // Only this fixed player report crosses the private crisis boundary.
+      // The facilitator's reality, difficulty and override notes stay private.
+      tx.set(reportRef, {
+        sessionId: crisis.sessionId,
+        crisisId: crisis.crisisId,
+        crisisKind,
+        state: crisis.state,
+        revision,
+        ...playerReport,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      }
+    }
+    if (crisis.state !== 'draft') {
+      tx.set(eventRef, buildPrivacySafeEventRecord({
+        type: 'crisis-state',
+        envelope: buildAuthoritativeEventEnvelope({
+          sessionId: crisis.sessionId,
+          actorUid: uid,
+          actorRoleId: null,
+          turn: sessionTurn(authority.session.get('currentTurn')),
+          phase: vesselActionPhase(authority.session),
+          type: 'crisis-state',
+          requestId: crisis.requestId,
+          revision,
+          serverTime: new Date(),
+          visibility: EventVisibility.Member,
+        }),
+        payload: { crisisId: crisis.crisisId, state: crisis.state, title: crisis.title, details: crisis.details },
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+    }
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Record the facilitator's explicit live eligibility decision. */
+export const setReplacementEligibility = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  reason?: unknown;
+  expectedRevision?: unknown;
+  expectedSetupRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const decision = requireReplacementEligibilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${decision.sessionId}`);
+  const targetRef = db.doc(`sessions/${decision.sessionId}/players/${decision.targetUid}`);
+  const eligibilityRef = db.doc(`sessions/${decision.sessionId}/replacementEligibility/${decision.targetUid}`);
+  const receiptRef = commandReceiptRef(decision.sessionId, decision.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-replacement-eligibility', sessionId: decision.sessionId,
+    requestId: decision.requestId, actorUid: uid, instanceId: decision.instanceId,
+    expectedRevision: decision.expectedRevision,
+    payload: {
+      targetUid: decision.targetUid, reason: decision.reason,
+      expectedSetupRevision: decision.expectedSetupRevision,
+    },
+  };
+  return db.runTransaction(async (tx): Promise<ReplacementMutationResult> => {
+    const [authority, target, eligibility, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, decision.sessionId, uid, decision.instanceId),
+      tx.get(targetRef), tx.get(eligibilityRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ReplacementMutationResult => isReplacementMutationResult(value, decision.sessionId),
+      'replacement eligibility',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(authority.session);
+    if (!target.exists || target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'Only a player record can receive replacement eligibility.', 'conflict');
+    }
+    if (setupRevision(authority.session) !== decision.expectedSetupRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: decision.sessionId,
+        targetUid: decision.targetUid, revision: replacementRevision(eligibility),
+        setupRevision: setupRevision(authority.session),
+      } satisfies ReplacementMutationResult;
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const currentRevision = replacementRevision(eligibility);
+    if (currentRevision !== decision.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: decision.sessionId,
+        targetUid: decision.targetUid, revision: currentRevision,
+        setupRevision: setupRevision(authority.session),
+      } satisfies ReplacementMutationResult;
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const result = {
+      status: 'committed' as const, sessionId: decision.sessionId,
+      targetUid: decision.targetUid, revision: currentRevision + 1,
+      setupRevision: setupRevision(authority.session) + 1,
+    } satisfies ReplacementMutationResult;
+    tx.set(eligibilityRef, {
+      sessionId: decision.sessionId, targetUid: decision.targetUid,
+      reason: decision.reason, eligible: true, revision: result.revision,
+      actorUid: uid, requestId: decision.requestId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(db.doc(`sessions/${decision.sessionId}/replacementEligibility/${decision.targetUid}/audit/${decision.requestId}`), {
+      sessionId: decision.sessionId, targetUid: decision.targetUid,
+      reason: decision.reason, revision: result.revision, actorUid: uid,
+      requestId: decision.requestId, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Assign one source-defined replacement role after an explicit eligibility decision. */
+export const assignReplacementRole = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  replacementRoleId?: unknown;
+  expectedRevision?: unknown;
+  expectedSetupRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireReplacementAssignmentRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const targetRef = db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`);
+  const targetSecretRef = db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.targetUid}`);
+  const eligibilityRef = db.doc(`sessions/${assignment.sessionId}/replacementEligibility/${assignment.targetUid}`);
+  const receiptRef = commandReceiptRef(assignment.sessionId, assignment.requestId);
+  const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'assign-replacement-role', sessionId: assignment.sessionId,
+    requestId: assignment.requestId, actorUid: uid, instanceId: assignment.instanceId,
+    expectedRevision: assignment.expectedRevision,
+    payload: {
+      targetUid: assignment.targetUid, replacementRoleId: assignment.replacementRoleId,
+      expectedSetupRevision: assignment.expectedSetupRevision,
+    },
+  };
+  return db.runTransaction(async (tx): Promise<ReplacementMutationResult> => {
+    const authority = await requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId);
+    const [target, eligibility, players, receipt, targetSecret] = await Promise.all([
+      tx.get(targetRef), tx.get(eligibilityRef),
+      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)), tx.get(receiptRef),
+      tx.get(targetSecretRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ReplacementMutationResult => isReplacementMutationResult(value, assignment.sessionId),
+      'replacement assignment',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(authority.session);
+    if (setupRevision(authority.session) !== assignment.expectedSetupRevision) {
+      const stale = {
+        status: 'stale' as const, sessionId: assignment.sessionId,
+        targetUid: assignment.targetUid, revision: replacementRevision(eligibility),
+        setupRevision: setupRevision(authority.session),
+      } satisfies ReplacementMutationResult;
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const role = replacementRoleFor(assignment.replacementRoleId);
+    const activeVesselIds = replacementVesselIds(authority.session);
+    if (!role || !replacementRoleAvailable(assignment.replacementRoleId, {
+      activeVesselIds, expansion: String(authority.session.get('expansion') ?? 'base'),
+    })) {
+      throw commandError('failed-precondition', 'That replacement role is not active in this session.', 'conflict');
+    }
+    if (!target.exists || target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'Only a player record can receive a replacement role.', 'conflict');
+    }
+    if (typeof target.get('replacementRoleId') === 'string') {
+      throw commandError('failed-precondition', 'This player already has an active replacement role.', 'conflict');
+    }
+    const currentRevision = replacementRevision(eligibility);
+    if (eligibility.get('eligible') !== true || currentRevision !== assignment.expectedRevision) {
+      throw commandError('failed-precondition', 'The player has no matching live replacement eligibility decision.', 'stale-revision');
+    }
+    if (replacementRoleIsOccupied(players.docs, assignment.targetUid, role)) {
+      throw commandError('failed-precondition', 'That replacement role is already assigned.', 'conflict');
+    }
+    const storedSeatId = target.get('seatId');
+    const targetSeatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+      ? db.doc(`sessions/${assignment.sessionId}/seats/${storedSeatId}`) : undefined;
+    const targetSeat = targetSeatRef ? await tx.get(targetSeatRef) : undefined;
+    if (targetSeatRef && (!targetSeat?.exists || targetSeat.get('holderUid') !== assignment.targetUid ||
+        targetSeat.get('status') !== 'claimed')) {
+      throw commandError('failed-precondition', 'The player station pointer is stale; repair it before replacement.', 'unavailable-service');
+    }
+    // A Friend counterpart may need the target's new replacement identity. Read
+    // and update that private secret only for a complete reciprocal pair with
+    // exact audiences; malformed or unrelated legacy records stay untouched.
+    const friendPartnerUid = privateFriendPartnerUid(targetSecret, assignment.targetUid);
+    const friendPartnerSecretRef = friendPartnerUid
+      ? db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${friendPartnerUid}`)
+      : undefined;
+    const friendPartnerSecret = friendPartnerSecretRef ? await tx.get(friendPartnerSecretRef) : undefined;
+    if (friendPartnerUid && friendPartnerSecretRef && isCompleteReciprocalFriendPair(
+      targetSecret, assignment.targetUid, target.get('assignedRoleId'),
+      friendPartnerSecret, friendPartnerUid, assignment.targetUid,
+    )) {
+      tx.update(friendPartnerSecretRef, { 'payload.partnerRoleId': assignment.replacementRoleId });
+    }
+    const result = {
+      status: 'committed' as const, sessionId: assignment.sessionId,
+      targetUid: assignment.targetUid, revision: currentRevision + 1,
+      setupRevision: setupRevision(authority.session) + 1,
+      replacementRoleId: assignment.replacementRoleId,
+    } satisfies ReplacementMutationResult;
+    const privateBrief = serializedRoleBrief(
+      assignment.sessionId, assignment.targetUid, assignment.replacementRoleId,
+      result.setupRevision, {
+        capybaraExpansion: authority.session.get('expansion') === 'capybara',
+        activeRoleIds: configuredRoleIds(authority.session),
+      },
+    );
+    if (!privateBrief) {
+      throw commandError('failed-precondition', 'Replacement role brief is unavailable.', 'malformed-input');
+    }
+    const storedNavigation = await tx.get(navigationStateRef(assignment.sessionId));
+    const navigation = navigationStateForSession(storedNavigation, authority.session, activeVesselIds);
+    const rawNavigationRevision = storedNavigation.get('revision');
+    const navigationRevision = typeof rawNavigationRevision === 'number' &&
+      Number.isSafeInteger(rawNavigationRevision) && rawNavigationRevision >= 0 ? rawNavigationRevision : 0;
+    writePlayerDiscoveryProjection(
+      tx, playerDiscoveryProjectionRef(assignment.sessionId, assignment.targetUid),
+      { get: (field: string) => field === 'replacementRoleId' ? assignment.replacementRoleId : target.get(field) },
+      navigation, navigationRevision,
+    );
+    tx.update(targetRef, {
+      replacementRoleId: assignment.replacementRoleId,
+      activeConsoleRoleId: null,
+      seatId: null,
+    });
+    if (targetSeatRef) tx.update(targetSeatRef, { status: 'open', holderUid: null, claimedAt: null });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/roleBriefs/${assignment.targetUid}`), privateBrief);
+    tx.set(eligibilityRef, {
+      ...eligibility.data(), eligible: false, consumedAt: FieldValue.serverTimestamp(),
+      replacementRoleId: assignment.replacementRoleId, consumedByRequestId: assignment.requestId,
+      revision: result.revision, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/replacementAssignments/${assignment.requestId}`), {
+      sessionId: assignment.sessionId, targetUid: assignment.targetUid,
+      sourceRoleId: typeof target.get('assignedRoleId') === 'string' ? target.get('assignedRoleId') : null,
+      replacementRoleId: assignment.replacementRoleId, reason: eligibility.get('reason'),
+      previousSeatId: storedSeatId ?? null, seatReleased: targetSeatRef !== undefined,
+      loyaltyPreserved: true, actorUid: uid, requestId: assignment.requestId,
+      revision: result.revision, setupRevision: result.setupRevision,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${assignment.sessionId}/replacementAssignments/${assignment.requestId}/audit/${assignment.requestId}`), {
+      sessionId: assignment.sessionId, targetUid: assignment.targetUid,
+      replacementRoleId: assignment.replacementRoleId, actorUid: uid,
+      requestId: assignment.requestId, revision: result.revision,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'replacement-assignment',
+      payload: { actorUid: uid, requestId: assignment.requestId, revision: result.revision },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type LoyaltyAssignmentFingerprint = Readonly<{
+  action: 'assign-loyalty';
+  sessionId: string;
+  actorUid: string;
+  instanceId: string;
+  targetUid: string;
+  kind: string;
+  suspicion: number | null;
+  partnerUid: string | null;
+}>;
+
+function loyaltyAssignmentFingerprint(
+  assignment: ReturnType<typeof requireLoyaltyAssignmentRequest>,
+  actorUid: string,
+): LoyaltyAssignmentFingerprint {
+  return {
+    action: 'assign-loyalty',
+    sessionId: assignment.sessionId,
+    actorUid,
+    instanceId: assignment.instanceId,
+    targetUid: assignment.targetUid,
+    kind: assignment.kind,
+    suspicion: assignment.suspicion,
+    partnerUid: assignment.partnerUid ?? null,
+  };
+}
+
+function sameLoyaltyAssignmentFingerprint(
+  value: unknown,
+  expected: LoyaltyAssignmentFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.action === expected.action &&
+    candidate.sessionId === expected.sessionId &&
+    candidate.actorUid === expected.actorUid &&
+    candidate.instanceId === expected.instanceId &&
+    candidate.targetUid === expected.targetUid &&
+    candidate.kind === expected.kind &&
+    candidate.suspicion === expected.suspicion &&
+    candidate.partnerUid === expected.partnerUid;
+}
+
+function isBoundLoyaltyAssignmentFingerprint(
+  value: unknown,
+): value is LoyaltyAssignmentFingerprint {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.action === 'assign-loyalty' &&
+    typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0 &&
+    typeof candidate.actorUid === 'string' && candidate.actorUid.length > 0 &&
+    typeof candidate.instanceId === 'string' && candidate.instanceId.length > 0 &&
+    typeof candidate.targetUid === 'string' && candidate.targetUid.length > 0 &&
+    typeof candidate.kind === 'string' && candidate.kind.length > 0 &&
+    (candidate.suspicion === null ||
+      (typeof candidate.suspicion === 'number' && Number.isFinite(candidate.suspicion))) &&
+    (candidate.partnerUid === null ||
+      (typeof candidate.partnerUid === 'string' && candidate.partnerUid.length > 0));
+}
+
+/** Keep the receipt's duplicated query fields bound to its replay fingerprint. */
+function hasMatchingLoyaltyReceiptBinding(
+  receipt: DocumentSnapshot,
+  fingerprint: LoyaltyAssignmentFingerprint,
+): boolean {
+  return sameLoyaltyAssignmentFingerprint({
+    action: receipt.get('action'),
+    sessionId: receipt.get('sessionId'),
+    actorUid: receipt.get('actorUid'),
+    instanceId: receipt.get('instanceId'),
+    targetUid: receipt.get('targetUid'),
+    kind: receipt.get('kind'),
+    suspicion: receipt.get('suspicion'),
+    partnerUid: receipt.get('partnerUid'),
+  }, fingerprint);
+}
+
+function isBoundLoyaltyAssignmentResult(
+  value: unknown,
+  fingerprint: LoyaltyAssignmentFingerprint,
+): value is CastingMutationResult & { assignedUids: readonly string[] } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  const assignedUids = candidate.assignedUids;
+  const expectedUids = fingerprint.partnerUid
+    ? [fingerprint.targetUid, fingerprint.partnerUid]
+    : [fingerprint.targetUid];
+  return candidate.sessionId === fingerprint.sessionId &&
+    Number.isInteger(candidate.setupRevision) && (candidate.setupRevision as number) >= 0 &&
+    Array.isArray(assignedUids) && assignedUids.length === expectedUids.length &&
+    assignedUids.every((assignedUid, index) => assignedUid === expectedUids[index]);
+}
+
+function isCanonicalLoyaltyHolder(
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): boolean {
+  if (!player || !player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
+    return false;
+  }
+  const assignedRoleId = player.get('assignedRoleId');
+  if (typeof assignedRoleId !== 'string' || !activeRoleIds.includes(assignedRoleId)) return false;
+  // A loyalty secret must never attach to an ambiguous or stale role holder.
+  return !players.some((candidate) => candidate.id !== uid &&
+    !isKickedPlayer(candidate) && candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
+}
+
+/**
+ * Census membership follows the persisted core role assignment, not transient
+ * presence. A disconnected core player keeps their loyalty until an
+ * authoritative release removes that assignment and secret.
+ */
+function isPersistedCanonicalLoyaltyHolder(
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): boolean {
+  if (!player || !player.exists || isKickedPlayer(player) || player.id !== uid || player.get('role') !== 'player') return false;
+  const assignedRoleId = player.get('assignedRoleId');
+  if (typeof assignedRoleId !== 'string' || !activeRoleIds.includes(assignedRoleId)) return false;
+  return !players.some((candidate) => candidate.id !== uid && !isKickedPlayer(candidate) &&
+    candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
+}
+
+function requireCanonicalLoyaltyHolder(
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+  label: string,
+): void {
+  if (isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)) return;
+  throw commandError(
+    'failed-precondition',
+    `${label} must be an active non-GM holder of one unique role in the configured roster.`,
+    'conflict',
+  );
+}
+
+type CanonicalLoyaltySecret = Readonly<{
+  uid: string;
+  kind: LoyaltyKind;
+}>;
+
+type LoyaltyCensusEntry = Readonly<{
+  uid: string;
+  kind: LoyaltyKind;
+  suspicion: number | null;
+  note?: string;
+}>;
+
+function loyaltyCensusEntryFromSecret(
+  secret: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): LoyaltyCensusEntry | null {
+  if (!secret.exists || !secret.id.startsWith('loyalty-')) return null;
+  const uid = secret.id.slice('loyalty-'.length);
+  if (!uid || !hasExactPrivateSecretAudience(secret, uid)) return null;
+  const holder = players.find((candidate) => candidate.id === uid);
+  const eligibleCoreHolder = isPersistedCanonicalLoyaltyHolder(holder, uid, players, activeRoleIds);
+  const eligiblePressHolder = Boolean(holder && isActivePlayer(holder) && holder.get('role') === 'player' && hasPressState(holder));
+  if (!eligibleCoreHolder && !eligiblePressHolder) return null;
+  const payload = secret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  if (record.type !== 'loyalty' || typeof record.kind !== 'string') return null;
+  const suspicion = record.suspicion === null
+    ? null
+    : typeof record.suspicion === 'number' ? record.suspicion : Number.NaN;
+  const decision = loyaltyAssignmentDecision(record.kind, suspicion);
+  if (!decision.allowed) return null;
+  if (record.kind !== 'friend' && record.partnerUid !== undefined && record.partnerUid !== null) return null;
+  if (record.kind === 'friend' &&
+      (typeof record.partnerUid !== 'string' || record.partnerUid === uid)) return null;
+  return { uid, kind: record.kind as LoyaltyKind, suspicion: decision.suspicion };
+}
+
+
+function wolfCultIdentity(entries: readonly LoyaltyCensusEntry[]): { cultUid: string; agentUid: string } | null {
+  const cults = entries.filter((entry) => entry.kind === 'wolf-cult');
+  const agents = entries.filter((entry) => entry.kind === 'wolf-agent');
+  return cults.length === 1 && agents.length === 1
+    ? { cultUid: cults[0]!.uid, agentUid: agents[0]!.uid }
+    : null;
+}
+
+function wolfCultHolderUids(entries: readonly LoyaltyCensusEntry[]): readonly string[] {
+  return entries.filter((entry) => entry.kind === 'wolf-cult').map((entry) => entry.uid);
+}
+
+function setLoyaltyCensusFromSecrets(
+  tx: Transaction,
+  sessionId: string,
+  revision: number,
+  secrets: readonly DocumentSnapshot[],
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+  patches: ReadonlyMap<string, LoyaltyCensusEntry | null> = new Map(),
+  previousCensus?: DocumentSnapshot,
+): void {
+  const previousNotes = censusNotesFromSnapshot(previousCensus);
+  const previousRevision = previousCensus?.exists && Number.isSafeInteger(previousCensus.get('revision')) &&
+    (previousCensus.get('revision') as number) >= 0
+    ? previousCensus.get('revision') as number
+    : -1;
+  const censusRevision = Math.max(revision, previousRevision + 1);
+  const entries = new Map<string, LoyaltyCensusEntry>();
+  for (const secret of secrets) {
+    const entry = loyaltyCensusEntryFromSecret(secret, players, activeRoleIds);
+    if (entry) {
+      const note = previousNotes.get(entry.uid);
+      entries.set(entry.uid, note ? { ...entry, note } : entry);
+    }
+  }
+  for (const [uid, entry] of patches) {
+    if (entry) {
+      const note = entry.note ?? previousNotes.get(uid);
+      entries.set(uid, note ? { ...entry, note } : entry);
+    }
+    else entries.delete(uid);
+  }
+  const nextEntries = [...entries.values()].sort((left, right) => left.uid.localeCompare(right.uid));
+  const previousEntries = storedLoyaltyCensusEntries(previousCensus) ?? [];
+  const previousWolf = wolfCultIdentity(previousEntries);
+  const nextWolf = wolfCultIdentity(nextEntries);
+  const previousCultUid = previousWolf?.cultUid ?? null;
+  const nextCultUid = nextWolf?.cultUid ?? null;
+  tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
+    type: 'loyalty-census',
+    revision: censusRevision,
+    entries: nextEntries,
+  });
+  const wolfIdentityChanged = !previousWolf || !nextWolf ||
+    previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
+  if (wolfIdentityChanged) {
+    tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
+    const staleHolderUids = new Set([
+      ...wolfCultHolderUids(previousEntries),
+      ...wolfCultHolderUids(nextEntries),
+      ...(previousCultUid ? [previousCultUid] : []),
+      ...(nextCultUid ? [nextCultUid] : []),
+    ]);
+    for (const holderUid of staleHolderUids) {
+      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${holderUid}`));
+    }
+  }
+  tx.set(db.doc(`sessions/${sessionId}/wolfCultIntelligenceAuthority/current`), {
+    type: 'wolf-cult-intelligence-authority',
+    sessionId,
+    recipientUid: nextCultUid,
+    revision: censusRevision,
+  });
+  tx.set(db.doc(`sessions/${sessionId}/arbourVisionAuthority/current`), {
+    type: 'arbour-vision-authority',
+    sessionId,
+    recipientUid: nextEntries.find((entry) => entry.kind === 'universal-arbour')?.uid ?? null,
+    revision: censusRevision,
+  });
+}
+
+export function setLoyaltyCensusEntries(
+  tx: Transaction,
+  sessionId: string,
+  revision: number,
+  entries: readonly LoyaltyCensusEntry[],
+  previousCensus?: DocumentSnapshot,
+): void {
+  const previousNotes = censusNotesFromSnapshot(previousCensus);
+  const previousRevision = previousCensus?.exists && Number.isSafeInteger(previousCensus.get('revision')) &&
+    (previousCensus.get('revision') as number) >= 0
+    ? previousCensus.get('revision') as number
+    : -1;
+  const censusRevision = Math.max(revision, previousRevision + 1);
+  const nextEntries = entries.map((entry) => {
+    const note = entry.note ?? previousNotes.get(entry.uid);
+    return note ? { ...entry, note } : entry;
+  }).sort((left, right) => left.uid.localeCompare(right.uid));
+  const previousEntries = storedLoyaltyCensusEntries(previousCensus) ?? [];
+  const previousWolf = wolfCultIdentity(previousEntries);
+  const nextWolf = wolfCultIdentity(nextEntries);
+  const previousCultUid = previousWolf?.cultUid ?? null;
+  const nextCultUid = nextWolf?.cultUid ?? null;
+  tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
+    type: 'loyalty-census',
+    revision: censusRevision,
+    entries: nextEntries,
+  });
+  const wolfIdentityChanged = !previousWolf || !nextWolf ||
+    previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
+  if (wolfIdentityChanged) {
+    tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
+    const staleHolderUids = new Set([
+      ...wolfCultHolderUids(previousEntries),
+      ...wolfCultHolderUids(nextEntries),
+      ...(previousCultUid ? [previousCultUid] : []),
+      ...(nextCultUid ? [nextCultUid] : []),
+    ]);
+    for (const holderUid of staleHolderUids) {
+      tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/${holderUid}`));
+    }
+  }
+  tx.set(db.doc(`sessions/${sessionId}/wolfCultIntelligenceAuthority/current`), {
+    type: 'wolf-cult-intelligence-authority',
+    sessionId,
+    recipientUid: nextCultUid,
+    revision: censusRevision,
+  });
+  tx.set(db.doc(`sessions/${sessionId}/arbourVisionAuthority/current`), {
+    type: 'arbour-vision-authority',
+    sessionId,
+    recipientUid: nextEntries.find((entry) => entry.kind === 'universal-arbour')?.uid ?? null,
+    revision: censusRevision,
+  });
+}
+
+function censusNotesFromSnapshot(snapshot: DocumentSnapshot | undefined): Map<string, string> {
+  const notes = new Map<string, string>();
+  if (!snapshot?.exists) return notes;
+  const entries = snapshot.get('entries');
+  if (!Array.isArray(entries)) return notes;
+  for (const rawEntry of entries) {
+    if (typeof rawEntry !== 'object' || rawEntry === null || Array.isArray(rawEntry)) continue;
+    const entry = rawEntry as Record<string, unknown>;
+    if (typeof entry.uid === 'string' && typeof entry.note === 'string' && entry.note.trim()) {
+      notes.set(entry.uid, entry.note.trim().slice(0, 240));
+    }
+  }
+  return notes;
+}
+
+function storedLoyaltyCensusEntries(snapshot: DocumentSnapshot | undefined): LoyaltyCensusEntry[] | null {
+  if (!snapshot?.exists) return null;
+  const rawEntries = snapshot.get('entries');
+  if (!Array.isArray(rawEntries)) return null;
+  const entries: LoyaltyCensusEntry[] = [];
+  for (const rawEntry of rawEntries) {
+    if (typeof rawEntry !== 'object' || rawEntry === null || Array.isArray(rawEntry)) return null;
+    const entry = rawEntry as Record<string, unknown>;
+    if (
+      typeof entry.uid !== 'string' || !entry.uid ||
+      typeof entry.kind !== 'string' || !entry.kind ||
+      (typeof entry.suspicion !== 'number' && entry.suspicion !== null) ||
+      (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 240))
+    ) return null;
+    entries.push({
+      uid: entry.uid,
+      kind: entry.kind as LoyaltyKind,
+      suspicion: entry.suspicion,
+      ...(typeof entry.note === 'string' && entry.note.trim() ? { note: entry.note.trim() } : {}),
+    });
+  }
+  return new Set(entries.map((entry) => entry.uid)).size === entries.length ? entries : null;
+}
+
+type FacilitatorCensusNoteResult = Readonly<{
+  sessionId: string;
+  targetUid: string;
+  revision: number;
+  note: string;
+}>;
+
+function isFacilitatorCensusNoteResult(value: unknown, sessionId: string): value is FacilitatorCensusNoteResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return result.sessionId === sessionId &&
+    typeof result.targetUid === 'string' &&
+    Number.isSafeInteger(result.revision) && (result.revision as number) >= 0 &&
+    typeof result.note === 'string' && result.note.length <= 240;
+}
+
+/** Save a facilitator-only census note without publishing private facts. */
+export const setFacilitatorCensusNote = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  note?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireFacilitatorCensusNoteRequest(request.data ?? {});
+  const censusRef = db.doc(`sessions/${change.sessionId}/loyaltyCensus/current`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/loyaltyCensus/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-facilitator-census-note',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: change.instanceId,
+    expectedRevision: change.expectedRevision,
+    payload: { targetUid: change.targetUid, note: change.note },
+  };
+
+  return db.runTransaction(async (tx): Promise<FacilitatorCensusNoteResult> => {
+    const [authority, census, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId),
+      tx.get(censusRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, change.sessionId, change.requestId, 'facilitator census note', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is FacilitatorCensusNoteResult => isFacilitatorCensusNoteResult(value, change.sessionId),
+      'facilitator census note',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('facilitator census note');
+    if (authority.session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    const currentRevision = census.exists && Number.isSafeInteger(census.get('revision')) &&
+      (census.get('revision') as number) >= 0
+      ? census.get('revision') as number
+      : 0;
+    if (!census.exists || currentRevision !== change.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator census changed. Wait for the live census and try again.',
+        'stale-revision',
+      );
+    }
+    const entries = storedLoyaltyCensusEntries(census);
+    if (!entries) {
+      throw commandError('failed-precondition', 'The facilitator census is malformed; refresh before retrying.', 'malformed-input');
+    }
+    if (!entries.some((entry) => entry.uid === change.targetUid)) {
+      throw commandError('failed-precondition', 'That identity is not currently in the facilitator census.', 'conflict');
+    }
+    const nextRevision = currentRevision + 1;
+    const nextEntries = entries.map((entry) => {
+      if (entry.uid !== change.targetUid) return entry;
+      return change.note ? { ...entry, note: change.note } : (() => {
+        const withoutNote = { ...entry };
+        delete withoutNote.note;
+        return withoutNote;
+      })();
+    });
+    const result: FacilitatorCensusNoteResult = {
+      sessionId: change.sessionId,
+      targetUid: change.targetUid,
+      revision: nextRevision,
+      note: change.note,
+    };
+    tx.set(censusRef, {
+      type: 'loyalty-census',
+      revision: nextRevision,
+      entries: nextEntries,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'loyalty-census-note',
+      action: change.note ? 'set' : 'clear',
+      targetUid: change.targetUid,
+      revision: nextRevision,
+      actorUid: uid,
+      instanceId: change.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfCultIntelligenceResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  recipientUid: string;
+  revision: number;
+  fortressCoordinate: string;
+  suppliesCoordinate: string;
+  agentUid: string;
+  codeWord: string;
+  label: 'WOLF INTEL';
+}>;
+
+function isWolfCultIntelligenceResult(
+  value: unknown,
+  sessionId: string,
+): value is WolfCultIntelligenceResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') && result.sessionId === sessionId &&
+    typeof result.recipientUid === 'string' && Number.isSafeInteger(result.revision) &&
+    (result.revision as number) >= 1 && typeof result.fortressCoordinate === 'string' &&
+    typeof result.suppliesCoordinate === 'string' && typeof result.agentUid === 'string' &&
+    typeof result.codeWord === 'string' && result.codeWord.length > 0 &&
+    result.codeWord.length <= 80 && result.label === 'WOLF INTEL';
+}
+
+/** Deliver the four source-defined Wolf Cult facts to its current holder. */
+export const deliverWolfCultIntelligence = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  fortressCoordinate?: unknown;
+  suppliesCoordinate?: unknown;
+  agentUid?: unknown;
+  codeWord?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const intelligence = requireWolfCultIntelligenceRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/current`);
+  const authorityRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligenceAuthority/current`);
+  const secretsRef = db.collection(`sessions/${intelligence.sessionId}/secrets`);
+  const playersRef = db.collection(`sessions/${intelligence.sessionId}/players`);
+  const auditRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/current/audit/${intelligence.requestId}`);
+  const receiptRef = commandReceiptRef(intelligence.sessionId, intelligence.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'deliver-wolf-cult-intelligence',
+    sessionId: intelligence.sessionId,
+    requestId: intelligence.requestId,
+    actorUid: uid,
+    instanceId: intelligence.instanceId,
+    expectedRevision: intelligence.expectedRevision,
+    payload: {
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid: intelligence.agentUid,
+      codeWord: intelligence.codeWord,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<WolfCultIntelligenceResult> => {
+    const [authority, current, players, secrets, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, intelligence.sessionId, uid, intelligence.instanceId),
+      tx.get(currentRef),
+      tx.get(playersRef),
+      tx.get(secretsRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, intelligence.sessionId, intelligence.requestId, 'Wolf Cult intelligence', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is WolfCultIntelligenceResult =>
+        isWolfCultIntelligenceResult(value, intelligence.sessionId),
+      'Wolf Cult intelligence',
+    );
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Wolf Cult intelligence');
+    requireActiveGameplayPhase(authority.session);
+
+    const activeRoleIds = configuredRoleIds(authority.session);
+    const canonicalSecrets = secrets.docs
+      .map((secret) => canonicalLoyaltySecret(secret, players.docs, activeRoleIds))
+      .filter((secret): secret is CanonicalLoyaltySecret => secret !== null);
+    const cultHolders = canonicalSecrets.filter((secret) => secret.kind === 'wolf-cult');
+    const wolfAgents = canonicalSecrets.filter((secret) => secret.kind === 'wolf-agent');
+    if (authority.session.get('wolfCultEnabled') !== true || cultHolders.length !== 1 || wolfAgents.length !== 1) {
+      throw commandError(
+        'failed-precondition',
+        'Wolf Cult intelligence requires one current Cult leader and one current Wolf agent.',
+        'conflict',
+      );
+    }
+    const recipientUid = cultHolders[0]!.uid;
+    const agentUid = wolfAgents[0]!.uid;
+    if (intelligence.agentUid !== agentUid) {
+      throw commandError(
+        'failed-precondition',
+        'The supplied Wolf agent does not match the current authoritative loyalty assignment.',
+        'conflict',
+      );
+    }
+    const currentRevisionValue = current.get('revision');
+    const currentRevision = current.exists && Number.isSafeInteger(currentRevisionValue) &&
+      (currentRevisionValue as number) >= 0 ? currentRevisionValue as number : 0;
+    if (current.exists && (
+      current.get('type') !== 'wolf-cult-intelligences' ||
+      current.get('sessionId') !== intelligence.sessionId ||
+      !Number.isSafeInteger(currentRevisionValue) ||
+      (currentRevisionValue as number) < 0 ||
+      !isWireSafeEntityId(current.get('recipientUid'))
+    )) {
+      throw commandError('failed-precondition', 'The Wolf Cult intelligence projection is malformed.', 'malformed-input');
+    }
+    if (currentRevision !== intelligence.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'Wolf Cult intelligence changed. Refresh the private projection and try again.',
+        'stale-revision',
+      );
+    }
+    const revision = currentRevision + 1;
+    const result: WolfCultIntelligenceResult = {
+      status: 'committed',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      revision,
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid,
+      codeWord: intelligence.codeWord,
+      label: 'WOLF INTEL',
+    };
+    const gmUids = players.docs
+      .filter((player) => isActivePlayer(player) && player.get('role') === 'gm')
+      .map((player) => player.id);
+    const recipientProjectionRef = db.doc(
+      `sessions/${intelligence.sessionId}/wolfCultIntelligence/${recipientUid}`,
+    );
+    const previousRecipientUid = current.get('recipientUid');
+    tx.set(recipientProjectionRef, {
+      type: 'wolf-cult-intelligence',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      visibleToUids: [recipientUid],
+      revision,
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid,
+      codeWord: intelligence.codeWord,
+      label: 'WOLF INTEL',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(currentRef, {
+      type: 'wolf-cult-intelligences',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      visibleToUids: gmUids,
+      revision,
+      fortressCoordinate: intelligence.fortressCoordinate,
+      suppliesCoordinate: intelligence.suppliesCoordinate,
+      agentUid,
+      codeWord: intelligence.codeWord,
+      label: 'WOLF INTEL',
+      actorUid: uid,
+      instanceId: intelligence.instanceId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(authorityRef, {
+      type: 'wolf-cult-intelligence-authority',
+      sessionId: intelligence.sessionId,
+      recipientUid,
+      revision,
+    });
+    if (isWireSafeEntityId(previousRecipientUid) && previousRecipientUid !== recipientUid) {
+      tx.delete(db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/${previousRecipientUid}`));
+    }
+    tx.set(auditRef, {
+      type: 'wolf-cult-intelligence',
+      action: 'deliver',
+      recipientUid,
+      revision,
+      actorUid: uid,
+      instanceId: intelligence.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type ArbourVisionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  recipientUid: string;
+  revision: number;
+  kind: 'location' | 'danger' | 'suspicion';
+  text: string;
+  label: 'FACILITATOR CALL';
+}>;
+
+type CrisisTransitionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  state: CrisisStateName;
+  revision: number;
+  title: string;
+}>;
+
+type ZealotryResponseResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  crisisRevision: number;
+  revision: number;
+  actions: readonly ZealotryResponseAction[];
+  customResponse?: string;
+  rationale: string;
+  loyaltyCensusRevision: number | null;
+  label: 'ZEALOTRY RESPONSE';
+}>;
+
+function isZealotryResponseResult(value: unknown, sessionId: string): value is ZealotryResponseResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  const parsed = parseStoredZealotryResponse({
+    type: 'zealotry-response',
+    sessionId: result.sessionId,
+    crisisId: result.crisisId,
+    crisisRevision: result.crisisRevision,
+    state: 'debated',
+    revision: result.revision,
+    actions: result.actions,
+    customResponse: result.customResponse,
+    rationale: result.rationale,
+    loyaltyCensusRevision: result.loyaltyCensusRevision,
+    actorUid: typeof result.actorUid === 'string' ? result.actorUid : 'result-actor',
+    instanceId: typeof result.instanceId === 'string' ? result.instanceId : 'result-instance',
+  });
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && parsed !== null && result.label === 'ZEALOTRY RESPONSE';
+}
+
+function isCrisisTransitionResult(value: unknown, sessionId: string): value is CrisisTransitionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') &&
+    result.sessionId === sessionId && typeof result.crisisId === 'string' &&
+    isCrisisState(result.state) && Number.isSafeInteger(result.revision) &&
+    (result.revision as number) >= 1 && typeof result.title === 'string' &&
+    result.title.length > 0 && result.title.length <= 160;
+}
+
+/** Advance one manually authored crisis through the durable facilitator lifecycle. */
+export const transitionCrisis = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+  state?: unknown;
+  title?: unknown;
+  details?: unknown;
+  crisisKind?: unknown;
+  configurationOverride?: unknown;
+  diseaseOutbreak?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const crisis = requireCrisisTransitionRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
+  const zealotryResponseRef = db.doc(`sessions/${crisis.sessionId}/zealotryResponses/current`);
+  const auditRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current/audit/${crisis.requestId}`);
+  const receiptRef = commandReceiptRef(crisis.sessionId, crisis.requestId);
+  const eventRef = db.doc(
+    `sessions/${crisis.sessionId}/events/crisis-${crisis.crisisId}-${crisis.requestId}`,
+  );
+  const fingerprint: CommandFingerprint = {
+    action: 'transition-crisis',
+    sessionId: crisis.sessionId,
+    requestId: crisis.requestId,
+    actorUid: uid,
+    instanceId: crisis.instanceId,
+    expectedRevision: crisis.expectedRevision,
+    payload: {
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      title: crisis.title,
+      details: crisis.details,
+      ...(request.data?.crisisKind === undefined ? {} : { crisisKind: crisis.crisisKind }),
+      ...(request.data?.configurationOverride === undefined ? {} : { configurationOverride: crisis.configurationOverride }),
+      ...(request.data?.diseaseOutbreak === undefined ? {} : {
+        diseaseAffectedShipIds: crisis.diseaseOutbreak?.affectedShipIds ?? [],
+        diseaseWorkRestrictions: crisis.diseaseOutbreak?.workRestrictions ?? '',
+        diseaseEscalationRisk: crisis.diseaseOutbreak?.escalationRisk ?? '',
+      }),
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<CrisisTransitionResult> => {
+    const [authority, current, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, crisis.sessionId, uid, crisis.instanceId),
+      tx.get(currentRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, crisis.sessionId, crisis.requestId, 'crisis transition', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CrisisTransitionResult => isCrisisTransitionResult(value, crisis.sessionId),
+      'crisis transition',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('crisis transition');
+    requireActiveGameplayPhase(authority.session);
+
+    const currentRevision = current.exists && Number.isSafeInteger(current.get('revision')) &&
+      (current.get('revision') as number) >= 0 ? current.get('revision') as number : 0;
+    if (current.exists && (
+      current.get('type') !== 'crisis-state' || current.get('sessionId') !== crisis.sessionId ||
+      typeof current.get('crisisId') !== 'string' || current.get('crisisId').length === 0 ||
+      current.get('crisisId').length > 80 || !isCrisisState(current.get('state')) ||
+      !Number.isSafeInteger(current.get('revision')) || (current.get('revision') as number) < 0 ||
+      typeof current.get('title') !== 'string' || current.get('title').length === 0 ||
+      current.get('title').length > 160 ||
+      typeof current.get('details') !== 'string' || current.get('details').length > 2_000
+    )) {
+      throw commandError('failed-precondition', 'The crisis projection is malformed; refresh before retrying.', 'malformed-input');
+    }
+    if (currentRevision !== crisis.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The crisis changed. Refresh the facilitator projection and try again.',
+        'stale-revision',
+      );
+    }
+    const previousState = current.exists ? current.get('state') as CrisisStateName : undefined;
+    const previousCrisisId = current.exists ? current.get('crisisId') as string : undefined;
+    const replacingClosedCrisis = previousState === 'closed' && previousCrisisId !== crisis.crisisId;
+    if (replacingClosedCrisis) {
+      if (crisis.state !== 'draft') {
+        throw commandError('failed-precondition', 'A new crisis must begin in draft.', 'conflict');
+      }
+    } else {
+      if (previousCrisisId !== undefined && previousCrisisId !== crisis.crisisId) {
+        throw commandError('failed-precondition', 'Close the current crisis before starting another.', 'conflict');
+      }
+      if (!canTransitionCrisis(previousState, crisis.state)) {
+        throw commandError('failed-precondition', 'That crisis lifecycle transition is not valid.', 'invalid-phase');
+      }
+      if (current.exists && (crisis.title !== current.get('title') || crisis.details !== current.get('details'))) {
+        throw commandError('failed-precondition', 'Crisis content is fixed after draft creation.', 'conflict');
+      }
+    }
+    // Older clients omit configuration fields; continuing the same crisis must
+    // retain its private configuration rather than reclassifying its identifier.
+    const sameCrisis = current.exists && previousCrisisId === crisis.crisisId;
+    const storedKind = current.get('crisisKind');
+    const storedOverride = current.get('configurationOverride');
+    const crisisKind = request.data?.crisisKind === undefined && sameCrisis && isCrisisKind(storedKind)
+      ? storedKind : crisis.crisisKind;
+    const configurationOverride = request.data?.configurationOverride === undefined && sameCrisis && typeof storedOverride === 'string'
+      ? storedOverride : crisis.configurationOverride;
+    if (current.exists && !replacingClosedCrisis && (
+      crisisKind !== (current.get('crisisKind') ?? (isCrisisKind(previousCrisisId) ? previousCrisisId : 'custom')) ||
+      (crisis.state !== 'delivered' && configurationOverride !== (current.get('configurationOverride') ?? ''))
+    )) throw commandError('failed-precondition', 'Crisis configuration is fixed after draft creation.', 'conflict');
+    const activeRoles = authority.session.get('activeRoleIds') ?? DEFAULT_ACTIVE_ROLE_IDS;
+    const blocker = crisisConfigurationBlocker(crisisKind, {
+      presidentEnabled: authority.session.get('dioneEnabled') !== false && Array.isArray(activeRoles) && activeRoles.includes('dione-president'),
+      universalArbourEnabled: authority.session.get('universalArbourEnabled') === true,
+      wolfCultEnabled: authority.session.get('wolfCultEnabled') === true,
+    });
+    if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !configurationOverride) {
+      throw commandError('failed-precondition', blocker, 'conflict');
+    }
+    const storedDisease = sameCrisis ? current.get('diseaseOutbreak') : undefined;
+    const diseaseValue = request.data?.diseaseOutbreak === undefined ? storedDisease : crisis.diseaseOutbreak;
+    const disease = diseaseValue === undefined ? undefined : parseDiseaseOutbreak(diseaseValue);
+    if (disease === null || (disease && crisisKind !== 'disease-outbreak')) {
+      throw commandError('failed-precondition', 'The outbreak details are not valid for this crisis.', 'malformed-input');
+    }
+    if (sameCrisis && crisis.state !== 'delivered' && JSON.stringify(disease) !== JSON.stringify(storedDisease)) {
+      throw commandError('failed-precondition', 'Outbreak details are fixed after delivery.', 'conflict');
+    }
+    if (crisisKind === 'disease-outbreak' && crisis.state === 'delivered' && !disease) {
+      throw commandError('failed-precondition', 'Record affected ships, work restrictions and escalation risk before delivery.', 'conflict');
+    }
+    if (disease && (crisis.state === 'draft' || crisis.state === 'delivered')) {
+      const activeShips = activeVesselIdsForSession(authority.session);
+      if (disease.affectedShipIds.some(id => !activeShips.includes(id) || !isFleetShipId(id))) {
+        throw commandError('failed-precondition', 'Every affected ship must be active in this session.', 'conflict');
+      }
+    }
+    const revision = currentRevision + 1;
+    const result: CrisisTransitionResult = {
+      status: 'committed',
+      sessionId: crisis.sessionId,
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      revision,
+      title: crisis.title,
+    };
+    tx.set(currentRef, {
+      type: 'crisis-state',
+      sessionId: crisis.sessionId,
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      revision,
+      title: crisis.title,
+      details: crisis.details,
+      crisisKind,
+      configurationOverride,
+      ...(disease ? { diseaseOutbreak: disease } : {}),
+      actorUid: uid,
+      instanceId: crisis.instanceId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'crisis-state',
+      action: 'transition',
+      sessionId: crisis.sessionId,
+      crisisId: crisis.crisisId,
+      state: crisis.state,
+      revision,
+      title: crisis.title,
+      details: crisis.details,
+      crisisKind,
+      configurationOverride,
+      ...(disease ? { diseaseOutbreak: disease } : {}),
+      actorUid: uid,
+      instanceId: crisis.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    const reportRef = db.doc(`sessions/${crisis.sessionId}/crisisReports/current`);
     const playerReport = crisisKind === 'approaching-vessel' ? APPROACHING_VESSEL_REPORT
       : crisisKind === 'religious-zealotry' ? RELIGIOUS_ZEALOTRY_REPORT
       : crisisKind === 'presidential-election' ? PRESIDENTIAL_ELECTION_REPORT
@@ -6190,6 +7411,171 @@ export const recordZealotryResponse = onCall<{
       actorUid: uid,
       instanceId: response.instanceId,
       createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type CivilUnrestGrievanceResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  shipId: string;
+  visibility: 'private' | 'public';
+  revision: number;
+}>;
+
+function isCivilUnrestGrievanceResult(value: unknown, sessionId: string): value is CivilUnrestGrievanceResult {
+  if (!isRecord(value)) return false;
+  return (value.status === 'committed' || value.status === 'replayed') &&
+    value.sessionId === sessionId && typeof value.crisisId === 'string' &&
+    civilUnrestShipId(value.shipId) && (value.visibility === 'private' || value.visibility === 'public') &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1;
+}
+
+function civilUnrestTeamPhase(session: DocumentSnapshot): boolean {
+  const turnState = session.get('turnState');
+  if (isRecord(turnState) && turnState.phase === 'team') return true;
+  const turnPhase = session.get('turnPhase');
+  return isRecord(turnPhase) && isRecord(turnPhase.airspace) && turnPhase.airspace.state === 'restricted';
+}
+
+/** A player may submit only for their live assigned ship, or one canonical union pair. */
+export const submitCivilUnrestGrievance = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  crisisId?: unknown;
+  expectedCrisisRevision?: unknown;
+  expectedGrievanceRevision?: unknown;
+  affectedShipId?: unknown;
+  visibility?: unknown;
+  text?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const grievance = requireCivilUnrestGrievanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${grievance.sessionId}`);
+  const playerRef = db.doc(`sessions/${grievance.sessionId}/players/${uid}`);
+  const crisisRef = db.doc(`sessions/${grievance.sessionId}/crisisState/current`);
+  const publicRef = db.doc(`sessions/${grievance.sessionId}/civilUnrestPublic/current`);
+  const currentRefFor = (shipId: string) => db.doc(
+    `sessions/${grievance.sessionId}/civilUnrestGrievances/${shipId}`,
+  );
+  const receiptRef = commandReceiptRef(grievance.sessionId, grievance.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'submit-civil-unrest-grievance',
+    sessionId: grievance.sessionId,
+    requestId: grievance.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: null,
+    payload: {
+      crisisId: grievance.crisisId,
+      expectedCrisisRevision: grievance.expectedCrisisRevision,
+      expectedGrievanceRevision: grievance.expectedGrievanceRevision,
+      affectedShipId: grievance.affectedShipId ?? null,
+      visibility: grievance.visibility,
+      text: grievance.text,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<CivilUnrestGrievanceResult> => {
+    const [session, player, crisis, publicProjection] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(crisisRef),
+      tx.get(publicRef),
+    ]);
+    if (!session.exists || !player.exists || !isActivePlayer(player) || player.get('role') !== 'player') {
+      throw commandError('permission-denied', 'Only an active player may submit a team grievance.', 'unauthorized');
+    }
+    requireActiveGameplayPhase(session);
+    if (!civilUnrestTeamPhase(session)) {
+      throw commandError('failed-precondition', 'Team grievances are only available during Team Phase.', 'invalid-phase');
+    }
+    if (!crisis.exists || crisis.get('type') !== 'crisis-state' || crisis.get('crisisKind') !== 'civil-unrest' ||
+        crisis.get('crisisId') !== grievance.crisisId ||
+        !['delivered', 'debated', 'escalated'].includes(crisis.get('state')) ||
+        !Number.isSafeInteger(crisis.get('revision')) || (crisis.get('revision') as number) < 1) {
+      throw commandError('failed-precondition', 'Civil Unrest is not accepting grievances in this crisis state.', 'invalid-phase');
+    }
+    if (crisis.get('revision') !== grievance.expectedCrisisRevision) {
+      throw commandError('failed-precondition', 'The crisis changed. Refresh before submitting your grievance.', 'stale-revision');
+    }
+    const activeShips = activeVesselIdsForSession(session);
+    const roleId = typeof player.get('replacementRoleId') === 'string'
+      ? player.get('replacementRoleId') as string
+      : typeof player.get('activeConsoleRoleId') === 'string'
+        ? player.get('activeConsoleRoleId') as string
+        : player.get('assignedRoleId');
+    const entitledShips = civilUnrestShipsForRole(roleId).filter((shipId) =>
+      activeShips.includes(shipId) && civilUnrestShipId(shipId));
+    if (entitledShips.length === 0) {
+      throw commandError('permission-denied', 'Your current role is not assigned to an affected team.', 'unauthorized');
+    }
+    const shipId = grievance.affectedShipId ?? (entitledShips.length === 1 ? entitledShips[0] : undefined);
+    if (!shipId || !civilUnrestShipId(shipId) || !entitledShips.includes(shipId)) {
+      throw commandError('permission-denied', 'Choose one active ship in your current team assignment.', 'unauthorized');
+    }
+    const currentRef = currentRefFor(shipId);
+    const [current, receipt] = await Promise.all([tx.get(currentRef), tx.get(receiptRef)]);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CivilUnrestGrievanceResult => isCivilUnrestGrievanceResult(value, grievance.sessionId),
+      'Civil Unrest grievance',
+    );
+    if (replay) return replay;
+    if (current.exists && (
+      current.get('type') !== 'civil-unrest-grievance' || current.get('sessionId') !== grievance.sessionId ||
+      current.get('crisisId') !== grievance.crisisId || current.get('shipId') !== shipId ||
+      !['private', 'public'].includes(current.get('visibility')) || typeof current.get('text') !== 'string' ||
+      !Number.isSafeInteger(current.get('revision')) || (current.get('revision') as number) < 1
+    )) {
+      throw commandError('failed-precondition', 'The current team grievance is malformed; refresh before retrying.', 'malformed-input');
+    }
+    const currentRevision = current.exists ? current.get('revision') as number : 0;
+    if (currentRevision !== grievance.expectedGrievanceRevision) {
+      throw commandError('failed-precondition', 'Your team grievance changed. Refresh before revising it.', 'stale-revision');
+    }
+    const storedPublic = publicProjection.exists ? publicProjection.data() : undefined;
+    const publicGrievances = storedPublic && Array.isArray(storedPublic.grievances)
+      ? storedPublic.grievances.filter((entry): entry is Record<string, unknown> => isRecord(entry))
+      : [];
+    if (publicProjection.exists && storedPublic && (
+      storedPublic.sessionId !== grievance.sessionId || storedPublic.crisisId !== grievance.crisisId ||
+      !['delivered', 'debated', 'escalated'].includes(storedPublic.state) ||
+      publicGrievances.length > CIVIL_UNREST_SHIP_IDS.length ||
+      new Set(publicGrievances.map((entry) => entry.shipId)).size !== publicGrievances.length ||
+      publicGrievances.some((entry) => !civilUnrestShipId(entry.shipId) || typeof entry.text !== 'string' ||
+        entry.text.length === 0 || entry.text.length > 2000 ||
+        !Number.isSafeInteger(entry.revision) || (entry.revision as number) < 1)
+    )) {
+      throw commandError('failed-precondition', 'The public grievance projection is malformed; refresh before retrying.', 'malformed-input');
+    }
+    const revision = currentRevision + 1;
+    const result: CivilUnrestGrievanceResult = {
+      status: 'committed', sessionId: grievance.sessionId, crisisId: grievance.crisisId,
+      shipId, visibility: grievance.visibility, revision,
+    };
+    tx.set(currentRef, {
+      type: 'civil-unrest-grievance', sessionId: grievance.sessionId, crisisId: grievance.crisisId,
+      shipId, visibility: grievance.visibility, text: grievance.text, revision,
+      crisisRevision: grievance.expectedCrisisRevision, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(currentRef.collection('audit').doc(grievance.requestId), {
+      type: 'civil-unrest-grievance', action: 'submit', sessionId: grievance.sessionId,
+      crisisId: grievance.crisisId, shipId, visibility: grievance.visibility, text: grievance.text,
+      revision, crisisRevision: grievance.expectedCrisisRevision, actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    const nextPublicGrievances = publicGrievances
+      .filter((entry) => entry.shipId !== shipId)
+      .concat(grievance.visibility === 'public' ? [{ shipId, text: grievance.text, revision }] : []);
+    tx.set(publicRef, {
+      type: 'civil-unrest-public', sessionId: grievance.sessionId, crisisId: grievance.crisisId,
+      state: crisis.get('state'), revision: grievance.expectedCrisisRevision,
+      grievances: nextPublicGrievances, updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;

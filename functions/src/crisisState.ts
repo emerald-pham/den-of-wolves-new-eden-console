@@ -80,6 +80,19 @@ export const PRESIDENTIAL_ELECTION_REPORT = {
   body: 'The fleet is considering whether its current President should remain in office or whether to elect a President, potentially with a Vice President. The voting method, timing and campaign rules still need facilitator decisions. Eligible voters, population weighting and whether supplies may support campaigns must also be settled before voting can open.',
 } as const;
 
+/** Public invitation only; teams author their own grievance and sentiment. */
+export const CIVIL_UNREST_REPORT = {
+  title: 'Civil unrest',
+  body: 'During Team Phase, affected teams may submit a grievance about their own situation. A grievance may be shared with the fleet or kept private to its current team and facilitators. The fleet has not authored a grievance for any team.',
+} as const;
+
+export function civilUnrestReport(shipNames: readonly string[]) {
+  return {
+    title: CIVIL_UNREST_REPORT.title,
+    body: `${CIVIL_UNREST_REPORT.body}\n\nTeams invited: ${shipNames.join(', ')}.`,
+  } as const;
+}
+
 export interface DiseaseOutbreakDetails {
   readonly affectedShipIds: readonly string[];
   readonly workRestrictions: string;

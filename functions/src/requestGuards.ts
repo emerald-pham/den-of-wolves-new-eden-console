@@ -1266,7 +1266,6 @@ export function requireCrisisTransitionRequest(data: {
   };
 }
 
-/** A GM records the source-approved response to a debated Religious Zealotry crisis. */
 export function requireZealotryResponseRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
@@ -1314,6 +1313,53 @@ export function requireZealotryResponseRequest(data: {
       cause instanceof Error ? cause.message : 'The Zealotry response is not valid.',
     );
   }
+}
+
+export function requireCivilUnrestGrievanceRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  crisisId?: unknown;
+  expectedCrisisRevision?: unknown;
+  expectedGrievanceRevision?: unknown;
+  affectedShipId?: unknown;
+  visibility?: unknown;
+  text?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  crisisId: string;
+  expectedCrisisRevision: number;
+  expectedGrievanceRevision: number;
+  affectedShipId?: string;
+  visibility: 'private' | 'public';
+  text: string;
+} {
+  const revision = (value: unknown, field: string): number => {
+    if (!Number.isSafeInteger(value) || (value as number) < 0) {
+      throw new HttpsError('invalid-argument', `${field} must be a non-negative integer.`);
+    }
+    return value as number;
+  };
+  if (data.visibility !== 'private' && data.visibility !== 'public') {
+    throw new HttpsError('invalid-argument', 'visibility must be private or public.');
+  }
+  const textValue = requiredText(data.text, 'text', 2000);
+  const crisisId = requiredText(data.crisisId, 'crisisId', 80);
+  if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
+    throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
+  }
+  const affectedShipId = data.affectedShipId === undefined || data.affectedShipId === null
+    ? undefined : requiredId(data.affectedShipId, 'affectedShipId');
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    crisisId,
+    expectedCrisisRevision: revision(data.expectedCrisisRevision, 'expectedCrisisRevision'),
+    expectedGrievanceRevision: revision(data.expectedGrievanceRevision, 'expectedGrievanceRevision'),
+    ...(affectedShipId ? { affectedShipId } : {}),
+    visibility: data.visibility,
+    text: textValue,
+  };
 }
 
 export function requireShipAvailabilityRequest(data: {

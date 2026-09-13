@@ -32,6 +32,51 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    function civilUnrestRoleOwnsShip(roleId, shipId) {
+      return (shipId == 'dione' && roleId in ['dione-captain', 'dione-engineer', 'dione-president'])
+        || (shipId == 'icebreaker' && roleId in ['icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner'])
+        || (shipId == 'shepherd' && roleId in ['shepherd-captain', 'shepherd-engineer', 'shepherd-scientist'])
+        || (shipId == 'quellon' && roleId in ['quellon-captain', 'quellon-engineer', 'quellon-explorer'])
+        || (shipId == 'refinery-124' && roleId in ['refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'])
+        || (shipId == 'dione' && roleId == 'vip-host')
+        || (shipId == 'icebreaker' && roleId == 'commissar')
+        || (shipId == 'shepherd' && roleId == 'rosal-militia-leader')
+        || (shipId == 'quellon' && roleId == 'doctor')
+        || (shipId == 'refinery-124' && roleId == 'pdf-fighter-ace')
+        || (roleId == 'joint-engineering-quellon-refinery' && shipId in ['quellon', 'refinery-124'])
+        || (roleId == 'joint-engineering-shepherd-icebreaker' && shipId in ['shepherd', 'icebreaker']);
+    }
+
+    // This is evaluated against the live assignment on every read. A stale
+    // team projection therefore becomes unreadable immediately after a role,
+    // team, or session roster change.
+    function isCurrentCivilUnrestTeamMember(sessionId, shipId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && (!('activeVesselIds' in session) || shipId in session.activeVesselIds)
+        && (
+          (('replacementRoleId' in player) && player.replacementRoleId != null
+            && civilUnrestRoleOwnsShip(player.replacementRoleId, shipId))
+          || ((!('replacementRoleId' in player) || player.replacementRoleId == null)
+            && ('activeConsoleRoleId' in player) && player.activeConsoleRoleId != null
+            && civilUnrestRoleOwnsShip(player.activeConsoleRoleId, shipId))
+          || ((!('replacementRoleId' in player) || player.replacementRoleId == null)
+            && (!('activeConsoleRoleId' in player) || player.activeConsoleRoleId == null)
+            && ('assignedRoleId' in player) && civilUnrestRoleOwnsShip(player.assignedRoleId, shipId))
+        );
+    }
+
+    function isCurrentCivilUnrestLifecycle(sessionId, crisisId) {
+      return exists(/databases/$(database)/documents/sessions/$(sessionId)/crisisState/current)
+        && get(/databases/$(database)/documents/sessions/$(sessionId)/crisisState/current).data.crisisKind == 'civil-unrest'
+        && get(/databases/$(database)/documents/sessions/$(sessionId)/crisisState/current).data.crisisId == crisisId
+        && get(/databases/$(database)/documents/sessions/$(sessionId)/crisisState/current).data.state in ['delivered', 'debated', 'escalated'];
+    }
+
     // A member's operational roster is bounded by the server-owned group
     // pointer on that member record.  The query must still include the same
     // group and connected predicates; rules evaluate every candidate document
@@ -612,6 +657,30 @@ service cloud.firestore {
       // Only the separately authored player report is member-readable.
       match /crisisReports/{reportId} {
         allow get: if reportId == 'current' && isMember(sessionId);
+        allow list, write: if false;
+      }
+
+      // Team grievance records are a bounded server projection. The same
+      // path is durable for reconnecting teammates, while the live role and
+      // crisis checks revoke stale reads after reassignment or retirement.
+      match /civilUnrestGrievances/{shipId} {
+        allow get: if isGm(sessionId)
+          || (isCurrentCivilUnrestTeamMember(sessionId, shipId)
+            && resource.data.sessionId == sessionId
+            && resource.data.shipId == shipId
+            && isCurrentCivilUnrestLifecycle(sessionId, resource.data.crisisId));
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
+      // Public grievances contain only each team's own text and revision.
+      // Private text never enters this projection.
+      match /civilUnrestPublic/{projectionId} {
+        allow get: if projectionId == 'current' && isMember(sessionId);
         allow list, write: if false;
       }
 

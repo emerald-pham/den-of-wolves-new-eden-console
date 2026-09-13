@@ -15,7 +15,12 @@ const mock = vi.hoisted(() => {
       data: () => fields,
     };
   };
-  const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '' });
+  const ref = (path: string) => ({
+    path,
+    id: path.split('/').at(-1) ?? '',
+    collection: (name: string) => collection(`${path}/${name}`),
+  });
+  const collection = (path: string) => ({ path, doc: (id: string) => ref(`${path}/${id}`) });
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...fields });
@@ -25,7 +30,7 @@ const mock = vi.hoisted(() => {
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
     callback({ get, set, update, delete: (target: { path: string }) => documents.delete(target.path) }));
-  return { documents, get, set, update, runTransaction, db: { doc: ref, runTransaction } };
+  return { documents, get, set, update, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -45,7 +50,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { transitionCrisis } from './index';
+import { submitCivilUnrestGrievance, transitionCrisis } from './index';
 
 const baseData = {
   sessionId: 's1',
@@ -177,6 +182,57 @@ it('blocks a President-dependent crisis when the President role is excluded', as
   await expect(transitionCrisis.run(request({ ...baseData, crisisKind: 'presidential-election' })))
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/President/i) });
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('accepts a team grievance through a server CAS and keeps actor identity in GM audit only', async () => {
+  put('sessions/s1', {
+    phase: 'active', currentTurn: 2, activeVesselIds: ['icebreaker'],
+    turnState: { phase: 'team' },
+  });
+  put('sessions/s1/players/u1', {
+    uid: 'u1', role: 'player', connected: true, assignedRoleId: 'icebreaker-miner',
+    activeConsoleRoleId: 'icebreaker-miner',
+  });
+  put('sessions/s1/crisisState/current', {
+    type: 'crisis-state', sessionId: 's1', crisisKind: 'civil-unrest', crisisId: 'civil-unrest',
+    state: 'delivered', revision: 4, title: 'Civil unrest', details: 'GM notes',
+  });
+  await expect(submitCivilUnrestGrievance.run(request({
+    sessionId: 's1', requestId: 'grievance-1', crisisId: 'civil-unrest',
+    expectedCrisisRevision: 4, expectedGrievanceRevision: 0,
+    affectedShipId: 'icebreaker', visibility: 'private', text: 'The team needs supplies.',
+  }, 'u1'))).resolves.toMatchObject({ status: 'committed', shipId: 'icebreaker', revision: 1 });
+  expect(mock.documents.get('sessions/s1/civilUnrestGrievances/icebreaker')).toMatchObject({
+    text: 'The team needs supplies.', visibility: 'private', revision: 1,
+  });
+  expect(mock.documents.get('sessions/s1/civilUnrestGrievances/icebreaker')).not.toHaveProperty('actorUid');
+  expect(mock.documents.get('sessions/s1/civilUnrestGrievances/icebreaker/audit/grievance-1')).toMatchObject({ actorUid: 'u1' });
+  expect(mock.documents.get('sessions/s1/civilUnrestPublic/current')).toMatchObject({ grievances: [] });
+  await expect(submitCivilUnrestGrievance.run(request({
+    sessionId: 's1', requestId: 'grievance-2', crisisId: 'civil-unrest',
+    expectedCrisisRevision: 4, expectedGrievanceRevision: 1,
+    affectedShipId: 'icebreaker', visibility: 'public', text: 'We need supplies publicly.',
+  }, 'u1'))).resolves.toMatchObject({ status: 'committed', revision: 2, visibility: 'public' });
+  expect(mock.documents.get('sessions/s1/civilUnrestPublic/current')).toMatchObject({
+    grievances: [{ shipId: 'icebreaker', text: 'We need supplies publicly.', revision: 2 }],
+  });
+});
+
+it('rejects a stale lifecycle, wrong phase, and arbitrary ship before writing', async () => {
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeVesselIds: ['icebreaker'], turnState: { phase: 'coordination' } });
+  put('sessions/s1/players/u1', {
+    uid: 'u1', role: 'player', connected: true, assignedRoleId: 'icebreaker-miner',
+    activeConsoleRoleId: 'icebreaker-miner',
+  });
+  put('sessions/s1/crisisState/current', {
+    type: 'crisis-state', sessionId: 's1', crisisKind: 'civil-unrest', crisisId: 'civil-unrest',
+    state: 'delivered', revision: 4, title: 'Civil unrest', details: '',
+  });
+  await expect(submitCivilUnrestGrievance.run(request({
+    sessionId: 's1', requestId: 'bad-1', crisisId: 'civil-unrest', expectedCrisisRevision: 4,
+    expectedGrievanceRevision: 0, affectedShipId: 'dione', visibility: 'public', text: 'No.',
+  }, 'u1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...mock.documents.keys()].some((path) => path.includes('civilUnrestGrievances'))).toBe(false);
 });
 
 it('blocks Religious Zealotry without Universal Arbour unless the facilitator records an override', async () => {

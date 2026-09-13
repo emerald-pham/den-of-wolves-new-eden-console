@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { subscribeCrisisReport } from '@/lib/firestore';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { CrisisReport } from '@/types/crisis';
+import CivilUnrestGrievancePanel from './CivilUnrestGrievancePanel';
 
 export function CrisisReportContent({ report }: { report: CrisisReport }) {
   const [expanded, setExpanded] = useState(true);
@@ -15,6 +16,9 @@ export function CrisisReportContent({ report }: { report: CrisisReport }) {
         {expanded ? 'Hide report' : 'Read report'}
       </button>
       {expanded && <p id="fleet-crisis-report-body" className="crisis-report__body">{report.body}</p>}
+      {report.crisisKind === 'civil-unrest' && (
+        <CivilUnrestGrievancePanel crisisId={report.crisisId} crisisRevision={report.revision} />
+      )}
     </section>
   );
 }

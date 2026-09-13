@@ -88,6 +88,27 @@ export interface CrisisReport {
   readonly revision: number;
   readonly title: string;
   readonly body: string;
+  readonly crisisKind?: CrisisKind;
+}
+
+export type CivilUnrestGrievanceVisibility = 'private' | 'public';
+
+export interface CivilUnrestGrievance {
+  readonly sessionId: string;
+  readonly crisisId: string;
+  readonly shipId: string;
+  readonly visibility: CivilUnrestGrievanceVisibility;
+  readonly text: string;
+  readonly revision: number;
+  readonly crisisRevision: number;
+}
+
+export interface CivilUnrestPublicProjection {
+  readonly sessionId: string;
+  readonly crisisId: string;
+  readonly state: Exclude<CrisisStateName, 'draft' | 'resolved' | 'announced' | 'closed'>;
+  readonly revision: number;
+  readonly grievances: readonly Pick<CivilUnrestGrievance, 'shipId' | 'text' | 'revision'>[];
 }
 
 export interface DiseaseOutbreakDetails {
