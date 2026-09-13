@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['178'],
+    implementationProgress: {
+      completed: 208,
+      total: 749,
+      percentage: '27.77%',
+      done: 208,
+      partial: 19,
+      active: 0,
+      missing: 522,
+    },
+    changes: [
+      'The Wing Commander can spend one material to build one fighter using a charged Construction Bay, up to the wing’s current capacity.',
+      '208 of 749 planned items are complete (27.77%).',
+    ],
+  },
+  {
+    version: '0.3.73',
     implementationPrompts: ['284', '515'],
     implementationProgress: {
       completed: 206,
