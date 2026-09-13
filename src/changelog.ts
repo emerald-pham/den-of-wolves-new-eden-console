@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [674],
+    implementationProgress: {
+      completed: 261,
+      total: 751,
+      percentage: '34.75%',
+      done: 261,
+      partial: 21,
+      active: 0,
+      missing: 469,
+    },
+    changes: [
+      'GM ship viewing is now quiet and read only by default, without claiming a player Observer role or changing player console ownership.',
+      'A two-step red confirmation grants server-authorized write access only to the selected ship and active GM browser instance, and leaving or changing ships revokes it.',
+      '261 of 751 planned items are complete (34.75%).',
+    ],
+  },
+  {
+    version: '0.3.101',
     implementationPrompts: [406],
     implementationProgress: {
       completed: 260,
