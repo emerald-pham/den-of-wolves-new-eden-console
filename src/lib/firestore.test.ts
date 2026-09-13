@@ -700,6 +700,16 @@ it('drops Android proof markers from other or malformed loyalty records', () => 
     get: () => ({ type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: 'true' }),
   });
   expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  for (const payload of [
+    { type: 'secret', kind: 'android', suspicion: null, proofRevealed: true },
+    { kind: 'android', suspicion: null, proofRevealed: true },
+    { type: 'loyalty', kind: 'android', suspicion: 5, proofRevealed: true },
+    { type: 'loyalty', kind: 'android', suspicion: null, partnerUid: 'u2', proofRevealed: true },
+  ]) {
+    callbacks[3]?.({ metadata: { fromCache: false }, exists: () => true, get: () => payload });
+    expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  }
+
 });
 
 it('hydrates only the current UID role brief and clears it when the assignment is invalidated', () => {

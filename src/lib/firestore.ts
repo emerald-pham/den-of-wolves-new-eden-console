@@ -160,6 +160,10 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
     ? undefined
     : parseEntityId('player', payload.partnerUid);
   const proofMarker = payload.proofRevealed;
+  if (payload.kind === 'android' && (
+    payload.type !== 'loyalty' || payload.suspicion !== null ||
+    Object.keys(payload).some((key) => !['type', 'kind', 'suspicion', 'proofRevealed'].includes(key))
+  )) return null;
   if (typeof payload.kind !== 'string' ||
       (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
       (payload.partnerUid !== undefined && payload.partnerUid !== null && !partnerUid) ||

@@ -155,3 +155,42 @@ it('keeps the private card in routed flow below the persistent session chrome', 
     /\.private-loyalty-flow\s*\{[\s\S]*padding-top:\s*calc\(var\(--app-header-height/,
   );
 });
+
+it('clears existing disclosure errors when the Android card is reassigned', async () => {
+  const user = userEvent.setup();
+  vi.mocked(revealAndroidProof).mockRejectedValue(new Error('Previous card failed'));
+  prepareLivePlayer();
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+  render(<PrivateLoyaltyPanel />);
+  await user.click(screen.getByRole('button', { name: /disclose Android proof/i }));
+  expect(await screen.findByRole('alert')).toBeVisible();
+  act(() => useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /disclose Android proof/i })).toBeEnabled();
+});
+
+it('gives a new Android identity independent pending feedback and ignores the old completion', async () => {
+  const user = userEvent.setup();
+  const oldReply = deferred<{ disclosed: boolean }>();
+  const newReply = deferred<{ disclosed: boolean }>();
+  vi.mocked(revealAndroidProof).mockReturnValueOnce(oldReply.promise).mockReturnValueOnce(newReply.promise);
+  prepareLivePlayer();
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+  render(<PrivateLoyaltyPanel />);
+  await user.click(screen.getByRole('button', { name: /disclose Android proof/i }));
+  act(() => {
+    useSessionStore.getState().setSession({ id: 's2' } as never);
+    useSessionStore.getState().setMe({ uid: 'u3', sessionId: 's2', role: 'player' } as never);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  const button = screen.getByRole('button', { name: /disclose Android proof/i });
+  expect(button).toBeEnabled();
+  await user.click(button);
+  expect(screen.getByRole('button', { name: /disclosing/i })).toBeDisabled();
+  await act(async () => oldReply.resolve({ disclosed: true }));
+  expect(screen.getByRole('button', { name: /disclosing/i })).toBeDisabled();
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  await act(async () => newReply.resolve({ disclosed: true }));
+  expect(screen.getByRole('status')).toHaveTextContent(/Android proof disclosed/i);
+});

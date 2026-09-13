@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PrivateLoyalty } from '@/types/game';
 import { revealAndroidProof } from '@/lib/androidProofService';
@@ -34,8 +34,16 @@ function isCurrentAndroidCard(
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
   const setPrivateLoyalty = useSessionStore((state) => state.setPrivateLoyalty);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const sessionId = useSessionStore((state) => state.session?.id);
+  const me = useSessionStore((state) => state.me);
+  const identity = JSON.stringify([sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId]);
+  const [feedback, setFeedback] = useState<{
+    identity: string; card: PrivateLoyalty; pending: boolean; error: string;
+  } | null>(null);
+  const currentFeedback = feedback?.identity === identity && feedback.card === loyalty ? feedback : null;
+  const pending = currentFeedback?.pending ?? false;
+  const error = currentFeedback?.error ?? '';
+  useEffect(() => { setFeedback(null); }, [identity, loyalty]);
   if (!loyalty) return null;
 
   const discloseAndroidProof = async () => {
@@ -44,8 +52,7 @@ export default function PrivateLoyaltyPanel() {
     const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
     const dispatchedCard = loyalty;
     if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
-    setPending(true);
-    setError('');
+    setFeedback({ identity, card: dispatchedCard, pending: true, error: '' });
     try {
       const result = await revealAndroidProof();
       const current = useSessionStore.getState();
@@ -57,10 +64,16 @@ export default function PrivateLoyaltyPanel() {
       const current = useSessionStore.getState();
       if (isCurrentSessionAuthority(checkpoint) &&
           isCurrentAndroidCard(current.privateLoyalty, dispatchedCard)) {
-        setError(normalizeCommandError(cause).message);
+        setFeedback((currentFeedback) => currentFeedback?.identity === identity &&
+          currentFeedback.card === dispatchedCard
+          ? { ...currentFeedback, error: normalizeCommandError(cause).message }
+          : currentFeedback);
       }
     } finally {
-      setPending(false);
+      setFeedback((currentFeedback) => currentFeedback?.identity === identity &&
+        currentFeedback.card === dispatchedCard
+        ? { ...currentFeedback, pending: false }
+        : currentFeedback);
     }
   };
 
