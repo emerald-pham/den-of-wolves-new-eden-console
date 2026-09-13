@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [509],
+    implementationProgress: {
+      completed: 223,
+      total: 750,
+      percentage: '29.73%',
+      done: 223,
+      partial: 25,
+      active: 0,
+      missing: 502,
+    },
+    changes: [
+      'The Android can choose to reveal their non-Wolf proof to the session from their private loyalty card.',
+      '223 of 750 planned items are complete (29.73%).',
+    ],
+  },
+  {
+    version: '0.3.83',
     implementationPrompts: [663],
     implementationProgress: {
       completed: 222,
