@@ -90,6 +90,30 @@ beforeEach(async () => {
       fleetGroupId: 'fleet-1',
       connected: true,
     });
+    await setDoc(doc(db, `${SESSION}/players/captain`), {
+      uid: 'captain', role: 'player', connected: true,
+      assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain',
+      replacementRoleId: null,
+    });
+    await setDoc(doc(db, `${SESSION}/players/commissar`), {
+      uid: 'commissar', role: 'player', connected: true,
+      assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: null,
+      replacementRoleId: 'commissar',
+    });
+    await setDoc(doc(db, `${SESSION}/commissarPurgeAuthority/captain`), {
+      type: 'commissar-purge-authority', sessionId: 's1', role: 'captain',
+      captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', revision: 0,
+      consented: true, consentTurn: 1, consentVesselRevision: 0, usedThisTurn: false,
+    });
+    await setDoc(doc(db, `${SESSION}/commissarPurgeAuthority/commissar`), {
+      type: 'commissar-purge-authority', sessionId: 's1', role: 'commissar',
+      revision: 0, consents: {}, ledger: {},
+    });
+    await setDoc(doc(db, `${SESSION}/commissarPurgeState/current`), {
+      type: 'commissar-purge-state',
+      consents: { icebreaker: { turn: 1, captainUid: 'captain', captainRoleId: 'icebreaker-captain', vesselRevision: 0 } },
+      ledger: {},
+    });
     await setDoc(doc(db, `${SESSION}/gmInstances/bridge`), {
       uid: 'gm1',
       name: 'Bridge laptop',
@@ -205,6 +229,34 @@ beforeEach(async () => {
 });
 
 const as = (uid: string) => env.authenticatedContext(uid).firestore();
+
+describe('Commissar purge private authority boundary', () => {
+  it('allows only the live exact captain or Commissar projection and denies raw state/listing', async () => {
+    await assertSucceeds(getDoc(doc(as('captain'), `${SESSION}/commissarPurgeAuthority/captain`)));
+    await assertSucceeds(getDoc(doc(as('commissar'), `${SESSION}/commissarPurgeAuthority/commissar`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/commissarPurgeAuthority/captain`)));
+    await assertFails(getDoc(doc(as('commissar'), `${SESSION}/commissarPurgeAuthority/captain`)));
+    await assertFails(getDocs(collection(as('commissar'), `${SESSION}/commissarPurgeAuthority`)));
+    await assertFails(getDoc(doc(as('captain'), `${SESSION}/commissarPurgeState/current`)));
+    await assertFails(getDoc(doc(as('commissar'), `${SESSION}/commissarPurgeState/current`)));
+  });
+
+  it('revokes the old captain projection after handover without exposing a stale callback', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/players/captain`), {
+        connected: false, activeConsoleRoleId: null,
+      });
+      await setDoc(doc(db, `${SESSION}/players/new-captain`), {
+        uid: 'new-captain', role: 'player', connected: true,
+        assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain',
+        replacementRoleId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('captain'), `${SESSION}/commissarPurgeAuthority/captain`)));
+    await assertFails(getDoc(doc(as('new-captain'), `${SESSION}/commissarPurgeAuthority/captain`)));
+  });
+});
 
 describe('role-private brief boundary', () => {
   it('lets a player read only their current assigned brief', async () => {

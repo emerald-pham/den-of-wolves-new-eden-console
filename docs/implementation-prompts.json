@@ -3378,8 +3378,8 @@
     {
       "direction": "518 -> 515",
       "id": "E-518-COMMISSAR",
-      "language": "The replacement Commissar flow now requires the exact current captain's consent, removes one printed survivor-track step from the selected ship, reduces unrest by 1, and records a server-owned once-per-ship-per-turn receipt with revision/CAS/replay protection. Focused callable tests cover authorization, stale or missing consent, phase and turn denial, endpoint and pending-alert fail-closed behavior, duplicate replay, and the absence of a damage-card draw; the production panel exposes captain consent and Commissar action controls with responsive accessibility evidence.",
-      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/commissarPurgeCallable.test.ts; src/components/CommissarPurgePanel.tsx; src/components/CommissarPurgePanel.test.tsx; src/lib/sessionService.ts; src/lib/firestore.ts; src/routes/ShipConsole.tsx; src/routes/ShipRoleSelect.tsx; src/index.css; focused validation; rendered review",
+      "language": "The replacement Commissar flow requires the exact current captain UID and consent at the current vessel revision, removes one printed survivor-track step from the selected ship, reduces unrest by 1, and records a server-only once-per-ship-per-turn receipt with revision/CAS/replay protection. Consent and ledger data never enter the member-readable session; current captains and the active Commissar receive only sanitized per-UID projections, with handover revocation and raw-read/listener denial coverage. Focused callable tests cover authorization, captain handover, stale or missing consent, active-game and turn denial, fail-closed counters, duplicate replay, and the absence of a damage-card draw; the production panel exposes the server-authorized controls with responsive keyboard evidence.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/commissarPurgeCallable.test.ts; src/components/CommissarPurgePanel.tsx; src/components/CommissarPurgePanel.test.tsx; src/lib/sessionService.ts; src/lib/firestore.ts; src/routes/ShipConsole.tsx; src/routes/ShipRoleSelect.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; focused validation; rendered review",
       "type": "evidence / authority / rendered review"
     },
     {
@@ -18078,7 +18078,7 @@
         "acceptance": "captain consent permits the exact survivor purge and once-per-ship unrest reduction.",
         "title": "Activate the Commissar."
       },
-      "description": "Partial: the production Commissar consent and purge path now applies the printed survivor-track loss followed by unrest reduction with server-owned actor, captain-consent, phase, turn, revision/CAS, replay, and once-per-ship-per-turn checks. Focused callable and production-panel tests plus narrow phone, desktop, and landscape reduced-motion render evidence are recorded; independent authority review and emulator-backed verification remain.",
+      "description": "Partial: the production Commissar consent and purge path now applies the printed survivor-track loss followed by unrest reduction with exact current-captain UID consent, server-only state, sanitized current-role projections, active-game and turn guards, revision/CAS, replay, and once-per-ship-per-turn checks. Focused callable and production-panel tests plus 81 emulator-backed Firestore-rule cases cover handover revocation, raw-state denial, and private projections; narrow phone, desktop, and landscape reduced-motion render evidence is recorded. Independent authority review remains.",
       "evidenceIds": "E-AUDIT-518;E-518-COMMISSAR",
       "hardContract": "none",
       "hardMilestone": "none",

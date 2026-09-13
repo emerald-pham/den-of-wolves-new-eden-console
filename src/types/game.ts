@@ -493,16 +493,6 @@ export interface GameSession {
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
   readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;
-  /** Captain consent and once-per-turn receipt for the Commissar's printed action. */
-  readonly commissarPurgeConsents?: Readonly<Record<string, {
-    readonly turn: number;
-    readonly captainRoleId: RoleId;
-    readonly vesselRevision: number;
-  }>>;
-  readonly commissarPurgeLedger?: Readonly<Record<string, {
-    readonly turn: number;
-    readonly revision: number;
-  }>>;
   readonly id: SessionId;
   readonly name: string;
   /** Short human-shareable code players type to join. */
@@ -664,6 +654,28 @@ export interface RoleBrief {
   /** Server-derived craft allowlist for this role only. */
   readonly ownedCraftIds?: readonly string[];
   readonly setupRevision: number;
+}
+
+/** Exact current-role private view for the Commissar action. */
+export interface CommissarPurgeAuthority {
+  readonly sessionId: SessionId;
+  readonly role: 'captain' | 'commissar';
+  readonly revision: number;
+  readonly captainRoleId?: string;
+  readonly shipId?: VesselId;
+  readonly consented?: boolean;
+  readonly consentTurn?: number;
+  readonly consentVesselRevision?: number;
+  readonly usedThisTurn?: boolean;
+  readonly consents?: Readonly<Record<string, {
+    readonly turn: number;
+    readonly captainRoleId: string;
+    readonly vesselRevision: number;
+  }>>;
+  readonly ledger?: Readonly<Record<string, {
+    readonly turn: number;
+    readonly revision: number;
+  }>>;
 }
 
 /** Facilitator-only projection of the current private loyalty cards. */

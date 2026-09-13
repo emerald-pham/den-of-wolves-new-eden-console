@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { applyCommissarPurge, consentCommissarPurge } from '@/lib/sessionService';
+import { useEffect, useMemo, useState } from 'react';
+import { applyCommissarPurge, consentCommissarPurge, refreshCommissarPurgeAuthority } from '@/lib/sessionService';
 import { findShip } from '@/data/ships';
 import { useSessionStore } from '@/store/useSessionStore';
 
@@ -15,6 +15,7 @@ function captainRoleForShip(shipId: string): string {
 export default function CommissarPurgePanel({ shipId }: { readonly shipId: string }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const authority = useSessionStore((state) => state.commissarPurgeAuthority);
   const [targetShipId, setTargetShipId] = useState(shipId);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -23,17 +24,32 @@ export default function CommissarPurgePanel({ shipId }: { readonly shipId: strin
     me && me.replacementRoleId == null && me.activeConsoleRoleId === captainRoleForShip(shipId),
   );
   const commissar = me?.replacementRoleId === 'commissar';
+  const sessionId = session?.id;
+  const uid = me?.uid;
+  const canRefreshAuthority = Boolean(sessionId && uid && (captain || commissar));
+  useEffect(() => {
+    useSessionStore.getState().setCommissarPurgeAuthority(null);
+    if (!canRefreshAuthority) return;
+    void refreshCommissarPurgeAuthority()
+      .then((next) => {
+        if (next) useSessionStore.getState().setCommissarPurgeAuthority(next);
+      })
+      .catch(() => undefined);
+  }, [sessionId, uid, me?.activeConsoleRoleId, me?.replacementRoleId, canRefreshAuthority]);
   const activeShips = useMemo(() => (session?.activeVesselIds ?? [])
     .filter((candidate) => findShip(candidate) !== undefined), [session?.activeVesselIds]);
   const target = commissar ? targetShipId : shipId;
   const targetName = findShip(target)?.name ?? target;
   const currentTurn = session?.currentTurn ?? 0;
   const revision = session?.vesselActionRevisions?.[target] ?? 0;
-  const consent = session?.commissarPurgeConsents?.[target];
-  const consented = Boolean(
-    consent && consent.turn === currentTurn && consent.vesselRevision === revision,
-  );
-  const usedThisTurn = session?.commissarPurgeLedger?.[target]?.turn === currentTurn;
+  const consent = authority?.role === 'commissar' ? authority.consents?.[target] : undefined;
+  const consented = captain
+    ? authority?.role === 'captain' && authority.shipId === shipId && authority.consented === true &&
+      authority.consentTurn === currentTurn && authority.consentVesselRevision === revision
+    : Boolean(consent && consent.turn === currentTurn && consent.vesselRevision === revision);
+  const usedThisTurn = authority?.role === 'commissar'
+    ? authority.ledger?.[target]?.turn === currentTurn
+    : authority?.role === 'captain' && authority.shipId === shipId && authority.usedThisTurn === true;
   const gameplayFrozen = ['debrief', 'success', 'failure', 'closed'].includes(session?.phase ?? '');
 
   if (!session || !me || (!captain && !commissar)) return null;

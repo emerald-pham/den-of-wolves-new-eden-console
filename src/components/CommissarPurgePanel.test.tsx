@@ -1,17 +1,18 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import CommissarPurgePanel from './CommissarPurgePanel';
 
-const { consentCommissarPurge, applyCommissarPurge } = vi.hoisted(() => ({
+const { consentCommissarPurge, applyCommissarPurge, refreshCommissarPurgeAuthority } = vi.hoisted(() => ({
   consentCommissarPurge: vi.fn().mockResolvedValue({ status: 'committed', turn: 1, revision: 0 }),
   applyCommissarPurge: vi.fn().mockResolvedValue({
     status: 'committed', turn: 1, revision: 1, survivorsRemoved: 3000, unrestReduced: 1,
   }),
+  refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock('@/lib/sessionService', () => ({ consentCommissarPurge, applyCommissarPurge }));
+vi.mock('@/lib/sessionService', () => ({ consentCommissarPurge, applyCommissarPurge, refreshCommissarPurgeAuthority }));
 
 const baseSession = {
   id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', currentTurn: 1,
@@ -32,6 +33,7 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   consentCommissarPurge.mockClear();
   applyCommissarPurge.mockClear();
+  refreshCommissarPurgeAuthority.mockClear();
 });
 
 it('offers captain consent as an accessible 44px action and activates it with Enter', async () => {
@@ -50,30 +52,39 @@ it('lets the replacement select a consented active ship and submit the purge wit
   if (!session) throw new Error('Expected session fixture.');
   useSessionStore.getState().setIdentity({
     ...session,
-    commissarPurgeConsents: { icebreaker: { turn: 1, captainRoleId: 'icebreaker-captain', vesselRevision: 0 } },
   }, {
     ...useSessionStore.getState().me!, replacementRoleId: 'commissar', activeConsoleRoleId: null,
   });
+  useSessionStore.getState().setCommissarPurgeAuthority({
+    sessionId: 's1', role: 'commissar', revision: 0,
+    consents: { icebreaker: { turn: 1, vesselRevision: 0 } }, ledger: {},
+  } as never);
+  refreshCommissarPurgeAuthority.mockResolvedValue(useSessionStore.getState().commissarPurgeAuthority);
   const user = userEvent.setup();
   render(<CommissarPurgePanel shipId="icebreaker" />);
   expect(screen.getByRole('combobox', { name: /target ship/i })).toBeVisible();
   const button = screen.getByRole('button', { name: /purge survivors and reduce unrest/i });
+  await waitFor(() => expect(button).not.toBeDisabled());
   button.focus();
   await user.keyboard('{Enter}');
   expect(applyCommissarPurge).toHaveBeenCalledWith('icebreaker');
 });
 
-it('shows a plain unavailable state after the once-per-turn receipt is present', () => {
+it('shows a plain unavailable state after the once-per-turn receipt is present', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected session fixture.');
   useSessionStore.getState().setIdentity({
     ...session,
-    commissarPurgeConsents: { icebreaker: { turn: 1, captainRoleId: 'icebreaker-captain', vesselRevision: 0 } },
-    commissarPurgeLedger: { icebreaker: { turn: 1, revision: 1 } },
   }, {
     ...useSessionStore.getState().me!, replacementRoleId: 'commissar', activeConsoleRoleId: null,
   });
+  useSessionStore.getState().setCommissarPurgeAuthority({
+    sessionId: 's1', role: 'commissar', revision: 1,
+    consents: { icebreaker: { turn: 1, vesselRevision: 0 } },
+    ledger: { icebreaker: { turn: 1, revision: 1 } },
+  } as never);
+  refreshCommissarPurgeAuthority.mockResolvedValue(useSessionStore.getState().commissarPurgeAuthority);
   render(<CommissarPurgePanel shipId="icebreaker" />);
-  expect(screen.getByRole('status')).toHaveTextContent(/already used its purge this turn/i);
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/already used its purge this turn/i));
   expect(screen.getByRole('button', { name: /purge survivors/i })).toBeDisabled();
 });

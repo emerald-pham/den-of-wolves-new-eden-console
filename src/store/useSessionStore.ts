@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type {
+  CommissarPurgeAuthority,
   GameSession,
   GmInstance,
   LoyaltyCensus,
@@ -319,6 +320,7 @@ interface SessionState {
   arbourVision: ArbourVision | null;
   gmArbourVision: ArbourVision | null;
   gmSetupReceipt: SetupReceipt | null;
+  commissarPurgeAuthority: CommissarPurgeAuthority | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
   mode: ConsoleMode | null;
@@ -342,6 +344,7 @@ interface SessionState {
   setArbourVision: (vision: ArbourVision | null) => void;
   setGmArbourVision: (vision: ArbourVision | null) => void;
   setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
+  setCommissarPurgeAuthority: (authority: CommissarPurgeAuthority | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
   setCommunicationError: (error: CommunicationError | null) => void;
@@ -368,6 +371,7 @@ const initial = {
   arbourVision: null,
   gmArbourVision: null,
   gmSetupReceipt: null,
+  commissarPurgeAuthority: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
   mode: null,
@@ -377,7 +381,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness'
 >;
 
@@ -401,7 +405,7 @@ export const useSessionStore = create<SessionState>()(
     (set, get) => ({
       ...initial,
       setSession: (session) => set({ session }),
-      setIdentity: (session, me) => set({ session, me, roleBrief: null, wolfCultIntelligence: null, gmWolfCultIntelligence: null, arbourVision: null, gmArbourVision: null }),
+      setIdentity: (session, me) => set({ session, me, roleBrief: null, wolfCultIntelligence: null, gmWolfCultIntelligence: null, arbourVision: null, gmArbourVision: null, commissarPurgeAuthority: null }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
@@ -418,6 +422,7 @@ export const useSessionStore = create<SessionState>()(
       setArbourVision: (arbourVision) => set({ arbourVision }),
       setGmArbourVision: (gmArbourVision) => set({ gmArbourVision }),
       setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
+      setCommissarPurgeAuthority: (commissarPurgeAuthority) => set({ commissarPurgeAuthority }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
       removeCommand: (id) =>
@@ -448,6 +453,7 @@ export const useSessionStore = create<SessionState>()(
           arbourVision: null,
           gmArbourVision: null,
           gmSetupReceipt: null,
+          commissarPurgeAuthority: null,
           mode: null,
           lastRoute: null,
           sessionSnapshotFreshness: 'unknown',

@@ -812,6 +812,7 @@ function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[])
 
 type StoredCommissarPurgeConsent = Readonly<{
   turn: number;
+  captainUid: string;
   captainRoleId: string;
   vesselRevision: number;
 }>;
@@ -821,15 +822,22 @@ type StoredCommissarPurgeLedger = Readonly<{
   revision: number;
 }>;
 
+type StoredCommissarPurgeState = Readonly<{
+  consents: Record<string, StoredCommissarPurgeConsent>;
+  ledger: Record<string, StoredCommissarPurgeLedger>;
+}>;
+
 function commissarPurgeConsents(value: unknown): Record<string, StoredCommissarPurgeConsent> {
   const stored = isRecord(value) ? value : {};
   return Object.fromEntries(Object.entries(stored).flatMap(([shipId, consent]) => {
     if (!isResourceShipId(shipId) || !isRecord(consent) ||
         !Number.isSafeInteger(consent.turn) || (consent.turn as number) < 1 ||
+        typeof consent.captainUid !== 'string' || consent.captainUid.length === 0 ||
         typeof consent.captainRoleId !== 'string' || consent.captainRoleId.length === 0 ||
         !Number.isSafeInteger(consent.vesselRevision) || (consent.vesselRevision as number) < 0) return [];
     return [[shipId, {
       turn: consent.turn as number,
+      captainUid: consent.captainUid,
       captainRoleId: consent.captainRoleId,
       vesselRevision: consent.vesselRevision as number,
     }]];
@@ -846,20 +854,12 @@ function commissarPurgeLedger(value: unknown): Record<string, StoredCommissarPur
   }));
 }
 
-function publicCommissarPurgeConsents(
-  value: unknown,
-  activeVesselIds: readonly string[],
-): Record<string, StoredCommissarPurgeConsent> {
-  const active = new Set(activeVesselIds);
-  return Object.fromEntries(Object.entries(commissarPurgeConsents(value)).filter(([shipId]) => active.has(shipId)));
-}
-
-function publicCommissarPurgeLedger(
-  value: unknown,
-  activeVesselIds: readonly string[],
-): Record<string, StoredCommissarPurgeLedger> {
-  const active = new Set(activeVesselIds);
-  return Object.fromEntries(Object.entries(commissarPurgeLedger(value)).filter(([shipId]) => active.has(shipId)));
+function commissarPurgeState(value: unknown): StoredCommissarPurgeState {
+  const stored = isRecord(value) ? value : {};
+  return {
+    consents: commissarPurgeConsents(stored.consents),
+    ledger: commissarPurgeLedger(stored.ledger),
+  };
 }
 
 function publicSmallShipStates(
@@ -2242,6 +2242,14 @@ type CastingMutationResult = {
 
 function commandReceiptRef(sessionId: string, requestId: string): DocumentReference {
   return db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`);
+}
+
+function commissarPurgeStateRef(sessionId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/commissarPurgeState/current`);
+}
+
+function commissarPurgeAuthorityRef(sessionId: string, uid: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/commissarPurgeAuthority/${uid}`);
 }
 
 function vesselActionRevision(session: DocumentSnapshot, vesselId: string): number {
@@ -6119,12 +6127,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
         shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
         populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
-        commissarPurgeConsents: publicCommissarPurgeConsents(
-          sessionSnap.get('commissarPurgeConsents'), activeVesselIds,
-        ),
-        commissarPurgeLedger: publicCommissarPurgeLedger(
-          sessionSnap.get('commissarPurgeLedger'), activeVesselIds,
-        ),
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
         fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
@@ -6364,12 +6366,6 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
       shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
       populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
-      commissarPurgeConsents: publicCommissarPurgeConsents(
-        sessionSnap.get('commissarPurgeConsents'), activeVesselIds,
-      ),
-      commissarPurgeLedger: publicCommissarPurgeLedger(
-        sessionSnap.get('commissarPurgeLedger'), activeVesselIds,
-      ),
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
       fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
@@ -9933,6 +9929,78 @@ async function activeCaptainForShip(
   return { uid: captain.id, roleId: captainRoleId, player: captain };
 }
 
+function commissarPurgeProjectionRevision(
+  session: DocumentSnapshot,
+  revisions?: Readonly<Record<string, number>>,
+): number {
+  return Math.max(0, ...activeVesselIdsForSession(session).map((shipId) =>
+    revisions?.[shipId] ?? vesselActionRevision(session, shipId)));
+}
+
+function commissarPurgeAuthorityProjection(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  state: StoredCommissarPurgeState,
+  revisions?: Readonly<Record<string, number>>,
+): Record<string, unknown> | null {
+  if (!isActivePlayer(player) || player.get('role') !== 'player') return null;
+  const revision = commissarPurgeProjectionRevision(session, revisions);
+  if (player.get('replacementRoleId') === 'commissar' && player.get('activeConsoleRoleId') === null) {
+    return {
+      type: 'commissar-purge-authority',
+      sessionId: session.id,
+      role: 'commissar',
+      revision,
+      consents: Object.fromEntries(Object.entries(state.consents).map(([shipId, consent]) => [shipId, {
+        turn: consent.turn,
+        captainRoleId: consent.captainRoleId,
+        vesselRevision: consent.vesselRevision,
+      }])),
+      ledger: state.ledger,
+    };
+  }
+  const roleId = player.get('activeConsoleRoleId');
+  if (typeof roleId !== 'string' || !configuredRoleIds(session).includes(roleId)) return null;
+  const shipId = activeVesselIdsForSession(session).find((candidate) =>
+    captainRoleForShip(candidate) === roleId &&
+    replacementAuthorityAllowsRole(player.get('replacementRoleId'), roleId));
+  if (!shipId) return null;
+  const consent = state.consents[shipId];
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  const currentRevision = revisions?.[shipId] ?? vesselActionRevision(session, shipId);
+  const currentConsent = consent?.captainUid === player.id &&
+    consent.captainRoleId === roleId && consent.turn === currentTurn &&
+    consent.vesselRevision === currentRevision ? consent : undefined;
+  return {
+    type: 'commissar-purge-authority',
+    sessionId: session.id,
+    role: 'captain',
+    revision,
+    captainRoleId: roleId,
+    shipId,
+    ...(currentConsent ? {
+      consented: true,
+      consentTurn: currentConsent.turn,
+      consentVesselRevision: currentConsent.vesselRevision,
+    } : { consented: false }),
+    usedThisTurn: state.ledger[shipId]?.turn === currentTurn,
+  };
+}
+
+function writeCommissarPurgeAuthorityViews(
+  tx: Transaction,
+  sessionId: string,
+  session: DocumentSnapshot,
+  players: { readonly docs: readonly DocumentSnapshot[] },
+  state: StoredCommissarPurgeState,
+  revisions?: Readonly<Record<string, number>>,
+): void {
+  for (const player of players.docs) {
+    const projection = commissarPurgeAuthorityProjection(session, player, state, revisions);
+    if (projection) txSetIfSupported(tx, commissarPurgeAuthorityRef(sessionId, player.id), projection);
+  }
+}
+
 async function requireShipCounterAuthority(
   tx: Transaction,
   sessionId: string,
@@ -10162,16 +10230,18 @@ export const consentCommissarPurge = onCall<{
     consent.expectedRevision, { shipId: consent.shipId },
   );
   return db.runTransaction(async (tx) => {
-    const [session, player, prior] = await Promise.all([
+    const [session, player, prior, purgeStateSnapshot, players] = await Promise.all([
       tx.get(sessionRef),
       tx.get(db.doc(`sessions/${consent.sessionId}/players/${uid}`)),
       tx.get(receiptRef),
+      tx.get(commissarPurgeStateRef(consent.sessionId)),
+      tx.get(db.collection(`sessions/${consent.sessionId}/players`)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const captainRoleId = requireCaptainConsentAuthority(player, session, consent.shipId);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'Commissar consent');
     if (replay) return replay;
-    requireActionPhase(session, 'maintenance', 'player');
+    requireActiveGameplayPhase(session);
     requireTurnOneForGameplay(session);
     const currentRevision = vesselActionRevision(session, consent.shipId);
     if (consent.expectedRevision !== currentRevision) {
@@ -10189,25 +10259,34 @@ export const consentCommissarPurge = onCall<{
       });
       return stale;
     }
-    const ledger = commissarPurgeLedger(session.get('commissarPurgeLedger'));
+    const priorState = commissarPurgeState(purgeStateSnapshot.get('state') ?? purgeStateSnapshot.data());
+    const ledger = priorState.ledger;
     if (ledger[consent.shipId]?.turn === sessionTurn(session.get('currentTurn'))) {
       throw commandError('already-exists', 'This ship has already used its Commissar purge this turn.', 'conflict');
     }
-    const consents = commissarPurgeConsents(session.get('commissarPurgeConsents'));
+    const consents = { ...priorState.consents };
     const existing = consents[consent.shipId];
     const alreadyConsented = existing?.turn === sessionTurn(session.get('currentTurn')) &&
+      existing.captainUid === uid &&
       existing.captainRoleId === captainRoleId && existing.vesselRevision === currentRevision;
     if (!alreadyConsented) {
       consents[consent.shipId] = {
         turn: sessionTurn(session.get('currentTurn')),
+        captainUid: uid,
         captainRoleId,
         vesselRevision: currentRevision,
       };
-      tx.update(sessionRef, {
-        commissarPurgeConsents: consents,
+      txSetIfSupported(tx, commissarPurgeStateRef(consent.sessionId), {
+        type: 'commissar-purge-state',
+        consents,
+        ledger,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+    writeCommissarPurgeAuthorityViews(tx, consent.sessionId, session, players, {
+      consents,
+      ledger,
+    });
     const result = {
       status: (alreadyConsented ? 'already-consented' : 'committed') as 'already-consented' | 'committed',
       consented: true,
@@ -10238,16 +10317,17 @@ export const applyCommissarPurge = onCall<{
     purge.expectedRevision, { shipId: purge.shipId },
   );
   return db.runTransaction(async (tx) => {
-    const [session, player, prior] = await Promise.all([
+    const [session, player, prior, purgeStateSnapshot] = await Promise.all([
       tx.get(sessionRef),
       tx.get(db.doc(`sessions/${purge.sessionId}/players/${uid}`)),
       tx.get(receiptRef),
+      tx.get(commissarPurgeStateRef(purge.sessionId)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireCommissarActor(player);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'Commissar purge');
     if (replay) return replay;
-    requireActionPhase(session, 'maintenance', 'player');
+    requireActiveGameplayPhase(session);
     requireTurnOneForGameplay(session);
     if (!activeVesselIdsForSession(session).includes(purge.shipId)) {
       throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
@@ -10269,14 +10349,16 @@ export const applyCommissarPurge = onCall<{
       return stale;
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
-    const ledger = commissarPurgeLedger(session.get('commissarPurgeLedger'));
+    const priorState = commissarPurgeState(purgeStateSnapshot.get('state') ?? purgeStateSnapshot.data());
+    const ledger = priorState.ledger;
     if (ledger[purge.shipId]?.turn === currentTurn) {
       throw commandError('already-exists', 'This ship has already used its Commissar purge this turn.', 'conflict');
     }
     const captain = await activeCaptainForShip(tx, purge.sessionId, session, purge.shipId);
-    const consents = commissarPurgeConsents(session.get('commissarPurgeConsents'));
+    const consents = priorState.consents;
     const storedConsent = consents[purge.shipId];
     if (!storedConsent || storedConsent.turn !== currentTurn ||
+        storedConsent.captainUid !== captain.uid ||
         storedConsent.captainRoleId !== captain.roleId ||
         storedConsent.vesselRevision !== currentRevision) {
       throw commandError('failed-precondition', 'The current captain must consent at this vessel revision.', 'conflict');
@@ -10332,10 +10414,18 @@ export const applyCommissarPurge = onCall<{
       [`shipSurvivors.${purge.shipId}`]: populationResult.amount,
       [`shipUnrest.${purge.shipId}`]: unrestResult.amount,
       populationAlerts: nextPopulationAlerts,
-      commissarPurgeConsents: nextConsents,
-      commissarPurgeLedger: nextLedger,
       ...vesselActionRevisionPatch(purge.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
+    });
+    const nextState = { consents: nextConsents, ledger: nextLedger };
+    txSetIfSupported(tx, commissarPurgeStateRef(purge.sessionId), {
+      type: 'commissar-purge-state',
+      ...nextState,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const players = await tx.get(db.collection(`sessions/${purge.sessionId}/players`));
+    writeCommissarPurgeAuthorityViews(tx, purge.sessionId, session, players, nextState, {
+      [purge.shipId]: currentRevision + 1,
     });
     const result = {
       status: 'committed' as const,
@@ -10353,6 +10443,28 @@ export const applyCommissarPurge = onCall<{
       fingerprint, result, createdAt: FieldValue.serverTimestamp(),
     });
     return result;
+  });
+});
+
+/** Refresh the caller's private Commissar authority projection after reconnect or role replacement. */
+export const getCommissarPurgeAuthority = onCall<{
+  sessionId: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const authorityRequest = requireSessionRequest(request.data ?? {});
+  return db.runTransaction(async (tx) => {
+    const [session, player, purgeStateSnapshot] = await Promise.all([
+      tx.get(db.doc(`sessions/${authorityRequest.sessionId}`)),
+      tx.get(db.doc(`sessions/${authorityRequest.sessionId}/players/${uid}`)),
+      tx.get(commissarPurgeStateRef(authorityRequest.sessionId)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    const state = commissarPurgeState(purgeStateSnapshot.get('state') ?? purgeStateSnapshot.data());
+    const projection = commissarPurgeAuthorityProjection(session, player, state);
+    if (!projection) throw new HttpsError('permission-denied', 'The current Commissar or captain role is required.');
+    txSetIfSupported(tx, commissarPurgeAuthorityRef(authorityRequest.sessionId, uid), projection);
+    return projection;
   });
 });
 

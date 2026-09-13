@@ -70,7 +70,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { applyCommissarPurge, consentCommissarPurge } from './index';
+import { applyCommissarPurge, consentCommissarPurge, getCommissarPurgeAuthority } from './index';
 
 const sessionId = 's1';
 const captainUid = 'captain';
@@ -98,6 +98,9 @@ function resetFixture(): void {
     vesselActionRevisions: { icebreaker: 0 },
     populationAlerts: {}, unrestAlerts: {},
   });
+  put(`sessions/${sessionId}/commissarPurgeState/current`, {
+    type: 'commissar-purge-state', consents: {}, ledger: {},
+  });
   put(`sessions/${sessionId}/players/${captainUid}`, {
     uid: captainUid, role: 'player', connected: true,
     assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain',
@@ -119,13 +122,39 @@ const purgeRequest = {
 
 beforeEach(resetFixture);
 
+it('refreshes only the caller private view for the current captain or Commissar', async () => {
+  await expect(getCommissarPurgeAuthority.run(request({ sessionId }, captainUid)))
+    .resolves.toMatchObject({ role: 'captain', captainRoleId: 'icebreaker-captain', consented: false });
+  await expect(getCommissarPurgeAuthority.run(request({ sessionId }, commissarUid)))
+    .resolves.toMatchObject({ role: 'commissar', consents: {}, ledger: {} });
+  put(`sessions/${sessionId}/players/observer`, {
+    uid: 'observer', role: 'player', connected: true,
+    assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', replacementRoleId: null,
+  });
+  await expect(getCommissarPurgeAuthority.run(request({ sessionId }, 'observer')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
 it('requires current captain consent, applies one printed population step and one unrest point atomically', async () => {
   await expect(consentCommissarPurge.run(request(consentRequest, captainUid))).resolves.toMatchObject({
     status: 'committed', consented: true, shipId: 'icebreaker', captainRoleId: 'icebreaker-captain',
   });
-  expect(mock.documents.get(`sessions/${sessionId}`)?.commissarPurgeConsents).toEqual({
-    icebreaker: { turn: 1, captainRoleId: 'icebreaker-captain', vesselRevision: 0 },
+  expect(mock.documents.get(`sessions/${sessionId}`)?.commissarPurgeConsents).toBeUndefined();
+  expect(mock.documents.get(`sessions/${sessionId}/commissarPurgeState/current`)).toMatchObject({
+    consents: {
+      icebreaker: { turn: 1, captainUid, captainRoleId: 'icebreaker-captain', vesselRevision: 0 },
+    },
   });
+  expect(mock.documents.get(`sessions/${sessionId}/commissarPurgeAuthority/${captainUid}`)).toMatchObject({
+    role: 'captain', captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', consented: true,
+  });
+  expect(mock.documents.get(`sessions/${sessionId}/commissarPurgeAuthority/${commissarUid}`)).toMatchObject({
+    role: 'commissar', consents: {
+      icebreaker: { turn: 1, captainRoleId: 'icebreaker-captain', vesselRevision: 0 },
+    },
+  });
+  expect(mock.documents.get(`sessions/${sessionId}/commissarPurgeAuthority/${commissarUid}`))
+    .not.toHaveProperty('captainUid');
 
   await expect(applyCommissarPurge.run(request(purgeRequest))).resolves.toMatchObject({
     status: 'committed', shipId: 'icebreaker', survivorsRemoved: 3000,
@@ -134,8 +163,9 @@ it('requires current captain consent, applies one printed population step and on
   expect(mock.documents.get(`sessions/${sessionId}`)).toMatchObject({
     shipSurvivors: { icebreaker: 37000 }, shipUnrest: { icebreaker: 1 },
     vesselActionRevisions: { icebreaker: 1 },
-    commissarPurgeLedger: { icebreaker: { turn: 1, revision: 1 } },
-    commissarPurgeConsents: {},
+  });
+  expect(mock.documents.get(`sessions/${sessionId}/commissarPurgeState/current`)).toMatchObject({
+    ledger: { icebreaker: { turn: 1, revision: 1 } }, consents: {},
   });
   expect([...mock.documents.keys()].some((path) => path.includes('/damageDraws/'))).toBe(false);
 });
@@ -169,12 +199,26 @@ it('denies wrong actors, stale consent, missing consent, and wrong phase without
     .resolves.toMatchObject({ status: 'stale', currentRevision: 0 });
   await expect(applyCommissarPurge.run(request({ ...purgeRequest, requestId: 'missing-consent' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
-  mock.documents.get(`sessions/${sessionId}`)!.turnPhase = { airspace: { state: 'lifted' } };
-  await expect(consentCommissarPurge.run(request({ ...consentRequest, requestId: 'wrong-phase' }, captainUid)))
+  mock.documents.get(`sessions/${sessionId}`)!.phase = 'closed';
+  await expect(consentCommissarPurge.run(request({ ...consentRequest, requestId: 'closed-session' }, captainUid)))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get(`sessions/${sessionId}`)?.shipSurvivors).toEqual({ icebreaker: 40000 });
   expect(mock.documents.get(`sessions/${sessionId}`)?.shipUnrest).toEqual({ icebreaker: 2 });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('does not let a replacement captain inherit a prior captain UID consent', async () => {
+  await consentCommissarPurge.run(request(consentRequest, captainUid));
+  mock.documents.delete(`sessions/${sessionId}/players/${captainUid}`);
+  put(`sessions/${sessionId}/players/new-captain`, {
+    uid: 'new-captain', role: 'player', connected: true,
+    assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain',
+    replacementRoleId: null,
+  });
+  await expect(applyCommissarPurge.run(request({ ...purgeRequest, requestId: 'handover' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get(`sessions/${sessionId}`)?.shipSurvivors).toEqual({ icebreaker: 40000 });
+  expect(mock.documents.get(`sessions/${sessionId}`)?.shipUnrest).toEqual({ icebreaker: 2 });
 });
 
 it('fails closed when either printed counter cannot accept the purge', async () => {

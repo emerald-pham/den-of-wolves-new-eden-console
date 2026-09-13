@@ -35,7 +35,7 @@ import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
-import type { GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence, ArbourVision } from '@/types/game';
+import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -290,6 +290,15 @@ function AppRoutes() {
           }
           if (previousEntitlement !== nextEntitlement) {
             retainArbourVisionForEntitlementChange();
+          const authority = store.commissarPurgeAuthority;
+          const authorityStillCurrent = authority?.role === 'commissar'
+            ? next.replacementRoleId === 'commissar' && next.activeConsoleRoleId === null
+            : authority?.role === 'captain'
+              ? next.role === 'player' && next.activeConsoleRoleId === authority.captainRoleId &&
+                (next.replacementRoleId == null || next.replacementRoleId === authority.captainRoleId)
+              : false;
+          if (!authorityStillCurrent) {
+            store.setCommissarPurgeAuthority(null);
           }
           if (next.role !== 'gm' && previousEntitlement !== nextEntitlement) {
             const current = useSessionStore.getState().session;
@@ -460,6 +469,9 @@ function AppRoutes() {
           // matching assignment arrives, while removing any former brief.
           pendingRoleBrief = next;
           store.setRoleBrief(null);
+        },
+        onCommissarPurgeAuthority: (next: CommissarPurgeAuthority | null) => {
+          if (callbackCurrent()) useSessionStore.getState().setCommissarPurgeAuthority(next);
         },
         onSetupReceipt: (next) => {
           if (!callbackCurrent()) return;

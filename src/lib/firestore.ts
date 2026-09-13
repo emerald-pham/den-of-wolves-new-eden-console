@@ -16,6 +16,7 @@ import { httpsCallable } from 'firebase/functions';
 import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import type {
+  CommissarPurgeAuthority,
   DamageDraw,
   GameSession,
   GmInstance,
@@ -295,7 +296,61 @@ function gmArbourVision(value: unknown, sessionId: string): ArbourVision | null 
   } : null;
 }
 
-
+function commissarPurgeAuthority(
+  value: unknown,
+  sessionId: string,
+): CommissarPurgeAuthority | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (raw.type !== 'commissar-purge-authority' || raw.sessionId !== sessionId ||
+      (raw.role !== 'captain' && raw.role !== 'commissar') ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0) return null;
+  const shipId = raw.shipId === undefined ? undefined : parseEntityId('vessel', raw.shipId);
+  if (raw.role === 'captain' && !shipId) return null;
+  const captainRoleId = raw.captainRoleId === undefined ? undefined : parseEntityId('role', raw.captainRoleId);
+  if (raw.role === 'captain' && !captainRoleId) return null;
+  const turn = raw.consentTurn === undefined ? undefined : nonNegativeInteger(raw.consentTurn);
+  const vesselRevision = raw.consentVesselRevision === undefined
+    ? undefined : nonNegativeInteger(raw.consentVesselRevision);
+  const usedThisTurn = raw.usedThisTurn === undefined ? undefined : raw.usedThisTurn === true;
+  const parseMap = (valueToParse: unknown, ledger: boolean) => {
+    const stored = recordValue(valueToParse);
+    if (!stored) return undefined;
+    const entries = Object.entries(stored).flatMap(([id, entry]) => {
+      const parsedId = parseEntityId('vessel', id);
+      const item = recordValue(entry);
+      const entryTurn = nonNegativeInteger(item?.turn);
+      const entryRevision = nonNegativeInteger(item?.[ledger ? 'revision' : 'vesselRevision']);
+      const captainRoleId = ledger ? undefined : parseEntityId('role', item?.captainRoleId);
+      if (!parsedId || entryTurn === undefined || entryTurn < 1 || entryRevision === undefined ||
+          (!ledger && !captainRoleId)) return [];
+      return [[parsedId, ledger
+        ? { turn: entryTurn, revision: entryRevision }
+        : { turn: entryTurn, captainRoleId, vesselRevision: entryRevision }]];
+    });
+    return entries.length === Object.keys(stored).length ? Object.fromEntries(entries) : undefined;
+  };
+  if (raw.role === 'captain' && (raw.consented !== undefined && typeof raw.consented !== 'boolean' ||
+      (raw.consentTurn !== undefined && turn === undefined) ||
+      (raw.consentVesselRevision !== undefined && vesselRevision === undefined) ||
+      (raw.usedThisTurn !== undefined && typeof raw.usedThisTurn !== 'boolean'))) return null;
+  const consents = parseMap(raw.consents, false);
+  const ledger = parseMap(raw.ledger, true);
+  if (raw.role === 'commissar' && (raw.consents !== undefined && !consents || raw.ledger !== undefined && !ledger)) return null;
+  return {
+    sessionId: entityId('session', sessionId),
+    role: raw.role,
+    revision: raw.revision as number,
+    ...(captainRoleId ? { captainRoleId } : {}),
+    ...(shipId ? { shipId } : {}),
+    ...(typeof raw.consented === 'boolean' ? { consented: raw.consented } : {}),
+    ...(turn !== undefined ? { consentTurn: turn } : {}),
+    ...(vesselRevision !== undefined ? { consentVesselRevision: vesselRevision } : {}),
+    ...(usedThisTurn !== undefined ? { usedThisTurn } : {}),
+    ...(consents ? { consents } : {}),
+    ...(ledger ? { ledger } : {}),
+  };
+}
 const VIP_CARD_NAMES: Readonly<Record<VipCardId, VipCardName>> = {
   'party-deck': 'Party Deck', 'spa-deck': 'Spa Deck', 'gaming-deck': 'Gaming Deck',
   'casino-deck': 'Casino Deck', 'theatre-deck': 'Theatre Deck',
@@ -909,33 +964,6 @@ function shipSurvivors(value: unknown): NonNullable<GameSession['shipSurvivors']
       ? [[shipId, stored[shipId] as number]] : []));
 }
 
-function commissarPurgeConsents(value: unknown): NonNullable<GameSession['commissarPurgeConsents']> {
-  const stored = recordValue(value);
-  if (!stored) return {};
-  return Object.fromEntries(Object.entries(stored).flatMap(([shipId, consent]) => {
-    const raw = recordValue(consent);
-    const parsedShipId = parseEntityId('vessel', shipId);
-    const captainRoleId = parseEntityId('role', raw?.captainRoleId);
-    const turn = nonNegativeInteger(raw?.turn);
-    const vesselRevision = nonNegativeInteger(raw?.vesselRevision);
-    if (!parsedShipId || !captainRoleId || turn === undefined || turn < 1 || vesselRevision === undefined) return [];
-    return [[parsedShipId, { turn, captainRoleId, vesselRevision }]];
-  }));
-}
-
-function commissarPurgeLedger(value: unknown): NonNullable<GameSession['commissarPurgeLedger']> {
-  const stored = recordValue(value);
-  if (!stored) return {};
-  return Object.fromEntries(Object.entries(stored).flatMap(([shipId, entry]) => {
-    const raw = recordValue(entry);
-    const parsedShipId = parseEntityId('vessel', shipId);
-    const turn = nonNegativeInteger(raw?.turn);
-    const revision = nonNegativeInteger(raw?.revision);
-    if (!parsedShipId || turn === undefined || turn < 1 || revision === undefined) return [];
-    return [[parsedShipId, { turn, revision }]];
-  }));
-}
-
 function shipGalacticCoordinates(value: unknown): Record<string, string> {
   const stored = recordValue(value);
   return Object.fromEntries(Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [
@@ -1237,8 +1265,6 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipUnrest: shipUnrest(data.shipUnrest),
     shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),
-    commissarPurgeConsents: commissarPurgeConsents(data.commissarPurgeConsents),
-    commissarPurgeLedger: commissarPurgeLedger(data.commissarPurgeLedger),
     unrestAlerts: alertMap<UnrestAlert>(data.unrestAlerts, false),
     gmControlsLocked: data.gmControlsLocked === true,
     activeRoleIds,
@@ -1333,6 +1359,7 @@ export interface SessionStateHandlers {
   readonly onWolfCultIntelligence?: (intelligence: WolfCultIntelligence | null) => void;
   readonly onArbourVision?: (vision: ArbourVision | null) => void;
   readonly onRoleBrief?: (brief: RoleBrief | null) => void;
+  readonly onCommissarPurgeAuthority?: (authority: CommissarPurgeAuthority | null) => void;
   /** Whether the accepted player projection came from the server. */
   readonly onPlayerFreshness?: (fresh: boolean) => void;
   readonly onSetupReceipt?: (receipt: SetupReceipt | null) => void;
@@ -1512,6 +1539,24 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
+    ...(handlers.onCommissarPurgeAuthority ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/commissarPurgeAuthority/${uid}`),
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onCommissarPurgeAuthority?.(
+          snapshot.exists() ? commissarPurgeAuthority(snapshot.data(), sessionId) : null,
+        );
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onCommissarPurgeAuthority?.(null);
+          return;
+        }
+        onError();
+      },
+    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -1655,6 +1700,7 @@ export function subscribeSessionState(
       handlers.onWolfCultIntelligence?.(null);
       handlers.onArbourVision?.(null);
       handlers.onRoleBrief?.(null);
+      handlers.onCommissarPurgeAuthority?.(null);
       handlers.onSetupReceipt?.(null);
     }
   };

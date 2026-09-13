@@ -226,6 +226,51 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Commissar consent and purge state is server-only. The per-UID
+      // projection exposes only the current captain's own consent or the
+      // active Commissar's sanitized ship map; the role check is evaluated
+      // against the live player record so handover immediately revokes it.
+      match /commissarPurgeState/{stateId} {
+        allow read, write: if false;
+      }
+
+      match /commissarPurgeAuthority/{authorityUid} {
+        allow get: if isMember(sessionId)
+          && authorityUid == uid()
+          && resource.data.sessionId == sessionId
+          && resource.data.role is string
+          && (
+            (resource.data.role == 'commissar'
+              && get(
+                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+              ).data.role == 'player'
+              && get(
+                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+              ).data.replacementRoleId == 'commissar'
+              && get(
+                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+              ).data.activeConsoleRoleId == null)
+            || (resource.data.role == 'captain'
+              && resource.data.captainRoleId is string
+              && get(
+                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+              ).data.role == 'player'
+              && get(
+                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+              ).data.activeConsoleRoleId == resource.data.captainRoleId
+              && (
+                !('replacementRoleId' in get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+                ).data)
+                || get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+                ).data.replacementRoleId == null
+                || get(
+                  /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+                ).data.replacementRoleId == resource.data.captainRoleId)));
+        allow list, write: if false;
+      }
+
       match /gmInstances/{instanceId} {
         allow get, list: if isMember(sessionId);
         // Claims, kicks and releases also update player authority, so they are
