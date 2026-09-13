@@ -21,6 +21,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [663],
+    implementationProgress: {
+      completed: 222,
+      total: 750,
+      percentage: '29.60%',
+      done: 222,
+      partial: 25,
+      active: 0,
+      missing: 503,
+    },
+    changes: [
+      'The AEGIS Admiral can now find the Fleetwide Red Alert command across phone, landscape, and desktop console layouts.',
+      'The alert command keeps its confirmation lock, keyboard access, readable guidance, and existing authority safeguards.',
+      '222 of 750 planned items are complete (29.60%).',
+    ],
+  },
+  {
+    version: '0.3.82',
     implementationPrompts: [390, 248, 658],
     implementationProgress: {
       completed: 221,
