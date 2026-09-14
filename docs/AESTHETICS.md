@@ -383,7 +383,7 @@ and monospaced readout scale; they never attach to the viewport bottom or cover
 the console. On constrained widths the broadcast occupies its own full-width
 row inside that same measured header, so the console offset still accounts for
 it. The ticker is always present. ATC supplies `AIRSPACE CONTROL // AIRSPACE
-CLOSED // CYCLE 0` immediately on joining; Press takes over the eligible pool
+CLOSED` immediately on joining; Press takes over the eligible pool
 when it publishes dispatches, and Aegis takes top priority. Follow
 [Ticker Behavior](TICKER_BEHAVIOR.md) for source selection and physical handoffs.
 Press dispatches leave a
@@ -1228,10 +1228,11 @@ for Press dispatches. Keep that prefix first in the moving copy, reduced-motion
 readout, and assistive-technology status so the origin stays clear before a
 bulletin is read.
 
-Cycle 0 always starts with airspace closed: `AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0`.
+Cycle 0 always starts with airspace closed: `AIRSPACE CONTROL // AIRSPACE CLOSED`.
 From Cycle 0, the same instrument carries the server-owned airspace status:
 `AIRSPACE CONTROL // AIRSPACE CLOSED` or `AIRSPACE CONTROL // AIRSPACE OPEN`.
-An optional `CYCLE X` suffix may identify the current cycle. It is independent
+ATC never includes cycle numbers; cycle information belongs on the pursuit
+tracker. The bulletin is independent
 of Press Officer publication and follows the authoritative phase when the
 shared cycle advances. Do not use standing-by copy or append the old lockdown
 paragraph. Cached generated ATC copy is upgraded without changing its identity;

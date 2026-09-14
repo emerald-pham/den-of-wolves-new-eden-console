@@ -217,7 +217,7 @@ it('lets a Turn 0 Press dispatch replace the standing ATC bulletin', async () =>
     revision: 1, nextSequence: 1, replayCursor: 1,
     current: {
       id: 's1:fleet-ticker:1', sequence: 1, source: 'automatic', priority: 30,
-      text: 'AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0', tone: 'normal', gap: 'long',
+      text: 'AIRSPACE CONTROL // AIRSPACE CLOSED', tone: 'normal', gap: 'long',
       sourceId: 'turn-zero-atc', createdAt: '2026-09-06T12:00:00.000Z',
     },
     queued: [], draining: [], dismissed: [],

@@ -18,7 +18,8 @@ every case below has already been implemented or verified in production.
 | Aegis | Red Alert and Stand Down | Highest priority; temporarily replaces the eligible playback pool |
 
 Cycle 0 always has **Airspace Closed**. ATC uses **Airspace Closed** or
-**Airspace Open** as appropriate, optionally followed by **Cycle X**. It never
+**Airspace Open** as appropriate. ATC never includes cycle numbers; cycle
+information belongs on the pursuit tracker. It never
 replays an outdated airspace state. Existing source prefixes identify ATC,
 Press, and Aegis; an Admiral warning and Aegis Stand Down are the same source
 for priority purposes.

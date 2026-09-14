@@ -21,6 +21,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 278, total: 751, percentage: '37.02%',
+      done: 278, partial: 24, active: 0, missing: 449,
+    },
+    changes: [
+      'ATC now says only Airspace Closed or Airspace Open. Cycle information stays on the pursuit tracker.',
+      '278 of 751 planned items are complete (37.02%).',
+    ],
+  },
+  {
+    version: '0.4.12',
     implementationPrompts: [624],
     implementationProgress: {
       completed: 278, total: 751, percentage: '37.02%',
@@ -29,6 +40,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'The console keeps your saved session and queued commands while a new app shell waits for you to apply it. Applying and reloading are separate deliberate actions, so an update does not interrupt an active session.',
       '278 of 751 planned items are complete (37.02%).',
+    ],
+  },
+  {
+    version: '0.4.11',
+    implementationPrompts: [612],
+    implementationProgress: {
+      completed: 277, total: 751, percentage: '36.88%',
+      done: 277, partial: 24, active: 0, missing: 450,
+    },
+    changes: [
+      'Saved sessions now show a clear reconnecting or offline marker while preserving the last usable view, and the marker no longer overlaps role selection on small screens.',
+      '277 of 751 planned items are complete (36.88%).',
     ],
   },
   {

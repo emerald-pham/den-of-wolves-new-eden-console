@@ -5,7 +5,7 @@ import FleetBroadcast from './FleetBroadcast';
 
 const renderTicker = vi.hoisted(() => vi.fn(() => null));
 
-const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED // CYCLE 0';
+const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 
 vi.mock('./FleetTicker', () => ({ default: renderTicker }));

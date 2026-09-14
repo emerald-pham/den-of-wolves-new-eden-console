@@ -247,8 +247,8 @@ Cycle 0 always has airspace closed, including before role selection or game star
 The initial server projection is also release-critical: a freshly joined member
 must see `AIRSPACE CONTROL // AIRSPACE CLOSED` or
 `AIRSPACE CONTROL // AIRSPACE OPEN`, matching the authoritative airspace state,
-from the moment a lobby is joined. An optional `CYCLE X` suffix may clarify the
-current cycle. No standing-by copy or extra lockdown paragraph replaces that
+from the moment a lobby is joined. ATC copy never includes cycle numbers;
+cycle information belongs on the pursuit tracker. No standing-by copy or extra lockdown paragraph replaces that
 status. This is independent of Press Officer publication or role selection. The
 Cycle 0 smoke covers a freshly joined member with no claimed role or Press
 dispatch, pending and ready fonts, normal and reduced motion, 320px and
