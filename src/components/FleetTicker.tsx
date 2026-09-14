@@ -13,6 +13,7 @@ import './fleetTicker.css';
 export interface FleetMessage {
   readonly id: string;
   readonly text: string;
+  readonly source?: 'automatic' | 'admiral' | 'press';
   readonly tone: 'danger' | 'normal';
   readonly pressText?: string | undefined;
   readonly gap?: 'standard' | 'long';
@@ -56,6 +57,7 @@ function messageSignature(message: FleetMessage | undefined): string {
   if (!message) return '';
   return [
     message.id,
+    message.source ?? '',
     message.text,
     message.tone,
     message.pressText ?? '',
@@ -114,16 +116,54 @@ function StationaryMessage({ message, fallback, queue = [], onMessageComplete }:
 }) {
   const [completed, setCompleted] = useState(() => readCompletedPasses(message));
   const [expired, setExpired] = useState(false);
-  const done = expired || (message.passes !== undefined && completed >= message.passes);
+  const [traversalDurationMs, setTraversalDurationMs] = useState(4_000);
+  const windowRef = useRef<HTMLDivElement>(null);
+  const messageRef = useRef<HTMLParagraphElement>(null);
+  const hasQueuedNext = queue.length > 0 || fallback?.source !== undefined;
+  const done = expired || (message.passes !== undefined && completed >= message.passes)
+    || (message.passes === undefined && hasQueuedNext && completed >= 1);
+
+  useLayoutEffect(() => {
+    if (message.passes === undefined) return undefined;
+    const measure = () => {
+      const viewportWidth = windowRef.current?.clientWidth
+        || windowRef.current?.getBoundingClientRect().width
+        || FALLBACK_WINDOW_WIDTH;
+      const messageWidth = Math.max(
+        messageRef.current?.scrollWidth || 0,
+        messageRef.current?.getBoundingClientRect().width || 0,
+        messageLabel(message).length * 8,
+      );
+      setTraversalDurationMs(Math.max(1_000,
+        Math.ceil(((viewportWidth + messageWidth) / TICKER_SPEED_PX_PER_SECOND) * 1_000)));
+    };
+    measure();
+    const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+    fonts?.ready.then(measure).catch(() => undefined);
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+    const observer = new ResizeObserver(measure);
+    if (windowRef.current) observer.observe(windowRef.current);
+    if (messageRef.current) observer.observe(messageRef.current);
+    return () => observer.disconnect();
+  }, [completed, message, message.passes]);
 
   useEffect(() => {
-    if (done || !onMessageComplete) return undefined;
+    if (done) return undefined;
     const duration = message.passes === undefined
-      ? REDUCED_MESSAGE_DISPLAY_MS
-      : message.passes * 30_000;
-    const timer = window.setTimeout(() => onMessageComplete(message.id), duration);
+      ? REDUCED_MESSAGE_DISPLAY_MS : traversalDurationMs;
+    const timer = window.setTimeout(() => {
+      if (message.passes === undefined) {
+        if (hasQueuedNext) setCompleted((value) => value + 1);
+        else onMessageComplete?.(message.id);
+        return;
+      }
+      setCompleted((value) => Math.min(message.passes!, value + 1));
+    }, duration);
     return () => window.clearTimeout(timer);
-  }, [done, message.id, message.passes, onMessageComplete]);
+  }, [done, hasQueuedNext, message.id, message.passes, onMessageComplete, traversalDurationMs]);
 
   useEffect(() => {
     if (!message.expiresAt) return undefined;
@@ -144,11 +184,13 @@ function StationaryMessage({ message, fallback, queue = [], onMessageComplete }:
   }, [completed, message]);
 
   if (done) {
-    const next = fallback ?? queue[0];
+    const next = [fallback, ...queue].find((candidate) => candidate && candidate.id !== message.id);
     return next
       ? <StationaryMessage key={messageSignature(next)} message={next}
-          {...(queue.length === 0 ? {} : {
-            queue: fallback ? queue : queue.slice(1),
+          {...(queue.length === 0 && message.source !== 'press' ? {} : {
+            queue: message.source === 'press'
+              ? [...queue.filter((candidate) => candidate.id !== next.id), message]
+              : (fallback ? queue.filter((candidate) => candidate.id !== next.id) : queue.slice(1)),
           })}
           {...(onMessageComplete ? { onMessageComplete } : {})} />
       : null;
@@ -157,9 +199,13 @@ function StationaryMessage({ message, fallback, queue = [], onMessageComplete }:
   return (
     <aside className="fleet-ticker" aria-label="Fleet broadcasts"
       data-tone={message.tone} data-gap={message.gap ?? 'standard'} data-reduced="true">
-      <div className="fleet-ticker__window" role="status" aria-label={messageLabel(message)}
+      <div ref={windowRef} className="fleet-ticker__window" role="status"
+        aria-label={message.passes === undefined
+          ? messageLabel(message)
+          : `${messageLabel(message)} (copy ${Math.min(message.passes, completed + 1)} of ${message.passes})`}
         aria-live="polite" aria-atomic="true">
-        <p className="fleet-ticker__message">
+        <p ref={messageRef} className="fleet-ticker__message"
+          data-copy-number={message.passes === undefined ? undefined : Math.min(message.passes, completed + 1)}>
           {message.text}
           {message.pressText && <span className="fleet-ticker__press"> // {message.pressText}</span>}
         </p>
@@ -182,6 +228,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   const completedMessageIds = useRef(new Set<string>());
   const groupsRef = useRef<readonly MovingGroup[]>([]);
   const activeMessage = useRef<FleetMessage | undefined>(undefined);
+  const lastServerMessageId = useRef<string | undefined>(undefined);
   const sequence = useRef(0);
   const input = useRef({ message, fallback, queue });
   input.current = { message, fallback, queue };
@@ -255,6 +302,22 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
         ? messageProbeRef.current
         : queueProbeRefs.current.get(nextMessage.id) ?? null
   ), []);
+
+  const pressPool = useCallback((): readonly FleetMessage[] => {
+    const byId = new Map<string, FleetMessage>();
+    for (const candidate of [input.current.message, ...input.current.queue]) {
+      if (candidate?.source === 'press') byId.set(candidate.id, candidate);
+    }
+    return [...byId.values()];
+  }, []);
+
+  const nextPressMessage = useCallback((completedId: string): FleetMessage | undefined => {
+    const pool = pressPool();
+    if (pool.length < 2) return undefined;
+    const index = pool.findIndex((candidate) => candidate.id === completedId);
+    if (index < 0) return pool[0];
+    return pool[(index + 1) % pool.length];
+  }, [pressPool]);
 
   const relativeRight = useCallback((group: MovingGroup): number => {
     const element = groupElements.current.get(group.key);
@@ -397,10 +460,17 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     const requestedMessage = inputMessage?.id === expiredId ? undefined : inputMessage;
     // An expired finite notice leaves its visible tail in place, then returns
     // to the server-provided fallback before any lower-priority queue item.
+    const serverMessageChanged = lastServerMessageId.current !== inputMessage?.id;
+    lastServerMessageId.current = inputMessage?.id;
     let nextMessage = requestedMessage ?? requestedFallback ?? queue[0];
     if (nextMessage?.passes !== undefined
       && readCompletedPasses(nextMessage) >= nextMessage.passes) {
       nextMessage = requestedFallback ?? queue[0];
+    }
+    const localPressStillEligible = activeMessage.current?.source === 'press'
+      && pressPool().some((candidate) => candidate.id === activeMessage.current?.id);
+    if (!serverMessageChanged && localPressStillEligible) {
+      nextMessage = activeMessage.current;
     }
 
     let nextGroups: readonly MovingGroup[] = groupsRef.current.filter(isOnScreen);
@@ -447,7 +517,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
 
     setGroups(nextGroups);
     setProcessedKey(inputKey);
-  }, [appendGroups, expiredId, fontReady, geometryFor, inputKey, isOnScreen, probeFor, setGroups]);
+  }, [appendGroups, expiredId, fontReady, geometryFor, inputKey, isOnScreen, pressPool, probeFor, setGroups]);
 
   useEffect(() => {
     const frame = windowRef.current;
@@ -500,6 +570,18 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     const active = activeMessage.current;
     if (active && active.passes === undefined
       && messageSignature(active) === messageSignature(ended.message)) {
+      const nextPress = ended.message.source === 'press'
+        ? nextPressMessage(ended.message.id) : undefined;
+      if (nextPress) {
+        activeMessage.current = nextPress;
+        setAnnouncedMessage(nextPress);
+        if (!nextGroups.some((group) => messageSignature(group.message) === messageSignature(nextPress))) {
+          const geometry = geometryFor(nextPress, probeFor(nextPress));
+          nextGroups = appendGroups(nextGroups, nextPress, 2, geometry);
+        }
+        setGroups(nextGroups);
+        return;
+      }
       const activeCount = nextGroups.filter((group) => (
         messageSignature(group.message) === messageSignature(active)
       )).length;
@@ -512,7 +594,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     }
 
     setGroups(nextGroups);
-  }, [appendGroups, geometryFor, onMessageComplete, probeFor, setGroups]);
+  }, [appendGroups, geometryFor, nextPressMessage, onMessageComplete, probeFor, setGroups]);
 
   const waitingForLayout = processedKey !== inputKey;
   if (!announcedMessage && groups.length === 0 && !waitingForLayout) {

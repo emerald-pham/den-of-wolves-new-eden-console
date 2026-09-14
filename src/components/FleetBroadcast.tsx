@@ -30,6 +30,7 @@ function displayFleetTickerMessage(
   return {
     id: message.id,
     text: message.text,
+    source: message.source,
     tone: message.tone,
     gap: message.gap,
     ...(pressText ? { pressText } : {}),

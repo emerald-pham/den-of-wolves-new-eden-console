@@ -68,6 +68,21 @@ it('keeps queued identities singular while rapid updates append new tracks', () 
   )).toHaveLength(2);
   expect(view.container.querySelectorAll('[role="status"]')).toHaveLength(1);
 });
+it('rotates the authoritative Press pool while visible groups finish naturally', () => {
+  const first = {
+    id: 'press-pool-1', text: 'SNN // FIRST REPORT', tone: 'normal' as const, source: 'press' as const,
+  };
+  const second = {
+    id: 'press-pool-2', text: 'SNN // SECOND REPORT', tone: 'normal' as const, source: 'press' as const,
+  };
+  const view = render(<FleetTicker message={first} queue={[second]} />);
+
+  finishMovingPasses(view.container, first.id);
+  expect(screen.getByRole('status', { name: second.text })).toBeVisible();
+
+  finishMovingPasses(view.container, second.id);
+  expect(screen.getByRole('status', { name: first.text })).toBeVisible();
+});
 it('does not duplicate a queued identity when its current message is replaced', () => {
   const queued = {
     id: 'queued-press-replacement', text: 'SNN // QUEUED REPORT', tone: 'normal' as const,
@@ -166,7 +181,7 @@ it('does not let session storage overrule server-authoritative pass state', () =
     serverAuthoritative: true,
   }} />);
 
-  expect(screen.getByRole('status', { name: 'AEGIS // STAND DOWN' })).toBeVisible();
+  expect(screen.getByRole('status', { name: /AEGIS \/\/ STAND DOWN/ })).toBeVisible();
 });
 it('uses local pass completion only for the exact server message identity', () => {
   const first = { id: 'server-stand-down-a', text: 'AEGIS // STAND DOWN A', tone: 'normal' as const, passes: 2, serverAuthoritative: true };
@@ -191,7 +206,7 @@ it('returns to the supplied standing copy when the server deadline expires', () 
     fallback={{ id: 'airspace-standing', text: 'AIRSPACE CONTROL // AIRSPACE CLOSED', tone: 'normal' }}
   />);
 
-  expect(screen.getByRole('status', { name: 'AEGIS // STAND DOWN' })).toBeVisible();
+  expect(screen.getByRole('status', { name: /AEGIS \/\/ STAND DOWN/ })).toBeVisible();
   act(() => vi.advanceTimersByTime(60_000));
   expect(screen.getByRole('status', { name: 'AIRSPACE CONTROL // AIRSPACE CLOSED' })).toBeVisible();
 });
@@ -239,9 +254,39 @@ it('keeps moving broadcasts visible while the document font promise is pending',
 it('shows readable stationary copy in reduced motion and clears finite messages', () => {
   vi.useFakeTimers(); setMotionOverride('reduce');
   render(<FleetTicker message={cancelled} />);
-  expect(screen.getByRole('status', { name: cancelled.text })).toHaveTextContent(cancelled.text);
-  act(() => vi.advanceTimersByTime(60000));
+  expect(screen.getByRole('status', { name: new RegExp(cancelled.text) })).toHaveTextContent(cancelled.text);
+  act(() => vi.advanceTimersByTime(120000));
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
+});
+it('announces two geometry-timed reduced-motion copies before advancing', () => {
+  vi.useFakeTimers(); setMotionOverride('reduce');
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const { container } = render(<FleetTicker message={{
+    id: 'reduced-two-copy', text: 'AEGIS // SHORT', tone: 'normal', passes: 2,
+  }} />);
+  const frame = container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  const message = container.querySelector<HTMLElement>('.fleet-ticker__message')!;
+  Object.defineProperty(frame, 'clientWidth', { configurable: true, value: 100 });
+  Object.defineProperty(message, 'scrollWidth', { configurable: true, value: 100 });
+  act(() => notifyResize?.());
+
+  expect(screen.getByRole('status')).toHaveAttribute('aria-label', expect.stringContaining('copy 1 of 2'));
+  act(() => vi.advanceTimersByTime(5_000));
+  expect(screen.getByRole('status')).toHaveAttribute('aria-label', expect.stringContaining('copy 2 of 2'));
+  act(() => vi.advanceTimersByTime(60_000));
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+it('rotates a queued Press identity in reduced motion without replaying the current copy', () => {
+  vi.useFakeTimers(); setMotionOverride('reduce');
+  render(<FleetTicker
+    message={{ id: 'reduced-press-1', source: 'press', text: 'PRESS ONE', tone: 'normal' }}
+    queue={[{ id: 'reduced-press-2', source: 'press', text: 'PRESS TWO', tone: 'normal' }]}
+  />);
+  expect(screen.getByRole('status', { name: 'PRESS ONE' })).toBeVisible();
+  act(() => vi.advanceTimersByTime(4_000));
+  expect(screen.getByRole('status', { name: 'PRESS TWO' })).toBeVisible();
+  act(() => vi.advanceTimersByTime(4_000));
+  expect(screen.getByRole('status', { name: 'PRESS ONE' })).toBeVisible();
 });
 it('wraps the stationary bulletin inside the reduced-motion ticker', () => {
   setMotionOverride('reduce');

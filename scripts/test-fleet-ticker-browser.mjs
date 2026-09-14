@@ -386,6 +386,241 @@ async function assertTickerGeometry(page, label, reducedMotion) {
   }
 }
 
+async function runTickerLifecycleCase() {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    reducedMotion: 'no-preference',
+    serviceWorkers: 'block',
+    viewport: { width: 320, height: 844 },
+  });
+  const page = await context.newPage();
+  const artifactPath = path.join(artifactDirectory, 'ticker-lifecycle-normal.json');
+  const lifecycle = {
+    pressOne: { id: 'lifecycle-press-1', source: 'press', text: 'SNN // ONE', tone: 'normal', gap: 'long' },
+    pressTwo: { id: 'lifecycle-press-2', source: 'press', text: 'SNN // TWO', tone: 'normal', gap: 'long' },
+    aegis: { id: 'lifecycle-aegis', source: 'admiral', text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger', gap: 'long' },
+    standDown: { id: 'lifecycle-stand-down', source: 'automatic', text: 'AEGIS // STAND DOWN', tone: 'normal', passes: 2, gap: 'long' },
+  };
+  const samples = [];
+
+  const setTicker = async (message, queue = [], fallback) => {
+    await page.evaluate(({ nextMessage, nextQueue, nextFallback }) => {
+      window.__tickerLifecycleSet?.({
+        message: nextMessage,
+        queue: nextQueue,
+        ...(nextFallback === undefined ? {} : { fallback: nextFallback }),
+      });
+    }, { nextMessage: message, nextQueue: queue, nextFallback: fallback });
+  };
+  const waitForText = async (text, timeout = 120_000) => {
+    await page.waitForFunction((expected) => {
+      const host = document.querySelector('#ticker-lifecycle-harness');
+      const status = host?.querySelector('[role="status"]');
+      return status?.getAttribute('aria-label')?.includes(expected) ?? false;
+    }, text, { timeout });
+  };
+  const captureGeometry = async (label, { targetId, traversals = 1 } = {}) => {
+    console.log(`Ticker lifecycle capture started: ${label}`);
+    const result = await page.evaluate(async ({ name, expectedId, passCount }) => {
+      const host = document.querySelector('#ticker-lifecycle-harness');
+      const frame = host?.querySelector('.fleet-ticker__window');
+      if (!frame) return { label: name, error: 'frame missing' };
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const rows = [];
+      const firstTarget = expectedId
+        ? frame.querySelector(`[data-message-id="${expectedId}"]`)
+        : frame.querySelector('.fleet-ticker__group');
+      const durationSeconds = firstTarget
+        ? Number.parseFloat(getComputedStyle(firstTarget).animationDuration)
+        : Number.NaN;
+      const budget = Number.isFinite(durationSeconds)
+        ? Math.max(2_000, (durationSeconds * 1_000 * passCount) + 1_000)
+        : 12_000;
+      const startedAt = performance.now();
+      let frameCount = 0;
+      while (performance.now() - startedAt < budget) {
+        await waitFrame();
+        frameCount += 1;
+        if (frameCount % 6 !== 0) continue;
+        const frameBounds = frame.getBoundingClientRect();
+        const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group, groupIndex) => {
+          const bounds = group.getBoundingClientRect();
+          return {
+            id: `${group.getAttribute('data-message-id') ?? ''}:${groupIndex}`,
+            messageId: group.getAttribute('data-message-id') ?? '',
+            left: bounds.left, right: bounds.right, width: bounds.width,
+            elapsed: performance.now(),
+          };
+        }).filter((group) => group.width > 0);
+        rows.push({ frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
+      }
+      const overlap = [];
+      const velocitySamples = [];
+      const tracks = new Map();
+      for (const sample of rows) {
+        const ordered = [...sample.groups].sort((left, right) => left.left - right.left);
+        for (let index = 1; index < ordered.length; index += 1) {
+          const previous = ordered[index - 1];
+          const current = ordered[index];
+          if (current.left < previous.right - 1) overlap.push({ previous, current });
+        }
+        for (const group of sample.groups) {
+          const track = tracks.get(group.id) ?? [];
+          track.push(group);
+          tracks.set(group.id, track);
+        }
+      }
+      for (const track of tracks.values()) {
+        for (let index = 1; index < track.length; index += 1) {
+          const elapsed = track[index].elapsed - track[index - 1].elapsed;
+          if (elapsed > 0) velocitySamples.push((track[index].left - track[index - 1].left) / elapsed * 1_000);
+        }
+      }
+      const targetRows = expectedId
+        ? rows.flatMap((sample) => sample.groups.filter((group) => group.messageId === expectedId))
+        : rows.flatMap((sample) => sample.groups);
+      return {
+        label: name,
+        targetId: expectedId,
+        traversals: passCount,
+        durationSeconds,
+        sampleCount: rows.length,
+        rows,
+        overlap,
+        targetSamples: targetRows.length,
+        velocitySamples,
+      };
+    }, { name: label, expectedId: targetId, passCount: traversals });
+    samples.push(result);
+    console.log(`Ticker lifecycle capture sampled: ${label} (${Math.round((result.durationSeconds ?? 0) * 1_000)}ms, ${result.sampleCount} samples)`);
+    if (result.error) throw new Error(`lifecycle/${label}: ${result.error}`);
+    if (result.targetSamples < 8) throw new Error(`lifecycle/${label}: target was not sampled across its traversal: ${JSON.stringify(result)}`);
+    if (result.overlap.length > 0) throw new Error(`lifecycle/${label}: groups overlap: ${JSON.stringify(result.overlap[0])}`);
+    const measuredVelocity = result.velocitySamples.filter((speed) => speed < -35 && speed > -60);
+    if (measuredVelocity.length < 8) throw new Error(`lifecycle/${label}: movement was not normalized to the 48px/s track: ${JSON.stringify(result)}`);
+  };
+
+  try {
+    await page.goto(`${appUrl}#/ships/aegis`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+      const [{ default: FleetTicker }, { default: React }, { default: ReactDOM }] = await Promise.all([
+        import('/src/components/FleetTicker.tsx'),
+        import('/node_modules/.vite/deps/react.js'),
+        import('/node_modules/.vite/deps/react-dom_client.js'),
+      ]);
+      const host = document.createElement('div');
+      host.id = 'ticker-lifecycle-harness';
+      document.body.append(host);
+      const root = ReactDOM.createRoot(host);
+      window.__tickerLifecycleSet = (props) => root.render(React.createElement(FleetTicker, props));
+    });
+    await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
+    await waitForText(lifecycle.pressOne.text, 10_000);
+    await captureGeometry('press-one', { targetId: lifecycle.pressOne.id });
+
+    await setTicker(lifecycle.aegis, [lifecycle.pressOne, lifecycle.pressTwo]);
+    await waitForText(lifecycle.aegis.text, 10_000);
+    await captureGeometry('aegis', { targetId: lifecycle.aegis.id });
+
+    await setTicker(lifecycle.standDown, [lifecycle.pressOne, lifecycle.pressTwo], lifecycle.pressOne);
+    await waitForText(lifecycle.standDown.text, 10_000);
+    await captureGeometry('stand-down-copy-one', { targetId: lifecycle.standDown.id, traversals: 2 });
+    await waitForText(lifecycle.pressOne.text);
+    await captureGeometry('after-two-stand-down-passes', { targetId: lifecycle.pressTwo.id });
+
+    await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
+    await waitForText(lifecycle.pressTwo.text);
+    await captureGeometry('press-two-rotation', { targetId: lifecycle.pressTwo.id });
+    await waitForText(lifecycle.pressOne.text);
+    await captureGeometry('press-one-rotation', { targetId: lifecycle.pressOne.id });
+    await mkdir(artifactDirectory, { recursive: true });
+    await writeFile(artifactPath, `${JSON.stringify(samples, null, 2)}\n`);
+    console.log(`Ticker lifecycle browser proof passed: ${artifactPath}`);
+  } catch (error) {
+    await mkdir(artifactDirectory, { recursive: true });
+    await page.screenshot({ path: path.join(artifactDirectory, 'ticker-lifecycle-failure.png'), fullPage: false });
+    throw error;
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
+async function runReducedTickerLifecycleCase() {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block',
+    viewport: { width: 320, height: 844 },
+  });
+  const page = await context.newPage();
+  const artifactPath = path.join(artifactDirectory, 'ticker-lifecycle-reduced.json');
+  const lifecycle = {
+    pressOne: { id: 'reduced-lifecycle-press-1', source: 'press', text: 'SNN // ONE', tone: 'normal', gap: 'long' },
+    pressTwo: { id: 'reduced-lifecycle-press-2', source: 'press', text: 'SNN // TWO', tone: 'normal', gap: 'long' },
+    aegis: { id: 'reduced-lifecycle-aegis', source: 'admiral', text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger', gap: 'long' },
+    standDown: { id: 'reduced-lifecycle-stand-down', source: 'automatic', text: 'AEGIS // STAND DOWN', tone: 'normal', passes: 2, gap: 'long' },
+  };
+  const labels = [];
+  const setTicker = async (message, queue = [], fallback) => {
+    await page.evaluate(({ nextMessage, nextQueue, nextFallback }) => {
+      window.__tickerLifecycleSet?.({
+        message: nextMessage,
+        queue: nextQueue,
+        ...(nextFallback === undefined ? {} : { fallback: nextFallback }),
+      });
+    }, { nextMessage: message, nextQueue: queue, nextFallback: fallback });
+  };
+  const waitForAnnouncement = async (text, copy) => {
+    await page.waitForFunction(({ expectedText, expectedCopy }) => {
+      const status = document.querySelector('#ticker-lifecycle-reduced-harness [role="status"]');
+      const label = status?.getAttribute('aria-label') ?? '';
+      return label.includes(expectedText) && (expectedCopy === undefined || label.includes(`copy ${expectedCopy} of 2`));
+    }, { expectedText: text, expectedCopy: copy }, { timeout: 30_000 });
+    labels.push(await page.locator('#ticker-lifecycle-reduced-harness [role="status"]').getAttribute('aria-label'));
+  };
+
+  try {
+    await page.goto(`${appUrl}#/ships/aegis`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+      const [{ default: FleetTicker }, { default: React }, { default: ReactDOM }] = await Promise.all([
+        import('/src/components/FleetTicker.tsx'),
+        import('/node_modules/.vite/deps/react.js'),
+        import('/node_modules/.vite/deps/react-dom_client.js'),
+      ]);
+      const host = document.createElement('div');
+      host.id = 'ticker-lifecycle-reduced-harness';
+      document.body.append(host);
+      const root = ReactDOM.createRoot(host);
+      window.__tickerLifecycleSet = (props) => root.render(React.createElement(FleetTicker, props));
+    });
+    await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
+    await waitForAnnouncement(lifecycle.pressOne.text);
+    await setTicker(lifecycle.aegis, [lifecycle.pressOne, lifecycle.pressTwo]);
+    await waitForAnnouncement(lifecycle.aegis.text);
+    await setTicker(lifecycle.standDown, [lifecycle.pressOne, lifecycle.pressTwo], lifecycle.pressOne);
+    await waitForAnnouncement(lifecycle.standDown.text, 1);
+    await waitForAnnouncement(lifecycle.standDown.text, 2);
+    await waitForAnnouncement(lifecycle.pressOne.text);
+    await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
+    await waitForAnnouncement(lifecycle.pressTwo.text);
+    await waitForAnnouncement(lifecycle.pressOne.text);
+    const distinctCopies = labels.filter((label) => label?.includes('copy 1 of 2')).length > 0 &&
+      labels.filter((label) => label?.includes('copy 2 of 2')).length > 0;
+    if (!distinctCopies) throw new Error(`Reduced lifecycle did not announce both distinct copies: ${JSON.stringify(labels)}`);
+    await mkdir(artifactDirectory, { recursive: true });
+    await writeFile(artifactPath, `${JSON.stringify({ labels }, null, 2)}\n`);
+    console.log(`Ticker reduced lifecycle browser proof passed: ${artifactPath}`);
+  } catch (error) {
+    await mkdir(artifactDirectory, { recursive: true });
+    await page.screenshot({ path: path.join(artifactDirectory, 'ticker-lifecycle-reduced-failure.png'), fullPage: false });
+    throw error;
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
 async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -522,18 +757,26 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
 const { child: vite, output: viteOutput } = startVite();
 try {
   await waitForServer(vite, viteOutput);
-  for (const scenario of ['press', 'turn-zero']) {
-    for (const fontMode of ['pending', 'ready']) {
-      for (const reducedMotion of [false, true]) {
-        const viewports = scenario === 'turn-zero'
-          ? [{ width: 320, height: 844 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]
-          : [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }];
-        for (const viewport of viewports) {
-          await runCase(fontMode, reducedMotion, viewport, scenario);
-          console.log(`Ticker browser smoke passed: ${scenario}/${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`);
+  if (process.env.TICKER_SMOKE_ONLY_LIFECYCLE !== '1'
+    && process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE !== '1') {
+    for (const scenario of ['press', 'turn-zero']) {
+      for (const fontMode of ['pending', 'ready']) {
+        for (const reducedMotion of [false, true]) {
+          const viewports = scenario === 'turn-zero'
+            ? [{ width: 320, height: 844 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]
+            : [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }];
+          for (const viewport of viewports) {
+            await runCase(fontMode, reducedMotion, viewport, scenario);
+            console.log(`Ticker browser smoke passed: ${scenario}/${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`);
+          }
         }
       }
     }
+  }
+  if (process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE !== '1') await runTickerLifecycleCase();
+  if (process.env.TICKER_SMOKE_ONLY_LIFECYCLE !== '1'
+    || process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE === '1') {
+    await runReducedTickerLifecycleCase();
   }
 } finally {
   if (vite.exitCode === null) vite.kill('SIGTERM');
