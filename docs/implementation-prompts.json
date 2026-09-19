@@ -5266,6 +5266,13 @@
       "type": "evidence / local-emulator / concurrency / ownership"
     },
     {
+      "direction": "586 -> ROSTER-CONFIGURATION-PRESENTATION",
+      "id": "E-586-VERIFIED",
+      "language": "The facilitator setup selector exposes only the thirteen supported 8-20 player presets and keeps every change local until one explicit confirmation. Before lock, a live configuration-effects region explains the effective Dione availability, printed Union replacement rule, server-derived one- or two-Wolf pool, and base, absent, or full Capybara expansion result from the same staged values submitted to the authoritative setup callable. A red-before-green focused regression covers the supported option set and the 8-, 14-, and 19-player effects; related roster and submission regressions plus TypeScript checking pass. Reduced-motion rendered proof at 320x844, 390x844, 844x390, and 1440x900 verifies readable stacked effects, navigation, and no horizontal overflow.",
+      "source": "src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; functions/src/gameSetup.ts supported configuration contract; /tmp/p586-render/evidence.json; /tmp/p586-render/*-effects.png",
+      "type": "evidence / production-path / accessibility / rendered"
+    },
+    {
       "direction": "587 -> PRIVATE-CASTING-PRESENTATION",
       "id": "E-587-VERIFIED",
       "language": "The connected player now receives a compact private casting assignment sourced only from the exact-holder role-brief projection. It names that player's ship, role, player-console device mode, and the single allowed private-brief route without rendering the brief body or common rules. A stale brief whose role no longer matches the player's assigned or replacement role is hidden. The existing GM casting board retains the complete connected-player roster and authoritative assignment controls. The existing server-owned role-brief boundary denies every other player, GM, observer, outsider, list, and client-write attempt. One hundred thirteen focused RoleSelect and GM-console tests plus TypeScript checking pass. Real reduced-motion browser proof at 320x844, 390x844, 844x390, and 1440x900 verifies exact fields, no brief-text leak, a 44px route control, no horizontal overflow, and successful private-route navigation.",
@@ -20282,8 +20289,8 @@
         "acceptance": "setup presents only supported counts/options and explains Dione, Union, Wolf, and expansion effects before lock.",
         "title": "Build the roster configuration flow."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The facilitator setup flow now exposes only the supported 8-20 player presets and keeps changes local until one explicit confirmation. Before lock, a live effects summary explains effective Dione availability, printed Union replacement behavior, the server-derived Wolf-card count, and the base, absent, or full Capybara expansion result from the same staged values sent to the authoritative setup callable. Focused roster tests, TypeScript checking, and reduced-motion rendered proof across phone, short landscape, and desktop sizes pass.",
+      "evidenceIds": "E-586-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20294,7 +20301,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

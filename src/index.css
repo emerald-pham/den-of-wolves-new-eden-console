@@ -3696,6 +3696,31 @@ body {
 .gm-role-preset output { color: var(--cic-cyan); white-space: nowrap; }
 .gm-role-template-status { color: var(--cic-amber); font: 0.7rem/1.4 var(--cic-mono); text-transform: uppercase; }
 .gm-role-setup__note { color: var(--cic-muted); font: 0.6rem/1.5 var(--cic-mono); }
+.gm-configuration-effects {
+  display: grid;
+  gap: 0.55rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-panel) 82%, transparent);
+  padding: 0.7rem;
+}
+.gm-configuration-effects h3 {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.68rem/1.4 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gm-configuration-effects dl { display: grid; gap: 0.4rem; margin: 0; }
+.gm-configuration-effects dl div {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 0.35fr) minmax(0, 1fr);
+  gap: 0.55rem;
+  border-top: 1px dotted var(--cic-rule);
+  padding-top: 0.35rem;
+  font: 0.62rem/1.5 var(--cic-mono);
+}
+.gm-configuration-effects dt { color: var(--cic-muted); text-transform: uppercase; }
+.gm-configuration-effects dd { margin: 0; color: var(--cic-cyan); overflow-wrap: anywhere; }
 .private-loyalty-panel {
   display: grid;
   gap: 0.35rem;
@@ -3825,6 +3850,7 @@ body {
   .gm-role-group--independent { grid-column: auto; }
   .gm-wolf-role { gap: 0.65rem; }
   .gm-union-role__station { display: block; padding-top: 0.1rem; }
+  .gm-configuration-effects dl div { grid-template-columns: 1fr; gap: 0.1rem; }
   .gm-casting-board__header,
   .gm-casting-board__player { align-items: flex-start; flex-direction: column; }
   .gm-casting-board__assign { width: 100%; justify-content: stretch; }

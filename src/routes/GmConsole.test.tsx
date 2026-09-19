@@ -1775,6 +1775,37 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   await waitFor(() => expect(screen.getByText(/roster synchronized/i)).toBeInTheDocument());
 });
 
+it('explains every supported roster effect before the facilitator locks setup', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
+  expect(within(playerCount).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Custom roster',
+    ...Array.from({ length: 13 }, (_, offset) => `${offset + 8} players`),
+  ]);
+
+  await user.selectOptions(playerCount, '8');
+  let effects = screen.getByRole('region', { name: /configuration effects before lock/i });
+  expect(effects).toHaveTextContent('DioneUnavailable below 12 players');
+  expect(effects).toHaveTextContent('Wolf pool1 private Wolf card');
+  expect(effects).toHaveTextContent(/Union.*printed replacement stations/i);
+  expect(effects).toHaveTextContent('ExpansionBase Capybara configuration');
+
+  await user.selectOptions(playerCount, '14');
+  effects = screen.getByRole('region', { name: /configuration effects before lock/i });
+  expect(effects).toHaveTextContent('DioneIn convoy');
+  expect(effects).toHaveTextContent('Wolf pool2 private Wolf cards');
+
+  await user.selectOptions(playerCount, '19');
+  effects = screen.getByRole('region', { name: /configuration effects before lock/i });
+  expect(effects).toHaveTextContent('ExpansionFull Capybara expansion');
+  expect(effects).toHaveTextContent('Capybara Captain and Recycler roles staged');
+});
+
 it('stages one explicit optional loyalty mode and blocks Wolf Cult below two-Wolf rows', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);

@@ -532,6 +532,10 @@ export default function GmConsole() {
   );
   const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
   const draftPlayerCount = draftRecommendedPlayerCount ?? draftRoleIds.length;
+  const persistedExpansion = session?.setup?.expansion ?? session?.expansion;
+  const draftExpansion = draftPlayerCount >= 19
+    ? 'capybara'
+    : persistedExpansion === 'none' ? 'none' : 'base';
   const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
   const activeShipIds = activeFleetShipIds(
     hasUnconfirmedRosterChanges ? draftRoleIds : serverRoleIds,
@@ -2066,19 +2070,15 @@ export default function GmConsole() {
     setRosterMutationState('pending');
     setRosterMutationMessage('Roster confirmation pending // awaiting server receipt.');
     const playerCount = draftRecommendedPlayerCount ?? draftRoleIds.length;
-    const persistedExpansion = activeSession.setup?.expansion ?? activeSession.expansion;
-    const expansion = playerCount >= 19
-      ? 'capybara'
-      : persistedExpansion === 'none' ? 'none' : 'base';
     try {
       const disposition = await confirmSetup({
         playerCount,
         chartId: chartLocked ? serverChartId : draftChartId,
         ...(lockChart ? { lockChart: true } : {}),
-        expansion,
+        expansion: draftExpansion,
         turnLimit: activeSession.setup?.turnLimit ?? activeSession.turnLimit ?? 6,
         dioneEnabled: playerCount >= 12 && draftDioneEnabled,
-        capybaraEnabled: expansion === 'capybara' ? true : draftCapybaraEnabled,
+        capybaraEnabled: draftExpansion === 'capybara' ? true : draftCapybaraEnabled,
         universalArbourEnabled: draftUniversalArbourEnabled,
         wolfCultEnabled: draftWolfCultEnabled,
         activeRoleIds: draftRoleIds,
@@ -3045,6 +3045,36 @@ export default function GmConsole() {
                   <p className="gm-role-template-status" aria-live="polite">
                     {draftRecommendedPlayerCount === undefined ? 'Custom' : 'Recommended'}
                   </p>
+                  <section
+                    className="gm-configuration-effects"
+                    aria-label="Configuration effects before lock"
+                  >
+                    <h3>Configuration effects before lock</h3>
+                    <dl>
+                      <div>
+                        <dt>Dione</dt>
+                        <dd>{draftPlayerCount < 12
+                          ? 'Unavailable below 12 players'
+                          : dioneEnabled ? 'In convoy' : 'Offline'}</dd>
+                      </div>
+                      <div>
+                        <dt>Union</dt>
+                        <dd>Printed replacement stations only; each replaces its paired Engineers and enables Wobbly or Ally</dd>
+                      </div>
+                      <div>
+                        <dt>Wolf pool</dt>
+                        <dd>{draftPlayerCount <= 13 ? '1 private Wolf card' : '2 private Wolf cards'}; holders are server selected</dd>
+                      </div>
+                      <div>
+                        <dt>Expansion</dt>
+                        <dd>{draftExpansion === 'capybara'
+                          ? 'Full Capybara expansion // Capybara Captain and Recycler roles staged'
+                          : draftExpansion === 'base' && capybaraEnabled
+                            ? 'Base Capybara configuration // no expansion roles'
+                            : 'No Capybara vessel // no expansion roles'}</dd>
+                      </div>
+                    </dl>
+                  </section>
                   <p className="gm-role-setup__note">
                     Edit the roster locally, then confirm it once. Nothing is sent while you are choosing roles.
                   </p>
