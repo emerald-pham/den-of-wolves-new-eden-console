@@ -273,6 +273,14 @@ describe('the launcher manifest', () => {
 });
 
 describe('the GM console', () => {
+  it('keeps the GM instance-name field label in the console caption face', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const label = index.match(/\.role-claim > label\.role-card__name\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(label).toContain('font: 0.72rem/1.4 var(--cic-mono)');
+    expect(label).toContain('letter-spacing: 0.1em');
+  });
+
   it('uses the full viewport instead of the centered session-mode width cap', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const console = index.match(/\.gm-console\s*\{([^}]*)\}/)?.[1] ?? '';

@@ -1181,6 +1181,13 @@ body {
   line-height: 1.6;
 }
 
+/* This is a form label, even though it shares the role-card name slot. Keep it
+   in the stable console caption face instead of the cinematic headline face. */
+.role-claim > label.role-card__name {
+  font: 0.72rem/1.4 var(--cic-mono);
+  letter-spacing: 0.1em;
+}
+
 .role-seat-board {
   display: grid;
   gap: 0.8rem;
