@@ -5145,6 +5145,13 @@
       "language": "Live-tab and suspended-tab expiry regressions fail before the repair and pass afterward. All 76 motion-safety and App tests pass. The real application browser smoke passes at 320x844, 1440x900, and 844x390: initial inert content, keyboard choice focus, 44px controls, real timer expiry without reload, renewed reduced choice, persisted reload, and no horizontal overflow. TypeScript checking passes. Browser network is limited to the local test server; no production writes or deployed-behavior claim.",
       "source": "src/components/MotionSafetyGate.tsx; src/components/MotionSafetyGate.test.tsx; src/lib/motionSafety.ts; src/lib/motionSafety.test.ts; src/App.test.tsx; scripts/test-motion-safety-browser.mjs",
       "type": "evidence / production-path / accessibility / rendered"
+    },
+    {
+      "direction": "615",
+      "id": "E-615-RECLAIM-VERIFIED",
+      "language": "Inspected reconcileReturningSeat and both joinSession/resumeSession transactions, including read-before-write setup hydration. Eighty-seven join, resume, and lifecycle tests pass: open-seat restoration, retained own claims, other-holder and locked-seat non-mutation, canonical missing-seat repair, kicked-player denial, and historical console-role replacement safety. Added explicit no-write assertions for an occupied resumed seat and a four-case join intent matrix. This verifies existing production code with local callable tests; it is not concurrent load or new deployment evidence.",
+      "source": "functions/src/index.ts (reconcileReturningSeat, joinSession, resumeSession); functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts",
+      "type": "evidence / production-path / regression"
     }
   ],
   "plan": {
@@ -20985,8 +20992,8 @@
         "acceptance": "a valid open intent is restored, while a seat taken by someone else remains untouched.",
         "title": "Reclaim returning seats safely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-615",
+      "description": "Existing join and resume transactions reconcile the returning player's stored seat intent from a server read. An open seat is reclaimed, a seat already held by the same player is retained, and occupied or locked seats are left untouched while the obsolete pointer is cleared. Canonical missing seats are hydrated before reclaim writes. Focused regressions now explicitly prove no writes to another holder's seat; no runtime behavior changed in this verification.",
+      "evidenceIds": "E-AUDIT-615;E-615-RECLAIM-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "034;612",
@@ -20997,7 +21004,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

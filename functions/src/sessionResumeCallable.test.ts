@@ -162,6 +162,12 @@ it('lets a player return after two idle hours, clearing only an occupied old sea
   };
 
   expect(response.player.seatId).toBeNull();
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/seat-1' }), expect.anything(),
+  );
+  expect(mock.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/seat-1' }), expect.anything(),
+  );
   expect(mock.get).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/seats/seat-1' }),
   );

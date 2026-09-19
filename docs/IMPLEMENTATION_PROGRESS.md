@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**280 / 751 prompts complete (37.28%)**
+**281 / 751 prompts complete (37.42%)**
 
-Status breakdown: **280 done · 24 partial · 447 missing**.
+Status breakdown: **281 done · 24 partial · 446 missing**.
 
 Active prompt: **none**
 
@@ -1090,7 +1090,7 @@ release classification and evidence.
 | 612 | done | non-feature | 0.4.11 | The store immediately rehydrates the saved session and route; local-storage hydration now marks the projection cache-freshness and exposes an ephemeral browser-local stale marker until an accepted server snapshot arrives. Transient resume failures preserve the view, terminal membership denial clears local authority fields, the header announces the stale snapshot while preserving connection-light grace, and snapshot-only mutations remain denied. |
 | 613 | done | non-feature | — | Terminal resume failures (not-found, permission-denied, failed-precondition) clear the matching persisted session identity, GM instance, mode, and route; transient failures preserve the saved session and route for recovery. A delayed terminal denial from a departed session cannot clear a newer joined session. Focused service, store, and protected-route tests verify the production paths; deployment is tracked separately. |
 | 614 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 615 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 615 | done | non-feature | — | Existing join and resume transactions reconcile the returning player's stored seat intent from a server read. An open seat is reclaimed, a seat already held by the same player is retained, and occupied or locked seats are left untouched while the obsolete pointer is cleared. Canonical missing seats are hydrated before reclaim writes. Focused regressions now explicitly prove no writes to another holder's seat; no runtime behavior changed in this verification. |
 | 616 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 617 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 618 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

@@ -146,6 +146,37 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
   });
 });
 
+it.each([
+  { status: 'open', holderUid: null, expectedSeat: 'seat-1', claims: true },
+  { status: 'claimed', holderUid: 'u1', expectedSeat: 'seat-1', claims: false },
+  { status: 'claimed', holderUid: 'u2', expectedSeat: null, claims: false },
+  { status: 'locked', holderUid: null, expectedSeat: null, claims: false },
+])('reconciles returning join intent for $status / $holderUid without taking another seat', async ({ status, holderUid, expectedSeat, claims }) => {
+  mock.enforceReadOrder = true;
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
+    if (path === 'sessions/s1/players/u1') return snapshot({
+      uid: 'u1', sessionId: 's1', displayName: 'Returning player', role: 'player', seatId: 'seat-1',
+    });
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'activeMemberships/u1' || path === 'sessions/s1/fleetGroups/fleet-1' ||
+        path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/seats/seat-1') return snapshot({ status, holderUid });
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({ player: { seatId: expectedSeat } });
+  const seatRef = expect.objectContaining({ path: 'sessions/s1/seats/seat-1' });
+  if (claims) {
+    expect(mock.update).toHaveBeenCalledWith(seatRef, expect.objectContaining({ status: 'claimed', holderUid: 'u1' }));
+  } else {
+    expect(mock.update).not.toHaveBeenCalledWith(seatRef, expect.anything());
+  }
+  expect(mock.set).not.toHaveBeenCalledWith(seatRef, expect.anything());
+});
+
 it('reclaims a canonical missing seat after setup hydration without clearing its pointer', async () => {
   mock.enforceReadOrder = true;
   const activeRoleIds = [...recommendedRoleIds(8)];
