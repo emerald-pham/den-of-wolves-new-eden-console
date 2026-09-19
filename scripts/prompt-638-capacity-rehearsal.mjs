@@ -249,7 +249,7 @@ async function main() {
 
     const extraCore = await createContext('extra-core', ports);
     contexts.push(extraCore);
-    await call(extraCore, 'joinSession', { joinCode, displayName: 'P638 ordinary extra' });
+    const extraCoreJoin = await call(extraCore, 'joinSession', { joinCode, displayName: 'P638 ordinary extra' });
 
     await call(owner, 'elevateToGm', { sessionId, targetUid: owner.uid });
     await call(owner, 'loginGmAccess', { password: 'bananasplit' });
@@ -356,7 +356,11 @@ async function main() {
       'ordinary twenty-first core start',
       ['failed-precondition'],
     );
-    await call(extraCore, 'disconnectFromSession', { sessionId });
+    await call(extraCore, 'disconnectFromSession', {
+      sessionId, connectionGeneration: extraCoreJoin.player.connectionGeneration,
+    });
+    assert((await readDoc(owner, `${sessionPath}/players/${extraCore.uid}`)).data()?.connected === false,
+      'The extra core member was not actually disconnected before start.');
 
     const ownerStartRequest = {
       sessionId,
