@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "prompt": "637",
+  "budgets": {
+    "landingBundleRawBytes": 1600000,
+    "landingBundleGzipBytes": 460000,
+    "largestJavaScriptChunkBytes": 512000,
+    "landingStartupP95Ms": 2500,
+    "routeStartupP95Ms": 2500,
+    "dradisUpdateP95Ms": 100,
+    "attackUpdateP95Ms": 120,
+    "missionHandUpdateP95Ms": 100,
+    "mobileFrameP95Ms": 35,
+    "mobileLongFrames": 2
+  },
+  "measurement": {
+    "browser": "Playwright Chromium",
+    "landingAndRouteSamples": 5,
+    "renderUpdateSamples": 30,
+    "mobileFrameSamples": 120,
+    "mobileViewport": "390x844",
+    "longFrameThresholdMs": 50
+  }
+}

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**296 / 751 prompts complete (39.41%)**
+**297 / 751 prompts complete (39.55%)**
 
-Status breakdown: **296 done · 25 partial · 430 missing**.
+Status breakdown: **297 done · 25 partial · 429 missing**.
 
 Active prompt: **none**
 
@@ -1113,7 +1113,7 @@ release classification and evidence.
 | 634 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 637 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 637 | done | non-feature | — | A versioned Chromium performance gate now measures the complete landing JavaScript payload, cold landing and cached-session Role Select startup, repeated production DRADIS and hostile-attack renders, eight simultaneous private mission-hand updates, and 120 mobile frames at 390x844. CI enforces explicit raw, gzip, chunk, p95 render/startup, and long-frame budgets and uploads machine-readable evidence; the local route probe remains offline and never contacts production Firebase. |
 | 638 | done | non-feature | — | Two source-aligned Capybara rehearsals now pass against an isolated Firebase Emulator: a core-only 20-player run with one GM and no Press, followed by an independent 20-player run with claimed Press and two simultaneous GMs. Both cover fresh Turn 0 ATC projection, listener convergence/privacy, real action commit/replay/stale behavior, heartbeat persistence, and reconnect retention; the expanded run also covers concurrent start CAS and Press retention. Returning-seat reconciliation now preserves a canonical missing-seat pointer through setup hydration, with strict join/resume coverage. The evidence is local-emulator capacity proof; a separate simultaneous heartbeat attempt is recorded as an emulator internal failure with cause undetermined and excluded from the capacity claim, no 60-browser or production-capacity claim is made, and full Capybara vertical mechanics remain Prompt 584. |
 | 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

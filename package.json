@@ -24,6 +24,7 @@
     "test:growth": "node scripts/test-growth-gate.mjs",
     "security:threat-model": "node --test scripts/validate-threat-model.test.mjs && node scripts/validate-threat-model.mjs",
     "test:geometry:603a": "node scripts/prompt-603a-geometry.mjs",
+    "test:performance:p637": "npm run build && node scripts/prompt-637-render-performance.mjs",
     "test:all": "npm run test && npm run test:rules",
     "coordination:status": "node scripts/emulator-resource-registry.mjs status",
     "coordination:dependencies": "node scripts/prompt-dependencies.mjs",

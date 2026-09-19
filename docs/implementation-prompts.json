@@ -21671,7 +21671,7 @@
         "acceptance": "landing bundle, route startup, DRADIS, attack updates, mission hands, and mobile frame behavior have measured thresholds.",
         "title": "Establish render-performance baselines."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "A versioned Chromium performance gate now measures the complete landing JavaScript payload, cold landing and cached-session Role Select startup, repeated production DRADIS and hostile-attack renders, eight simultaneous private mission-hand updates, and 120 mobile frames at 390x844. CI enforces explicit raw, gzip, chunk, p95 render/startup, and long-frame budgets and uploads machine-readable evidence; the local route probe remains offline and never contacts production Firebase.",
       "evidenceIds": "E-AUDIT-637",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21683,7 +21683,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

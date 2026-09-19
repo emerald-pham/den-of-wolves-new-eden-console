@@ -798,7 +798,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 634 | EXTEND | missing | 019;630 | none | none | none | none | none | none | none | E-AUDIT-634 | X | Record security denials privately. |
 | 635 | EXTEND | missing | 007;019;167 | none | none | none | none | none | none | none | E-AUDIT-635 | X | Standardize action audit records. |
 | 636 | PROVE | missing | 167 | none | none | none | none | none | none | none | E-AUDIT-636 | X | Measure callable and snapshot health. |
-| 637 | PROVE | missing | 009 | none | none | none | none | none | none | none | E-AUDIT-637 | X | Establish render-performance baselines. |
+| 637 | PROVE | done | 009 | none | none | none | none | none | none | none | E-AUDIT-637 | X | Establish render-performance baselines. |
 | 638 | EXTEND | done | none | none | none | none | none | none | none | none | E-638-CAPACITY | X | Support and exercise the 20-player core target. |
 | 639 | PROVE | missing | 636;638 | none | none | none | none | none | none | none | E-AUDIT-639 | X | Exercise the 60-browser target. |
 | 640 | PROVE | missing | 638;639 | none | none | none | none | none | none | none | E-AUDIT-640 | X | Publish capacity conclusions. |
