@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "clientCount": 60,
+  "durationMs": 900000,
+  "heartbeatIntervalMs": 10000,
+  "heartbeatCoverageMin": 0.95,
+  "heartbeatErrorRateMax": 0.01,
+  "heartbeatP95MsMax": 8000,
+  "actionIntervalMs": 60000,
+  "actionRacesMin": 14,
+  "listenerActionP95MsMax": 3000,
+  "reconnectMsMax": 5000,
+  "transientRecoveryMsMax": 5000
+}

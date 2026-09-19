@@ -22,6 +22,8 @@
     "test:health-metrics": "node --test scripts/health-metrics.test.mjs",
     "test:health:p636": "npm run test:health-metrics && P638_EVIDENCE_PATH=/tmp/p636-callable-health.json node scripts/prompt-638-capacity-rehearsal.mjs --scenario=press && node scripts/validate-prompt-636-health.mjs /tmp/p636-callable-health.json",
     "test:capacity:p638": "node scripts/prompt-638-capacity-rehearsal.mjs --scenario=core && node scripts/prompt-638-capacity-rehearsal.mjs --scenario=press",
+    "test:capacity:p639": "node scripts/prompt-639-browser-capacity.mjs && node scripts/validate-prompt-639-capacity.mjs",
+    "test:capacity:p639:smoke": "node scripts/prompt-639-browser-capacity.mjs --clients=20 --duration-ms=30000 --smoke --evidence=/tmp/p639-browser-capacity-smoke.json",
     "test:rules": "node scripts/run-emulator-command.mjs rules",
     "test:growth": "node scripts/test-growth-gate.mjs",
     "security:threat-model": "node --test scripts/validate-threat-model.test.mjs && node scripts/validate-threat-model.mjs",
