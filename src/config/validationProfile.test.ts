@@ -56,4 +56,13 @@ describe('validation profiles', () => {
     expect(profile.kind).toBe('full');
     expect(profile.requiresReview).toBe(true);
   });
+
+  it('requires an exact-head independent security receipt for threat-model governance', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['security/threat-model.json', 'scripts/validate-threat-model.mjs'],
+    });
+    expect(profile.kind).toBe('full');
+    expect(profile.requiresReview).toBe(true);
+    expect(profile.reviewReceiptKind).toBe('exact-head-independent-security-review');
+  });
 });

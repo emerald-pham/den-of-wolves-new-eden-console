@@ -52,6 +52,7 @@ export interface ValidationProfile {
   readonly commands: readonly string[];
   readonly requiresReview?: boolean;
   readonly reviewReason?: string;
+  readonly reviewReceiptKind?: 'exact-head-independent-security-review';
   readonly evidence?: Readonly<Record<string, unknown>>;
 }
 
@@ -64,10 +65,26 @@ export interface ValidationRecord {
   readonly outcomes: readonly Readonly<Record<string, unknown>>[];
   readonly baseSha?: string;
   readonly diffIdentity?: string;
-  readonly review?: string;
+  readonly review?: string | IndependentSecurityReviewReceipt;
   readonly error?: string;
   readonly validatedAt: string;
 }
+
+export interface IndependentSecurityReviewReceipt {
+  readonly version: 1;
+  readonly kind: 'independent-security-review';
+  readonly reviewerModel: 'gpt-5.6-terra';
+  readonly reasoningEffort: 'xhigh';
+  readonly outcome: 'approved';
+  readonly commitSha: string;
+  readonly summary: string;
+  readonly reviewedAt: string;
+}
+
+export function parseIndependentSecurityReviewReceipt(
+  value: unknown,
+  expectedCommitSha: string,
+): IndependentSecurityReviewReceipt;
 
 export interface CoordinationEntry {
   readonly id: string;

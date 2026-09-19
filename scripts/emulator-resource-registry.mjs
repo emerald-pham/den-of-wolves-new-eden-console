@@ -81,6 +81,40 @@ function text(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+export function parseIndependentSecurityReviewReceipt(value, expectedCommitSha) {
+  let receipt = value;
+  if (typeof value === 'string') {
+    try {
+      receipt = JSON.parse(value);
+    } catch {
+      throw new Error('Independent security review must be a structured JSON receipt.');
+    }
+  }
+  const record = objectRecord(receipt);
+  const reviewedAt = text(record.reviewedAt);
+  const reviewedAtDate = new Date(reviewedAt);
+  if (record.version !== 1 || record.kind !== 'independent-security-review' ||
+      record.reviewerModel !== 'gpt-5.6-terra' || record.reasoningEffort !== 'xhigh' ||
+      record.outcome !== 'approved' || record.commitSha !== expectedCommitSha ||
+      !text(record.summary) || !reviewedAt || !Number.isFinite(reviewedAtDate.getTime()) ||
+      reviewedAtDate.toISOString() !== reviewedAt) {
+    throw new Error(
+      `Independent security review receipt must approve exact HEAD ${expectedCommitSha} ` +
+      'with Terra xhigh, a summary, and an ISO reviewedAt timestamp.',
+    );
+  }
+  return {
+    version: 1,
+    kind: 'independent-security-review',
+    reviewerModel: 'gpt-5.6-terra',
+    reasoningEffort: 'xhigh',
+    outcome: 'approved',
+    commitSha: expectedCommitSha,
+    summary: text(record.summary),
+    reviewedAt,
+  };
+}
+
 function isoNow(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) throw new Error(`Invalid timestamp: ${String(value)}.`);
@@ -378,6 +412,16 @@ function releaseStateErrors({ entry, release, requireMerged = true }) {
 
 export function validateReleaseCompletion({ entry, release }) {
   const errors = releaseStateErrors({ entry, release, requireMerged: true });
+  const requiresExactSecurityReview =
+    entry?.validation?.profile?.reviewReceiptKind === 'exact-head-independent-security-review' ||
+    release.validationProfile?.reviewReceiptKind === 'exact-head-independent-security-review';
+  if (requiresExactSecurityReview) {
+    try {
+      parseIndependentSecurityReviewReceipt(entry?.validation?.review, release.branchSha);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
   if (errors.length) throw new Error(`Cannot complete coordination entry ${entry.id}: ${errors.join('; ')}.`);
   return { pushed: release.originMainSha === release.mainSha };
 }
@@ -1131,10 +1175,19 @@ export async function validateCoordinationEntry(filePath, options = {}) {
     return entry;
   });
 
-  if (reusable) return recordValidation(previous, { reused: true });
-  if (profile.requiresReview === true && !text(options.review ?? options['independent-review'])) {
+  if (reusable) {
+    if (profile.reviewReceiptKind === 'exact-head-independent-security-review') {
+      parseIndependentSecurityReviewReceipt(previous.review, release.branchSha);
+    }
+    return recordValidation(previous, { reused: true });
+  }
+  const suppliedReview = options.review ?? options['independent-review'];
+  if (profile.requiresReview === true && !text(suppliedReview)) {
     throw new Error(`Coordination entry ${snapshot.id} requires one independent holistic review before validation can finish.`);
   }
+  const review = profile.reviewReceiptKind === 'exact-head-independent-security-review'
+    ? parseIndependentSecurityReviewReceipt(suppliedReview, release.branchSha)
+    : text(suppliedReview);
 
   const runner = options.commandRunner ?? runValidationCommand;
   const outcomes = [];
@@ -1179,7 +1232,7 @@ export async function validateCoordinationEntry(filePath, options = {}) {
     outcomes,
     ...(validationBaseSha ? { baseSha: validationBaseSha } : {}),
     ...(validationDiffIdentity ? { diffIdentity: validationDiffIdentity } : {}),
-    ...(profile.requiresReview ? { review: text(options.review ?? options['independent-review']) } : {}),
+    ...(profile.requiresReview ? { review } : {}),
     validatedAt: isoNow(),
   };
   return recordValidation(validation);

@@ -71,6 +71,7 @@ const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|public\/|index\
 const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
 const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
 const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile)\.mjs$)/i;
+const SECURITY_GOVERNANCE_PATH_PATTERN = /^(?:security\/threat-model\.json$|scripts\/validate-threat-model(?:\.test)?\.mjs$)/i;
 
 function isDocumentationPath(file) {
   return /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i.test(file);
@@ -166,7 +167,9 @@ export function deriveValidationProfile({
     };
   }
 
-  const highRisk = forceFull || files.some((file) => HIGH_RISK_PATH_PATTERN.test(file));
+  const requiresExactSecurityReview = files.some((file) => SECURITY_GOVERNANCE_PATH_PATTERN.test(file));
+  const highRisk = forceFull || requiresExactSecurityReview ||
+    files.some((file) => HIGH_RISK_PATH_PATTERN.test(file));
   if (highRisk) {
     return {
       kind: 'full',
@@ -176,6 +179,9 @@ export function deriveValidationProfile({
       commands: [...FULL_VALIDATION_COMMANDS],
       requiresReview: true,
       reviewReason: 'one independent holistic review is required for high-risk changes',
+      ...(requiresExactSecurityReview
+        ? { reviewReceiptKind: 'exact-head-independent-security-review' }
+        : {}),
     };
   }
 

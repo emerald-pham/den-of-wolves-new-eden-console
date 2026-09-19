@@ -26,8 +26,8 @@
     "contributors": "trusted",
     "buildPipeline": "trusted",
     "contributorOutput": "untrusted-until-independent-review-and-release-gate",
-    "independentReviewReceipt": "required",
-    "releaseGate": "required",
+    "independentReviewReceipt": "exact-head-structured-receipt-required",
+    "releaseGate": "coordination-validation-and-finish-enforce-receipt-for-security-governance-change",
     "machineGatePurpose": [
       "mistakes",
       "stale-work",
@@ -89,7 +89,7 @@
           ]
         }
       ],
-      "tests": []
+      "testChecks": []
     },
     {
       "id": "APPCHECK_CLIENT",
@@ -109,8 +109,13 @@
           ]
         }
       ],
-      "tests": [
-        "src/lib/firebase.test.ts"
+      "testChecks": [
+        {
+          "file": "src/lib/firebase.test.ts",
+          "contains": [
+            "initializes Enterprise attestation before the callable Functions client"
+          ]
+        }
       ]
     },
     {
@@ -134,8 +139,14 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/runtimeOptions.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/runtimeOptions.test.ts",
+          "contains": [
+            "requires App Check on every deployed callable while retaining the bounded instance cap",
+            "does not enforce App Check in the Functions Emulator"
+          ]
+        }
       ]
     },
     {
@@ -153,8 +164,13 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/runtimeOptions.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/runtimeOptions.test.ts",
+          "contains": [
+            "requires App Check on every deployed callable while retaining the bounded instance cap"
+          ]
+        }
       ]
     },
     {
@@ -173,7 +189,7 @@
           ]
         }
       ],
-      "tests": []
+      "testChecks": []
     },
     {
       "id": "JOIN_CODE_FORMAT",
@@ -191,8 +207,14 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/joinCodeSecurity.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.test.ts",
+          "contains": [
+            "accepts existing four-digit codes and issues a six-digit-compatible format",
+            "only issues six-digit codes to clients that have declared support"
+          ]
+        }
       ]
     },
     {
@@ -218,9 +240,19 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/joinCodeSecurity.test.ts",
-        "tests/rules/firestore.rules.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.test.ts",
+          "contains": [
+            "records the accepted formats, lifetime, lookup, and collision contract"
+          ]
+        },
+        {
+          "file": "tests/rules/firestore.rules.test.ts",
+          "contains": [
+            "cannot be listed to enumerate join codes"
+          ]
+        }
       ]
     },
     {
@@ -246,9 +278,25 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/createSessionCallable.test.ts",
-        "functions/src/sessionLifecycleCallable.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.test.ts",
+          "contains": [
+            "records the accepted formats, lifetime, lookup, and collision contract"
+          ]
+        },
+        {
+          "file": "functions/src/createSessionCallable.test.ts",
+          "contains": [
+            "does not claim a code already owned by another session"
+          ]
+        },
+        {
+          "file": "functions/src/sessionLifecycleCallable.test.ts",
+          "contains": [
+            "retires the join code with an expired empty session"
+          ]
+        }
       ]
     },
     {
@@ -275,10 +323,25 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/joinCodeSecurity.test.ts",
-        "functions/src/joinSessionCallable.test.ts",
-        "tests/rules/firestore.rules.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.test.ts",
+          "contains": [
+            "allows a small number of attempts per authenticated identity before a timed lockout"
+          ]
+        },
+        {
+          "file": "functions/src/joinSessionCallable.test.ts",
+          "contains": [
+            "records an allowed code attempt before looking up the code"
+          ]
+        },
+        {
+          "file": "tests/rules/firestore.rules.test.ts",
+          "contains": [
+            "remain server-only so a player cannot clear their own cooldown"
+          ]
+        }
       ]
     },
     {
@@ -300,8 +363,13 @@
           ]
         }
       ],
-      "tests": [
-        "tests/rules/firestore.rules.test.ts"
+      "testChecks": [
+        {
+          "file": "tests/rules/firestore.rules.test.ts",
+          "contains": [
+            "denies every client write to authority-only collections"
+          ]
+        }
       ]
     },
     {
@@ -321,9 +389,19 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/joinSessionCallable.test.ts",
-        "tests/rules/firestore.rules.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/createSessionCallable.test.ts",
+          "contains": [
+            "does not write a creation event for unauthenticated or exhausted code-collision requests"
+          ]
+        },
+        {
+          "file": "tests/rules/firestore.rules.test.ts",
+          "contains": [
+            "cannot self-register without redeeming a join code through the callable"
+          ]
+        }
       ]
     },
     {
@@ -343,8 +421,14 @@
           ]
         }
       ],
-      "tests": [
-        "functions/src/createSessionCallable.test.ts"
+      "testChecks": [
+        {
+          "file": "functions/src/createSessionCallable.test.ts",
+          "contains": [
+            "replays the same session and join code for a retried request",
+            "rejects a setup replay when the tuple payload changes under the same request id"
+          ]
+        }
       ]
     }
   ],

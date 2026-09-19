@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +47,18 @@ const REQUIRED_RISK_PROPERTIES = [
 
 const KNOWN_PROPERTIES = [...REQUIRED_PROPERTIES, ...REQUIRED_RISK_PROPERTIES];
 
+// This digest binds every control ID to its exact verification mode, source
+// anchors, and focused test anchors. Contributors may update the manifest and
+// this contract together through review; accidental relabeling cannot pass.
+const CONTROL_EVIDENCE_CONTRACT_SHA256 =
+  '319dd73550eacba97210cde15c691370c05af28b220bcdd978c77d2a2dcd98c2';
+
+const GOVERNANCE_WORKFLOW_TRIGGERS = [
+  'CLAUDE.md',
+  'docs/WORKTREE_COORDINATION.md',
+  'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+];
+
 function sorted(values) {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
@@ -66,7 +79,7 @@ function normalizeWhitespace(value) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-export async function validateThreatModel({ root = process.cwd(), manifest } = {}) {
+export async function validateThreatModel({ root = process.cwd(), manifest, sourceOverrides = {} } = {}) {
   const errors = [];
   const manifestFile = resolve(root, MANIFEST_PATH);
   let model = manifest;
@@ -97,9 +110,10 @@ export async function validateThreatModel({ root = process.cwd(), manifest } = {
   if (model?.trustModel?.contributorOutput !== 'untrusted-until-independent-review-and-release-gate') {
     errors.push('trustModel must retain independent review and release-gate acceptance.');
   }
-  if (model?.trustModel?.independentReviewReceipt !== 'required' ||
-      model?.trustModel?.releaseGate !== 'required') {
-    errors.push('trustModel must require an independent review receipt and release gate.');
+  if (model?.trustModel?.independentReviewReceipt !== 'exact-head-structured-receipt-required' ||
+      model?.trustModel?.releaseGate !==
+        'coordination-validation-and-finish-enforce-receipt-for-security-governance-change') {
+    errors.push('trustModel must name the enforced exact-head coordination review and release gate.');
   }
   const outOfScope = array(model?.outOfScope);
   for (const boundary of ['malicious-contributor', 'deliberate-commit-forgery', 'deliberate-history-forgery']) {
@@ -118,11 +132,26 @@ export async function validateThreatModel({ root = process.cwd(), manifest } = {
   if (!sameMembers(controlIds, REQUIRED_CONTROL_IDS)) {
     errors.push(`controls must inventory exactly: ${REQUIRED_CONTROL_IDS.join(', ')}.`);
   }
+  const evidenceContract = controls.map((control) => ({
+    id: control?.id,
+    verificationMode: control?.verificationMode,
+    sourceChecks: control?.sourceChecks,
+    testChecks: control?.testChecks,
+  }));
+  const evidenceDigest = createHash('sha256')
+    .update(JSON.stringify(evidenceContract))
+    .digest('hex');
+  if (evidenceDigest !== CONTROL_EVIDENCE_CONTRACT_SHA256) {
+    errors.push('Control evidence differs from the reviewed per-control source/test contract.');
+  }
 
   const sourceCache = new Map();
   async function source(file) {
     if (!sourceCache.has(file)) {
-      sourceCache.set(file, readFile(resolve(root, file), 'utf8').catch((error) => {
+      const override = Object.prototype.hasOwnProperty.call(sourceOverrides, file)
+        ? Promise.resolve(String(sourceOverrides[file]))
+        : readFile(resolve(root, file), 'utf8');
+      sourceCache.set(file, override.catch((error) => {
         errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
         return '';
       }));
@@ -131,13 +160,8 @@ export async function validateThreatModel({ root = process.cwd(), manifest } = {
   }
 
   const governanceFiles = array(model?.governanceAudit?.files);
-  const expectedGovernanceFiles = [
-    'CLAUDE.md',
-    'docs/WORKTREE_COORDINATION.md',
-    'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-  ];
-  if (!sameMembers(governanceFiles.map((entry) => entry?.file).filter(nonEmptyString), expectedGovernanceFiles)) {
-    errors.push(`governanceAudit.files must inventory exactly: ${expectedGovernanceFiles.join(', ')}.`);
+  if (!sameMembers(governanceFiles.map((entry) => entry?.file).filter(nonEmptyString), GOVERNANCE_WORKFLOW_TRIGGERS)) {
+    errors.push(`governanceAudit.files must inventory exactly: ${GOVERNANCE_WORKFLOW_TRIGGERS.join(', ')}.`);
   }
   const forbiddenAssumptions = array(model?.governanceAudit?.forbiddenAssumptions);
   if (!sameMembers(forbiddenAssumptions, ['malicious contributor', 'commit forgery', 'history forgery'])) {
@@ -157,6 +181,13 @@ export async function validateThreatModel({ root = process.cwd(), manifest } = {
       if (lowered.includes(assumption.toLowerCase())) {
         errors.push(`${entry.file}: reintroduces out-of-scope assumption ${JSON.stringify(assumption)}.`);
       }
+    }
+  }
+  const workflow = await source('.github/workflows/ci.yml');
+  for (const trigger of GOVERNANCE_WORKFLOW_TRIGGERS) {
+    const occurrences = workflow.split(`- '${trigger}'`).length - 1;
+    if (occurrences !== 2) {
+      errors.push(`.github/workflows/ci.yml: ${trigger} must trigger both pull_request and push validation.`);
     }
   }
 
@@ -186,13 +217,21 @@ export async function validateThreatModel({ root = process.cwd(), manifest } = {
         }
       }
     }
-    for (const testFile of array(control.tests)) {
-      if (!nonEmptyString(testFile)) {
-        errors.push(`${control.id}: test paths must be non-empty strings.`);
+    const testChecks = array(control.testChecks);
+    if (control.verificationMode === 'source-and-test' && testChecks.length === 0) {
+      errors.push(`${control.id}: source-and-test controls require focused test anchors.`);
+    }
+    for (const testCheck of testChecks) {
+      if (!nonEmptyString(testCheck?.file) || array(testCheck?.contains).length === 0) {
+        errors.push(`${control.id}: each test check requires a file and non-empty contains list.`);
         continue;
       }
-      const contents = await source(testFile);
-      if (!contents.trim()) errors.push(`${control.id}: test evidence ${testFile} is empty.`);
+      const contents = await source(testCheck.file);
+      for (const needle of testCheck.contains) {
+        if (!nonEmptyString(needle) || !contents.includes(needle)) {
+          errors.push(`${control.id}: ${testCheck.file} is missing test anchor ${JSON.stringify(needle)}.`);
+        }
+      }
     }
   }
 

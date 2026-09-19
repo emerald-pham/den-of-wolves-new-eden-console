@@ -6,6 +6,7 @@ export interface ValidationProfile {
   readonly commands: readonly string[];
   readonly requiresReview?: boolean;
   readonly reviewReason?: string;
+  readonly reviewReceiptKind?: 'exact-head-independent-security-review';
   readonly evidence?: Record<string, unknown>;
 }
 

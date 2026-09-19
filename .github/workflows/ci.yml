@@ -10,6 +10,9 @@ on:
       - 'docs/IMPLEMENTATION_PLAN.md'
       - 'docs/IMPLEMENTATION_PROGRESS.md'
       - 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'
+      - 'CLAUDE.md'
+      - 'docs/WORKTREE_COORDINATION.md'
+      - 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'
   push:
     branches-ignore: [main]
     paths:
@@ -20,6 +23,9 @@ on:
       - 'docs/IMPLEMENTATION_PLAN.md'
       - 'docs/IMPLEMENTATION_PROGRESS.md'
       - 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'
+      - 'CLAUDE.md'
+      - 'docs/WORKTREE_COORDINATION.md'
+      - 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'
   workflow_call:
     inputs:
       ref:

@@ -83,6 +83,17 @@ exact-SHA ancestry ritual is required. Close an entry with
 `coordination:finish` when one was opened, recording landed, preserved, or
 discarded truthfully.
 
+The runtime threat-model manifest and its validator are a narrow security-
+governance exception. A registered change to `security/threat-model.json` or
+`scripts/validate-threat-model*.mjs` cannot complete coordination validation
+with a free-form review note. `coordination:validate` requires a JSON receipt
+whose `kind` is `independent-security-review`, reviewer is `gpt-5.6-terra` at
+`xhigh`, outcome is `approved`, and `commitSha` is the exact candidate HEAD;
+the receipt also carries a non-empty summary and ISO `reviewedAt` timestamp.
+`coordination:finish` checks that same receipt against the landed commit. CI
+validates the manifest and mappings, but does not manufacture this review
+receipt. Coordination remains optional for ordinary work.
+
 ## Emulator rows
 
 Never share a configured row between worktrees. Select one complete free row

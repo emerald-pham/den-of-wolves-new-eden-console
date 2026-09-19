@@ -21,6 +21,7 @@ import {
   reserveConfiguredEmulatorSlot,
   validationPlanForFiles,
   validateCoordinationEntry,
+  validateReleaseCompletion,
 } from '../../scripts/emulator-resource-registry.mjs';
 
 const repositoryDirectory = process.cwd();
@@ -354,6 +355,61 @@ describe('simplified coordination registry', () => {
       expect(completed.validation?.outcomes.length).toBeGreaterThan(0);
     } finally {
       releaseRunner();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('binds security-governance validation and finish to an approved exact-HEAD Terra receipt', async () => {
+    const { directory, filePath } = await fixture();
+    const commitSha = 'a'.repeat(40);
+    const release = releaseSnapshot(['security/threat-model.json'], commitSha);
+    const receipt = {
+      version: 1,
+      kind: 'independent-security-review',
+      reviewerModel: 'gpt-5.6-terra',
+      reasoningEffort: 'xhigh',
+      outcome: 'approved',
+      commitSha,
+      summary: 'Exact-HEAD security-governance review passed.',
+      reviewedAt: '2026-09-19T17:30:00.000Z',
+    };
+    try {
+      const started = await beginCoordinationEntry(filePath, {
+        intent: 'security governance receipt',
+        'work-type': 'tooling',
+      });
+      await expect(validateCoordinationEntry(filePath, {
+        id: started.id,
+        release,
+        'independent-review': 'looks good',
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/structured JSON receipt/);
+      await expect(validateCoordinationEntry(filePath, {
+        id: started.id,
+        release,
+        'independent-review': JSON.stringify({ ...receipt, commitSha: 'b'.repeat(40) }),
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/approve exact HEAD/);
+
+      const completed = await validateCoordinationEntry(filePath, {
+        id: started.id,
+        release,
+        'independent-review': JSON.stringify(receipt),
+        commandRunner: async () => undefined,
+      });
+      expect(completed.validation?.review).toEqual(receipt);
+      const recordedValidation = completed.validation;
+      if (!recordedValidation) throw new Error('security validation was not recorded');
+      const releaseWithProfile = { ...release, validationProfile: recordedValidation.profile };
+      expect(() => validateReleaseCompletion({
+        entry: { ...completed, validation: { ...recordedValidation, review: 'looks good' } },
+        release: releaseWithProfile,
+      })).toThrow(/structured JSON receipt/);
+      expect(() => validateReleaseCompletion({
+        entry: completed,
+        release: releaseWithProfile,
+      })).not.toThrow();
+    } finally {
       await rm(directory, { recursive: true, force: true });
     }
   });
