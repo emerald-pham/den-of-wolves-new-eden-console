@@ -22,6 +22,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
+      completed: 295, total: 751, percentage: '39.28%',
+      done: 295, partial: 24, active: 0, missing: 432,
+    },
+    changes: [
+      'Players aboard a destroyed ship now enter a dedicated escape screen, keep their identity, and use a reconnect-safe flee action before GM reassignment.',
+      'Setup now explains Dione, Union, Wolf-card, and Capybara expansion effects before the facilitator locks one of the supported 8–20 player rosters.',
+      'Each connected player can see their own ship, role, device mode, and private-brief route while the facilitator keeps the complete casting roster.',
+      'Admitting Voyage 33-0 now activates its private motivated-role hooks exactly once for existing entitled Refinery 124 and Doctor roles; docking and maintenance remain pending.',
+      '295 of 751 planned items are complete (39.28%).',
+    ],
+  },
+  {
+    version: '0.4.20',
+    implementationProgress: {
       completed: 292, total: 751, percentage: '38.88%',
       done: 292, partial: 23, active: 0, missing: 436,
     },
