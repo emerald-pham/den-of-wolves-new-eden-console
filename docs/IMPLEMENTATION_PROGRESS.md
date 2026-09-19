@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**297 / 751 prompts complete (39.55%)**
+**298 / 751 prompts complete (39.68%)**
 
-Status breakdown: **297 done · 25 partial · 429 missing**.
+Status breakdown: **298 done · 25 partial · 428 missing**.
 
 Active prompt: **none**
 
@@ -1112,7 +1112,7 @@ release classification and evidence.
 | 633 | done | non-feature | — | The join-code limiter returns a bounded machine-readable retryAfterSeconds hint with the existing unavailable-service taxonomy. Client command normalization preserves only that bounded timing and static guidance, while the launcher and communication notice show a safe retry wait without server prose. Civil Unrest, away-mission discard, and Hummingbird action panels now use the same static taxonomy guidance; existing mutation outbox authority and replay boundaries remain unchanged, with no automatic replay added. |
 | 634 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 636 | done | non-feature | — | The expanded Prompt 638 isolated-emulator rehearsal now emits aggregate-only health evidence for real callable latency, authorization denials, stale contention, retry attempts, and session-listener delay at initial subscription, game start, resource action, and reconnect. Platform throttled and unavailable dispositions are explicitly labeled injected transport samples followed by a real idempotent emulator recovery call, because the emulator cannot reliably synthesize those platform responses. A validator requires every acceptance class and rejects identity or content fields. This is local emulator instrumentation evidence; it makes no production capacity, 60-browser, outage, or service-level claim. |
 | 637 | done | non-feature | — | A versioned Chromium performance gate now measures the complete landing JavaScript payload, cold landing and cached-session Role Select startup, repeated production DRADIS and hostile-attack renders, eight simultaneous private mission-hand updates, and 120 mobile frames at 390x844. CI enforces explicit raw, gzip, chunk, p95 render/startup, and long-frame budgets and uploads machine-readable evidence; the local route probe remains offline and never contacts production Firebase. |
 | 638 | done | non-feature | — | Two source-aligned Capybara rehearsals now pass against an isolated Firebase Emulator: a core-only 20-player run with one GM and no Press, followed by an independent 20-player run with claimed Press and two simultaneous GMs. Both cover fresh Turn 0 ATC projection, listener convergence/privacy, real action commit/replay/stale behavior, heartbeat persistence, and reconnect retention; the expanded run also covers concurrent start CAS and Press retention. Returning-seat reconciliation now preserves a canonical missing-seat pointer through setup hydration, with strict join/resume coverage. The evidence is local-emulator capacity proof; a separate simultaneous heartbeat attempt is recorded as an emulator internal failure with cause undetermined and excluded from the capacity claim, no 60-browser or production-capacity claim is made, and full Capybara vertical mechanics remain Prompt 584. |
 | 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

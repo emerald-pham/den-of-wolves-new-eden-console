@@ -19,6 +19,8 @@
     "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",
     "test:ticker:browser": "node scripts/test-fleet-ticker-browser.mjs",
+    "test:health-metrics": "node --test scripts/health-metrics.test.mjs",
+    "test:health:p636": "npm run test:health-metrics && P638_EVIDENCE_PATH=/tmp/p636-callable-health.json node scripts/prompt-638-capacity-rehearsal.mjs --scenario=press && node scripts/validate-prompt-636-health.mjs /tmp/p636-callable-health.json",
     "test:capacity:p638": "node scripts/prompt-638-capacity-rehearsal.mjs --scenario=core && node scripts/prompt-638-capacity-rehearsal.mjs --scenario=press",
     "test:rules": "node scripts/run-emulator-command.mjs rules",
     "test:growth": "node scripts/test-growth-gate.mjs",

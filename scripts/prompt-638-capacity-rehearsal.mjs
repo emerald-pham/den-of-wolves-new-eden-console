@@ -24,6 +24,7 @@ import {
   getFunctions,
   httpsCallable,
 } from 'firebase/functions';
+import { createHealthMetricsRecorder, listenerDelayAfter } from './health-metrics.mjs';
 
 const repositoryDirectory = resolve(new URL('..', import.meta.url).pathname);
 const firebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
@@ -32,6 +33,11 @@ const scenario = process.argv.includes('--scenario=core') || process.argv.includ
 const expandedScenario = scenario === 'press-multi-gm';
 const evidencePath = process.env.P638_EVIDENCE_PATH ?? `/tmp/p638-capacity-rehearsal-${scenario}.json`;
 const projectId = 'dow-new-eden-console';
+let healthMetrics;
+
+function metricName(name) {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+}
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -100,10 +106,12 @@ async function closeContext(context) {
   await deleteApp(context.app).catch(() => undefined);
 }
 
-async function call(context, name, data) {
+async function call(context, name, data, metric = {}) {
   try {
-    const result = await httpsCallable(context.functions, name)(data);
-    return result.data;
+    return await healthMetrics.measureCallable(metricName(name), async () => {
+      const result = await httpsCallable(context.functions, name)(data);
+      return result.data;
+    }, metric);
   } catch (error) {
     const wrapped = new Error(`${name}(${context.label}) failed: ${errorCode(error)}: ${errorMessage(error)}`, { cause: error });
     wrapped.code = errorCode(error);
@@ -114,13 +122,22 @@ async function call(context, name, data) {
 async function callWithEmulatorContentionRetry(context, name, data) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      return await call(context, name, data);
+      return await call(context, name, data, { source: 'emulator', attempt: attempt + 1 });
     } catch (error) {
       if (!errorCode(error).endsWith('/internal') || attempt === 2) throw error;
       await wait(150 * (attempt + 1));
     }
   }
   throw new Error('The bounded emulator contention retry loop did not return.');
+}
+
+async function callWithInjectedTransientRecovery(context, name, data) {
+  // The emulator cannot reliably synthesize platform 429/unavailable replies.
+  // Inject only the transport dispositions, then perform a real idempotent
+  // emulator callable. Metrics label the injected source explicitly.
+  healthMetrics.recordTransient(metricName(name), 'resource-exhausted', { attempt: 1 });
+  healthMetrics.recordTransient(metricName(name), 'unavailable', { attempt: 2 });
+  return call(context, name, data, { source: 'emulator-recovery', attempt: 3 });
 }
 
 async function expectRejected(operation, label, expectedCodes = []) {
@@ -137,23 +154,37 @@ async function expectRejected(operation, label, expectedCodes = []) {
 }
 
 function listenToDocument(context, path) {
-  const state = { count: 0, lastData: null, error: null, unsubscribe: undefined };
+  const state = { count: 0, events: [], lastData: null, error: null, unsubscribe: undefined };
   const target = doc(context.firestore, ...path.split('/'));
   state.unsubscribe = onSnapshot(target, (snapshot) => {
     state.count += 1;
+    state.events.push(performance.now());
     state.lastData = snapshot.exists() ? snapshot.data() : null;
   }, (error) => { state.error = error; });
   return state;
 }
 
 function listenToCollection(context, path) {
-  const state = { count: 0, lastData: [], error: null, unsubscribe: undefined };
+  const state = { count: 0, events: [], lastData: [], error: null, unsubscribe: undefined };
   const target = collection(context.firestore, ...path.split('/'));
   state.unsubscribe = onSnapshot(target, (snapshot) => {
     state.count += 1;
+    state.events.push(performance.now());
     state.lastData = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
   }, (error) => { state.error = error; });
   return state;
+}
+
+function recordListenerStage(projection, stage, listenerStates, startedAt) {
+  for (const listener of listenerStates) {
+    const delay = listenerDelayAfter(listener.events, startedAt);
+    assert(Number.isFinite(delay), `${stage} listener event was not recorded after the operation began.`);
+    healthMetrics.recordListener(projection, stage, delay);
+  }
+}
+
+function listenersUpdatedAfter(listenerStates, startedAt) {
+  return listenerStates.every((listener) => listener.events.some((eventAt) => eventAt >= startedAt));
 }
 
 function assertListenersHealthy(listeners) {
@@ -168,6 +199,7 @@ async function readDoc(context, path) {
 }
 
 async function main() {
+  healthMetrics = createHealthMetricsRecorder();
   const testedSourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: repositoryDirectory,
     encoding: 'utf8',
@@ -333,6 +365,7 @@ async function main() {
     );
 
     const sessionPath = `sessions/${sessionId}`;
+    const listenerStartedAt = performance.now();
     const sessionListeners = contexts
       .filter((context) => context !== extraCore && context !== foreign)
       .map((context) => listenToDocument(context, sessionPath));
@@ -344,6 +377,9 @@ async function main() {
     await waitFor(() => sessionListeners.every((listener) => listener.count > 0), `${expectedSessionListenerCount} client session listener snapshots`);
     await waitFor(() => ownerPlayersListener.count > 0 && gmInstancesListener.count > 0, 'player and GM listener snapshots');
     assertListenersHealthy(listeners);
+    recordListenerStage('session-projection', 'initial', sessionListeners, listenerStartedAt);
+    recordListenerStage('player-collection', 'initial', [ownerPlayersListener], listenerStartedAt);
+    recordListenerStage('gm-collection', 'initial', [gmInstancesListener], listenerStartedAt);
 
     const blockedStartRequest = {
       sessionId,
@@ -370,6 +406,7 @@ async function main() {
     };
     let committedStart;
     let staleStart;
+    const startUpdateStartedAt = performance.now();
     if (expandedScenario) {
       const startResults = await Promise.allSettled([
         call(owner, 'startGame', ownerStartRequest),
@@ -397,8 +434,9 @@ async function main() {
     assert(committedStart.setupReceipt?.excludedGmCount === (expandedScenario ? 2 : 1),
       'Start receipt did not exclude the expected facilitator instances.');
 
-    await waitFor(() => sessionListeners.every((listener) => listener.count >= 2), 'start convergence across all client listeners');
+    await waitFor(() => listenersUpdatedAfter(sessionListeners, startUpdateStartedAt), 'start convergence across all client listeners');
     assertListenersHealthy(listeners);
+    recordListenerStage('session-projection', 'start-update', sessionListeners, startUpdateStartedAt);
     for (const listener of sessionListeners) {
       const serialized = JSON.stringify(listener.lastData ?? {});
       assert(!serialized.includes('selectedWolfRoleIds'), 'A public session listener exposed selected Wolf roles.');
@@ -436,6 +474,7 @@ async function main() {
       expectedRevision: 0,
       requestId: `p638-resource-${randomUUID()}`,
     };
+    const actionUpdateStartedAt = performance.now();
     const committedAction = await call(owner, 'adjustShipResource', initialScrapCommand);
     assert(committedAction.revision === 1, 'The real Capybara resource action did not commit revision 1.');
     const replayedAction = await call(owner, 'adjustShipResource', initialScrapCommand);
@@ -482,7 +521,8 @@ async function main() {
       });
       assert(secondAction.revision === 2, 'The one-GM second resource action did not commit revision 2.');
     }
-    await waitFor(() => sessionListeners.every((listener) => listener.count >= 3), 'action convergence across all client listeners');
+    await waitFor(() => listenersUpdatedAfter(sessionListeners, actionUpdateStartedAt), 'action convergence across all client listeners');
+    recordListenerStage('session-projection', 'action-update', sessionListeners, actionUpdateStartedAt);
 
     const tickerBeforeHeartbeat = (await readDoc(owner, sessionPath)).data()?.fleetTicker;
     const heartbeatOperations = [
@@ -508,6 +548,12 @@ async function main() {
     assert(JSON.stringify(tickerAfterHeartbeat) === JSON.stringify(tickerBeforeHeartbeat),
       'A normal heartbeat authored a duplicate Turn 0 ATC bulletin.');
 
+    const transientRecovery = await callWithInjectedTransientRecovery(
+      coreContexts[1], 'refreshPresence', { sessionId },
+    );
+    assert(transientRecovery?.sessionId === sessionId,
+      'The injected transient transport probe did not recover through the real callable.');
+
     const reconnectUid = coreContexts[0].uid;
     const reconnectRole = activeRoleIds[0];
     assert(Number.isSafeInteger(firstJoin.player?.connectionGeneration),
@@ -517,11 +563,13 @@ async function main() {
     });
     const disconnected = (await readDoc(owner, `${sessionPath}/players/${reconnectUid}`)).data();
     assert(disconnected?.connected === false, 'The reconnect rehearsal did not actually disconnect its player.');
+    const reconnectUpdateStartedAt = performance.now();
     const resumed = await call(coreContexts[0], 'resumeSession', { sessionId });
     assert(resumed.player?.uid === reconnectUid && resumed.player?.assignedRoleId === reconnectRole &&
       resumed.player?.seatId === reconnectRole && resumed.player?.role === 'player',
     'A core player did not retain role and seat across disconnect/resume.');
-    await waitFor(() => sessionListeners.every((listener) => listener.count >= 4), 'reconnect convergence across all client listeners');
+    await waitFor(() => listenersUpdatedAfter(sessionListeners, reconnectUpdateStartedAt), 'reconnect convergence across all client listeners');
+    recordListenerStage('session-projection', 'reconnect-update', sessionListeners, reconnectUpdateStartedAt);
 
     if (expandedScenario) {
       const resumedPress = await call(press, 'resumeSession', { sessionId });
@@ -556,6 +604,7 @@ async function main() {
       reconnect: expandedScenario ? 'core role/seat and Press role retained' : 'core role/seat retained',
       privacy: 'GM Wolf read allowed; core Wolf and foreign-loyalty reads denied; public listeners contained no private loyalty/Wolf payload',
       denials: { gmSeatDenial, foreignResumeDenial, foreignReadDenial, extraCoreStartDenial, coreWolfDenial, coreOtherLoyaltyDenial },
+      health: healthMetrics.summary(),
       remainingLimits: [
         'local emulator rehearsal; no production capacity or 60-client claim',
         'a deliberately simultaneous 23-heartbeat burst can hit Firestore emulator transaction-lock contention; this rehearsal uses three-client batches and does not claim burst capacity',

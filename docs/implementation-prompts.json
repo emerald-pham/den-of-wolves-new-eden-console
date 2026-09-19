@@ -21648,7 +21648,7 @@
         "acceptance": "latency, listener delay, retries, denials, 429/unavailable responses, and contention have privacy-safe metrics.",
         "title": "Measure callable and snapshot health."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The expanded Prompt 638 isolated-emulator rehearsal now emits aggregate-only health evidence for real callable latency, authorization denials, stale contention, retry attempts, and session-listener delay at initial subscription, game start, resource action, and reconnect. Platform throttled and unavailable dispositions are explicitly labeled injected transport samples followed by a real idempotent emulator recovery call, because the emulator cannot reliably synthesize those platform responses. A validator requires every acceptance class and rejects identity or content fields. This is local emulator instrumentation evidence; it makes no production capacity, 60-browser, outage, or service-level claim.",
       "evidenceIds": "E-AUDIT-636",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21660,7 +21660,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
