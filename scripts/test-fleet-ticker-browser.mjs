@@ -17,7 +17,7 @@ const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 // Headless CI can coalesce one rAF callback while CSS advances one frame.
 // Compare adjacent two-observation windows so every elapsed-time-normalized
-// sample still measures the same physical track without single-frame jitter.
+// sample measures the same physical track without single-frame compositor jitter.
 const VELOCITY_SAMPLE_STRIDE = 2;
 
 const session = {
@@ -309,7 +309,7 @@ async function assertTickerGeometry(page, label, reducedMotion) {
 
     const samples = [];
     for (let index = 0; index < 18; index += 1) {
-      await waitFrame();
+      const frameTime = await waitFrame();
       const frameBounds = frame.getBoundingClientRect();
       const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
         const bounds = group.getBoundingClientRect();
@@ -321,7 +321,7 @@ async function assertTickerGeometry(page, label, reducedMotion) {
           width: bounds.width,
           top: bounds.top,
           bottom: bounds.bottom,
-          elapsed: performance.now(),
+          elapsed: frameTime,
           copyIds: [...group.querySelectorAll('.fleet-ticker__copy')]
             .map((copy) => copy.getAttribute('data-copy-instance-id')),
         };
@@ -488,7 +488,7 @@ async function runTickerLifecycleCase() {
       const startedAt = performance.now();
       let frameCount = 0;
       while (performance.now() - startedAt < budget) {
-        await waitFrame();
+        const frameTime = await waitFrame();
         frameCount += 1;
         if (frameCount % 3 !== 0) continue;
         const frameBounds = frame.getBoundingClientRect();
@@ -500,7 +500,7 @@ async function runTickerLifecycleCase() {
             left: bounds.left, right: bounds.right, width: bounds.width,
             startX: Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-start-x')),
             groupWidth: Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-group-width')),
-            elapsed: performance.now(),
+            elapsed: frameTime,
           };
         }).filter((group) => group.id && group.width > 0);
         rows.push({ frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
