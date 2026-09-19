@@ -949,6 +949,8 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run coordination:docs', ['run', 'coordination:docs']],
   ['npm run lint', ['run', 'lint']],
   ['npm run test:all', ['run', 'test:all']],
+  ['npm run test:font-consistency', ['run', 'test:font-consistency']],
+  ['npm run test:ticker:browser', ['run', 'test:ticker:browser']],
   ['npm run build', ['run', 'build']],
   ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
 ]);
