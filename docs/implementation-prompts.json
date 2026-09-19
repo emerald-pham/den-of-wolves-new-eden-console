@@ -5208,6 +5208,13 @@
       "language": "Read-only inspection of the original v1.1 components and facilitator destruction guidance resolves the previous assumption that an unprinted small-vessel destruction path was required for this prompt. No new capacity, population conversion, or zero-capacity fallback was added. The capacity registry is now checked against every registered damage deck, every unsupported small/base/Voyage variant is rejected, and parameterized production callable tests verify all seven printed capacities while retaining a non-default survivor count and avoiding resource/craft mutation. Existing durable-catastrophe replay and maintenance-riot tests remain green: 99 focused Functions tests plus the Functions build pass. Existing public event projection remains unchanged. This is a tests/documentation closure; no gameplay release is claimed.",
       "source": "functions/src/shipDestruction.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/shipDamage.test.ts; functions/src/maintenanceCallable.test.ts; original v1.1 A4 Double Sided component pages 23-24 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86); original v1.1 A4 Single Sided component page 38 (SHA-256 4e3ce6b500716fe139440d669aeae2e7fb4ab85071c98801f28144305f60f8d3); original v1.1 Facilitator Guide printed page 18; authorized routed ship reference; private local full-page visual inspection",
       "type": "evidence / source verification"
+    },
+    {
+      "direction": "146 -> OWNER-EQUIDISTANT-SHUTTLE-PARKING",
+      "id": "E-146-OWNER-DECISION-PENDING",
+      "language": "Prompt 146 is an explicit policy decision. Authorized shuttle and Wolf-attack references specify nearest-host docking without an equal-distance tie-break. The owner clarification is pending; record that dependency so this unselected rule does not appear implementation-ready. No gameplay behavior or completion status changes.",
+      "source": "authorized routed shuttle and Wolf-attack references; docs/implementation-prompts.json Prompt 146; owner clarification request 2026-09-19",
+      "type": "decision_owner"
     }
   ],
   "plan": {
@@ -8985,13 +8992,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-EQUIDISTANT-SHUTTLE-PARKING",
       "definition": {
         "acceptance": "one deterministic, recorded facilitator/product policy resolves equal-distance hosts.",
         "title": "Decide nearest-ship parking ties."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The printed nearest-host parking rule does not select among equally distant legal hosts. The owner is deciding between a recorded GM choice among tied hosts and an automatic fixed ship-order tie-break. No tie policy is selected or implemented until that decision arrives; ordinary nearest-host parking remains Prompt 373.",
+      "evidenceIds": "E-146-OWNER-DECISION-PENDING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
