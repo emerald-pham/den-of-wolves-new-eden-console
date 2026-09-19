@@ -1,0 +1,249 @@
+{
+  "prompt": "639",
+  "status": "passed",
+  "testedSourceCommit": "e57f749470c5e4b13d39a0e11110391da07a3c51",
+  "environment": {
+    "kind": "isolated-local-firebase-emulator",
+    "projectId": "dow-new-eden-console",
+    "ports": {
+      "auth": 9109,
+      "functions": 5011,
+      "firestore": 8090,
+      "firestoreWebsocket": 9310
+    },
+    "host": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "node": "v23.10.0",
+      "cpuModel": "Apple M3 Pro",
+      "cpuCount": 11,
+      "memoryBytes": 19327352832
+    }
+  },
+  "scenario": {
+    "clientCount": 60,
+    "identityCount": 20,
+    "tabsPerIdentity": 3,
+    "durationMs": 900000,
+    "closureRun": true
+  },
+  "thresholds": {
+    "schemaVersion": 1,
+    "clientCount": 60,
+    "durationMs": 900000,
+    "heartbeatIntervalMs": 10000,
+    "heartbeatCoverageMin": 0.95,
+    "heartbeatErrorRateMax": 0.01,
+    "heartbeatP95MsMax": 8000,
+    "actionIntervalMs": 60000,
+    "actionRacesMin": 14,
+    "listenerActionP95MsMax": 5000,
+    "reconnectMsMax": 5000,
+    "transientRecoveryMsMax": 5000
+  },
+  "stage": "timed-load",
+  "browser": {
+    "engine": "chromium",
+    "version": "153.0.8010.12",
+    "contexts": 20,
+    "pages": 60
+  },
+  "results": {
+    "runStartedAt": "2026-09-19T21:00:46.286Z",
+    "runEndedAt": "2026-09-19T21:15:46.622Z",
+    "heartbeat": {
+      "attempts": 5402,
+      "expectedAttempts": 5400,
+      "coverage": 1.0003703703703704,
+      "successes": 5402,
+      "errors": 0,
+      "errorRate": 0,
+      "latencyMs": {
+        "count": 5402,
+        "min": 10.5,
+        "p50": 18.5,
+        "p95": 28.3,
+        "max": 90.8
+      }
+    },
+    "gmLeaseRenewals": {
+      "attempts": 92,
+      "successes": 92,
+      "errors": 0,
+      "latencyMs": {
+        "count": 92,
+        "min": 14.62,
+        "p50": 17.93,
+        "p95": 23.06,
+        "max": 636.34
+      }
+    },
+    "listeners": {
+      "subscriptions": 120,
+      "lifecycleSubscriptions": 126,
+      "deliveries": 20063,
+      "errors": 0,
+      "errorCodes": [],
+      "actionLatencyMs": {
+        "count": 840,
+        "min": 2083,
+        "p50": 2107,
+        "p95": 3068,
+        "max": 3074
+      }
+    },
+    "actions": {
+      "races": 14,
+      "contentionCount": 15,
+      "revisions": [
+        {
+          "revision": 1,
+          "dispositions": [
+            "committed",
+            "stale"
+          ]
+        },
+        {
+          "revision": 2,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 3,
+          "dispositions": [
+            "committed",
+            "stale"
+          ]
+        },
+        {
+          "revision": 4,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 5,
+          "dispositions": [
+            "committed",
+            "stale"
+          ]
+        },
+        {
+          "revision": 6,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 7,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 8,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 9,
+          "dispositions": [
+            "committed",
+            "stale"
+          ]
+        },
+        {
+          "revision": 10,
+          "dispositions": [
+            "committed",
+            "stale"
+          ]
+        },
+        {
+          "revision": 11,
+          "dispositions": [
+            "committed",
+            "stale"
+          ]
+        },
+        {
+          "revision": 12,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 13,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        },
+        {
+          "revision": 14,
+          "dispositions": [
+            "stale",
+            "committed"
+          ]
+        }
+      ]
+    },
+    "reconnect": {
+      "durationMs": 1256.8872500000289,
+      "disconnectAttempts": 1,
+      "resumeAttempts": 3,
+      "restoredPages": 3
+    },
+    "transientRecovery": {
+      "unavailable": {
+        "injected": {
+          "code": "functions/unavailable"
+        },
+        "recoveryMs": 612.4026670000021
+      },
+      "throttled": {
+        "injected": {
+          "code": "functions/resource-exhausted"
+        },
+        "recoveryMs": 25.327499999999418
+      }
+    },
+    "timedErrors": [],
+    "saturation": {
+      "maxPerPageHeartbeatInFlight": 1,
+      "heartbeatP95ToIntervalRatio": 0.00283
+    },
+    "usage": {
+      "browserCallableAttempts": 5489,
+      "nodeCallableAttempts": 151,
+      "listenerDocumentDeliveries": 20063
+    },
+    "cost": {
+      "actualUsd": 0,
+      "basis": "Local Firebase Emulator and local Chromium; no billable production services used."
+    },
+    "thresholdResults": {
+      "clientCount": true,
+      "duration": true,
+      "heartbeatCoverage": true,
+      "heartbeatErrorRate": true,
+      "gmLeaseRenewals": true,
+      "heartbeatP95": true,
+      "listenerActionP95": true,
+      "reconnect": true,
+      "transientRecovery": true,
+      "contention": true,
+      "listenerErrors": true,
+      "actionCoverage": true,
+      "timedErrors": true
+    }
+  }
+}

@@ -5292,6 +5292,13 @@
       "language": "The connected player now receives a compact private casting assignment sourced only from the exact-holder role-brief projection. It names that player's ship, role, player-console device mode, and the single allowed private-brief route without rendering the brief body or common rules. A stale brief whose role no longer matches the player's assigned or replacement role is hidden. The existing GM casting board retains the complete connected-player roster and authoritative assignment controls. The existing server-owned role-brief boundary denies every other player, GM, observer, outsider, list, and client-write attempt. One hundred thirteen focused RoleSelect and GM-console tests plus TypeScript checking pass. Real reduced-motion browser proof at 320x844, 390x844, 844x390, and 1440x900 verifies exact fields, no brief-text leak, a 44px route control, no horizontal overflow, and successful private-route navigation.",
       "source": "src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; functions/src/roleBriefs.ts; functions/src/roleBriefs.test.ts; firestore.rules roleBriefs exact-holder boundary; tests/rules/firestore.rules.test.ts role-private brief boundary; /tmp/p587-render/evidence.json; /tmp/p587-render/*-assignment.png",
       "type": "evidence / production-path / privacy / accessibility / rendered"
+    },
+    {
+      "direction": "639",
+      "id": "E-639-CAPACITY",
+      "language": "Prompt 639 passes on source commit e57f749470c5e4b13d39a0e11110391da07a3c51 in isolated Firebase Emulator slot 1 with Chromium 153. Twenty authenticated identities across three tabs each sustain 60 real browser pages for 900,000 ms. All 5,402 production-cadence browser heartbeats and 92 GM lease renewals succeed; 120 steady listeners record 20,063 deliveries with no errors; fourteen real two-GM resource races each produce one commit and one stale receipt; all 60 pages observe action revisions with a 3,068 ms p95; one three-tab identity disconnects and restores in 1,256.9 ms; injected unavailable and 429 responses recover through real emulator calls in 612.4 ms and 25.3 ms. The privacy validator rejects generated identifiers. Usage is 5,489 browser callable attempts, 151 controller callable attempts, and 20,063 listener document deliveries. Actual billable cost is $0 because the run uses local Chromium and local Firebase emulators. This is local capacity evidence only and does not claim production Firebase latency, cost, or internet-path capacity.",
+      "source": "scripts/prompt-639-browser-capacity.mjs; scripts/fixtures/p639-browser-client.html; scripts/fixtures/p639-browser-client.js; scripts/validate-prompt-639-capacity.mjs; config/capacity-60-browser-thresholds.json; docs/CAPACITY_60_BROWSER_PROOF.md; docs/audits/p639-60-browser-capacity.json; npm run test:capacity:p639",
+      "type": "evidence / capacity / resilience / privacy"
     }
   ],
   "plan": {
@@ -21717,8 +21724,8 @@
         "acceptance": "a committed repeatable capacity command runs an isolated 15-minute production-shaped scenario and records the tested commit/environment, heartbeats, listeners, concurrent real actions, contention, reconnect, 429/unavailable recovery, latency/error thresholds, usage, and cost in a reviewable artifact.",
         "title": "Exercise the 60-browser target."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-639",
+      "description": "A committed exact-SHA capacity command now runs 20 authenticated identities across 60 real Chromium pages for 15 minutes against an isolated Firebase Emulator slot. It measures production-cadence heartbeats, 120 steady listeners, two-GM contention races, three-tab reconnect, injected 429/unavailable recovery, explicit latency/error budgets, usage, privacy, and local cost; the closure artifact passes every threshold and remains explicitly local rather than a production-service claim.",
+      "evidenceIds": "E-AUDIT-639;E-639-CAPACITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "636;638",
@@ -21729,7 +21736,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

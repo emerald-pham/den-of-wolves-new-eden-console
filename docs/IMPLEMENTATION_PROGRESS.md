@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**298 / 751 prompts complete (39.68%)**
+**299 / 751 prompts complete (39.81%)**
 
-Status breakdown: **298 done · 25 partial · 428 missing**.
+Status breakdown: **299 done · 25 partial · 427 missing**.
 
 Active prompt: **none**
 
@@ -1115,7 +1115,7 @@ release classification and evidence.
 | 636 | done | non-feature | — | The expanded Prompt 638 isolated-emulator rehearsal now emits aggregate-only health evidence for real callable latency, authorization denials, stale contention, retry attempts, and session-listener delay at initial subscription, game start, resource action, and reconnect. Platform throttled and unavailable dispositions are explicitly labeled injected transport samples followed by a real idempotent emulator recovery call, because the emulator cannot reliably synthesize those platform responses. A validator requires every acceptance class and rejects identity or content fields. This is local emulator instrumentation evidence; it makes no production capacity, 60-browser, outage, or service-level claim. |
 | 637 | done | non-feature | — | A versioned Chromium performance gate now measures the complete landing JavaScript payload, cold landing and cached-session Role Select startup, repeated production DRADIS and hostile-attack renders, eight simultaneous private mission-hand updates, and 120 mobile frames at 390x844. CI enforces explicit raw, gzip, chunk, p95 render/startup, and long-frame budgets and uploads machine-readable evidence; the local route probe remains offline and never contacts production Firebase. |
 | 638 | done | non-feature | — | Two source-aligned Capybara rehearsals now pass against an isolated Firebase Emulator: a core-only 20-player run with one GM and no Press, followed by an independent 20-player run with claimed Press and two simultaneous GMs. Both cover fresh Turn 0 ATC projection, listener convergence/privacy, real action commit/replay/stale behavior, heartbeat persistence, and reconnect retention; the expanded run also covers concurrent start CAS and Press retention. Returning-seat reconciliation now preserves a canonical missing-seat pointer through setup hydration, with strict join/resume coverage. The evidence is local-emulator capacity proof; a separate simultaneous heartbeat attempt is recorded as an emulator internal failure with cause undetermined and excluded from the capacity claim, no 60-browser or production-capacity claim is made, and full Capybara vertical mechanics remain Prompt 584. |
-| 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 639 | done | non-feature | — | A committed exact-SHA capacity command now runs 20 authenticated identities across 60 real Chromium pages for 15 minutes against an isolated Firebase Emulator slot. It measures production-cadence heartbeats, 120 steady listeners, two-GM contention races, three-tab reconnect, injected 429/unavailable recovery, explicit latency/error budgets, usage, privacy, and local cost; the closure artifact passes every threshold and remains explicitly local rather than a production-service claim. |
 | 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 641 | missing | non-feature | — | Planned [PROVE] one-GM complete base playthrough followed by optional multi-GM mutation races. |
 | 642 | missing | non-feature | — | Planned [PROVE] one-GM complete Capybara playthrough with optional independent Press and multi-GM race proof. |
