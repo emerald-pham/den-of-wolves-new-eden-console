@@ -13,7 +13,7 @@ const LOYALTY_LABELS: Readonly<Record<string, string>> = {
   'universal-arbour': 'Universal Arbour',
   'wolf-cult': 'Wolf Cult',
   friend: 'Friend',
-  intelligence: 'Intelligence',
+  'intelligence-agent': 'Intelligence Agent',
   arbour: 'Arbour',
   cult: 'Cult',
   android: 'Android',

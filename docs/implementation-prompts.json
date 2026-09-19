@@ -5021,6 +5021,13 @@
       "type": "evidence / verified / production-path / authority / security"
     },
     {
+      "direction": "588 -> PRIVATE-LOYALTY-PRESENTATION",
+      "id": "E-588-VERIFIED",
+      "language": "Prompt 588 now presents the entitled player's server-hydrated private loyalty assignment with canonical card labels and the exact server-assigned suspicion, including the Intelligence Agent kind. The existing exact-holder private listener and allowlisted parser consume only the current player's secret; server-owned writes and Firestore rules deny unrelated reads, listing, and client writes, so no unrelated client receives a serialized loyalty payload. Focused PrivateLoyaltyPanel, Firestore parser, loyalty authority, and emulator privacy tests pass. A temporary local production fixture rendered the exact card label and suspicion at 390x844, 1440x900, and 844x390 with reduced motion, no horizontal overflow, safe-area header clearance, 0s transition duration, preserved hide-control focus, and a 44px Android disclosure control; screenshots were not committed. Existing E-509-VERIFIED, E-510-VERIFIED, and E-512-VERIFIED records retain the broader shared private-card responsive evidence. This local candidate makes no deployment claim.",
+      "source": "src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; functions/src/gameSetup.ts; functions/src/gameSetup.test.ts; functions/src/loyaltyCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_ROLES_AND_LOYALTIES.md; existing E-509-VERIFIED, E-510-VERIFIED, and E-512-VERIFIED rendered evidence",
+      "type": "evidence / production-path / authority / privacy / accessibility / layout"
+    },
+    {
       "direction": "681 -> GM-AND-SHIP-COORDINATE-PRIVACY",
       "id": "E-681-OWNER",
       "language": "Owner requested a regression-fix prompt: GM knows all star map coordinates; ships do not.",
@@ -20286,8 +20293,8 @@
         "acceptance": "the entitled player sees exact card/suspicion and unrelated clients receive no serialized secret.",
         "title": "Present private loyalty assignment."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Implemented in the production private loyalty panel: the server-authored intelligence-agent assignment now renders the canonical “Intelligence Agent” card label beside its exact suspicion. Existing private listener, allowlisted parser, server-owned secret writes, and exact-holder Firestore rules preserve the no-serialized-secret boundary for unrelated clients. Focused component/parser/authority/emulator tests and a reduced-motion production fixture across phone, desktop, and short-landscape sizes pass; deployment is not claimed.",
+      "evidenceIds": "E-588-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20298,7 +20305,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

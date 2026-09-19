@@ -140,12 +140,15 @@ it('uses the replacement role catalog and never falls back to a Friend UID', () 
 it.each([
   ['universal-arbour', 'Universal Arbour'],
   ['wolf-cult', 'Wolf Cult'],
+  ['intelligence-agent', 'Intelligence Agent'],
 ] as const)('uses the source name for the private %s card', (kind, label) => {
-  useSessionStore.getState().setPrivateLoyalty({ kind, suspicion: kind === 'wolf-cult' ? 15 : 10 });
+  const suspicion = kind === 'wolf-cult' ? 15 : kind === 'intelligence-agent' ? 6 : 10;
+  useSessionStore.getState().setPrivateLoyalty({ kind, suspicion });
 
   render(<PrivateLoyaltyPanel />);
 
   expect(screen.getByRole('region', { name: /private loyalty card/i })).toHaveTextContent(label);
+  expect(screen.getByRole('region', { name: /private loyalty card/i })).toHaveTextContent(`Suspicion // ${suspicion}`);
 });
 
 it('shows facilitator-authored Wolf Cult intelligence only on the entitled Cult card', () => {
