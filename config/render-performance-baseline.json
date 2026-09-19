@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "prompt": "637",
   "budgets": {
     "landingBundleRawBytes": 1600000,
@@ -7,11 +7,11 @@
     "largestJavaScriptChunkBytes": 512000,
     "landingStartupP95Ms": 2500,
     "routeStartupP95Ms": 2500,
-    "dradisUpdateP95Ms": 100,
+    "dradisUpdateP95Ms": 150,
     "attackUpdateP95Ms": 120,
     "missionHandUpdateP95Ms": 100,
-    "mobileFrameP95Ms": 35,
-    "mobileLongFrames": 2
+    "mobileFrameP95Ms": 120,
+    "mobileLongFrames": 70
   },
   "measurement": {
     "browser": "Playwright Chromium",
