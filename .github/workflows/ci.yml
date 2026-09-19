@@ -36,6 +36,41 @@ on:
         description: Validate only the exact ref commit for a trusted reusable-workflow caller.
         required: true
         type: boolean
+      deployment_targets:
+        description: Comma-separated Firebase surfaces selected by the deployment range.
+        required: false
+        default: ''
+        type: string
+      ticker_required:
+        description: Run the browser ticker lifecycle gate for an affected release range.
+        required: false
+        default: false
+        type: boolean
+      font_required:
+        description: Run the console-font consistency gate for an affected release range.
+        required: false
+        default: false
+        type: boolean
+      render_required:
+        description: Run the sustained-render benchmark for an affected release range.
+        required: false
+        default: false
+        type: boolean
+      unit_required:
+        description: Run root unit tests for an affected release range.
+        required: false
+        default: false
+        type: boolean
+      web_build_required:
+        description: Build web assets needed by an affected release-range check.
+        required: false
+        default: false
+        type: boolean
+      bundle_required:
+        description: Check the web bundle for an affected release range.
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -71,14 +106,41 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           EXACT_HEAD_COMMIT: ${{ inputs.exact_head_commit || false }}
+          DEPLOYMENT_TARGETS: ${{ inputs.deployment_targets || '' }}
+          TICKER_REQUIRED: ${{ inputs.ticker_required || false }}
+          FONT_REQUIRED: ${{ inputs.font_required || false }}
+          RENDER_REQUIRED: ${{ inputs.render_required || false }}
+          UNIT_REQUIRED: ${{ inputs.unit_required || false }}
+          WEB_BUILD_REQUIRED: ${{ inputs.web_build_required || false }}
+          BUNDLE_REQUIRED: ${{ inputs.bundle_required || false }}
         run: |
           head_sha=$(git rev-parse HEAD)
           if [ "$EXACT_HEAD_COMMIT" = "true" ]; then
-            if base_sha=$(git rev-parse --verify "$head_sha^" 2>/dev/null); then
-              changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
-            else
-              changed_paths=$(git diff-tree --root --no-commit-id --name-only -r "$head_sha")
-            fi
+            has_hosting=false
+            has_functions=false
+            has_firestore=false
+            [[ ",$DEPLOYMENT_TARGETS," == *,hosting,* ]] && has_hosting=true
+            [[ ",$DEPLOYMENT_TARGETS," == *,functions,* ]] && has_functions=true
+            [[ ",$DEPLOYMENT_TARGETS," == *,firestore,* ]] && has_firestore=true
+            run_unit=$has_hosting
+            run_web_build=$has_hosting
+            run_bundle=$has_hosting
+            [[ "$UNIT_REQUIRED" == "true" ]] && run_unit=true
+            [[ "$WEB_BUILD_REQUIRED" == "true" ]] && run_web_build=true
+            [[ "$BUNDLE_REQUIRED" == "true" ]] && run_bundle=true
+            echo "documentation_only=false" >> "$GITHUB_OUTPUT"
+            echo "roadmap_changed=true" >> "$GITHUB_OUTPUT"
+            echo "root_install=true" >> "$GITHUB_OUTPUT"
+            echo "functions_install=$has_functions" >> "$GITHUB_OUTPUT"
+            echo "lint=true" >> "$GITHUB_OUTPUT"
+            echo "unit=$run_unit" >> "$GITHUB_OUTPUT"
+            echo "functions=$has_functions" >> "$GITHUB_OUTPUT"
+            echo "firestore=$has_firestore" >> "$GITHUB_OUTPUT"
+            echo "web_build=$run_web_build" >> "$GITHUB_OUTPUT"
+            echo "ticker=$TICKER_REQUIRED" >> "$GITHUB_OUTPUT"
+            echo "font=$FONT_REQUIRED" >> "$GITHUB_OUTPUT"
+            echo "render=$RENDER_REQUIRED" >> "$GITHUB_OUTPUT"
+            echo "bundle=$run_bundle" >> "$GITHUB_OUTPUT"
           else
             base_sha="$PR_BASE_SHA"
             if [ -z "$base_sha" ]; then
@@ -92,34 +154,10 @@ jobs:
             else
               changed_paths="__unknown_diff__"
             fi
+            changed_paths_file="$RUNNER_TEMP/ci-changed-paths.txt"
+            printf '%s\n' "$changed_paths" > "$changed_paths_file"
+            node scripts/risk-gates.mjs --files-file "$changed_paths_file" >> "$GITHUB_OUTPUT"
           fi
-          documentation_only=true
-          roadmap_changed=false
-          while IFS= read -r changed_path; do
-            case "$changed_path" in
-              docs/implementation-prompts.json|docs/IMPLEMENTATION_*.md) roadmap_changed=true ;;
-            esac
-            case "$changed_path" in
-              docs/implementation-prompts.json|*.md|README|*/README|README.*|*/README.*) ;;
-              *) documentation_only=false ;;
-            esac
-          done <<EOF
-          $changed_paths
-          EOF
-          if [ "$changed_paths" = "__unknown_diff__" ]; then
-            documentation_only=false
-            roadmap_changed=true
-          fi
-          if [ "$EXACT_HEAD_COMMIT" = "true" ]; then
-            # Deployment verifies the exact checked-out SHA. A merge commit's
-            # first-parent diff can contain only policy/docs changes even when
-            # the deployed tree includes pending product changes, so always
-            # produce the full verification artifacts for this caller.
-            documentation_only=false
-            roadmap_changed=true
-          fi
-          echo "documentation_only=$documentation_only" >> "$GITHUB_OUTPUT"
-          echo "roadmap_changed=$roadmap_changed" >> "$GITHUB_OUTPUT"
           echo "exact_head_commit=$EXACT_HEAD_COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Check prompt catalog and generated views
@@ -134,46 +172,54 @@ jobs:
         run: npm run security:threat-model
 
       - uses: actions/setup-java@v5
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.firestore == 'true'
         with:
           distribution: temurin
           java-version: 21
 
-      - if: steps.change_scope.outputs.documentation_only != 'true'
+      - if: steps.change_scope.outputs.root_install == 'true'
         run: npm ci --prefer-offline --no-audit
-      - if: steps.change_scope.outputs.documentation_only != 'true'
+      - if: steps.change_scope.outputs.functions_install == 'true'
         run: npm ci --prefix functions --prefer-offline --no-audit
 
       - name: Lint
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.lint == 'true'
         run: npm run lint
 
       - name: Unit tests
-        if: steps.change_scope.outputs.documentation_only != 'true'
-        run: npm test
+        if: steps.change_scope.outputs.unit == 'true'
+        run: npm run test:unit
+
+      - name: Functions tests
+        if: steps.change_scope.outputs.functions == 'true'
+        run: npm run test:functions
 
       - name: Firestore security-rule tests
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.firestore == 'true'
         run: npm run test:rules
 
       - name: Build web
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.web_build == 'true'
         run: npm run build
 
+      - name: Console font consistency
+        if: steps.change_scope.outputs.font == 'true'
+        run: npm run test:font-consistency
+
       - name: Install ticker smoke browser
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.ticker == 'true' || steps.change_scope.outputs.render == 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Browser ticker smoke
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.ticker == 'true'
         run: npm run test:ticker:browser
 
       - name: Render-performance baselines
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.render == 'true'
         run: node scripts/prompt-637-render-performance.mjs
 
       - name: Upload render-performance evidence
-        if: always() && steps.change_scope.outputs.documentation_only != 'true'
+        if: always() && steps.change_scope.outputs.render == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: render-performance-p637
@@ -191,15 +237,15 @@ jobs:
           retention-days: 7
 
       - name: Check web bundle size
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.bundle == 'true'
         run: node scripts/check-bundle-size.mjs
 
       - name: Build functions
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.functions == 'true'
         run: npm run build --prefix functions
 
       - name: Upload web build artifact
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.web_build == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: web-dist
@@ -208,7 +254,7 @@ jobs:
           retention-days: 1
 
       - name: Upload Functions build artifact
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.functions == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: functions-lib

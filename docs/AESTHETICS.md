@@ -81,12 +81,16 @@ decorative.
 
 ### How this is enforced
 
-`src/styles/aesthetic.test.ts` checks the three rules a stylesheet can be
-checked against without rendering it: colours are palette tokens or the
-near-black of the ground, `border-radius` is only ever `0` or a full circle,
-and box-shadows have no offset. It is a ratchet — it holds the line where it
-is rather than passing judgement on what exists, and it carries a short,
-annotated list of deviations that predate it:
+`src/styles/aesthetic.test.ts` checks the rules a stylesheet can be checked
+against without rendering it: operational and display type stay in the console
+mono family, office/system sans faces are absent, colours are palette tokens or
+the near-black of the ground, `border-radius` is only ever `0` or a full circle,
+and box-shadows have no offset. The risk-based
+`npm run test:font-consistency` command runs that type-system guard whenever UI
+markup, CSS, application entry points, font assets, or web dependencies change.
+It is a ratchet — it holds the line where it is rather than passing judgement
+on what exists, and it carries a short, annotated list of deviations that
+predate it:
 
 - the connection lamp's green, which has no role in the palette;
 - the settings dialog's depth shadow.

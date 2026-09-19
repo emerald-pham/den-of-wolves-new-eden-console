@@ -43,6 +43,10 @@ it('classifies changed files into affected deployment surfaces', () => {
   expect(classifyChangedFiles(['firebase.json']).targets).toEqual([...ALL_DEPLOYMENT_TARGETS]);
   expect(classifyChangedFiles(['src/routes/Landing.tsx', 'functions/src/index.ts']).targets)
     .toEqual(['hosting', 'functions']);
+  expect(classifyChangedFiles(['src/routes/Landing.tsx']).riskGates)
+    .toMatchObject({ ticker: true, font: true, webBuild: true });
+  expect(classifyChangedFiles(['functions/src/index.ts']).riskGates)
+    .toMatchObject({ ticker: false, font: false, functions: true });
 });
 it('classifies the cumulative range from the last successful deployment', () => {
   // A queued main run must include every surface changed since the deployed
@@ -379,18 +383,19 @@ async function runGit(cwd: string, args: string[]) {
 }
 
 it('tests Firestore rules before a main-branch deployment', () => {
-  const rulesTest = ci.indexOf('npm run test:rules');
-  const deployment = deploy.indexOf(`${FIREBASE_CLI} deploy`);
-
-  expect(rulesTest).toBeGreaterThan(-1);
-  expect(deployment).toBeGreaterThan(rulesTest);
+  expect(ci).toContain('run: npm run test:rules');
+  expect(ci).toContain("if: steps.change_scope.outputs.firestore == 'true'");
   expect(deploy).toContain('uses: ./.github/workflows/ci.yml');
   expect(deploy).toContain('needs: [determine-targets, verify]');
+  expect(deploy.indexOf('needs: [determine-targets, verify]'))
+    .toBeLessThan(deploy.indexOf(`${FIREBASE_CLI} deploy`));
 });
 
 it('does not repeat unit tests during deployment after CI artifact verification', () => {
-  expect(ci).toMatch(/^\s*run:\s+npm test\s*$/m);
-  expect(deploy).not.toMatch(/^\s*run:\s+npm test\s*$/m);
+  expect(ci).toContain('run: npm run test:unit');
+  expect(ci).toContain('run: npm run test:functions');
+  expect(deploy).not.toContain('run: npm run test:unit');
+  expect(deploy).not.toContain('run: npm run test:functions');
 });
 
 it('verifies one exact SHA and reuses its build artifacts for deployment', () => {
@@ -400,12 +405,19 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(ci).toContain('fetch-depth: 0');
   expect(ci).toContain('git switch --create "ci-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"');
   expect(ci).toContain('exact_head_commit:');
-  expect(ci).toContain('git rev-parse --verify "$head_sha^"');
+  expect(ci).toContain('deployment_targets:');
+  expect(ci).toContain('DEPLOYMENT_TARGETS:');
   expect(ci).toContain('Identify changed paths');
   expect(ci).not.toContain('validate:work-registration');
   expect(ci).toContain('actions/upload-artifact@v7');
   expect(deploy).toContain('ref: ${{ github.sha }}');
   expect(deploy).toContain('exact_head_commit: true');
+  expect(deploy).toContain('deployment_targets: ${{ needs.determine-targets.outputs.targets }}');
+  expect(deploy).toContain("ticker_required: ${{ needs.determine-targets.outputs.ticker_required == 'true' }}");
+  expect(deploy).toContain("font_required: ${{ needs.determine-targets.outputs.font_required == 'true' }}");
+  expect(deploy).toContain("unit_required: ${{ needs.determine-targets.outputs.unit_required == 'true' }}");
+  expect(deploy).toContain("web_build_required: ${{ needs.determine-targets.outputs.web_build_required == 'true' }}");
+  expect(deploy).toContain("bundle_required: ${{ needs.determine-targets.outputs.bundle_required == 'true' }}");
   expect(deploy).toContain('actions/download-artifact@v8');
   expect(deploy).toContain('needs: [determine-targets, verify]');
 });
@@ -586,7 +598,9 @@ it('keeps documentation and roadmap checks separate from application jobs and de
   expect(ci).toContain('run: npm run roadmap:check');
   expect(ci).toContain('npm run coordination:docs');
   expect(ci).toContain("if: steps.change_scope.outputs.documentation_only == 'true'");
-  expect(ci).toContain("if: steps.change_scope.outputs.documentation_only != 'true'");
+  expect(ci).toContain("if: steps.change_scope.outputs.unit == 'true'");
+  expect(ci).toContain("if: steps.change_scope.outputs.functions == 'true'");
+  expect(ci).toContain("if: steps.change_scope.outputs.firestore == 'true'");
   expect(ci).not.toContain('implementation-registration');
   expect(deploy).toContain('branches: [main]');
   expect(deploy).not.toContain('paths-ignore:');

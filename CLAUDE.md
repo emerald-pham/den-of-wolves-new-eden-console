@@ -104,10 +104,10 @@ escalation.
 
 Use `gpt-5.6-terra` with `xhigh` for an independent review when a behavior
 change touches shared session state, callable behavior (including authorization
-and rules), Firestore rules, or deployment/authentication infrastructure.
+and rules), Firestore rules, deployment/authentication infrastructure, or the
+truthfulness of release and capacity evidence.
 Editing comments or copy and routinely deploying an ordinary feature do not by
-themselves trigger review.
-Keep meaningful security and authority tests and final validation. Send all
+themselves trigger review. Keep meaningful security and authority tests and final validation. Send all
 actionable findings together; the owner repairs them, with follow-up limited to
 unresolved findings or materially changed risk. Do not run a compulsory Luna →
 Terra → Luna ownership cycle.
@@ -124,8 +124,9 @@ The normal path is:
 1. Select a ready task or prompt and accept a bounded scope.
 2. Implement the smallest useful change with focused, meaningful tests.
 3. For a behavior change to shared session state, callable behavior (including
-   authorization and rules), Firestore rules, or deployment/authentication
-   infrastructure, obtain an independent Terra risk review and receive all
+   authorization and rules), Firestore rules, deployment/authentication
+   infrastructure, or release/capacity evidence, obtain an independent Terra
+   risk review and receive all
    actionable findings in one pass. The owner repairs findings in a bounded
    follow-up. Ordinary feature deployment and documentation or copy edits do
    not by themselves trigger this review.
@@ -210,8 +211,11 @@ route back to its logical parent, normally Roles; do not rely on browser Back,
 Settings, disconnecting, or a route guard as the only exit.
 
 The shared FleetBroadcast ticker is release-critical because it is the only
-common live-news surface. Before a deployable candidate is accepted, run
-`npm run test:ticker:browser` against the real AppHeader/FleetBroadcast path.
+common live-news surface. Run `npm run test:ticker:browser` when a change can
+affect application chrome, joined routes, session projection, global styling,
+runtime dependencies, or the ticker harness. The deployment range carries this
+risk into exact-SHA CI, so unrelated Functions, rules, documentation, and
+tooling releases do not pay for the browser lifecycle gate.
 The smoke must prove an authoritative current message is painted with non-zero
 viewport geometry and visible text in normal and reduced motion at phone and
 desktop sizes, including a browser whose document font promise remains
@@ -219,6 +223,11 @@ pending, after navigation and reload, without horizontal overflow. Keep its
 session projection fixture isolated to the smoke and save a viewport screenshot
 when a case fails; do not replace the real ticker with a mock or an offscreen
 DOM assertion.
+
+Run `npm run test:font-consistency` when rendered UI markup, CSS, application
+entry points, font assets, or web dependencies change. This focused gate keeps
+the console mono/display families and rejects system-sans regressions without
+charging server-only, rules-only, documentation, or unrelated tooling work.
 
 Call the numbered game clock a **cycle** in all player-facing labels, help,
 announcements, accessible names, errors, and release notes. Never label it a

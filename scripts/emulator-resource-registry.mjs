@@ -949,6 +949,8 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run coordination:docs', ['run', 'coordination:docs']],
   ['npm run lint', ['run', 'lint']],
   ['npm run test:all', ['run', 'test:all']],
+  ['npm run test:font-consistency', ['run', 'test:font-consistency']],
+  ['npm run test:ticker:browser', ['run', 'test:ticker:browser']],
   ['npm run build', ['run', 'build']],
   ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
 ]);
@@ -1183,7 +1185,7 @@ export async function validateCoordinationEntry(filePath, options = {}) {
   }
   const suppliedReview = options.review ?? options['independent-review'];
   if (profile.requiresReview === true && !text(suppliedReview)) {
-    throw new Error(`Coordination entry ${snapshot.id} requires one independent holistic review before validation can finish.`);
+    throw new Error(`Coordination entry ${snapshot.id} requires one independent risk review before validation can finish.`);
   }
   const review = profile.reviewReceiptKind === 'exact-head-independent-security-review'
     ? parseIndependentSecurityReviewReceipt(suppliedReview, release.branchSha)

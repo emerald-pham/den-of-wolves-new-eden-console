@@ -24,6 +24,12 @@ jobs:
       targets: ${{ steps.targets.outputs.targets }}
       has_targets: ${{ steps.targets.outputs.has_targets }}
       current_tip: ${{ steps.targets.outputs.current_tip }}
+      ticker_required: ${{ steps.targets.outputs.ticker }}
+      font_required: ${{ steps.targets.outputs.font }}
+      render_required: ${{ steps.targets.outputs.render }}
+      unit_required: ${{ steps.targets.outputs.unit }}
+      web_build_required: ${{ steps.targets.outputs.web_build }}
+      bundle_required: ${{ steps.targets.outputs.bundle }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,6 +103,13 @@ jobs:
     with:
       ref: ${{ github.sha }}
       exact_head_commit: true
+      deployment_targets: ${{ needs.determine-targets.outputs.targets }}
+      ticker_required: ${{ needs.determine-targets.outputs.ticker_required == 'true' }}
+      font_required: ${{ needs.determine-targets.outputs.font_required == 'true' }}
+      render_required: ${{ needs.determine-targets.outputs.render_required == 'true' }}
+      unit_required: ${{ needs.determine-targets.outputs.unit_required == 'true' }}
+      web_build_required: ${{ needs.determine-targets.outputs.web_build_required == 'true' }}
+      bundle_required: ${{ needs.determine-targets.outputs.bundle_required == 'true' }}
 
   deploy:
     if: needs.determine-targets.outputs.has_targets == 'true' && needs.determine-targets.outputs.current_tip == 'true'

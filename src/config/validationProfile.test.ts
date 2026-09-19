@@ -46,7 +46,7 @@ describe('validation profiles', () => {
     });
     expect(profile.kind).toBe('full');
     expect(profile.requiresReview).toBe(true);
-    expect(profile.reviewReason).toContain('independent holistic review');
+    expect(profile.reviewReason).toContain('independent risk review');
     expect(profile.commands).toContain('npm run test:all');
     expect(profile.commands).toContain('npm run build --prefix functions');
   });
@@ -55,6 +55,34 @@ describe('validation profiles', () => {
     const profile = deriveValidationProfile({ changedFiles: ['src/services/newAuthority.ts'] });
     expect(profile.kind).toBe('full');
     expect(profile.requiresReview).toBe(true);
+  });
+
+  it('uses full validation without a reviewer for unknown ordinary paths', () => {
+    const profile = deriveValidationProfile({ changedFiles: ['src/utils/newFormatting.ts'] });
+    expect(profile.kind).toBe('full');
+    expect(profile.requiresReview).toBe(false);
+  });
+
+  it('adds font and ticker gates only for affected UI paths', () => {
+    const ui = deriveValidationProfile({ changedFiles: ['src/routes/ShipConsole.tsx'] });
+    expect(ui.commands).toContain('npm run test:font-consistency');
+    expect(ui.commands).toContain('npm run test:ticker:browser');
+
+    const data = deriveValidationProfile({ changedFiles: ['src/data/missionCards.ts'] });
+    expect(data.commands).not.toContain('npm run test:font-consistency');
+    expect(data.commands).not.toContain('npm run test:ticker:browser');
+  });
+
+  it('retains independent review for capacity and release evidence tooling', () => {
+    for (const file of [
+      'scripts/prompt-639-browser-capacity.mjs',
+      'config/capacity-60-browser-thresholds.json',
+      'scripts/verify-release.mjs',
+      'scripts/verify-deployment.mjs',
+      'scripts/verify-functions-artifact.mjs',
+    ]) {
+      expect(deriveValidationProfile({ changedFiles: [file] }).requiresReview).toBe(true);
+    }
   });
 
   it('requires an exact-head independent security receipt for threat-model governance', () => {
