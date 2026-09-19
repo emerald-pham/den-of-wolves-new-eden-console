@@ -75,6 +75,29 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(document.querySelector('.ship-console.shuttle-console')).toBeInTheDocument();
 });
 
+it('shows an admitted Voyage 33-0 in the member roster without offering a role route', () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    admittedVesselIds: ['voyage-33-0'],
+    voyage33Admission: {
+      type: 'voyage-admission', sessionId: 's1', id: 'voyage-33-0', status: 'admitted',
+      crisisId: 'approach-1', crisisRevision: 2, population: 40_000, unrest: 0, hostShipId: null,
+      commitments: { requiresHostDocking: true, hostProvidesResources: true, maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1 },
+    },
+  });
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const card = screen.getByRole('article', { name: 'Voyage 33-0' });
+  expect(card).toHaveTextContent(/40,000 survivors.*unrest 0/i);
+  expect(card).toHaveTextContent(/host docking required.*maintenance steps 1–4/i);
+  expect(card).toHaveTextContent(/host assignment pending/i);
+  expect(within(card).queryByRole('link')).not.toBeInTheDocument();
+});
+
 it('offers Press Officer and the GM Console from Select a role', async () => {
   const user = userEvent.setup();
   const pressView = render(

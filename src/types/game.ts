@@ -16,6 +16,7 @@ import type {
   SeatId,
   SessionId,
   ShuttleId,
+  SupplementalVesselId,
   VesselId,
 } from './identifiers';
 
@@ -34,6 +35,7 @@ export type {
   SeatId,
   SessionId,
   ShuttleId,
+  SupplementalVesselId,
   VesselId,
 } from './identifiers';
 
@@ -68,6 +70,26 @@ export type SessionPhase =
 
 export type SessionChartId = 'A' | 'B' | 'C';
 export type SessionExpansionMode = 'base' | 'capybara' | 'none';
+
+/** Public server-owned admission state for the optional Voyage 33-0 vessel. */
+export interface Voyage33Admission {
+  readonly type: 'voyage-admission';
+  readonly sessionId: SessionId;
+  readonly id: 'voyage-33-0';
+  readonly status: 'admitted';
+  readonly crisisId: string;
+  readonly crisisRevision: number;
+  readonly population: 40_000;
+  readonly unrest: 0;
+  /** Host selection and resource spending belong to later docking/maintenance paths. */
+  readonly hostShipId: null;
+  readonly commitments: {
+    readonly requiresHostDocking: true;
+    readonly hostProvidesResources: true;
+    readonly maintenanceSteps: readonly [1, 2, 3, 4];
+    readonly maxConsoleCharges: 1;
+  };
+}
 
 export type GalacticCoordinate = string;
 export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate>>;
@@ -542,6 +564,10 @@ export interface GameSession {
   readonly setup?: SessionSetup;
   /** Derived counted vessels for the canonical active core roster. */
   readonly activeVesselIds?: readonly VesselId[];
+  /** Server-admitted optional vessels; these do not grant a core role or seat. */
+  readonly admittedVesselIds?: readonly SupplementalVesselId[];
+  /** Public state for an admitted Voyage 33-0; host selection remains unset until docking. */
+  readonly voyage33Admission?: Voyage33Admission;
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;

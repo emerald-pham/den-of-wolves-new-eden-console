@@ -660,6 +660,19 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // Voyage 33-0 admission is a member-safe printed projection. The
+      // actor, request and audit records remain server-only below the same
+      // path so admission cannot be forged or enumerated by clients.
+      match /voyage33Admission/{documentId} {
+        allow get: if documentId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
       // Team grievance records are a bounded server projection. The same
       // path is durable for reconnecting teammates, while the live role and
       // crisis checks revoke stale reads after reassignment or retirement.

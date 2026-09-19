@@ -1334,6 +1334,35 @@ export function requireCrisisTransitionRequest(data: {
   };
 }
 
+/** Admit the printed Voyage 33-0 vessel from an active Approaching Vessel crisis. */
+export function requireVoyage33AdmissionRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  crisisId: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive crisis revision.');
+  }
+  const crisisId = requiredText(data.crisisId, 'crisisId', 80);
+  if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
+    throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    crisisId,
+  };
+}
+
 export function requireZealotryResponseRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -1699,6 +1699,31 @@ export async function transitionCrisis(
   });
 }
 
+/** Admit Voyage 33-0 from the current facilitator-owned Approaching Vessel crisis. */
+export async function admitVoyage33(crisisId: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || !store.gmCrisisState) {
+    throw new Error('An active Approaching Vessel crisis is required before admitting Voyage 33-0.');
+  }
+  if (store.gmCrisisState.crisisKind !== 'approaching-vessel' ||
+      store.gmCrisisState.crisisId !== crisisId || store.gmCrisisState.state === 'draft' ||
+      store.gmCrisisState.state === 'closed') {
+    throw new Error('An active Approaching Vessel crisis is required before admitting Voyage 33-0.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'admitVoyage33',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmCrisisState.revision,
+      crisisId: crisisId.trim(),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
 /** Record an explicit private response to the current debated Zealotry crisis. */
 export async function recordZealotryResponse(
   actions: readonly ZealotryResponseAction[],

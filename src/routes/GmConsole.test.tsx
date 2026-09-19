@@ -51,6 +51,7 @@ vi.mock('@/lib/sessionService', () => ({
   authorUniversalArbourVision: vi.fn(),
   authorFacilitatorRuleCall: vi.fn(),
   transitionCrisis: vi.fn(),
+  admitVoyage33: vi.fn(),
   recordZealotryResponse: vi.fn(),
   recordCivilUnrestResolution: vi.fn(),
   applyShipCounterSteps: vi.fn(),
@@ -82,7 +83,7 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
@@ -366,6 +367,32 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
     { crisisKind: 'presidential-election', configurationOverride: 'Alternate decision maker agreed at this table.' },
   ));
   expect(await within(panel).findByRole('status')).toHaveTextContent(/crisis transition committed/i);
+});
+
+it('exposes Voyage 33-0 admission only on an active Approaching Vessel crisis', async () => {
+  const user = userEvent.setup();
+  const approachingCrisis: CrisisStateProjection = {
+    sessionId: 's1', crisisId: 'approach-1', state: 'resolved', revision: 3,
+    title: 'Approaching vessel', details: 'Facilitator acceptance notes.', crisisKind: 'approaching-vessel',
+  };
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+    onState(approachingCrisis);
+    return vi.fn();
+  });
+  vi.mocked(admitVoyage33).mockResolvedValue('applied');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
+  const admission = within(panel).getByRole('region', { name: 'Voyage 33-0 admission' });
+  expect(admission).toHaveTextContent(/40,000 survivors/i);
+  expect(admission).toHaveTextContent(/host-docking and maintenance commitments/i);
+  expect(within(panel).getByRole('button', { name: 'Admit Voyage 33-0' })).toBeEnabled();
+  await user.click(within(panel).getByRole('button', { name: 'Admit Voyage 33-0' }));
+
+  await waitFor(() => expect(admitVoyage33).toHaveBeenCalledWith('approach-1'));
+  expect(await within(panel).findByRole('status')).toHaveTextContent(/Voyage 33-0 admitted/i);
 });
 
 it('records a private source-approved Zealotry response only at the debated stage', async () => {

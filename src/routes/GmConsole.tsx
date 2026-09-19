@@ -46,6 +46,7 @@ import {
   authorUniversalArbourVision,
   authorFacilitatorRuleCall,
   transitionCrisis,
+  admitVoyage33,
   recordZealotryResponse,
   recordCivilUnrestResolution,
   applyShipCounterSteps,
@@ -363,6 +364,7 @@ export default function GmConsole() {
   const [diseaseRisk, setDiseaseRisk] = useState('');
   const [crisisOverrideDraft, setCrisisOverrideDraft] = useState('');
   const [crisisMutationState, setCrisisMutationState] = useState<CrisisStateName | null>(null);
+  const [voyageAdmissionMutation, setVoyageAdmissionMutation] = useState(false);
   const [crisisMessage, setCrisisMessage] = useState<string | null>(null);
   const [zealotryActionsDraft, setZealotryActionsDraft] = useState<ZealotryResponseAction[]>([]);
   const [zealotryCustomDraft, setZealotryCustomDraft] = useState('');
@@ -1585,6 +1587,47 @@ export default function GmConsole() {
     }
   }
 
+  async function admitVoyage33FromCrisis(): Promise<void> {
+    const crisis = useSessionStore.getState().gmCrisisState;
+    if (voyageAdmissionMutation || !crisis || crisis.crisisKind !== 'approaching-vessel' ||
+        crisis.state === 'draft' || crisis.state === 'closed') {
+      setCrisisMessage('Admit Voyage 33-0 only while an active Approaching Vessel crisis is open.');
+      return;
+    }
+    if (useSessionStore.getState().session?.voyage33Admission) {
+      setCrisisMessage('Voyage 33-0 is already admitted for this session.');
+      return;
+    }
+    const authorityKey = currentCrisisAuthorityKey();
+    if (!authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) {
+      setCrisisMessage('Live GM authority is still being verified; retry when the manifest is current.');
+      return;
+    }
+    setVoyageAdmissionMutation(true);
+    setCrisisMessage(null);
+    try {
+      const disposition = await admitVoyage33(crisis.crisisId);
+      if (currentCrisisAuthorityKey() !== authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      setCrisisMessage(
+        disposition === 'queued'
+          ? 'Voyage 33-0 admission queued // waiting for the live facilitator connection.'
+          : 'Voyage 33-0 admitted // host docking and maintenance remain pending.',
+      );
+    } catch (cause) {
+      if (currentCrisisAuthorityKey() !== authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      const error = normalizeCommandError(cause);
+      setCrisisMessage(
+        error.kind === 'stale-revision'
+          ? 'Crisis changed // review the current state and retry the admission.'
+          : 'Voyage 33-0 admission rejected // the server did not commit this change.',
+      );
+    } finally {
+      if (currentCrisisAuthorityKey() === authorityKey && verifiedCrisisAuthorityKey.current === authorityKey) {
+        setVoyageAdmissionMutation(false);
+      }
+    }
+  }
+
   function toggleZealotryAction(action: ZealotryResponseAction): void {
     setZealotryActionsDraft((current) => current.includes(action)
       ? current.filter((candidate) => candidate !== action)
@@ -2462,6 +2505,33 @@ export default function GmConsole() {
                 </button>
               ))}
             </div>
+            {gmCrisisState?.crisisKind === 'approaching-vessel' && gmCrisisState.state !== 'draft' && (
+              <section className="gm-crisis__admission" aria-label="Voyage 33-0 admission">
+                <h3 className="gm-console__section-title">Voyage 33-0</h3>
+                {session?.voyage33Admission ? (
+                  <p className="gm-console__hint">
+                    Admitted with 40,000 survivors and unrest 0. It must dock with a host whose resources
+                    fund maintenance steps 1–4; no host or resource spend has been selected.
+                  </p>
+                ) : (
+                  <>
+                    <p className="gm-console__hint">
+                      Admit the damaged cruiser after the facilitator accepts this crisis. Admission records
+                      40,000 survivors and its printed host-docking and maintenance commitments without
+                      choosing a host or spending resources.
+                    </p>
+                    <button
+                      className="cic-action-button"
+                      type="button"
+                      disabled={!local || voyageAdmissionMutation}
+                      onClick={() => void admitVoyage33FromCrisis()}
+                    >
+                      {voyageAdmissionMutation ? 'Admitting Voyage 33-0…' : 'Admit Voyage 33-0'}
+                    </button>
+                  </>
+                )}
+              </section>
+            )}
             <p className="gm-console__status" role="status" aria-live="polite">
               {crisisMessage ?? (gmCrisisState
                 ? `Next allowed state${nextCrisisStates(gmCrisisState).length === 1 ? '' : 's'}: ${nextCrisisStates(gmCrisisState).join(', ')}`

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
-import { SHIPS, SHIP_ORIGIN_LABELS, type ShipOrigin } from '@/data/ships';
+import { SHIPS, SHIP_ORIGIN_LABELS, VOYAGE_33_0, type ShipOrigin } from '@/data/ships';
 import { activeFleetShipIds, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
-import type { Seat } from '@/types/game';
+import type { Seat, Voyage33Admission } from '@/types/game';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -39,6 +39,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         pressClaimed={session.pressClaimed === true}
         activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
         {...(session.activeVesselIds === undefined ? {} : { activeVesselIds: session.activeVesselIds })}
+        {...(session.admittedVesselIds === undefined ? {} : { admittedVesselIds: session.admittedVesselIds })}
+        {...(session.voyage33Admission === undefined ? {} : { voyage33Admission: session.voyage33Admission })}
         isGm={isGm}
         seats={seats}
         viewerUid={me.uid}
@@ -80,6 +82,8 @@ function FleetRoster({
   pressClaimed,
   activeRoleIds,
   activeVesselIds,
+  admittedVesselIds,
+  voyage33Admission,
   isGm,
   seats,
   viewerUid,
@@ -92,6 +96,8 @@ function FleetRoster({
   pressClaimed: boolean;
   activeRoleIds: readonly string[];
   activeVesselIds?: readonly string[];
+  admittedVesselIds?: readonly string[];
+  voyage33Admission?: Voyage33Admission;
   isGm: boolean;
   seats: readonly Seat[];
   viewerUid: string;
@@ -115,6 +121,8 @@ function FleetRoster({
     'SNN Press Shuttle',
     'Press Officer',
   );
+  const voyage33Admitted = admittedVesselIds?.includes(VOYAGE_33_0.id) &&
+    voyage33Admission?.id === VOYAGE_33_0.id;
   return (
     <main className="fleet-roster">
       <header className="fleet-roster__header">
@@ -239,6 +247,38 @@ function FleetRoster({
           </div>
         </section>
       ))}
+
+      {voyage33Admitted && (
+        <section className="fleet-group" aria-labelledby="admitted-vessels">
+          <h2 className="fleet-group__title" id="admitted-vessels">Admitted vessels</h2>
+          <div className="fleet-group__grid">
+            <article className="fleet-card fleet-card--voyage-33-0 cic-frame" aria-label={VOYAGE_33_0.name}>
+              <div className="fleet-card__link">
+                <img
+                  className="fleet-card__flag"
+                  src={VOYAGE_33_0.flag}
+                  alt={`${VOYAGE_33_0.nation} flag`}
+                  data-shared-flag={VOYAGE_33_0.id}
+                />
+                <span className="fleet-card__content">
+                  <span className="fleet-card__nation">{VOYAGE_33_0.nationShort} // {VOYAGE_33_0.vesselType}</span>
+                  <span className="fleet-card__name">{VOYAGE_33_0.name}</span>
+                  <span className="fleet-card__description">{VOYAGE_33_0.description}</span>
+                  <span className="fleet-card__description">
+                    {voyage33Admission.population.toLocaleString()} survivors // unrest {voyage33Admission.unrest}
+                  </span>
+                  <span className="fleet-card__description">
+                    Host docking required // maintenance steps {voyage33Admission.commitments.maintenanceSteps[0]}–
+                    {voyage33Admission.commitments.maintenanceSteps.at(-1)}
+                    // max {voyage33Admission.commitments.maxConsoleCharges} console charge
+                  </span>
+                  <span className="fleet-card__description">Host assignment pending</span>
+                </span>
+              </div>
+            </article>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

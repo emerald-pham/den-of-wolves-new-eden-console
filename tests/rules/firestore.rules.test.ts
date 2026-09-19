@@ -665,6 +665,28 @@ describe('crisis state boundary', () => {
     await assertFails(setDoc(doc(as('alice'), `${SESSION}/crisisReports/current`), { body: 'Forged' }));
   });
 
+  it('allows members to read the admitted Voyage projection while keeping admission audit GM-only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/voyage33Admission/current`), {
+        type: 'voyage-admission', sessionId: 's1', id: 'voyage-33-0', status: 'admitted',
+        crisisId: 'approach-1', crisisRevision: 3, population: 40000, unrest: 0,
+        hostShipId: null,
+        commitments: { requiresHostDocking: true, hostProvidesResources: true, maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1 },
+      });
+      await setDoc(doc(db, `${SESSION}/voyage33Admission/current/audit/admit-1`), {
+        type: 'voyage-admission', actorUid: 'gm1', requestId: 'admit-1',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/voyage33Admission/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/voyage33Admission/current`)));
+    await assertFails(getDoc(doc(as('outsider'), `${SESSION}/voyage33Admission/current`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/voyage33Admission/current/audit/admit-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/voyage33Admission/current/audit/admit-1`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/voyage33Admission`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/voyage33Admission/current`), { forged: true }));
+  });
+
   it('keeps the durable crisis projection and audit private to connected GMs', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();

@@ -55,6 +55,7 @@ import type {
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationState,
   WolfAttackWindow,
+  Voyage33Admission,
   WolfAssignment,
   WolfCultIntelligence,
   ArbourVision,
@@ -1159,6 +1160,42 @@ function smallShipStates(value: unknown): NonNullable<GameSession['smallShipStat
   })) as NonNullable<GameSession['smallShipStates']>;
 }
 
+function admittedVesselIds(value: unknown): NonNullable<GameSession['admittedVesselIds']> {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id): id is 'voyage-33-0' => id === 'voyage-33-0'))];
+}
+
+function voyage33Admission(value: unknown, sessionId: string): Voyage33Admission | undefined {
+  const raw = recordValue(value);
+  const parsedSessionId = parseEntityId('session', raw?.sessionId);
+  const crisisRevision = nonNegativeInteger(raw?.crisisRevision);
+  const commitments = recordValue(raw?.commitments);
+  if (!raw || parsedSessionId !== parseEntityId('session', sessionId) || raw.type !== 'voyage-admission' ||
+      raw.id !== 'voyage-33-0' || raw.status !== 'admitted' || typeof raw.crisisId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) || crisisRevision === undefined ||
+      raw.population !== 40_000 || raw.unrest !== 0 || raw.hostShipId !== null || !commitments ||
+      commitments.requiresHostDocking !== true || commitments.hostProvidesResources !== true ||
+      JSON.stringify(commitments.maintenanceSteps) !== JSON.stringify([1, 2, 3, 4]) ||
+      commitments.maxConsoleCharges !== 1) return undefined;
+  return {
+    type: 'voyage-admission',
+    sessionId: parsedSessionId!,
+    id: 'voyage-33-0',
+    status: 'admitted',
+    crisisId: raw.crisisId,
+    crisisRevision,
+    population: 40_000,
+    unrest: 0,
+    hostShipId: null,
+    commitments: {
+      requiresHostDocking: true,
+      hostProvidesResources: true,
+      maintenanceSteps: [1, 2, 3, 4],
+      maxConsoleCharges: 1,
+    },
+  };
+}
+
 function shuttleCargo(value: unknown): NonNullable<GameSession['shuttleCargo']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -1463,6 +1500,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     (activeVessels === undefined || activeVessels.has(visit.shipId)) &&
     (visibleShuttles === undefined || visibleShuttles.has(visit.shuttleId)));
   const ownerUid = parseEntityId('player', data.ownerUid);
+  const voyageAdmission = voyage33Admission(data.voyage33Admission, sessionId);
+  const admitted = voyageAdmission
+    ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
+    : [];
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -1490,6 +1531,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { setupRevision: data.setupRevision as number } : {}),
     ...(setup ? { setup, activeVesselIds: [...setup.activeVesselIds] } :
       activeVesselIds !== undefined ? { activeVesselIds: [...activeVesselIds] } : {}),
+    admittedVesselIds: admitted,
+    ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),

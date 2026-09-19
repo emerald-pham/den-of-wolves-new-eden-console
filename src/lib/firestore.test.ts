@@ -142,6 +142,34 @@ it('hydrates only valid optional small-ship state and keeps host linkage explici
   expect(session.smallShipStates?.warrior).toBeUndefined();
 });
 
+it('hydrates admitted Voyage 33-0 as a public vessel identity without widening the core roster', () => {
+  const session = sessionFrom('voyage-admission-session', {
+    ...sessionData(8),
+    activeVesselIds: ['aegis'],
+    admittedVesselIds: ['voyage-33-0', 'unsupported-vessel', 'voyage-33-0'],
+    voyage33Admission: {
+      type: 'voyage-admission', sessionId: 'voyage-admission-session', id: 'voyage-33-0', status: 'admitted',
+      crisisId: 'approach-1', crisisRevision: 3, population: 40_000, unrest: 0, hostShipId: null,
+      commitments: { requiresHostDocking: true, hostProvidesResources: true, maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1 },
+    },
+  });
+  expect(session.admittedVesselIds).toEqual(['voyage-33-0']);
+  expect(session.voyage33Admission).toMatchObject({ id: 'voyage-33-0', population: 40_000, hostShipId: null });
+  expect(session.activeVesselIds).toEqual(['aegis']);
+
+  const malformed = sessionFrom('malformed-voyage-admission-session', {
+    ...sessionData(8),
+    admittedVesselIds: ['voyage-33-0'],
+    voyage33Admission: {
+      type: 'voyage-admission', sessionId: 'malformed-voyage-admission-session', id: 'voyage-33-0', status: 'admitted',
+      crisisId: 'approach-1', crisisRevision: 3, population: 39_000, unrest: 0, hostShipId: null,
+      commitments: { requiresHostDocking: true, hostProvidesResources: true, maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1 },
+    },
+  });
+  expect(malformed.voyage33Admission).toBeUndefined();
+  expect(malformed.admittedVesselIds).toEqual([]);
+});
+
 it('hydrates the complete turn entity only when its server fields are valid', () => {
   const session = sessionFrom('turn-state-session', {
     ...sessionData(8),

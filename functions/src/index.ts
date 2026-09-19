@@ -65,6 +65,7 @@ import {
   requireFacilitatorRuleCallRequest,
   isCanonicalRequestId,
   requireCrisisTransitionRequest,
+  requireVoyage33AdmissionRequest,
   requireZealotryResponseRequest,
   requireCivilUnrestGrievanceRequest,
   requireCivilUnrestResolutionRequest,
@@ -276,6 +277,14 @@ import {
 } from './civilUnrestResolution';
 import { civilUnrestReport, diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
+import {
+  VOYAGE_33_COMMITMENTS,
+  VOYAGE_33_ID,
+  VOYAGE_33_POPULATION,
+  VOYAGE_33_UNREST,
+  parseVoyage33Admission,
+  type Voyage33Admission,
+} from './voyageAdmission';
 import {
   availableVipCards,
   drawVipCardState,
@@ -1170,6 +1179,10 @@ function publicSmallShipStates(
     if (!state || (state.hostShipId !== null && !activeHosts.has(state.hostShipId))) return [];
     return [[smallShipId, state]];
   }));
+}
+
+function publicVoyage33Admission(value: unknown, sessionId: string): Voyage33Admission | undefined {
+  return parseVoyage33Admission(value, sessionId);
 }
 
 function reconcileActiveVesselMap<T>(
@@ -6342,6 +6355,173 @@ export const transitionCrisis = onCall<{
   });
 });
 
+type Voyage33AdmissionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  crisisRevision: number;
+  admission: Voyage33Admission;
+}>;
+
+function isVoyage33AdmissionResult(value: unknown, sessionId: string): value is Voyage33AdmissionResult {
+  if (!isRecord(value) || (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.sessionId !== sessionId || typeof value.crisisId !== 'string' ||
+      !Number.isSafeInteger(value.crisisRevision)) return false;
+  const admission = parseVoyage33Admission(value.admission, sessionId);
+  return admission !== undefined && admission.crisisId === value.crisisId &&
+    admission.crisisRevision === value.crisisRevision;
+}
+
+/** Admit the printed Voyage 33-0 vessel exactly once from an active crisis. */
+export const admitVoyage33 = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  crisisId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const admissionRequest = requireVoyage33AdmissionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${admissionRequest.sessionId}`);
+  const crisisRef = db.doc(`sessions/${admissionRequest.sessionId}/crisisState/current`);
+  const admissionRef = db.doc(`sessions/${admissionRequest.sessionId}/voyage33Admission/current`);
+  const auditRef = db.doc(`sessions/${admissionRequest.sessionId}/voyage33Admission/current/audit/${admissionRequest.requestId}`);
+  const receiptRef = commandReceiptRef(admissionRequest.sessionId, admissionRequest.requestId);
+  const eventRef = db.doc(`sessions/${admissionRequest.sessionId}/events/voyage-admitted-${admissionRequest.requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'admit-voyage-33',
+    sessionId: admissionRequest.sessionId,
+    requestId: admissionRequest.requestId,
+    actorUid: uid,
+    instanceId: admissionRequest.instanceId,
+    expectedRevision: admissionRequest.expectedRevision,
+    payload: { crisisId: admissionRequest.crisisId },
+  };
+
+  return db.runTransaction(async (tx): Promise<Voyage33AdmissionResult> => {
+    const [authority, crisisSnapshot, storedAdmission, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, admissionRequest.sessionId, uid, admissionRequest.instanceId),
+      tx.get(crisisRef),
+      tx.get(admissionRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, admissionRequest.sessionId, admissionRequest.requestId, 'Voyage 33-0 admission', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is Voyage33AdmissionResult => isVoyage33AdmissionResult(value, admissionRequest.sessionId),
+      'Voyage 33-0 admission',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Voyage 33-0 admission');
+    requireActiveGameplayPhase(authority.session);
+
+    const existing = storedAdmission.exists
+      ? parseVoyage33Admission(storedAdmission.data(), admissionRequest.sessionId)
+      : undefined;
+    if (storedAdmission.exists && !existing) {
+      throw commandError('failed-precondition', 'The stored Voyage 33-0 admission is malformed; refresh before retrying.', 'malformed-input');
+    }
+    if (existing) {
+      if (existing.crisisId !== admissionRequest.crisisId) {
+        throw commandError('failed-precondition', 'Voyage 33-0 has already been admitted for another crisis.', 'conflict');
+      }
+      const result: Voyage33AdmissionResult = {
+        status: 'replayed',
+        sessionId: admissionRequest.sessionId,
+        crisisId: existing.crisisId,
+        crisisRevision: existing.crisisRevision,
+        admission: existing,
+      };
+      tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
+    }
+
+    if (!crisisSnapshot.exists || crisisSnapshot.get('type') !== 'crisis-state' ||
+        crisisSnapshot.get('sessionId') !== admissionRequest.sessionId ||
+        crisisSnapshot.get('crisisId') !== admissionRequest.crisisId ||
+        crisisSnapshot.get('crisisKind') !== 'approaching-vessel' ||
+        !isCrisisState(crisisSnapshot.get('state')) ||
+        crisisSnapshot.get('state') === 'draft' || crisisSnapshot.get('state') === 'closed') {
+      throw commandError('failed-precondition', 'An active Approaching Vessel crisis is required before admitting Voyage 33-0.', 'invalid-phase');
+    }
+    const crisisRevision = crisisSnapshot.get('revision');
+    if (!Number.isSafeInteger(crisisRevision) || (crisisRevision as number) !== admissionRequest.expectedRevision) {
+      throw commandError('failed-precondition', 'The crisis changed. Refresh the facilitator projection and retry the admission.', 'stale-revision');
+    }
+
+    const admission: Voyage33Admission = {
+      type: 'voyage-admission',
+      sessionId: admissionRequest.sessionId,
+      id: VOYAGE_33_ID,
+      status: 'admitted',
+      crisisId: admissionRequest.crisisId,
+      crisisRevision: crisisRevision as number,
+      population: VOYAGE_33_POPULATION,
+      unrest: VOYAGE_33_UNREST,
+      hostShipId: null,
+      commitments: VOYAGE_33_COMMITMENTS,
+    };
+    const result: Voyage33AdmissionResult = {
+      status: 'committed',
+      sessionId: admissionRequest.sessionId,
+      crisisId: admissionRequest.crisisId,
+      crisisRevision: crisisRevision as number,
+      admission,
+    };
+    const existingAdmitted = Array.isArray(authority.session.get('admittedVesselIds'))
+      ? authority.session.get('admittedVesselIds').filter((id: unknown): id is string => typeof id === 'string')
+      : [];
+    const admittedVesselIds = [...new Set([...existingAdmitted, VOYAGE_33_ID])];
+    tx.set(admissionRef, {
+      ...admission,
+      actorUid: uid,
+      instanceId: admissionRequest.instanceId,
+      requestId: admissionRequest.requestId,
+      admittedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      ...admission,
+      action: 'admit',
+      actorUid: uid,
+      instanceId: admissionRequest.instanceId,
+      requestId: admissionRequest.requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, {
+      admittedVesselIds,
+      voyage33Admission: admission,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'voyage-admitted',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: admissionRequest.sessionId,
+        actorUid: uid,
+        actorRoleId: null,
+        turn: sessionTurn(authority.session.get('currentTurn')),
+        phase: vesselActionPhase(authority.session),
+        type: 'voyage-admitted',
+        requestId: admissionRequest.requestId,
+        revision: crisisRevision as number,
+        serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        crisisId: admissionRequest.crisisId,
+        crisisRevision: crisisRevision as number,
+        vesselId: VOYAGE_33_ID,
+        population: VOYAGE_33_POPULATION,
+        commitments: VOYAGE_33_COMMITMENTS,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 /** Record the facilitator's explicit source-approved response to Zealotry. */
 export const recordZealotryResponse = onCall<{
   sessionId?: unknown;
@@ -7804,6 +7984,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
     );
     const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
+    const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
     return {
       session: {
         id: sessionId,
@@ -7826,6 +8007,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
         setup,
         activeVesselIds: [...setup.activeVesselIds],
+        admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
+        ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
         ...(turnState ? { turnState } : {}),
@@ -8065,6 +8248,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
   );
   const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
+  const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
   return {
     session: {
       id: sessionId,
@@ -8087,6 +8271,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
       setup,
       activeVesselIds: [...setup.activeVesselIds],
+      admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
+      ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
       ...(turnState ? { turnState } : {}),
