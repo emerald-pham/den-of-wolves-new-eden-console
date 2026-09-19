@@ -57,6 +57,7 @@ authority or cause one vessel's configuration to leak into another.
 | Document | Owns |
 | --- | --- |
 | [ABUSE_PROTECTION_HANDOFF.md](ABUSE_PROTECTION_HANDOFF.md) | Capacity, abuse protection, App Check, and operational follow-up |
+| [Runtime threat-model manifest](../security/threat-model.json) | Machine-readable hostile-client, session-code, and resource-exhaustion control map |
 | [PRESERVED_IN_AMBER.md](PRESERVED_IN_AMBER.md) | Immutable rollback-anchor policy and recovery reference |
 | [ci-deploy-setup.md](ci-deploy-setup.md) | Dated Workload Identity Federation setup and troubleshooting handoff |
 

@@ -1,0 +1,431 @@
+{
+  "schemaVersion": 1,
+  "modelId": "runtime-session-code-and-resource-exhaustion-v1",
+  "scope": {
+    "hostileActors": [
+      "external-client-with-guessed-session-code",
+      "external-client-with-obtained-session-code",
+      "automated-or-volumetric-client"
+    ],
+    "protectedProperties": [
+      "server-authority",
+      "authorization",
+      "replay-resistance",
+      "privacy",
+      "input-validation"
+    ],
+    "riskProperties": [
+      "availability",
+      "abuse-reduction",
+      "resource-containment"
+    ],
+    "runtimeBehaviorChange": false,
+    "platformLimitChange": false
+  },
+  "trustModel": {
+    "contributors": "trusted",
+    "buildPipeline": "trusted",
+    "contributorOutput": "untrusted-until-independent-review-and-release-gate",
+    "independentReviewReceipt": "required",
+    "releaseGate": "required",
+    "machineGatePurpose": [
+      "mistakes",
+      "stale-work",
+      "missing-review",
+      "regressions"
+    ]
+  },
+  "outOfScope": [
+    "malicious-contributor",
+    "deliberate-commit-forgery",
+    "deliberate-history-forgery"
+  ],
+  "governanceAudit": {
+    "forbiddenAssumptions": [
+      "malicious contributor",
+      "commit forgery",
+      "history forgery"
+    ],
+    "files": [
+      {
+        "file": "CLAUDE.md",
+        "requiredContains": "there is no immutable goal file, digest comparison"
+      },
+      {
+        "file": "docs/WORKTREE_COORDINATION.md",
+        "requiredContains": "no immutable goal artifact, digest comparison"
+      },
+      {
+        "file": "docs/AGENT_CAMPAIGN_PLAYBOOK.md",
+        "requiredContains": "There is no immutable goal artifact, digest comparison"
+      }
+    ]
+  },
+  "gapPolicy": {
+    "demonstratedRuntimeGaps": [],
+    "requiredDisposition": "register-separate-feature-prompt-with-owner-visible-thresholds-and-normal-release-gates",
+    "forbidEquivalentControlDuplicationWithoutOwnerDecision": true
+  },
+  "controls": [
+    {
+      "id": "HOSTING_CDN",
+      "title": "Firebase Hosting global CDN",
+      "properties": [
+        "availability"
+      ],
+      "verificationMode": "repository-configuration-and-platform-attestation",
+      "sourceChecks": [
+        {
+          "file": "firebase.json",
+          "contains": [
+            "\"hosting\"",
+            "\"public\": \"dist\""
+          ]
+        },
+        {
+          "file": "docs/ABUSE_PROTECTION_HANDOFF.md",
+          "contains": [
+            "static Firebase Hosting SPA on the Firebase global CDN"
+          ]
+        }
+      ],
+      "tests": []
+    },
+    {
+      "id": "APPCHECK_CLIENT",
+      "title": "reCAPTCHA Enterprise App Check starts before Firebase services",
+      "properties": [
+        "abuse-reduction"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "src/lib/firebase.ts",
+          "contains": [
+            "ReCaptchaEnterpriseProvider",
+            "appCheck();",
+            "getAuth(app())",
+            "getFunctions(app())"
+          ]
+        }
+      ],
+      "tests": [
+        "src/lib/firebase.test.ts"
+      ]
+    },
+    {
+      "id": "CALLABLE_APPCHECK",
+      "title": "Production callable App Check enforcement",
+      "properties": [
+        "abuse-reduction"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/runtimeOptions.ts",
+          "contains": [
+            "enforceAppCheck: environment.FUNCTIONS_EMULATOR !== 'true'"
+          ]
+        },
+        {
+          "file": "functions/src/index.ts",
+          "contains": [
+            "setGlobalOptions(CALLABLE_RUNTIME_OPTIONS)"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/runtimeOptions.test.ts"
+      ]
+    },
+    {
+      "id": "CALLABLE_INSTANCE_CAP",
+      "title": "Shared callable instance cap",
+      "properties": [
+        "resource-containment"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/runtimeOptions.ts",
+          "contains": [
+            "maxInstances: 10"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/runtimeOptions.test.ts"
+      ]
+    },
+    {
+      "id": "FIRESTORE_APPCHECK",
+      "title": "Cloud Firestore App Check enforcement",
+      "properties": [
+        "abuse-reduction"
+      ],
+      "verificationMode": "operator-attested-platform-setting",
+      "sourceChecks": [
+        {
+          "file": "docs/ABUSE_PROTECTION_HANDOFF.md",
+          "contains": [
+            "production Cloud Firestore API has App Check enforcement enabled",
+            "Cloud Firestore** is set to\n   **Enforced**"
+          ]
+        }
+      ],
+      "tests": []
+    },
+    {
+      "id": "JOIN_CODE_FORMAT",
+      "title": "Six-digit current join-code format and strict input validation",
+      "properties": [
+        "input-validation"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.ts",
+          "contains": [
+            "export const JOIN_CODE_LENGTH = 6",
+            "return hasSupportedLength && /^\\d+$/.test(value)"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/joinCodeSecurity.test.ts"
+      ]
+    },
+    {
+      "id": "JOIN_CODE_LOOKUP",
+      "title": "Non-enumerating join-code lookup",
+      "properties": [
+        "privacy",
+        "authorization"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.ts",
+          "contains": [
+            "lookup: 'non-enumerating'"
+          ]
+        },
+        {
+          "file": "firestore.rules",
+          "contains": [
+            "match /{document=**}",
+            "allow read, write: if false;"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/joinCodeSecurity.test.ts",
+        "tests/rules/firestore.rules.test.ts"
+      ]
+    },
+    {
+      "id": "JOIN_CODE_COLLISION",
+      "title": "Transactional join-code collision ownership",
+      "properties": [
+        "server-authority",
+        "replay-resistance"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.ts",
+          "contains": [
+            "collision: 'transactional-joinCodes-document'"
+          ]
+        },
+        {
+          "file": "functions/src/index.ts",
+          "contains": [
+            "const codeRef = db.doc(`joinCodes/${joinCode}`)",
+            "for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1)"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/createSessionCallable.test.ts",
+        "functions/src/sessionLifecycleCallable.test.ts"
+      ]
+    },
+    {
+      "id": "JOIN_CODE_LIMITER",
+      "title": "Six attempts per authenticated identity per ten minutes",
+      "properties": [
+        "server-authority",
+        "authorization"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/joinCodeSecurity.ts",
+          "contains": [
+            "export const JOIN_CODE_ATTEMPT_LIMIT = 6",
+            "export const JOIN_CODE_ATTEMPT_WINDOW_MS = 10 * 60 * 1_000"
+          ]
+        },
+        {
+          "file": "functions/src/index.ts",
+          "contains": [
+            "const rateRef = db.doc(`joinAttemptLimits/${uid}`)",
+            "await consumeJoinCodeAttempt(uid)"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/joinCodeSecurity.test.ts",
+        "functions/src/joinSessionCallable.test.ts",
+        "tests/rules/firestore.rules.test.ts"
+      ]
+    },
+    {
+      "id": "FIRESTORE_RULES",
+      "title": "Member-scoped reads and denied authoritative client writes",
+      "properties": [
+        "server-authority",
+        "authorization",
+        "privacy"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "firestore.rules",
+          "contains": [
+            "allow get: if isMember(sessionId);",
+            "allow list: if false;",
+            "allow create, update, delete: if false;"
+          ]
+        }
+      ],
+      "tests": [
+        "tests/rules/firestore.rules.test.ts"
+      ]
+    },
+    {
+      "id": "CALLABLE_AUTHORIZATION",
+      "title": "Authenticated callable and server-owned mutation boundary",
+      "properties": [
+        "server-authority",
+        "authorization"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/index.ts",
+          "contains": [
+            "const uid = requireUid(request.auth)",
+            "await consumeJoinCodeAttempt(uid)"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/joinSessionCallable.test.ts",
+        "tests/rules/firestore.rules.test.ts"
+      ]
+    },
+    {
+      "id": "COMMAND_REPLAY",
+      "title": "Authoritative command receipt replay and collision checks",
+      "properties": [
+        "replay-resistance",
+        "server-authority"
+      ],
+      "verificationMode": "source-and-test",
+      "sourceChecks": [
+        {
+          "file": "functions/src/index.ts",
+          "contains": [
+            "commandReceiptDisposition",
+            "REQUEST_RECOVERY_GUIDANCE"
+          ]
+        }
+      ],
+      "tests": [
+        "functions/src/createSessionCallable.test.ts"
+      ]
+    }
+  ],
+  "threats": [
+    {
+      "id": "SESSION_CODE_GUESSING",
+      "status": "controlled-existing-baseline",
+      "controlIds": [
+        "APPCHECK_CLIENT",
+        "CALLABLE_APPCHECK",
+        "JOIN_CODE_FORMAT",
+        "JOIN_CODE_LIMITER",
+        "CALLABLE_AUTHORIZATION"
+      ]
+    },
+    {
+      "id": "SESSION_CODE_DISCLOSURE",
+      "status": "bounded-existing-product-boundary",
+      "controlIds": [
+        "CALLABLE_APPCHECK",
+        "FIRESTORE_RULES",
+        "CALLABLE_AUTHORIZATION",
+        "COMMAND_REPLAY"
+      ],
+      "residualRisk": "A valid code admits an authenticated player to the intended member surface; possession never grants GM or mutation authority."
+    },
+    {
+      "id": "SESSION_CODE_ENUMERATION",
+      "status": "controlled-existing-baseline",
+      "controlIds": [
+        "JOIN_CODE_LOOKUP",
+        "JOIN_CODE_LIMITER",
+        "FIRESTORE_RULES"
+      ]
+    },
+    {
+      "id": "SESSION_CODE_COLLISION",
+      "status": "controlled-existing-baseline",
+      "controlIds": [
+        "JOIN_CODE_COLLISION",
+        "COMMAND_REPLAY"
+      ]
+    },
+    {
+      "id": "HOSTING_FLOOD",
+      "status": "bounded-residual-risk",
+      "controlIds": [
+        "HOSTING_CDN"
+      ],
+      "residualRisk": "The managed CDN absorbs static delivery load; this repository does not claim that Hosting removes all volumetric risk."
+    },
+    {
+      "id": "CALLABLE_RESOURCE_EXHAUSTION",
+      "status": "bounded-residual-risk",
+      "controlIds": [
+        "APPCHECK_CLIENT",
+        "CALLABLE_APPCHECK",
+        "CALLABLE_INSTANCE_CAP",
+        "JOIN_CODE_LIMITER",
+        "CALLABLE_AUTHORIZATION",
+        "COMMAND_REPLAY"
+      ],
+      "residualRisk": "The instance cap bounds scale and cost but saturation can reduce availability; changing capacity requires measured evidence and a separate feature prompt."
+    },
+    {
+      "id": "FIRESTORE_DIRECT_ABUSE",
+      "status": "controlled-existing-baseline",
+      "controlIds": [
+        "APPCHECK_CLIENT",
+        "FIRESTORE_APPCHECK",
+        "FIRESTORE_RULES"
+      ]
+    },
+    {
+      "id": "RETRY_REPLAY",
+      "status": "controlled-existing-baseline",
+      "controlIds": [
+        "JOIN_CODE_COLLISION",
+        "COMMAND_REPLAY",
+        "FIRESTORE_RULES"
+      ]
+    }
+  ]
+}

@@ -124,6 +124,9 @@ jobs:
         if: steps.change_scope.outputs.documentation_only == 'true' || steps.change_scope.outputs.exact_head_commit == 'true'
         run: npm run coordination:docs
 
+      - name: Validate runtime threat model
+        run: npm run security:threat-model
+
       - uses: actions/setup-java@v5
         if: steps.change_scope.outputs.documentation_only != 'true'
         with:
