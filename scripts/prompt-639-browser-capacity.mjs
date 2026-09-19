@@ -46,6 +46,12 @@ const nodeCalls = [];
 let browser;
 let vite;
 
+function errorCode(error) {
+  return String(error?.code ?? error?.message ?? error ?? 'unknown')
+    .replace(/^functions\//, '')
+    .slice(0, 120);
+}
+
 function percentile(values, fraction) {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)] ?? 0;
@@ -78,10 +84,10 @@ async function nodeClient(label) {
       const startedAt = performance.now();
       try {
         const result = (await httpsCallable(functions, name)(data)).data;
-        nodeCalls.push({ name, outcome: result?.status === 'stale' ? 'contention' : 'success', durationMs: performance.now() - startedAt });
+        nodeCalls.push({ name, label, outcome: result?.status === 'stale' ? 'contention' : 'success', durationMs: performance.now() - startedAt });
         return result;
       } catch (error) {
-        nodeCalls.push({ name, outcome: String(error?.code ?? 'unknown').replace(/^functions\//, ''), durationMs: performance.now() - startedAt });
+        nodeCalls.push({ name, label, outcome: errorCode(error), durationMs: performance.now() - startedAt });
         throw error;
       }
     },
@@ -226,11 +232,15 @@ try {
   assert.match(throttled.injected.code, /resource-exhausted/i);
 
   const intervalMs = thresholds.heartbeatIntervalMs;
+  // Establish each GM's reconciliation record before the sustained window.
+  // Otherwise the emulator's pessimistic transaction locks make both GMs scan
+  // the full player set while the first staggered player renewals are starting.
+  await owner.call('refreshPresence', { sessionId, instanceId: 'p639-bridge' });
+  await gm2.call('refreshPresence', { sessionId, instanceId: 'p639-observer' });
   for (let index = 0; index < clients.length; index += 1) {
     await clients[index].page.evaluate(([interval, offset]) => window.p639.scheduleHeartbeat(interval, offset),
       [intervalMs, Math.round(index * intervalMs / clients.length)]);
   }
-
   evidence.stage = 'timed-load';
   const runStartedAt = Date.now();
   const runEndsAt = runStartedAt + durationMs;
@@ -284,6 +294,16 @@ try {
       reconnect = { durationMs: performance.now() - reconnectStartedAt, disconnectAttempts, restoredPages: restoredClients.length };
     }
     if (Date.now() >= nextActionAt) {
+      const renewals = await Promise.allSettled([
+        owner.call('refreshPresence', { sessionId, instanceId: 'p639-bridge' }),
+        gm2.call('refreshPresence', { sessionId, instanceId: 'p639-observer' }),
+      ]);
+      if (renewals.some((result) => result.status === 'rejected')) {
+        timedErrors.push({
+          stage: 'gm-lease-renewal',
+          outcomes: renewals.map((result) => result.status === 'fulfilled' ? 'success' : errorCode(result.reason)),
+        });
+      }
       const delta = actionIndex % 2 === 0 ? 1 : -1;
       const startedAt = Date.now();
       const base = { sessionId, shipId: 'capybara', resourceId: 'scrap', delta, expectedRevision: revision };
@@ -291,18 +311,21 @@ try {
         owner.call('adjustShipResource', { ...base, instanceId: 'p639-bridge', requestId: `p639-action-${actionIndex}-a-${randomUUID()}` }),
         gm2.call('adjustShipResource', { ...base, instanceId: 'p639-observer', requestId: `p639-action-${actionIndex}-b-${randomUUID()}` }),
       ]);
+      const dispositions = settled.map((result) => result.status === 'fulfilled'
+        ? (result.value.status ?? 'committed')
+        : errorCode(result.reason));
       const results = settled.filter((result) => result.status === 'fulfilled').map((result) => result.value);
       const rejected = settled.filter((result) => result.status === 'rejected');
       const staleCount = results.filter((result) => result.status === 'stale').length;
       const committed = results.find((result) => result.status !== 'stale');
       if (rejected.length > 0 || staleCount !== 1 || !committed) {
-        timedErrors.push({ stage: 'action-race', outcomes: settled.map((result) => result.status) });
+        timedErrors.push({ stage: 'action-race', outcomes: dispositions });
         const snapshot = await getDoc(doc(owner.firestore, 'sessions', sessionId));
         revision = Number(snapshot.data()?.vesselActionRevisions?.capybara ?? revision);
       } else {
         revision = committed.revision;
       }
-      actionResults.push({ revision, dispositions: results.map((result) => result.status ?? 'committed') });
+      actionResults.push({ revision, dispositions });
       if (committed) {
         try { actionDelays.push(...await waitForRevision(clients, revision, startedAt)); }
         catch { timedErrors.push({ stage: 'action-listener-delivery', revision }); }
@@ -327,11 +350,15 @@ try {
   const listenerDeliveries = summaries.reduce((sum, summary) => sum + summary.sessionEvents.length + summary.playerEvents.length, 0);
   const listenerErrors = summaries.flatMap((summary) => summary.listenerErrors);
   const contentionCount = nodeCalls.filter((call) => call.outcome === 'contention').length;
+  const gmLeaseRenewals = nodeCalls.filter((call) => call.name === 'refreshPresence');
+  const gmLeaseRenewalSuccesses = gmLeaseRenewals.filter((call) => call.outcome === 'success');
   const thresholdResults = {
     clientCount: smokeRun || clientCount === thresholds.clientCount,
     duration: smokeRun || durationMs === thresholds.durationMs,
     heartbeatCoverage: heartbeatCoverage >= thresholds.heartbeatCoverageMin,
     heartbeatErrorRate: heartbeatErrorRate <= thresholds.heartbeatErrorRateMax,
+    gmLeaseRenewals: gmLeaseRenewals.length >= 2 + actionResults.length * 2 &&
+      gmLeaseRenewalSuccesses.length === gmLeaseRenewals.length,
     heartbeatP95: heartbeatLatency.p95 <= thresholds.heartbeatP95MsMax,
     listenerActionP95: listenerActionLatency.p95 <= thresholds.listenerActionP95MsMax,
     reconnect: reconnect?.durationMs <= thresholds.reconnectMsMax,
@@ -346,6 +373,12 @@ try {
   evidence.results = {
     runStartedAt: new Date(runStartedAt).toISOString(), runEndedAt: new Date().toISOString(),
     heartbeat: { attempts: heartbeats.length, expectedAttempts: expectedHeartbeats, coverage: heartbeatCoverage, successes: heartbeatSuccesses.length, errors: heartbeatErrors, errorRate: heartbeatErrorRate, latencyMs: heartbeatLatency },
+    gmLeaseRenewals: {
+      attempts: gmLeaseRenewals.length,
+      successes: gmLeaseRenewalSuccesses.length,
+      errors: gmLeaseRenewals.length - gmLeaseRenewalSuccesses.length,
+      latencyMs: stats(gmLeaseRenewalSuccesses.map((call) => call.durationMs)),
+    },
     listeners: {
       subscriptions: clientCount * 2,
       lifecycleSubscriptions: summaries.length * 2,
