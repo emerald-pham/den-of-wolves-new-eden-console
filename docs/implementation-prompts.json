@@ -1402,11 +1402,11 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "237 -> 234;402",
+      "direction": "237 -> 234;401;402;166;278; OWNER-GORGONEION-ADMISSION-PREDEAL-LIFECYCLE",
       "id": "E-AUDIT-237",
-      "language": "Mission support consumes small-ship identity and the mission deck.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
-      "type": "hard_prompt"
+      "language": "Mission support consumes small-ship identity and the server-only mission deck, but its production authority is incomplete: canonical active-vessel setup excludes Gorgoneion while the replacement Captain role requires persisted Gorgoneion admission, and the facilitator-only deal callable creates the mission instance at deal time without a pre-deal Captain projection or UI lifecycle. Prompt 401 supplies the authoritative newly reached mission instance/Mission Leader lifecycle; optional-vessel/Captain admission and the pre-deal owner decision remain open.",
+      "source": "functions/src/roleConfiguration.ts; functions/src/gameSetup.ts; functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/awayMissionCallable.test.ts; docs/IMPLEMENTATION_PLAN.md",
+      "type": "hard_prompt / decision_owner / related/consumes"
     },
     {
       "direction": "238 -> 234;361",
@@ -11287,19 +11287,19 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-GORGONEION-ADMISSION-PREDEAL-LIFECYCLE",
       "definition": {
         "acceptance": "its Captain privately moves each of the top five mission cards to top or bottom before dealing.",
         "title": "Resolve Gorgoneion Mission Support."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Blocked pending owner decisions that make this behavior reachable and authoritative: define how an optional Gorgoneion enters the canonical active-vessel setup and how its Captain is entitled, then define the pre-deal mission lifecycle/caller that binds one private support action to the mission before dealPrivateInitialCards consumes the server deck. Current replacement-role authority requires persisted Gorgoneion admission that canonical setup never creates, and the current facilitator-only deal callable creates the mission instance at deal time with no Captain projection or UI seam. Prompt 401 supplies the newly reached mission instance and Mission Leader lifecycle, so it is a hard prerequisite; Prompts 166 and 278 remain related role/action and workspace work. Do not implement until the owner decisions and private projection/CAS/deal integration are explicit.",
       "evidenceIds": "E-AUDIT-237",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "234;402",
+      "hardPromptPrerequisites": "234;401;402",
       "id": "237",
       "milestoneHints": "M3;M5;M6",
-      "relatedConsumes": "none",
+      "relatedConsumes": "166;278",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
