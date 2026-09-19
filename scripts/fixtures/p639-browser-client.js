@@ -6,6 +6,7 @@ import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/
 const state = {
   calls: [], sessionEvents: [], playerEvents: [], listenerErrors: [],
   heartbeatTimer: undefined, heartbeatTimeout: undefined, heartbeatInFlight: false,
+  heartbeatPromise: undefined,
   maxHeartbeatInFlight: 0, currentHeartbeatInFlight: 0,
 };
 
@@ -16,13 +17,28 @@ function outcome(error, result) {
 }
 
 async function measuredCall(name, data, source = 'browser') {
-  const startedAt = performance.now();
+  const startedAt = Date.now();
+  const startedMonotonicAt = performance.now();
   try {
     const result = (await httpsCallable(state.functions, name)(data)).data;
-    state.calls.push({ name, source, outcome: outcome(null, result), durationMs: performance.now() - startedAt });
+    state.calls.push({
+      name,
+      source,
+      outcome: outcome(null, result),
+      startedAt,
+      completedAt: Date.now(),
+      durationMs: performance.now() - startedMonotonicAt,
+    });
     return result;
   } catch (error) {
-    state.calls.push({ name, source, outcome: outcome(error), durationMs: performance.now() - startedAt });
+    state.calls.push({
+      name,
+      source,
+      outcome: outcome(error),
+      startedAt,
+      completedAt: Date.now(),
+      durationMs: performance.now() - startedMonotonicAt,
+    });
     throw error;
   }
 }
@@ -67,11 +83,14 @@ function scheduleHeartbeat(intervalMs, offsetMs = 0) {
     state.heartbeatInFlight = true;
     state.currentHeartbeatInFlight += 1;
     state.maxHeartbeatInFlight = Math.max(state.maxHeartbeatInFlight, state.currentHeartbeatInFlight);
-    try { await measuredCall('refreshPresence', { sessionId: state.sessionId }); }
+    const promise = measuredCall('refreshPresence', { sessionId: state.sessionId });
+    state.heartbeatPromise = promise;
+    try { await promise; }
     catch { /* Recorded and evaluated by the runner. */ }
     finally {
       state.currentHeartbeatInFlight -= 1;
       state.heartbeatInFlight = false;
+      if (state.heartbeatPromise === promise) state.heartbeatPromise = undefined;
     }
   };
   state.heartbeatTimeout = setTimeout(() => {
@@ -80,11 +99,12 @@ function scheduleHeartbeat(intervalMs, offsetMs = 0) {
   }, offsetMs);
 }
 
-function stopHeartbeats() {
+async function stopHeartbeats() {
   clearTimeout(state.heartbeatTimeout);
   clearInterval(state.heartbeatTimer);
   state.heartbeatTimeout = undefined;
   state.heartbeatTimer = undefined;
+  if (state.heartbeatPromise) await state.heartbeatPromise.catch(() => undefined);
 }
 
 window.p639 = {

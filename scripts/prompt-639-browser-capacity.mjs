@@ -13,9 +13,14 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from 'firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import {
+  coordinationFilePath,
+  readCoordinationState,
+} from './emulator-resource-registry.mjs';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
 const projectId = 'dow-new-eden-console';
+const freshReservationMaxAgeMs = 10 * 60 * 1000;
 const arg = (name, fallback) => {
   const prefix = `--${name}=`;
   const inline = process.argv.find((value) => value.startsWith(prefix));
@@ -33,6 +38,7 @@ const ports = {
   functions: firebaseConfig.emulators.functions.port,
   firestore: firebaseConfig.emulators.firestore.port,
   firestoreWebsocket: firebaseConfig.emulators.firestore.websocketPort,
+  hub: firebaseConfig.emulators.hub.port,
 };
 assert(Number.isSafeInteger(clientCount) && clientCount >= 20 && clientCount % 20 === 0,
   '--clients must be a multiple of 20 and at least 20.');
@@ -46,6 +52,88 @@ const nodeCalls = [];
 let browser;
 let vite;
 let stopGmLeaseRenewals;
+
+function trackedTreeStatus() {
+  return execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim();
+}
+
+function processIsAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === 'EPERM') return true;
+    if (error?.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  const body = await response.text();
+  assert(response.ok, `${options?.method ?? 'GET'} ${url} failed with ${response.status}: ${body.slice(0, 300)}`);
+  if (!body) return {};
+  try { return JSON.parse(body); }
+  catch { return { responseText: body.slice(0, 300) }; }
+}
+
+async function verifyAndResetIsolation() {
+  const filePath = coordinationFilePath();
+  const state = await readCoordinationState(filePath);
+  const worktree = resolve(root);
+  const configuredPorts = Object.values(ports);
+  const configuration = state.configurations?.find((candidate) =>
+    resolve(candidate.worktree) === worktree &&
+    configuredPorts.every((port) => candidate.ports?.includes(port)));
+  assert(configuration, `No emulator slot configuration for ${worktree} matches firebase.local.json.`);
+
+  const reservation = state.reservations?.find((candidate) =>
+    candidate.kind === 'emulators' &&
+    resolve(candidate.worktree) === worktree &&
+    candidate.slot === configuration.slot);
+  assert(reservation, 'Start a freshly reserved emulator with `npm run emulators` before running Prompt 639.');
+  assert(processIsAlive(reservation.pid), `Emulator reservation owner ${reservation.pid} is not alive.`);
+  assert(processIsAlive(reservation.childPid), `Emulator child ${reservation.childPid ?? 'missing'} is not alive.`);
+  const claimedAtMs = Date.parse(reservation.claimedAt);
+  const reservationAgeMs = Date.now() - claimedAtMs;
+  assert(Number.isFinite(claimedAtMs) && reservationAgeMs >= 0 && reservationAgeMs <= freshReservationMaxAgeMs,
+    `Emulator reservation is ${reservationAgeMs}ms old; restart it immediately before Prompt 639.`);
+  for (const port of [ports.auth, ports.functions, ports.firestore, ports.firestoreWebsocket]) {
+    assert(reservation.ports?.includes(port), `Emulator reservation does not own configured port ${port}.`);
+  }
+
+  const hub = await fetchJson(`http://127.0.0.1:${ports.hub}/emulators`);
+  const emulators = Array.isArray(hub.emulators) ? hub.emulators : [];
+  for (const [name, port] of Object.entries({ auth: ports.auth, functions: ports.functions, firestore: ports.firestore })) {
+    assert(emulators.some((emulator) => emulator.name === name && emulator.port === port),
+      `Firebase hub does not report ${name} on configured port ${port}.`);
+  }
+
+  await fetchJson(`http://127.0.0.1:${ports.auth}/emulator/v1/projects/${projectId}/accounts`, { method: 'DELETE' });
+  await fetchJson(`http://127.0.0.1:${ports.firestore}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' });
+  const emptyFirestore = await fetchJson(
+    `http://127.0.0.1:${ports.firestore}/v1/projects/${projectId}/databases/(default)/documents/sessions?pageSize=1`,
+  );
+  assert.equal(emptyFirestore.documents?.length ?? 0, 0, 'Firestore was not empty after the isolation reset.');
+
+  return {
+    slot: configuration.slot,
+    reservationKind: reservation.kind,
+    reservationClaimedAt: reservation.claimedAt,
+    reservationAgeMs,
+    reservationOwnerAlive: true,
+    emulatorChildAlive: true,
+    configuredPorts,
+    hubEmulators: emulators.map(({ name, host, port }) => ({ name, host, port })),
+    authCleared: true,
+    firestoreCleared: true,
+    firestoreEmptyAfterReset: true,
+  };
+}
 
 function errorCode(error) {
   return String(error?.code ?? error?.message ?? error ?? 'unknown')
@@ -159,7 +247,7 @@ async function waitForRevision(clients, revision, startedAt, timeoutMs = 15_000)
   throw new Error(`Timed out waiting for revision ${revision} on all ${clients.length} browser clients.`);
 }
 
-async function injectTransient(client, status, firebaseStatus) {
+async function injectTransientThenNextCall(client, status, firebaseStatus) {
   const origin = new URL(client.page.url()).origin;
   let injectedPost = false;
   const handler = async (route) => {
@@ -179,12 +267,14 @@ async function injectTransient(client, status, firebaseStatus) {
   [client.config.sessionId, 'injected-transport']);
   await client.page.unroute('**/refreshPresence', handler);
   const startedAt = performance.now();
-  await pageCall(client, 'refreshPresence', { sessionId: client.config.sessionId }, 'browser-recovery');
-  return { injected, recoveryMs: performance.now() - startedAt };
+  await pageCall(client, 'refreshPresence', { sessionId: client.config.sessionId }, 'browser-next-call');
+  return { injected, nextCallMs: performance.now() - startedAt };
 }
 
+const trackedStatus = trackedTreeStatus();
+assert.equal(trackedStatus, '', `Prompt 639 requires a clean tracked tree. Commit or restore:\n${trackedStatus}`);
 const evidence = {
-  prompt: '639', status: 'failed', testedSourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+  prompt: '639', status: 'failed', testedSourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), sourceTreeClean: true,
   environment: {
     kind: 'isolated-local-firebase-emulator',
     projectId,
@@ -197,6 +287,7 @@ const evidence = {
 };
 
 try {
+  evidence.environment.isolation = await verifyAndResetIsolation();
   vite = await createServer({ root, configFile: resolve(root, 'vite.config.ts'), logLevel: 'error', server: { host: '127.0.0.1', port: 0, strictPort: false } });
   await vite.listen();
   const baseUrl = vite.resolvedUrls.local[0].replace(/\/$/, '');
@@ -265,9 +356,9 @@ try {
   assert.equal(clients.length, clientCount);
   await delay(1_000);
 
-  evidence.stage = 'transient-recovery';
-  const unavailable = await injectTransient(clients[1], 503, 'UNAVAILABLE');
-  const throttled = await injectTransient(clients[2], 429, 'RESOURCE_EXHAUSTED');
+  evidence.stage = 'transient-next-call';
+  const unavailable = await injectTransientThenNextCall(clients[1], 503, 'UNAVAILABLE');
+  const throttled = await injectTransientThenNextCall(clients[2], 429, 'RESOURCE_EXHAUSTED');
   assert.match(unavailable.injected.code, /unavailable/i);
   assert.match(throttled.injected.code, /resource-exhausted/i);
 
@@ -277,6 +368,9 @@ try {
   // the full player set while the first staggered player renewals are starting.
   await owner.call('refreshPresence', { sessionId, instanceId: 'p639-bridge' });
   await gm2.call('refreshPresence', { sessionId, instanceId: 'p639-observer' });
+  evidence.stage = 'timed-load';
+  const runStartedAt = Date.now();
+  const runEndsAt = runStartedAt + durationMs;
   for (let index = 0; index < clients.length; index += 1) {
     await clients[index].page.evaluate(([interval, offset]) => window.p639.scheduleHeartbeat(interval, offset),
       [intervalMs, Math.round(index * intervalMs / clients.length)]);
@@ -288,9 +382,6 @@ try {
     20_000,
     smokeRun ? 2_000 : 10_000,
   );
-  evidence.stage = 'timed-load';
-  const runStartedAt = Date.now();
-  const runEndsAt = runStartedAt + durationMs;
   const actionDelays = [];
   const actionResults = [];
   const timedErrors = [];
@@ -387,7 +478,11 @@ try {
   const activeSummaries = await Promise.all(clients.map(({ page }) => page.evaluate(() => window.p639.summary())));
   const summaries = [...retiredSummaries, ...activeSummaries];
   const browserCalls = summaries.flatMap((summary) => summary.calls);
-  const heartbeats = browserCalls.filter((call) => call.name === 'refreshPresence' && call.source === 'browser');
+  const allHeartbeats = browserCalls.filter((call) => call.name === 'refreshPresence' && call.source === 'browser');
+  const heartbeats = allHeartbeats.filter((call) =>
+    call.startedAt >= runStartedAt && call.completedAt <= runEndsAt);
+  const excludedBoundaryHeartbeats = allHeartbeats.filter((call) =>
+    call.startedAt < runStartedAt || call.completedAt > runEndsAt);
   const heartbeatSuccesses = heartbeats.filter((call) => call.outcome === 'success');
   const heartbeatErrors = heartbeats.length - heartbeatSuccesses.length;
   const heartbeatErrorRate = heartbeats.length === 0 ? 1 : heartbeatErrors / heartbeats.length;
@@ -410,7 +505,7 @@ try {
     heartbeatP95: heartbeatLatency.p95 <= thresholds.heartbeatP95MsMax,
     listenerActionP95: listenerActionLatency.p95 <= thresholds.listenerActionP95MsMax,
     reconnect: reconnect?.durationMs <= thresholds.reconnectMsMax,
-    transientRecovery: Math.max(unavailable.recoveryMs, throttled.recoveryMs) <= thresholds.transientRecoveryMsMax,
+    transientNextCall: Math.max(unavailable.nextCallMs, throttled.nextCallMs) <= thresholds.transientNextCallMsMax,
     contention: contentionCount >= 2,
     listenerErrors: listenerErrors.length === 0,
     actionCoverage: smokeRun || actionResults.length >= thresholds.actionRacesMin,
@@ -419,8 +514,21 @@ try {
   evidence.status = Object.values(thresholdResults).every(Boolean) ? 'passed' : 'failed';
   evidence.browser = { engine: 'chromium', version: browser.version(), contexts: 20, pages: clientCount };
   evidence.results = {
-    runStartedAt: new Date(runStartedAt).toISOString(), runEndedAt: new Date().toISOString(),
-    heartbeat: { attempts: heartbeats.length, expectedAttempts: expectedHeartbeats, coverage: heartbeatCoverage, successes: heartbeatSuccesses.length, errors: heartbeatErrors, errorRate: heartbeatErrorRate, latencyMs: heartbeatLatency },
+    runStartedAt: new Date(runStartedAt).toISOString(), runEndedAt: new Date(runEndsAt).toISOString(),
+    heartbeat: {
+      attempts: heartbeats.length,
+      expectedAttempts: expectedHeartbeats,
+      coverage: heartbeatCoverage,
+      successes: heartbeatSuccesses.length,
+      errors: heartbeatErrors,
+      errorRate: heartbeatErrorRate,
+      latencyMs: heartbeatLatency,
+      window: {
+        policy: 'started-at-or-after-run-start-and-completed-at-or-before-run-end',
+        allRecordedAttempts: allHeartbeats.length,
+        excludedBoundaryAttempts: excludedBoundaryHeartbeats.length,
+      },
+    },
     gmLeaseRenewals: {
       attempts: gmLeaseRenewals.length,
       successes: gmLeaseRenewalSuccesses.length,
@@ -437,7 +545,7 @@ try {
     },
     actions: { races: actionResults.length, contentionCount, revisions: actionResults },
     reconnect,
-    transientRecovery: { unavailable, throttled },
+    transientNextCall: { unavailable, throttled },
     timedErrors,
     saturation: { maxPerPageHeartbeatInFlight: Math.max(...summaries.map((summary) => summary.maxHeartbeatInFlight)), heartbeatP95ToIntervalRatio: heartbeatLatency.p95 / intervalMs },
     usage: { browserCallableAttempts: browserCalls.length, nodeCallableAttempts: nodeCalls.length, listenerDocumentDeliveries: listenerDeliveries },

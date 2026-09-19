@@ -10,5 +10,5 @@
   "actionRacesMin": 14,
   "listenerActionP95MsMax": 5000,
   "reconnectMsMax": 5000,
-  "transientRecoveryMsMax": 5000
+  "transientNextCallMsMax": 5000
 }
