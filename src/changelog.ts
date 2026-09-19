@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [249, 588, 610, 614],
+    implementationProgress: {
+      completed: 292, total: 751, percentage: '38.88%',
+      done: 292, partial: 23, active: 0, missing: 436,
+    },
+    changes: [
+      'GM-authorized Voyage 33-0 admission now adds its 40,000 survivors and printed obligations to the searchable fleet roster without creating an unsupported role or choosing a host.',
+      'The private Intelligence Agent loyalty card now uses its correct label, and reduced-motion mode stops the remaining intrusion and contact-plot presentation effects.',
+      '292 of 751 planned items are complete (38.88%).',
+    ],
+  },
+  {
+    version: '0.4.18',
     implementationPrompts: [616, 617],
     implementationProgress: {
       completed: 288, total: 751, percentage: '38.35%',
