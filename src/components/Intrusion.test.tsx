@@ -6,10 +6,12 @@ import {
   SIGNAL_SCRAMBLE_CHANCE,
   scrambleSignalText,
 } from './intrusionGlitch';
+import { setMotionOverride } from '@/lib/motionPreference';
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  setMotionOverride('system');
 });
 
 describe('Intrusion', () => {
@@ -62,5 +64,20 @@ describe('Intrusion', () => {
     expect(signalCopy[0]).toHaveTextContent('UNAUTHORIZED TRANSMISSION / SOURCE UNKNOWN');
     expect(signalCopy[1]).toHaveTextContent('SIGNAL INTEGRITY COMPROMISED');
     expect(screen.getByText('BE AFRAID')).toHaveAttribute('data-text', 'BE AFRAID');
+  });
+
+  it('keeps hostile signal copy still when reduced motion is active', () => {
+    vi.useFakeTimers();
+    setMotionOverride('reduce');
+    const { container } = render(<Intrusion message="BE AFRAID" />);
+    const signalCopy = container.querySelectorAll('.intrusion__signal .cic-overline');
+
+    expect(signalCopy[0]).toHaveTextContent('UNAUTHORIZED TRANSMISSION / SOURCE UNKNOWN');
+    expect(signalCopy[1]).toHaveTextContent('SIGNAL INTEGRITY COMPROMISED');
+
+    act(() => vi.advanceTimersByTime(SIGNAL_GLITCH_INTERVAL_MS * 4));
+
+    expect(signalCopy[0]).toHaveTextContent('UNAUTHORIZED TRANSMISSION / SOURCE UNKNOWN');
+    expect(signalCopy[1]).toHaveTextContent('SIGNAL INTEGRITY COMPROMISED');
   });
 });

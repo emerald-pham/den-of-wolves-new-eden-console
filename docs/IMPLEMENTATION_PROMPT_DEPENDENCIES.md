@@ -769,7 +769,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 607 | EXTEND | missing | 289;303 | none | none | none | none | none | none | none | E-AUDIT-607 | X | Make jump controls keyboard-complete. |
 | 608 | EXTEND | partial | none | none | none | none | none | none | none | none | E-608-DIALOG-FOCUS;E-608-UNMOUNT-FOCUS | X | Own dialog focus correctly. |
 | 609 | EXTEND | partial | none | none | none | none | none | none | none | none | E-609-LIVE-REGIONS | X | Announce live changes once. |
-| 610 | EXTEND | missing | 589a | none | none | none | none | none | none | none | E-AUDIT-610 | X | Honor reduced motion globally. |
+| 610 | EXTEND | done | 589a | none | none | none | none | none | none | none | E-AUDIT-610 | X | Honor reduced motion globally. |
 | 611 | EXTEND | missing | 601 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-611 | X | Distinguish status without color alone. |
 | 611a | REPAIR | done | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION | X | Repair CIC status typography without redesign. |
 | 612 | PRESERVE | done | 088;089 | none | none | none | none | none | none | none | E-AUDIT-612;E-612-RESTORE-PARTIAL;E-612-RESTORE-VERIFIED | X | Render a persisted snapshot before resume. |

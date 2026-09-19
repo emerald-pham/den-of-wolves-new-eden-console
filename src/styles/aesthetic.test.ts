@@ -142,6 +142,20 @@ describe('the motion safety gate', () => {
     );
     expect(index).toContain(".motion-safety-content[aria-hidden='true']");
   });
+
+  it('stops CSS animation, transitions, and smooth scrolling under reduced motion', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /\[data-motion='reduce'\] \*,\s*\[data-motion='reduce'\] \*::before,\s*\[data-motion='reduce'\] \*::after\s*\{[^}]*scroll-behavior: auto !important/,
+    );
+    expect(index).toMatch(
+      /\[data-motion='reduce'\] \*,\s*\[data-motion='reduce'\] \*::before,\s*\[data-motion='reduce'\] \*::after\s*\{[^}]*animation: none !important/,
+    );
+    expect(index).toMatch(
+      /\[data-motion='reduce'\] \*,\s*\[data-motion='reduce'\] \*::before,\s*\[data-motion='reduce'\] \*::after\s*\{[^}]*transition: none !important/,
+    );
+  });
 });
 
 describe('the fleet transmission', () => {

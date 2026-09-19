@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**289 / 751 prompts complete (38.48%)**
+**290 / 751 prompts complete (38.62%)**
 
-Status breakdown: **289 done · 24 partial · 438 missing**.
+Status breakdown: **290 done · 24 partial · 437 missing**.
 
 Active prompt: **none**
 
@@ -1084,7 +1084,7 @@ release classification and evidence.
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 608 | partial | non-feature | 0.4.3 | Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists. Unmounted dialog components now restore the interrupted control after removal and inert-state updates, with StrictMode replay protection; the motion-safety renewal flow verifies this in real browsers. |
 | 609 | partial | non-feature | 0.4.4 | Partial production-path implementation: phase, Wolf attack/parking, and pursuit-threshold updates now use stable keyed live regions that stay quiet for initial hydration and identical listener snapshots, while existing denial and ending status paths retain their alert/revision guards. Real Chrome accessibility proof uses simulated local session-store events; no Firebase/server-path browser claim is made. |
-| 610 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 610 | done | non-feature | — | Reduced motion now preserves authoritative copy while stopping decorative CSS animation and transitions through the app-wide data-motion override. Hostile intrusion signal scrambling pauses, and ambient DRADIS contacts keep their last sampled position instead of jumping on the presentation clock. Focused Intrusion and ContactPlot tests plus real-browser motion-safety renders at 320x844, 1440x900, and 844x390 verify stable reduced presentation and retained content. |
 | 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |
 | 611a | done | feature | 0.3.105 | Characterized the exact Write / crew incomplete and Read only console-access paragraphs: both inherited 16px system sans, normal tracking and mixed casing rather than the nearby CIC caption family. Both now use the existing cic-overline mono/tracking/uppercase style with the named cyan readout color and safe wrapping. The change preserves copy, paragraph semantics, heading order and all authority behavior; it introduces no global scale or redesign. Before/after actual component renders verified both states at 320x844, 390x844, 844x390 and 1440x900 in normal/reduced motion without horizontal overflow. Readout contrast exceeds 9.7:1 against both named CIC ground surfaces; focused console and aesthetic tests passed. |
 | 612 | done | non-feature | 0.4.11 | The store immediately rehydrates the saved session and route; local-storage hydration now marks the projection cache-freshness and exposes an ephemeral browser-local stale marker until an accepted server snapshot arrives. Transient resume failures preserve the view, terminal membership denial clears local authority fields, the header announces the stale snapshot while preserving connection-light grace, and snapshot-only mutations remain denied. |

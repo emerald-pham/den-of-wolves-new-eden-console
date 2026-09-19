@@ -56,9 +56,21 @@ try {
       await page.locator('.motion-safety-content').waitFor();
       assert.equal(await dialog.count(), 0);
       assert.equal(await page.evaluate(() => localStorage.getItem('new-eden-motion-override')), 'reduce');
+      const motionSnapshot = await page.evaluate(() => ({
+        motion: document.querySelector('[data-motion]')?.getAttribute('data-motion'),
+        sweepAnimation: document.querySelector('.contact-plot__sweep')
+          ? getComputedStyle(document.querySelector('.contact-plot__sweep')).animationName
+          : null,
+        routeTransition: document.querySelector('.screen-fade__content')
+          ? getComputedStyle(document.querySelector('.screen-fade__content')).transitionDuration
+          : null,
+      }));
+      assert.equal(motionSnapshot.motion, 'reduce');
+      assert.equal(motionSnapshot.sweepAnimation, 'none');
+      assert.equal(motionSnapshot.routeTransition, '0s');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
       assert.equal(overflow, false);
-      console.log(`PASS ${width}x${height}: initial gate, keyboard focus, live expiry, focus restoration, fresh reduced choice and reload`);
+      console.log(`PASS ${width}x${height}: initial gate, keyboard focus, live expiry, focus restoration, reduced CSS motion stop and reload`);
     } catch (error) {
       await page.screenshot({ path: `${artifacts}/${width}x${height}-failure.png` });
       throw error;

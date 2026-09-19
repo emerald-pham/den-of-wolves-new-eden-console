@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { SIGNAL_GLITCH_INTERVAL_MS, scrambleSignalText } from './intrusionGlitch';
+import { useMotionPreference } from '@/lib/motionPreference';
 
 const SIGNAL_COPY = [
   'UNAUTHORIZED TRANSMISSION / SOURCE UNKNOWN',
@@ -34,13 +35,20 @@ export default function Intrusion({
   overlines = SIGNAL_COPY,
   state,
 }: IntrusionProps) {
-  const [signalCopy, setSignalCopy] = useState<readonly [string, string]>(() => [
-    scrambleSignalText(overlines[0], Math.random, variant === 'hostile'),
-    scrambleSignalText(overlines[1], Math.random, variant === 'hostile'),
-  ]);
+  const { reducedMotion } = useMotionPreference();
+  const [signalCopy, setSignalCopy] = useState<readonly [string, string]>(() => (
+    reducedMotion || variant !== 'hostile'
+      ? overlines
+      : [
+          scrambleSignalText(overlines[0], Math.random, true),
+          scrambleSignalText(overlines[1], Math.random, true),
+        ]
+  ));
 
   useEffect(() => {
-    if (variant !== 'hostile') {
+    // Signal distortion is a presentation effect. Keep the authoritative
+    // overlines readable and stable when reduced motion is selected.
+    if (reducedMotion || variant !== 'hostile') {
       setSignalCopy(overlines);
       return;
     }
@@ -51,7 +59,7 @@ export default function Intrusion({
       ]);
     }, SIGNAL_GLITCH_INTERVAL_MS);
     return () => window.clearInterval(glitch);
-  }, [overlines, variant]);
+  }, [overlines, reducedMotion, variant]);
 
   return (
     <div

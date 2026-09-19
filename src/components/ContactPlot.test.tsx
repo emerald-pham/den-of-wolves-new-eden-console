@@ -14,6 +14,7 @@ import {
 } from './ambientDradisContact';
 import { CONTACT_SCAN_EVENT } from './sweep';
 import { SCAN_FRESH_MS } from './sweep';
+import { setMotionOverride } from '@/lib/motionPreference';
 
 // The plot is a decorative background layer. It deliberately exposes no role,
 // no accessible name and no meaningful text, so there is nothing to query it
@@ -47,6 +48,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   Reflect.deleteProperty(Element.prototype, 'animate');
+  setMotionOverride('system');
 });
 
 it('is decorative: hidden from assistive technology and unreachable by keyboard', () => {
@@ -294,6 +296,30 @@ it('stills a running plot when the reduced-motion preference arrives late', () =
   });
 
   expect(plotIn(container)).toHaveAttribute('data-still', 'true');
+});
+
+it('does not advance ambient contact position on a reduced-motion clock tick', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(
+    Date.parse(ambientSession.createdAt) + ambientContactIntervalMs(ambientSession.id, 1),
+  );
+  setMotionOverride('reduce');
+  const { container } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
+  const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
+  if (!contact) throw new Error('Expected the ambient contact to be active.');
+  const initial = ['--x', '--y', '--z'].map((property) =>
+    contact.style.getPropertyValue(property),
+  );
+
+  act(() => vi.advanceTimersByTime(10_000));
+
+  expect(container.querySelector("[data-ambient='true']")).toBe(contact);
+  expect(['--x', '--y', '--z'].map((property) =>
+    contact.style.getPropertyValue(property),
+  )).toEqual(initial);
+
+  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_LIFETIME_MS - 10_000));
+  expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
 });
 
 it('keeps both sweep discs on the rig without an intrusion speed boost', () => {

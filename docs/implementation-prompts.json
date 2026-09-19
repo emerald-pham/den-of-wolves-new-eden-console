@@ -20934,7 +20934,7 @@
         "acceptance": "all authoritative information remains while flashes, sweeps, transitions, and continuous effects are removed or reduced.",
         "title": "Honor reduced motion globally."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "Reduced motion now preserves authoritative copy while stopping decorative CSS animation and transitions through the app-wide data-motion override. Hostile intrusion signal scrambling pauses, and ambient DRADIS contacts keep their last sampled position instead of jumping on the presentation clock. Focused Intrusion and ContactPlot tests plus real-browser motion-safety renders at 320x844, 1440x900, and 844x390 verify stable reduced presentation and retained content.",
       "evidenceIds": "E-AUDIT-610",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20946,7 +20946,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
