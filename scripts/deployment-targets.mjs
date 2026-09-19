@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { classifyRiskGates, formatRiskGateOutputs } from './risk-gates.mjs';
 
 export const ALL_DEPLOYMENT_TARGETS = Object.freeze([
   'hosting',
@@ -52,6 +53,7 @@ export function classifyChangedFiles(files, { manual = false } = {}) {
       targets: [...ALL_DEPLOYMENT_TARGETS],
       unknownFiles: [],
       ignoredFiles: [],
+      riskGates: classifyRiskGates([], { manual: true }),
     };
   }
 
@@ -89,6 +91,7 @@ export function classifyChangedFiles(files, { manual = false } = {}) {
     targets: ALL_DEPLOYMENT_TARGETS.filter((target) => targets.has(target)),
     unknownFiles,
     ignoredFiles,
+    riskGates: classifyRiskGates(normalizedFiles, { manual }),
   };
 }
 
@@ -164,6 +167,7 @@ export function formatGitHubOutputs(result) {
     `current_tip=${result.currentTip !== false}`,
     `stale_run=${result.staleRun === true}`,
     `baseline_ancestry=${result.baselineAncestry !== false}`,
+    formatRiskGateOutputs(result.riskGates ?? classifyRiskGates(['__unknown_diff__'])),
   ].join('\n');
 }
 

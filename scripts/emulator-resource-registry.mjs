@@ -1183,7 +1183,7 @@ export async function validateCoordinationEntry(filePath, options = {}) {
   }
   const suppliedReview = options.review ?? options['independent-review'];
   if (profile.requiresReview === true && !text(suppliedReview)) {
-    throw new Error(`Coordination entry ${snapshot.id} requires one independent holistic review before validation can finish.`);
+    throw new Error(`Coordination entry ${snapshot.id} requires one independent risk review before validation can finish.`);
   }
   const review = profile.reviewReceiptKind === 'exact-head-independent-security-review'
     ? parseIndependentSecurityReviewReceipt(suppliedReview, release.branchSha)

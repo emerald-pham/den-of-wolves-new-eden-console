@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { classifyRiskGates } from './risk-gates.mjs';
 
 // The fast path is intentionally narrower than the set of files that can
 // contain text. It is for colocated player-facing JSX and its focused JSX
@@ -70,7 +71,7 @@ const TOOLING_PATH_PATTERN = /^(?:scripts\/|\.githooks\/|\.github\/|docs\/implem
 const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|public\/|index\.html$)/i;
 const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
 const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
-const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile)\.mjs$)/i;
+const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|config\/[^/]*(?:capacity|release)[^/]*\.json$|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile|deployment-targets|risk-gates|[^/]*(?:capacity|release)[^/]*)\.mjs$)/i;
 const SECURITY_GOVERNANCE_PATH_PATTERN = /^(?:security\/threat-model\.json$|scripts\/validate-threat-model(?:\.test)?\.mjs$)/i;
 
 function isDocumentationPath(file) {
@@ -150,6 +151,11 @@ export function deriveValidationProfile({
   repositoryDirectory = process.cwd(),
 } = {}) {
   const files = normalizedFiles(changedFiles);
+  const riskGates = classifyRiskGates(files);
+  const riskCommands = [
+    ...(riskGates.font ? ['npm run test:font-consistency'] : []),
+    ...(riskGates.ticker ? ['npm run test:ticker:browser'] : []),
+  ];
   if (files.length === 0) {
     return {
       kind: 'no-changes',
@@ -176,9 +182,9 @@ export function deriveValidationProfile({
       reason: forceFull
         ? 'cross-cutting workflow migration requires the full final gate'
         : 'server, rules, authority, deployment, or authentication paths changed',
-      commands: [...FULL_VALIDATION_COMMANDS],
+      commands: [...FULL_VALIDATION_COMMANDS, ...riskCommands],
       requiresReview: true,
-      reviewReason: 'one independent holistic review is required for high-risk changes',
+      reviewReason: 'one independent risk review is required for high-risk changes',
       ...(requiresExactSecurityReview
         ? { reviewReceiptKind: 'exact-head-independent-security-review' }
         : {}),
@@ -201,6 +207,7 @@ export function deriveValidationProfile({
         ...testCommands(files, discoveredTests, repositoryDirectory),
         'npm run lint',
         'npm run build',
+        ...riskCommands,
       ],
       requiresReview: false,
     };
@@ -214,6 +221,7 @@ export function deriveValidationProfile({
         ...testCommands(files, discoveredTests, repositoryDirectory),
         'npm run lint',
         'npm run build',
+        ...riskCommands,
       ],
       requiresReview: false,
     };
@@ -222,9 +230,8 @@ export function deriveValidationProfile({
   return {
     kind: 'full',
     reason: 'changed paths are not covered by a lower-risk profile',
-    commands: [...FULL_VALIDATION_COMMANDS],
-    requiresReview: true,
-    reviewReason: 'unknown or high-impact changes require one independent holistic review',
+    commands: [...FULL_VALIDATION_COMMANDS, ...riskCommands],
+    requiresReview: false,
   };
 }
 
