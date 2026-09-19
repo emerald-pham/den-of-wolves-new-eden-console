@@ -11,7 +11,7 @@ export default defineSupplementalVessel({
   nation: 'Gliese',
   nationShort: 'GLIESE',
   origin: 'colonies',
-  description: 'The damaged approaching vessel identity used by the Voyage 33-0 crisis path.',
+  description: 'A damaged Gliese star cruiser carrying 40,000 survivors.',
   flag: gliese,
   color: 'var(--cic-faction-gliese)',
   printedStatistics: {
