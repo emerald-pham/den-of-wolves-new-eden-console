@@ -1054,6 +1054,23 @@ it('blocks partial and conflicting explicit loyalty setup before any start write
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('rejects a third explicit Wolf even with optional Press as the twenty-first participant', async () => {
+  provisionProductionRoster(20, { press: 'claimed', extraGm: true });
+  const players = mock.playerDocs.filter(player => player.fields.role === 'player');
+  mock.secretDocs = players.map(player => `loyalty-${player.id}`);
+  mock.secretPayloads = Object.fromEntries(players.map((player, index) => [
+    `loyalty-${player.id}`,
+    { type: 'loyalty', kind: index < 3 ? 'wolf-agent' : 'fleet-loyalist', suspicion: 0 },
+  ]));
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'reject-third-wolf', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/conflicting-wolf-count/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('blocks incomplete readiness without writing and replays a completed start request', async () => {
   mock.playerDocs[7] = {
     id: 'u8', fields: { connected: true, role: 'player', assignedRoleId: null },

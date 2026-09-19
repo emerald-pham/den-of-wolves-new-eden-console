@@ -54,4 +54,21 @@ describe('wolf assignment', () => {
     expect(result.selectedRoleIds).toHaveLength(2);
     expect(result.selectedRoleIds).not.toContain('press-officer');
   });
+
+  it.each([8, 13, 14, 19, 20])('can select claimed Press without increasing the Wolf count at %i core players', playerCount => {
+    let firstDraw = true;
+    const result = deriveRoutineWolfAssignment({
+      playerCount,
+      occupiedCoreRoleIds: ['admiral', 'icebreaker-miner', 'shepherd-scientist'],
+      pressEnabled: true,
+      claimedPressRoleId: 'press-officer',
+      randomIndex: upperBound => {
+        if (firstDraw) { firstDraw = false; return 0; }
+        return upperBound - 1;
+      },
+    });
+    expect(result.selectedRoleIds).toContain('press-officer');
+    expect(result.selectedRoleIds).toHaveLength(playerCount <= 13 ? 1 : 2);
+    expect(new Set(result.selectedRoleIds).size).toBe(result.wolfCount);
+  });
 });

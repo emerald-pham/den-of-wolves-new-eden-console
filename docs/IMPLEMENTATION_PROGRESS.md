@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**282 / 751 prompts complete (37.55%)**
+**283 / 751 prompts complete (37.68%)**
 
-Status breakdown: **282 done · 24 partial · 445 missing**.
+Status breakdown: **283 done · 24 partial · 444 missing**.
 
 Active prompt: **none**
 
@@ -955,7 +955,7 @@ release classification and evidence.
 | 493 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 494 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 495 | done | non-feature | — | The existing authoritative start transaction gives each occupied configured player, including a uniquely claimed optional Press station, a private validated loyalty and starting suspicion. Automatic assignments use the server random source; complete explicit setups are validated and preserved, while partial, conflicting or public-audience records block start. GM devices are excluded from the player assignment pool. Verified against the existing start and setup tests; no new runtime change. |
-| 496 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 496 | done | non-feature | — | Start derives one Wolf at 8–13 core players and two at 14–20, including the owner-approved Capybara rows. A claimed optional Press holder is eligible without increasing that count; GM instances are excluded. Conflicting explicit assignments are rejected before any start write, and the setup receipt records the derived rule, count, eligible pool, and selected roles. No exceptional count override is exposed. This is verified existing behavior, not a new runtime release. |
 | 497 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 498 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 499 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
