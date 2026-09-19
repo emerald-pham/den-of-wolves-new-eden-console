@@ -128,6 +128,60 @@ it('records explicit eligibility and assigns a replacement atomically', async ()
   );
 });
 
+it('lets the GM reassign a replacement holder after the holder leaves a destroyed ship', async () => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.target = {
+    ...mock.target,
+    replacementRoleId: 'vip-host', activeConsoleRoleId: null,
+    escapeState: {
+      status: 'fled', shipId: 'dione', destructionEventId: 'damage-destroyed-dione',
+      revision: 2, fleeRequestId: 'flee-dione-1',
+    },
+  };
+  mock.players = [
+    { id: 'gm-1', fields: mock.actor },
+    { id: 'player-1', fields: mock.target },
+  ];
+  mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-after-escape',
+    targetUid: 'player-1', replacementRoleId: 'wolf-commander', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).resolves.toMatchObject({ status: 'committed', replacementRoleId: 'wolf-commander' });
+
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
+    { replacementRoleId: 'wolf-commander', activeConsoleRoleId: null, seatId: null, escapeState: null },
+  );
+});
+
+it('does not reassign an escaped replacement holder back onto the destroyed vessel', async () => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.target = {
+    ...mock.target,
+    replacementRoleId: 'vip-host', activeConsoleRoleId: null,
+    escapeState: {
+      status: 'pending', shipId: 'dione', destructionEventId: 'damage-destroyed-dione', revision: 1,
+    },
+  };
+  mock.players = [
+    { id: 'gm-1', fields: mock.actor },
+    { id: 'player-1', fields: mock.target },
+  ];
+  mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
+
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-destroyed-vessel',
+    targetUid: 'player-1', replacementRoleId: 'vip-host', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
+    expect.anything(),
+  );
+});
+
 it('updates only the complete reciprocal Friend counterpart to the replacement role', async () => {
   mock.players.push({ id: 'player-2', fields: {
     connected: true, role: 'player', assignedRoleId: 'dione-captain', replacementRoleId: null,

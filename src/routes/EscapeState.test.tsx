@@ -54,3 +54,23 @@ it('gives the affected player a flee action and retains identity copy', async ()
   expect(screen.getByText(/escape recorded/i)).toBeVisible();
   expect(screen.queryByRole('button', { name: /flee destroyed ship/i })).not.toBeInTheDocument();
 });
+
+
+it('keeps a replacement-role holder on the authoritative flee route', async () => {
+  const user = userEvent.setup();
+  vi.mocked(fleeDestroyedShip).mockResolvedValue({
+    status: 'committed', sessionId: 's1', requestId: 'flee-vip', targetUid: 'u1', shipId: 'dione',
+    setupRevision: 2,
+    escapeState: { ...player.escapeState, shipId: 'dione', status: 'fled', fleeRequestId: 'flee-vip' },
+  });
+  useSessionStore.getState().setMe({
+    ...player, replacementRoleId: 'vip-host',
+    escapeState: { ...player.escapeState, shipId: 'dione' },
+  });
+  renderRoute();
+
+  expect(screen.getByText('vip-host')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: /flee destroyed ship/i }));
+  expect(fleeDestroyedShip).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(/escape recorded/i)).toBeVisible();
+});

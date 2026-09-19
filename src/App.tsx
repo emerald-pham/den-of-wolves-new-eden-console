@@ -105,7 +105,7 @@ function AppRoutes() {
   const playerUid = me?.uid;
   const playerRole = me?.role;
   const playerAuthority = playerAuthorityKey(me);
-  const escapeLocked = me?.role === 'player' && me.escapeState !== undefined && !me.replacementRoleId;
+  const escapeLocked = me?.role === 'player' && me.escapeState !== undefined;
   const playerListenerGeneration = useRef(0);
   const playerListenerIdentity = useRef('');
   const appRoutesMounted = useRef(false);

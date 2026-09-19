@@ -85,6 +85,16 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'fleeDestroyedShip';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'setCapybaraEnabled';
       readonly payload: {
         readonly sessionId: string;

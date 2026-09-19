@@ -916,17 +916,20 @@ function requireNavigableShip(session: DocumentSnapshot, shipId: string): void {
   }
 }
 
-function playerAuthoritativeVesselId(player: DocumentSnapshot): string | undefined {
-  const replacementRoleId = player.get('replacementRoleId');
-  if (typeof replacementRoleId === 'string') {
-    return replacementRoleFor(replacementRoleId)?.vesselId;
-  }
-  return shipForRole(player.get('assignedRoleId')) ?? shipForRole(player.get('activeConsoleRoleId'));
+function playerAuthoritativeVesselIds(player: DocumentSnapshot): readonly string[] {
+  const vesselIds = [
+    typeof player.get('replacementRoleId') === 'string'
+      ? replacementRoleFor(player.get('replacementRoleId') as string)?.vesselId
+      : undefined,
+    shipForRole(player.get('assignedRoleId')),
+    shipForRole(player.get('activeConsoleRoleId')),
+  ];
+  return [...new Set(vesselIds.filter((vesselId): vesselId is string => vesselId !== undefined))];
 }
 
 function playerHoldsDestroyedShip(player: DocumentSnapshot, shipId: string): boolean {
   return player.exists && player.get('role') === 'player' &&
-    playerAuthoritativeVesselId(player) === shipId;
+    playerAuthoritativeVesselIds(player).includes(shipId);
 }
 
 function markPlayersForShipEscape(
@@ -5351,8 +5354,20 @@ export const assignReplacementRole = onCall<{
     if (!target.exists || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'Only a player record can receive a replacement role.', 'conflict');
     }
-    if (typeof target.get('replacementRoleId') === 'string') {
+    const existingReplacementRoleId = target.get('replacementRoleId');
+    const existingEscapeState = playerEscapeState(target);
+    const replacingDestroyedShipHolder = typeof existingReplacementRoleId === 'string' &&
+      existingEscapeState !== undefined &&
+      replacementRoleFor(existingReplacementRoleId)?.vesselId === existingEscapeState.shipId;
+    if (typeof existingReplacementRoleId === 'string' && !replacingDestroyedShipHolder) {
       throw commandError('failed-precondition', 'This player already has an active replacement role.', 'conflict');
+    }
+    if (replacingDestroyedShipHolder && existingEscapeState && role.vesselId === existingEscapeState.shipId) {
+      throw commandError(
+        'failed-precondition',
+        'Choose a replacement role away from the destroyed ship.',
+        'conflict',
+      );
     }
     const currentRevision = replacementRevision(eligibility);
     if (eligibility.get('eligible') !== true || currentRevision !== assignment.expectedRevision) {
@@ -14730,6 +14745,7 @@ async function requireMaintenanceAuthority(
     throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
   }
   if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+  requirePlayerShipActionAuthority(player);
   const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
   const replacementVipHost = player.get('role') === 'player' && shipId === 'dione' &&
     player.get('replacementRoleId') === 'vip-host' && player.get('activeConsoleRoleId') === null;

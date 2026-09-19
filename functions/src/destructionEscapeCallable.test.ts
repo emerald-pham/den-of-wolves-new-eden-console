@@ -88,6 +88,13 @@ beforeEach(() => {
         activeConsoleRoleId: 'dione-captain', seatId: 'dione-captain',
       },
     },
+    {
+      id: 'player-mixed-authority',
+      fields: {
+        role: 'player', connected: true, assignedRoleId: 'admiral',
+        activeConsoleRoleId: 'dione-captain', seatId: 'admiral',
+      },
+    },
   ];
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(0);
@@ -109,4 +116,10 @@ it('marks authoritative holders of the destroyed ship and revokes their console 
     activeConsoleRoleId: null,
   });
   expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/players/player-2' }), expect.anything());
+  expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/players/player-mixed-authority' }), {
+    escapeState: {
+      status: 'pending', shipId: 'aegis', destructionEventId: 'damage-destroyed-aegis', revision: 1,
+    },
+    activeConsoleRoleId: null,
+  });
 });

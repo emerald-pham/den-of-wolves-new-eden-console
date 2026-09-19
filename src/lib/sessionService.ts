@@ -310,6 +310,7 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
     case 'releaseSeat':
     case 'assignRole':
     case 'releaseRole':
+    case 'fleeDestroyedShip':
       return typeof command.payload.requestId === 'string' && command.payload.requestId.length > 0;
     default:
       return false;
@@ -462,6 +463,39 @@ function applyCommandResult(
       ...(canonicalVesselIds ? { activeVesselIds: canonicalVesselIds } : {}),
     } as GameSession;
     store.setSession(nextSession);
+  }
+  if (
+    command.kind === 'fleeDestroyedShip' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const nextRevision = reply.setupRevision;
+    if (typeof nextRevision === 'number' && Number.isSafeInteger(nextRevision) && nextRevision >= 0) {
+      store.setSession({ ...store.session, setupRevision: nextRevision });
+    }
+    const escapeState = reply.escapeState;
+    if (
+      (reply.status === 'committed' || reply.status === 'replayed') &&
+      reply.sessionId === command.payload.sessionId &&
+      reply.targetUid === store.me?.uid &&
+      typeof escapeState === 'object' && escapeState !== null &&
+      !Array.isArray(escapeState) &&
+      (((escapeState as Record<string, unknown>).status === 'fled') ||
+        (escapeState as Record<string, unknown>).status === 'pending') &&
+      typeof (escapeState as Record<string, unknown>).shipId === 'string' &&
+      typeof (escapeState as Record<string, unknown>).destructionEventId === 'string' &&
+      Number.isSafeInteger((escapeState as Record<string, unknown>).revision) &&
+      ((escapeState as Record<string, unknown>).revision as number) >= 1 &&
+      store.me
+    ) {
+      store.setMe({
+        ...store.me,
+        escapeState: escapeState as NonNullable<Player['escapeState']>,
+        activeConsoleRoleId: null,
+        seatId: null,
+      });
+    }
   }
   if (
     (command.kind === 'claimSeat' || command.kind === 'releaseSeat') &&
@@ -776,7 +810,10 @@ function applyCommandResult(
   }
 }
 
-async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition> {
+async function sendOrQueue(
+  command: PendingCommand,
+  onResult?: (result: unknown) => void,
+): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   const cleanupCommand = isCleanupCommand(command);
   if (!cleanupCommand) requireFreshSessionAuthority();
@@ -791,6 +828,7 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
       : commandAuthorityCheckpoint(command, store);
     await ensureSignedIn();
     const result = await executeCommand(command);
+    onResult?.(result);
     if (isStaleAuthorityReply(command, result)) {
       recordStaleAuthorityReply();
       return 'stale';
@@ -1845,7 +1883,7 @@ export async function releaseSeat(seatId: string, reason?: string): Promise<Comm
 }
 
 export interface EscapeMutationResult {
-  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly status: 'committed' | 'replayed' | 'stale' | 'queued';
   readonly sessionId: string;
   readonly requestId: string;
   readonly targetUid: string;
@@ -1854,19 +1892,45 @@ export interface EscapeMutationResult {
   readonly escapeState?: Player['escapeState'];
 }
 
+function isEscapeMutationResult(value: unknown): value is EscapeMutationResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const reply = value as Record<string, unknown>;
+  return (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
+    typeof reply.sessionId === 'string' && typeof reply.requestId === 'string' &&
+    typeof reply.targetUid === 'string' && typeof reply.shipId === 'string' &&
+    Number.isSafeInteger(reply.setupRevision) && (reply.setupRevision as number) >= 0;
+}
+
 /** Player-authorized transition out of a destroyed ship's retained station. */
 export async function fleeDestroyedShip(): Promise<EscapeMutationResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me) throw new Error('Join a session before fleeing a destroyed ship.');
+  if (!store.session || !store.me || !store.me.escapeState) {
+    throw new Error('Join a session before fleeing a destroyed ship.');
+  }
   requireFreshSessionAuthority();
-  await ensureSignedIn();
-  const payload = {
-    sessionId: store.session.id,
-    requestId: commandId(),
-    expectedSetupRevision: expectedSetupRevision(store.session),
-  } as const;
-  const call = httpsCallable<typeof payload, EscapeMutationResult>(functions(), 'fleeDestroyedShip');
-  return (await call(payload)).data;
+  const sessionId = store.session.id;
+  const targetUid = store.me.uid;
+  const shipId = store.me.escapeState.shipId;
+  const requestId = commandId();
+  const expectedSetupRevisionValue = expectedSetupRevision(store.session);
+  const command: PendingCommand = {
+    id: requestId,
+    kind: 'fleeDestroyedShip',
+    payload: { sessionId, requestId, expectedSetupRevision: expectedSetupRevisionValue },
+    createdAt: new Date().toISOString(),
+  };
+  let reply: EscapeMutationResult | undefined;
+  const disposition = await sendOrQueue(command, (result) => {
+    if (isEscapeMutationResult(result)) reply = result;
+  });
+  if (disposition === 'queued') {
+    return {
+      status: 'queued', sessionId, requestId, targetUid, shipId,
+      setupRevision: expectedSetupRevisionValue,
+    };
+  }
+  if (!reply) throw new Error('The escape transition returned no usable server receipt.');
+  return reply;
 }
 
 /** Assign an eligible player to one open printed role during casting. */

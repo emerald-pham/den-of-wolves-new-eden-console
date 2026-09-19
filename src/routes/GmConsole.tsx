@@ -634,7 +634,8 @@ export default function GmConsole() {
     .sort((left, right) =>
     normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
   const replacementCandidates = allPlayers
-    .filter((player) => player.role === 'player' && !player.replacementRoleId)
+    .filter((player) => player.role === 'player' &&
+      (!player.replacementRoleId || player.escapeState !== undefined))
     .sort((left, right) => normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
   const persistedReplacementVesselIds = session?.activeVesselIds;
   const replacementVesselIds = new Set(

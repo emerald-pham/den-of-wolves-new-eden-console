@@ -36,7 +36,9 @@ const mock = vi.hoisted(() => ({
     };
   } | undefined,
   pressEnabled: true,
-  activeConsoleRoleId: undefined as string | undefined,
+  activeConsoleRoleId: undefined as string | null | undefined,
+  replacementRoleId: undefined as string | undefined,
+  escapeState: undefined as unknown,
   activeRoleIds: undefined as readonly string[] | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
@@ -101,6 +103,7 @@ vi.mock('firebase-admin/firestore', () => ({
               if (path.includes('/players/')) {
                 return { exists: true, get: (key: string) => ({
                   role: mock.role, connected: mock.connected,
+                  replacementRoleId: mock.replacementRoleId, escapeState: mock.escapeState,
                   activeConsoleRoleId: mock.activeConsoleRoleId,
                 } as Record<string, unknown>)[key] };
               }
@@ -211,7 +214,11 @@ vi.mock('firebase-admin/firestore', () => ({
                 return { exists: false, get: () => undefined };
               }
               const fields: Record<string, unknown> = path.includes('/players/')
-                ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId }
+                ? {
+                    role: mock.role, connected: mock.connected,
+                    replacementRoleId: mock.replacementRoleId, escapeState: mock.escapeState,
+                    activeConsoleRoleId: mock.activeConsoleRoleId,
+                  }
                 : path.includes('/private/shipConsoleWriteGrant')
                   ? {
                       type: 'gm-ship-console-write-grant', sessionId: 's1',
@@ -327,6 +334,8 @@ beforeEach(() => {
   mock.pressDispatch = undefined;
   mock.pressEnabled = true;
   mock.activeConsoleRoleId = undefined;
+  mock.replacementRoleId = undefined;
+  mock.escapeState = undefined;
   mock.activeRoleIds = undefined;
   mock.phase = 'active';
   mock.commandReceipts = {};
@@ -380,6 +389,7 @@ beforeEach(() => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
           role: mock.role, connected: mock.connected,
+          replacementRoleId: mock.replacementRoleId, escapeState: mock.escapeState,
           activeConsoleRoleId: mock.activeConsoleRoleId,
         }
       : path.includes('/gmInstances/')
@@ -1123,6 +1133,30 @@ it('denies unauthenticated, disconnected, unassigned players and foreign GM inst
   await expect(runMaintenance.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('denies a destroyed-ship replacement VIP before the end transition bypass', async () => {
+  mock.role = 'player';
+  mock.replacementRoleId = 'vip-host';
+  mock.escapeState = {
+    status: 'pending', shipId: 'dione', destructionEventId: 'damage-destroyed-dione', revision: 1,
+  };
+  mock.activeConsoleRoleId = null;
+  mock.damage = { dione: { damagedSystemIds: [], destroyed: true } };
+  mock.maintenanceCycles = {
+    dione: { step: 7, revision: 0, turn: 1, results: {}, charges: [], refuelled: [] },
+  };
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    shipId: 'dione',
+    action: 'end',
+    expectedRevision: 0,
+    requestId: 'vip-destroyed-end',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects invalid steps and client-supplied dice', async () => {
   await expect(runMaintenance.run(request({ ...data, requestId: undefined }))).rejects.toMatchObject({ code: 'invalid-argument' });
   await expect(runMaintenance.run(request({ ...data, requestId: 'maintenance/invalid' }))).rejects.toMatchObject({ code: 'invalid-argument' });

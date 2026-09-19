@@ -62,6 +62,7 @@ const {
   triggerDradisContact,
   setReplacementEligibility,
   assignReplacementRole,
+  fleeDestroyedShip,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -291,6 +292,73 @@ describe('connect', () => {
     expect(fire.mock.calls[0]?.[0]).toEqual({ sessionId: 's1', shipId: 'snn-press-shuttle',
       roleId: 'press-officer', requestId: 'press-retry-command' });
     expect(fire.mock.calls[1]?.[0]).toEqual(fire.mock.calls[0]?.[0]);
+  });
+
+  it('reuses the flee receipt identity after a lost acknowledgement on reconnect', async () => {
+    const escapeSession = {
+      ...session,
+      id: 'escape-s1',
+      phase: 'active' as const,
+      setupRevision: 7,
+      updatedAt: '2026-09-19T12:00:00.000Z',
+    };
+    const pendingEscape = {
+      status: 'pending' as const,
+      shipId: 'aegis',
+      destructionEventId: 'damage-destroyed-aegis',
+      revision: 1,
+    };
+    const pendingPlayer = {
+      ...player,
+      sessionId: escapeSession.id,
+      seatId: 'admiral',
+      escapeState: pendingEscape,
+    };
+    useSessionStore.getState().setIdentity(escapeSession, pendingPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+    const lostAcknowledgement = callableRejecting({ code: 'functions/unavailable' });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'fleeDestroyedShip'
+      ? lostAcknowledgement
+      : callableRejecting(new Error(`Unexpected callable ${name}`)));
+    const queued = await fleeDestroyedShip();
+    expect(queued.status).toBe('queued');
+    const stored = useSessionStore.getState().pendingCommands[0];
+    expect(stored).toMatchObject({ kind: 'fleeDestroyedShip', queuedWithServerAuthority: true });
+    if (!stored || stored.kind !== 'fleeDestroyedShip') throw new Error('Expected queued flee command.');
+    const requestId = stored.payload.requestId;
+    expect(lostAcknowledgement).toHaveBeenCalledWith({
+      sessionId: 'escape-s1', requestId, expectedSetupRevision: 7,
+    });
+
+    const fledEscape = { ...pendingEscape, status: 'fled' as const, fleeRequestId: requestId };
+    const replay = callableReturning({ data: {
+      status: 'replayed', sessionId: 'escape-s1', requestId, targetUid: 'u1', shipId: 'aegis',
+      setupRevision: 8, escapeState: fledEscape,
+    },
+    });
+    const resume = callableReturning({ data: {
+      session: escapeSession,
+      player: { ...pendingPlayer, escapeState: fledEscape, seatId: null, connectionGeneration: 2 },
+    } });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume
+      : name === 'fleeDestroyedShip'
+        ? replay
+        : callableRejecting(new Error(`Unexpected callable ${name}`)));
+
+    await connect();
+
+    expect(resume).toHaveBeenCalled();
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('server');
+    expect(replay).toHaveBeenCalledWith({
+      sessionId: 'escape-s1', requestId, expectedSetupRevision: 7,
+    });
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().me?.escapeState).toMatchObject({
+      status: 'fled', fleeRequestId: requestId,
+    });
   });
 
   it('keeps reconnecting while a transient outbox replay remains queued', async () => {

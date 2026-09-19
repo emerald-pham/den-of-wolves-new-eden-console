@@ -12,7 +12,7 @@ export default function EscapeState() {
   const [message, setMessage] = useState<string | null>(null);
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (me.role !== 'player' || !me.escapeState || me.replacementRoleId) {
+  if (me.role !== 'player' || !me.escapeState) {
     return <Navigate to="/roles" replace />;
   }
 
@@ -25,7 +25,9 @@ export default function EscapeState() {
       if (result.escapeState) setMe({ ...useSessionStore.getState().me!, escapeState: result.escapeState });
       setMessage(result.status === 'stale'
         ? 'ESCAPE REQUEST STALE // refresh the live session and retry'
-        : 'ESCAPE RECORDED // awaiting facilitator reassignment');
+        : result.status === 'queued'
+          ? 'ESCAPE REQUEST QUEUED // reconnect to confirm the server receipt'
+          : 'ESCAPE RECORDED // awaiting facilitator reassignment');
     } catch {
       setMessage('ESCAPE REQUEST REJECTED // refresh the live session and retry');
     } finally {
@@ -44,7 +46,7 @@ export default function EscapeState() {
         <dl className="session-mode__readouts">
           <div><dt>Destroyed ship</dt><dd>{escapeState.shipId.toUpperCase()}</dd></div>
           <div><dt>Escape status</dt><dd>{escapeState.status === 'pending' ? 'READY TO FLEE' : 'FLED // AWAITING GM'}</dd></div>
-          <div><dt>Identity</dt><dd>{me.assignedRoleId ?? 'Printed role retained'}</dd></div>
+          <div><dt>Identity</dt><dd>{me.replacementRoleId ?? me.assignedRoleId ?? 'Printed role retained'}</dd></div>
         </dl>
         {escapeState.status === 'pending' ? (
           <button className="cic-action-button" type="button" disabled={busy} onClick={() => void flee()}>
