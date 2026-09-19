@@ -740,8 +740,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 583 | DECISION | missing | 234a;569 | none | none | none | none | none | none | none | E-AUDIT-583 | M3;M11 | Apply the Capybara balance dial. |
 | 584 | PROVE | missing | 567;571;577;580 | none | none | none | none | none | none | none | E-AUDIT-584 | M3;M11 | Run the Capybara vertical scenario. |
 | 585 | PROVE | missing | 567;584 | none | none | none | none | none | none | none | E-AUDIT-585 | M3;M11 | Run the base/expansion isolation scenario. |
-| 586 | EXTEND | done | none | none | none | none | none | none | none | none | E-587-VERIFIED | X | Build the roster configuration flow. |
-| 587 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Present private casting assignments. |
+| 586 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Build the roster configuration flow. |
+| 587 | EXTEND | done | none | none | none | none | none | none | none | none | E-587-VERIFIED | X | Present private casting assignments. |
 | 588 | EXTEND | done | none | none | none | none | none | none | none | none | E-588-VERIFIED | X | Present private loyalty assignment. |
 | 589 | EXTEND | missing | 586 | none | none | none | none | none | none | none | E-AUDIT-589 | X | Teach the table ground rules. |
 | 589a | PRESERVE | done | none | none | none | none | none | none | none | none | E-589A-MOTION-VERIFIED | X | Audit the motion-safety gate. |

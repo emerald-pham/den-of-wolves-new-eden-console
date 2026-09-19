@@ -20282,8 +20282,8 @@
         "acceptance": "setup presents only supported counts/options and explains Dione, Union, Wolf, and expansion effects before lock.",
         "title": "Build the roster configuration flow."
       },
-      "description": "The connected player's private assignment panel now consumes only the server-owned exact-holder role brief and names that player's ship, role, player-console device mode, and allowed private-brief route. It does not render the private brief text or common rules, and it hides stale mismatched projections. The facilitator retains the complete authoritative casting roster and assignment controls. Existing role-brief rules deny cross-player, GM, observer, outsider, list, and client-write access. Focused player/GM tests, TypeScript checking, and reduced-motion rendered proof across phone, short landscape, and desktop sizes pass.",
-      "evidenceIds": "E-587-VERIFIED",
+      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20294,7 +20294,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "done",
+      "status": "missing",
       "tag": "EXTEND"
     },
     {
@@ -20305,8 +20305,8 @@
         "acceptance": "players see only their ship, role, device mode, and allowed route; facilitators see the complete roster.",
         "title": "Present private casting assignments."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The connected player's private assignment panel now consumes only the server-owned exact-holder role brief and names that player's ship, role, player-console device mode, and allowed private-brief route. It does not render the private brief text or common rules, and it hides stale mismatched projections. The facilitator retains the complete authoritative casting roster and assignment controls. Existing role-brief rules deny cross-player, GM, observer, outsider, list, and client-write access. Focused player/GM tests, TypeScript checking, and reduced-motion rendered proof across phone, short landscape, and desktop sizes pass.",
+      "evidenceIds": "E-587-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20317,7 +20317,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
