@@ -730,6 +730,8 @@ export interface RoleBrief {
   readonly vesselName: string;
   readonly text: string;
   readonly commonRules: string;
+  /** Source-defined Voyage 33-0 motivation, visible only in this private brief. */
+  readonly voyage33Motivation?: string;
   /** Server-derived craft allowlist for this role only. */
   readonly ownedCraftIds?: readonly string[];
   readonly setupRevision: number;

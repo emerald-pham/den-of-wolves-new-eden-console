@@ -687,6 +687,28 @@ describe('crisis state boundary', () => {
     await assertFails(setDoc(doc(as('alice'), `${SESSION}/voyage33Admission/current`), { forged: true }));
   });
 
+  it('keeps Voyage 33-0 arrival activation and audit metadata GM-only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/voyage33Arrival/current`), {
+        type: 'voyage-arrival-activation', sessionId: 's1', vesselId: 'voyage-33-0',
+        crisisId: 'approach-1', crisisRevision: 3, admissionRequestId: 'admit-1',
+        motivatedRoleIds: ['refinery-124-captain'], actorUid: 'gm1', instanceId: 'gm-1',
+      });
+      await setDoc(doc(db, `${SESSION}/voyage33Arrival/current/audit/admit-1`), {
+        type: 'voyage-arrival-activation', action: 'activate', actorUid: 'gm1', requestId: 'admit-1',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/voyage33Arrival/current`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/voyage33Arrival/current/audit/admit-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/voyage33Arrival/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/voyage33Arrival/current/audit/admit-1`)));
+    await assertFails(getDoc(doc(as('outsider'), `${SESSION}/voyage33Arrival/current`)));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/voyage33Arrival`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/voyage33Arrival/current`), { forged: true }));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/voyage33Arrival/current`), { forged: true }));
+  });
+
   it('keeps the durable crisis projection and audit private to connected GMs', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();

@@ -8,6 +8,7 @@
  */
 
 import { ownedCraftIdsForRole } from './craftOwnership';
+import { voyage33MotivationForRole } from './voyageArrival';
 
 const COMMON_ROLE_RULES_BASE = [
   'Keep this brief private. Do not show, photograph, or read another player\'s brief.',
@@ -218,6 +219,8 @@ export interface SerializedRoleBrief {
   /** Only the craft owned by this printed role enter the private projection. */
   readonly ownedCraftIds: readonly string[];
   readonly setupRevision: number;
+  /** Source-defined Voyage 33-0 motivation, present only for entitled roles. */
+  readonly voyage33Motivation?: string;
 }
 
 export function serializedRoleBrief(
@@ -228,11 +231,13 @@ export function serializedRoleBrief(
   options: {
     readonly capybaraExpansion?: boolean;
     readonly activeRoleIds?: readonly string[];
+    readonly voyage33Admitted?: boolean;
   } = {},
 ): SerializedRoleBrief | undefined {
   const content = roleBriefFor(roleId);
   if (!content) return undefined;
   const activeRoleIds = options.activeRoleIds ?? [roleId];
+  const voyage33Motivation = voyage33MotivationForRole(roleId, options.voyage33Admitted === true);
   return {
     type: 'role-brief',
     sessionId,
@@ -244,5 +249,6 @@ export function serializedRoleBrief(
       : COMMON_ROLE_RULES_BASE,
     ownedCraftIds: ownedCraftIdsForRole(roleId, activeRoleIds),
     setupRevision,
+    ...(voyage33Motivation === undefined ? {} : { voyage33Motivation }),
   };
 }

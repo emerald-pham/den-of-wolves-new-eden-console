@@ -15,8 +15,15 @@ const mock = vi.hoisted(() => {
       data: () => fields,
     };
   };
+  const collectionSnapshot = (path: string) => ({
+    docs: [...documents.entries()]
+      .filter(([documentPath]) => documentPath.startsWith(`${path}/`))
+      .map(([documentPath]) => snapshot(documentPath)),
+  });
   const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '' });
-  const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
+  const collection = (path: string) => ({ path, kind: 'collection' as const });
+  const get = vi.fn(async (target: { path: string; kind?: string }) =>
+    target.kind === 'collection' ? collectionSnapshot(target.path) : snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...fields });
   });
@@ -25,7 +32,7 @@ const mock = vi.hoisted(() => {
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
     callback({ get, set, update, delete: (target: { path: string }) => documents.delete(target.path) }));
-  return { documents, get, set, update, runTransaction, db: { doc: ref, runTransaction } };
+  return { documents, get, set, update, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -97,6 +104,10 @@ it('admits Voyage 33-0 with printed population and host commitments without sele
     type: 'voyage-admission', crisisId: 'approach-1', actorUid: 'u1', requestId: 'admit-1',
   });
   expect(mock.documents.get('sessions/s1')).toMatchObject({ admittedVesselIds: ['voyage-33-0'] });
+  expect(mock.documents.get('sessions/s1/voyage33Arrival/current')).toMatchObject({
+    type: 'voyage-arrival-activation', admissionRequestId: 'admit-1', motivatedRoleIds: [], actorUid: 'u1',
+  });
+  expect(mock.documents.get('sessions/s1/voyage33Arrival/current/audit/admit-1')).toMatchObject({ action: 'activate' });
   const event = mock.documents.get('sessions/s1/events/voyage-admitted-admit-1');
   expect(event).toMatchObject({ type: 'voyage-admitted', vesselId: 'voyage-33-0', population: 40_000 });
   expect(event).not.toHaveProperty('details');
@@ -109,6 +120,82 @@ it('replays an exact retry and treats another request for the same admission as 
   expect(mock.set).not.toHaveBeenCalled();
   await expect(admitVoyage33.run(request({ ...baseData, requestId: 'admit-2' })))
     .resolves.toMatchObject({ status: 'replayed', admission: { crisisId: 'approach-1' } });
+});
+
+it('activates only entitled current role briefs and preserves the marker across retries', async () => {
+  put('sessions/s1/players/u2', { uid: 'u2', role: 'player', assignedRoleId: 'refinery-124-captain' });
+  put('sessions/s1/roleBriefs/u2', {
+    type: 'role-brief', sessionId: 's1', assignmentUid: 'u2', roleId: 'refinery-124-captain',
+  });
+  put('sessions/s1/players/u3', { uid: 'u3', role: 'player', assignedRoleId: 'admiral' });
+  put('sessions/s1/roleBriefs/u3', {
+    type: 'role-brief', sessionId: 's1', assignmentUid: 'u3', roleId: 'admiral',
+  });
+
+  await expect(admitVoyage33.run(request())).resolves.toMatchObject({ status: 'committed' });
+  const expectedMotivation = expect.stringContaining('Voyage 33-0');
+  expect(mock.documents.get('sessions/s1/roleBriefs/u2')).toEqual(expect.objectContaining({
+    voyage33Motivation: expectedMotivation,
+  }));
+  expect(mock.documents.get('sessions/s1/roleBriefs/u3')).not.toHaveProperty('voyage33Motivation');
+  expect(mock.documents.get('sessions/s1/voyage33Arrival/current')).toMatchObject({
+    motivatedRoleIds: ['refinery-124-captain'],
+  });
+  const activationWrites = mock.set.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/voyage33Arrival/current');
+  mock.set.mockClear();
+  await expect(admitVoyage33.run(request({ ...baseData, requestId: 'admit-2' })))
+    .resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set.mock.calls.filter(([target]) => target.path === 'sessions/s1/voyage33Arrival/current')).toHaveLength(0);
+  expect(activationWrites).toHaveLength(1);
+});
+
+it('upgrades an older admitted session once when its arrival marker is absent', async () => {
+  await admitVoyage33.run(request());
+  mock.documents.delete('sessions/s1/voyage33Arrival/current');
+  mock.documents.delete('sessions/s1/voyage33Arrival/current/audit/admit-1');
+  put('sessions/s1/players/u2', { uid: 'u2', role: 'player', assignedRoleId: 'doctor' });
+  put('sessions/s1/roleBriefs/u2', {
+    type: 'role-brief', sessionId: 's1', assignmentUid: 'u2', roleId: 'doctor',
+  });
+
+  await expect(admitVoyage33.run(request({ ...baseData, requestId: 'upgrade-1' })))
+    .resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.documents.get('sessions/s1/voyage33Arrival/current')).toMatchObject({
+    admissionRequestId: 'admit-1', motivatedRoleIds: ['doctor'], actorUid: 'u1',
+  });
+  expect(mock.documents.get('sessions/s1/roleBriefs/u2')).toHaveProperty('voyage33Motivation');
+  expect(mock.documents.get('sessions/s1/events/voyage-admitted-upgrade-1')).toBeUndefined();
+});
+
+it('replays a legacy admission without a stored request id after its activation is backfilled', async () => {
+  await admitVoyage33.run(request());
+  const admission = mock.documents.get('sessions/s1/voyage33Admission/current');
+  mock.documents.delete('sessions/s1/voyage33Arrival/current');
+  mock.documents.delete('sessions/s1/voyage33Arrival/current/audit/admit-1');
+  if (admission) {
+    const { requestId: _requestId, ...legacyAdmission } = admission;
+    mock.documents.set('sessions/s1/voyage33Admission/current', legacyAdmission);
+  }
+  await expect(admitVoyage33.run(request({ ...baseData, requestId: 'legacy-upgrade-1' })))
+    .resolves.toMatchObject({ status: 'replayed' });
+  await expect(admitVoyage33.run(request({ ...baseData, requestId: 'legacy-upgrade-2' })))
+    .resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.documents.get('sessions/s1/voyage33Arrival/current')).toMatchObject({
+    admissionRequestId: 'legacy-upgrade-1',
+  });
+});
+
+it('accepts and replays the canonical 128-character admission request boundary', async () => {
+  const requestId = `a${'b'.repeat(127)}`;
+
+  await expect(admitVoyage33.run(request({ ...baseData, requestId })))
+    .resolves.toMatchObject({ status: 'committed' });
+  expect(mock.documents.get('sessions/s1/voyage33Arrival/current'))
+    .toMatchObject({ admissionRequestId: requestId });
+
+  await expect(admitVoyage33.run(request({ ...baseData, requestId })))
+    .resolves.toMatchObject({ status: 'committed' });
 });
 
 it('rejects a stale, wrong-kind, closed, or non-facilitator admission without writing state', async () => {

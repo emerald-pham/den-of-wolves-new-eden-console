@@ -1542,11 +1542,18 @@
       "type": "evidence / production-path / authority / privacy / accessibility / layout"
     },
     {
-      "direction": "250 -> 249;114",
+      "direction": "250 -> 234;249",
       "id": "E-AUDIT-250",
-      "language": "Voyage maintenance consumes its admission and ordered maintenance.",
+      "language": "Voyage maintenance builds on the completed shared host-store/four-step authority (P234) and Voyage admission (P249); P114's whole-vessel order closure consumes the Voyage-specific maintenance result.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "250 -> 114",
+      "id": "E-AUDIT-250-RELATED",
+      "language": "Prompt 114 remains a related consumer of Voyage-specific maintenance because its whole-vessel order closure consumes the P250 result; it is not a P250 start prerequisite.",
+      "source": "docs/implementation-prompts.json - Prompt 250 related implementation boundary",
+      "type": "related/consumes"
     },
     {
       "direction": "251 -> 249;287-304",
@@ -3558,11 +3565,18 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "529 -> 249;527",
+      "direction": "529 -> 249;250;251;527",
       "id": "E-AUDIT-529",
-      "language": "Voyage arrival consumes Voyage admission and crisis delivery.",
+      "language": "Voyage arrival consumes the admitted vessel and delivered crisis; its maintenance and docking consumers remain P250 and P251.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "529 -> P529-ARRIVAL-INTEGRATION",
+      "id": "E-P529-ARRIVAL-INTEGRATION",
+      "language": "The P529 implementation adds an exact-once private Voyage 33-0 arrival activation keyed to the P249 admission's session, crisis and request identity. The admission transaction updates only existing entitled Refinery 124 and Doctor role briefs, with a GM-only activation marker/audit and no public actor or role metadata; assignment and replacement serializers carry the same motivation only after the sanitized session admission exists. Exact retries, another-request replay, absent or disabled roles, later assignment/replacement, legacy admitted-session upgrade, malformed state, unauthorized reads/writes, and private client parsing are covered. This closes the people and motivated-role hook slice of P529 while P250 maintenance and P251 docking/movement remain hard prerequisites for the full acceptance.",
+      "source": "functions/src/index.ts; functions/src/voyageArrival.ts; functions/src/voyageAdmissionCallable.test.ts; functions/src/roleBriefs.ts; functions/src/roleBriefs.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts; authorized Voyage 33-0 and Facilitator Guide source pages; /tmp/p529-role-render/role-brief-320x844.png; /tmp/p529-role-render/role-brief-390x844.png; /tmp/p529-role-render/role-brief-1440x900.png; /tmp/p529-role-render/role-brief-844x390.png; /tmp/p529-role-render/role-brief-390x844-reduced.png",
+      "type": "evidence / production-path / authority / privacy / accessibility / layout / partial"
     },
     {
       "direction": "530 -> 525",
@@ -8077,7 +8091,7 @@
         "acceptance": "each vessel executes its printed step count and sequence rather than a generic inferred flow.",
         "title": "Register vessel-specific maintenance order."
       },
-      "description": "The implemented full-vessel maintenance path now reads a registered order: AEGIS presents and authorizes Shuttle Bay Zeta at step 6 then Omega at step 7, while the other six full ships execute their printed 1–6 lane before explicit cycle closure. Focused server callable/state tests cover out-of-order bay and end actions, duplicate and retry-safe lifecycle, revision authority, and rendered AEGIS separation. Five supplemental identities are still metadata-only and therefore the each-vessel acceptance remains partial: Gorgoneion, base Capybara, Warrior, and Vulcan need shared small-ship runtime (P234) plus variant work (P235/P241/P242/P246), and Voyage 33-0 needs admission and maintenance (P249/P250); the population-loss exception belongs to P121. No unimplemented gameplay is implied.",
+      "description": "The implemented full-vessel maintenance path now reads a registered order: AEGIS presents and authorizes Shuttle Bay Zeta at step 6 then Omega at step 7, while the other six full ships execute their printed 1–6 lane before explicit cycle closure. Focused server callable/state tests cover out-of-order bay and end actions, duplicate and retry-safe lifecycle, revision authority, and rendered AEGIS separation. Five supplemental identities are still metadata-only and therefore the each-vessel acceptance remains partial: Gorgoneion, base Capybara, Warrior, and Vulcan need shared small-ship runtime (P234) plus variant work (P235/P241/P242/P246), Voyage 33-0 admission is P249 and its Voyage-specific maintenance is P250; this prompt's whole-vessel order closure consumes P250. The population-loss exception belongs to P121. No unimplemented gameplay is implied.",
       "evidenceIds": "E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11804,14 +11818,14 @@
         "acceptance": "host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.",
         "title": "Resolve Voyage 33-0 maintenance."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-250",
+      "description": "Planned [NEW] prompt. P234 supplies the completed shared host-store and four-step maintenance authority, and P249 supplies the admitted Voyage 33-0 identity. This prompt owns the Voyage-specific host-funded steps 1–4, one-console charge, and printed failed-unrest population-loss/skip-charge exception; P114's whole-vessel order closure consumes this result.",
+      "evidenceIds": "E-AUDIT-250;E-AUDIT-250-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "249;114",
+      "hardPromptPrerequisites": "234;249",
       "id": "250",
       "milestoneHints": "M3;M5;M6",
-      "relatedConsumes": "none",
+      "relatedConsumes": "114",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
@@ -18938,11 +18952,11 @@
         "acceptance": "accepting the vessel activates its people, needs, maintenance, docking, and motivated-role hooks exactly once.",
         "title": "Integrate Voyage 33-0 arrival."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-529",
+      "description": "The P529 production slice now adds an exact-once private Voyage 33-0 arrival activation keyed to the P249 admission's session, crisis, and request identity. The admission transaction updates only existing entitled Refinery 124 and Doctor role briefs, with a GM-only activation marker/audit and no public actor or role metadata; assignment and replacement serializers carry the same motivation only after the sanitized session admission exists. Exact retries, another-request replay, absent or disabled roles, later assignment/replacement, legacy admitted-session upgrade, malformed state, unauthorized reads/writes, and private client parsing are covered. This closes the people and motivated-role hook slice while P250 maintenance and P251 docking/movement remain hard prerequisites for the full acceptance.",
+      "evidenceIds": "E-AUDIT-529;E-P529-ARRIVAL-INTEGRATION",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "249;527",
+      "hardPromptPrerequisites": "249;250;251;527",
       "id": "529",
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
@@ -18950,7 +18964,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

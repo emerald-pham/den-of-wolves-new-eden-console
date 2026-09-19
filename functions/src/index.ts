@@ -184,6 +184,12 @@ import {
 } from './gameSetup';
 import { serializedRoleBrief } from './roleBriefs';
 import {
+  arrivalActivationForAdmission,
+  parseVoyage33ArrivalActivation,
+  voyage33MotivationForRole,
+  type Voyage33MotivatedRoleId,
+} from './voyageArrival';
+import {
   INITIAL_SHIP_RESOURCES,
   canAdjustShipCounter,
   isResourceShipId,
@@ -4996,6 +5002,7 @@ export const assignRole = onCall<{
       {
         capybaraExpansion: lockedSetup.expansion === 'capybara',
         activeRoleIds: lockedSetup.activeRoleIds,
+        voyage33Admitted: publicVoyage33Admission(authority.session.get('voyage33Admission'), assignment.sessionId) !== undefined,
       },
     );
     if (!privateBrief) {
@@ -5409,6 +5416,7 @@ export const assignReplacementRole = onCall<{
       result.setupRevision, {
         capybaraExpansion: authority.session.get('expansion') === 'capybara',
         activeRoleIds: configuredRoleIds(authority.session),
+        voyage33Admitted: publicVoyage33Admission(authority.session.get('voyage33Admission'), assignment.sessionId) !== undefined,
       },
     );
     if (!privateBrief) {
@@ -6463,6 +6471,79 @@ function isVoyage33AdmissionResult(value: unknown, sessionId: string): value is 
     admission.crisisRevision === value.crisisRevision;
 }
 
+function voyage33ArrivalRef(sessionId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/voyage33Arrival/current`);
+}
+
+function voyage33ArrivalAuditRef(sessionId: string, requestId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/voyage33Arrival/current/audit/${requestId}`);
+}
+
+function currentVoyage33RoleId(player: DocumentSnapshot): string | undefined {
+  if (player.get('role') !== 'player') return undefined;
+  const replacementRoleId = player.get('replacementRoleId');
+  if (typeof replacementRoleId === 'string' && replacementRoleId.length > 0) return replacementRoleId;
+  const assignedRoleId = player.get('assignedRoleId');
+  return typeof assignedRoleId === 'string' && assignedRoleId.length > 0 ? assignedRoleId : undefined;
+}
+
+function privateAdmissionRequestId(
+  admission: DocumentSnapshot,
+  fallback: string,
+  existingArrival?: ReturnType<typeof parseVoyage33ArrivalActivation>,
+): string {
+  const requestId = admission.get('requestId');
+  return typeof requestId === 'string' && isCanonicalRequestId(requestId)
+    ? requestId
+    : existingArrival?.admissionRequestId ?? fallback;
+}
+
+async function activateVoyage33Arrival(
+  tx: Transaction,
+  admission: Voyage33Admission,
+  admissionRequestId: string,
+  actorUid: string,
+  instanceId: string,
+  players: { readonly docs: readonly DocumentSnapshot[] },
+  arrivalRef: DocumentReference,
+  auditRef: DocumentReference,
+): Promise<void> {
+  const targets = players.docs.flatMap((player) => {
+    const roleId = currentVoyage33RoleId(player);
+    return roleId && voyage33MotivationForRole(roleId, true)
+      ? [{ uid: player.id, roleId, briefRef: db.doc(`sessions/${admission.sessionId}/roleBriefs/${player.id}`) }]
+      : [];
+  });
+  const briefs = await Promise.all(targets.map((target) => tx.get(target.briefRef)));
+  const motivatedRoleIds = targets.flatMap((target, index) => {
+    const brief = briefs[index];
+    const data = brief?.data();
+    if (!brief?.exists || !isRecord(data) || data.type !== 'role-brief' ||
+        data.sessionId !== admission.sessionId || data.assignmentUid !== target.uid ||
+        data.roleId !== target.roleId) return [];
+    const motivation = voyage33MotivationForRole(target.roleId, true);
+    if (!motivation) return [];
+    if (data.voyage33Motivation !== motivation) {
+      tx.update(brief.ref, { voyage33Motivation: motivation });
+    }
+    return [target.roleId as Voyage33MotivatedRoleId];
+  }).sort();
+  const activation = arrivalActivationForAdmission(admission, admissionRequestId, motivatedRoleIds);
+  tx.set(arrivalRef, {
+    ...activation,
+    actorUid,
+    instanceId,
+    activatedAt: FieldValue.serverTimestamp(),
+  });
+  tx.set(auditRef, {
+    ...activation,
+    action: 'activate',
+    actorUid,
+    instanceId,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 /** Admit the printed Voyage 33-0 vessel exactly once from an active crisis. */
 export const admitVoyage33 = onCall<{
   sessionId?: unknown;
@@ -6477,6 +6558,8 @@ export const admitVoyage33 = onCall<{
   const crisisRef = db.doc(`sessions/${admissionRequest.sessionId}/crisisState/current`);
   const admissionRef = db.doc(`sessions/${admissionRequest.sessionId}/voyage33Admission/current`);
   const auditRef = db.doc(`sessions/${admissionRequest.sessionId}/voyage33Admission/current/audit/${admissionRequest.requestId}`);
+  const arrivalRef = voyage33ArrivalRef(admissionRequest.sessionId);
+  const playersRef = db.collection(`sessions/${admissionRequest.sessionId}/players`);
   const receiptRef = commandReceiptRef(admissionRequest.sessionId, admissionRequest.requestId);
   const eventRef = db.doc(`sessions/${admissionRequest.sessionId}/events/voyage-admitted-${admissionRequest.requestId}`);
   const fingerprint: CommandFingerprint = {
@@ -6490,12 +6573,14 @@ export const admitVoyage33 = onCall<{
   };
 
   return db.runTransaction(async (tx): Promise<Voyage33AdmissionResult> => {
-    const [authority, crisisSnapshot, storedAdmission, receipt, audit] = await Promise.all([
+    const [authority, crisisSnapshot, storedAdmission, receipt, audit, storedArrival, players] = await Promise.all([
       requireFacilitatorInstance(tx, admissionRequest.sessionId, uid, admissionRequest.instanceId),
       tx.get(crisisRef),
       tx.get(admissionRef),
       tx.get(receiptRef),
       tx.get(auditRef),
+      tx.get(arrivalRef),
+      tx.get(playersRef),
     ]);
     await rejectForeignLegacyM1Command(tx, admissionRequest.sessionId, admissionRequest.requestId, 'Voyage 33-0 admission', []);
     const replay = replayBoundCommand(
@@ -6514,9 +6599,44 @@ export const admitVoyage33 = onCall<{
     if (storedAdmission.exists && !existing) {
       throw commandError('failed-precondition', 'The stored Voyage 33-0 admission is malformed; refresh before retrying.', 'malformed-input');
     }
+    const arrival = storedArrival.exists
+      ? parseVoyage33ArrivalActivation(storedArrival.data(), admissionRequest.sessionId)
+      : undefined;
+    if (storedArrival.exists && !arrival) {
+      throw commandError('failed-precondition', 'The stored Voyage 33-0 arrival activation is malformed; refresh before retrying.', 'malformed-input');
+    }
+    const activationRequestId = existing
+      ? privateAdmissionRequestId(storedAdmission, admissionRequest.requestId, arrival)
+      : admissionRequest.requestId;
+    const activationAuditRef = voyage33ArrivalAuditRef(admissionRequest.sessionId, activationRequestId);
+    const activationAudit = await tx.get(activationAuditRef);
     if (existing) {
       if (existing.crisisId !== admissionRequest.crisisId) {
         throw commandError('failed-precondition', 'Voyage 33-0 has already been admitted for another crisis.', 'conflict');
+      }
+      if (arrival) {
+        if (arrival.crisisId !== existing.crisisId || arrival.crisisRevision !== existing.crisisRevision ||
+            arrival.admissionRequestId !== activationRequestId || !activationAudit.exists) {
+          throw commandError('failed-precondition', 'The stored Voyage 33-0 arrival activation is inconsistent; refresh before retrying.', 'malformed-input');
+        }
+      } else {
+        if (activationAudit.exists) {
+          throw commandError('failed-precondition', 'The stored Voyage 33-0 arrival audit is missing its current activation; refresh before retrying.', 'malformed-input');
+        }
+        const actorUid = typeof storedAdmission.get('actorUid') === 'string' ? storedAdmission.get('actorUid') as string : uid;
+        const instanceId = typeof storedAdmission.get('instanceId') === 'string'
+          ? storedAdmission.get('instanceId') as string
+          : admissionRequest.instanceId;
+        await activateVoyage33Arrival(
+          tx,
+          existing,
+          activationRequestId,
+          actorUid,
+          instanceId,
+          players,
+          arrivalRef,
+          activationAuditRef,
+        );
       }
       const result: Voyage33AdmissionResult = {
         status: 'replayed',
@@ -6561,6 +6681,19 @@ export const admitVoyage33 = onCall<{
       crisisRevision: crisisRevision as number,
       admission,
     };
+    if (arrival || activationAudit.exists) {
+      throw commandError('failed-precondition', 'The Voyage 33-0 arrival activation exists without its admission; refresh before retrying.', 'malformed-input');
+    }
+    await activateVoyage33Arrival(
+      tx,
+      admission,
+      activationRequestId,
+      uid,
+      admissionRequest.instanceId,
+      players,
+      arrivalRef,
+      activationAuditRef,
+    );
     const existingAdmitted = Array.isArray(authority.session.get('admittedVesselIds'))
       ? authority.session.get('admittedVesselIds').filter((id: unknown): id is string => typeof id === 'string')
       : [];

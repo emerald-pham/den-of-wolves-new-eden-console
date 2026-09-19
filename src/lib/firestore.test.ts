@@ -1047,10 +1047,12 @@ it('hydrates only the current UID role brief and clears it when the assignment i
       type: 'role-brief', sessionId: 's1', assignmentUid: 'u1', roleId: 'admiral',
       roleName: 'Admiral', vesselName: 'AEGIS', text: 'Coordinate the fleet.',
       commonRules: 'Keep this private.', ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 2,
+      voyage33Motivation: 'Support Voyage 33-0 privately.',
     }),
   });
   expect(onRoleBrief).toHaveBeenCalledWith(expect.objectContaining({
     assignmentUid: 'u1', roleId: 'admiral', ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 2,
+    voyage33Motivation: 'Support Voyage 33-0 privately.',
   }));
 
   callbacks[3]?.({

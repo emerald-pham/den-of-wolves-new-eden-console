@@ -55,6 +55,14 @@ export default function RoleBrief() {
         <h1 id="role-brief-title">{brief.roleName}</h1>
         <p className="role-brief__copy">{brief.text}</p>
 
+        {brief.voyage33Motivation && (
+          <section className="role-brief__rules" aria-labelledby="voyage-33-motivation-title">
+            <p className="eyebrow">Private arrival priority</p>
+            <h2 id="voyage-33-motivation-title">Voyage 33-0 support</h2>
+            <p>{brief.voyage33Motivation}</p>
+          </section>
+        )}
+
         {privateLoyalty?.kind === 'universal-arbour' && arbourVision && (
           <section className="role-brief__rules role-brief__rules--arbour-vision" aria-labelledby="arbour-vision-title">
             <p className="eyebrow">{arbourVision.label}</p>

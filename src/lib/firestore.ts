@@ -500,6 +500,8 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
     typeof raw.vesselName !== 'string' || raw.vesselName.trim().length === 0 ||
     typeof raw.text !== 'string' || raw.text.trim().length === 0 ||
     typeof raw.commonRules !== 'string' || raw.commonRules.trim().length === 0 ||
+    (raw.voyage33Motivation !== undefined &&
+      (typeof raw.voyage33Motivation !== 'string' || raw.voyage33Motivation.trim().length === 0 || raw.voyage33Motivation.length > 500)) ||
     typeof raw.setupRevision !== 'number' ||
     !Number.isSafeInteger(raw.setupRevision) || raw.setupRevision < 0 ||
     (raw.ownedCraftIds !== undefined && !ownedCraftIds)
@@ -511,6 +513,7 @@ function roleBrief(value: unknown, sessionId: string, uid: string): RoleBrief | 
     vesselName: raw.vesselName,
     text: raw.text,
     commonRules: raw.commonRules,
+    ...(typeof raw.voyage33Motivation === 'string' ? { voyage33Motivation: raw.voyage33Motivation } : {}),
     ...(ownedCraftIds ? { ownedCraftIds } : {}),
     setupRevision: raw.setupRevision,
   };

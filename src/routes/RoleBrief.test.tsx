@@ -50,6 +50,25 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
 
+it('renders Voyage 33-0 support as a private role section when admitted', () => {
+  useSessionStore.getState().setRoleBrief({
+    ...useSessionStore.getState().roleBrief!,
+    voyage33Motivation: 'Support Voyage 33-0\'s survivors privately.',
+  });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const section = screen.getByRole('region', { name: 'Voyage 33-0 support' });
+  expect(section).toHaveTextContent('Private arrival priority');
+  expect(section).toHaveTextContent('Support Voyage 33-0\'s survivors privately.');
+});
+
 it('renders a facilitator-labeled Universal Arbour call only on the private brief', () => {
   useSessionStore.getState().setPrivateLoyalty({ kind: 'universal-arbour', suspicion: 10 });
   useSessionStore.getState().setArbourVision({

@@ -4,6 +4,7 @@ import {
   roleBriefFor,
   serializedRoleBrief,
 } from './roleBriefs';
+import { VOYAGE_33_MOTIVATION } from './voyageArrival';
 
 describe('role brief projection', () => {
   it('provides a private brief for every configured role', () => {
@@ -71,5 +72,15 @@ describe('role brief projection', () => {
     expect(base?.commonRules).not.toContain('d8');
     expect(expansion?.commonRules).toContain('d8');
     expect(expansion?.commonRules).toContain('Scrap');
+  });
+
+  it('adds Voyage 33-0 motivation only to entitled private role briefs', () => {
+    expect(serializedRoleBrief('s1', 'alice', 'refinery-124-captain', 1)?.voyage33Motivation).toBeUndefined();
+    expect(serializedRoleBrief('s1', 'alice', 'refinery-124-captain', 1, { voyage33Admitted: true }))
+      .toMatchObject({ voyage33Motivation: VOYAGE_33_MOTIVATION });
+    expect(serializedRoleBrief('s1', 'alice', 'doctor', 1, { voyage33Admitted: true }))
+      .toMatchObject({ voyage33Motivation: VOYAGE_33_MOTIVATION });
+    expect(serializedRoleBrief('s1', 'alice', 'admiral', 1, { voyage33Admitted: true }))
+      .not.toHaveProperty('voyage33Motivation');
   });
 });
