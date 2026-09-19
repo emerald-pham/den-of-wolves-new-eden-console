@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['031a'],
+    implementationProgress: {
+      completed: 286, total: 751, percentage: '38.08%',
+      done: 286, partial: 24, active: 0, missing: 441,
+    },
+    changes: [
+      'Browse enabled ships, roles, and Press from one searchable console catalog, with clear open, yours, and read-only status.',
+      'Entering an open core console claims it safely. Occupied consoles remain available to inspect, and GM console access keeps its existing controls.',
+      '286 of 751 planned items are complete (38.08%).',
+    ],
+  },
+  {
+    version: '0.4.16',
     changes: [
       "Scrap now stays in the enabled Capybara, Macaw, and Boa ledgers, so other ships cannot create, carry, or spend it.",
       "284 of 751 planned items are complete (37.82%).",
