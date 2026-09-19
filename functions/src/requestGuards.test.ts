@@ -376,8 +376,8 @@ describe('callable request guards', () => {
       'invalid-argument',
     );
     expect(requireGmInstanceActionRequest({
-      sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2',
-    })).toEqual({ sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2' });
+      sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2', requestId: 'kick-1',
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2', requestId: 'kick-1' });
   });
 
   it('requires a target browser uid for a player kick', () => {

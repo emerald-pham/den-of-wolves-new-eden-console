@@ -8468,29 +8468,59 @@ async function removeGmInstance(
   const callerRef = collection.doc(action.instanceId);
   const callerPlayerRef = db.doc(`sessions/${action.sessionId}/players/${uid}`);
   const targetRef = collection.doc(action.targetInstanceId);
-  await db.runTransaction(async (tx) => {
-    const [caller, callerPlayer] = await Promise.all([
+  const receiptRef = action.requestId
+    ? commandReceiptRef(action.sessionId, action.requestId)
+    : null;
+  const fingerprint: CommandFingerprint | null = action.requestId ? {
+    action: mayRemoveOther ? 'kick-gm-instance' : 'release-gm-instance',
+    sessionId: action.sessionId,
+    requestId: action.requestId,
+    actorUid: uid,
+    instanceId: action.instanceId,
+    expectedRevision: null,
+    payload: { targetInstanceId: action.targetInstanceId },
+  } : null;
+  const result = await db.runTransaction(async (tx) => {
+    const [caller, callerPlayer, receipt] = await Promise.all([
       tx.get(callerRef),
       tx.get(callerPlayerRef),
+      receiptRef ? tx.get(receiptRef) : Promise.resolve(null),
     ]);
     if (!isLiveGmInstance(caller, callerPlayer, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(
+        receipt,
+        fingerprint,
+        (value): value is { readonly targetInstanceId: string } =>
+          typeof value === 'object' && value !== null &&
+          (value as Record<string, unknown>).targetInstanceId === action.targetInstanceId,
+        mayRemoveOther ? 'GM instance kick' : 'GM instance release',
+      );
+      if (replay) return replay;
+    }
     const target = action.targetInstanceId === action.instanceId
       ? caller
       : await tx.get(targetRef);
-    if (!target.exists) return;
-    const targetUid = target.get('uid') as string;
-    const remaining = await tx.get(collection.where('uid', '==', targetUid));
-    tx.delete(targetRef);
-    tx.delete(gmShipConsoleWriteGrantRef(action.sessionId, action.targetInstanceId));
-    if (remaining.size === 1) {
-      tx.update(db.doc(`sessions/${action.sessionId}/players/${targetUid}`), {
-        role: 'player',
-      });
+    if (target.exists) {
+      const targetUid = target.get('uid') as string;
+      const remaining = await tx.get(collection.where('uid', '==', targetUid));
+      tx.delete(targetRef);
+      tx.delete(gmShipConsoleWriteGrantRef(action.sessionId, action.targetInstanceId));
+      if (remaining.size === 1) {
+        tx.update(db.doc(`sessions/${action.sessionId}/players/${targetUid}`), {
+          role: 'player',
+        });
+      }
     }
+    const committed = { targetInstanceId: action.targetInstanceId };
+    if (receiptRef && fingerprint) {
+      tx.set(receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    }
+    return committed;
   });
-  return { targetInstanceId: action.targetInstanceId };
+  return result;
 }
 
 /** Remove another active GM instance. The caller must itself be an active instance. */
@@ -8521,9 +8551,21 @@ async function removePlayer(
   const membershipRef = db.doc(`activeMemberships/${action.targetUid}`);
   const censusRef = db.doc(`sessions/${action.sessionId}/loyaltyCensus/current`);
   const secretsRef = db.collection(`sessions/${action.sessionId}/secrets`);
+  const receiptRef = action.requestId
+    ? commandReceiptRef(action.sessionId, action.requestId)
+    : null;
+  const fingerprint: CommandFingerprint | null = action.requestId ? {
+    action: 'kick-player',
+    sessionId: action.sessionId,
+    requestId: action.requestId,
+    actorUid: uid,
+    instanceId: action.instanceId,
+    expectedRevision: null,
+    payload: { targetUid: action.targetUid },
+  } : null;
 
-  await db.runTransaction(async (tx) => {
-    const [session, caller, instance, target, membership, census, playersSnapshot, secrets, storedGroup] = await Promise.all([
+  const result = await db.runTransaction(async (tx) => {
+    const [session, caller, instance, target, membership, census, playersSnapshot, secrets, storedGroup, receipt] = await Promise.all([
       tx.get(sessionRef),
       tx.get(callerRef),
       tx.get(instanceRef),
@@ -8533,10 +8575,22 @@ async function removePlayer(
       tx.get(players),
       tx.get(secretsRef),
       tx.get(groupRef),
+      receiptRef ? tx.get(receiptRef) : Promise.resolve(null),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isLiveGmInstance(instance, caller, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(
+        receipt,
+        fingerprint,
+        (value): value is { readonly targetUid: string } =>
+          typeof value === 'object' && value !== null &&
+          (value as Record<string, unknown>).targetUid === action.targetUid,
+        'player kick',
+      );
+      if (replay) return replay;
     }
     if (!isActivePlayer(target)) {
       throw commandError('failed-precondition', 'That player is no longer connected.', 'conflict');
@@ -8593,9 +8647,14 @@ async function removePlayer(
       tx.delete(membershipRef);
     }
     tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+    const committed = { targetUid: action.targetUid };
+    if (receiptRef && fingerprint) {
+      tx.set(receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    }
+    return committed;
   });
 
-  return { targetUid: action.targetUid };
+  return result;
 }
 
 /** Remove a player browser from this session and permanently deny its return. */

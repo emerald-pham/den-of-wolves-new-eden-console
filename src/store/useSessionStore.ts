@@ -46,6 +46,8 @@ export type PendingCommand = (
         readonly sessionId: string;
         readonly instanceId: string;
         readonly targetInstanceId: string;
+        /** Stable server receipt identity for reconnect replay. */
+        readonly requestId?: string;
       };
       readonly createdAt: string;
     }
@@ -56,6 +58,8 @@ export type PendingCommand = (
         readonly sessionId: string;
         readonly instanceId: string;
         readonly targetUid: string;
+        /** Stable server receipt identity for reconnect replay. */
+        readonly requestId?: string;
       };
       readonly createdAt: string;
     }

@@ -919,6 +919,21 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
   });
 
+  it('binds a GM release to a private receipt for reconnect reconciliation', async () => {
+    session();
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(releaseGmInstance.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'bridge', requestId: 'release-replay-1',
+    }))).resolves.toEqual({ targetInstanceId: 'bridge' });
+
+    expect(read('sessions/s1/commandReceipts/release-replay-1')).toMatchObject({
+      fingerprint: expect.objectContaining({ action: 'release-gm-instance', actorUid: 'u1' }),
+      result: { targetInstanceId: 'bridge' },
+    });
+  });
+
   it('kicks a player browser, frees its seat, and blocks its return to this session', async () => {
     session({ activeVesselIds: ['aegis'] });
     player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
@@ -955,6 +970,53 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({ fleetGroupId: 'fleet-1' });
     expect(read('sessions/s1/players/observer')).toMatchObject({ fleetGroupId: 'fleet-1' });
     expect(read('sessions/s1/players/u2')).toMatchObject({ fleetGroupId: null });
+  });
+
+  it('replays a player kick receipt without applying the irreversible mutation twice', async () => {
+    session({ activeVesselIds: ['aegis'] });
+    player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
+    player('u2', { seatId: 'seat-1', fleetGroupId: 'fleet-1' });
+    put('sessions/s1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1', 'u2'],
+    });
+    put('sessions/s1/seats/seat-1', {
+      status: 'claimed', holderUid: 'u2', claimedAt: 'server-time',
+    });
+    put('activeMemberships/u2', { sessionId: 's1' });
+    instance('bridge', 'u1');
+    const command = {
+      sessionId: 's1', instanceId: 'bridge', targetUid: 'u2', requestId: 'kick-replay-1',
+    };
+
+    await expect(kickPlayer.run(request(command))).resolves.toEqual({ targetUid: 'u2' });
+    await expect(kickPlayer.run(request(command))).resolves.toEqual({ targetUid: 'u2' });
+
+    expect(read('sessions/s1/commandReceipts/kick-replay-1')).toMatchObject({
+      fingerprint: expect.objectContaining({ action: 'kick-player', actorUid: 'u1' }),
+      result: { targetUid: 'u2' },
+    });
+    expect(read('sessions/s1/players/u2')).toMatchObject({ connected: false, kickedAt: expect.anything() });
+  });
+
+  it('rejects a kick receipt reused for a different target before mutating that target', async () => {
+    session({ activeVesselIds: ['aegis'] });
+    player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
+    player('u2', { fleetGroupId: 'fleet-1' });
+    player('u3', { fleetGroupId: 'fleet-1' });
+    put('sessions/s1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1', 'u2', 'u3'],
+    });
+    put('activeMemberships/u2', { sessionId: 's1' });
+    put('activeMemberships/u3', { sessionId: 's1' });
+    instance('bridge', 'u1');
+    await kickPlayer.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetUid: 'u2', requestId: 'kick-collision-1',
+    }));
+
+    await expect(kickPlayer.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetUid: 'u3', requestId: 'kick-collision-1',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/players/u3')).toMatchObject({ connected: true });
   });
 
   it('does not let an ordinary player kick another browser', async () => {

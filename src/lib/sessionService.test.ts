@@ -297,7 +297,7 @@ describe('connect', () => {
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().enqueueCommand({
       id: 'command-1', kind: 'kickGmInstance',
-      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2', requestId: 'kick-retry-1' },
       createdAt: new Date().toISOString(),
       queuedWithServerAuthority: true,
     });
@@ -855,7 +855,7 @@ describe('GM instance commands', () => {
     await kickPlayer('u2');
 
     expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', targetUid: 'u2',
+      sessionId: 's1', instanceId: 'instance-1', targetUid: 'u2', requestId: expect.any(String),
     });
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
@@ -867,7 +867,7 @@ describe('GM instance commands', () => {
     });
     useSessionStore.getState().enqueueCommand({
       id: 'command-1', kind: 'kickGmInstance',
-      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2', requestId: 'kick-replay-1' },
       createdAt: new Date().toISOString(),
       queuedWithServerAuthority: true,
     });
@@ -915,7 +915,7 @@ describe('GM instance commands', () => {
     useSessionStore.getState().setSessionSnapshotFreshness('cache');
     useSessionStore.getState().enqueueCommand({
       id: 'cached-command', kind: 'kickGmInstance',
-      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2', requestId: 'kick-conflict-1' },
       createdAt: new Date().toISOString(),
     });
     vi.mocked(httpsCallable).mockImplementation((_, name) => {
@@ -935,10 +935,32 @@ describe('GM instance commands', () => {
     });
   });
 
+  it('does not replay a legacy ambiguous kick without a server receipt identity', async () => {
+    useSessionStore.getState().enqueueCommand({
+      id: 'legacy-kick', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    await connect();
+
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'kickGmInstance');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toEqual({
+      kind: 'unknown',
+      code: 'command-outcome-unknown',
+      message: 'The connection was lost before the server confirmed this command. Review the live state before retrying.',
+    });
+  });
+
   it('reports and drops a queued command that conflicts with server state', async () => {
     useSessionStore.getState().enqueueCommand({
       id: 'command-1', kind: 'kickGmInstance',
-      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2', requestId: 'kick-conflict-1' },
       createdAt: new Date().toISOString(),
       queuedWithServerAuthority: true,
     });

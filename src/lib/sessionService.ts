@@ -128,6 +128,8 @@ export type TurnStartReplayAudience = 'gm' | 'everyone';
 
 const SAFE_STALE_COMMAND_MESSAGE =
   'The live session changed before this command committed. Refresh the live state and retry.';
+const SAFE_AMBIGUOUS_COMMAND_MESSAGE =
+  'The connection was lost before the server confirmed this command. Review the live state before retrying.';
 
 let localTurnStartReplayToken = 0;
 
@@ -277,6 +279,20 @@ function isCleanupCommand(command: PendingCommand): boolean {
 }
 
 /**
+ * A transient callable failure is ambiguous: the server may have committed
+ * before the acknowledgement was lost. Only commands with a stable receipt
+ * identity, the generation-bound disconnect, or an explicitly state-idempotent
+ * operation may be replayed from the persisted outbox.
+ */
+function isReplaySafeCommand(command: PendingCommand): boolean {
+  if (command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess' ||
+      command.kind === 'claimGmInstance' || command.kind === 'setGmControlsLocked' ||
+      command.kind === 'setDebriefMode' || command.kind === 'popShipConfetti') return true;
+  const requestId = (command.payload as { readonly requestId?: unknown }).requestId;
+  return typeof requestId === 'string' && requestId.length > 0;
+}
+
+/**
  * Only a mutation that began from accepted server state may survive a transient
  * transport failure. Older persisted commands intentionally have no marker and
  * are discarded during reconnect rather than gaining authority from a cache.
@@ -315,6 +331,14 @@ function recordStaleAuthorityReply(): void {
     kind: 'stale-revision',
     code: 'stale',
     message: SAFE_STALE_COMMAND_MESSAGE,
+  });
+}
+
+function recordAmbiguousCommand(): void {
+  useSessionStore.getState().setCommunicationError({
+    kind: 'unknown',
+    code: 'command-outcome-unknown',
+    message: SAFE_AMBIGUOUS_COMMAND_MESSAGE,
   });
 }
 
@@ -755,8 +779,17 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
     return 'applied';
   } catch (cause) {
     if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
-      if (cleanupCommand) queue(command);
-      else queueFromServerAuthority(command);
+      if (cleanupCommand || isReplaySafeCommand(command)) {
+        if (cleanupCommand) queue(command);
+        else queueFromServerAuthority(command);
+      } else {
+        // Never persist an ambiguous irreversible mutation without a server
+        // receipt identity: replaying it after a lost ACK could target a
+        // renewed browser or apply the action twice.
+        recordAmbiguousCommand();
+        store.setConnection('offline');
+        throw new Error(SAFE_AMBIGUOUS_COMMAND_MESSAGE);
+      }
       store.setConnection('offline');
       return 'queued';
     }
@@ -785,6 +818,11 @@ async function flushPendingCommands(): Promise<boolean> {
     ) {
       store.removeCommand(command.id);
       recordStaleAuthorityReply();
+      continue;
+    }
+    if (!isCleanupCommand(command) && !isReplaySafeCommand(command)) {
+      store.removeCommand(command.id);
+      recordAmbiguousCommand();
       continue;
     }
     try {
@@ -2100,6 +2138,7 @@ export async function kickGmInstance(targetInstanceId: string): Promise<CommandD
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       targetInstanceId,
+      requestId: commandId(),
     },
     createdAt: new Date().toISOString(),
   });
@@ -2115,6 +2154,7 @@ export async function kickPlayer(targetUid: string): Promise<CommandDisposition>
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       targetUid,
+      requestId: commandId(),
     },
     createdAt: new Date().toISOString(),
   });
@@ -2130,6 +2170,7 @@ export async function releaseGmInstance(): Promise<CommandDisposition> {
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       targetInstanceId: store.gmInstance.id,
+      requestId: commandId(),
     },
     createdAt: new Date().toISOString(),
   });

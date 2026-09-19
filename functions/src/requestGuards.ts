@@ -796,11 +796,13 @@ export function requireGmInstanceActionRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
   targetInstanceId?: unknown;
-}): { sessionId: string; instanceId: string; targetInstanceId: string } {
+  requestId?: unknown;
+}): { sessionId: string; instanceId: string; targetInstanceId: string; requestId?: string } {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     targetInstanceId: requiredId(data.targetInstanceId, 'targetInstanceId'),
+    ...(data.requestId === undefined ? {} : { requestId: requiredId(data.requestId, 'requestId') }),
   };
 }
 
@@ -808,10 +810,12 @@ export function requirePlayerKickRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
   targetUid?: unknown;
-}): { sessionId: string; instanceId: string; targetUid: string } {
+  requestId?: unknown;
+}): { sessionId: string; instanceId: string; targetUid: string; requestId?: string } {
   return {
     ...requireGmInstanceRequest(data),
     targetUid: requiredId(data.targetUid, 'targetUid'),
+    ...(data.requestId === undefined ? {} : { requestId: requiredId(data.requestId, 'requestId') }),
   };
 }
 
