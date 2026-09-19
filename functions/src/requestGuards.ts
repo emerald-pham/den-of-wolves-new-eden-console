@@ -35,6 +35,23 @@ export function requireSessionRequest(data: {
   return { sessionId: requiredId(data.sessionId, 'sessionId') };
 }
 
+/** Player escape transitions are serialized by the shared command receipt. */
+export function requireEscapeRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+}): { sessionId: string; requestId: string; expectedSetupRevision: number } {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) ||
+      (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+  };
+}
+
 export function requireAirspaceRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

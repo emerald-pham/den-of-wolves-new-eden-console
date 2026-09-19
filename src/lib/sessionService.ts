@@ -1844,6 +1844,31 @@ export async function releaseSeat(seatId: string, reason?: string): Promise<Comm
   });
 }
 
+export interface EscapeMutationResult {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly targetUid: string;
+  readonly shipId: string;
+  readonly setupRevision: number;
+  readonly escapeState?: Player['escapeState'];
+}
+
+/** Player-authorized transition out of a destroyed ship's retained station. */
+export async function fleeDestroyedShip(): Promise<EscapeMutationResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before fleeing a destroyed ship.');
+  requireFreshSessionAuthority();
+  await ensureSignedIn();
+  const payload = {
+    sessionId: store.session.id,
+    requestId: commandId(),
+    expectedSetupRevision: expectedSetupRevision(store.session),
+  } as const;
+  const call = httpsCallable<typeof payload, EscapeMutationResult>(functions(), 'fleeDestroyedShip');
+  return (await call(payload)).data;
+}
+
 /** Assign an eligible player to one open printed role during casting. */
 export async function assignRole(targetUid: string, roleId: string): Promise<CommandDisposition> {
   const store = useSessionStore.getState();

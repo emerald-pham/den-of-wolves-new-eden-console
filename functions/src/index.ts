@@ -1,6 +1,12 @@
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
 import { projectMaintenanceEvent } from './maintenanceEvent';
 import { canOperateRole, shipForRole } from './crewAccess';
+import {
+  escapeStateForDestruction,
+  fleePlayerEscapeState,
+  parsePlayerEscapeState,
+  type PlayerEscapeState,
+} from './escapeState';
 import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
@@ -85,6 +91,7 @@ import {
   requireShipUnrestRequest,
   requireUnrestDismissalRequest,
   requireSessionRequest,
+  requireEscapeRequest,
   requireAirspaceRequest,
   requireDisconnectRequest,
   requirePresenceRequest,
@@ -909,6 +916,40 @@ function requireNavigableShip(session: DocumentSnapshot, shipId: string): void {
   }
 }
 
+function playerAuthoritativeVesselId(player: DocumentSnapshot): string | undefined {
+  const replacementRoleId = player.get('replacementRoleId');
+  if (typeof replacementRoleId === 'string') {
+    return replacementRoleFor(replacementRoleId)?.vesselId;
+  }
+  return shipForRole(player.get('assignedRoleId')) ?? shipForRole(player.get('activeConsoleRoleId'));
+}
+
+function playerHoldsDestroyedShip(player: DocumentSnapshot, shipId: string): boolean {
+  return player.exists && player.get('role') === 'player' &&
+    playerAuthoritativeVesselId(player) === shipId;
+}
+
+function markPlayersForShipEscape(
+  tx: Transaction,
+  players: readonly DocumentSnapshot[],
+  shipId: string,
+  destructionEventId: string,
+  revision: number,
+): void {
+  for (const player of players) {
+    if (!playerHoldsDestroyedShip(player, shipId)) continue;
+    const existing = playerEscapeState(player);
+    // A repeated catastrophe is terminal and must not create a second escape
+    // transition. A player with an existing escape state is already awaiting
+    // the same explicit flee/reassignment path.
+    if (existing) continue;
+    tx.update(player.ref, {
+      escapeState: escapeStateForDestruction(shipId, destructionEventId, revision),
+      activeConsoleRoleId: null,
+    });
+  }
+}
+
 /** Wolf preparation must use the persisted setup tuple; role defaults are not authoritative here. */
 function authoritativeActiveVesselIdsForWolfPreparation(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeVesselIds');
@@ -1561,6 +1602,31 @@ function nextConnectionGeneration(player: DocumentSnapshot): number {
   return (current as number) + 1;
 }
 
+function playerEscapeState(player: Pick<DocumentSnapshot, 'get'>): PlayerEscapeState | undefined {
+  const raw = player.get('escapeState');
+  const parsed = parsePlayerEscapeState(raw);
+  if (raw !== undefined && raw !== null && !parsed) {
+    throw commandError(
+      'failed-precondition',
+      'This player escape state is malformed; refresh the live session before trying again.',
+      'malformed-input',
+    );
+  }
+  return parsed;
+}
+
+/** Player ship actions are revoked by the authoritative escape transition. */
+function requirePlayerShipActionAuthority(player: DocumentSnapshot): void {
+  if (player.get('role') !== 'player') return;
+  if (playerEscapeState(player)) {
+    throw commandError(
+      'failed-precondition',
+      'Flee the destroyed ship before taking another ship action.',
+      'conflict',
+    );
+  }
+}
+
 function isCanonicalAndroidPayload(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const payload = value as Record<string, unknown>;
@@ -1713,6 +1779,15 @@ async function reconcileReturningSeat(
 
   const seatRef = db.doc('sessions/' + sessionId + '/seats/' + storedSeatId);
   const seat = await tx.get(seatRef);
+  if (playerEscapeState(player)) {
+    // A pending/fled player may retain the historical seat pointer while the
+    // facilitator adjudicates the escape, but reconnect must never reclaim an
+    // open seat or turn that pointer back into console authority.
+    if (seat.exists && seat.get('status') === 'claimed' && seat.get('holderUid') === uid) {
+      return { seatId: storedSeatId, clearPointer: false, claimSeat: false };
+    }
+    return { seatId: null, clearPointer: true, claimSeat: false };
+  }
   if (!seat.exists && canonicalSeatIds.includes(storedSeatId)) {
     // Canonical setup hydration may be repairing this role-keyed seat in the
     // same transaction. Preserve a validated pointer and apply its claim only
@@ -5338,6 +5413,7 @@ export const assignReplacementRole = onCall<{
       replacementRoleId: assignment.replacementRoleId,
       activeConsoleRoleId: null,
       seatId: null,
+      ...(target.get('escapeState') !== undefined ? { escapeState: null } : {}),
     });
     if (targetSeatRef) tx.update(targetSeatRef, { status: 'open', holderUid: null, claimedAt: null });
     tx.set(db.doc(`sessions/${assignment.sessionId}/roleBriefs/${assignment.targetUid}`), privateBrief);
@@ -8065,6 +8141,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { replacementRoleId: playerSnap.get('replacementRoleId') } : {}),
         ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
           ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
+        ...(playerEscapeState(playerSnap) ? { escapeState: playerEscapeState(playerSnap) } : {}),
         activeConsoleRoleId:
           (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
         connectionGeneration: joinResult.connectionGeneration,
@@ -8329,6 +8406,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { replacementRoleId: playerSnap.get('replacementRoleId') } : {}),
       ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
         ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
+      ...(playerEscapeState(playerSnap) ? { escapeState: playerEscapeState(playerSnap) } : {}),
       activeConsoleRoleId:
         (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
       connectionGeneration: resumeResult.connectionGeneration,
@@ -10990,6 +11068,7 @@ export const popShipConfetti = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    requirePlayerShipActionAuthority(player);
     if (player.get('role') === 'gm' && (
       !activation.instanceId || !instance || !isLiveGmInstance(instance, player, uid) ||
       !grant || !hasGmShipConsoleWriteGrant(grant, activation.sessionId, activation.instanceId, uid, shipId)
@@ -11158,6 +11237,119 @@ export const getSessionPresence = onCall<{ sessionId?: string }>(async (request)
   return { connectedPlayers: connected.size };
 });
 
+type EscapeMutationResult = Readonly<{
+  status: 'committed' | 'replayed' | 'stale';
+  sessionId: string;
+  requestId: string;
+  targetUid: string;
+  shipId: string;
+  setupRevision: number;
+  escapeState?: PlayerEscapeState;
+}>;
+
+function isEscapeMutationResult(value: unknown, sessionId: string): value is EscapeMutationResult {
+  if (!isRecord(value)) return false;
+  return value.sessionId === sessionId && typeof value.requestId === 'string' &&
+    typeof value.targetUid === 'string' && typeof value.shipId === 'string' &&
+    (value.status === 'committed' || value.status === 'replayed' || value.status === 'stale') &&
+    Number.isSafeInteger(value.setupRevision) && (value.setupRevision as number) >= 0 &&
+    (value.escapeState === undefined || parsePlayerEscapeState(value.escapeState) !== undefined);
+}
+
+/** The affected player explicitly leaves the destroyed ship's station. */
+export const fleeDestroyedShip = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const decision = requireEscapeRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${decision.sessionId}`);
+  const playerRef = db.doc(`sessions/${decision.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(decision.sessionId, decision.requestId);
+  const eventRef = db.doc(`sessions/${decision.sessionId}/events/player-fled-${decision.requestId}`);
+  const fingerprint = vesselActionFingerprint(
+    'flee-destroyed-ship', decision.sessionId, decision.requestId, uid, null,
+    decision.expectedSetupRevision, {},
+  );
+  return db.runTransaction(async (tx): Promise<EscapeMutationResult> => {
+    const [session, player, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only the affected player may flee the destroyed ship.');
+    }
+    await rejectForeignLegacyM1Command(
+      tx, decision.sessionId, decision.requestId, 'escape transition', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is EscapeMutationResult => isEscapeMutationResult(value, decision.sessionId),
+      'escape transition',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    const currentState = playerEscapeState(player);
+    if (!currentState) {
+      throw commandError('failed-precondition', 'This player has no destroyed-ship escape to resolve.', 'conflict');
+    }
+    if (currentState.status === 'fled') {
+      throw commandError('failed-precondition', 'This player already fled the destroyed ship.', 'conflict');
+    }
+    const destroyed = shipDamage(session.get('shipDamage'))[currentState.shipId]?.destroyed === true;
+    if (!destroyed) {
+      throw commandError(
+        'failed-precondition',
+        'The destroyed-ship escape is no longer current; refresh the live session.',
+        'stale-revision',
+      );
+    }
+    const currentSetupRevision = setupRevision(session);
+    if (currentSetupRevision !== decision.expectedSetupRevision) {
+      const stale: EscapeMutationResult = {
+        status: 'stale', sessionId: decision.sessionId, requestId: decision.requestId,
+        targetUid: uid, shipId: currentState.shipId, setupRevision: currentSetupRevision,
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const storedSeatId = player.get('seatId');
+    const seatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+      ? db.doc(`sessions/${decision.sessionId}/seats/${storedSeatId}`) : undefined;
+    const seat = seatRef ? await tx.get(seatRef) : undefined;
+    if (seatRef && (!seat?.exists || seat.get('status') !== 'claimed' || seat.get('holderUid') !== uid)) {
+      throw commandError(
+        'failed-precondition',
+        'The player station pointer is stale; refresh before fleeing the destroyed ship.',
+        'unavailable-service',
+      );
+    }
+    const nextSetupRevision = currentSetupRevision + 1;
+    const nextState = fleePlayerEscapeState(currentState, decision.requestId);
+    const result: EscapeMutationResult = {
+      status: 'committed', sessionId: decision.sessionId, requestId: decision.requestId,
+      targetUid: uid, shipId: currentState.shipId, setupRevision: nextSetupRevision,
+      escapeState: nextState,
+    };
+    if (seatRef) tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
+    tx.update(playerRef, {
+      escapeState: nextState,
+      activeConsoleRoleId: null,
+      seatId: null,
+    });
+    tx.update(sessionRef, { setupRevision: nextSetupRevision, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'player-fled-destroyed-ship',
+      payload: { actorUid: uid, shipId: currentState.shipId, requestId: decision.requestId },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 /** Renew the short server-side lease that distinguishes live devices from ghosts. */
 export const refreshPresence = onCall<{
   sessionId?: string; activeConsoleRoleId?: string | null; instanceId?: string;
@@ -11261,6 +11453,13 @@ export const refreshPresence = onCall<{
     }
     else if (typeof activeConsoleRoleId === 'string') {
       const requestedRoleId = activeConsoleRoleId;
+      if (player.get('role') === 'player' && playerEscapeState(player)) {
+        throw commandError(
+          'failed-precondition',
+          'Flee the destroyed ship before selecting another console.',
+          'conflict',
+        );
+      }
       if (typeof player.get('replacementRoleId') === 'string') {
         throw commandError(
           'failed-precondition',
@@ -11729,6 +11928,13 @@ export const claimSeat = onCall<{
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(player)) {
           throw new HttpsError('permission-denied', 'Join the session first.');
+        }
+        if (player.get('role') === 'player' && playerEscapeState(player)) {
+          throw commandError(
+            'failed-precondition',
+            'Flee the destroyed ship before claiming another station.',
+            'conflict',
+          );
         }
         if (player.get('role') === 'gm') {
           throw new HttpsError('permission-denied', 'GMs cannot claim core seats.');
@@ -12208,6 +12414,7 @@ async function requireShipCounterAuthority(
   ]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+  requirePlayerShipActionAuthority(player);
   if (!activeVesselIdsForSession(session).includes(shipId)) {
     throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
   }
@@ -12262,6 +12469,7 @@ async function requireConsoleAuthority(
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
+  requirePlayerShipActionAuthority(player);
   if (player.get('role') !== 'gm' && !replacementAuthorityAllowsRole(replacementRoleId, targetRole)) {
     throw new HttpsError('permission-denied', 'The historical printed role is no longer active after replacement.');
   }
@@ -12823,6 +13031,18 @@ export const addShipDamage = onCall<{
       }
     }
     const newlyDestroyed = Boolean(destruction && !current.destroyed);
+    const affectedPlayers = newlyDestroyed
+      ? await tx.get(db.collection(`sessions/${change.sessionId}/players`))
+      : undefined;
+    if (newlyDestroyed && destruction) {
+      markPlayersForShipEscape(
+        tx,
+        affectedPlayers?.docs ?? [],
+        change.shipId,
+        destruction.eventId,
+        currentRevision + 1,
+      );
+    }
     if (!result.destroyed || newlyDestroyed) {
       tx.update(sessionRef, {
         [`shipDamage.${change.shipId}`]: result.state,
@@ -13604,6 +13824,7 @@ async function requireHummingbirdAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Quellon Explorer may operate Hummingbird harvesting.');
   }
+  requirePlayerShipActionAuthority(player);
   const activeRoleIds = configuredRoleIds(session);
   const activeRole = player.get('activeConsoleRoleId');
   if (activeRole !== 'quellon-explorer' || !activeRoleIds.includes('quellon-explorer') ||
@@ -14254,6 +14475,7 @@ async function requireVulcanLabourAuthority(
   if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
     throw new HttpsError('permission-denied', 'An active Vulcan Captain or GM is required.');
   }
+  requirePlayerShipActionAuthority(player);
   if (player.get('role') === 'gm') {
     if (!instanceId || !isLiveGmInstance(
       await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)), player, uid,
@@ -14727,6 +14949,9 @@ export const runMaintenance = onCall<{
     if (destruction && result.cycle.damageDrawId !== destruction.eventId) {
       result = { ...result, cycle: { ...result.cycle, damageDrawId: destruction.eventId } };
     }
+    const affectedPlayers = destruction && !currentDamage.destroyed
+      ? await tx.get(db.collection(`sessions/${data.sessionId}/players`))
+      : undefined;
     const populationThreshold = result.population !== population && populationTrackForShip(data.shipId)?.thresholds.includes(result.population);
     if ((unrest < 8 && result.unrest >= 8) || populationThreshold) {
       const instances = await tx.get(db.collection(`sessions/${data.sessionId}/gmInstances`));
@@ -14757,6 +14982,15 @@ export const runMaintenance = onCall<{
       'populationAlerts',
     ] : [];
     entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch, immutableFields) });
+    if (destruction && !currentDamage.destroyed) {
+      markPlayersForShipEscape(
+        tx,
+        affectedPlayers?.docs ?? [],
+        data.shipId,
+        destruction.eventId,
+        result.cycle.revision,
+      );
+    }
     const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
       ? player.get('activeConsoleRoleId') as string : null;
     const reply = {
@@ -15275,6 +15509,7 @@ export const publishPressDispatch = onCall<{
         'Only the active Press Officer may publish a fleet dispatch.',
       );
     }
+    requirePlayerShipActionAuthority(player);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');
@@ -15355,6 +15590,7 @@ export const dismissPressDispatch = onCall<{
         'Only the active Press Officer may dismiss a fleet dispatch.',
       );
     }
+    requirePlayerShipActionAuthority(player);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');

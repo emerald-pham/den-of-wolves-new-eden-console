@@ -39,6 +39,7 @@ import type {
   ShuttleVisit,
   ShipNavigationLogEntry,
   PlayerDiscoveryProjection,
+  PlayerEscapeState,
   SystemHistory,
   SystemHistoryEntry,
   SystemHistoryForShip,
@@ -1611,6 +1612,20 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     (data.connectionGeneration as number) >= 1
     ? data.connectionGeneration as number
     : undefined;
+  const parsedEscapeState = data.escapeState && typeof data.escapeState === 'object' &&
+    !Array.isArray(data.escapeState) &&
+    (data.escapeState.status === 'pending' || data.escapeState.status === 'fled') &&
+    typeof data.escapeState.shipId === 'string' &&
+    typeof data.escapeState.destructionEventId === 'string' &&
+    Number.isSafeInteger(data.escapeState.revision) && data.escapeState.revision >= 1
+    ? {
+      status: data.escapeState.status,
+      shipId: parseEntityId('vessel', data.escapeState.shipId),
+      destructionEventId: parseEntityId('event', data.escapeState.destructionEventId),
+      revision: data.escapeState.revision,
+      ...(typeof data.escapeState.fleeRequestId === 'string'
+        ? { fleeRequestId: data.escapeState.fleeRequestId } : {}),
+    } : undefined;
   return {
     uid: entityId('player', uid),
     sessionId: entityId('session', sessionId),
@@ -1622,6 +1637,8 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
     ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
     ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),
+    ...(parsedEscapeState?.shipId && parsedEscapeState.destructionEventId
+      ? { escapeState: parsedEscapeState as PlayerEscapeState } : {}),
     ...(typeof data.connected === 'boolean' ? { connected: data.connected } : {}),
     ...(parsedConnectionGeneration === undefined ? {} : {
       connectionGeneration: parsedConnectionGeneration,

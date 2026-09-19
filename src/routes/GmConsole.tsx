@@ -3319,7 +3319,9 @@ export default function GmConsole() {
                     <option value="">Select a player</option>
                     {replacementCandidates.map((player) => (
                       <option key={player.uid} value={player.uid}>
-                        {normalizeDisplayName(player.displayName)}{player.connected === false ? ' // offline' : ''}
+                        {normalizeDisplayName(player.displayName)}
+                        {player.escapeState ? ` // ESCAPE ${player.escapeState.status.toUpperCase()}` : ''}
+                        {player.connected === false ? ' // offline' : ''}
                       </option>
                     ))}
                   </select>

@@ -39,6 +39,7 @@ import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import RoleBrief from '@/routes/RoleBrief';
+import EscapeState from '@/routes/EscapeState';
 import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
@@ -104,6 +105,7 @@ function AppRoutes() {
   const playerUid = me?.uid;
   const playerRole = me?.role;
   const playerAuthority = playerAuthorityKey(me);
+  const escapeLocked = me?.role === 'player' && me.escapeState !== undefined && !me.replacementRoleId;
   const playerListenerGeneration = useRef(0);
   const playerListenerIdentity = useRef('');
   const appRoutesMounted = useRef(false);
@@ -653,10 +655,11 @@ function AppRoutes() {
             <PrivateLoyaltyPanel />
             <CrisisReportPanel />
             <AwayMissionDiscardPanel />
-            <Routes location={screen}>
+            {escapeLocked ? <EscapeState /> : <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
               <Route path="/brief" element={<RoleBrief />} />
+              <Route path="/escape" element={<EscapeState />} />
               <Route path="/gm" element={<GmConsole />} />
               <Route path="/console" element={<SessionMode mode="console" />} />
               <Route path="/press" element={<SessionMode mode="press" />} />
@@ -667,7 +670,7 @@ function AppRoutes() {
               <Route path="/ships/:shipId" element={<ShipConsole />} />
               <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
               <Route path="*" element={<NotFound />} />
-            </Routes>
+            </Routes>}
           </>
         )}
       </ScreenFade>

@@ -821,6 +821,17 @@ export interface Seat {
 
 export type PlayerRole = 'player' | 'gm' | 'observer';
 
+export type PlayerEscapeStatus = 'pending' | 'fled';
+
+/** Server-owned transition after the player's authoritative ship is destroyed. */
+export interface PlayerEscapeState {
+  readonly status: PlayerEscapeStatus;
+  readonly shipId: VesselId;
+  readonly destructionEventId: EventId;
+  readonly revision: number;
+  readonly fleeRequestId?: string;
+}
+
 export interface Player {
   readonly uid: PlayerId;
   readonly sessionId: SessionId;
@@ -841,6 +852,7 @@ export interface Player {
   readonly activeConsoleRoleId?: RoleId | null;
   /** Server-owned group identity used to scope the current operational roster; group documents remain private. */
   readonly fleetGroupId?: GroupId | null;
+  readonly escapeState?: PlayerEscapeState;
   readonly joinedAt: Timestamp;
 }
 
