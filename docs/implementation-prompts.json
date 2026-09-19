@@ -13823,7 +13823,7 @@
         "acceptance": "members receive only their current group's operational roster except for explicit facilitator access.",
         "title": "Project a group-local roster."
       },
-      "description": "The server-owned fleetGroupId now bounds ordinary connected-player roster reads to the caller's current group, while a connected GM retains the explicit full connected-roster view. Member queries include the server-owned group and connected predicates, malformed or stale group membership fails closed in rules, and listener errors clear the prior projection so a split, role change, demotion, or reconnect cannot leave old-group data on screen. The current release still has one canonical fleet-1 group; split creation/rejoin and independent group semantics remain owned by Prompts 336, 346–350 and the pending Prompt 107 decision.",
+      "description": "The server-owned fleetGroupId now bounds ordinary connected-player roster reads to the caller's current group, while a connected GM retains the explicit full connected-roster view. Member queries include the server-owned group and connected predicates, malformed or stale group membership fails closed in rules, and listener errors clear the prior projection so a split, role change, demotion, or reconnect cannot leave old-group data on screen. The current release still has one canonical fleet-1 group; split creation/rejoin and group-local isolation remain owned by Prompts 336 and 346–350. Prompt 107 is decided: all groups share one session cycle and phase clock; this timing policy does not grant cross-group roster access.",
       "evidenceIds": "E-AUDIT-337;E-337-GROUP-ROSTER",
       "hardContract": "none",
       "hardMilestone": "none",
