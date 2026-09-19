@@ -36,7 +36,7 @@ export default function EscapeState() {
   }
 
   return (
-    <main className="session-mode">
+    <main className="session-mode escape-state">
       <section className="session-mode__panel cic-frame" aria-labelledby="escape-state-title">
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title" id="escape-state-title">Escape state // ship destroyed</h1>

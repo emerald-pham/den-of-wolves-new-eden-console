@@ -3843,6 +3843,9 @@ body {
 .gm-role-group--independent { grid-column: 1 / -1; }
 
 @media (max-width: 720px) {
+  [data-escape-locked='true'] .screen-fade {
+    z-index: 5;
+  }
   .gm-role-preset,
   .gm-roster-draft { grid-template-columns: 1fr; }
   .gm-roster-draft .cic-action-button { width: 100%; }

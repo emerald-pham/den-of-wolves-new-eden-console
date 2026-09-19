@@ -674,6 +674,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "140e -> DESTROYED-SHIP-ESCAPE-STATE",
+      "id": "E-140E-VERIFIED",
+      "language": "The authoritative destruction transaction now places every assigned, replacement, or active-console holder of the destroyed vessel into escape state while preserving identity, private projections, retained resources, and craft. The route blocks destroyed-ship actions, exposes an explicit receipt-backed flee command with stable lost-ack replay, and leaves reassignment to the live facilitator; reassignment clears escape state and cannot send the player back to the destroyed vessel. Maintenance authority checks run before VIP and Union bypasses. Three hundred forty-two focused client and Functions tests pass after repair, including mixed-role, replacement-holder, maintenance-bypass, reconnect replay, and connection-generation regressions. Independent Terra review cleared exact candidate 5345abb4. Reduced-motion browser proof at 320x844, 390x844, 844x390, and 1440x900 verifies retained identity, a 44px flee control, the persistent ticker, no overflow, and narrow-screen content stacked above the local DRADIS.",
+      "source": "functions/src/index.ts; functions/src/escapeState.ts; functions/src/destructionEscapeCallable.test.ts; functions/src/escapeCallable.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/replacementCallable.test.ts; src/routes/EscapeState.tsx; src/routes/EscapeState.test.tsx; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/App.tsx; src/index.css; independent Terra review 5345abb4; /tmp/p140e-render/evidence.json; /tmp/p140e-render/*-escape.png",
+      "type": "evidence / production-path / authority / replay / accessibility / rendered"
+    },
+    {
       "direction": "140f -> 140d;361",
       "id": "E-AUDIT-140F",
       "language": "Retained craft state follows destruction and the authoritative manifest.",
@@ -8874,8 +8881,8 @@
         "acceptance": "affected players lose destroyed-ship actions, retain identity, and receive an authorized flee/reassignment path.",
         "title": "Move players into escape state."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140E",
+      "description": "The authoritative destruction path now moves every assigned, replacement, or active-console holder of the destroyed vessel into escape state while preserving identity and server-owned resources and craft. A dedicated route suspends destroyed-ship actions, provides a receipt-backed flee command with stable reconnect replay, and waits for explicit facilitator reassignment; reassignment clears escape state and rejects the destroyed vessel. Maintenance authority checks precede VIP and Union bypasses. Focused tests, independent Terra review, TypeScript builds, and responsive reduced-motion browser proof pass.",
+      "evidenceIds": "E-AUDIT-140E;E-140E-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140d",
@@ -8886,7 +8893,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

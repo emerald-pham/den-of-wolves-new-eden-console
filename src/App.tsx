@@ -630,7 +630,10 @@ function AppRoutes() {
     );
 
   return (
-    <div data-motion={reducedMotion ? 'reduce' : 'full'}>
+    <div
+      data-motion={reducedMotion ? 'reduce' : 'full'}
+      data-escape-locked={escapeLocked ? 'true' : undefined}
+    >
       <ShipPlot
         hostile={false}
         aboard={hasConsoleDradis(location.pathname)}
