@@ -174,7 +174,8 @@ it('replays a legacy admission without a stored request id after its activation 
   mock.documents.delete('sessions/s1/voyage33Arrival/current');
   mock.documents.delete('sessions/s1/voyage33Arrival/current/audit/admit-1');
   if (admission) {
-    const { requestId: _requestId, ...legacyAdmission } = admission;
+    const legacyAdmission = { ...admission };
+    delete legacyAdmission.requestId;
     mock.documents.set('sessions/s1/voyage33Admission/current', legacyAdmission);
   }
   await expect(admitVoyage33.run(request({ ...baseData, requestId: 'legacy-upgrade-1' })))
