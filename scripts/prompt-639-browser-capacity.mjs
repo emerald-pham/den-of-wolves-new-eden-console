@@ -107,7 +107,9 @@ async function verifyAndResetIsolation() {
   }
 
   const hub = await fetchJson(`http://127.0.0.1:${ports.hub}/emulators`);
-  const emulators = Array.isArray(hub.emulators) ? hub.emulators : [];
+  const emulators = Array.isArray(hub.emulators)
+    ? hub.emulators
+    : Object.values(hub).filter((emulator) => emulator?.name && Number.isSafeInteger(emulator.port));
   for (const [name, port] of Object.entries({ auth: ports.auth, functions: ports.functions, firestore: ports.firestore })) {
     assert(emulators.some((emulator) => emulator.name === name && emulator.port === port),
       `Firebase hub does not report ${name} on configured port ${port}.`);
