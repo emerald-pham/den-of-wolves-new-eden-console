@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**287 / 751 prompts complete (38.22%)**
+**288 / 751 prompts complete (38.35%)**
 
-Status breakdown: **287 done · 24 partial · 440 missing**.
+Status breakdown: **288 done · 24 partial · 439 missing**.
 
 Active prompt: **none**
 
@@ -1092,7 +1092,7 @@ release classification and evidence.
 | 614 | partial | non-feature | — | The existing ten-second heartbeat and 45-second lease boundary are covered, including one pending renewal at a time, a heartbeat winning the stale-query race, and independent same-UID GM browser expiry. A new batch regression expires twenty obsolete seat pointers while preserving all twenty replacement holders, their memberships, their seats, and session retention. Real concurrent emulator/load evidence remains outstanding; deterministic transaction fixtures do not establish production capacity. |
 | 615 | done | non-feature | — | Existing join and resume transactions reconcile the returning player's stored seat intent from a server read. An open seat is reclaimed, a seat already held by the same player is retained, and occupied or locked seats are left untouched while the obsolete pointer is cleared. Canonical missing seats are hydrated before reclaim writes. Focused regressions now explicitly prove no writes to another holder's seat; no runtime behavior changed in this verification. |
 | 616 | done | non-feature | — | The server now assigns a monotonic connection generation on session creation, new join, and every resume; persists it, returns the generation committed by that transaction, and requires the captured generation on disconnect. A delayed same-session cleanup or a legacy queued request without a generation acknowledges without mutating the renewed membership; malformed and exhausted stored generations fail closed. Normal matching cleanup, queued acknowledgement, 15-second expiry, and immediate local clearing remain covered by the lifecycle and outbox tests. Independent Terra follow-up cleared implementation SHA 1e35a222. Legacy generation-less cleanup is intentionally a safe no-op; old clients do not gain immediate server disconnect without the updated identity payload. No production deployment claim is included. |
-| 617 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 617 | done | non-feature | — | The persisted command outbox reconciles only after fresh server authority, expires entries outside the 15-second window (including malformed/future timestamps), and drops cache-derived or ambiguous legacy mutations. An explicit set of receipt-backed callable kinds can replay with stable request identity; extra payload fields cannot grant replay eligibility. GM/player removals now use transaction-bound actor/session/instance/target receipts, including narrowly authorized acknowledgement recovery after self-release removes its own GM instance. Generation-bound disconnect and state-idempotent cleanup remain compatible; GM credential logout intentionally remains retryable until acknowledged. Deployment is tracked separately. |
 | 618 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 618a | done | feature | — | The GM manifest now reattaches a failed realtime listener with capped retry delays and online/foreground recovery while retaining server-authorized projection refresh. Permission denial and missing-session failures stop recovery; cleanup suppresses stale listeners and late callable responses. A recovered manifest clears only its own communication error. Focused subscription and GM-route regressions, independent authority review, and phone/desktop/landscape production-component rendering verify recovery and preserved keyboard navigation. The reported screenshot does not establish the original transport cause. |
 | 619 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

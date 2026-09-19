@@ -5222,6 +5222,13 @@
       "language": "Prompt 146 is an explicit policy decision. Authorized shuttle and Wolf-attack references specify nearest-host docking without an equal-distance tie-break. The owner clarification is pending; record that dependency so this unselected rule does not appear implementation-ready. No gameplay behavior or completion status changes.",
       "source": "authorized routed shuttle and Wolf-attack references; docs/implementation-prompts.json Prompt 146; owner clarification request 2026-09-19",
       "type": "decision_owner"
+    },
+    {
+      "direction": "617 -> 012;089;616",
+      "id": "E-617-REPLAY-VERIFIED",
+      "language": "Runtime candidate f4b2601f includes stable receipt IDs for GM/player removals, exact bound transaction replay, active-member-only self-release acknowledgement recovery, closed callable-kind replay admission, and strict persisted timestamp expiry. Existing authority checkpoints reject cache-derived intent and stale session responses. Regressions reproduce lost ACK, replacement preservation, actor/target/membership rejection, invalid/future timestamps and unsupported kinds carrying extra request IDs. The initial two review defects failed before repair; 241 focused service/store/GM/guard tests and both TypeScript builds passed after repair; the final closed-kind regression failed before repair and 150 service/store tests passed afterward. Independent Terra cleared f0d5e04f and final material delta f4b2601f after mapping every PendingCommand variant; no deployment is claimed.",
+      "source": "src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/store/useSessionStore.ts; functions/src/index.ts; functions/src/gmSessionCallable.test.ts; functions/src/requestGuards.ts; functions/src/requestGuards.test.ts; existing private commandReceipts Firestore rules; independent Terra exact-candidate review f4b2601f",
+      "type": "evidence / authority"
     }
   ],
   "plan": {
@@ -21108,11 +21115,11 @@
         "acceptance": "pending commands expire/reconcile against authority and irreversible actions never duplicate after reconnect.",
         "title": "Reconcile the command outbox."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-617",
+      "description": "The persisted command outbox reconciles only after fresh server authority, expires entries outside the 15-second window (including malformed/future timestamps), and drops cache-derived or ambiguous legacy mutations. An explicit set of receipt-backed callable kinds can replay with stable request identity; extra payload fields cannot grant replay eligibility. GM/player removals now use transaction-bound actor/session/instance/target receipts, including narrowly authorized acknowledgement recovery after self-release removes its own GM instance. Generation-bound disconnect and state-idempotent cleanup remain compatible; GM credential logout intentionally remains retryable until acknowledged. Deployment is tracked separately.",
+      "evidenceIds": "E-AUDIT-617;E-617-REPLAY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "012;089",
+      "hardPromptPrerequisites": "012;089;616",
       "id": "617",
       "milestoneHints": "X",
       "relatedConsumes": "none",
@@ -21120,7 +21127,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
