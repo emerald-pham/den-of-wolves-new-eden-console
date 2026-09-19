@@ -471,11 +471,11 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "112 -> 111",
+      "direction": "112 -> 111; OWNER-SAME-TABLE-TRADE-INVENTORIES-CONSENT",
       "id": "E-AUDIT-112",
       "language": "A trade needs the authoritative typed resource ledgers.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
-      "type": "hard_prompt"
+      "type": "hard_prompt / decision_owner"
     },
     {
       "direction": "113 -> 111;164;361",
@@ -5180,6 +5180,13 @@
       "language": "Verified 2026-09-19 with 113 passing App, lifecycle and lifecycle-callable tests. The new twenty-candidate cleanup case proves stale UID pointers cause no writes to seats already held by fresh UIDs, no fresh membership deletion and no empty-session retention deadline. Existing tests prove the heartbeat race re-read, independent same-UID GM instance expiry, ten-second client renewal and prevention of overlapping slow renewal calls. This is deterministic behavior evidence only: real concurrent-load and latency measurements remain outstanding, so the prompt stays partial. No runtime changes or deployment claim.",
       "source": "src/App.tsx; src/App.test.tsx; functions/src/sessionLifecycle.ts; functions/src/sessionLifecycle.test.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/index.ts expireStalePlayers",
       "type": "evidence"
+    },
+    {
+      "direction": "117 -> OWNER-RATION-SPEND-BONUS-INTERPRETATION",
+      "id": "E-117-OWNER-DECISION-PENDING",
+      "language": "Readiness reconciliation 2026-09-19: the existing foundation regression matrix explicitly requires an owner decision for the ration wording conflict. The catalog previously had no decision owner and misleadingly appeared ready. Current maintenance rations code treats printed spend and selected-level bonus as distinct quantities, consistent with the authorized core/ship summaries; the owner question is pending. No rule, runtime behavior, or completed status changes here. Prompt 112 receives the corresponding owner marker already required by its preserved inventory/consent blocker; no new trade restriction is introduced.",
+      "source": "docs/FOUNDATION_REGRESSION_MATRIX.md Prompt 117; functions/src/maintenance.ts rations branch; docs/implementation-prompts.json Prompt 112 preserved description; owner clarification request 2026-09-19",
+      "type": "decision_owner"
     }
   ],
   "plan": {
@@ -7956,7 +7963,7 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-SAME-TABLE-TRADE-INVENTORIES-CONSENT",
       "definition": {
         "acceptance": "a legal local exchange commits atomically and an overdraw, wrong location, or stale trade leaves both sides unchanged.",
         "title": "Resolve same-table trades."
@@ -8073,13 +8080,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-RATION-SPEND-BONUS-INTERPRETATION",
       "definition": {
         "acceptance": "the chosen interpretation distinguishes spend from bonus, is source-linked, and is fixed before product controls ship.",
         "title": "Resolve the ration-table wording conflict."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Awaiting the owner decision required by the existing foundation matrix. Current maintenance code separately spends the vessel-table food/water amounts and adds the two selected level bonuses to the unrest roll; the authorized rules summaries support that distinction. The owner has been asked to confirm this interpretation. Keep the prompt and its dependent ration work unresolved until that answer is recorded; existing runtime behavior is not evidence of owner approval.",
+      "evidenceIds": "E-117-OWNER-DECISION-PENDING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
