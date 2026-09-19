@@ -53,6 +53,51 @@ function messageLabel(message: FleetMessage): string {
   return [message.text, message.pressText].filter(Boolean).join(' // ');
 }
 
+function uniqueMessages(messages: readonly (FleetMessage | undefined)[]): FleetMessage[] {
+  const byId = new Map<string, FleetMessage>();
+  for (const message of messages) {
+    if (message) byId.set(message.id, message);
+  }
+  return [...byId.values()];
+}
+
+interface PlaybackPlan {
+  readonly fallback: FleetMessage | undefined;
+  readonly queue: readonly FleetMessage[];
+}
+
+/**
+ * Project the authoritative source pool into presentation order. A source-aware
+ * projection may still contain an ATC fallback behind Press, but ATC must never
+ * be scheduled as a new moving or reduced-motion instance while Press exists.
+ * Already-painted groups are retained by the moving renderer separately.
+ */
+function playbackPlan(
+  message: FleetMessage | undefined,
+  fallback: FleetMessage | undefined,
+  queue: readonly FleetMessage[],
+): PlaybackPlan {
+  const candidates = uniqueMessages([message, fallback, ...queue]);
+  const sourceAware = candidates.some((candidate) => candidate.source !== undefined);
+  if (!sourceAware || message?.source === undefined) return { fallback, queue };
+
+  if (message.source === 'admiral') return { fallback: undefined, queue: [] };
+
+  const pressPool = uniqueMessages(candidates.filter((candidate) => candidate.source === 'press'));
+  if (pressPool.length > 0) {
+    const nextPress = pressPool.find((candidate) => candidate.id !== message.id);
+    return {
+      fallback: fallback?.source === 'press' ? fallback : nextPress,
+      queue: pressPool.filter((candidate) => candidate.id !== message.id),
+    };
+  }
+
+  // A lone Press message remains the active pool until the server changes it;
+  // an ATC fallback must not be promoted by a local presentation timeout.
+  if (message.source === 'press') return { fallback: undefined, queue: [] };
+  return { fallback, queue };
+}
+
 function messageSignature(message: FleetMessage | undefined): string {
   if (!message) return '';
   return [
@@ -92,12 +137,14 @@ function writeCompletedPasses(message: FleetMessage, completed: number): void {
   }
 }
 
-function MessageCopy({ message, copyRef }: {
+function MessageCopy({ message, copyRef, copyInstanceId }: {
   readonly message: FleetMessage;
   readonly copyRef?: Ref<HTMLSpanElement>;
+  readonly copyInstanceId?: string;
 }) {
   return (
-    <span ref={copyRef} className="fleet-ticker__copy">
+    <span ref={copyRef} className="fleet-ticker__copy"
+      {...(copyInstanceId === undefined ? {} : { 'data-copy-instance-id': copyInstanceId })}>
       {message.text}<span className="fleet-ticker__separator"> // </span>
       {message.pressText && (
         <span className="fleet-ticker__press">
@@ -119,7 +166,8 @@ function StationaryMessage({ message, fallback, queue = [], onMessageComplete }:
   const [traversalDurationMs, setTraversalDurationMs] = useState(4_000);
   const windowRef = useRef<HTMLDivElement>(null);
   const messageRef = useRef<HTMLParagraphElement>(null);
-  const hasQueuedNext = queue.length > 0 || fallback?.source !== undefined;
+  const plan = playbackPlan(message, fallback, queue);
+  const hasQueuedNext = plan.queue.length > 0 || plan.fallback?.source !== undefined;
   const done = expired || (message.passes !== undefined && completed >= message.passes)
     || (message.passes === undefined && hasQueuedNext && completed >= 1);
 
@@ -163,7 +211,7 @@ function StationaryMessage({ message, fallback, queue = [], onMessageComplete }:
       setCompleted((value) => Math.min(message.passes!, value + 1));
     }, duration);
     return () => window.clearTimeout(timer);
-  }, [done, hasQueuedNext, message.id, message.passes, onMessageComplete, traversalDurationMs]);
+  }, [completed, done, hasQueuedNext, message.id, message.passes, onMessageComplete, traversalDurationMs]);
 
   useEffect(() => {
     if (!message.expiresAt) return undefined;
@@ -173,25 +221,16 @@ function StationaryMessage({ message, fallback, queue = [], onMessageComplete }:
   }, [message.expiresAt]);
 
   useEffect(() => {
-    if (done || message.passes === undefined) return;
-    const timer = window.setInterval(() => setCompleted((value) => value + 1), 30_000);
-    return () => window.clearInterval(timer);
-  }, [done, message.passes]);
-
-  useEffect(() => {
     if (message.passes === undefined) return;
     writeCompletedPasses(message, completed);
   }, [completed, message]);
 
   if (done) {
-    const next = [fallback, ...queue].find((candidate) => candidate && candidate.id !== message.id);
+    const next = [plan.fallback, ...plan.queue]
+      .find((candidate) => candidate && candidate.id !== message.id);
     return next
       ? <StationaryMessage key={messageSignature(next)} message={next}
-          {...(queue.length === 0 && message.source !== 'press' ? {} : {
-            queue: message.source === 'press'
-              ? [...queue.filter((candidate) => candidate.id !== next.id), message]
-              : (fallback ? queue.filter((candidate) => candidate.id !== next.id) : queue.slice(1)),
-          })}
+          queue={uniqueMessages([...plan.queue, message]).filter((candidate) => candidate.id !== next.id)}
           {...(onMessageComplete ? { onMessageComplete } : {})} />
       : null;
   }
@@ -304,11 +343,8 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   ), []);
 
   const pressPool = useCallback((): readonly FleetMessage[] => {
-    const byId = new Map<string, FleetMessage>();
-    for (const candidate of [input.current.message, ...input.current.queue]) {
-      if (candidate?.source === 'press') byId.set(candidate.id, candidate);
-    }
-    return [...byId.values()];
+    return uniqueMessages([input.current.message, input.current.fallback, ...input.current.queue]
+      .filter((candidate) => candidate?.source === 'press'));
   }, []);
 
   const nextPressMessage = useCallback((completedId: string): FleetMessage | undefined => {
@@ -318,6 +354,10 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     if (index < 0) return pool[0];
     return pool[(index + 1) % pool.length];
   }, [pressPool]);
+
+  const planFor = useCallback((nextMessage: FleetMessage | undefined): PlaybackPlan => (
+    playbackPlan(nextMessage, input.current.fallback, input.current.queue)
+  ), []);
 
   const relativeRight = useCallback((group: MovingGroup): number => {
     const element = groupElements.current.get(group.key);
@@ -463,9 +503,10 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     const serverMessageChanged = lastServerMessageId.current !== inputMessage?.id;
     lastServerMessageId.current = inputMessage?.id;
     let nextMessage = requestedMessage ?? requestedFallback ?? queue[0];
+    const plan = playbackPlan(nextMessage, requestedFallback, queue);
     if (nextMessage?.passes !== undefined
       && readCompletedPasses(nextMessage) >= nextMessage.passes) {
-      nextMessage = requestedFallback ?? queue[0];
+      nextMessage = requestedFallback ?? plan.fallback ?? plan.queue[0];
     }
     const localPressStillEligible = activeMessage.current?.source === 'press'
       && pressPool().some((candidate) => candidate.id === activeMessage.current?.id);
@@ -498,13 +539,13 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
       nextGroups = appendGroups(nextGroups, nextMessage, passCount, geometry);
 
     }
-    if (nextMessage?.passes !== undefined && requestedFallback &&
-        !hasMessageGroup(nextGroups, requestedFallback)) {
-      const fallbackGeometry = geometryFor(requestedFallback, fallbackProbeRef.current);
-      nextGroups = appendGroups(nextGroups, requestedFallback, 2, fallbackGeometry);
+    if (nextMessage?.passes !== undefined && plan.fallback &&
+        !hasMessageGroup(nextGroups, plan.fallback)) {
+      const fallbackGeometry = geometryFor(plan.fallback, probeFor(plan.fallback));
+      nextGroups = appendGroups(nextGroups, plan.fallback, 2, fallbackGeometry);
     }
 
-    const queuedAfterCurrent = queue.filter((queuedMessage) =>
+    const queuedAfterCurrent = plan.queue.filter((queuedMessage) =>
       queuedMessage.id !== nextMessage?.id);
     for (const queuedMessage of queuedAfterCurrent) {
       if (hasMessageGroup(nextGroups, queuedMessage)) continue;
@@ -555,13 +596,14 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
       writeCompletedPasses(ended.message, completed);
       if (completed >= ended.message.passes
         && messageSignature(activeMessage.current) === messageSignature(ended.message)) {
-        const nextMessage = input.current.fallback ?? input.current.queue[0];
+        const plan = planFor(input.current.message);
+        const nextMessage = plan.fallback ?? plan.queue[0];
         activeMessage.current = nextMessage;
         setAnnouncedMessage(nextMessage);
         if (nextMessage && !nextGroups.some((group) => (
           messageSignature(group.message) === messageSignature(nextMessage)
         ))) {
-          const geometry = geometryFor(nextMessage, fallbackProbeRef.current);
+          const geometry = geometryFor(nextMessage, probeFor(nextMessage));
           nextGroups = appendGroups(nextGroups, nextMessage, 2, geometry);
         }
       }
@@ -594,7 +636,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     }
 
     setGroups(nextGroups);
-  }, [appendGroups, geometryFor, nextPressMessage, onMessageComplete, probeFor, setGroups]);
+  }, [appendGroups, geometryFor, nextPressMessage, onMessageComplete, planFor, probeFor, setGroups]);
 
   const waitingForLayout = processedKey !== inputKey;
   if (!announcedMessage && groups.length === 0 && !waitingForLayout) {
@@ -626,6 +668,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
             };
             return (
               <span className="fleet-ticker__group" data-message-id={group.message.id}
+                data-instance-id={`${group.message.id}:${group.key}`}
                 data-tone={group.message.tone} data-gap={group.message.gap ?? 'standard'}
                 key={group.key} style={style}
                 ref={(element) => {
@@ -634,7 +677,8 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
                 }}
                 onAnimationEnd={() => finishGroup(group.key)}>
                 {Array.from({ length: group.copyCount }, (_, index) => (
-                  <MessageCopy message={group.message} key={index} />
+                  <MessageCopy message={group.message} key={index}
+                    copyInstanceId={`${group.message.id}:${group.key}:${index}`} />
                 ))}
               </span>
             );

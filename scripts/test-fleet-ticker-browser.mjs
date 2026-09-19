@@ -304,18 +304,22 @@ async function assertTickerGeometry(page, label, reducedMotion) {
     if (!frame) return { reduced, error: 'ticker frame missing' };
 
     const samples = [];
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < 18; index += 1) {
       await waitFrame();
       const frameBounds = frame.getBoundingClientRect();
-      const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group, groupIndex) => {
+      const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
         const bounds = group.getBoundingClientRect();
         return {
-          id: `${group.getAttribute('data-message-id') ?? ''}:${groupIndex}`,
+          id: group.getAttribute('data-instance-id') ?? '',
+          messageId: group.getAttribute('data-message-id') ?? '',
           left: bounds.left,
           right: bounds.right,
           width: bounds.width,
           top: bounds.top,
           bottom: bounds.bottom,
+          elapsed: performance.now(),
+          copyIds: [...group.querySelectorAll('.fleet-ticker__copy')]
+            .map((copy) => copy.getAttribute('data-copy-instance-id')),
         };
       }).filter((group) => group.width > 0 && group.bottom > frameBounds.top && group.top < frameBounds.bottom);
       samples.push({ frame: { left: frameBounds.left, right: frameBounds.right }, groups });
@@ -332,6 +336,9 @@ async function assertTickerGeometry(page, label, reducedMotion) {
     }
 
     const overlap = [];
+    const stablePhysicalInstances = samples.every((sample) => sample.groups.every((group) => (
+      group.id.length > 0 && group.copyIds.every((copyId) => typeof copyId === 'string' && copyId.length > 0)
+    )));
     for (const sample of samples) {
       const ordered = [...sample.groups].sort((left, right) => left.left - right.left);
       for (let index = 1; index < ordered.length; index += 1) {
@@ -347,21 +354,26 @@ async function assertTickerGeometry(page, label, reducedMotion) {
     for (const sample of samples) {
       for (const group of sample.groups) {
         const entries = tracks.get(group.id) ?? [];
-        entries.push(group.left);
+        entries.push(group);
         tracks.set(group.id, entries);
       }
     }
-    const movingTrack = [...tracks.values()].find((positions) => positions.length >= 4);
-    const speedDeltas = movingTrack?.slice(1).map((left, index) => left - movingTrack[index]) ?? [];
-    const maxDelta = speedDeltas.length > 0 ? Math.max(...speedDeltas) : 0;
-    const minDelta = speedDeltas.length > 0 ? Math.min(...speedDeltas) : 0;
+    const velocitySamples = [];
+    for (const positions of tracks.values()) {
+      for (let index = 1; index < positions.length; index += 1) {
+        const elapsed = positions[index].elapsed - positions[index - 1].elapsed;
+        if (elapsed > 0) velocitySamples.push((positions[index].left - positions[index - 1].left) / elapsed * 1_000);
+      }
+    }
+    const speedStable = velocitySamples.length >= 8 && velocitySamples.every((speed) => speed >= -64 && speed <= -32);
     return {
       reduced,
       sampleCount: samples.length,
       overlap,
-      movingTrackSamples: movingTrack?.length ?? 0,
-      speedDeltas,
-      speedStable: speedDeltas.length >= 3 && maxDelta < 0.5 && minDelta > -4,
+      stablePhysicalInstances,
+      movingTrackSamples: Math.max(0, ...[...tracks.values()].map((positions) => positions.length)),
+      velocitySamples,
+      speedStable,
       samples,
     };
   }, { reduced: reducedMotion });
@@ -381,7 +393,10 @@ async function assertTickerGeometry(page, label, reducedMotion) {
   if (snapshot.overlap.length > 0) {
     throw new Error(`${label}: ticker groups overlap during rAF geometry sampling: ${JSON.stringify(snapshot.overlap[0])}`);
   }
-  if (snapshot.movingTrackSamples < 4 || !snapshot.speedStable) {
+  if (!snapshot.stablePhysicalInstances) {
+    throw new Error(`${label}: ticker did not expose stable physical group and copy identities`);
+  }
+  if (snapshot.movingTrackSamples < 8 || !snapshot.speedStable) {
     throw new Error(`${label}: ticker did not maintain a measurable constant linear track: ${JSON.stringify(snapshot)}`);
   }
 }
@@ -397,9 +412,9 @@ async function runTickerLifecycleCase() {
   const artifactPath = path.join(artifactDirectory, 'ticker-lifecycle-normal.json');
   const lifecycle = {
     pressOne: { id: 'lifecycle-press-1', source: 'press', text: 'SNN // ONE', tone: 'normal', gap: 'long' },
-    pressTwo: { id: 'lifecycle-press-2', source: 'press', text: 'SNN // TWO', tone: 'normal', gap: 'long' },
-    aegis: { id: 'lifecycle-aegis', source: 'admiral', text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger', gap: 'long' },
-    standDown: { id: 'lifecycle-stand-down', source: 'automatic', text: 'AEGIS // STAND DOWN', tone: 'normal', passes: 2, gap: 'long' },
+    pressTwo: { id: 'lifecycle-press-2', source: 'press', text: 'SNN // TWO', tone: 'normal', gap: 'standard' },
+    aegis: { id: 'lifecycle-aegis', source: 'admiral', text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger', gap: 'standard' },
+    standDown: { id: 'lifecycle-stand-down', source: 'automatic', text: 'AEGIS // STAND DOWN', tone: 'normal', passes: 2, gap: 'standard' },
   };
   const samples = [];
 
@@ -419,41 +434,78 @@ async function runTickerLifecycleCase() {
       return status?.getAttribute('aria-label')?.includes(expected) ?? false;
     }, text, { timeout });
   };
-  const captureGeometry = async (label, { targetId, traversals = 1 } = {}) => {
+  const captureGeometry = async (label, {
+    targetId, traversals = 1, requiredExits = 2, handoffId,
+  } = {}) => {
     console.log(`Ticker lifecycle capture started: ${label}`);
-    const result = await page.evaluate(async ({ name, expectedId, passCount }) => {
+    const result = await page.evaluate(async ({ name, expectedId, passCount, exitsNeeded, observedId }) => {
       const host = document.querySelector('#ticker-lifecycle-harness');
       const frame = host?.querySelector('.fleet-ticker__window');
       if (!frame) return { label: name, error: 'frame missing' };
       const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
       const rows = [];
-      const firstTarget = expectedId
-        ? frame.querySelector(`[data-message-id="${expectedId}"]`)
-        : frame.querySelector('.fleet-ticker__group');
-      const durationSeconds = firstTarget
-        ? Number.parseFloat(getComputedStyle(firstTarget).animationDuration)
+      const endpointEvents = [];
+      const endpointListener = (event) => {
+        const group = event.target instanceof Element
+          ? event.target.closest('.fleet-ticker__group') : null;
+        if (!group || !frame.contains(group)) return;
+        const bounds = group.getBoundingClientRect();
+        const frameBounds = frame.getBoundingClientRect();
+        endpointEvents.push({
+          id: group.getAttribute('data-instance-id') ?? '',
+          messageId: group.getAttribute('data-message-id') ?? '',
+          phase: 'exit', left: bounds.left, right: bounds.right,
+          frameLeft: frameBounds.left, frameRight: frameBounds.right,
+          elapsed: performance.now(),
+        });
+      };
+      document.addEventListener('animationend', endpointListener, true);
+      await (async () => {
+        for (let index = 0; index < 120; index += 1) {
+          const candidate = expectedId
+            ? frame.querySelector(`[data-message-id="${expectedId}"]`)
+            : frame.querySelector('.fleet-ticker__group');
+          if (candidate) return candidate;
+          await waitFrame();
+        }
+        return null;
+      })();
+      const targetGroups = expectedId
+        ? [...frame.querySelectorAll(`[data-message-id="${expectedId}"]`)]
+        : [...frame.querySelectorAll('.fleet-ticker__group')];
+      targetGroups.forEach((group) => group.addEventListener('animationend', endpointListener, { capture: true }));
+      const durationSeconds = targetGroups.length > 0
+        ? Math.max(...targetGroups.map((group) => Number.parseFloat(getComputedStyle(group).animationDuration)))
         : Number.NaN;
       const budget = Number.isFinite(durationSeconds)
-        ? Math.max(2_000, (durationSeconds * 1_000 * passCount) + 1_000)
+        ? Math.max(2_000, (durationSeconds * 1_000) + 2_000)
         : 12_000;
       const startedAt = performance.now();
       let frameCount = 0;
       while (performance.now() - startedAt < budget) {
         await waitFrame();
         frameCount += 1;
-        if (frameCount % 6 !== 0) continue;
+        if (frameCount % 3 !== 0) continue;
         const frameBounds = frame.getBoundingClientRect();
-        const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group, groupIndex) => {
+        const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
           const bounds = group.getBoundingClientRect();
           return {
-            id: `${group.getAttribute('data-message-id') ?? ''}:${groupIndex}`,
+            id: group.getAttribute('data-instance-id') ?? '',
             messageId: group.getAttribute('data-message-id') ?? '',
             left: bounds.left, right: bounds.right, width: bounds.width,
+            startX: Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-start-x')),
+            groupWidth: Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-group-width')),
             elapsed: performance.now(),
           };
-        }).filter((group) => group.width > 0);
+        }).filter((group) => group.id && group.width > 0);
         rows.push({ frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
+        const completedExits = new Set(endpointEvents
+          .filter((event) => !expectedId || event.messageId === expectedId)
+          .map((event) => event.id));
+        if (completedExits.size >= exitsNeeded) break;
       }
+      document.removeEventListener('animationend', endpointListener, true);
+      targetGroups.forEach((group) => group.removeEventListener('animationend', endpointListener, { capture: true }));
       const overlap = [];
       const velocitySamples = [];
       const tracks = new Map();
@@ -479,25 +531,88 @@ async function runTickerLifecycleCase() {
       const targetRows = expectedId
         ? rows.flatMap((sample) => sample.groups.filter((group) => group.messageId === expectedId))
         : rows.flatMap((sample) => sample.groups);
+      const targetInstances = [...new Set(targetRows.map((group) => group.id))].map((id) => {
+        const track = targetRows.filter((group) => group.id === id);
+        const exit = endpointEvents.find((event) => event.id === id);
+        const first = track[0];
+        const last = track.at(-1);
+        return {
+          id,
+          messageId: first?.messageId,
+          startX: first?.startX,
+          groupWidth: first?.groupWidth,
+          firstLeft: first?.left,
+          lastRight: last?.right,
+          entered: track.some((group) => group.left < (rows[0]?.frameRight ?? Infinity)),
+          exited: Boolean(exit) || track.some((group) => group.right <= (rows[0]?.frameLeft ?? -Infinity) + 1),
+          exit,
+        };
+      });
+      const targetExitCount = targetInstances.filter((instance) => instance.exited).length;
+      const handoffTracks = observedId
+        ? [...new Set(rows.flatMap((sample) => sample.groups
+          .filter((group) => group.messageId === observedId).map((group) => group.id)))].map((id) => ({
+            id,
+            samples: rows.flatMap((sample) => sample.groups.filter((group) => group.id === id)),
+          }))
+        : [];
+      const targetIds = targetInstances.map((instance) => instance.id);
+      const secondTargetId = targetIds[1];
+      const secondTargetExit = endpointEvents.find((event) => event.id === secondTargetId);
+      const handoffEntry = handoffTracks.flatMap((track) => {
+        const frameRight = rows[0]?.frameRight ?? Infinity;
+        const beganOffscreen = (track.samples[0]?.left ?? -Infinity) >= frameRight - 1;
+        const entry = beganOffscreen
+          ? track.samples.find((group) => group.left < frameRight)
+          : undefined;
+        return entry ? [{ ...entry, id: track.id }] : [];
+      }).sort((left, right) => left.elapsed - right.elapsed)[0];
       return {
         label: name,
         targetId: expectedId,
         traversals: passCount,
+        requiredExits: exitsNeeded,
+        expectedEndpointTolerancePx: 2,
         durationSeconds,
         sampleCount: rows.length,
         rows,
         overlap,
         targetSamples: targetRows.length,
+        targetInstances,
+        targetExitCount,
+        endpointValid: targetInstances.filter((instance) => instance.exited).length >= exitsNeeded &&
+          targetInstances.filter((instance) => instance.exited).every((instance) => {
+          const frameWidth = (rows[0]?.frameRight ?? 0) - (rows[0]?.frameLeft ?? 0);
+          return Number.isFinite(instance.startX) && instance.startX >= frameWidth - 2 &&
+            instance.exited && (!instance.exit || instance.exit.right <= instance.exit.frameLeft + 2);
+          }),
+        endpointEvents,
+        handoff: observedId ? {
+          observedId,
+          entry: handoffEntry ?? null,
+          secondTargetId,
+          secondTargetExit: secondTargetExit ?? null,
+          enteredBeforeSecondExit: Boolean(handoffEntry && secondTargetExit &&
+            handoffEntry.elapsed < secondTargetExit.elapsed),
+        } : null,
         velocitySamples,
       };
-    }, { name: label, expectedId: targetId, passCount: traversals });
+    }, {
+      name: label, expectedId: targetId, passCount: traversals,
+      exitsNeeded: requiredExits, observedId: handoffId,
+    });
     samples.push(result);
     console.log(`Ticker lifecycle capture sampled: ${label} (${Math.round((result.durationSeconds ?? 0) * 1_000)}ms, ${result.sampleCount} samples)`);
     if (result.error) throw new Error(`lifecycle/${label}: ${result.error}`);
-    if (result.targetSamples < 8) throw new Error(`lifecycle/${label}: target was not sampled across its traversal: ${JSON.stringify(result)}`);
+    if (result.targetSamples < 8 || result.targetInstances.length < result.requiredExits) throw new Error(`lifecycle/${label}: target was not sampled across its full physical instances: ${JSON.stringify(result)}`);
+    if (result.targetExitCount < result.requiredExits) throw new Error(`lifecycle/${label}: target did not prove ${result.requiredExits} complete left exits: ${JSON.stringify(result)}`);
+    if (!result.endpointValid) throw new Error(`lifecycle/${label}: target endpoints did not begin beyond the right edge and finish beyond the left edge: ${JSON.stringify(result.targetInstances)}`);
+    if (handoffId && !result.handoff?.enteredBeforeSecondExit) throw new Error(`lifecycle/${label}: ${handoffId} did not enter behind the second target tail before that tail exited: ${JSON.stringify(result.handoff)}`);
     if (result.overlap.length > 0) throw new Error(`lifecycle/${label}: groups overlap: ${JSON.stringify(result.overlap[0])}`);
-    const measuredVelocity = result.velocitySamples.filter((speed) => speed < -35 && speed > -60);
-    if (measuredVelocity.length < 8) throw new Error(`lifecycle/${label}: movement was not normalized to the 48px/s track: ${JSON.stringify(result)}`);
+    if (result.velocitySamples.length < 8 || result.velocitySamples.some((speed) => speed < -64 || speed > -32)) {
+      const speeds = result.velocitySamples;
+      throw new Error(`lifecycle/${label}: movement was not normalized to the 48px/s track: samples=${speeds.length}, min=${Math.min(...speeds)}, max=${Math.max(...speeds)}`);
+    }
   };
 
   try {
@@ -515,24 +630,22 @@ async function runTickerLifecycleCase() {
       window.__tickerLifecycleSet = (props) => root.render(React.createElement(FleetTicker, props));
     });
     await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
-    await waitForText(lifecycle.pressOne.text, 10_000);
-    await captureGeometry('press-one', { targetId: lifecycle.pressOne.id });
+    await captureGeometry('press-one', { targetId: lifecycle.pressOne.id, requiredExits: 1 });
 
     await setTicker(lifecycle.aegis, [lifecycle.pressOne, lifecycle.pressTwo]);
+    await captureGeometry('aegis', { targetId: lifecycle.aegis.id, requiredExits: 1 });
     await waitForText(lifecycle.aegis.text, 10_000);
-    await captureGeometry('aegis', { targetId: lifecycle.aegis.id });
 
     await setTicker(lifecycle.standDown, [lifecycle.pressOne, lifecycle.pressTwo], lifecycle.pressOne);
-    await waitForText(lifecycle.standDown.text, 10_000);
-    await captureGeometry('stand-down-copy-one', { targetId: lifecycle.standDown.id, traversals: 2 });
+    await captureGeometry('stand-down-two-passes', {
+      targetId: lifecycle.standDown.id, traversals: 2, requiredExits: 2,
+      handoffId: lifecycle.pressOne.id,
+    });
     await waitForText(lifecycle.pressOne.text);
-    await captureGeometry('after-two-stand-down-passes', { targetId: lifecycle.pressTwo.id });
 
     await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
     await waitForText(lifecycle.pressTwo.text);
-    await captureGeometry('press-two-rotation', { targetId: lifecycle.pressTwo.id });
     await waitForText(lifecycle.pressOne.text);
-    await captureGeometry('press-one-rotation', { targetId: lifecycle.pressOne.id });
     await mkdir(artifactDirectory, { recursive: true });
     await writeFile(artifactPath, `${JSON.stringify(samples, null, 2)}\n`);
     console.log(`Ticker lifecycle browser proof passed: ${artifactPath}`);

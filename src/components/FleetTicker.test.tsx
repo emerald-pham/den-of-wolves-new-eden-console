@@ -83,6 +83,25 @@ it('rotates the authoritative Press pool while visible groups finish naturally',
   finishMovingPasses(view.container, second.id);
   expect(screen.getByRole('status', { name: first.text })).toBeVisible();
 });
+it('keeps queued ATC as fallback while Press owns the moving pool', () => {
+  const first = {
+    id: 'press-pool-with-atc-1', text: 'SNN // FIRST REPORT', tone: 'normal' as const, source: 'press' as const,
+  };
+  const second = {
+    id: 'press-pool-with-atc-2', text: 'SNN // SECOND REPORT', tone: 'normal' as const, source: 'press' as const,
+  };
+  const atc = {
+    id: 'airspace-fallback', text: 'AIRSPACE CONTROL // AIRSPACE CLOSED', tone: 'normal' as const,
+    source: 'automatic' as const,
+  };
+  const view = render(<FleetTicker message={first} queue={[second, atc]} />);
+
+  expect(view.container.querySelectorAll(`[data-message-id="${atc.id}"]`)).toHaveLength(0);
+  finishMovingPasses(view.container, first.id);
+  finishMovingPasses(view.container, second.id);
+  expect(screen.getByRole('status', { name: first.text })).toBeVisible();
+  expect(view.container.querySelectorAll(`[data-message-id="${atc.id}"]`)).toHaveLength(0);
+});
 it('does not duplicate a queued identity when its current message is replaced', () => {
   const queued = {
     id: 'queued-press-replacement', text: 'SNN // QUEUED REPORT', tone: 'normal' as const,
@@ -276,6 +295,18 @@ it('announces two geometry-timed reduced-motion copies before advancing', () => 
   act(() => vi.advanceTimersByTime(60_000));
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
+it('does not use a 30-second interval to shorten a long reduced-motion pass', () => {
+  vi.useFakeTimers(); setMotionOverride('reduce');
+  const longText = `AEGIS // ${'LONG COPY '.repeat(22)}`;
+  render(<FleetTicker message={{ id: 'reduced-long-pass', text: longText, tone: 'normal', passes: 2 }} />);
+
+  act(() => vi.advanceTimersByTime(30_000));
+  expect(screen.getByRole('status')).toHaveAttribute('aria-label', expect.stringContaining('copy 1 of 2'));
+  act(() => vi.advanceTimersByTime(15_000));
+  expect(screen.getByRole('status')).toHaveAttribute('aria-label', expect.stringContaining('copy 2 of 2'));
+  act(() => vi.advanceTimersByTime(50_000));
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
 it('rotates a queued Press identity in reduced motion without replaying the current copy', () => {
   vi.useFakeTimers(); setMotionOverride('reduce');
   render(<FleetTicker
@@ -287,6 +318,18 @@ it('rotates a queued Press identity in reduced motion without replaying the curr
   expect(screen.getByRole('status', { name: 'PRESS TWO' })).toBeVisible();
   act(() => vi.advanceTimersByTime(4_000));
   expect(screen.getByRole('status', { name: 'PRESS ONE' })).toBeVisible();
+});
+it('keeps reduced Aegis visible while its suspended Press pool waits', () => {
+  vi.useFakeTimers(); setMotionOverride('reduce');
+  const aegis = {
+    id: 'reduced-aegis', source: 'admiral' as const, text: 'AEGIS // RED ALERT', tone: 'danger' as const,
+  };
+  render(<FleetTicker message={aegis} queue={[{
+    id: 'reduced-suspended-press', source: 'press', text: 'SNN // WAITING', tone: 'normal',
+  }]} />);
+
+  act(() => vi.advanceTimersByTime(10_000));
+  expect(screen.getByRole('status', { name: aegis.text })).toBeVisible();
 });
 it('wraps the stationary bulletin inside the reduced-motion ticker', () => {
   setMotionOverride('reduce');
