@@ -179,7 +179,6 @@ import {
   canAdjustShipCounter,
   isResourceShipId,
   nextResourceAmount,
-  RESOURCE_IDS,
   shipResources,
   shipUnrest,
   unrestChange,
@@ -237,6 +236,7 @@ import {
   activeShuttleVisitsForDockings,
   initialShuttleDockingsForRoles,
   initialShuttleVisitsForDockings,
+  sanitizeShuttleCargo,
 } from './shuttlecraft';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import {
@@ -1267,16 +1267,11 @@ function publicMaintenanceCycles(value: unknown, activeVesselIds: readonly strin
   }));
 }
 
-function publicShuttleCargo(value: unknown): Record<string, Record<string, number>> {
-  const stored = isRecord(value) ? value : {};
-  const knownCargoIds: ReadonlySet<string> = new Set(RESOURCE_IDS);
-  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, cargo]) => {
-    if (!AUTHORIZED_SHUTTLE_IDS.has(shuttleId) || !isRecord(cargo)) return [];
-    const parsed = Object.fromEntries(Object.entries(cargo).flatMap(([resourceId, amount]) =>
-      knownCargoIds.has(resourceId) && typeof amount === 'number' && Number.isFinite(amount)
-        ? [[resourceId, amount]] : []));
-    return [[shuttleId, parsed]];
-  }));
+function publicShuttleCargo(
+  value: unknown,
+  activeRoleIds: readonly string[],
+): Record<string, Record<string, number>> {
+  return sanitizeShuttleCargo(value, activeRoleIds);
 }
 
 function publicShuttleFuelled(value: unknown): Record<string, boolean> {
@@ -7827,7 +7822,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
         maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
         smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
-        shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo')),
+        shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
         shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
         shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
@@ -8081,7 +8076,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
       maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
       smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
-      shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo')),
+      shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
       shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
       shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
@@ -14405,6 +14400,7 @@ export const runMaintenance = onCall<{
       throw commandError('failed-precondition', 'A GM must acknowledge the ship alert first.', 'invalid-phase');
     }
     const serverTime = stableOccurredAt;
+    const activeRoleIds = sessionActiveRoleIds(snapshot);
     let result: ReturnType<typeof advanceMaintenance>;
     try {
       result = advanceMaintenance({
@@ -14412,13 +14408,15 @@ export const runMaintenance = onCall<{
         resources: shipResources(snapshot.get('shipResources'))[data.shipId]!,
         damage: currentDamage,
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
-        cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
+        cargo: sanitizeShuttleCargo(snapshot.get('shuttleCargo'), activeRoleIds),
+        fuelled: snapshot.get('shuttleFuelled') ?? {},
         upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: stableRolls,
         entropy: stableEntropy, now: serverTime, damageDrawId: eventId,
       });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.', 'conflict');
     }
+    result = { ...result, cargo: sanitizeShuttleCargo(result.cargo, activeRoleIds) };
     let catastropheEventExists = false;
     if (result.damageDraw?.destroyed && currentDamage.destroyed) {
       catastropheEventExists = (await tx.get(
@@ -15277,6 +15275,12 @@ export const rollbackMaintenance = onCall<{
         cause instanceof Error ? cause.message : 'Rollback failed.',
         'conflict',
       );
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'shuttleCargo')) {
+      patch = {
+        ...patch,
+        shuttleCargo: sanitizeShuttleCargo(patch.shuttleCargo, sessionActiveRoleIds(authority.session)),
+      };
     }
     const reply = {
       status: 'committed' as const,

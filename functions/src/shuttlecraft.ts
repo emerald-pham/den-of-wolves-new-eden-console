@@ -1,4 +1,54 @@
-import { roleOwnedCraftForRoles } from './craftOwnership';
+import { ROLE_OWNED_CRAFT_CATALOG, roleOwnedCraftForRoles } from './craftOwnership';
+import { RESOURCE_IDS } from './resources';
+
+const ROLE_OWNED_SHUTTLE_IDS: ReadonlySet<string> = new Set(
+  ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map((craft) => craft.id),
+);
+
+/** Scrap is a printed cargo ledger on the two Capybara expansion shuttles. */
+export const SCRAP_SHUTTLE_IDS = ['macaw', 'boa'] as const;
+
+const CAPYBARA_EXPANSION_ROLE_IDS = ['capybara-captain', 'capybara-recycler'] as const;
+
+/** Return only Scrap-capable shuttles whose Capybara roles are enabled. */
+export function scrapShuttleIdsForRoles(activeRoleIds: readonly string[]): ReadonlySet<string> {
+  const activeRoles = new Set(activeRoleIds);
+  if (!CAPYBARA_EXPANSION_ROLE_IDS.every((roleId) => activeRoles.has(roleId))) return new Set();
+  const enabledShuttleIds = new Set(roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => craft.kind === 'shuttle')
+    .map((craft) => craft.id));
+  return new Set(SCRAP_SHUTTLE_IDS.filter((shuttleId) => enabledShuttleIds.has(shuttleId)));
+}
+
+/**
+ * Parse server-owned shuttle cargo while keeping Scrap scoped to its printed
+ * ledgers. Other cargo fields retain the existing projection rules.
+ */
+export function sanitizeShuttleCargo(
+  value: unknown,
+  activeRoleIds: readonly string[],
+): Record<string, Record<string, number>> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+  const knownCargoIds: ReadonlySet<string> = new Set(RESOURCE_IDS);
+  const scrapShuttleIds = scrapShuttleIdsForRoles(activeRoleIds);
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, cargo]) => {
+    if (!isAuthorizedShuttleId(shuttleId) || typeof cargo !== 'object' || cargo === null || Array.isArray(cargo)) {
+      return [];
+    }
+    const parsed = Object.fromEntries(Object.entries(cargo as Record<string, unknown>).flatMap(([resourceId, amount]) => {
+      if (!knownCargoIds.has(resourceId) || typeof amount !== 'number' || !Number.isFinite(amount)) return [];
+      if (resourceId === 'scrap' && !scrapShuttleIds.has(shuttleId)) return [];
+      if (resourceId === 'scrap' && (!Number.isSafeInteger(amount) || amount < 0)) return [];
+      return [[resourceId, amount]];
+    }));
+    return [[shuttleId, parsed]];
+  }));
+}
+
+function isAuthorizedShuttleId(shuttleId: string): boolean {
+  return ROLE_OWNED_SHUTTLE_IDS.has(shuttleId);
+}
 
 /**
  * Server-owned initial shuttle manifest. The Union craft are intentionally

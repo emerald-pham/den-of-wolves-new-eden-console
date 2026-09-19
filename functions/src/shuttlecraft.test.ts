@@ -1,9 +1,11 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { recommendedRoleIds } from './roleConfiguration';
 import {
   INITIAL_SHUTTLE_DOCKINGS,
   INITIAL_SHUTTLE_VISITS,
   initialShuttleDockingsForRoles,
+  sanitizeShuttleCargo,
+  scrapShuttleIdsForRoles,
 } from './shuttlecraft';
 
 it('creates sessions with every non-Union printed shuttle docked at its home ship', () => {
@@ -59,4 +61,39 @@ it('seeds only shuttles owned by enabled printed roles', () => {
     expect.objectContaining({ shuttleId: 'pallas' }),
     expect.objectContaining({ shuttleId: 'blacksmith' }),
   ]));
+});
+
+describe('Scrap shuttle ledger authority', () => {
+  const expansionRoles = ['admiral', 'capybara-captain', 'capybara-recycler'];
+
+  it('enables Scrap only for Macaw and Boa when the expansion pair is active', () => {
+    expect([...scrapShuttleIdsForRoles(expansionRoles)]).toEqual(['macaw', 'boa']);
+    expect([...scrapShuttleIdsForRoles(['admiral', 'capybara-captain'])]).toEqual([]);
+    expect([...scrapShuttleIdsForRoles(['admiral'])]).toEqual([]);
+  });
+
+  it('strips unauthorized Scrap while preserving valid non-Scrap cargo', () => {
+    const stored = {
+      macaw: { scrap: 4, ore: 2 },
+      boa: { scrap: 3, food: 1 },
+      starlight: { scrap: 9, water: 2 },
+      hummingbird: { scrap: 8, food: 3 },
+      unknown: { scrap: 12 },
+    };
+
+    expect(sanitizeShuttleCargo(stored, expansionRoles)).toEqual({
+      macaw: { scrap: 4, ore: 2 },
+      boa: { scrap: 3, food: 1 },
+      starlight: { water: 2 },
+      hummingbird: { food: 3 },
+    });
+    expect(sanitizeShuttleCargo({ macaw: { scrap: -1 }, boa: { scrap: 1.5 } }, expansionRoles))
+      .toEqual({ macaw: {}, boa: {} });
+    expect(sanitizeShuttleCargo(stored, ['admiral'])).toEqual({
+      macaw: { ore: 2 },
+      boa: { food: 1 },
+      starlight: { water: 2 },
+      hummingbird: { food: 3 },
+    });
+  });
 });

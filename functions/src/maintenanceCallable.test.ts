@@ -485,6 +485,37 @@ it('accepts the maintenance form’s explicit do-not-refuel sentinel', async () 
   });
 });
 
+it('does not carry Scrap from a shuttle outside the enabled Capybara ledgers', async () => {
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeRoleIds: [...recommendedRoleIds(18)],
+      maintenanceCycles: {
+        aegis: { step: 1, revision: 1, results: {}, charges: [], refuelled: [] },
+      },
+      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+      shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
+      shipUnrest: { aegis: 0 }, shipSurvivors: { aegis: 2_500 },
+      shuttleDockings: [{ shipId: 'aegis', shuttleId: 'starlight' }],
+      shuttleCargo: { starlight: { food: 5, scrap: 9 } }, shuttleFuelled: { starlight: false },
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+
+  const result = await runMaintenance.run(request({
+    ...data, action: 'storage', expectedRevision: 1, requestId: 'aegis-storage-scrap-isolation',
+  }));
+
+  expect(result).toMatchObject({
+    status: 'committed',
+    result: { cargo: { starlight: { food: 3 } } },
+  });
+  expect((result as { cycle: { results: Record<string, string> } }).cycle.results['1'])
+    .not.toContain('Scrap');
+  expect(maintenance.session.shuttleCargo).toEqual({ starlight: { food: 3 } });
+});
+
 
 it('begins maintenance atomically with a server-owned revision', async () => {
   await expect(runMaintenance.run(request(data))).resolves.toMatchObject({
