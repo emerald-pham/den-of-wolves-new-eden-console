@@ -3409,6 +3409,10 @@ export async function disconnectFromSession(): Promise<CommandDisposition> {
       ...(store.gmInstance?.sessionId === store.session.id
         ? { instanceId: store.gmInstance.id }
         : {}),
+      ...(Number.isSafeInteger(store.me?.connectionGeneration) &&
+        (store.me?.connectionGeneration as number) >= 1
+        ? { connectionGeneration: store.me?.connectionGeneration as number }
+        : {}),
     },
     createdAt: new Date().toISOString(),
   };

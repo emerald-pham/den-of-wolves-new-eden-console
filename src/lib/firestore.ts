@@ -1564,6 +1564,10 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   const parsedFleetGroupId = data.fleetGroupId === null || data.fleetGroupId === undefined
     ? null
     : parseEntityId('group', data.fleetGroupId);
+  const parsedConnectionGeneration = Number.isSafeInteger(data.connectionGeneration) &&
+    (data.connectionGeneration as number) >= 1
+    ? data.connectionGeneration as number
+    : undefined;
   return {
     uid: entityId('player', uid),
     sessionId: entityId('session', sessionId),
@@ -1576,6 +1580,9 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
     ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),
     ...(typeof data.connected === 'boolean' ? { connected: data.connected } : {}),
+    ...(parsedConnectionGeneration === undefined ? {} : {
+      connectionGeneration: parsedConnectionGeneration,
+    }),
     joinedAt: iso(data.joinedAt),
   };
 }

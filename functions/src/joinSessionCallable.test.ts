@@ -521,6 +521,7 @@ it('rejects an unsupported code shape without spending a limiter attempt', async
 });
 
 it('replaces a stale membership lock when the same identity joins its remembered table', async () => {
+  let playerReads = 0;
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
@@ -531,6 +532,7 @@ it('replaces a stale membership lock when the same identity joins its remembered
       ownerUid: 'owner',
     });
     if (path === 'sessions/s1/players/u1') return snapshot({
+      connectionGeneration: playerReads++ === 0 ? 1 : 3,
       displayName: 'Returning player',
       role: 'player',
       seatId: null,
@@ -544,9 +546,10 @@ it('replaces a stale membership lock when the same identity joins its remembered
     throw new Error('Unexpected read: ' + path);
   });
 
-  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+  const response = await joinSession.run(request('482109'));
+  expect(response).toMatchObject({
     session: { id: 's1' },
-    player: { seatId: null },
+    player: { seatId: null, connectionGeneration: 2 },
   });
 
   expect(mock.delete).toHaveBeenCalledWith(

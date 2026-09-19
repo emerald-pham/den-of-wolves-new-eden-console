@@ -85,6 +85,7 @@ import {
   requireUnrestDismissalRequest,
   requireSessionRequest,
   requireAirspaceRequest,
+  requireDisconnectRequest,
   requirePresenceRequest,
   requireBoundedIdList,
   requireBoundedIdMap,
@@ -1530,6 +1531,23 @@ function isActivePlayer(player: DocumentSnapshot): boolean {
     !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
+/**
+ * A reconnect gets a new identity generation so an older queued disconnect
+ * cannot clean up the membership created by that reconnect. Legacy player
+ * documents without a generation start at one when they next join.
+ */
+function nextConnectionGeneration(player: DocumentSnapshot): number {
+  const current = player.get('connectionGeneration');
+  if (current === undefined) return 1;
+  if (!Number.isSafeInteger(current) || (current as number) < 1 ||
+      current === Number.MAX_SAFE_INTEGER) {
+    // Never wrap or reuse a generation that could still be present in an old
+    // queued cleanup. Malformed legacy state remains safely non-reconnectable.
+    throw new HttpsError('failed-precondition', 'This session connection identity is invalid. Refresh before reconnecting.');
+  }
+  return (current as number) + 1;
+}
+
 function isCanonicalAndroidPayload(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const payload = value as Record<string, unknown>;
@@ -2328,6 +2346,7 @@ export const createSession = onCall<{
           role: 'player',
           seatId: null,
           activeConsoleRoleId: null,
+          connectionGeneration: 1,
           assignedRoleId: null,
           shipPreferenceId: null,
           fleetGroupId: group.id,
@@ -2478,6 +2497,7 @@ export const createSession = onCall<{
           fleetGroupId: group.id,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
+          connectionGeneration: 1,
           lastSeenAt: FieldValue.serverTimestamp(),
         });
         tx.set(playerDiscoveryProjectionRef(sessionRef.id, uid), {
@@ -7617,7 +7637,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
     const playersRef = db.collection(`sessions/${sessionId}/players`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
-    const resumedSeatId = await db.runTransaction(async (tx) => {
+    const joinResult = await db.runTransaction(async (tx) => {
       const [sessionDoc, player, membership, storedGroup, storedNavigation, players] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
@@ -7653,6 +7673,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           'conflict',
         );
       }
+      const connectionGeneration = player.exists ? nextConnectionGeneration(player) : 1;
       const clearStaleMembership = membership.exists && !membershipActive;
       const returningSeat = player.exists
         ? await reconcileReturningSeat(tx, sessionId, uid, player, sessionActiveRoleIds(sessionDoc))
@@ -7714,6 +7735,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         tx.update(playerRef, {
           fleetGroupId: group.id,
           connected: true,
+          connectionGeneration,
           lastSeenAt: FieldValue.serverTimestamp(),
           ...(releasePress ? releasedPressFields(player) : {}),
           ...(!releasePress && currentPressAuthority && player.get('assignedRoleId') === 'press-officer'
@@ -7737,7 +7759,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
             : {}),
         });
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
-        return returningSeat?.seatId ?? null;
+        return {
+          seatId: returningSeat?.seatId ?? null,
+          connectionGeneration,
+        };
       } else {
         ensureFleetTickerBaseline(tx, sessionRef, sessionDoc, new Date().toISOString());
         tx.set(playerRef, {
@@ -7750,6 +7775,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           fleetGroupId: group.id,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
+          connectionGeneration: 1,
           lastSeenAt: FieldValue.serverTimestamp(),
         });
         tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
@@ -7761,7 +7787,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       }
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
-      return null;
+      return { seatId: null, connectionGeneration: 1 };
     });
     const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
@@ -7847,7 +7873,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         sessionId,
         displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
         role: playerSnap.get('role') as string,
-        seatId: resumedSeatId,
+        seatId: joinResult.seatId,
         ...(typeof playerSnap.get('fleetGroupId') === 'string'
           ? { fleetGroupId: playerSnap.get('fleetGroupId') } : {}),
         ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
@@ -7858,6 +7884,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
         activeConsoleRoleId:
           (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
+        connectionGeneration: joinResult.connectionGeneration,
         joinedAt: isoOf(playerSnap.get('joinedAt')),
       },
     };
@@ -7891,7 +7918,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   }
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
-  const resumedSeatId = await db.runTransaction(async (tx) => {
+  const resumeResult = await db.runTransaction(async (tx) => {
     const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
@@ -7929,6 +7956,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         'conflict',
       );
     }
+    const connectionGeneration = nextConnectionGeneration(currentPlayer);
     const clearStaleMembership = membership.exists && !membershipActive;
     // Read the returning seat before setup hydration can write canonical seat
     // fields. The claim itself is applied immediately after hydration below so
@@ -7994,6 +8022,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     tx.update(playerRef, {
       fleetGroupId: group.id,
       connected: true,
+      connectionGeneration,
       lastSeenAt: FieldValue.serverTimestamp(),
       ...(releasePress ? releasedPressFields(currentPlayer) : {}),
       ...(!releasePress && currentPressAuthority && currentPlayer.get('assignedRoleId') === 'press-officer'
@@ -8015,7 +8044,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       } : {}),
     });
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
-    return returningSeat.seatId;
+    return {
+      seatId: returningSeat.seatId,
+      connectionGeneration,
+    };
   });
 
   [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
@@ -8102,7 +8134,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       sessionId,
       displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
       role: playerSnap.get('role') as string,
-      seatId: resumedSeatId,
+      seatId: resumeResult.seatId,
       ...(typeof playerSnap.get('fleetGroupId') === 'string'
         ? { fleetGroupId: playerSnap.get('fleetGroupId') } : {}),
       ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
@@ -8113,6 +8145,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
       activeConsoleRoleId:
         (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
+      connectionGeneration: resumeResult.connectionGeneration,
       joinedAt: isoOf(playerSnap.get('joinedAt')),
     },
   };
@@ -11087,9 +11120,13 @@ export const refreshPresence = onCall<{
 });
 
 /** Mark this identity disconnected and start retention on a transition to empty. */
-export const disconnectFromSession = onCall<{ sessionId?: string; instanceId?: string }>(async (request) => {
+export const disconnectFromSession = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  connectionGeneration?: number;
+}>(async (request) => {
   const uid = requireUid(request.auth);
-  const { sessionId, instanceId } = requireAirspaceRequest(request.data ?? {});
+  const { sessionId, instanceId, connectionGeneration } = requireDisconnectRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const membershipRef = db.doc(`activeMemberships/${uid}`);
@@ -11115,6 +11152,12 @@ export const disconnectFromSession = onCall<{ sessionId?: string; instanceId?: s
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
     }
+    const storedConnectionGeneration = player.get('connectionGeneration');
+    // Every current client captures the generation that authorized its
+    // disconnect. Legacy requests without one fail closed, so a delayed old
+    // outbox item cannot clean up a player who has since rejoined this table.
+    if (connectionGeneration === undefined ||
+        storedConnectionGeneration !== connectionGeneration) return;
     const ownsRequestedInstance = instanceId !== undefined && ownedInstances.docs.some((instance) =>
       instance.id === instanceId && instance.get('uid') === uid);
     const liveSibling = instanceId !== undefined && ownedInstances.docs.some((instance) =>

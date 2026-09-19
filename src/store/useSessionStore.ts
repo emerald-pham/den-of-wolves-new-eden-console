@@ -71,7 +71,12 @@ export type PendingCommand = (
   | {
       readonly id: string;
       readonly kind: 'disconnectFromSession';
-      readonly payload: { readonly sessionId: string; readonly instanceId?: string };
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId?: string;
+        /** Captured server-owned identity; absent only on legacy queued items. */
+        readonly connectionGeneration?: number;
+      };
       readonly createdAt: string;
     }
   | {

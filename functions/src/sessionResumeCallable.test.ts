@@ -144,6 +144,7 @@ function prepareResume(
     }
     throw new Error('Unexpected read: ' + path);
   });
+  return { playerData, sessionData };
 }
 
 beforeEach(() => {
@@ -488,8 +489,63 @@ it('keeps the old seat when the returning player still holds it', async () => {
   );
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/u1' }),
-    { connected: true, fleetGroupId: 'fleet-1', lastSeenAt: 'server-time' },
+    {
+      connected: true,
+      connectionGeneration: 1,
+      fleetGroupId: 'fleet-1',
+      lastSeenAt: 'server-time',
+    },
   );
+});
+
+it('advances the server connection generation on every resume', async () => {
+  prepareResume({ status: 'claimed', holderUid: 'u1' }, {
+    connectionGeneration: 7,
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    player: { connectionGeneration?: number };
+  };
+
+  expect(response.player.connectionGeneration).toBe(8);
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u1' }),
+    expect.objectContaining({ connectionGeneration: 8 }),
+  );
+});
+
+it('returns the generation committed by resume when a newer resume lands before projection read', async () => {
+  const { playerData } = prepareResume({ status: 'claimed', holderUid: 'u1' }, {
+    connectionGeneration: 1,
+  });
+  const updateImplementation = mock.update.getMockImplementation();
+  mock.update.mockImplementation((ref: { path: string }, update: unknown) => {
+    updateImplementation?.(ref, update);
+    if (ref.path === 'sessions/s1/players/u1' &&
+        typeof update === 'object' && update !== null &&
+        (update as { connectionGeneration?: unknown }).connectionGeneration === 2) {
+      // Simulate another resume committing before the callable's follow-up
+      // projection read. The response must retain this transaction's token.
+      playerData.connectionGeneration = 3;
+    }
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    player: { connectionGeneration?: number };
+  };
+
+  expect(response.player.connectionGeneration).toBe(2);
+  expect(playerData.connectionGeneration).toBe(3);
+});
+
+it.each([Number.MAX_SAFE_INTEGER, 0, 'corrupt'])('fails closed for an unsafe stored generation: %s', async (connectionGeneration) => {
+  prepareResume({ status: 'claimed', holderUid: 'u1' }, { connectionGeneration });
+
+  await expect(resumeSession.run(request('s1'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('reclaims an open old seat before resuming the player after two idle hours', async () => {

@@ -2264,10 +2264,12 @@ it('queries a member roster by its server-owned group and clears stale data on r
   expect(vi.mocked(where)).toHaveBeenCalledWith('fleetGroupId', '==', 'fleet-2');
   onSnapshotCallback?.({
     metadata: { fromCache: false },
-    docs: [{ id: 'grouped-player', data: () => ({ role: 'player', connected: true }) }],
+    docs: [{ id: 'grouped-player', data: () => ({
+      role: 'player', connected: true, connectionGeneration: 4,
+    }) }],
   });
   expect(onPlayers).toHaveBeenLastCalledWith([
-    expect.objectContaining({ uid: 'grouped-player' }),
+    expect.objectContaining({ uid: 'grouped-player', connectionGeneration: 4 }),
   ]);
 
   onSnapshotError?.();

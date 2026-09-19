@@ -5168,6 +5168,13 @@
       "type": "evidence / production-path / regression"
     },
     {
+      "direction": "616",
+      "id": "E-616-REPLAY-VERIFIED",
+      "language": "The server now assigns a monotonic connection generation on session creation, new join, and every resume; persists it, returns the generation committed by that transaction, and requires the captured generation on disconnect. The realtime player parser preserves that generation for later reconnect/cleanup capture. Delayed same-session A-to-A cleanup and legacy requests without a generation acknowledge without writes; malformed and exhausted stored generations fail closed before mutation. Focused callable tests pass for 52 creation, 46 lifecycle, 24 join, and 25 resume cases; client session-service coverage passes 124 cases, the Firestore projection suite passes 90 cases, and the existing 15-second queued-cleanup expiry/acknowledgement policy remains covered. Functions build and root typecheck pass. This is review-ready local evidence with no production write or deployment claim.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/joinSessionCallable.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/store/useSessionStore.ts; src/types/game.ts",
+      "type": "evidence / production-path / authority / regression"
+    },
+    {
       "direction": "608",
       "id": "E-608-UNMOUNT-FOCUS",
       "language": "An unmounted dialog regression failed before the shared focus-hook repair and passes afterward. Seventy-two hook, motion-gate, waiver, RoleSelect, and AppHeader tests pass, including nested replacement, missing opener, StrictMode replay, and expiry interruption. The real motion-safety browser smoke verifies restored session-code input focus after acknowledgement at 320x844, 1440x900, and 844x390. TypeScript checking passes. P608 remains partial because the previously documented future modal surfaces still do not exist.",
@@ -21078,8 +21085,8 @@
         "acceptance": "queued cleanup acknowledges once, expires correctly, and clears local data only under the documented policy.",
         "title": "Make disconnect replay-safe."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-616",
+      "description": "The server now assigns a monotonic connection generation on session creation, new join, and every resume; persists it, returns the generation committed by that transaction, and requires the captured generation on disconnect. A delayed same-session cleanup or a legacy queued request without a generation acknowledges without mutating the renewed membership; malformed and exhausted stored generations fail closed. Normal matching cleanup remains covered by the existing lifecycle and outbox tests. This is review-ready local callable/client evidence; independent authority review and release reconciliation remain open.",
+      "evidenceIds": "E-AUDIT-616;E-616-REPLAY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "041;042",
@@ -21090,7 +21097,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

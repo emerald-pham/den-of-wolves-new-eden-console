@@ -252,7 +252,7 @@ it('creates one configured lobby and persists a replayable creation result atomi
       turnLimit: 7,
       pressEnabled: true,
     },
-    player: { uid: 'u1', displayName: 'Facilitator' },
+    player: { uid: 'u1', displayName: 'Facilitator', connectionGeneration: 1 },
   });
 
   expect(mock.set).toHaveBeenCalledWith(
@@ -266,6 +266,10 @@ it('creates one configured lobby and persists a replayable creation result atomi
       setupRevision: 0,
       pressEnabled: true,
     }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/generated-session/players/u1' }),
+    expect.objectContaining({ connected: true, connectionGeneration: 1 }),
   );
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: expect.stringMatching(/^sessionCreationRequests\/u1_create-1$/) }),

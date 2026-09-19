@@ -45,6 +45,21 @@ export function requireAirspaceRequest(data: {
   };
 }
 
+export function requireDisconnectRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  connectionGeneration?: unknown;
+}): { sessionId: string; instanceId?: string; connectionGeneration?: number } {
+  if (data.connectionGeneration !== undefined &&
+      (!Number.isSafeInteger(data.connectionGeneration) || (data.connectionGeneration as number) < 1)) {
+    throw new HttpsError('invalid-argument', 'connectionGeneration must be a positive integer.');
+  }
+  return {
+    ...requireAirspaceRequest(data),
+    ...(data.connectionGeneration === undefined ? {} : { connectionGeneration: data.connectionGeneration as number }),
+  };
+}
+
 /** Presence keeps the explicit release marker distinct from an omitted role. */
 export function requirePresenceRequest(data: {
   sessionId?: unknown;

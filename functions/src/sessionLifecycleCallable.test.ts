@@ -263,13 +263,24 @@ function player(fields: StoredDocument = {}) {
     seatId: null,
     activeConsoleRoleId: null,
     connected: true,
+    connectionGeneration: 1,
     lastSeenAt: mock.Timestamp.fromDate(NOW),
     ...fields,
   });
 }
 
 function request<T extends Record<string, unknown>>(data: T, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<T>;
+  // Existing lifecycle cases predate the generation field. Keep those normal
+  // requests representative of a current client while allowing the dedicated
+  // legacy-safety regression below to omit it explicitly.
+  const enriched = data.sessionId !== undefined && data.connectionGeneration === undefined
+    ? { ...data, connectionGeneration: 1 }
+    : data;
+  return { data: enriched, auth: { uid } } as CallableRequest<T>;
+}
+
+function legacyRequest(data: Record<string, unknown>, uid = 'u1') {
+  return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
 beforeEach(() => {
@@ -735,6 +746,58 @@ describe('presence lease', () => {
 });
 
 describe('disconnect and retention', () => {
+  it('rejects an invalid generation before opening the cleanup transaction', async () => {
+    await expect(disconnectFromSession.run(request({
+      sessionId: 's1', connectionGeneration: 0,
+    }))).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(mock.runTransaction).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges a delayed A-to-A disconnect without mutating the renewed membership', async () => {
+    session();
+    player({ connected: true, connectionGeneration: 2, role: 'gm' });
+    put('activeMemberships/u1', { sessionId: 's1' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+
+    await disconnectFromSession.run(request({
+      sessionId: 's1', instanceId: 'bridge', connectionGeneration: 1,
+    }));
+
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      connected: true, connectionGeneration: 2, role: 'gm',
+    });
+    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+    expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
+  });
+
+  it('fails closed for a legacy disconnect without a captured generation', async () => {
+    session();
+    player({ connectionGeneration: 1 });
+    put('activeMemberships/u1', { sessionId: 's1' });
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+
+    await disconnectFromSession.run(legacyRequest({ sessionId: 's1' }));
+
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      connected: true, connectionGeneration: 1,
+    });
+    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+  });
+
   it('disconnects one GM browser while preserving a live same-UID sibling', async () => {
     session();
     player({ role: 'gm' });

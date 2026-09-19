@@ -807,6 +807,8 @@ export interface Player {
   readonly replacementRoleId?: RoleId | null;
   /** Presence is included in the GM roster projection. */
   readonly connected?: boolean;
+  /** Monotonic server-owned connection identity used to reject stale cleanup. */
+  readonly connectionGeneration?: number;
   /** Nonbinding casting preference; it never grants a role or vessel. */
   readonly shipPreferenceId?: VesselId | null;
   /** Server-authoritative command post held by this device until explicitly released. */

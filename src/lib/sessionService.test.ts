@@ -106,6 +106,7 @@ const player = {
   displayName: 'Player',
   role: 'player' as const,
   seatId: null,
+  connectionGeneration: 1,
   joinedAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -1870,7 +1871,9 @@ describe('session lifecycle commands', () => {
 
     await disconnectFromSession();
 
-    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'bridge' });
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'bridge', connectionGeneration: 1,
+    });
   });
 
   it('does not create an overlapping session while one is loaded', async () => {
@@ -1937,7 +1940,7 @@ describe('session lifecycle commands', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([
       expect.objectContaining({
         kind: 'disconnectFromSession',
-        payload: { sessionId: 's1' },
+        payload: { sessionId: 's1', connectionGeneration: 1 },
       }),
     ]);
   });
