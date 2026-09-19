@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [616, 617],
+    implementationProgress: {
+      completed: 288, total: 751, percentage: '38.35%',
+      done: 288, partial: 24, active: 0, missing: 439,
+    },
+    changes: [
+      'Delayed disconnect requests no longer clear a connection you have already renewed.',
+      'Supported GM removal and release actions recover safely when the server response is lost, without repeating the action against a replacement.',
+      '288 of 751 planned items are complete (38.35%).',
+    ],
+  },
+  {
+    version: '0.4.17',
     implementationPrompts: ['031a'],
     implementationProgress: {
       completed: 286, total: 751, percentage: '38.08%',
