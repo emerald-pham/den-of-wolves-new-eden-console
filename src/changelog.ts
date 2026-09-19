@@ -29,6 +29,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'GM-authorized Voyage 33-0 admission now adds its 40,000 survivors and printed obligations to the searchable fleet roster without creating an unsupported role or choosing a host.',
       'The private Intelligence Agent loyalty card now uses its correct label, and reduced-motion mode stops the remaining intrusion and contact-plot presentation effects.',
+      'Connection lease testing now covers twenty players renewing together while obsolete devices expire without releasing anyone else’s seat.',
       '292 of 751 planned items are complete (38.88%).',
     ],
   },
