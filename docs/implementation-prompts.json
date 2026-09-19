@@ -1537,9 +1537,9 @@
     {
       "direction": "249 -> P249-IMPLEMENTATION",
       "id": "E-P249-IMPLEMENTATION",
-      "language": "The P249 admission transaction consumes the facilitator-owned Approaching Vessel crisis and publishes the printed 40,000-survivor, unrest-0 Voyage 33-0 identity plus host-docking and maintenance commitments without selecting a host or spending resources. A composed local browser harness renders the real GM admission control and the member fleet roster at 320x844, 390x844, 844x390, and 1440x900 under reduced motion; the admission control remains a 44px target, the admitted vessel remains visible without a role route, and neither surface has horizontal overflow.",
-      "source": "functions/src/voyageAdmission.ts; functions/src/index.ts; functions/src/voyageAdmissionCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/routes/SessionMode.tsx; src/routes/SessionMode.test.tsx; firestore.rules; authorized primary Voyage 33-0 and Approaching Vessel source pages; /tmp/p249-render/evidence.json; /tmp/p249-render/gm-console-*.png; /tmp/p249-roster-render/evidence.json; /tmp/p249-roster-render/roster-*.png",
-      "type": "evidence / partial"
+      "language": "The P249 admission transaction consumes the facilitator-owned Approaching Vessel crisis and publishes the printed 40,000-survivor, unrest-0 Voyage 33-0 identity plus host-docking and maintenance commitments without selecting a host or spending resources. Focused callable, retry, authorization, session-projection, member-event, and Firestore-rule coverage proves the command receipt, CAS, GM-only raw current/audit boundary, and sanitized member projection; the repaired candidate passed the 104-case rules suite and independent Terra review cleared 3791208c. A composed local browser harness renders the real GM admission control and member fleet roster at 320x844, 390x844, 844x390, and 1440x900 under reduced motion; the admission control remains a 44px target, the admitted vessel remains visible without a role route, and neither surface has horizontal overflow.",
+      "source": "functions/src/voyageAdmission.ts; functions/src/index.ts; functions/src/voyageAdmissionCallable.test.ts; functions/src/eventRedaction.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/routes/SessionMode.tsx; src/routes/SessionMode.test.tsx; tests/rules/firestore.rules.test.ts; firestore.rules; authorized primary Voyage 33-0 and Approaching Vessel source pages; Terra review 3791208c; /tmp/p249-render/evidence.json; /tmp/p249-render/gm-console-*.png; /tmp/p249-roster-render/evidence.json; /tmp/p249-roster-render/roster-*.png",
+      "type": "evidence / production-path / authority / privacy / accessibility / layout"
     },
     {
       "direction": "250 -> 249;114",
@@ -11774,7 +11774,7 @@
         "acceptance": "facilitator acceptance creates the damaged cruiser with 40,000 survivors and its required fleet commitments.",
         "title": "Admit Voyage 33-0 through the crisis path."
       },
-      "description": "The server-authoritative P249 path now admits Voyage 33-0 exactly once from an active Approaching Vessel crisis. A lease-authorized, revision-checked callable persists the member-safe admitted-vessel identity and printed obligations (40,000 survivors, unrest 0, host docking, host-funded maintenance steps 1–4, and one console charge), with command receipts, audit, and a redacted member event. The public session keeps Voyage 33-0 in an explicit admitted-vessel identity path without widening the core role/seat roster or choosing a host or spending resources; later docking, maintenance, movement, and motivated-role hooks remain with P250, P251, and P529. Focused callable retry/authorization/privacy, session projection, GM admission interaction, and reduced-motion browser geometry evidence pass; Terra review remains before closure.",
+      "description": "The server-authoritative P249 path admits Voyage 33-0 exactly once from an active Approaching Vessel crisis. A lease-authorized, revision-checked callable persists the member-safe admitted-vessel identity and printed obligations (40,000 survivors, unrest 0, host docking, host-funded maintenance steps 1–4, and one console charge), with command receipts, audit, a GM-only raw current/audit boundary, and a redacted member event. The public session keeps Voyage 33-0 in an explicit admitted-vessel identity path without widening the core role/seat roster or choosing a host or spending resources; later docking, maintenance, movement, and motivated-role hooks remain with P250, P251, and P529. Focused callable retry/authorization/privacy, session projection, GM admission interaction, 104-case rules coverage, and reduced-motion browser geometry evidence pass; Terra independently cleared the repaired candidate 3791208c.",
       "evidenceIds": "E-AUDIT-249;E-P249-IMPLEMENTATION",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11786,7 +11786,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
