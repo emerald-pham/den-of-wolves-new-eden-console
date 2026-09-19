@@ -27,7 +27,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     },
     changes: [
       'Fleet broadcasts now keep Press, Aegis alerts, Stand Down, and current ATC status moving through the same readable ticker without dropping visible text or overlapping messages.',
-      'Stand Down completes two full passes, including with reduced motion, before the current Press pool resumes.',
+      'Stand Down plays twice, then the latest eligible Press news resumes, including with reduced motion.',
       '278 of 751 planned items are complete (37.02%).',
     ],
   },
