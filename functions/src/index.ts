@@ -8486,7 +8486,11 @@ async function removeGmInstance(
       tx.get(callerPlayerRef),
       receiptRef ? tx.get(receiptRef) : Promise.resolve(null),
     ]);
-    if (!isLiveGmInstance(caller, callerPlayer, uid)) {
+    const liveCaller = isLiveGmInstance(caller, callerPlayer, uid);
+    // Releasing the final GM instance removes the very authority that sent
+    // this command. Its still-active original member may recover only the
+    // exact committed receipt; this never authorizes another mutation.
+    if (!liveCaller && (mayRemoveOther || !isActivePlayer(callerPlayer))) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (receipt && fingerprint) {
@@ -8499,6 +8503,9 @@ async function removeGmInstance(
         mayRemoveOther ? 'GM instance kick' : 'GM instance release',
       );
       if (replay) return replay;
+    }
+    if (!liveCaller) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     const target = action.targetInstanceId === action.instanceId
       ? caller

@@ -181,6 +181,7 @@ import {
   loginGmAccess,
   logoutGmAccess,
   kickPlayer,
+  kickGmInstance,
   listGmInstances,
   releaseGmInstance,
   setGmControlsLocked,
@@ -932,6 +933,35 @@ describe('GM instance ownership', () => {
       fingerprint: expect.objectContaining({ action: 'release-gm-instance', actorUid: 'u1' }),
       result: { targetInstanceId: 'bridge' },
     });
+  });
+
+  it('replays a committed self-release after a lost ACK without removing a replacement instance', async () => {
+    session();
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    const data = { sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'bridge', requestId: 'release-lost-ack' };
+    await releaseGmInstance.run(request(data));
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+    await expect(releaseGmInstance.run(request(data))).resolves.toEqual({ targetInstanceId: 'bridge' });
+    player('u2', { role: 'gm' });
+    instance('bridge', 'u2');
+    await expect(releaseGmInstance.run(request(data))).resolves.toEqual({ targetInstanceId: 'bridge' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u2' });
+    await expect(releaseGmInstance.run(request(data, 'u2'))).rejects.toBeDefined();
+    await expect(releaseGmInstance.run(request({ ...data, instanceId: 'other', targetInstanceId: 'other' }))).rejects.toBeDefined();
+    await expect(kickGmInstance.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u2' });
+  });
+
+  it.each(['disconnected', 'kicked', 'missing'])('denies self-release receipt replay to a %s member', async (state) => {
+    session();
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    const data = { sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'bridge', requestId: 'release-stale-member' };
+    await releaseGmInstance.run(request(data));
+    if (state === 'missing') mock.documents.delete('sessions/s1/players/u1');
+    else player('u1', state === 'disconnected' ? { connected: false } : { kickedAt: 'server-time' });
+    await expect(releaseGmInstance.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
   });
 
   it('kicks a player browser, frees its seat, and blocks its return to this session', async () => {

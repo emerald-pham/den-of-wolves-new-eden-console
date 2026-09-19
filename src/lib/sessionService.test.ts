@@ -979,6 +979,22 @@ describe('GM instance commands', () => {
     });
   });
 
+  it.each(['not-a-date', '2999-01-01T00:00:00.000Z'])('expires a queued command with invalid timestamp %s', async (createdAt) => {
+    useSessionStore.getState().enqueueCommand({
+      id: 'invalid-time', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2', requestId: 'invalid-time-receipt' },
+      createdAt, queuedWithServerAuthority: true,
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+    await connect();
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'kickGmInstance');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toMatchObject({ code: 'Wolf Intercepted Request Timeout' });
+  });
+
   it('expires offline commands after the fifteen-second reconnect window', async () => {
     useSessionStore.getState().enqueueCommand({
       id: 'command-1', kind: 'kickGmInstance',

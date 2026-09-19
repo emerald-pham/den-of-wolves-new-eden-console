@@ -801,9 +801,11 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
 async function flushPendingCommands(): Promise<boolean> {
   const store = useSessionStore.getState();
   for (const command of [...store.pendingCommands]) {
+    const createdAt = Date.parse(command.createdAt);
+    const now = Date.now();
     if (
       command.kind !== 'logoutGmAccess' &&
-      Date.now() - Date.parse(command.createdAt) > COMMAND_RECONNECT_WINDOW_MS
+      (!Number.isFinite(createdAt) || createdAt > now || now - createdAt > COMMAND_RECONNECT_WINDOW_MS)
     ) {
       store.removeCommand(command.id);
       store.setCommunicationError({
