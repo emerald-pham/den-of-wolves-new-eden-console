@@ -1,9 +1,13 @@
 # 60-browser capacity proof
 
 Prompt 639 is exercised by `npm run test:capacity:p639`. The command requires a
-clean, isolated Firebase Emulator slot, launches real headless Chromium pages,
-runs for 15 minutes, writes `/tmp/p639-browser-capacity.json`, and validates the
-artifact against the exact checked-out commit. The committed closure artifact is
+clean tracked tree and a freshly started emulator reserved to the same worktree.
+It verifies the Firebase hub, clears Auth and Firestore, confirms the session
+collection is empty, launches real headless Chromium pages, runs for 15 minutes,
+writes `/tmp/p639-browser-capacity.json`, and validates the artifact against the
+measured source commit. A later commit may change only the named audit, catalog,
+and generated documentation files; any runtime, harness, threshold, dependency,
+or configuration change invalidates the measurement. The committed closure artifact is
 [`docs/audits/p639-60-browser-capacity.json`](audits/p639-60-browser-capacity.json).
 
 ## Scenario
@@ -20,7 +24,11 @@ artifact against the exact checked-out commit. The committed closure artifact is
   disconnect and resume path must finish within five seconds.
 - Browser transport injection produces one 503/unavailable response and one
   429/resource-exhausted response. Each is followed by a measured real-emulator
-  recovery call.
+  call. This proves that the next fresh call succeeds; it does not claim that the
+  client automatically retried the injected failure.
+- Heartbeats count only when they start at or after the declared load-window
+  start and complete at or before its end. Setup, teardown, and boundary-crossing
+  calls remain visible in the artifact but do not inflate measured coverage.
 
 The harness records no session, request, join-code, or user identifiers. Local
 Firebase Emulator and local Chromium produced no billable service use, so the
@@ -41,7 +49,7 @@ The machine-readable budgets live in
 | Browser heartbeat p95 | at most 8,000 ms |
 | Action-to-listener p95 | at most 5,000 ms |
 | Three-tab reconnect | at most 5,000 ms |
-| 429/unavailable recovery | at most 5,000 ms |
+| Next real call after injected 429/unavailable | at most 5,000 ms |
 | Concurrent action races | at least 14 |
 | Listener errors | 0 |
 
@@ -53,26 +61,28 @@ conflict and retry, plus delivery to every page.
 
 ## Closure result
 
-Source commit `e57f749470c5e4b13d39a0e11110391da07a3c51` passed on local
+Source commit `ac3e71066326c40ce23dc89570cb9ed7eb0b4efb` passed on local
 Chromium 153 with 20 contexts and 60 pages:
 
 | Measurement | Result |
 | --- | ---: |
-| Browser heartbeats | 5,402 / 5,402 successful |
-| Heartbeat p95 / maximum | 28.3 ms / 90.8 ms |
+| Browser heartbeats | 5,401 / 5,401 in-window attempts successful; 1 boundary call excluded |
+| Heartbeat p95 / maximum | 29.0 ms / 83.8 ms |
 | GM lease renewals | 92 / 92 successful |
 | Listener subscriptions | 120 steady; 126 across reconnect lifecycle |
 | Listener document deliveries | 20,063 |
 | Listener errors | 0 |
 | Action races | 14; all one commit and one stale receipt |
-| Action-to-listener p95 / maximum | 3,068 ms / 3,074 ms |
-| Three-page reconnect | 1,256.9 ms; one attempt per page |
-| Unavailable recovery | 612.4 ms |
-| 429 recovery | 25.3 ms |
+| Action-to-listener p95 / maximum | 3,195 ms / 3,203 ms |
+| Three-page reconnect | 1,654.6 ms; one attempt per page |
+| Next real call after unavailable | 715.8 ms |
+| Next real call after 429 | 24.4 ms |
 | Browser / controller callable attempts | 5,489 / 151 |
 | Maximum heartbeat calls in flight per page | 1 |
 | Actual billable cost | $0 |
 
-Run the command only on a freshly started isolated slot. Reusing an emulator
-after repeated capacity sessions changes its in-memory lock state and does not
-provide a comparable baseline.
+Start `npm run emulators` in one terminal, wait for the ready banner, then run
+`npm run test:capacity:p639` in another. The capacity command rejects a missing,
+stale, mismatched, or dead reservation and resets the reserved emulator before
+measurement. Restart the emulator before another closure run so its in-memory
+lock state begins from the same baseline.
