@@ -370,6 +370,12 @@ import {
   type SmallShipState,
 } from './smallShip';
 import {
+  advanceVoyage33Maintenance,
+  parseVoyage33MaintenanceState,
+  VOYAGE_33_MAINTENANCE_RULES,
+  type Voyage33MaintenanceState,
+} from './voyage33Maintenance';
+import {
   addHarvestToCargo,
   parseHummingbirdHarvestState,
   resolvedHarvestValues,
@@ -400,6 +406,7 @@ const MAX_MAINTENANCE_REFUELS = Math.max(
 const MAX_SMALL_SHIP_CONSOLES = Math.max(
   ...Object.values(SMALL_SHIP_RULES).map(({ reactorCapacity }) => reactorCapacity),
 );
+const MAX_VOYAGE_33_CONSOLES = VOYAGE_33_MAINTENANCE_RULES.reactorCapacity;
 
 type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
@@ -1233,6 +1240,18 @@ function publicSmallShipStates(
 
 function publicVoyage33Admission(value: unknown, sessionId: string): Voyage33Admission | undefined {
   return parseVoyage33Admission(value, sessionId);
+}
+
+function publicVoyage33Maintenance(
+  value: unknown,
+  admission: Voyage33Admission | undefined,
+  activeVesselIds: readonly string[],
+): Voyage33MaintenanceState | undefined {
+  if (!admission) return undefined;
+  const state = parseVoyage33MaintenanceState(value);
+  if (!state) return undefined;
+  if (state.hostShipId !== null && !activeVesselIds.includes(state.hostShipId)) return undefined;
+  return state;
 }
 
 function reconcileActiveVesselMap<T>(
@@ -8209,6 +8228,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     );
     const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
     const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+    const voyageMaintenance = publicVoyage33Maintenance(
+      sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
+    );
     return {
       session: {
         id: sessionId,
@@ -8233,6 +8255,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         activeVesselIds: [...setup.activeVesselIds],
         admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
         ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+        ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
         ...(turnState ? { turnState } : {}),
@@ -8474,6 +8497,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   );
   const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
   const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+  const voyageMaintenance = publicVoyage33Maintenance(
+    sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
+  );
   return {
     session: {
       id: sessionId,
@@ -8498,6 +8524,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       activeVesselIds: [...setup.activeVesselIds],
       admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
       ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+      ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
       ...(turnState ? { turnState } : {}),
@@ -14561,6 +14588,195 @@ export const runSmallShipMaintenance = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     }));
     tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply, eventId, serverRolls: randomStep ? stableRolls : null, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+type Voyage33MaintenanceCommandFingerprint = Readonly<{
+  kind: 'maintenance';
+  sessionId: string;
+  actorUid: string;
+  instanceId: string | null;
+  expectedRevision: number;
+  action: string;
+  foodLevel: number | null;
+  waterLevel: number | null;
+  consoles: readonly string[];
+}>;
+
+function sameVoyage33MaintenanceFingerprint(
+  value: unknown,
+  expected: Voyage33MaintenanceCommandFingerprint,
+): boolean {
+  if (!isRecord(value)) return false;
+  const consoles = value.consoles;
+  return value.kind === expected.kind && value.sessionId === expected.sessionId &&
+    value.actorUid === expected.actorUid && value.instanceId === expected.instanceId &&
+    value.expectedRevision === expected.expectedRevision && value.action === expected.action &&
+    value.foodLevel === expected.foodLevel && value.waterLevel === expected.waterLevel &&
+    Array.isArray(consoles) && consoles.length === expected.consoles.length &&
+    consoles.every((item, index) => item === expected.consoles[index]);
+}
+
+function voyage33MaintenanceReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: Voyage33MaintenanceCommandFingerprint,
+  uid: string,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (prior.get('actorUid') !== uid || !sameVoyage33MaintenanceFingerprint(prior.get('fingerprint'), fingerprint)) {
+    throw commandError('failed-precondition', 'This request id was already used for a different Voyage 33-0 maintenance command or actor.', 'conflict');
+  }
+  const stored = prior.get('reply');
+  if (!isRecord(stored) || !isVesselActionResult(stored)) {
+    throw commandError('failed-precondition', 'This Voyage 33-0 maintenance request has no replayable result.', 'conflict');
+  }
+  return stored.status === 'stale' ? stored : { ...stored, status: 'replayed' };
+}
+
+function storedVoyage33MaintenanceState(session: DocumentSnapshot): Voyage33MaintenanceState | undefined {
+  return parseVoyage33MaintenanceState(session.get('voyage33Maintenance'));
+}
+
+async function requireVoyage33MaintenanceAuthority(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  instanceId: string | undefined,
+): Promise<{ player: DocumentSnapshot; session: DocumentSnapshot; state: Voyage33MaintenanceState }> {
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const [player, session] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(sessionRef),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!parseVoyage33Admission(session.get('voyage33Admission'), sessionId)) {
+    throw commandError('failed-precondition', 'Voyage 33-0 must be admitted before maintenance can run.', 'conflict');
+  }
+  const rawState = session.get('voyage33Maintenance');
+  const state = storedVoyage33MaintenanceState(session);
+  if (rawState !== undefined && !state) {
+    throw commandError('failed-precondition', 'The stored Voyage 33-0 maintenance state is malformed; refresh the session before operating it.', 'malformed-input');
+  }
+  if (!state || !state.hostShipId) {
+    throw commandError('failed-precondition', 'Dock Voyage 33-0 with an active fleet host before maintenance.', 'conflict');
+  }
+  await requireShipCounterAuthority(tx, sessionId, uid, state.hostShipId, instanceId, false);
+  return { player, session, state };
+}
+
+/** Run Voyage 33-0's four-step host-funded maintenance lane. Docking remains P251. */
+export const runVoyage33Maintenance = onCall<{
+  sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
+  expectedRevision?: unknown; instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid Voyage 33-0 maintenance request.');
+  }
+  const parsed = requireSmallShipMaintenanceRequest({ ...raw, smallShipId: raw.shipId });
+  const consoles = requireBoundedIdList(raw.consoles, 'consoles', MAX_VOYAGE_33_CONSOLES);
+  if (parsed.smallShipId !== VOYAGE_33_ID || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'end'].includes(parsed.action) ||
+      [raw.foodLevel, raw.waterLevel].some(level => level !== undefined && (!Number.isSafeInteger(level) || (level as number) < 0 || (level as number) > 3))) {
+    throw new HttpsError('invalid-argument', 'Invalid Voyage 33-0 maintenance choices.');
+  }
+  const fingerprint: Voyage33MaintenanceCommandFingerprint = {
+    kind: 'maintenance', sessionId: parsed.sessionId, actorUid: uid,
+    instanceId: parsed.instanceId ?? null, expectedRevision: parsed.expectedRevision,
+    action: parsed.action, foodLevel: raw.foodLevel === undefined ? null : raw.foodLevel as number,
+    waterLevel: raw.waterLevel === undefined ? null : raw.waterLevel as number,
+    consoles: [...(consoles ?? [])],
+  };
+  const requestRef = db.doc(`sessions/${parsed.sessionId}/voyage33MaintenanceRequests/${parsed.requestId}`);
+  const sessionRef = db.doc(`sessions/${parsed.sessionId}`);
+  const preflight = await db.runTransaction(async tx => {
+    const prior = await tx.get(requestRef);
+    const priorReply = isRecord(prior.get('reply')) ? prior.get('reply') : undefined;
+    const priorHost = typeof priorReply?.hostShipId === 'string' ? priorReply.hostShipId : undefined;
+    if (priorHost) {
+      await requireShipCounterAuthority(tx, parsed.sessionId, uid, priorHost, parsed.instanceId, false);
+      const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
+      if (replay) return { replay, player: undefined, state: undefined };
+    }
+    const authority = await requireVoyage33MaintenanceAuthority(tx, parsed.sessionId, uid, parsed.instanceId);
+    const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
+    if (replay) return { replay, player: undefined, state: undefined };
+    return { replay: undefined, player: authority.player, state: authority.state };
+  });
+  if (preflight.replay) return preflight.replay;
+  const rollCount = parsed.action === 'unrest' ? 2 : parsed.action === 'riot' ? 1 : 0;
+  const stableRolls = Array.from({ length: rollCount }, () => randomInt(1, 7));
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const authority = await requireVoyage33MaintenanceAuthority(tx, parsed.sessionId, uid, parsed.instanceId);
+    const prior = await tx.get(requestRef);
+    const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    requireTurnOneForGameplay(authority.session);
+    requireActionPhase(authority.session, 'maintenance', authority.player.get('role') === 'gm' ? 'facilitator' : 'player');
+    if (authority.state.cycle.revision !== parsed.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, requestId: parsed.requestId, sessionId: parsed.sessionId,
+        shipId: VOYAGE_33_ID, action: parsed.action, expectedRevision: parsed.expectedRevision,
+        currentRevision: authority.state.cycle.revision,
+        ...vesselActionEnvelope(authority.session, authority.player, uid, VOYAGE_33_ID,
+          authority.state.cycle.revision, parsed.requestId, 'voyage-33-maintenance', authority.state.hostShipId ?? undefined),
+      };
+      tx.set(requestRef, { ...fingerprint, requestId: parsed.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const hostShipId = authority.state.hostShipId;
+    if (!hostShipId) throw commandError('failed-precondition', 'Dock Voyage 33-0 with an active fleet host before maintenance.', 'conflict');
+    const hostResources = shipResources(authority.session.get('shipResources'))[hostShipId];
+    if (!hostResources) throw commandError('failed-precondition', 'The docked host resource store is unavailable.', 'conflict');
+    let result: ReturnType<typeof advanceVoyage33Maintenance>;
+    try {
+      result = advanceVoyage33Maintenance({
+        state: authority.state, action: parsed.action, expectedRevision: parsed.expectedRevision,
+        currentTurn: sessionTurn(authority.session.get('currentTurn')), hostResources,
+        rolls: stableRolls, foodLevel: raw.foodLevel as number | undefined,
+        waterLevel: raw.waterLevel as number | undefined, consoles, now: serverTime,
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid Voyage 33-0 maintenance action.', 'conflict');
+    }
+    const eventId = `voyage33-maintenance-${parsed.requestId}`;
+    const actorRoleId = typeof authority.player.get('activeConsoleRoleId') === 'string'
+      ? authority.player.get('activeConsoleRoleId') as string : null;
+    const reply = {
+      ...result.state.cycle,
+      status: 'committed' as const, requestId: parsed.requestId, sessionId: parsed.sessionId,
+      shipId: VOYAGE_33_ID, hostShipId: result.state.hostShipId, action: parsed.action,
+      expectedRevision: parsed.expectedRevision, committedRevision: result.state.cycle.revision,
+      currentTurn: sessionTurn(authority.session.get('currentTurn')), serverTime,
+      cycle: result.state.cycle, result: { state: result.state, hostResources: result.hostResources },
+      ...vesselActionEnvelope(authority.session, authority.player, uid, VOYAGE_33_ID,
+        result.state.cycle.revision, parsed.requestId, 'voyage-33-maintenance', result.state.hostShipId ?? undefined),
+    };
+    tx.update(sessionRef, {
+      voyage33Maintenance: result.state,
+      [`shipResources.${hostShipId}`]: result.hostResources,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${parsed.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+      type: 'maintenance',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: parsed.sessionId, actorUid: uid, actorRoleId,
+        turn: sessionTurn(authority.session.get('currentTurn')), phase: 'active', type: 'maintenance',
+        requestId: parsed.requestId, revision: result.state.cycle.revision,
+        serverTime, visibility: EventVisibility.Member,
+      }),
+      payload: projectMaintenanceEvent({
+        shipId: VOYAGE_33_ID, shipName: 'Voyage 33-0', action: parsed.action,
+        results: result.state.cycle.results,
+      }),
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(requestRef, { ...fingerprint, requestId: parsed.requestId, actorUid: uid,
+      fingerprint, reply, eventId, serverRolls: rollCount > 0 ? stableRolls : null,
+      createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });

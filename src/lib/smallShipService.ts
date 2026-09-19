@@ -56,3 +56,18 @@ export async function runSmallShipMaintenance(
   };
   return (await httpsCallable<typeof payload, unknown>(functions(), 'runSmallShipMaintenance')(payload)).data;
 }
+
+/** Run the admitted Voyage 33-0 maintenance lane; docking remains P251. */
+export async function runVoyage33Maintenance(
+  action: string,
+  expectedRevision: number,
+  choices: SmallShipMaintenanceChoices = {},
+  requestId = commandId(),
+): Promise<unknown> {
+  const { sessionId, instanceId } = requireSession();
+  const payload = {
+    sessionId, shipId: 'voyage-33-0' as const, action, expectedRevision, requestId, ...choices,
+    ...(instanceId ? { instanceId } : {}),
+  };
+  return (await httpsCallable<typeof payload, unknown>(functions(), 'runVoyage33Maintenance')(payload)).data;
+}

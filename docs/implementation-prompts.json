@@ -1570,6 +1570,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "250 -> P250-IMPLEMENTATION",
+      "id": "E-P250-IMPLEMENTATION",
+      "language": "The Voyage 33-0 maintenance producer is a distinct server-owned state and callable rather than a base small-ship entry. It checks the P249 admitted identity and an active host-backed state, reuses the P234 host food/water ledger and four-step lane, limits charging to one console, applies server unrest/riot rolls, and on a failed roll removes the rolled population amount and skips charging. Exact request retries replay without a second ledger mutation; stale revisions, malformed state, missing admission/host, unauthorized actors, client writes, and public projection parsing fail closed. P251 still owns docking and will supply the host-backed state in the movement slice.",
+      "source": "functions/src/voyage33Maintenance.ts; functions/src/voyage33Maintenance.test.ts; functions/src/index.ts; functions/src/voyage33MaintenanceCallable.test.ts; src/lib/smallShipService.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; tests/rules/nonmember-reads.rules.test.ts; focused P234/P249 regression tests; typecheck; Functions build; lint",
+      "type": "evidence / production-path / authority / privacy"
+    },
+    {
       "direction": "252 -> 057;058",
       "id": "E-AUDIT-252",
       "language": "Expansion mode consumes the existing mode-selection and expansion-roster contracts.",
@@ -11839,8 +11846,8 @@
         "acceptance": "host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.",
         "title": "Resolve Voyage 33-0 maintenance."
       },
-      "description": "Planned [NEW] prompt. P234 supplies the completed shared host-store and four-step maintenance authority, and P249 supplies the admitted Voyage 33-0 identity. This prompt owns the Voyage-specific host-funded steps 1–4, one-console charge, and printed failed-unrest population-loss/skip-charge exception; P114's whole-vessel order closure consumes this result.",
-      "evidenceIds": "E-AUDIT-250;E-AUDIT-250-RELATED",
+      "description": "The server-authoritative Voyage 33-0 maintenance path now keeps a distinct admitted-vessel state, reuses P234's host food/water ledger and four-step lane, limits the printed reactor to one charge, and applies the printed failed-unrest population loss with charging skipped. A host-backed state is required, P249 admission is checked before every fresh action, and P251 remains responsible for supplying docking; the state is never folded into base small-ship population or damage logic. Focused state, callable retry/authority, public projection, existing small-ship regression, typecheck, Functions build, lint, and Firestore-rule boundary coverage pass.",
+      "evidenceIds": "E-AUDIT-250;E-AUDIT-250-RELATED;E-P250-IMPLEMENTATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;249",
@@ -11851,7 +11858,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

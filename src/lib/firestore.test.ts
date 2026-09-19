@@ -152,9 +152,14 @@ it('hydrates admitted Voyage 33-0 as a public vessel identity without widening t
       crisisId: 'approach-1', crisisRevision: 3, population: 40_000, unrest: 0, hostShipId: null,
       commitments: { requiresHostDocking: true, hostProvidesResources: true, maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1 },
     },
+    voyage33Maintenance: {
+      id: 'voyage-33-0', hostShipId: 'aegis', dockingRevision: 1, population: 40_000, unrest: 0,
+      cycle: { step: 4, revision: 4, results: { '1': 'funded' }, charges: ['voyage-reactor'], turn: 1 },
+    },
   });
   expect(session.admittedVesselIds).toEqual(['voyage-33-0']);
   expect(session.voyage33Admission).toMatchObject({ id: 'voyage-33-0', population: 40_000, hostShipId: null });
+  expect(session.voyage33Maintenance).toMatchObject({ id: 'voyage-33-0', hostShipId: 'aegis', population: 40_000, cycle: { step: 4, charges: ['voyage-reactor'] } });
   expect(session.activeVesselIds).toEqual(['aegis']);
 
   const malformed = sessionFrom('malformed-voyage-admission-session', {

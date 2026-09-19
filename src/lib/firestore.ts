@@ -57,6 +57,7 @@ import type {
   WolfAttackDeclarationState,
   WolfAttackWindow,
   Voyage33Admission,
+  Voyage33MaintenanceState,
   WolfAssignment,
   WolfCultIntelligence,
   ArbourVision,
@@ -1164,6 +1165,45 @@ function smallShipStates(value: unknown): NonNullable<GameSession['smallShipStat
   })) as NonNullable<GameSession['smallShipStates']>;
 }
 
+function voyage33Maintenance(value: unknown, sessionId: string): Voyage33MaintenanceState | undefined {
+  const raw = recordValue(value);
+  const cycle = recordValue(raw?.cycle);
+  const results = recordValue(cycle?.results);
+  const charges = cycle?.charges;
+  const hostShipId = raw?.hostShipId === null ? null : parseEntityId('vessel', raw?.hostShipId);
+  const dockingRevision = nonNegativeInteger(raw?.dockingRevision);
+  const population = nonNegativeInteger(raw?.population);
+  const unrest = nonNegativeInteger(raw?.unrest);
+  const step = nonNegativeInteger(cycle?.step);
+  const revision = nonNegativeInteger(cycle?.revision);
+  if (!raw || raw.id !== 'voyage-33-0' || raw.sessionId !== undefined && raw.sessionId !== sessionId ||
+      (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
+      (raw.hostShipId !== null && hostShipId === undefined) || dockingRevision === undefined ||
+      population === undefined || population > 40_000 || unrest === undefined || unrest > 10 ||
+      !cycle || step === undefined || step > 5 || revision === undefined || !results ||
+      !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string')) return undefined;
+  if (cycle.turn !== undefined && !nonNegativeInteger(cycle.turn)) return undefined;
+  if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return undefined;
+  if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return undefined;
+  const parsedResults = Object.fromEntries(Object.entries(results).flatMap(([key, result]) =>
+    /^[1-5]$/.test(key) && typeof result === 'string' ? [[key, result]] : []));
+  const startedAt = cycle.startedAt === undefined ? undefined : timestampString(cycle.startedAt);
+  const completedAt = cycle.completedAt === undefined ? undefined : timestampString(cycle.completedAt);
+  if ((cycle.startedAt !== undefined && !startedAt) || (cycle.completedAt !== undefined && !completedAt)) return undefined;
+  return {
+    id: 'voyage-33-0', hostShipId: hostShipId ?? null,
+    dockingRevision, population, unrest,
+    cycle: {
+      step, revision, results: parsedResults, charges: charges as string[],
+      ...(cycle.turn === undefined ? {} : { turn: cycle.turn as number }),
+      ...(cycle.rationBonus === undefined ? {} : { rationBonus: cycle.rationBonus as number }),
+      ...(cycle.chargingSkipped === undefined ? {} : { chargingSkipped: cycle.chargingSkipped as boolean }),
+      ...(startedAt === undefined ? {} : { startedAt }),
+      ...(completedAt === undefined ? {} : { completedAt }),
+    },
+  };
+}
+
 function admittedVesselIds(value: unknown): NonNullable<GameSession['admittedVesselIds']> {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((id): id is 'voyage-33-0' => id === 'voyage-33-0'))];
@@ -1505,6 +1545,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     (visibleShuttles === undefined || visibleShuttles.has(visit.shuttleId)));
   const ownerUid = parseEntityId('player', data.ownerUid);
   const voyageAdmission = voyage33Admission(data.voyage33Admission, sessionId);
+  const voyageMaintenance = voyage33Maintenance(data.voyage33Maintenance, sessionId);
   const admitted = voyageAdmission
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
     : [];
@@ -1537,6 +1578,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       activeVesselIds !== undefined ? { activeVesselIds: [...activeVesselIds] } : {}),
     admittedVesselIds: admitted,
     ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+    ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),

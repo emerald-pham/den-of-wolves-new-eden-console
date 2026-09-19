@@ -797,6 +797,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Voyage 33-0 maintenance receipts are server-owned replay state and
+      // never part of the member-readable session projection.
+      match /voyage33MaintenanceRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       // Fighter-wing corrections are GM callables with private replay receipts;
       // no client may inspect or forge the correction ledger.
       match /fighterWingCountRequests/{requestId} {

@@ -324,6 +324,16 @@ export interface SmallShipState {
   readonly cycle: SmallShipMaintenanceCycle;
 }
 
+/** Server-owned maintenance state for the admitted Voyage 33-0 vessel. */
+export interface Voyage33MaintenanceState {
+  readonly id: 'voyage-33-0';
+  readonly hostShipId: VesselId | null;
+  readonly dockingRevision: number;
+  readonly population: number;
+  readonly unrest: number;
+  readonly cycle: SmallShipMaintenanceCycle;
+}
+
 export interface PressDispatch {
   readonly id: string;
   readonly text: string;
@@ -568,6 +578,8 @@ export interface GameSession {
   readonly admittedVesselIds?: readonly SupplementalVesselId[];
   /** Public state for an admitted Voyage 33-0; host selection remains unset until docking. */
   readonly voyage33Admission?: Voyage33Admission;
+  /** Public maintenance state for an admitted Voyage 33-0; docking belongs to P251. */
+  readonly voyage33Maintenance?: Voyage33MaintenanceState;
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;
