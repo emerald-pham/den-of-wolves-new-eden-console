@@ -59,6 +59,14 @@ export function readMotionSafetyChoice(
   return isFresh(record, now) ? record.choice : null;
 }
 
+export function remainingMotionSafetyMs(
+  storage: Pick<Storage, 'getItem'> = window.localStorage,
+  now = Date.now(),
+): number {
+  const record = readRecord(storage);
+  return isFresh(record, now) ? MOTION_SAFETY_TTL_MS - (now - record.acknowledgedAt) : 0;
+}
+
 export function acknowledgeMotionSafety(
   choice: MotionSafetyChoice,
   storage: MotionSafetyStorage = window.localStorage,

@@ -5138,6 +5138,13 @@
       "language": "All three terminal resume codes clear persisted identity and route for the current session, while each is ignored after switching to another session. Unavailable, deadline-exceeded, and resource-exhausted preserve persisted recovery state. The late-denial regressions failed before the matching-session guard and pass after it; 211 service, store, and App tests pass, including protected-route return to landing, and TypeScript checking passes. Independent Terra review of implementation commit 6204fc6a found no actionable issue in this scope. This is local implementation evidence, not production deployment proof.",
       "source": "src/lib/sessionService.ts (connect); src/lib/sessionService.test.ts; src/store/useSessionStore.ts (disconnect and persistence); src/store/useSessionStore.test.ts; src/App.test.tsx",
       "type": "evidence / production-path / regression"
+    },
+    {
+      "direction": "589a",
+      "id": "E-589A-MOTION-VERIFIED",
+      "language": "Live-tab and suspended-tab expiry regressions fail before the repair and pass afterward. All 76 motion-safety and App tests pass. The real application browser smoke passes at 320x844, 1440x900, and 844x390: initial inert content, keyboard choice focus, 44px controls, real timer expiry without reload, renewed reduced choice, persisted reload, and no horizontal overflow. TypeScript checking passes. Browser network is limited to the local test server; no production writes or deployed-behavior claim.",
+      "source": "src/components/MotionSafetyGate.tsx; src/components/MotionSafetyGate.test.tsx; src/lib/motionSafety.ts; src/lib/motionSafety.test.ts; src/App.test.tsx; scripts/test-motion-safety-browser.mjs",
+      "type": "evidence / production-path / accessibility / rendered"
     }
   ],
   "plan": {
@@ -20241,8 +20248,8 @@
         "acceptance": "every browser is blocked until normal or reduced motion is chosen, the choice applies globally, and a fresh acknowledgement is required after 24 hours.",
         "title": "Audit the motion-safety gate."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The browser-wide motion gate requires an explicit normal or reduced choice, keeps underlying content inert and reduced until acknowledgement, and preserves later Settings overrides during a valid window. Live expiry now reopens the gate after 24 hours without a reload and rechecks suspended tabs on visibility/focus. Focused tests and real-browser phone, desktop, and short-landscape checks cover first entry, keyboard focus, expiry, renewed choice, and reload.",
+      "evidenceIds": "E-589A-MOTION-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20253,7 +20260,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

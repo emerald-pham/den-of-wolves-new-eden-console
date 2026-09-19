@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**279 / 751 prompts complete (37.15%)**
+**280 / 751 prompts complete (37.28%)**
 
-Status breakdown: **279 done · 24 partial · 448 missing**.
+Status breakdown: **280 done · 24 partial · 447 missing**.
 
 Active prompt: **none**
 
@@ -1059,7 +1059,7 @@ release classification and evidence.
 | 587 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 588 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 589 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 589a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 589a | done | non-feature | — | The browser-wide motion gate requires an explicit normal or reduced choice, keeps underlying content inert and reduced until acknowledgement, and preserves later Settings overrides during a valid window. Live expiry now reopens the gate after 24 hours without a reload and rechecks suspended tabs on visibility/focus. Focused tests and real-browser phone, desktop, and short-landscape checks cover first entry, keyboard focus, expiry, renewed choice, and reload. |
 | 589b | done | non-feature | 0.3.64 | The authenticated-session waiver now solely owns the exact human-first body Be bold. Remember the human on the other side. Existing title, eyebrow, checkboxes, focus handling, review delay, local 24-hour lifetime and session wiring are preserved. Component and session integration tests pass; actual rendered four-viewport checks confirm complete accessible text, 14px monospaced body, 44px checkbox targets, no horizontal overflow and reduced motion. |
 | 590 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 591 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

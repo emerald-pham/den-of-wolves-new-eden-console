@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   acknowledgeMotionSafety,
   readMotionSafetyChoice,
+  remainingMotionSafetyMs,
   type MotionSafetyChoice,
 } from '@/lib/motionSafety';
 import {
@@ -94,6 +95,28 @@ export default function MotionSafetyGate({ children }: MotionSafetyGateProps) {
   ));
   const pending = choice === null;
   const content = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (choice === null) return;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const checkExpiry = () => {
+      clearTimeout(timeout);
+      const remaining = remainingMotionSafetyMs();
+      if (remaining === 0) setChoice(null);
+      else timeout = setTimeout(checkExpiry, remaining);
+    };
+    checkExpiry();
+    // Background tabs can suspend timers; recheck before interaction resumes.
+    document.addEventListener('visibilitychange', checkExpiry);
+    window.addEventListener('focus', checkExpiry);
+    window.addEventListener('storage', checkExpiry);
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('visibilitychange', checkExpiry);
+      window.removeEventListener('focus', checkExpiry);
+      window.removeEventListener('storage', checkExpiry);
+    };
+  }, [choice]);
 
   useEffect(() => {
     if (hydratingChoice === null) return;

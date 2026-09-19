@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MotionSafetyGate from './MotionSafetyGate';
 import {
   MOTION_SAFETY_STORAGE_KEY,
@@ -20,6 +20,38 @@ function MotionProbe() {
 describe('MotionSafetyGate', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('requires a fresh choice when an open tab reaches the 24-hour boundary', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000_000);
+    localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
+      acknowledgedAt: Date.now() - MOTION_SAFETY_TTL_MS + 1000, choice: 'full',
+    }));
+    render(<MotionSafetyGate><MotionProbe /></MotionSafetyGate>);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(999));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.getByRole('dialog', { name: /motion safety check/i })).toBeVisible();
+    expect(screen.getByRole('status', { hidden: true })).toHaveTextContent('underlying motion: reduced');
+    fireEvent.click(screen.getByRole('button', { name: /reduced motion/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(MOTION_SAFETY_TTL_MS));
+    expect(screen.getByRole('dialog')).toBeVisible();
+  });
+
+  it('rechecks expiry when returning to a suspended tab', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000_000);
+    localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
+      acknowledgedAt: Date.now(), choice: 'reduce',
+    }));
+    render(<MotionSafetyGate><MotionProbe /></MotionSafetyGate>);
+    vi.setSystemTime(Date.now() + MOTION_SAFETY_TTL_MS);
+    fireEvent(document, new Event('visibilitychange'));
+    expect(screen.getByRole('dialog')).toBeVisible();
   });
 
   it('blocks the app on first load and forces reduced motion behind the prompt', () => {
