@@ -21,6 +21,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    changes: [
+      "Scrap now stays in the enabled Capybara, Macaw, and Boa ledgers, so other ships cannot create, carry, or spend it.",
+      "284 of 751 planned items are complete (37.82%).",
+    ],
+  },
+  {
+    version: '0.4.15',
     implementationPrompts: [613, '589a'],
     implementationProgress: {
       completed: 281, total: 751, percentage: '37.42%',
