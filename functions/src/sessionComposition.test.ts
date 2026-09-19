@@ -351,7 +351,10 @@ async function composeProductionSession(
       joinSession.run(request({ joinCode, displayName: 'Racer A' }, raceJoinUid)),
       joinSession.run(request({ joinCode, displayName: 'Racer B' }, raceJoinUid)),
     ]);
-    await disconnectFromSession.run(request({ sessionId }, raceJoinUid));
+    await disconnectFromSession.run(request({
+      sessionId,
+      connectionGeneration: read(`sessions/${sessionId}/players/${raceJoinUid}`)?.connectionGeneration,
+    }, raceJoinUid));
   }
   if (playerCount === 20) {
     await joinSession.run(request({ joinCode, displayName: 'Press Officer' }, `press-${playerCount}`));
@@ -516,7 +519,10 @@ async function composeProductionSession(
       setupRevision = (assignment as { setupRevision: number }).setupRevision;
     }
 
-    await disconnectFromSession.run(request({ sessionId }, coreUids[1]!));
+    await disconnectFromSession.run(request({
+      sessionId,
+      connectionGeneration: read(`sessions/${sessionId}/players/${coreUids[1]}`)?.connectionGeneration,
+    }, coreUids[1]!));
     const resumedBeforeStart = await resumeSession.run(request({ sessionId }, coreUids[1]!));
     const resumedRoleId = (read(`sessions/${sessionId}/players/${coreUids[1]}`) as StoredDocument).assignedRoleId;
     expect(resumedBeforeStart).toMatchObject({
@@ -999,7 +1005,10 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       expect(stateSnapshot()).toBe(unsupportedState);
     }
 
-    await disconnectFromSession.run(request({ sessionId }, coreUids[0]!));
+    await disconnectFromSession.run(request({
+      sessionId,
+      connectionGeneration: read(`sessions/${sessionId}/players/${coreUids[0]}`)?.connectionGeneration,
+    }, coreUids[0]!));
     const resumed = await resumeSession.run(request({ sessionId }, coreUids[0]!));
     expect(resumed).toMatchObject({
       session: { id: sessionId, phase: 'active', currentTurn: 1 },
