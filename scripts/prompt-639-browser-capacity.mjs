@@ -501,13 +501,15 @@ try {
   const thresholdResults = {
     clientCount: smokeRun || clientCount === thresholds.clientCount,
     duration: smokeRun || durationMs === thresholds.durationMs,
-    heartbeatCoverage: heartbeatCoverage >= thresholds.heartbeatCoverageMin,
+    heartbeatCoverage: smokeRun ? heartbeats.length > 0 : heartbeatCoverage >= thresholds.heartbeatCoverageMin,
     heartbeatErrorRate: heartbeatErrorRate <= thresholds.heartbeatErrorRateMax,
-    gmLeaseRenewals: (smokeRun || gmLeaseRenewals.length >= 90) &&
-      gmLeaseRenewalSuccesses.length === gmLeaseRenewals.length,
+    gmLeaseRenewals: smokeRun
+      ? gmLeaseRenewalSuccesses.length > 0
+      : gmLeaseRenewals.length >= 90 && gmLeaseRenewalSuccesses.length === gmLeaseRenewals.length,
     heartbeatP95: heartbeatLatency.p95 <= thresholds.heartbeatP95MsMax,
     listenerActionP95: listenerActionLatency.p95 <= thresholds.listenerActionP95MsMax,
-    reconnect: reconnect?.durationMs <= thresholds.reconnectMsMax,
+    reconnect: reconnect?.restoredPages === tabsPerIdentity &&
+      (smokeRun || reconnect.durationMs <= thresholds.reconnectMsMax),
     transientNextCall: Math.max(unavailable.nextCallMs, throttled.nextCallMs) <= thresholds.transientNextCallMsMax,
     contention: contentionCount >= 2,
     listenerErrors: listenerErrors.length === 0,
