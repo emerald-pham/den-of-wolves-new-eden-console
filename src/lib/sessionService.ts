@@ -823,6 +823,7 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
     shuttleDockings: shuttleManifest.dockings,
     shuttleVisitLog: shuttleManifest.visits,
     pressEnabled: reply.session.pressEnabled !== false,
+    pressClaimed: reply.session.pressClaimed === true,
     pressAvailabilityRevision:
       Number.isSafeInteger(reply.session.pressAvailabilityRevision) &&
       (reply.session.pressAvailabilityRevision as number) >= 0
@@ -2026,6 +2027,22 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
   try {
+    // A console route is only an intent.  For the canonical setup roster, the
+    // first entry into an open core role must win the same server CAS used by
+    // the setup seat board before presence can grant console authority.  The
+    // Press station has no core seat and keeps its existing exclusive path.
+    const targetSeat = before.seats.find((seat) => (seat.roleId ?? seat.id) === roleId);
+    if (targetSeat?.status === 'open') {
+      const disposition = await claimSeat(targetSeat.id);
+      if (disposition !== 'applied') return;
+    } else if (
+      targetSeat && targetSeat.holderUid !== before.me?.uid
+    ) {
+      // A claimed or locked seat is already read-only for this browser.  Do
+      // not let the presence callable turn a route visit into role authority
+      // while a seat projection is ahead of the presence projection.
+      return;
+    }
     await refreshPresence(roleId);
     const store = useSessionStore.getState();
     if (store.me && authorityCheckpointIsCurrent(checkpoint)) {

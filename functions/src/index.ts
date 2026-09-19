@@ -2294,6 +2294,7 @@ export const createSession = onCall<{
             revision: 0,
           },
           pressEnabled: true,
+          pressClaimed: false,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
           shipConsoleLocks,
@@ -7805,6 +7806,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         pressEnabled: sessionSnap.get('pressEnabled') !== false,
+        pressClaimed: typeof sessionSnap.get('pressHolderUid') === 'string',
         pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
         shipConsoleLocks: activeVesselRecord(
           shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
@@ -8059,6 +8061,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       pressEnabled: sessionSnap.get('pressEnabled') !== false,
+      pressClaimed: typeof sessionSnap.get('pressHolderUid') === 'string',
       pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
       shipConsoleLocks: activeVesselRecord(
         shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,

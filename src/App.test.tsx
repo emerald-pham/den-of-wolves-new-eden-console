@@ -195,7 +195,7 @@ describe('App', () => {
     expect(window.location.hash).toBe('#/console');
   });
 
-  it('returns a player from a foreign console URL to their assigned station', async () => {
+  it('keeps a foreign console URL available as a read-only inspection route', async () => {
     window.location.hash = '#/ships/aegis/roles/admiral';
     useSessionStore.getState().setIdentity(session, {
       ...player,
@@ -205,8 +205,9 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Dione' })).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/ships/dione/roles/dione-engineer');
+    expect(await screen.findByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
+    expect(screen.getByText('Console access // Read only')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/ships/aegis/roles/admiral');
   });
 
   it('requires a joined player to acknowledge the code of conduct before continuing', async () => {

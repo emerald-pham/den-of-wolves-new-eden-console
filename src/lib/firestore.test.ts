@@ -80,6 +80,17 @@ it.each([
   ]));
 });
 
+it('projects Press occupancy as a public boolean without exposing its holder', () => {
+  const session = sessionFrom('press-occupancy', {
+    ...sessionData(8),
+    pressEnabled: true,
+    pressHolderUid: 'private-holder-uid',
+  });
+
+  expect(session.pressClaimed).toBe(true);
+  expect(session).not.toHaveProperty('pressHolderUid');
+});
+
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   const session = sessionFrom('typed-session', {
     ...sessionData(8),

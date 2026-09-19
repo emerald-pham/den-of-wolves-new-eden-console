@@ -1757,6 +1757,45 @@ describe('command role presence', () => {
     expect(useSessionStore.getState().lastRoute).toBe('/console');
   });
 
+  it('claims an open core seat before granting console presence', async () => {
+    useSessionStore.getState().setSession({ ...session, setupRevision: 0 });
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'open', holderUid: null, factionId: 'aegis', claimedAt: null,
+    }]);
+    const seatCall = callableReturning({
+      data: { status: 'committed', requestId: 'seat-request', setupRevision: 1, seatId: 'admiral', holderUid: 'u1' },
+    });
+    const presenceCall = callableReturning({ data: { sessionId: 's1' } });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) =>
+      name === 'claimSeat' ? seatCall : presenceCall,
+    );
+
+    await selectConsoleRole('admiral');
+
+    expect(seatCall).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', seatId: 'admiral', expectedSetupRevision: 0,
+    }));
+    expect(presenceCall).toHaveBeenCalledWith({ sessionId: 's1', activeConsoleRoleId: 'admiral' });
+    expect(vi.mocked(httpsCallable).mock.calls.map(([, name]) => name)).toEqual([
+      'claimSeat', 'refreshPresence',
+    ]);
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('admiral');
+    expect(useSessionStore.getState().me?.seatId).toBe('admiral');
+  });
+
+  it('does not promote a claimed seat through presence when the seat owner is another player', async () => {
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'claimed', holderUid: 'other', factionId: 'aegis', claimedAt: '2026-01-01T00:00:00.000Z',
+    }]);
+
+    await selectConsoleRole('admiral');
+
+    expect(httpsCallable).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeUndefined();
+  });
+
   it('renews the exact GM browser lease with a presence heartbeat', async () => {
     useSessionStore.getState().setGmInstance({
       id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',

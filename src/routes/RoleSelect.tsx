@@ -13,7 +13,6 @@ import {
   useSessionStore,
   type ConsoleMode,
 } from '@/store/useSessionStore';
-import { consoleRoleRoute } from '@/lib/consoleRole';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 const MODES: readonly {
@@ -86,10 +85,6 @@ export default function RoleSelect() {
   });
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (!isGm && me.activeConsoleRoleId) {
-    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
-  }
-
   function connectAs(mode: ConsoleMode): void {
     setMode(mode);
     navigate(`/${mode}`);

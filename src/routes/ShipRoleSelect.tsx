@@ -4,7 +4,6 @@ import { activeFleetShipIds, rolesForShip, findConsoleRole } from '@/data/roles'
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import { selectIsGm } from '@/store/useSessionStore';
-import { consoleRoleRoute } from '@/lib/consoleRole';
 import { replacementRoleFor } from '@/data/replacementRoles';
 
 export default function ShipRoleSelect() {
@@ -28,9 +27,6 @@ export default function ShipRoleSelect() {
     (ship?.id !== 'capybara' || session.capybaraEnabled !== false) &&
     (ship?.id !== 'dione' || session.dioneEnabled !== false);
   if (!shipEnabled) return <Navigate to="/console" replace />;
-  if (!isGm && me.activeConsoleRoleId && !aboard) {
-    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
-  }
   if (mode !== 'console' || !ship || (roles.length === 0 && !isGm)) {
     return <Navigate to="/console" replace />;
   }

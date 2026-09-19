@@ -75,7 +75,8 @@ it('does not claim a union role while another console is held', async () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Admiral console')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /joint engineering union/i })).toBeInTheDocument();
+  expect(screen.getByText(/read.?only/i)).toBeInTheDocument();
   await act(async () => { await Promise.resolve(); });
   expect(selectConsoleRole).not.toHaveBeenCalled();
 });

@@ -1498,6 +1498,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     universalArbourEnabled: data.universalArbourEnabled === true,
     wolfCultEnabled: data.wolfCultEnabled === true,
     pressEnabled: data.pressEnabled !== false,
+    pressClaimed: typeof data.pressHolderUid === 'string',
     pressAvailabilityRevision:
       Number.isSafeInteger(data.pressAvailabilityRevision) && data.pressAvailabilityRevision >= 0
         ? data.pressAvailabilityRevision as number

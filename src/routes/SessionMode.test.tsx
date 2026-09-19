@@ -454,7 +454,7 @@ it('does not advertise a Union station when its paired engineers are also active
   expect(screen.queryByRole('link', { name: /quellon.*refinery engineer/i })).not.toBeInTheDocument();
 });
 
-it('returns a non-GM directly to their active command role', () => {
+it('keeps the full catalog visible to a non-GM with an active command role', () => {
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
   useSessionStore.getState().setGmInstance(null);
@@ -473,7 +473,46 @@ it('returns a non-GM directly to their active command role', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Locked role')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /dione.*engineer.*held by you/i })).toHaveAttribute(
+    'href', '/ships/dione/roles/dione-engineer',
+  );
+  expect(screen.queryByText('Locked role')).not.toBeInTheDocument();
+});
+
+it('shows public seat state and searches without issuing a claim', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  const session = state.session;
+  const me = state.me;
+  if (!session || !me) throw new Error('Expected the test session.');
+  state.setMe({ ...me, role: 'player' });
+  state.setGmInstance(null);
+  state.setSession({ ...session, activeRoleIds: ['admiral', 'dione-engineer'], setupRevision: 3 });
+  state.setSeats([
+    {
+      id: 'admiral', sessionId: session.id, roleId: 'admiral', label: 'AEGIS // Admiral',
+      factionId: 'aegis', status: 'claimed', holderUid: 'other', claimedAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'dione-engineer', sessionId: session.id, roleId: 'dione-engineer', label: 'Dione // Engineer',
+      factionId: 'dione', status: 'open', holderUid: null, claimedAt: null,
+    },
+  ]);
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /admiral.*claimed.*read-only/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /dione.*engineer.*open/i })).toBeInTheDocument();
+  await user.type(screen.getByRole('searchbox', { name: /filter consoles/i }), 'dione engineer');
+  expect(screen.getByRole('link', { name: /dione.*engineer.*open/i })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /admiral.*claimed.*read-only/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /press officer/i })).not.toBeInTheDocument();
+  expect(useSessionStore.getState().seats[0]?.status).toBe('claimed');
 });
 
 it('does not redirect a player back into Dione after the GM disables it', () => {

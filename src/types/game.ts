@@ -550,6 +550,8 @@ export interface GameSession {
   readonly wolfCultEnabled?: boolean;
   /** Optional New Eden Console extension; absent legacy values are treated as enabled. */
   readonly pressEnabled?: boolean;
+  /** Member-readable occupancy projection; the holder identity stays private. */
+  readonly pressClaimed?: boolean;
   /** Server-owned CAS revision for Press availability changes. */
   readonly pressAvailabilityRevision?: number;
   /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */

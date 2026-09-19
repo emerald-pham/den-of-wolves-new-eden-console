@@ -20,7 +20,6 @@ import {
   setShipConsoleLock,
   type GmShipConsoleWriteGrantAuthority,
 } from '@/lib/sessionService';
-import { consoleRoleRoute } from '@/lib/consoleRole';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
@@ -53,6 +52,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
+  const seats = useSessionStore((state) => state.seats);
   const ship = findShip(shipId);
   const shipState = ship && session ? projectShipState(session, ship.id) : undefined;
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
@@ -111,6 +111,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     name: string;
   } | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
+  const consoleEntryAttemptRef = useRef<string | null>(null);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const jumpTransition = shipState?.jumpTransition;
   const [jumpFlashId, setJumpFlashId] = useState<string | null>(null);
@@ -173,8 +174,17 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   useEffect(() => {
     if (!consoleRole || !canClaimConsoleRole || observer || visiting) return;
+    const entryKey = `${session?.id ?? ''}:${consoleRole.id}`;
+    if (consoleEntryAttemptRef.current === entryKey) return;
+    const current = useSessionStore.getState();
+    const seatRequired = consoleRole.shipId !== 'press';
+    if (
+      seatRequired && current.session?.setupRevision !== undefined &&
+      !current.seats.some((seat) => (seat.roleId ?? seat.id) === consoleRole.id)
+    ) return;
+    consoleEntryAttemptRef.current = entryKey;
     void Promise.resolve(selectConsoleRole(consoleRole.id)).catch(() => undefined);
-  }, [canClaimConsoleRole, consoleRole, observer, visiting]);
+  }, [canClaimConsoleRole, consoleRole, observer, session?.id, seats, visiting]);
 
   useEffect(() => {
     setObserverWrite(observer && grantedShipId === ship?.id);
@@ -296,9 +306,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (observer && !isGm) return <Navigate to="/console" replace />;
-  if (!observer && !isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId && ownShip !== ship?.id) {
-    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
-  }
   if (
     mode !== 'console' || !ship || !validRole ||
     (!roleEnabled && me.activeConsoleRoleId !== roleId && ownShip !== ship.id) ||

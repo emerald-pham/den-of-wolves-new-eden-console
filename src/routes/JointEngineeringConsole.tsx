@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
-import { consoleRoleRoute } from '@/lib/consoleRole';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
@@ -14,6 +13,7 @@ export default function JointEngineeringConsole() {
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
+  const seats = useSessionStore((state) => state.seats);
   const role = findConsoleRole(roleId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const roleEnabled = Boolean(role && isJointEngineeringRoleAvailable(activeRoleIds, role.id));
@@ -25,13 +25,14 @@ export default function JointEngineeringConsole() {
 
   useEffect(() => {
     if (!role || !canClaimRole) return;
+    if (
+      session?.setupRevision !== undefined &&
+      !seats.some((seat) => (seat.roleId ?? seat.id) === role.id)
+    ) return;
     void selectConsoleRole(role.id).catch(() => undefined);
-  }, [canClaimRole, role]);
+  }, [canClaimRole, role, seats, session?.setupRevision]);
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId) {
-    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
-  }
   if (
     !role || mode !== 'console' || role.shipId !== 'joint-engineering-union' ||
     (!roleEnabled &&
@@ -53,6 +54,11 @@ export default function JointEngineeringConsole() {
           <p className="eyebrow">{session.name} // Joint station</p>
           <h1 className="role-select__title">Joint Engineering Union</h1>
           <p className="role-select__lede">{role.name}</p>
+          {!isGm && me.activeConsoleRoleId !== role.id && (
+            <p className="gm-console__status" role="status">
+              Console access // Read only while another station is held.
+            </p>
+          )}
           {gameplayFrozen && <p className="gm-console__status" role="status">
             Endgame evaluation // engineering controls are frozen.
           </p>}

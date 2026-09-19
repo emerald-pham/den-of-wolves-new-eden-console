@@ -1,11 +1,12 @@
+import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 import { SHIPS, SHIP_ORIGIN_LABELS, type ShipOrigin } from '@/data/ships';
-import { activeFleetShipIds, findConsoleRole, rolesForShip } from '@/data/roles';
+import { activeFleetShipIds, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
-import { consoleRoleRoute } from '@/lib/consoleRole';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
+import type { Seat } from '@/types/game';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -16,18 +17,12 @@ const MODE_LABELS: Record<ConsoleMode, string> = {
 export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const seats = useSessionStore((state) => state.seats);
   const selectedMode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (mode === 'gm' && !isGm) return <Navigate to="/roles" replace />;
-  const activeRoleShipId = findConsoleRole(me.activeConsoleRoleId ?? undefined)?.shipId;
-  const activeRoleShipEnabled =
-    (activeRoleShipId !== 'capybara' || session.capybaraEnabled !== false) &&
-    (activeRoleShipId !== 'dione' || session.dioneEnabled !== false);
-  if (mode === 'console' && !isGm && me.activeConsoleRoleId && activeRoleShipEnabled) {
-    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
-  }
   const modeIsValid = selectedMode === mode || (mode === 'press' && selectedMode === 'console');
   if (!modeIsValid) return <Navigate to="/roles" replace />;
   if (mode === 'press' && session.pressEnabled === false) {
@@ -41,9 +36,13 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         capybaraEnabled={session.capybaraEnabled !== false}
         dioneEnabled={session.dioneEnabled !== false}
         pressEnabled={session.pressEnabled !== false}
+        pressClaimed={session.pressClaimed === true}
         activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
         {...(session.activeVesselIds === undefined ? {} : { activeVesselIds: session.activeVesselIds })}
         isGm={isGm}
+        seats={seats}
+        viewerUid={me.uid}
+        activeConsoleRoleId={me.activeConsoleRoleId ?? null}
       />
     );
   }
@@ -78,23 +77,43 @@ function FleetRoster({
   capybaraEnabled,
   dioneEnabled,
   pressEnabled,
+  pressClaimed,
   activeRoleIds,
   activeVesselIds,
   isGm,
+  seats,
+  viewerUid,
+  activeConsoleRoleId,
 }: {
   sessionName: string;
   capybaraEnabled: boolean;
   dioneEnabled: boolean;
   pressEnabled: boolean;
+  pressClaimed: boolean;
   activeRoleIds: readonly string[];
   activeVesselIds?: readonly string[];
   isGm: boolean;
+  seats: readonly Seat[];
+  viewerUid: string;
+  activeConsoleRoleId: string | null;
 }) {
+  const [query, setQuery] = useState('');
   const active = new Set(activeRoleIds);
   const activeShips = new Set(activeFleetShipIds(activeRoleIds, activeVesselIds));
+  const normalizedQuery = query.trim().toLocaleLowerCase();
   const unionRoles = CONSOLE_ROLES.filter(
     (role) => role.shipId === 'joint-engineering-union' &&
       isJointEngineeringRoleAvailable(activeRoleIds, role.id),
+  );
+  const visibleUnionRoles = unionRoles.filter((role) => matchesConsoleSearch(
+    normalizedQuery,
+    'Joint Engineering Union',
+    role.name,
+  ));
+  const showPress = !normalizedQuery || matchesConsoleSearch(
+    normalizedQuery,
+    'SNN Press Shuttle',
+    'Press Officer',
   );
   return (
     <main className="fleet-roster">
@@ -105,6 +124,15 @@ function FleetRoster({
         <p className="eyebrow">{sessionName}</p>
         <h1 className="role-select__title">Select a role</h1>
         <p className="role-select__lede">Choose an independent or shipboard station.</p>
+        <label className="fleet-roster__filter">
+          Filter consoles
+          <input
+            type="search"
+            value={query}
+            placeholder="Search ship or console"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
       </header>
 
       <section className="fleet-group" aria-labelledby="independent-roles">
@@ -118,7 +146,7 @@ function FleetRoster({
             <span className="role-card__name">GM Console</span>
             <span className="role-card__description">Session controls and fleet oversight</span>
           </Link>}
-          {pressEnabled && <Link
+          {pressEnabled && showPress && <Link
             className="role-card cic-frame"
             to="/press"
             aria-label="Press Officer"
@@ -127,8 +155,11 @@ function FleetRoster({
             <span className="role-card__description">
               SNN // Unaffiliated Independent Press Shuttle
             </span>
+            <span className="role-card__status">
+              {activeConsoleRoleId === 'press-officer' ? 'HELD BY YOU' : pressClaimed ? 'CLAIMED // READ-ONLY' : 'OPEN'}
+            </span>
           </Link>}
-          {unionRoles.map((role) => (
+          {visibleUnionRoles.map((role) => (
             <Link
               className="role-card cic-frame"
               to={`/union/roles/${role.id}`}
@@ -137,6 +168,7 @@ function FleetRoster({
             >
               <span className="role-card__name">{role.name}</span>
               <span className="role-card__description">Joint Engineering Union</span>
+              <span className="role-card__status">{consoleStatus(role.id, seats, viewerUid, activeConsoleRoleId)}</span>
             </Link>
           ))}
         </div>
@@ -151,35 +183,81 @@ function FleetRoster({
               activeShips.has(ship.id) &&
               (capybaraEnabled || ship.id !== 'capybara') &&
               (dioneEnabled || ship.id !== 'dione') &&
-              (isGm || rolesForShip(ship.id).some((role) => active.has(role.id)))).map((ship) => (
-              <article
-                className={`fleet-card fleet-card--${ship.id} cic-frame`}
-                aria-label={ship.name}
-                key={ship.id}
-              >
-                <Link
-                  className="fleet-card__link"
-                  to={rolesForShip(ship.id).length > 0 ? `/ships/${ship.id}/roles` : `/ships/${ship.id}`}
-                  aria-label={`Join ${ship.name} ship`}
-                >
-                  <img
-                    className="fleet-card__flag"
-                    src={ship.flag}
-                    alt={`${ship.nation} flag`}
-                    data-shared-flag={ship.id}
-                  />
-                  <span className="fleet-card__content">
-                    <span className="fleet-card__nation">{ship.nationShort} // {ship.vesselType}</span>
-                    <span className="fleet-card__name">{ship.name}</span>
-                    <span className="fleet-card__description">{ship.description}</span>
-                    <span className="fleet-card__action">Join ship</span>
-                  </span>
-                </Link>
-              </article>
-            ))}
+              (isGm || rolesForShip(ship.id).some((role) => active.has(role.id))))
+              .map((ship) => {
+                const roles = rolesForShip(ship.id).filter((role) => isGm || active.has(role.id));
+                const visibleRoles = roles.filter((role) => matchesConsoleSearch(
+                  normalizedQuery,
+                  ship.name,
+                  ship.nation,
+                  role.name,
+                ));
+                if (visibleRoles.length === 0) return null;
+                return (
+                  <article
+                    className={`fleet-card fleet-card--${ship.id} cic-frame`}
+                    aria-label={ship.name}
+                    key={ship.id}
+                  >
+                    <Link
+                      className="fleet-card__link"
+                      to={rolesForShip(ship.id).length > 0 ? `/ships/${ship.id}/roles` : `/ships/${ship.id}`}
+                      aria-label={`Join ${ship.name} ship`}
+                    >
+                      <img
+                        className="fleet-card__flag"
+                        src={ship.flag}
+                        alt={`${ship.nation} flag`}
+                        data-shared-flag={ship.id}
+                      />
+                      <span className="fleet-card__content">
+                        <span className="fleet-card__nation">{ship.nationShort} // {ship.vesselType}</span>
+                        <span className="fleet-card__name">{ship.name}</span>
+                        <span className="fleet-card__description">{ship.description}</span>
+                        <span className="fleet-card__action">Join ship</span>
+                      </span>
+                    </Link>
+                    <div className="fleet-card__console-list" aria-label={`${ship.name} console catalog`}>
+                      {visibleRoles.map((role) => {
+                        const status = consoleStatus(role.id, seats, viewerUid, activeConsoleRoleId);
+                        return (
+                          <Link
+                            className="fleet-card__console-link"
+                            to={`/ships/${ship.id}/roles/${role.id}`}
+                            aria-label={`${ship.name} // ${role.name} // ${status}`}
+                            key={role.id}
+                          >
+                            <span>{role.name}</span>
+                            <span className="fleet-card__console-status">{status}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </article>
+                );
+              })}
           </div>
         </section>
       ))}
     </main>
   );
+}
+
+function consoleStatus(
+  roleId: string,
+  seats: readonly Seat[],
+  viewerUid: string,
+  activeConsoleRoleId: string | null,
+): 'OPEN' | 'HELD BY YOU' | 'CLAIMED // READ-ONLY' {
+  const seat = seats.find((candidate) => (candidate.roleId ?? candidate.id) === roleId);
+  if (!seat) return activeConsoleRoleId === roleId ? 'HELD BY YOU' : 'OPEN';
+  if (seat.holderUid === viewerUid) return 'HELD BY YOU';
+  if (seat.status === 'open') return 'OPEN';
+  return 'CLAIMED // READ-ONLY';
+}
+
+function matchesConsoleSearch(query: string, ...terms: string[]): boolean {
+  if (!query) return true;
+  const haystack = terms.join(' ').toLocaleLowerCase();
+  return query.split(/\s+/).every((token) => haystack.includes(token));
 }
