@@ -5173,6 +5173,13 @@
       "language": "Verified 2026-09-19: four focused server suites passed 168 tests. Added boundary cases demonstrate that claimed Press can actually be randomly selected at 8, 13, 14, 19 and 20 core players while preserving the derived count. Added a production start regression with 20 core players, claimed optional Press and an extra GM: three explicit Wolves are rejected with no writes. Existing tests cover the full supported count matrix, disabled/unclaimed Press, derived setup receipts, explicit assignment preservation, stale revisions and replay. The production caller derives cardinality from the locked setup, validates explicit assignments against it and records the rule/count/pool/selection in the private setup receipt. There is no exceptional count override route; manual casting cannot bypass the start check and remains restricted to the casting window. Functions build and diff checks passed. No runtime or player-facing change and no new deployment claim.",
       "source": "docs/IMPLEMENTATION_CONTRACTS.md AMB-07/AMB-13; functions/src/wolfAssignment.ts; functions/src/wolfAssignment.test.ts; functions/src/gameSetup.ts; functions/src/gameSetup.test.ts; functions/src/startCallable.test.ts; functions/src/loyaltyCallable.test.ts; functions/src/index.ts startGame/assignLoyalty",
       "type": "evidence"
+    },
+    {
+      "direction": "614 -> PRESENCE-OWNERSHIP",
+      "id": "E-614-PRESENCE-OWNERSHIP",
+      "language": "Verified 2026-09-19 with 113 passing App, lifecycle and lifecycle-callable tests. The new twenty-candidate cleanup case proves stale UID pointers cause no writes to seats already held by fresh UIDs, no fresh membership deletion and no empty-session retention deadline. Existing tests prove the heartbeat race re-read, independent same-UID GM instance expiry, ten-second client renewal and prevention of overlapping slow renewal calls. This is deterministic behavior evidence only: real concurrent-load and latency measurements remain outstanding, so the prompt stays partial. No runtime changes or deployment claim.",
+      "source": "src/App.tsx; src/App.test.tsx; functions/src/sessionLifecycle.ts; functions/src/sessionLifecycle.test.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/index.ts expireStalePlayers",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -20990,8 +20997,8 @@
         "acceptance": "cadence and expiry retain current ownership and never release another device's seat.",
         "title": "Reconcile presence leases under load."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The existing ten-second heartbeat and 45-second lease boundary are covered, including one pending renewal at a time, a heartbeat winning the stale-query race, and independent same-UID GM browser expiry. A new batch regression expires twenty obsolete seat pointers while preserving all twenty replacement holders, their memberships, their seats, and session retention. Real concurrent emulator/load evidence remains outstanding; deterministic transaction fixtures do not establish production capacity.",
+      "evidenceIds": "E-614-PRESENCE-OWNERSHIP",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -21002,7 +21009,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

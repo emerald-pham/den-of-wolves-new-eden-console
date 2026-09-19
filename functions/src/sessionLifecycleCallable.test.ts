@@ -810,6 +810,42 @@ describe('disconnect and retention', () => {
 });
 
 describe('stale-player cleanup', () => {
+  it('preserves all twenty replacement holders while expiring a batch of obsolete seat pointers', async () => {
+    session();
+    for (let index = 0; index < 20; index += 1) {
+      const staleUid = `stale-${index}`;
+      const freshUid = `fresh-${index}`;
+      const seatId = `seat-${index}`;
+      put(`sessions/s1/players/${staleUid}`, {
+        uid: staleUid, sessionId: 's1', role: 'player', connected: true, seatId,
+        lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
+      });
+      put(`sessions/s1/players/${freshUid}`, {
+        uid: freshUid, sessionId: 's1', role: 'player', connected: true, seatId,
+        lastSeenAt: mock.Timestamp.fromDate(NOW),
+      });
+      put(`activeMemberships/${staleUid}`, { sessionId: 's1' });
+      put(`activeMemberships/${freshUid}`, { sessionId: 's1' });
+      put(`sessions/s1/seats/${seatId}`, {
+        status: 'claimed', holderUid: freshUid, claimedAt: mock.Timestamp.fromDate(NOW),
+      });
+    }
+
+    await expireStalePlayers.run({});
+
+    for (let index = 0; index < 20; index += 1) {
+      expect(read(`sessions/s1/players/stale-${index}`)).toMatchObject({ connected: false });
+      expect(read(`activeMemberships/stale-${index}`)).toBeUndefined();
+      expect(read(`sessions/s1/players/fresh-${index}`)).toMatchObject({ connected: true });
+      expect(read(`activeMemberships/fresh-${index}`)).toEqual({ sessionId: 's1' });
+      expect(read(`sessions/s1/seats/seat-${index}`)).toMatchObject({
+        status: 'claimed', holderUid: `fresh-${index}`,
+      });
+    }
+    expect(mock.update.mock.calls.some(([ref]) => ref.path.includes('/seats/'))).toBe(false);
+    expect(read('sessions/s1')?.deleteAfter).toBeNull();
+  });
+
   it('expires a vanished GM browser without deleting a live same-UID sibling', async () => {
     session();
     player({ role: 'gm' });
