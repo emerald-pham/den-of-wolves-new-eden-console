@@ -71,7 +71,7 @@ const TOOLING_PATH_PATTERN = /^(?:scripts\/|\.githooks\/|\.github\/|docs\/implem
 const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|public\/|index\.html$)/i;
 const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
 const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
-const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|config\/[^/]*(?:capacity|release)[^/]*\.json$|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile|deployment-targets|risk-gates|[^/]*(?:capacity|release)[^/]*)\.mjs$)/i;
+const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|config\/[^/]*(?:capacity|release)[^/]*\.json$|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile|deployment-targets|risk-gates|verify-deployment|verify-functions-artifact|[^/]*(?:capacity|release)[^/]*)\.mjs$)/i;
 const SECURITY_GOVERNANCE_PATH_PATTERN = /^(?:security\/threat-model\.json$|scripts\/validate-threat-model(?:\.test)?\.mjs$)/i;
 
 function isDocumentationPath(file) {

@@ -34,6 +34,26 @@ describe('risk-based CI gates', () => {
     });
   });
 
+  it('runs the Functions project when only a Functions test changed', () => {
+    expect(classifyRiskGates(['functions/src/roleBriefs.test.ts'])).toMatchObject({
+      functions: true,
+      functionsInstall: true,
+      webBuild: false,
+      ticker: false,
+      font: false,
+    });
+  });
+
+  it('treats Hosting build configuration as ticker and font risk', () => {
+    for (const file of ['vite.config.ts', 'tsconfig.app.json']) {
+      expect(classifyRiskGates([file])).toMatchObject({
+        webBuild: true,
+        ticker: true,
+        font: true,
+      });
+    }
+  });
+
   it('runs Firestore tests without unrelated browser gates', () => {
     expect(classifyRiskGates(['firestore.rules'])).toMatchObject({
       firestore: true,

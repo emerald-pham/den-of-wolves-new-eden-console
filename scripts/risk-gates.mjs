@@ -12,11 +12,11 @@ const ROOT_TOOLING_PATTERN = /^(?:scripts\/|config\/|\.github\/|\.githooks\/|esl
 // The ticker is shared application chrome. Route composition, session
 // projection, global styling, dependencies, and the ticker harness can all
 // make it disappear or break its source handoff.
-const TICKER_PATTERN = /^(?:src\/(?:App|main)\.[^/]+|src\/index\.css|src\/(?:components|routes|store|services|lib)\/|src\/styles\/|public\/|index\.html$|package(?:-lock)?\.json$|scripts\/test-fleet-ticker-browser\.mjs$)/i;
+const TICKER_PATTERN = /^(?:src\/(?:App|main)\.[^/]+|src\/index\.css|src\/(?:components|routes|store|services|lib)\/|src\/styles\/|public\/|index\.html$|package(?:-lock)?\.json$|tsconfig[^/]*\.json$|vite\.config\.[^/]+$|scripts\/test-fleet-ticker-browser\.mjs$)/i;
 
 // Font consistency can regress through CSS, rendered UI markup, font assets,
 // application entry points, or dependency changes.
-const FONT_PATTERN = /^(?:src\/(?:App|main)\.[^/]+|src\/index\.css|src\/(?:components|routes|styles)\/|public\/|index\.html$|package(?:-lock)?\.json$)/i;
+const FONT_PATTERN = /^(?:src\/(?:App|main)\.[^/]+|src\/index\.css|src\/(?:components|routes|styles)\/|public\/|index\.html$|package(?:-lock)?\.json$|tsconfig[^/]*\.json$|vite\.config\.[^/]+$)/i;
 
 // The sustained-render benchmark is intentionally narrower than general UI:
 // run it for the tactical canvases/styles and for its own harness or budgets.
@@ -52,6 +52,9 @@ export function classifyRiskGates(files, { manual = false } = {}) {
   const productionFiles = nonDocumentation.filter((file) => !TEST_PATTERN.test(file));
   const web = productionFiles.some((file) => WEB_PATTERN.test(file));
   const functions = productionFiles.some((file) => FUNCTIONS_PATTERN.test(file));
+  const functionsTests = nonDocumentation.some((file) =>
+    FUNCTIONS_PATTERN.test(file) && TEST_PATTERN.test(file));
+  const functionsGate = functions || functionsTests;
   const firestore = productionFiles.some((file) => FIRESTORE_PATTERN.test(file));
   const tooling = nonDocumentation.some((file) => ROOT_TOOLING_PATTERN.test(file));
   const unknown = nonDocumentation.some((file) =>
@@ -68,10 +71,10 @@ export function classifyRiskGates(files, { manual = false } = {}) {
     documentationOnly: nonDocumentation.length === 0,
     roadmapChanged: changedFiles.some((file) => ROADMAP_PATTERN.test(file)),
     rootInstall: nonDocumentation.length > 0,
-    functionsInstall: functions || failClosed,
+    functionsInstall: functionsGate || failClosed,
     lint: nonDocumentation.length > 0,
     unit: web || tooling || nonDocumentation.some((file) => TEST_PATTERN.test(file)) || failClosed,
-    functions: functions || failClosed,
+    functions: functionsGate || failClosed,
     firestore: firestore || failClosed,
     webBuild: web || render || failClosed,
     ticker,

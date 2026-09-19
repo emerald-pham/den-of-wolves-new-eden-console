@@ -78,6 +78,8 @@ describe('validation profiles', () => {
       'scripts/prompt-639-browser-capacity.mjs',
       'config/capacity-60-browser-thresholds.json',
       'scripts/verify-release.mjs',
+      'scripts/verify-deployment.mjs',
+      'scripts/verify-functions-artifact.mjs',
     ]) {
       expect(deriveValidationProfile({ changedFiles: [file] }).requiresReview).toBe(true);
     }
