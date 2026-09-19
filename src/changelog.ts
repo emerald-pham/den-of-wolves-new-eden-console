@@ -27,6 +27,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     },
     changes: [
       'ATC now says only Airspace Closed or Airspace Open. Cycle information stays on the pursuit tracker.',
+      'Fleet broadcasts now keep Press, Aegis alerts, Stand Down, and current ATC status moving through the same readable ticker without dropping visible text or overlapping messages.',
+      'Stand Down completes two full passes, including with reduced motion, before the current Press pool resumes.',
       '278 of 751 planned items are complete (37.02%).',
     ],
   },
