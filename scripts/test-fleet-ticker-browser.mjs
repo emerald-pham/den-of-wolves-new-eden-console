@@ -15,6 +15,10 @@ const RED_ALERT_TEXT = 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT, ALL H
 const STAND_DOWN_TEXT = 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.';
 const TURN_ZERO_ATC_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
 const TURN_ONE_AIRSPACE_TEXT = 'AIRSPACE CONTROL // AIRSPACE CLOSED';
+// Headless CI can coalesce one rAF callback while CSS advances one frame.
+// Compare adjacent two-observation windows so every elapsed-time-normalized
+// sample still measures the same physical track without single-frame jitter.
+const VELOCITY_SAMPLE_STRIDE = 2;
 
 const session = {
   id: 'ticker-browser-smoke',
@@ -298,7 +302,7 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
 }
 
 async function assertTickerGeometry(page, label, reducedMotion) {
-  const snapshot = await page.evaluate(async ({ reduced }) => {
+  const snapshot = await page.evaluate(async ({ reduced, velocitySampleStride }) => {
     const frame = document.querySelector('.fleet-ticker__window');
     const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     if (!frame) return { reduced, error: 'ticker frame missing' };
@@ -360,9 +364,10 @@ async function assertTickerGeometry(page, label, reducedMotion) {
     }
     const velocitySamples = [];
     for (const positions of tracks.values()) {
-      for (let index = 1; index < positions.length; index += 1) {
-        const elapsed = positions[index].elapsed - positions[index - 1].elapsed;
-        if (elapsed > 0) velocitySamples.push((positions[index].left - positions[index - 1].left) / elapsed * 1_000);
+      for (let index = velocitySampleStride; index < positions.length; index += 1) {
+        const previous = positions[index - velocitySampleStride];
+        const elapsed = positions[index].elapsed - previous.elapsed;
+        if (elapsed > 0) velocitySamples.push((positions[index].left - previous.left) / elapsed * 1_000);
       }
     }
     const speedStable = velocitySamples.length >= 8 && velocitySamples.every((speed) => speed >= -64 && speed <= -32);
@@ -376,7 +381,7 @@ async function assertTickerGeometry(page, label, reducedMotion) {
       speedStable,
       samples,
     };
-  }, { reduced: reducedMotion });
+  }, { reduced: reducedMotion, velocitySampleStride: VELOCITY_SAMPLE_STRIDE });
 
   await mkdir(artifactDirectory, { recursive: true });
   const artifactName = label.replaceAll('/', '-');
@@ -438,7 +443,7 @@ async function runTickerLifecycleCase() {
     targetId, traversals = 1, requiredExits = 2, handoffId,
   } = {}) => {
     console.log(`Ticker lifecycle capture started: ${label}`);
-    const result = await page.evaluate(async ({ name, expectedId, passCount, exitsNeeded, observedId }) => {
+    const result = await page.evaluate(async ({ name, expectedId, passCount, exitsNeeded, observedId, velocitySampleStride }) => {
       const host = document.querySelector('#ticker-lifecycle-harness');
       const frame = host?.querySelector('.fleet-ticker__window');
       if (!frame) return { label: name, error: 'frame missing' };
@@ -523,9 +528,10 @@ async function runTickerLifecycleCase() {
         }
       }
       for (const track of tracks.values()) {
-        for (let index = 1; index < track.length; index += 1) {
-          const elapsed = track[index].elapsed - track[index - 1].elapsed;
-          if (elapsed > 0) velocitySamples.push((track[index].left - track[index - 1].left) / elapsed * 1_000);
+        for (let index = velocitySampleStride; index < track.length; index += 1) {
+          const previous = track[index - velocitySampleStride];
+          const elapsed = track[index].elapsed - previous.elapsed;
+          if (elapsed > 0) velocitySamples.push((track[index].left - previous.left) / elapsed * 1_000);
         }
       }
       const targetRows = expectedId
@@ -600,6 +606,7 @@ async function runTickerLifecycleCase() {
     }, {
       name: label, expectedId: targetId, passCount: traversals,
       exitsNeeded: requiredExits, observedId: handoffId,
+      velocitySampleStride: VELOCITY_SAMPLE_STRIDE,
     });
     samples.push(result);
     console.log(`Ticker lifecycle capture sampled: ${label} (${Math.round((result.durationSeconds ?? 0) * 1_000)}ms, ${result.sampleCount} samples)`);
