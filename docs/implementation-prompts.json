@@ -2538,7 +2538,7 @@
     {
       "direction": "401 -> 315;361",
       "id": "E-AUDIT-401",
-      "language": "Mission eligibility consumes first-arrival state and craft manifest.",
+      "language": "Mission eligibility consumes first-arrival state and craft manifest; the owner must decide leader-selection authority and craft entitlement, the no-eligible-craft outcome, arrival-group deduplication, and whether optional Union or small craft participate.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -2550,16 +2550,16 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "404 -> 403",
+      "direction": "404 -> 401;403",
       "id": "E-AUDIT-404",
-      "language": "Private card operations consume private initial hands.",
+      "language": "Blind extra-card distribution consumes authoritative mission eligibility and Mission Leader authority in addition to private initial hands.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
     {
-      "direction": "405 -> 403",
+      "direction": "405 -> 401;403",
       "id": "E-AUDIT-405",
-      "language": "Private card operations consume private initial hands.",
+      "language": "Private card requests consume authoritative mission eligibility and Mission Leader authority in addition to private initial hands.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -2578,9 +2578,9 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "408 -> 402",
+      "direction": "408 -> 402;407",
       "id": "E-AUDIT-408",
-      "language": "Facilitator cards consume the mission deck.",
+      "language": "Facilitator cards consume the mission deck and the authoritative opportunity-assignment ledger.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -5131,6 +5131,13 @@
       "language": "Existing GM Religious Zealotry, Civil Unrest, replacement, and durable facilitator rule-call result surfaces now include explicit decision source, actor, and time labels. The GM projections use only their existing actorUid and server updatedAt/createdAt fields. Selected-player facilitator rule calls retain the server privacy projection: actor identity is shown as withheld and absent createdAt is shown as unavailable. Replacement callable results provide only revision data, so the UI labels their facilitator source while truthfully showing actor and time unavailable. Focused tests pass 194/194 across firestore parser/listener, DecisionAttribution, RoleBrief, and GmConsole; typecheck, build, and targeted lint pass. Real Chrome rendering checks cover the RoleBrief private projection and GM attribution block at 320x844, 390x844, 844x390, and 1440x900 under normal and reduced motion with no horizontal overflow. The browser fixture uses local simulated projections and makes no Firebase or deployment claim; metadata-missing adjudications remain a documented partial boundary.",
       "source": "src/components/DecisionAttribution.tsx; src/components/DecisionAttribution.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/lib/firestore.ts; src/types/game.ts; src/index.css; focused tests 194/194; npm run typecheck; npm run build; targeted eslint; /tmp/p594-decision-render-evidence.json; /tmp/p594-role-brief-320x844.png; /tmp/p594-gm-attribution-1440x900.png",
       "type": "evidence / attribution / privacy / rendered"
+    },
+    {
+      "direction": "613",
+      "id": "E-613-RECOVERY-VERIFIED",
+      "language": "All three terminal resume codes clear persisted identity and route for the current session, while each is ignored after switching to another session. Unavailable, deadline-exceeded, and resource-exhausted preserve persisted recovery state. The late-denial regressions failed before the matching-session guard and pass after it; 211 service, store, and App tests pass, including protected-route return to landing, and TypeScript checking passes. Independent Terra review of implementation commit 6204fc6a found no actionable issue in this scope. This is local implementation evidence, not production deployment proof.",
+      "source": "src/lib/sessionService.ts (connect); src/lib/sessionService.test.ts; src/store/useSessionStore.ts (disconnect and persistence); src/store/useSessionStore.test.ts; src/App.test.tsx",
+      "type": "evidence / production-path / regression"
     }
   ],
   "plan": {
@@ -15314,7 +15321,7 @@
       "evidenceIds": "E-AUDIT-404",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "403",
+      "hardPromptPrerequisites": "401;403",
       "id": "404",
       "milestoneHints": "M7",
       "relatedConsumes": "none",
@@ -15337,7 +15344,7 @@
       "evidenceIds": "E-AUDIT-405",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "403",
+      "hardPromptPrerequisites": "401;403",
       "id": "405",
       "milestoneHints": "M7",
       "relatedConsumes": "none",
@@ -15408,7 +15415,7 @@
       "evidenceIds": "E-AUDIT-408",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "402",
+      "hardPromptPrerequisites": "402;407",
       "id": "408",
       "milestoneHints": "M7",
       "relatedConsumes": "none",
@@ -20925,8 +20932,8 @@
         "acceptance": "not-found, permission-denied, and failed-precondition clear stale identity/route state while transient failures preserve recoverability.",
         "title": "Clear invalid persisted sessions."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-613",
+      "description": "Terminal resume failures (not-found, permission-denied, failed-precondition) clear the matching persisted session identity, GM instance, mode, and route; transient failures preserve the saved session and route for recovery. A delayed terminal denial from a departed session cannot clear a newer joined session. Focused service, store, and protected-route tests verify the production paths; deployment is tracked separately.",
+      "evidenceIds": "E-AUDIT-613;E-613-RECOVERY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "612",
@@ -20937,7 +20944,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**278 / 751 prompts complete (37.02%)**
+**279 / 751 prompts complete (37.15%)**
 
-Status breakdown: **278 done · 24 partial · 449 missing**.
+Status breakdown: **279 done · 24 partial · 448 missing**.
 
 Active prompt: **none**
 
@@ -1088,7 +1088,7 @@ release classification and evidence.
 | 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |
 | 611a | done | feature | 0.3.105 | Characterized the exact Write / crew incomplete and Read only console-access paragraphs: both inherited 16px system sans, normal tracking and mixed casing rather than the nearby CIC caption family. Both now use the existing cic-overline mono/tracking/uppercase style with the named cyan readout color and safe wrapping. The change preserves copy, paragraph semantics, heading order and all authority behavior; it introduces no global scale or redesign. Before/after actual component renders verified both states at 320x844, 390x844, 844x390 and 1440x900 in normal/reduced motion without horizontal overflow. Readout contrast exceeds 9.7:1 against both named CIC ground surfaces; focused console and aesthetic tests passed. |
 | 612 | done | non-feature | 0.4.11 | The store immediately rehydrates the saved session and route; local-storage hydration now marks the projection cache-freshness and exposes an ephemeral browser-local stale marker until an accepted server snapshot arrives. Transient resume failures preserve the view, terminal membership denial clears local authority fields, the header announces the stale snapshot while preserving connection-light grace, and snapshot-only mutations remain denied. |
-| 613 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 613 | done | non-feature | — | Terminal resume failures (not-found, permission-denied, failed-precondition) clear the matching persisted session identity, GM instance, mode, and route; transient failures preserve the saved session and route for recovery. A delayed terminal denial from a departed session cannot clear a newer joined session. Focused service, store, and protected-route tests verify the production paths; deployment is tracked separately. |
 | 614 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 615 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 616 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
