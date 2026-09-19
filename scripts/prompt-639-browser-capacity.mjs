@@ -119,6 +119,7 @@ async function verifyAndResetIsolation() {
   await fetchJson(`http://127.0.0.1:${ports.firestore}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' });
   const emptyFirestore = await fetchJson(
     `http://127.0.0.1:${ports.firestore}/v1/projects/${projectId}/databases/(default)/documents/sessions?pageSize=1`,
+    { headers: { authorization: 'Bearer owner' } },
   );
   assert.equal(emptyFirestore.documents?.length ?? 0, 0, 'Firestore was not empty after the isolation reset.');
 
