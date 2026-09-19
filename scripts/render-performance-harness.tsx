@@ -83,18 +83,30 @@ window.__p637 = {
     return { name: 'missionHandUpdate', samples };
   },
   measureMobileFrames: async (frames) => {
-    root.render(<ShipPlot hostile aboard viewerId="aegis" expanded={false} />);
+    root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(0)} centerLabel="AEGIS" />);
     await settle();
     const samples: number[] = [];
     let previous = performance.now();
     for (let index = 0; index < frames; index += 1) {
+      // Include one representative 20-contact production update in every
+      // sampled frame. The interval therefore covers React work, layout and
+      // the browser's next paint opportunity rather than idle vsync cadence.
+      flushSync(() => root.render(
+        <ContactPlot
+          placement="inset"
+          size="min(92vw, 760px)"
+          contacts={contacts(index + 1)}
+          centerLabel="AEGIS"
+          hostile={index % 12 < 6}
+        />,
+      ));
       await new Promise<void>((resolve) => requestAnimationFrame((now) => {
         samples.push(now - previous);
         previous = now;
         resolve();
       }));
     }
-    return { name: 'mobileFrame', samples: samples.slice(2) };
+    return { name: 'mobileFrame', samples };
   },
 };
 

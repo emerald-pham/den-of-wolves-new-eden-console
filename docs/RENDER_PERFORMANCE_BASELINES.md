@@ -24,13 +24,18 @@ The versioned budgets live in
 The route probe deliberately presents the real application with an offline
 cached session. This keeps the measurement local and deterministic while still
 exercising production routing, store hydration, the persistent header and
-DRADIS shell, and Role Select. The component harness exercises the production
-`ContactPlot`, `ShipPlot`, and `AwayMissionDiscardPanel` implementations with
-bounded worst-case fixtures. Two animation frames are included in each update
-sample so layout and paint scheduling contribute to the threshold.
+DRADIS shell, and Role Select. The component harness is compiled separately
+with Vite's production JSX transform and serves the production `ContactPlot`,
+`ShipPlot`, and `AwayMissionDiscardPanel` implementations with bounded
+worst-case fixtures. It never enters the deployable application output. Two
+animation frames are included in each discrete update sample so layout and
+paint scheduling contribute to the threshold. The mobile-sized probe is a
+390×844 Chromium viewport on the CI host, not physical-device telemetry; every
+one of its 120 retained frames includes a 20-contact DRADIS update.
 
 CI runs the gate after the production build and Playwright installation. Its
 machine-readable evidence is uploaded as the `render-performance-p637`
 artifact. A failure identifies the breached surface and measured value; budget
+failures write and upload those measurements before the check fails. Budget
 increases therefore require an explicit edit to the versioned baseline rather
 than silently accepting drift.

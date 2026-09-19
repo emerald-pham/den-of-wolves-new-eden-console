@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { readFile, readdir, stat, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createServer, preview } from 'vite';
+import { build as viteBuild, preview } from 'vite';
+import react from '@vitejs/plugin-react';
 import { chromium } from 'playwright';
 
 const root = process.cwd();
@@ -54,15 +55,34 @@ const bundle = {
   largestChunkBytes: Math.max(...jsSizes),
   chunks: jsFiles.length,
 };
-assert.ok(bundle.rawBytes <= budgets.landingBundleRawBytes, `Landing JavaScript is ${bundle.rawBytes} bytes; budget ${budgets.landingBundleRawBytes}.`);
-assert.ok(bundle.gzipBytes <= budgets.landingBundleGzipBytes, `Landing gzip JavaScript is ${bundle.gzipBytes} bytes; budget ${budgets.landingBundleGzipBytes}.`);
-assert.ok(bundle.largestChunkBytes <= budgets.largestJavaScriptChunkBytes, `Largest JavaScript chunk is ${bundle.largestChunkBytes} bytes; budget ${budgets.largestJavaScriptChunkBytes}.`);
-
-const production = await preview({ preview: { host: '127.0.0.1', port: 0, strictPort: false } });
-const harnessServer = await createServer({ server: { host: '127.0.0.1', port: 0 } });
-await harnessServer.listen();
-const browser = await chromium.launch({ headless: true });
+const harnessOutput = join(artifactDirectory, 'harness-dist');
+let production;
+let harnessServer;
+let browser;
 try {
+  // Compile the component harness with the same production JSX transform and
+  // bundler used by the application. It is emitted only to the evidence
+  // directory and never enters the deployable dist tree.
+  await viteBuild({
+    configFile: false,
+    root,
+    plugins: [react()],
+    resolve: { alias: { '@': join(root, 'src') } },
+    build: {
+      outDir: harnessOutput,
+      emptyOutDir: true,
+      target: 'es2022',
+      rollupOptions: { input: join(root, 'scripts/render-performance-harness.html') },
+    },
+  });
+  production = await preview({ preview: { host: '127.0.0.1', port: 0, strictPort: false } });
+  harnessServer = await preview({
+    configFile: false,
+    root,
+    build: { outDir: harnessOutput },
+    preview: { host: '127.0.0.1', port: 0, strictPort: false },
+  });
+  browser = await chromium.launch({ headless: true });
   const productionOrigin = addressOf(production);
   const harnessOrigin = addressOf(harnessServer);
   const landingStartup = [];
@@ -123,6 +143,12 @@ try {
       longFrames: render.mobileFrames.samples.filter((sample) => sample > measurement.longFrameThresholdMs).length,
     },
   };
+  // Preserve measurements before enforcing budgets so a regression produces
+  // the machine-readable CI artifact needed to diagnose the breached surface.
+  await writeFile(join(artifactDirectory, 'results.json'), `${JSON.stringify(results, null, 2)}\n`);
+  assert.ok(bundle.rawBytes <= budgets.landingBundleRawBytes, `Landing JavaScript is ${bundle.rawBytes} bytes; budget ${budgets.landingBundleRawBytes}.`);
+  assert.ok(bundle.gzipBytes <= budgets.landingBundleGzipBytes, `Landing gzip JavaScript is ${bundle.gzipBytes} bytes; budget ${budgets.landingBundleGzipBytes}.`);
+  assert.ok(bundle.largestChunkBytes <= budgets.largestJavaScriptChunkBytes, `Largest JavaScript chunk is ${bundle.largestChunkBytes} bytes; budget ${budgets.largestJavaScriptChunkBytes}.`);
   assert.ok(results.landingStartup.p95Ms <= budgets.landingStartupP95Ms, `Landing startup p95 ${results.landingStartup.p95Ms}ms exceeds ${budgets.landingStartupP95Ms}ms.`);
   assert.ok(results.routeStartup.p95Ms <= budgets.routeStartupP95Ms, `Route startup p95 ${results.routeStartup.p95Ms}ms exceeds ${budgets.routeStartupP95Ms}ms.`);
   assert.ok(results.dradisUpdate.p95Ms <= budgets.dradisUpdateP95Ms, `DRADIS update p95 ${results.dradisUpdate.p95Ms}ms exceeds ${budgets.dradisUpdateP95Ms}ms.`);
@@ -130,10 +156,9 @@ try {
   assert.ok(results.missionHandUpdate.p95Ms <= budgets.missionHandUpdateP95Ms, `Mission-hand update p95 ${results.missionHandUpdate.p95Ms}ms exceeds ${budgets.missionHandUpdateP95Ms}ms.`);
   assert.ok(results.mobileFrame.p95Ms <= budgets.mobileFrameP95Ms, `Mobile frame p95 ${results.mobileFrame.p95Ms}ms exceeds ${budgets.mobileFrameP95Ms}ms.`);
   assert.ok(results.mobileFrame.longFrames <= budgets.mobileLongFrames, `Mobile long frames ${results.mobileFrame.longFrames} exceeds ${budgets.mobileLongFrames}.`);
-  await writeFile(join(artifactDirectory, 'results.json'), `${JSON.stringify(results, null, 2)}\n`);
   console.log(`PASS P637 render-performance baseline\n${JSON.stringify(results, null, 2)}`);
 } finally {
-  await browser.close();
-  await harnessServer.close();
-  await new Promise((resolve) => production.httpServer.close(resolve));
+  await browser?.close().catch(() => undefined);
+  if (harnessServer) await new Promise((resolve) => harnessServer.httpServer.close(resolve));
+  if (production) await new Promise((resolve) => production.httpServer.close(resolve));
 }

@@ -173,12 +173,12 @@ jobs:
         run: node scripts/prompt-637-render-performance.mjs
 
       - name: Upload render-performance evidence
-        if: steps.change_scope.outputs.documentation_only != 'true'
+        if: always() && steps.change_scope.outputs.documentation_only != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: render-performance-p637
           path: /tmp/p637-render-performance/results.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Upload ticker smoke failure screenshots
