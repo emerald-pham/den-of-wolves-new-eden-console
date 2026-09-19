@@ -506,7 +506,13 @@ async function main() {
 
     const reconnectUid = coreContexts[0].uid;
     const reconnectRole = activeRoleIds[0];
-    await call(coreContexts[0], 'disconnectFromSession', { sessionId });
+    assert(Number.isSafeInteger(firstJoin.player?.connectionGeneration),
+      'The joined player did not receive a disconnect identity.');
+    await call(coreContexts[0], 'disconnectFromSession', {
+      sessionId, connectionGeneration: firstJoin.player.connectionGeneration,
+    });
+    const disconnected = (await readDoc(owner, `${sessionPath}/players/${reconnectUid}`)).data();
+    assert(disconnected?.connected === false, 'The reconnect rehearsal did not actually disconnect its player.');
     const resumed = await call(coreContexts[0], 'resumeSession', { sessionId });
     assert(resumed.player?.uid === reconnectUid && resumed.player?.assignedRoleId === reconnectRole &&
       resumed.player?.seatId === reconnectRole && resumed.player?.role === 'player',
