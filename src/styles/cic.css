@@ -38,7 +38,9 @@
 
   --cic-rule: #5c3312;
   --cic-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --cic-display: "Arial Narrow", Impact, sans-serif;
+  /* Display scale and spacing may change, but the issued-console voice stays
+     monospaced across every route and device. */
+  --cic-display: var(--cic-mono);
   --cic-radius: 0;
   --cic-bracket: 14px;
   --cic-space: clamp(1rem, 3vw, 2.5rem);

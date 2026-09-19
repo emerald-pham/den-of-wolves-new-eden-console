@@ -26,6 +26,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 292, partial: 23, active: 0, missing: 436,
     },
     changes: [
+      'The console now keeps its spacefaring monospace type across every screen, including headings and inherited body text on phones.',
       'The GM name field label again uses the stable console caption type on phones, short screens, and desktop displays.',
       '292 of 751 planned items are complete (38.88%).',
     ],

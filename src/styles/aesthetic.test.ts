@@ -94,6 +94,25 @@ describe('the CIC palette', () => {
   });
 });
 
+describe('the CIC type system', () => {
+  it('keeps operational and display type in the console mono family', () => {
+    const cic = SHEETS.find(({ name }) => name === 'src/styles/cic.css')?.css ?? '';
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const display = cic.match(/--cic-display:\s*([^;]+);/)?.[1] ?? '';
+    const body = index.match(/body\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(display).toBe('var(--cic-mono)');
+    expect(body).toContain('font-family: var(--cic-mono)');
+    expect(SHEETS.flatMap(({ name, css }) => {
+      const declarations = css.replace(/\/\*[^]*?\*\//g, '');
+      const officeFaces = declarations.match(
+        /(?:ui-sans-serif|sans-serif|system-ui|-apple-system|Segoe UI|Roboto|Arial|Helvetica|Impact)/gi,
+      ) ?? [];
+      return officeFaces.map((face) => `${name}: ${face}`);
+    })).toEqual([]);
+  });
+});
+
 describe('the CIC frame', () => {
   it('is never rounded', () => {
     const rounded = SHEETS.flatMap(({ name, css }) =>
@@ -269,6 +288,8 @@ describe('the launcher manifest', () => {
     const population = arrival.match(/\.arrival-readout--population \.arrival-readout__value\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(population).toContain('font-size: clamp(3.5rem, 7vw, 5rem)');
+    expect(arrival).toContain('font-size: clamp(2.25rem, 15vw, 4.5rem)');
+    expect(arrival).toContain('font-size: clamp(2rem, 5vw, 3rem)');
   });
 });
 

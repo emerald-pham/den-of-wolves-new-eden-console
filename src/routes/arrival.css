@@ -42,7 +42,7 @@
   .arrival-readout + .arrival-readout { border-left: 0; border-top: 1px solid var(--cic-rule); }
   .arrival-readout__value, .arrival-readout__label { grid-row: auto; padding: 0; }
   .arrival-readout__value { font-size: 4.5rem; }
-  .arrival-readout--population .arrival-readout__value { font-size: 4.5rem; }
+  .arrival-readout--population .arrival-readout__value { font-size: clamp(2.25rem, 15vw, 4.5rem); }
   .landing__actions, .landing__join { align-items: stretch; }
   .landing__join { width: 100%; }
   .landing__label { width: 100%; }
@@ -52,6 +52,7 @@
 @media (max-height: 500px) and (orientation: landscape) {
   .landing { gap: 1rem; }
   .arrival-readout__value { font-size: 4.5rem; }
+  .arrival-readout--population .arrival-readout__value { font-size: clamp(2rem, 5vw, 3rem); }
 }
 [data-motion='reduce'] {
   .arrival-digit { animation: none; }

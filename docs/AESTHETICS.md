@@ -203,9 +203,11 @@ one identity line: `OLD NATIONS OF EARTH // [nation] // [abbreviation]` or
 `NEW NATIONS OF THE COLONIES // [nation] // [abbreviation]`. The shared ship
 origin labels also title the corresponding fleet-selection groups.
 
-Type: `--cic-mono` for every label, control and readout caption, always
-uppercase with wide tracking; `--cic-display` for manifest numbers and
-cinematic headlines. System fonts only, no external font dependency.
+Type: `--cic-mono` is the issued-console voice everywhere: body copy, labels,
+controls, readouts, manifest numbers, and headlines. `--cic-display` may carry
+the larger scale and cinematic spacing, but resolves to the same monospace
+family. System monospace fonts only, with no external font dependency or
+office-style sans-serif fallback.
 `--cic-radius` is `0` — nothing in this interface is rounded.
 `--cic-space` for fluid spacing.
 
