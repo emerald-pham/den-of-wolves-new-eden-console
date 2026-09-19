@@ -17,6 +17,9 @@ try {
     await context.route('**/*', route => new URL(route.request().url()).origin === origin
       ? route.continue() : route.abort());
     const page = await context.newPage();
+    await page.addInitScript(() => {
+      localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+    });
     try {
       await page.goto(origin);
       const dialog = page.getByRole('dialog', { name: /motion safety check/i });
@@ -37,6 +40,7 @@ try {
       await dialog.getByRole('button', { name: /normal motion/i }).click();
       await dialog.waitFor({ state: 'hidden' });
       assert.equal(await page.locator('.motion-safety-content').evaluate(el => el.inert), false);
+      await page.locator('#join-code').focus();
       // Move the stored acknowledgement near expiry, without reloading the gate.
       await page.evaluate(() => {
         localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ choice: 'full', acknowledgedAt: Date.now() - 86400000 + 1200 }));
@@ -47,13 +51,14 @@ try {
       assert.equal(await page.locator('.motion-safety-content').evaluate(el => el.inert), true);
       await dialog.getByRole('button', { name: /reduced motion/i }).click();
       await dialog.waitFor({ state: 'hidden' });
+      assert.equal(await page.locator('#join-code').evaluate(el => el === document.activeElement), true);
       await page.reload();
       await page.locator('.motion-safety-content').waitFor();
       assert.equal(await dialog.count(), 0);
       assert.equal(await page.evaluate(() => localStorage.getItem('new-eden-motion-override')), 'reduce');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
       assert.equal(overflow, false);
-      console.log(`PASS ${width}x${height}: initial gate, keyboard focus, live expiry, fresh reduced choice and reload`);
+      console.log(`PASS ${width}x${height}: initial gate, keyboard focus, live expiry, focus restoration, fresh reduced choice and reload`);
     } catch (error) {
       await page.screenshot({ path: `${artifacts}/${width}x${height}-failure.png` });
       throw error;

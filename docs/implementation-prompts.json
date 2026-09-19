@@ -5152,6 +5152,13 @@
       "language": "Inspected reconcileReturningSeat and both joinSession/resumeSession transactions, including read-before-write setup hydration. Eighty-seven join, resume, and lifecycle tests pass: open-seat restoration, retained own claims, other-holder and locked-seat non-mutation, canonical missing-seat repair, kicked-player denial, and historical console-role replacement safety. Added explicit no-write assertions for an occupied resumed seat and a four-case join intent matrix. This verifies existing production code with local callable tests; it is not concurrent load or new deployment evidence.",
       "source": "functions/src/index.ts (reconcileReturningSeat, joinSession, resumeSession); functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts",
       "type": "evidence / production-path / regression"
+    },
+    {
+      "direction": "608",
+      "id": "E-608-UNMOUNT-FOCUS",
+      "language": "An unmounted dialog regression failed before the shared focus-hook repair and passes afterward. Seventy-two hook, motion-gate, waiver, RoleSelect, and AppHeader tests pass, including nested replacement, missing opener, StrictMode replay, and expiry interruption. The real motion-safety browser smoke verifies restored session-code input focus after acknowledgement at 320x844, 1440x900, and 844x390. TypeScript checking passes. P608 remains partial because the previously documented future modal surfaces still do not exist.",
+      "source": "src/hooks/useDialogFocus.ts; src/hooks/useDialogFocus.test.tsx; src/components/MotionSafetyGate.tsx; src/components/MotionSafetyGate.test.tsx; scripts/test-motion-safety-browser.mjs",
+      "type": "evidence / accessibility / regression / rendered"
     }
   ],
   "plan": {
@@ -20800,8 +20807,8 @@
         "acceptance": "settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.",
         "title": "Own dialog focus correctly."
       },
-      "description": "Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists.",
-      "evidenceIds": "E-608-DIALOG-FOCUS",
+      "description": "Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists. Unmounted dialog components now restore the interrupted control after removal and inert-state updates, with StrictMode replay protection; the motion-safety renewal flow verifies this in real browsers.",
+      "evidenceIds": "E-608-DIALOG-FOCUS;E-608-UNMOUNT-FOCUS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",

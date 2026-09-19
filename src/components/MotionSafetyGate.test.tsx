@@ -23,6 +23,24 @@ describe('MotionSafetyGate', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('returns focus to the interrupted game control after renewed acknowledgement', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
+      acknowledgedAt: Date.now(), choice: 'full',
+    }));
+    render(<MotionSafetyGate><main><button type="button">Game control</button></main></MotionSafetyGate>);
+    const control = screen.getByRole('button', { name: 'Game control' });
+    control.focus();
+    localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
+      acknowledgedAt: Date.now() - MOTION_SAFETY_TTL_MS, choice: 'full',
+    }));
+    fireEvent(window, new Event('focus'));
+    expect(screen.getByRole('dialog')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /reduced motion/i }));
+    expect(control).toHaveFocus();
+    expect(control.closest('.motion-safety-content')).not.toHaveAttribute('aria-hidden');
+  });
+
   it('requires a fresh choice when an open tab reaches the 24-hour boundary', () => {
     vi.useFakeTimers();
     vi.setSystemTime(100_000_000);

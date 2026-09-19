@@ -22,7 +22,8 @@ export interface UseDialogFocusOptions {
 }
 
 function isFocusable(element: HTMLElement | null | undefined): element is HTMLElement {
-  return Boolean(element && element.isConnected && !element.hasAttribute('disabled'));
+  return Boolean(element && element !== document.body && element !== document.documentElement &&
+    element.isConnected && !element.hasAttribute('disabled'));
 }
 
 function restoreFocus(target: HTMLElement | null, fallback: HTMLElement | null | undefined): void {
@@ -55,12 +56,27 @@ export function useDialogFocus({
 }: UseDialogFocusOptions): void {
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
+  const mounted = useRef(false);
   const onEscapeRef = useRef(onEscape);
   const restoreRefRef = useRef(restoreRef);
   const initialFocusRefRef = useRef(initialFocusRef);
   onEscapeRef.current = onEscape;
   restoreRefRef.current = restoreRef;
   initialFocusRefRef.current = initialFocusRef;
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      const target = previouslyFocused.current;
+      const fallback = restoreRefRef.current?.current;
+      // Wait until removal and parent inert-state updates finish. A StrictMode
+      // effect replay remounts immediately and must not restore behind a modal.
+      queueMicrotask(() => {
+        if (!mounted.current && wasOpen.current) restoreFocus(target, fallback);
+      });
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!open) {

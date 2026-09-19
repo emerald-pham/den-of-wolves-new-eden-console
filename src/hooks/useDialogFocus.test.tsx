@@ -1,8 +1,43 @@
-import { useRef, useState } from 'react';
+import { StrictMode, useRef, useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { useDialogFocus } from './useDialogFocus';
+
+function RemovedDialog({ close }: { readonly close: () => void }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus({ open: true, dialogRef });
+  return <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Temporary">
+    <button type="button" onClick={close}>Close temporary</button>
+  </section>;
+}
+
+function RemovedDialogFixture() {
+  const [open, setOpen] = useState(false);
+  return <main>
+    <button type="button" onClick={() => setOpen(true)}>Open temporary</button>
+    {open && <RemovedDialog close={() => setOpen(false)} />}
+  </main>;
+}
+
+it('restores the opener when the dialog-owning component unmounts', async () => {
+  const user = userEvent.setup();
+  render(<RemovedDialogFixture />);
+  const opener = screen.getByRole('button', { name: 'Open temporary' });
+  await user.click(opener);
+  await user.click(screen.getByRole('button', { name: 'Close temporary' }));
+  expect(opener).toHaveFocus();
+});
+
+it('preserves the active dialog through StrictMode effect replay', async () => {
+  const user = userEvent.setup();
+  render(<StrictMode><RemovedDialogFixture /></StrictMode>);
+  const opener = screen.getByRole('button', { name: 'Open temporary' });
+  await user.click(opener);
+  expect(screen.getByRole('button', { name: 'Close temporary' })).toHaveFocus();
+  await user.click(screen.getByRole('button', { name: 'Close temporary' }));
+  expect(opener).toHaveFocus();
+});
 
 function FocusFixture() {
   const [outerOpen, setOuterOpen] = useState(false);

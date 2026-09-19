@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   acknowledgeMotionSafety,
   readMotionSafetyChoice,
@@ -124,7 +124,7 @@ export default function MotionSafetyGate({ children }: MotionSafetyGateProps) {
     setHydratingChoice(null);
   }, [hydratingChoice]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = content.current as (HTMLDivElement & { inert?: boolean }) | null;
     if (!element) return;
     const previousInert = element.inert ?? false;
