@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
-import { useSessionStore } from '@/store/useSessionStore';
+import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import type { SetupReceipt } from '@/types/game';
 
 vi.mock('firebase/auth', () => ({
@@ -183,17 +183,22 @@ describe('connect', () => {
     expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'startGame');
   });
 
-  it('keeps the persisted session during a transient reconnect failure', async () => {
+  it.each(['unavailable', 'deadline-exceeded', 'resource-exhausted'])('preserves recovery after transient resume %s', async (code) => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/roles');
     vi.mocked(httpsCallable).mockReturnValue(
-      callableRejecting({ code: 'functions/unavailable' }),
+      callableRejecting({ code: `functions/${code}` }),
     );
 
     await connect();
 
     expect(useSessionStore.getState().connection).toBe('offline');
     expect(useSessionStore.getState().session).toEqual(session);
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state).toMatchObject({
+      session, me: player, mode: 'console', lastRoute: '/roles',
+    });
   });
 
   it('clears a persisted session when membership is no longer valid', async () => {
@@ -209,7 +214,7 @@ describe('connect', () => {
     expect(useSessionStore.getState().session).toBeNull();
   });
 
-  it('clears every persisted authority field after a terminal resume denial', async () => {
+  it.each(['not-found', 'permission-denied', 'failed-precondition'])('clears persisted identity and route after resume %s', async (code) => {
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().setSeats([{
       id: 'seat-1', sessionId: 's1', label: 'Seat 1', status: 'claimed',
@@ -222,7 +227,7 @@ describe('connect', () => {
     useSessionStore.getState().setMode('gm');
     useSessionStore.getState().setLastRoute('/gm');
     vi.mocked(httpsCallable).mockReturnValue(
-      callableRejecting({ code: 'functions/not-found' }),
+      callableRejecting({ code: `functions/${code}` }),
     );
 
     await connect();
@@ -234,6 +239,35 @@ describe('connect', () => {
       gmInstance: null,
       mode: null,
       lastRoute: null,
+    });
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state).toMatchObject({
+      session: null, me: null, gmInstance: null, mode: null, lastRoute: null,
+    });
+  });
+
+  it.each(['not-found', 'permission-denied', 'failed-precondition'])('ignores late resume %s for a session already left', async (code) => {
+    useSessionStore.getState().setIdentity(session, player);
+    let rejectResume!: (cause: unknown) => void;
+    const resume = Object.assign(vi.fn(() => new Promise<never>((_resolve, reject) => {
+      rejectResume = reject;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(resume);
+
+    const connecting = connect();
+    await vi.waitFor(() => expect(resume).toHaveBeenCalled());
+    useSessionStore.getState().disconnect();
+    const newerSession = { ...session, id: 'new-session' };
+    const newerPlayer = { ...player, sessionId: newerSession.id };
+    useSessionStore.getState().setIdentity(newerSession, newerPlayer);
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/roles');
+    rejectResume({ code: `functions/${code}` });
+    await connecting;
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: newerSession, me: newerPlayer, mode: 'console', lastRoute: '/roles',
+      sessionSnapshotFreshness: 'server',
     });
   });
 

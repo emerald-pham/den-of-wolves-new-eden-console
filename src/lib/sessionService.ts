@@ -881,7 +881,11 @@ export async function connect(): Promise<void> {
         }
       } catch (cause) {
         if (!TERMINAL_RESUME_ERRORS.has(errorCode(cause) ?? '')) throw cause;
-        store.disconnect();
+        // A denied resume belongs to the session it requested. The player may
+        // have left and joined another session while that request was pending.
+        if (useSessionStore.getState().session?.id === rememberedSession.id) {
+          store.disconnect();
+        }
       }
     }
     if (!await flushPendingCommands()) {
