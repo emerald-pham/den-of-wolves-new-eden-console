@@ -2243,7 +2243,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 140a
 - [ ] Prompt 140b
 - [ ] Prompt 140c
-- [ ] Prompt 140d
+- [x] Prompt 140d
 - [ ] Prompt 140e
 - [ ] Prompt 140f
 - [ ] Prompt 140g

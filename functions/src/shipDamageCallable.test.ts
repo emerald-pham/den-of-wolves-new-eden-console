@@ -4,7 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
-  damage: {} as Record<string, unknown>, retry: false,
+  damage: {} as Record<string, unknown>, survivors: {} as Record<string, number>, retry: false,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
@@ -24,6 +24,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { addShipDamage } from './index';
+import { SHIP_DAMAGE_DECKS } from './shipDamage';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data: data.requestId === undefined ? { ...data, requestId: 'test-damage' } : data, auth: { uid } } as CallableRequest<{
@@ -37,6 +38,7 @@ beforeEach(() => {
   mock.grantShip = 'aegis';
   mock.connected = true;
   mock.damage = {};
+  mock.survivors = {};
   mock.retry = false;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(3_100_000_000);
@@ -61,6 +63,7 @@ beforeEach(() => {
         : {
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
           shipDamage: mock.damage,
+          shipSurvivors: mock.survivors,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -196,27 +199,28 @@ it('denies another GM instance and ships without a damage deck', async () => {
     .rejects.toMatchObject({ code: 'invalid-argument' });
 });
 
-it('marks AEGIS destroyed without inventing a card when the deck is empty', async () => {
+it.each([
+  ['aegis', 3100], ['dione', 16000], ['icebreaker', 10100],
+  ['shepherd', 8000], ['quellon', 6510], ['refinery-124', 5000], ['capybara', 5500],
+] as const)('exposes only the printed pod capacity when %s is destroyed', async (shipId, podCapacity) => {
+  mock.grantShip = shipId;
+  mock.survivors = { [shipId]: 1000 };
   mock.damage = {
-    aegis: {
-      damagedSystemIds: [
-        'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
-        'missile-launchers', 'point-defence-lasers', 'armoured-hull-i',
-        'armoured-hull-ii', 'storage', 'jump-drive', 'reactor',
-        'construction-bay', 'shuttle-bay-zeta', 'shuttle-bay-omega',
-      ],
-      destroyed: false,
-    },
+    [shipId]: { damagedSystemIds: SHIP_DAMAGE_DECKS[shipId].map(card => card.systemId), destroyed: false },
   };
-
-  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({ destroyed: true,
-    actorUid: 'u1', vesselId: 'aegis', idempotencyKey: 'test-damage', revision: 1 });
+  await expect(addShipDamage.run(request({ ...data, shipId }))).resolves.toMatchObject({
+    destroyed: true, actorUid: 'u1', vesselId: shipId, idempotencyKey: 'test-damage', revision: 1,
+  });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    'shipDamage.aegis': expect.objectContaining({ destroyed: true }),
+    [`shipDamage.${shipId}`]: expect.objectContaining({ destroyed: true }),
+    [`shipSurvivors.${shipId}`]: 1000,
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-destroyed-aegis', expect.objectContaining({
-    type: 'ship-destroyed', shipId: 'aegis', podCapacity: 3100,
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/damageDraws/damage-destroyed-${shipId}`, expect.objectContaining({
+    type: 'ship-destroyed', shipId, podCapacity,
   }));
+  for (const [, update] of mock.update.mock.calls) {
+    expect(Object.keys(update).some(key => /shipResources|shuttle/i.test(key))).toBe(false);
+  }
 });
 
 it('does not advance or emit another catastrophe when a destroyed ship is drawn again', async () => {

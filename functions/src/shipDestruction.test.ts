@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SHIP_DAMAGE_DECKS, drawShipDamage } from './shipDamage';
 import {
   catastropheEventIdForShip,
   destructionTransition,
@@ -8,6 +9,7 @@ import {
 
 describe('printed escape-pod destruction state', () => {
   it('derives capacity from crew plus passengers for every damage-deck ship', () => {
+    expect(Object.keys(PRINTED_ESCAPE_POD_CAPACITIES).sort()).toEqual(Object.keys(SHIP_DAMAGE_DECKS).sort());
     for (const [shipId, capacity] of Object.entries(PRINTED_ESCAPE_POD_CAPACITIES)) {
       expect(capacity.podCapacity).toBe(capacity.crewCapacity + capacity.passengerCapacity);
       expect(escapePodCapacityForShip(shipId)).toEqual(capacity);
@@ -15,8 +17,10 @@ describe('printed escape-pod destruction state', () => {
   });
 
   it('does not fabricate capacity for small or approaching vessels', () => {
-    expect(escapePodCapacityForShip('gorgoneion')).toBeUndefined();
-    expect(escapePodCapacityForShip('voyage-33-0')).toBeUndefined();
+    for (const shipId of ['gorgoneion', 'capybara-small', 'warrior', 'vulcan', 'voyage-33-0']) {
+      expect(escapePodCapacityForShip(shipId)).toBeUndefined();
+      expect(() => drawShipDamage(shipId, { damagedSystemIds: [], destroyed: false }, () => 0)).toThrow();
+    }
   });
 
   it('creates one stable event for a new destruction and repairs a missing legacy event', () => {

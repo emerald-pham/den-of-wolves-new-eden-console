@@ -5201,6 +5201,13 @@
       "language": "Readiness reconciliation 2026-09-19: the existing foundation regression matrix explicitly requires an owner decision for the ration wording conflict. The catalog previously had no decision owner and misleadingly appeared ready. Current maintenance rations code treats printed spend and selected-level bonus as distinct quantities, consistent with the authorized core/ship summaries; the owner question is pending. No rule, runtime behavior, or completed status changes here. Prompt 112 receives the corresponding owner marker already required by its preserved inventory/consent blocker; no new trade restriction is introduced.",
       "source": "docs/FOUNDATION_REGRESSION_MATRIX.md Prompt 117; functions/src/maintenance.ts rations branch; docs/implementation-prompts.json Prompt 112 preserved description; owner clarification request 2026-09-19",
       "type": "decision_owner"
+    },
+    {
+      "direction": "140d",
+      "id": "E-140D-SOURCE-CLOSURE",
+      "language": "Read-only inspection of the original v1.1 components and facilitator destruction guidance resolves the previous assumption that an unprinted small-vessel destruction path was required for this prompt. No new capacity, population conversion, or zero-capacity fallback was added. The capacity registry is now checked against every registered damage deck, every unsupported small/base/Voyage variant is rejected, and parameterized production callable tests verify all seven printed capacities while retaining a non-default survivor count and avoiding resource/craft mutation. Existing durable-catastrophe replay and maintenance-riot tests remain green: 99 focused Functions tests plus the Functions build pass. Existing public event projection remains unchanged. This is a tests/documentation closure; no gameplay release is claimed.",
+      "source": "functions/src/shipDestruction.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/shipDamage.test.ts; functions/src/maintenanceCallable.test.ts; original v1.1 A4 Double Sided component pages 23-24 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86); original v1.1 A4 Single Sided component page 38 (SHA-256 4e3ce6b500716fe139440d669aeae2e7fb4ab85071c98801f28144305f60f8d3); original v1.1 Facilitator Guide printed page 18; authorized routed ship reference; private local full-page visual inspection",
+      "type": "evidence / source verification"
     }
   ],
   "plan": {
@@ -8774,8 +8781,8 @@
         "acceptance": "the destroyed ship exposes only its printed crew-plus-passenger pod capacity and one durable catastrophe event.",
         "title": "Create escape pods on ship destruction."
       },
-      "description": "The authoritative addShipDamage and maintenance riot transactions now share a server-only printed-capacity transition. Exhaustion creates one stable damage-destroyed event with the full vessel's printed crew-plus-passenger pod capacity; repeated destroyed draws replay without a new revision or catastrophe, and survivor/resources/retained craft state is untouched. The seven current full damage-deck ships are covered, while small/base variants and Voyage 33-0 remain an explicit source/path gap because their sheets provide no independent crew/passenger capacity and they cannot be assigned fabricated zero or population values. Focused resolver, add-damage, maintenance-callable, and public event-parser tests pass; this remains partial until a source-authorized small-vessel destruction path/capacity exists.",
-      "evidenceIds": "E-AUDIT-140D;E-140D-VERIFIED",
+      "description": "The authoritative damage and maintenance riot transactions expose one stable catastrophe with the destroyed vessel's printed crew-plus-passenger pod capacity, preserve current survivors/resources/retained craft, and replay an already-destroyed result without advancing revision or emitting another catastrophe. All seven printed damage-deck vessels have matching capacity coverage and production-callable tests. Primary component review resolves the earlier small-vessel scope concern: small ships have no damage path, and identity-only extra vessels have no printed damage deck or independent capacity to invent. Unsupported variants remain rejected by the damage resolver; any future source-authorized destruction extension must supply its own capacity. This verifies the existing runtime rather than introducing new gameplay.",
+      "evidenceIds": "E-AUDIT-140D;E-140D-VERIFIED;E-140D-SOURCE-CLOSURE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "131",
@@ -8786,7 +8793,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {

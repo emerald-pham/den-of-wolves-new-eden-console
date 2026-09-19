@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**285 / 751 prompts complete (37.95%)**
+**286 / 751 prompts complete (38.08%)**
 
-Status breakdown: **285 done · 25 partial · 441 missing**.
+Status breakdown: **286 done · 24 partial · 441 missing**.
 
 Active prompt: **none**
 
@@ -560,7 +560,7 @@ release classification and evidence.
 | 140a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 140d | partial | non-feature | — | The authoritative addShipDamage and maintenance riot transactions now share a server-only printed-capacity transition. Exhaustion creates one stable damage-destroyed event with the full vessel's printed crew-plus-passenger pod capacity; repeated destroyed draws replay without a new revision or catastrophe, and survivor/resources/retained craft state is untouched. The seven current full damage-deck ships are covered, while small/base variants and Voyage 33-0 remain an explicit source/path gap because their sheets provide no independent crew/passenger capacity and they cannot be assigned fabricated zero or population values. Focused resolver, add-damage, maintenance-callable, and public event-parser tests pass; this remains partial until a source-authorized small-vessel destruction path/capacity exists. |
+| 140d | done | non-feature | — | The authoritative damage and maintenance riot transactions expose one stable catastrophe with the destroyed vessel's printed crew-plus-passenger pod capacity, preserve current survivors/resources/retained craft, and replay an already-destroyed result without advancing revision or emitting another catastrophe. All seven printed damage-deck vessels have matching capacity coverage and production-callable tests. Primary component review resolves the earlier small-vessel scope concern: small ships have no damage path, and identity-only extra vessels have no printed damage deck or independent capacity to invent. Unsupported variants remain rejected by the damage resolver; any future source-authorized destruction extension must supply its own capacity. This verifies the existing runtime rather than introducing new gameplay. |
 | 140e | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140f | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140g | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
