@@ -45,6 +45,7 @@ const apps = [];
 const nodeCalls = [];
 let browser;
 let vite;
+let stopGmLeaseRenewals;
 
 function errorCode(error) {
   return String(error?.code ?? error?.message ?? error ?? 'unknown')
@@ -91,6 +92,27 @@ async function nodeClient(label) {
         throw error;
       }
     },
+  };
+}
+
+function scheduleGmLeaseRenewals(owner, gm2, sessionId, intervalMs, offsetMs) {
+  let interval;
+  let inFlight;
+  const pulse = () => {
+    if (inFlight) return;
+    inFlight = owner.call('refreshPresence', { sessionId, instanceId: 'p639-bridge' })
+      .then(() => gm2.call('refreshPresence', { sessionId, instanceId: 'p639-observer' }))
+      .catch(() => undefined)
+      .finally(() => { inFlight = undefined; });
+  };
+  const timeout = setTimeout(() => {
+    pulse();
+    interval = setInterval(pulse, intervalMs);
+  }, offsetMs);
+  return async () => {
+    clearTimeout(timeout);
+    clearInterval(interval);
+    if (inFlight) await inFlight;
   };
 }
 
@@ -241,6 +263,13 @@ try {
     await clients[index].page.evaluate(([interval, offset]) => window.p639.scheduleHeartbeat(interval, offset),
       [intervalMs, Math.round(index * intervalMs / clients.length)]);
   }
+  stopGmLeaseRenewals = scheduleGmLeaseRenewals(
+    owner,
+    gm2,
+    sessionId,
+    20_000,
+    smokeRun ? 2_000 : 10_000,
+  );
   evidence.stage = 'timed-load';
   const runStartedAt = Date.now();
   const runEndsAt = runStartedAt + durationMs;
@@ -254,7 +283,7 @@ try {
   let reconnect;
   let reconnectDone = false;
   while (Date.now() < runEndsAt) {
-    if (!reconnectDone && Date.now() >= runStartedAt + Math.floor(durationMs / 2)) {
+    if (!reconnectDone && Date.now() >= runStartedAt + Math.floor(durationMs / 2) + (smokeRun ? 0 : 5_000)) {
       reconnectDone = true;
       const identityClientIndexes = clients
         .map((client, index) => client.config.clientLabel === 'identity-1' ? index : -1)
@@ -294,16 +323,6 @@ try {
       reconnect = { durationMs: performance.now() - reconnectStartedAt, disconnectAttempts, restoredPages: restoredClients.length };
     }
     if (Date.now() >= nextActionAt) {
-      const renewals = await Promise.allSettled([
-        owner.call('refreshPresence', { sessionId, instanceId: 'p639-bridge' }),
-        gm2.call('refreshPresence', { sessionId, instanceId: 'p639-observer' }),
-      ]);
-      if (renewals.some((result) => result.status === 'rejected')) {
-        timedErrors.push({
-          stage: 'gm-lease-renewal',
-          outcomes: renewals.map((result) => result.status === 'fulfilled' ? 'success' : errorCode(result.reason)),
-        });
-      }
       const delta = actionIndex % 2 === 0 ? 1 : -1;
       const startedAt = Date.now();
       const base = { sessionId, shipId: 'capybara', resourceId: 'scrap', delta, expectedRevision: revision };
@@ -336,6 +355,8 @@ try {
     await delay(Math.min(250, Math.max(0, runEndsAt - Date.now())));
   }
   for (const client of clients) await client.page.evaluate(() => window.p639.stopHeartbeats());
+  await stopGmLeaseRenewals();
+  stopGmLeaseRenewals = undefined;
   const activeSummaries = await Promise.all(clients.map(({ page }) => page.evaluate(() => window.p639.summary())));
   const summaries = [...retiredSummaries, ...activeSummaries];
   const browserCalls = summaries.flatMap((summary) => summary.calls);
@@ -357,7 +378,7 @@ try {
     duration: smokeRun || durationMs === thresholds.durationMs,
     heartbeatCoverage: heartbeatCoverage >= thresholds.heartbeatCoverageMin,
     heartbeatErrorRate: heartbeatErrorRate <= thresholds.heartbeatErrorRateMax,
-    gmLeaseRenewals: gmLeaseRenewals.length >= 2 + actionResults.length * 2 &&
+    gmLeaseRenewals: (smokeRun || gmLeaseRenewals.length >= 90) &&
       gmLeaseRenewalSuccesses.length === gmLeaseRenewals.length,
     heartbeatP95: heartbeatLatency.p95 <= thresholds.heartbeatP95MsMax,
     listenerActionP95: listenerActionLatency.p95 <= thresholds.listenerActionP95MsMax,
@@ -405,6 +426,7 @@ try {
   await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
   if (browser) await browser.close().catch(() => undefined);
   if (vite) await vite.close().catch(() => undefined);
+  if (stopGmLeaseRenewals) await stopGmLeaseRenewals().catch(() => undefined);
   await Promise.all(apps.map((app) => deleteApp(app).catch(() => undefined)));
   console.log(`P639 evidence: ${evidencePath}`);
 }

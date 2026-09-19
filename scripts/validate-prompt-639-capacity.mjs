@@ -23,7 +23,7 @@ assert.equal(evidence.browser?.contexts, 20, 'The exercise did not isolate the 2
 assert.equal(evidence.browser?.pages, 60, 'The browser page count is incomplete.');
 assert.ok(results?.heartbeat?.attempts > 0, 'No production-cadence heartbeat attempts were recorded.');
 assert.ok(results?.heartbeat?.coverage >= evidence.thresholds.heartbeatCoverageMin, 'Heartbeat coverage is incomplete.');
-assert.ok(results?.gmLeaseRenewals?.attempts >= 30, 'GM-instance lease-renewal coverage is incomplete.');
+assert.ok(results?.gmLeaseRenewals?.attempts >= 90, 'GM-instance lease-renewal coverage is incomplete.');
 assert.equal(results?.gmLeaseRenewals?.errors, 0, 'GM-instance lease renewal failed.');
 assert.equal(results?.listeners?.subscriptions, 120, 'The two-listener-per-page load is incomplete.');
 assert.ok(results?.listeners?.deliveries > 0, 'No listener deliveries were recorded.');
