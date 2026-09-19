@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**284 / 751 prompts complete (37.82%)**
+**285 / 751 prompts complete (37.95%)**
 
-Status breakdown: **284 done · 25 partial · 442 missing**.
+Status breakdown: **285 done · 25 partial · 441 missing**.
 
 Active prompt: **none**
 
@@ -442,7 +442,7 @@ release classification and evidence.
 | 029 | done | non-feature | — | Seat policy/callable one-seat tests. |
 | 030 | done | feature | 0.3.12 | Version 0.3.12 provisions canonical stable core seats, exposes callable-backed claim/release through the existing role route, and records revisioned request receipts and append-only events. Reconnect hydration, race/denial, pointer integrity, and Press exclusion remain covered; readiness/start stays outside this release. |
 | 031 | done | non-feature | — | Seat race/conflict tests. |
-| 031a | missing | non-feature | — | Future unified fleet/console entry: compose the separate fleet/flag and seat/console pages only after the active setup/readiness slice. Full enabled catalog viewing never claims; first authenticated entry to an open core console atomically claims it, a simultaneous race has one winner, and every client converges in real time. Preserve stable seat authority, CAS/idempotency/audit, reconnect, release/handoff/GM intervention, deep links/Back, Press as distinct and non-counted, claimed read-only state, and the exact shared-flag choreography/timing/layers recorded from `5ea9b74` through the named refinements. Require keyboard/screen-reader/44px touch, safe areas, rotation/reduced motion, interruption/performance, and nonoverlap at 320×844, 390×844, 1440×900, and 844×390. |
+| 031a | done | non-feature | — | Unified fleet/console entry is implemented in the final candidate at 540fc05603081c57768b04f9d5408ca448c53f92. The enabled catalog remains inspection-only until first entry into an open core console, whose existing server-side CAS and replay path claims one seat; live occupancy, Press's distinct non-counted station, deep links/Back, read-only viewing, and the audited shared-flag choreography are preserved. Local unit, callable, typecheck/build, responsive browser, and Terra review evidence is recorded in E-031A-IMPLEMENTED. This is implementation evidence only; deployment is not claimed. |
 | 032 | done | non-feature | — | Seat release tests. |
 | 033 | done | non-feature | — | Foreign/stale seat release denial tests. |
 | 034 | done | non-feature | — | Resume callable and session service tests. |

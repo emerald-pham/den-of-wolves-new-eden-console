@@ -44,6 +44,13 @@
       "type": "hard_contract / sequence"
     },
     {
+      "direction": "031a",
+      "id": "E-031A-IMPLEMENTED",
+      "language": "Prompt 031a is implemented in the final candidate at 540fc05603081c57768b04f9d5408ca448c53f92 (implementation 33dd67e046f10a4461f3171d906b3516019816f9 plus the GM-path repair). The unified /console catalog lets every entitled authenticated player inspect enabled ship, Union, and Press consoles with live OPEN, HELD BY YOU, and CLAIMED // READ-ONLY status; filtering is inspection-only. First entry into an open core console performs the existing server-side seat CAS before refreshPresence, while the preserved GM role-selection path does not claim an ordinary seat. Seat callable coverage proves idempotent replay, stale/direct-write denial, one-winner contention, release, and the distinct non-counted Press station; the live session projection carries occupancy through hydration and reconnect. Existing route tests cover deep links, Back, foreign read-only viewing, and disabled-console behavior, while SessionMode, ShipRoleSelect, ShipConsole, and ScreenFade retain the stable IDs and audited shared-flag view-transition choreography. Full local unit validation passed 120 files and 1392 tests; focused seat callable validation passed 22 tests; typecheck and build checks passed. Rendered browser proof covered 320x844, 390x844, 1440x900, and 844x390 with no horizontal overflow, touch-safe controls on touch-sized viewports, visible keyboard focus, catalog search/status behavior, and reduced-motion checks. Terra follow-up review 540fc056 was clear. This is local implementation, test, rendered, and review evidence; deployment is not claimed.",
+      "source": "src/routes/SessionMode.tsx; src/routes/SessionMode.test.tsx; src/routes/ShipRoleSelect.tsx; src/routes/ShipRoleSelect.test.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/routes/JointEngineeringConsole.tsx; src/routes/JointEngineeringConsole.test.tsx; src/components/ScreenFade.tsx; src/components/ScreenFade.test.tsx; src/lib/sessionService.ts; src/lib/sessionService.test.ts; functions/src/index.ts; functions/src/seatCallable.test.ts; local responsive browser proof at 320x844, 390x844, 1440x900, and 844x390; Terra follow-up review 540fc056",
+      "type": "evidence / production-path / authority / accessibility / rendered review"
+    },
+    {
       "direction": "103a -> 091-096; 098; 101-103; 106b; 108-109; 154-158",
       "id": "E-103A",
       "language": "Dependencies: Prompts 091-096, 098, 101-103, 106b, 108-109, and 154-158.",
@@ -5966,8 +5973,8 @@
         "acceptance": "after the current setup/readiness slice, compose the separate fleet/flag and console/seat selection pages into one cohesive catalog in which every entitled authenticated player can inspect all enabled consoles and nonsecret status without claiming; first entry into an open core console atomically claims it server-side, simultaneous entry has one winner, and all clients converge in real time. Preserve stable IDs, authoritative CAS/idempotency/audit, reconnect, release/handoff/GM intervention, deep-link/Back behavior, Press's distinct non-counted station, claimed read-only state, and the exact audited shared-flag choreography from `5ea9b74` plus its named refinements. Prove no dual claim or direct write; keyboard, screen-reader, visible-focus, 44px touch, safe-area/rotation/reduced-motion, interruption/performance, and nonoverlap at 320×844, 390×844, 1440×900, and 844×390. This is one new unified flow whose existing flag presentation remains intact.",
         "title": "Unify fleet and console entry without weakening first-entry claims."
       },
-      "description": "Future unified fleet/console entry: compose the separate fleet/flag and seat/console pages only after the active setup/readiness slice. Full enabled catalog viewing never claims; first authenticated entry to an open core console atomically claims it, a simultaneous race has one winner, and every client converges in real time. Preserve stable seat authority, CAS/idempotency/audit, reconnect, release/handoff/GM intervention, deep links/Back, Press as distinct and non-counted, claimed read-only state, and the exact shared-flag choreography/timing/layers recorded from `5ea9b74` through the named refinements. Require keyboard/screen-reader/44px touch, safe areas, rotation/reduced motion, interruption/performance, and nonoverlap at 320×844, 390×844, 1440×900, and 844×390.",
-      "evidenceIds": "E-031A;E-031A-SETUP",
+      "description": "Unified fleet/console entry is implemented in the final candidate at 540fc05603081c57768b04f9d5408ca448c53f92. The enabled catalog remains inspection-only until first entry into an open core console, whose existing server-side CAS and replay path claims one seat; live occupancy, Press's distinct non-counted station, deep links/Back, read-only viewing, and the audited shared-flag choreography are preserved. Local unit, callable, typecheck/build, responsive browser, and Terra review evidence is recorded in E-031A-IMPLEMENTED. This is implementation evidence only; deployment is not claimed.",
+      "evidenceIds": "E-031A;E-031A-SETUP;E-031A-IMPLEMENTED",
       "hardContract": "CURRENT-SETUP-READINESS",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "030;031;032;034",
@@ -5978,7 +5985,7 @@
       "releases": [],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "UNIFIED-ENTRY",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
