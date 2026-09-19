@@ -34,13 +34,23 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.4.20',
+    version: '0.4.21',
     implementationProgress: {
       completed: 292, total: 751, percentage: '38.88%',
       done: 292, partial: 23, active: 0, missing: 436,
     },
     changes: [
       'The console now keeps its spacefaring monospace type across every screen, including headings and inherited body text on phones.',
+      '292 of 751 planned items are complete (38.88%).',
+    ],
+  },
+  {
+    version: '0.4.20',
+    implementationProgress: {
+      completed: 292, total: 751, percentage: '38.88%',
+      done: 292, partial: 23, active: 0, missing: 436,
+    },
+    changes: [
       'The GM name field label again uses the stable console caption type on phones, short screens, and desktop displays.',
       '292 of 751 planned items are complete (38.88%).',
     ],
