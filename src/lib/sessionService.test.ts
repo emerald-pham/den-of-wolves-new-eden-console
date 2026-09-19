@@ -1784,6 +1784,30 @@ describe('command role presence', () => {
     expect(useSessionStore.getState().me?.seatId).toBe('admiral');
   });
 
+  it('keeps GM role selection on the live-instance presence path without claiming a seat', async () => {
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({ ...session, setupRevision: 0 });
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'open', holderUid: null, factionId: 'aegis', claimedAt: null,
+    }]);
+    const presenceCall = callableReturning({ data: { sessionId: 's1' } });
+    vi.mocked(httpsCallable).mockReturnValue(presenceCall);
+
+    await selectConsoleRole('admiral');
+
+    expect(vi.mocked(httpsCallable).mock.calls.map(([, name]) => name)).toEqual(['refreshPresence']);
+    expect(presenceCall).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'bridge', activeConsoleRoleId: 'admiral',
+    });
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('admiral');
+    expect(useSessionStore.getState().me?.seatId).toBeNull();
+  });
+
   it('does not promote a claimed seat through presence when the seat owner is another player', async () => {
     useSessionStore.getState().setSeats([{
       id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',

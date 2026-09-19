@@ -2032,12 +2032,16 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     // the setup seat board before presence can grant console authority.  The
     // Press station has no core seat and keeps its existing exclusive path.
     const targetSeat = before.seats.find((seat) => (seat.roleId ?? seat.id) === roleId);
-    if (targetSeat?.status === 'open') {
+    // GMs use the existing live-instance presence path; the seat callable
+    // deliberately rejects GM identities. Only ordinary players need the
+    // first-entry seat CAS before presence grants console authority.
+    const isGm = before.me?.role === 'gm';
+    if (!isGm && targetSeat?.status === 'open') {
       const disposition = await claimSeat(targetSeat.id);
       if (disposition !== 'applied') return;
-    } else if (
+    } else if (!isGm && (
       targetSeat && targetSeat.holderUid !== before.me?.uid
-    ) {
+    )) {
       // A claimed or locked seat is already read-only for this browser.  Do
       // not let the presence callable turn a route visit into role authority
       // while a seat projection is ahead of the presence projection.
