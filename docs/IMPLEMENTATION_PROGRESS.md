@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**292 / 751 prompts complete (38.88%)**
+**293 / 751 prompts complete (39.01%)**
 
-Status breakdown: **292 done · 24 partial · 435 missing**.
+Status breakdown: **293 done · 24 partial · 434 missing**.
 
 Active prompt: **none**
 
@@ -1055,7 +1055,7 @@ release classification and evidence.
 | 583 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 584 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 585 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 586 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 586 | done | non-feature | — | The connected player's private assignment panel now consumes only the server-owned exact-holder role brief and names that player's ship, role, player-console device mode, and allowed private-brief route. It does not render the private brief text or common rules, and it hides stale mismatched projections. The facilitator retains the complete authoritative casting roster and assignment controls. Existing role-brief rules deny cross-player, GM, observer, outsider, list, and client-write access. Focused player/GM tests, TypeScript checking, and reduced-motion rendered proof across phone, short landscape, and desktop sizes pass. |
 | 587 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 588 | done | non-feature | — | Implemented in the production private loyalty panel: the server-authored intelligence-agent assignment now renders the canonical “Intelligence Agent” card label beside its exact suspicion. Existing private listener, allowlisted parser, server-owned secret writes, and exact-holder Firestore rules preserve the no-serialized-secret boundary for unrelated clients. Focused component/parser/authority/emulator tests and a reduced-motion production fixture across phone, desktop, and short-landscape sizes pass; deployment is not claimed. |
 | 589 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

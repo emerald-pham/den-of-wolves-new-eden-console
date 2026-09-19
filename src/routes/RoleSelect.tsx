@@ -294,13 +294,15 @@ export default function RoleSelect() {
         </section>
       )}
 
-      {(me.replacementRoleId || me.assignedRoleId) && roleBrief &&
+      {roleBrief &&
         (roleBrief.roleId === me.replacementRoleId || roleBrief.roleId === me.assignedRoleId) && (
-        <section className="role-brief-link cic-frame" aria-label="Private role brief">
+        <section className="role-brief-link cic-frame" aria-label="Your private casting assignment">
           <div>
             <p className="eyebrow">Private assignment</p>
-            <h2>Your role brief is ready</h2>
-            <p>Read your assigned role and common rules on this device.</p>
+            <h2>{roleBrief.roleName}</h2>
+            <p>Ship // {roleBrief.vesselName}</p>
+            <p>Device mode // Player console</p>
+            <p>Allowed route // Private role brief</p>
           </div>
           <button className="cic-action-button" type="button" onClick={() => navigate('/brief')}>
             Open private brief

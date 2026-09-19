@@ -48,6 +48,7 @@ function renderRoute() {
         <Route path="/gm" element={<p>GM route</p>} />
         <Route path="/console" element={<p>Console route</p>} />
         <Route path="/press" element={<p>Press route</p>} />
+        <Route path="/brief" element={<p>Private brief route</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -96,6 +97,58 @@ describe('RoleSelect', () => {
 
     expect(screen.getByText('Console route')).toBeInTheDocument();
     expect(useSessionStore.getState().mode).toBe('console');
+  });
+
+  it('presents only the connected player’s private casting assignment and allowed route', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({ ...session, phase: 'casting' });
+    useSessionStore.getState().setMe({
+      ...gm, uid: 'player-1', displayName: 'Ari', role: 'player', assignedRoleId: 'admiral',
+    });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: 'player-1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
+      text: 'Coordinate the fleet.', commonRules: 'Keep this brief private.',
+      ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
+    });
+
+    renderRoute();
+
+    const assignment = screen.getByRole('region', { name: 'Your private casting assignment' });
+    expect(within(assignment).getByRole('heading', { name: 'Admiral' })).toBeVisible();
+    expect(assignment).toHaveTextContent('Ship // AEGIS');
+    expect(assignment).toHaveTextContent('Device mode // Player console');
+    expect(assignment).toHaveTextContent('Allowed route // Private role brief');
+    expect(assignment).not.toHaveTextContent('Coordinate the fleet.');
+    expect(assignment).not.toHaveTextContent('Keep this brief private.');
+
+    await user.click(within(assignment).getByRole('button', { name: 'Open private brief' }));
+    expect(screen.getByText('Private brief route')).toBeVisible();
+  });
+
+  it('does not invent a private casting assignment while this player is unassigned', () => {
+    useSessionStore.getState().setSession({ ...session, phase: 'casting' });
+    useSessionStore.getState().setMe({ ...gm, uid: 'player-1', role: 'player', assignedRoleId: null });
+
+    renderRoute();
+
+    expect(screen.queryByRole('region', { name: 'Your private casting assignment' })).not.toBeInTheDocument();
+  });
+
+  it('does not render a stale private brief for a different assignment', () => {
+    useSessionStore.getState().setSession({ ...session, phase: 'casting' });
+    useSessionStore.getState().setMe({
+      ...gm, uid: 'player-1', role: 'player', assignedRoleId: 'admiral',
+    });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: 'player-1', roleId: 'wing-commander', roleName: 'Wing Commander',
+      vesselName: 'AEGIS', text: 'Command fighter wings.', commonRules: 'Keep this brief private.',
+      ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
+    });
+
+    renderRoute();
+
+    expect(screen.queryByRole('region', { name: 'Your private casting assignment' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Wing Commander')).not.toBeInTheDocument();
   });
 
   it('does not open a GM manifest stream while registration is unlocked', async () => {

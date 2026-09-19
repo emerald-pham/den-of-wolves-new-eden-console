@@ -5264,6 +5264,13 @@
       "language": "Verified 2026-09-19 on committed harness/runtime ea571ed1: three synchronized twenty-client cohorts began at 1/10003/20003 ms; all sixty refreshPresence calls succeeded without retry, with cohort durations 7204/7163/7474 ms. Concurrent production expireStalePlayers execution removed twenty obsolete members while preserving all twenty replacement seats and memberships and no retention deadline. The direct scheduled-handler invocation targets only an isolated emulator. Existing deterministic cadence, expiry-boundary and race evidence remains applicable. Both existing P638 scenarios also pass after generation-bound disconnect and disconnected-state assertions. No runtime change or production capacity claim.",
       "source": "scripts/prompt-614-presence-load.mjs; scripts/prompt-638-capacity-rehearsal.mjs; docs/PRESENCE_LOAD_2026-09-19.md; E-614-PRESENCE-OWNERSHIP",
       "type": "evidence / local-emulator / concurrency / ownership"
+    },
+    {
+      "direction": "587 -> PRIVATE-CASTING-PRESENTATION",
+      "id": "E-587-VERIFIED",
+      "language": "The connected player now receives a compact private casting assignment sourced only from the exact-holder role-brief projection. It names that player's ship, role, player-console device mode, and the single allowed private-brief route without rendering the brief body or common rules. A stale brief whose role no longer matches the player's assigned or replacement role is hidden. The existing GM casting board retains the complete connected-player roster and authoritative assignment controls. The existing server-owned role-brief boundary denies every other player, GM, observer, outsider, list, and client-write attempt. One hundred thirteen focused RoleSelect and GM-console tests plus TypeScript checking pass. Real reduced-motion browser proof at 320x844, 390x844, 844x390, and 1440x900 verifies exact fields, no brief-text leak, a 44px route control, no horizontal overflow, and successful private-route navigation.",
+      "source": "src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; functions/src/roleBriefs.ts; functions/src/roleBriefs.test.ts; firestore.rules roleBriefs exact-holder boundary; tests/rules/firestore.rules.test.ts role-private brief boundary; /tmp/p587-render/evidence.json; /tmp/p587-render/*-assignment.png",
+      "type": "evidence / production-path / privacy / accessibility / rendered"
     }
   ],
   "plan": {
@@ -20275,8 +20282,8 @@
         "acceptance": "setup presents only supported counts/options and explains Dione, Union, Wolf, and expansion effects before lock.",
         "title": "Build the roster configuration flow."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The connected player's private assignment panel now consumes only the server-owned exact-holder role brief and names that player's ship, role, player-console device mode, and allowed private-brief route. It does not render the private brief text or common rules, and it hides stale mismatched projections. The facilitator retains the complete authoritative casting roster and assignment controls. Existing role-brief rules deny cross-player, GM, observer, outsider, list, and client-write access. Focused player/GM tests, TypeScript checking, and reduced-motion rendered proof across phone, short landscape, and desktop sizes pass.",
+      "evidenceIds": "E-587-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20287,7 +20294,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
