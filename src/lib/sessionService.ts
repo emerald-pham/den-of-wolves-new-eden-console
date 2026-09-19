@@ -302,6 +302,7 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
     case 'authorArbourVision':
     case 'authorFacilitatorRuleCall':
     case 'transitionCrisis':
+    case 'admitVoyage33':
     case 'recordZealotryResponse':
     case 'submitCivilUnrestGrievance':
     case 'recordCivilUnrestResolution':

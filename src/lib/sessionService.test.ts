@@ -935,6 +935,27 @@ describe('GM instance commands', () => {
     });
   });
 
+  it('replays receipt-backed Voyage admission with its original identity after reconnect', async () => {
+    const payload = {
+      sessionId: 's1', instanceId: 'instance-1', requestId: 'voyage-receipt',
+      expectedRevision: 2, crisisId: 'approach-1',
+    };
+    useSessionStore.getState().enqueueCommand({
+      id: 'voyage-command', kind: 'admitVoyage33', payload,
+      createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
+    });
+    const admission = vi.fn().mockResolvedValue({ data: { status: 'replayed' } });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      if (name === 'admitVoyage33') return admission as unknown as ReturnType<typeof httpsCallable>;
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+    await connect();
+    expect(admission).toHaveBeenCalledExactlyOnceWith(payload);
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
   it('does not treat an extra request ID as a receipt contract for an unsupported command kind', async () => {
     useSessionStore.getState().enqueueCommand({
       id: 'unsupported-receipt', kind: 'setActiveRoleEnabled',

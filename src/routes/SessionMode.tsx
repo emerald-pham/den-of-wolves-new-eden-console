@@ -122,7 +122,8 @@ function FleetRoster({
     'Press Officer',
   );
   const voyage33Admitted = admittedVesselIds?.includes(VOYAGE_33_0.id) &&
-    voyage33Admission?.id === VOYAGE_33_0.id;
+    voyage33Admission?.id === VOYAGE_33_0.id &&
+    matchesConsoleSearch(normalizedQuery, VOYAGE_33_0.name, VOYAGE_33_0.nation, VOYAGE_33_0.description);
   return (
     <main className="fleet-roster">
       <header className="fleet-roster__header">

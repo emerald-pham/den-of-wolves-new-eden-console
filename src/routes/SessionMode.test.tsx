@@ -75,7 +75,8 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(document.querySelector('.ship-console.shuttle-console')).toBeInTheDocument();
 });
 
-it('shows an admitted Voyage 33-0 in the member roster without offering a role route', () => {
+it('shows and filters an admitted Voyage 33-0 without offering a role route', async () => {
+  const user = userEvent.setup();
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     admittedVesselIds: ['voyage-33-0'],
@@ -96,6 +97,13 @@ it('shows an admitted Voyage 33-0 in the member roster without offering a role r
   expect(card).toHaveTextContent(/host docking required.*maintenance steps 1–4/i);
   expect(card).toHaveTextContent(/host assignment pending/i);
   expect(within(card).queryByRole('link')).not.toBeInTheDocument();
+  const filter = screen.getByRole('searchbox', { name: 'Filter consoles' });
+  await user.type(filter, 'AEGIS');
+  expect(screen.queryByRole('article', { name: 'Voyage 33-0' })).not.toBeInTheDocument();
+  await user.clear(filter);
+  await user.type(filter, 'Voyage');
+  expect(screen.getByRole('article', { name: 'Voyage 33-0' })).toBeInTheDocument();
+  expect(screen.queryByRole('article', { name: 'AEGIS' })).not.toBeInTheDocument();
 });
 
 it('offers Press Officer and the GM Console from Select a role', async () => {
