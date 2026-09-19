@@ -61,12 +61,13 @@ export async function runSmallShipMaintenance(
 export async function runVoyage33Maintenance(
   action: string,
   expectedRevision: number,
+  expectedDockingRevision: number,
   choices: SmallShipMaintenanceChoices = {},
   requestId = commandId(),
 ): Promise<unknown> {
   const { sessionId, instanceId } = requireSession();
   const payload = {
-    sessionId, shipId: 'voyage-33-0' as const, action, expectedRevision, requestId, ...choices,
+    sessionId, shipId: 'voyage-33-0' as const, action, expectedRevision, expectedDockingRevision, requestId, ...choices,
     ...(instanceId ? { instanceId } : {}),
   };
   return (await httpsCallable<typeof payload, unknown>(functions(), 'runVoyage33Maintenance')(payload)).data;

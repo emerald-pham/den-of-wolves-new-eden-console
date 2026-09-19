@@ -14598,6 +14598,7 @@ type Voyage33MaintenanceCommandFingerprint = Readonly<{
   actorUid: string;
   instanceId: string | null;
   expectedRevision: number;
+  expectedDockingRevision: number;
   action: string;
   foodLevel: number | null;
   waterLevel: number | null;
@@ -14613,6 +14614,7 @@ function sameVoyage33MaintenanceFingerprint(
   return value.kind === expected.kind && value.sessionId === expected.sessionId &&
     value.actorUid === expected.actorUid && value.instanceId === expected.instanceId &&
     value.expectedRevision === expected.expectedRevision && value.action === expected.action &&
+    value.expectedDockingRevision === expected.expectedDockingRevision &&
     value.foodLevel === expected.foodLevel && value.waterLevel === expected.waterLevel &&
     Array.isArray(consoles) && consoles.length === expected.consoles.length &&
     consoles.every((item, index) => item === expected.consoles[index]);
@@ -14668,15 +14670,20 @@ async function requireVoyage33MaintenanceAuthority(
 /** Run Voyage 33-0's four-step host-funded maintenance lane. Docking remains P251. */
 export const runVoyage33Maintenance = onCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
-  expectedRevision?: unknown; instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
+  expectedRevision?: unknown; expectedDockingRevision?: unknown; instanceId?: unknown;
+  foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-      Object.keys(raw).some(key => !['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
+      Object.keys(raw).some(key => !['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'expectedDockingRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
     throw new HttpsError('invalid-argument', 'Invalid Voyage 33-0 maintenance request.');
   }
   const parsed = requireSmallShipMaintenanceRequest({ ...raw, smallShipId: raw.shipId });
+  if (!Number.isSafeInteger(raw.expectedDockingRevision) || (raw.expectedDockingRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedDockingRevision must be a non-negative integer.');
+  }
+  const expectedDockingRevision = raw.expectedDockingRevision as number;
   const consoles = requireBoundedIdList(raw.consoles, 'consoles', MAX_VOYAGE_33_CONSOLES);
   if (parsed.smallShipId !== VOYAGE_33_ID || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'end'].includes(parsed.action) ||
       [raw.foodLevel, raw.waterLevel].some(level => level !== undefined && (!Number.isSafeInteger(level) || (level as number) < 0 || (level as number) > 3))) {
@@ -14685,6 +14692,7 @@ export const runVoyage33Maintenance = onCall<{
   const fingerprint: Voyage33MaintenanceCommandFingerprint = {
     kind: 'maintenance', sessionId: parsed.sessionId, actorUid: uid,
     instanceId: parsed.instanceId ?? null, expectedRevision: parsed.expectedRevision,
+    expectedDockingRevision,
     action: parsed.action, foodLevel: raw.foodLevel === undefined ? null : raw.foodLevel as number,
     waterLevel: raw.waterLevel === undefined ? null : raw.waterLevel as number,
     consoles: [...(consoles ?? [])],
@@ -14716,11 +14724,24 @@ export const runVoyage33Maintenance = onCall<{
     if (replay) return replay;
     requireTurnOneForGameplay(authority.session);
     requireActionPhase(authority.session, 'maintenance', authority.player.get('role') === 'gm' ? 'facilitator' : 'player');
+    if (authority.state.dockingRevision !== expectedDockingRevision) {
+      const stale = {
+        status: 'stale' as const, requestId: parsed.requestId, sessionId: parsed.sessionId,
+        shipId: VOYAGE_33_ID, action: parsed.action, expectedRevision: parsed.expectedRevision,
+        currentRevision: authority.state.cycle.revision,
+        expectedDockingRevision, currentDockingRevision: authority.state.dockingRevision,
+        ...vesselActionEnvelope(authority.session, authority.player, uid, VOYAGE_33_ID,
+          authority.state.cycle.revision, parsed.requestId, 'voyage-33-maintenance', authority.state.hostShipId ?? undefined),
+      };
+      tx.set(requestRef, { ...fingerprint, requestId: parsed.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     if (authority.state.cycle.revision !== parsed.expectedRevision) {
       const stale = {
         status: 'stale' as const, requestId: parsed.requestId, sessionId: parsed.sessionId,
         shipId: VOYAGE_33_ID, action: parsed.action, expectedRevision: parsed.expectedRevision,
         currentRevision: authority.state.cycle.revision,
+        expectedDockingRevision, currentDockingRevision: authority.state.dockingRevision,
         ...vesselActionEnvelope(authority.session, authority.player, uid, VOYAGE_33_ID,
           authority.state.cycle.revision, parsed.requestId, 'voyage-33-maintenance', authority.state.hostShipId ?? undefined),
       };
@@ -14750,6 +14771,7 @@ export const runVoyage33Maintenance = onCall<{
       status: 'committed' as const, requestId: parsed.requestId, sessionId: parsed.sessionId,
       shipId: VOYAGE_33_ID, hostShipId: result.state.hostShipId, action: parsed.action,
       expectedRevision: parsed.expectedRevision, committedRevision: result.state.cycle.revision,
+      expectedDockingRevision, currentDockingRevision: result.state.dockingRevision,
       currentTurn: sessionTurn(authority.session.get('currentTurn')), serverTime,
       cycle: result.state.cycle, result: { state: result.state, hostResources: result.hostResources },
       ...vesselActionEnvelope(authority.session, authority.player, uid, VOYAGE_33_ID,

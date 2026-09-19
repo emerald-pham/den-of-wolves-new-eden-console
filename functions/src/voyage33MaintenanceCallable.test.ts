@@ -33,7 +33,7 @@ function snapshot(fields: Record<string, unknown>, exists = true) {
 
 const base = {
   sessionId: 's1', shipId: 'voyage-33-0', instanceId: 'gm1',
-  requestId: 'voyage-maint-1', action: 'begin', expectedRevision: 0,
+  requestId: 'voyage-maint-1', action: 'begin', expectedRevision: 0, expectedDockingRevision: 0,
 };
 
 beforeEach(() => {
@@ -71,18 +71,53 @@ it('requires the admitted identity and atomically spends a host resource ledger'
     voyage33Maintenance: expect.objectContaining({ id: 'voyage-33-0', hostShipId: 'aegis' }),
   }));
   expect(mock.set).toHaveBeenCalledWith(expect.stringContaining('/voyage33MaintenanceRequests/voyage-maint-1'),
-    expect.objectContaining({ serverRolls: null, reply: expect.objectContaining({ status: 'committed' }) }));
+    expect.objectContaining({
+      serverRolls: null,
+      fingerprint: expect.objectContaining({ expectedDockingRevision: 0 }),
+      reply: expect.objectContaining({ status: 'committed' }),
+    }));
 });
 
 it('replays an exact request without spending the host a second time', async () => {
   await runVoyage33Maintenance.run(request(base));
   const receipt = mock.set.mock.calls.find(([path]) => String(path).includes('/voyage33MaintenanceRequests/'))?.[1] as Record<string, unknown>;
   mock.receipts['sessions/s1/voyage33MaintenanceRequests/voyage-maint-1'] = receipt;
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.session.voyage33Maintenance = { ...emptyVoyage33MaintenanceState('dione'), dockingRevision: 1 };
   mock.update.mockReset();
   mock.set.mockReset();
   await expect(runVoyage33Maintenance.run(request(base))).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('returns a stale result before reading a new host ledger when docking changed at the same cycle revision', async () => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.session.voyage33Maintenance = { ...emptyVoyage33MaintenanceState('dione'), dockingRevision: 1 };
+  Object.defineProperty(mock.session, 'shipResources', {
+    configurable: true,
+    get: () => { throw new Error('host ledger read before docking CAS'); },
+  });
+  await expect(runVoyage33Maintenance.run(request(base))).resolves.toMatchObject({
+    status: 'stale', expectedDockingRevision: 0, currentDockingRevision: 1, currentRevision: 0,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(expect.stringContaining('/voyage33MaintenanceRequests/voyage-maint-1'),
+    expect.objectContaining({ reply: expect.objectContaining({ status: 'stale', currentDockingRevision: 1 }) }));
+});
+
+it('returns a stale result for a changed maintenance cycle and rejects a docking revision conflict', async () => {
+  const state = emptyVoyage33MaintenanceState('aegis');
+  mock.session.voyage33Maintenance = {
+    ...state, cycle: { ...state.cycle, revision: 1, step: 1 },
+  };
+  await expect(runVoyage33Maintenance.run(request(base))).resolves.toMatchObject({
+    status: 'stale', expectedRevision: 0, currentRevision: 1, currentDockingRevision: 0,
+  });
+  mock.receipts['sessions/s1/voyage33MaintenanceRequests/voyage-maint-1'] =
+    mock.set.mock.calls.find(([path]) => String(path).includes('/voyage33MaintenanceRequests/'))?.[1] as Record<string, unknown>;
+  await expect(runVoyage33Maintenance.run(request({ ...base, expectedDockingRevision: 1 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
 it('rejects maintenance when admission or the host-backed state is missing', async () => {
