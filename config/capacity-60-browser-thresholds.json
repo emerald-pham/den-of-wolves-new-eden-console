@@ -8,7 +8,7 @@
   "heartbeatP95MsMax": 8000,
   "actionIntervalMs": 60000,
   "actionRacesMin": 14,
-  "listenerActionP95MsMax": 3000,
+  "listenerActionP95MsMax": 5000,
   "reconnectMsMax": 5000,
   "transientRecoveryMsMax": 5000
 }

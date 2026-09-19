@@ -118,10 +118,28 @@ function scheduleGmLeaseRenewals(owner, gm2, sessionId, intervalMs, offsetMs) {
 
 async function browserPage(context, baseUrl, config) {
   const page = await context.newPage();
-  await page.goto(`${baseUrl}/scripts/fixtures/p639-browser-client.html`);
-  await page.waitForFunction(() => window.p639Ready === true);
-  const initialized = await page.evaluate((value) => window.p639.initialize(value), config);
-  return { page, initialized, config };
+  try {
+    await page.goto(`${baseUrl}/scripts/fixtures/p639-browser-client.html`);
+    await page.waitForFunction(() => window.p639Ready === true);
+    const initialized = await page.evaluate((value) => window.p639.initialize(value), config);
+    return { page, initialized, config };
+  } catch (error) {
+    await page.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function reconnectBrowserPage(context, baseUrl, config) {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try { return { client: await browserPage(context, baseUrl, config), attempts: attempt }; }
+    catch (error) {
+      lastError = error;
+      if (attempt >= 3 || !/internal|unavailable/i.test(errorCode(error))) throw error;
+      await delay(attempt * 100);
+    }
+  }
+  throw lastError;
 }
 
 async function pageCall(client, name, data, source = 'browser') {
@@ -283,7 +301,8 @@ try {
   let reconnect;
   let reconnectDone = false;
   while (Date.now() < runEndsAt) {
-    if (!reconnectDone && Date.now() >= runStartedAt + Math.floor(durationMs / 2) + (smokeRun ? 0 : 5_000)) {
+    const reconnectOffsetMs = smokeRun && durationMs <= 30_000 ? 0 : 15_000;
+    if (!reconnectDone && Date.now() >= runStartedAt + Math.floor(durationMs / 2) + reconnectOffsetMs) {
       reconnectDone = true;
       const identityClientIndexes = clients
         .map((client, index) => client.config.clientLabel === 'identity-1' ? index : -1)
@@ -307,11 +326,14 @@ try {
       }
       await Promise.all(identityClients.map((client) => client.page.close()));
       const restoredClients = [];
+      let resumeAttempts = 0;
       for (let index = 0; index < identityClients.length; index += 1) {
-        const restored = await browserPage(browserContexts[0], baseUrl, {
+        const restoredResult = await reconnectBrowserPage(browserContexts[0], baseUrl, {
           ...identityClients[index].config,
           joinCode: undefined,
         });
+        const restored = restoredResult.client;
+        resumeAttempts += restoredResult.attempts;
         await restored.page.evaluate(([interval, offset]) => window.p639.scheduleHeartbeat(interval, offset),
           [intervalMs, Math.round(index * intervalMs / identityClients.length)]);
         restoredClients.push(restored);
@@ -320,7 +342,12 @@ try {
         clients[identityClientIndexes[index]] = restoredClients[index];
       }
       leaders[0] = restoredClients[0];
-      reconnect = { durationMs: performance.now() - reconnectStartedAt, disconnectAttempts, restoredPages: restoredClients.length };
+      reconnect = {
+        durationMs: performance.now() - reconnectStartedAt,
+        disconnectAttempts,
+        resumeAttempts,
+        restoredPages: restoredClients.length,
+      };
     }
     if (Date.now() >= nextActionAt) {
       const delta = actionIndex % 2 === 0 ? 1 : -1;
