@@ -5299,6 +5299,13 @@
       "language": "Prompt 639 passes on clean source commit ac3e71066326c40ce23dc89570cb9ed7eb0b4efb in freshly reserved Firebase Emulator slot 1 with Chromium 153. The harness verified the live worktree reservation and Firebase hub, cleared Auth and Firestore, and confirmed the sessions collection empty before measurement. Twenty authenticated identities across three tabs each sustain 60 real browser pages for 900,000 ms. All 5,401 heartbeats that started and completed inside the declared window succeed; one boundary-crossing attempt is recorded and excluded. All 92 GM lease renewals succeed; 120 steady listeners record 20,063 deliveries with no errors; fourteen real two-GM resource races each produce one commit and one stale receipt; all 60 pages observe action revisions with a 3,195 ms p95; one three-tab identity disconnects and restores in 1,654.6 ms. After injected unavailable and 429 responses, the next fresh real emulator calls succeed in 715.8 ms and 24.4 ms; this does not claim automatic retry. The privacy validator rejects generated identifiers. Usage is 5,489 browser callable attempts, 151 controller callable attempts, and 20,063 listener document deliveries. Actual billable cost is $0 because the run uses local Chromium and local Firebase emulators. This is local capacity evidence only and does not claim production Firebase latency, cost, internet-path capacity, or automatic transport recovery.",
       "source": "scripts/prompt-639-browser-capacity.mjs; scripts/fixtures/p639-browser-client.html; scripts/fixtures/p639-browser-client.js; scripts/validate-prompt-639-capacity.mjs; config/capacity-60-browser-thresholds.json; docs/CAPACITY_60_BROWSER_PROOF.md; docs/audits/p639-60-browser-capacity.json; npm run test:capacity:p639",
       "type": "evidence / capacity / resilience / privacy"
+    },
+    {
+      "direction": "640",
+      "id": "E-640-CONCLUSIONS",
+      "language": "Prompt 640 publishes conclusions from the committed P638 and P639 local evidence. The supported envelope is exactly 20 authenticated identities across 60 Chromium pages, two GM controllers, 120 steady listeners, ten-second heartbeats for 900,000 ms, fourteen two-GM action races, and one three-page reconnect. The qualifying P639 run passes every threshold with 5,401 successful in-window heartbeats, no heartbeat or listener errors, 3,195 ms action-to-listener p95, 1,654.6 ms reconnect, and $0 billable local-emulator cost. The preserved P638 simultaneous 23-heartbeat attempt failed with an internal emulator transaction lock and cause undetermined, so no burst claim is made. Injected unavailable and resource-exhausted samples prove only that the next fresh local-emulator calls succeed, not automatic retry. Production latency, quotas, availability, cost, internet paths, other engines/devices, longer duration, larger populations, and complete Prompts 641–650 playthroughs remain unproven. Retry guidance retains stable request identity where idempotent, fresh authority reconciliation, bounded retry hints/backoff, and correction rather than blind retry for terminal or stale failures.",
+      "source": "docs/CAPACITY_CONCLUSIONS.md; docs/CAPACITY_60_BROWSER_PROOF.md; docs/audits/p639-60-browser-capacity.json; E-638-CAPACITY; E-639-CAPACITY",
+      "type": "evidence / capacity / resilience / cost / scope"
     }
   ],
   "plan": {
@@ -21747,8 +21754,8 @@
         "acceptance": "supported envelope, failed thresholds, retry guidance, cost, and follow-up work reflect measurements rather than the nominal target.",
         "title": "Publish capacity conclusions."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-640",
+      "description": "Published measured capacity conclusions support the exact local 20-identity/60-Chromium-page, two-GM, 120-listener, 15-minute envelope because the qualifying P639 run passed every versioned threshold. The report preserves P638’s failed simultaneous 23-heartbeat emulator burst with cause undetermined, distinguishes a successful next fresh call from automatic retry, records $0 local billable cost and measured traffic counts, and names production, duration, device/browser, burst, and complete-playthrough boundaries that remain unproven. Retry guidance preserves existing request identity, authority reconciliation, bounded hints/backoff, and terminal-failure handling without adding a generic retry mechanism.",
+      "evidenceIds": "E-AUDIT-640;E-640-CONCLUSIONS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "638;639",
@@ -21759,7 +21766,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

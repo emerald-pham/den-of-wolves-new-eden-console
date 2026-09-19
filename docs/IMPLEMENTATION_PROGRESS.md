@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**299 / 751 prompts complete (39.81%)**
+**300 / 751 prompts complete (39.95%)**
 
-Status breakdown: **299 done · 25 partial · 427 missing**.
+Status breakdown: **300 done · 25 partial · 426 missing**.
 
 Active prompt: **none**
 
@@ -1116,7 +1116,7 @@ release classification and evidence.
 | 637 | done | non-feature | — | A versioned Chromium performance gate now measures the complete landing JavaScript payload, cold landing and cached-session Role Select startup, repeated production DRADIS and hostile-attack renders, eight simultaneous private mission-hand updates, and 120 mobile frames at 390x844. CI enforces explicit raw, gzip, chunk, p95 render/startup, and long-frame budgets and uploads machine-readable evidence; the local route probe remains offline and never contacts production Firebase. |
 | 638 | done | non-feature | — | Two source-aligned Capybara rehearsals now pass against an isolated Firebase Emulator: a core-only 20-player run with one GM and no Press, followed by an independent 20-player run with claimed Press and two simultaneous GMs. Both cover fresh Turn 0 ATC projection, listener convergence/privacy, real action commit/replay/stale behavior, heartbeat persistence, and reconnect retention; the expanded run also covers concurrent start CAS and Press retention. Returning-seat reconciliation now preserves a canonical missing-seat pointer through setup hydration, with strict join/resume coverage. The evidence is local-emulator capacity proof; a separate simultaneous heartbeat attempt is recorded as an emulator internal failure with cause undetermined and excluded from the capacity claim, no 60-browser or production-capacity claim is made, and full Capybara vertical mechanics remain Prompt 584. |
 | 639 | done | non-feature | — | A committed clean-source capacity command runs 20 authenticated identities across 60 real Chromium pages for 15 minutes against a freshly reserved, hub-verified, reset Firebase Emulator slot. It measures only fully in-window production-cadence heartbeats, 120 steady listeners, two-GM contention races, three-tab reconnect, and the next fresh real call after injected 429/unavailable responses, with explicit latency/error budgets, usage, privacy, and local cost. The closure artifact passes every threshold and is bound to its tested source commit while permitting only descendant audit/catalog/documentation updates; it remains explicitly local rather than a production-service or automatic-retry claim. |
-| 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 640 | done | non-feature | — | Published measured capacity conclusions support the exact local 20-identity/60-Chromium-page, two-GM, 120-listener, 15-minute envelope because the qualifying P639 run passed every versioned threshold. The report preserves P638’s failed simultaneous 23-heartbeat emulator burst with cause undetermined, distinguishes a successful next fresh call from automatic retry, records $0 local billable cost and measured traffic counts, and names production, duration, device/browser, burst, and complete-playthrough boundaries that remain unproven. Retry guidance preserves existing request identity, authority reconciliation, bounded hints/backoff, and terminal-failure handling without adding a generic retry mechanism. |
 | 641 | missing | non-feature | — | Planned [PROVE] one-GM complete base playthrough followed by optional multi-GM mutation races. |
 | 642 | missing | non-feature | — | Planned [PROVE] one-GM complete Capybara playthrough with optional independent Press and multi-GM race proof. |
 | 643 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
