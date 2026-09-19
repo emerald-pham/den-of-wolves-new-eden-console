@@ -5007,6 +5007,13 @@
       "type": "evidence / production-path / authority / privacy / accessibility"
     },
     {
+      "direction": "568 -> SCRAP-LEDGER-INTEGRITY",
+      "id": "E-568-VERIFIED",
+      "language": "Exact candidate 1148712209601ff6ae22286154ad20c5db829ff8 keeps Scrap creation and spending on the enabled Capybara ship ledger under the existing production and active-ship counter authority, and scopes cargo Scrap to enabled Macaw and Boa ledgers. Join/resume projections, maintenance writes, and rollback restoration remove unauthorized or unsafe Scrap while preserving other cargo. Focused unit and callable authority tests pass; Terra reviewed the exact candidate and found no actionable findings. No release, version, or player-facing copy change is claimed.",
+      "source": "functions/src/index.ts; functions/src/resources.ts; functions/src/maintenance.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; functions/src/shuttlecraft.test.ts; functions/src/maintenanceCallable.test.ts; focused TypeScript/Vitest evidence; commit 1148712209601ff6ae22286154ad20c5db829ff8; Terra review of exact candidate",
+      "type": "evidence / verified / production-path / authority / security"
+    },
+    {
       "direction": "681 -> GM-AND-SHIP-COORDINATE-PRIVACY",
       "id": "E-681-OWNER",
       "language": "Owner requested a regression-fix prompt: GM knows all star map coordinates; ships do not.",
@@ -19784,8 +19791,8 @@
         "acceptance": "only enabled Capybara, Macaw, and Boa ledgers can create, carry, or spend Scrap.",
         "title": "Isolate Scrap reads and writes."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-568",
+      "description": "Completed as a server-authority repair: Scrap remains defined only on the enabled Capybara ship ledger, while Macaw and Boa cargo accepts Scrap only when both Capybara expansion roles are active. Join/resume projections, maintenance writes, and rollback restoration strip unauthorized or unsafe Scrap; existing Capybara production and active-ship counter authority remain bounded to the typed Capybara inventory. Focused unit and callable authority regressions pass, and Terra found no actionable findings on exact candidate 1148712209601ff6ae22286154ad20c5db829ff8. No version, release, or player-facing copy change is claimed.",
+      "evidenceIds": "E-AUDIT-568;E-568-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "163;567",
@@ -19796,7 +19803,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
