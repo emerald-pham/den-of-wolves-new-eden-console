@@ -288,8 +288,31 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
   if (command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess' ||
       command.kind === 'claimGmInstance' || command.kind === 'setGmControlsLocked' ||
       command.kind === 'setDebriefMode' || command.kind === 'popShipConfetti') return true;
-  const requestId = (command.payload as { readonly requestId?: unknown }).requestId;
-  return typeof requestId === 'string' && requestId.length > 0;
+  // Persisted JSON can contain extra fields. A request ID proves replay
+  // safety only for a callable with an actual server receipt contract.
+  switch (command.kind) {
+    case 'kickGmInstance':
+    case 'releaseGmInstance':
+    case 'kickPlayer':
+    case 'setPressEnabled':
+    case 'confirmSetup':
+    case 'setFacilitatorResponsibility':
+    case 'setFacilitatorCensusNote':
+    case 'deliverWolfCultIntelligence':
+    case 'authorArbourVision':
+    case 'authorFacilitatorRuleCall':
+    case 'transitionCrisis':
+    case 'recordZealotryResponse':
+    case 'submitCivilUnrestGrievance':
+    case 'recordCivilUnrestResolution':
+    case 'claimSeat':
+    case 'releaseSeat':
+    case 'assignRole':
+    case 'releaseRole':
+      return typeof command.payload.requestId === 'string' && command.payload.requestId.length > 0;
+    default:
+      return false;
+  }
 }
 
 /**

@@ -935,6 +935,22 @@ describe('GM instance commands', () => {
     });
   });
 
+  it('does not treat an extra request ID as a receipt contract for an unsupported command kind', async () => {
+    useSessionStore.getState().enqueueCommand({
+      id: 'unsupported-receipt', kind: 'setActiveRoleEnabled',
+      payload: { ...{ requestId: 'unsupported-receipt' }, sessionId: 's1', instanceId: 'instance-1', roleId: 'admiral', enabled: false },
+      createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+    await connect();
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'setActiveRoleEnabled');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError?.message).toMatch(/outcome|live state/i);
+  });
+
   it('does not replay a legacy ambiguous kick without a server receipt identity', async () => {
     useSessionStore.getState().enqueueCommand({
       id: 'legacy-kick', kind: 'kickGmInstance',
