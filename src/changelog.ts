@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [613, '589a'],
+    implementationProgress: {
+      completed: 281, total: 751, percentage: '37.42%',
+      done: 281, partial: 24, active: 0, missing: 446,
+    },
+    changes: [
+      'A delayed reconnect response from an old session no longer disconnects you from a newer session.',
+      'Motion-safety acknowledgement renews after 24 hours even when the console stays open. Closing a dialog restores keyboard focus to the control you were using.',
+      '281 of 751 planned items are complete (37.42%).',
+    ],
+  },
+  {
+    version: '0.4.14',
     implementationProgress: {
       completed: 278, total: 751, percentage: '37.02%',
       done: 278, partial: 24, active: 0, missing: 449,
