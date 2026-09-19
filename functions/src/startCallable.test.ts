@@ -797,6 +797,29 @@ it('starts the exact 19-player Capybara pair matrix with two derived Wolves', as
   expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/secrets/loyalty-'))).toHaveLength(19);
 });
 
+it.each([19, 20] as const)('casts distinct private Capybara briefs once at %i players despite optional Press and extra GM', async (playerCount) => {
+  provisionProductionRoster(playerCount, { press: 'claimed', extraGm: true });
+  await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `capybara-briefs-${playerCount}`, expectedSetupRevision: 0,
+  }));
+
+  for (const [roleId, craftId] of [
+    ['capybara-captain', 'macaw'], ['capybara-recycler', 'boa'],
+  ] as const) {
+    const holders = mock.playerDocs.filter(player => player.fields.assignedRoleId === roleId);
+    expect(holders).toHaveLength(1);
+    const uid = holders[0].id;
+    const writes = mock.set.mock.calls.filter(([ref]) => ref.path === `sessions/s1/roleBriefs/${uid}`);
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1]).toMatchObject({
+      roleId, assignmentUid: uid, visibleToUids: [uid], ownedCraftIds: [craftId],
+    });
+  }
+  const briefs = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/roleBriefs/'));
+  expect(briefs.filter(([, brief]) => brief.roleId === 'capybara-captain')).toHaveLength(1);
+  expect(briefs.filter(([, brief]) => brief.roleId === 'capybara-recycler')).toHaveLength(1);
+});
+
 it('keeps the setup receipt roster and eligible pool in canonical printed order', async () => {
   provisionProductionRoster(8);
   const gm = mock.playerDocs.find((player) => player.id === 'u1');

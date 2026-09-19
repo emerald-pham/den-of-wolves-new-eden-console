@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**281 / 751 prompts complete (37.42%)**
+**282 / 751 prompts complete (37.55%)**
 
-Status breakdown: **281 done · 24 partial · 446 missing**.
+Status breakdown: **282 done · 24 partial · 445 missing**.
 
 Active prompt: **none**
 
@@ -1038,7 +1038,7 @@ release classification and evidence.
 | 566 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 567 | done | non-feature | — | Reverified the shipped none, base-capybara, and expansion-capybara configuration boundary. Canonical setup selects one mode, rejects unsupported roster substitutions and incomplete expansion pairs, and locks mode changes from casting onward. Retired legacy toggles cannot bypass setup. Distinct vessel definitions, active-vessel filtering, and direct-route guards keep the base extra and crewed expansion separate; supported 19/20-player expansion sessions retain their full ship. Current production code and existing setup, catalog, selector, and route regressions passed in the 0.3.86 validation and deployed workflow. This is evidence closeout only; no new gameplay or rendered UI is claimed, and lower-count expansion substitutions remain governed by Prompt 252. |
 | 568 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 569 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 569 | done | non-feature | — | The authoritative supported roster includes the Captain and Recycler exactly once as an atomic pair at 19/20 players and rejects incomplete, duplicated, mixed-mode, or unsupported lower-count expansion rosters. Production start writes one recipient-only brief per assigned player with distinct Macaw/Boa ownership; optional Press and extra GM instances do not consume either core role. This records existing runtime behavior with explicit production-path regressions, not a new feature release. |
 | 570 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 571 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 572 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

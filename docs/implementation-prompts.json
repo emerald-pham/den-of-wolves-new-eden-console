@@ -5159,6 +5159,13 @@
       "language": "An unmounted dialog regression failed before the shared focus-hook repair and passes afterward. Seventy-two hook, motion-gate, waiver, RoleSelect, and AppHeader tests pass, including nested replacement, missing opener, StrictMode replay, and expiry interruption. The real motion-safety browser smoke verifies restored session-code input focus after acknowledgement at 320x844, 1440x900, and 844x390. TypeScript checking passes. P608 remains partial because the previously documented future modal surfaces still do not exist.",
       "source": "src/hooks/useDialogFocus.ts; src/hooks/useDialogFocus.test.tsx; src/components/MotionSafetyGate.tsx; src/components/MotionSafetyGate.test.tsx; scripts/test-motion-safety-browser.mjs",
       "type": "evidence / accessibility / regression / rendered"
+    },
+    {
+      "direction": "569 -> CAPYBARA-CASTING-VERIFIED",
+      "id": "E-569-CASTING-VERIFIED",
+      "language": "Verified 2026-09-19 against the existing AMB-07/AMB-13 owner-approved roster contract and the authorized complementary Capybara v1.1 source inventory; both source checksums match their recorded provenance. Seven focused server suites passed 199 tests, including new 19/20-player production start checks with claimed optional Press and an extra GM: each Capybara role has one holder, exactly one private brief write, a recipient-only audience, and its distinct owned craft. Existing roster/setup tests reject partial or duplicated pairs and base/none expansion mixing. The unchanged role-brief rules boundary denies cross-player, GM, observer, outsider, list, and client-write access; the exact parent ticker candidate CI security-rule step passed. Functions build and diff checks passed. No runtime code, player copy, capacity claim, or new deployment is introduced by this evidence closure.",
+      "source": "docs/IMPLEMENTATION_CONTRACTS.md AMB-07/AMB-13; functions/src/startCallable.test.ts; functions/src/createSessionCallable.test.ts; functions/src/gameSetup.test.ts; functions/src/roleConfiguration.test.ts; functions/src/roleBriefs.test.ts; functions/src/craftOwnership.test.ts; functions/src/crewAccess.test.ts; functions/src/index.ts; tests/rules/firestore.rules.test.ts; Deploy 35444093597 verify security-rule step (735a6e55)",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -19779,8 +19786,8 @@
         "acceptance": "both roles appear atomically and exactly once in the source-authoritative 8–20 expansion roster with private briefs and distinct authority; neither optional Press nor any GM instance consumes or substitutes for them.",
         "title": "Cast Capybara Captain and Recycler."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-569",
+      "description": "The authoritative supported roster includes the Captain and Recycler exactly once as an atomic pair at 19/20 players and rejects incomplete, duplicated, mixed-mode, or unsupported lower-count expansion rosters. Production start writes one recipient-only brief per assigned player with distinct Macaw/Boa ownership; optional Press and extra GM instances do not consume either core role. This records existing runtime behavior with explicit production-path regressions, not a new feature release.",
+      "evidenceIds": "E-AUDIT-569;E-569-CASTING-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "567;253",
@@ -19791,7 +19798,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
