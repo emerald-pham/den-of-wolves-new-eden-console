@@ -1,3 +1,5 @@
+import type { RiskGateProfile } from './risk-gates.mjs';
+
 export const ALL_DEPLOYMENT_TARGETS: readonly ['hosting', 'firestore', 'functions'];
 
 export type DeploymentTarget = (typeof ALL_DEPLOYMENT_TARGETS)[number];
@@ -6,6 +8,7 @@ export interface DeploymentTargetClassification {
   readonly targets: readonly DeploymentTarget[];
   readonly unknownFiles: readonly string[];
   readonly ignoredFiles: readonly string[];
+  readonly riskGates: RiskGateProfile;
 }
 
 export interface DeploymentRangeClassification extends DeploymentTargetClassification {
