@@ -790,6 +790,14 @@ service cloud.firestore {
         }
       }
 
+      // The latest suspicion threshold result names a hidden Wolf and carries
+      // the facilitator's clue instruction. Only an authenticated facilitator
+      // may read the fixed projection; clients cannot enumerate or mutate it.
+      match /wolfClueDisclosure/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+      }
+
       // Destroyed-ship reconciliation contains private fleet-group transfer
       // details and is exposed only through the GM callable result.
       match /shipStoreScavenges/{sourceShipId} {

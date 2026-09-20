@@ -828,6 +828,31 @@ export interface LoyaltyCensus {
   readonly entries: readonly LoyaltyCensusEntry[];
 }
 
+export type WolfClueTier =
+  | 'none'
+  | 'natural-change'
+  | 'wolf-activity'
+  | 'wolf-activity-hint'
+  | 'strong-hint'
+  | 'traitor-name';
+
+/** Latest facilitator-only result of a Wolf suspicion threshold roll. */
+export interface WolfClueDisclosure {
+  readonly revision: number;
+  readonly actorUid: PlayerId;
+  readonly action: 'sabotage-console' | 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
+  readonly cycle: number;
+  readonly requestId: string;
+  readonly oldSuspicion: number;
+  readonly increment: number;
+  readonly newSuspicion: number;
+  readonly roll: number;
+  readonly total: number;
+  readonly clueTier: WolfClueTier;
+  readonly facilitatorInstruction: string;
+  readonly createdAt?: string;
+}
+
 export interface ShuttleDocking {
   readonly shuttleId: ShuttleId;
   readonly shipId: VesselId;

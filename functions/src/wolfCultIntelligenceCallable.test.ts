@@ -199,6 +199,7 @@ it('clears private Wolf projections when the agent changes or the census loses a
     { uid: 'u4', kind: 'wolf-agent', suspicion: 0 },
   ], previous as never);
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/current' }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfClueDisclosure/current' }));
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/u2' }));
 
   tx.delete.mockClear();
@@ -208,5 +209,37 @@ it('clears private Wolf projections when the agent changes or the census loses a
     { uid: 'u5', kind: 'wolf-agent', suspicion: 0 },
   ], previous as never);
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/current' }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfClueDisclosure/current' }));
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/u2' }));
+});
+
+it('preserves the latest clue across a non-Wolf census rebuild and clears it when any Wolf holder changes', () => {
+  const tx = { set: vi.fn(), delete: vi.fn() };
+  const previous = {
+    exists: true,
+    get: (field: string) => field === 'entries'
+      ? [
+        { uid: 'u2', kind: 'wolf-agent', suspicion: 4 },
+        { uid: 'u3', kind: 'wolf-agent', suspicion: 7 },
+        { uid: 'u9', kind: 'friend', suspicion: null },
+      ]
+      : 3,
+  };
+
+  setLoyaltyCensusEntries(tx as never, 's1', 4, [
+    { uid: 'u2', kind: 'wolf-agent', suspicion: 4 },
+    { uid: 'u3', kind: 'wolf-agent', suspicion: 7 },
+  ], previous as never);
+  expect(tx.delete).not.toHaveBeenCalledWith(expect.objectContaining({
+    path: 'sessions/s1/wolfClueDisclosure/current',
+  }));
+
+  tx.delete.mockClear();
+  setLoyaltyCensusEntries(tx as never, 's1', 5, [
+    { uid: 'u2', kind: 'wolf-agent', suspicion: 4 },
+    { uid: 'u4', kind: 'wolf-agent', suspicion: 7 },
+  ], previous as never);
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({
+    path: 'sessions/s1/wolfClueDisclosure/current',
+  }));
 });

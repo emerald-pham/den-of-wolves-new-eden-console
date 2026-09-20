@@ -4,6 +4,11 @@ import { recommendedRoleIds } from './roleConfiguration';
 
 type Fields = Record<string, unknown>;
 
+const cryptoMock = vi.hoisted(() => ({
+  randomInt: vi.fn(() => 1),
+  randomUUID: vi.fn(() => 'uuid'),
+}));
+
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
   const snapshot = (path: string) => {
@@ -29,6 +34,7 @@ const mock = vi.hoisted(() => {
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
+vi.mock('node:crypto', () => cryptoMock);
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'deleted' },
@@ -86,7 +92,9 @@ function provision(): void {
 
 beforeEach(() => {
   mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear();
-  mock.update.mockClear(); mock.delete.mockClear(); provision();
+  mock.update.mockClear(); mock.delete.mockClear();
+  cryptoMock.randomInt.mockReset(); cryptoMock.randomInt.mockReturnValue(1);
+  provision();
 });
 
 it('atomically resolves supply sabotage, suspicion, and the private cycle commitment', async () => {
@@ -106,6 +114,14 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
     type: 'loyalty-census', revision: 5,
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 2, note: 'Watch closely' }],
   });
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    type: 'wolf-clue-disclosure', revision: 5, actorUid: 'u2',
+    action: 'sabotage-supplies', cycle: 2, requestId: 'wolf-supply-1',
+    oldSuspicion: 0, increment: 2, newSuspicion: 2,
+    roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
+  expect(cryptoMock.randomInt).toHaveBeenCalledWith(1, 7);
   expect(mock.documents.get('sessions/s1/wolfActionState/u2')).toMatchObject({
     type: 'wolf-action-commitment', actorUid: 'u2', state: 'committed',
     cycle: 2, revision: 1, action: 'sabotage-supplies', coverRoleId: 'dione-engineer',
@@ -113,6 +129,33 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
   expect(mock.documents.get('sessions/s1/wolfActionState/u2/audit/wolf-supply-1'))
     .toMatchObject({ actorUid: 'u2', cycle: 2, action: 'sabotage-supplies' });
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
+});
+
+it('reuses one clue roll across Firestore transaction retries', async () => {
+  const attemptedClues: Fields[] = [];
+  mock.runTransaction.mockImplementationOnce(async (callback) => {
+    let result: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const set = vi.fn((target: { path: string }, fields: Fields) => {
+        if (target.path === 'sessions/s1/wolfClueDisclosure/current') attemptedClues.push(fields);
+      });
+      result = await callback({ get: mock.get, set, update: vi.fn(), delete: vi.fn() });
+    }
+    return result;
+  });
+  cryptoMock.randomInt.mockReset();
+  cryptoMock.randomInt.mockReturnValueOnce(1).mockReturnValueOnce(6);
+
+  await expect(submitWolfSupplySabotage.run(request())).resolves.toMatchObject({
+    status: 'committed', suspicion: 2,
+  });
+
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
+  expect(attemptedClues).toHaveLength(2);
+  expect(attemptedClues.map((clue) => ({ roll: clue.roll, total: clue.total }))).toEqual([
+    { roll: 1, total: 3 },
+    { roll: 1, total: 3 },
+  ]);
 });
 
 it('permits a claimed Press Wolf to sabotage the Press shuttle when Press is enabled', async () => {
@@ -157,18 +200,22 @@ it('rejects a stale Press claimant when the authoritative holder pointer names a
 
 it('replays the exact request without applying cargo or suspicion twice', async () => {
   await submitWolfSupplySabotage.run(request());
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
   mock.set.mockClear(); mock.update.mockClear();
+  cryptoMock.randomInt.mockClear();
   await expect(submitWolfSupplySabotage.run(request())).resolves.toMatchObject({
     requestId: 'wolf-supply-1', cycle: 2, revision: 1,
   });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 
 it('rejects an ineligible target without consuming the slot, then permits a valid same-cycle action', async () => {
   await expect(submitWolfSupplySabotage.run(request({
     ...baseData, requestId: 'bad-target', shuttleId: 'starlight',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
   expect(mock.documents.has('sessions/s1/wolfActionState/u2')).toBe(false);
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     shuttleCargo: { philia: { food: 5 }, maliades: { water: 4 } },
@@ -176,6 +223,7 @@ it('rejects an ineligible target without consuming the slot, then permits a vali
   await expect(submitWolfSupplySabotage.run(request())).resolves.toMatchObject({
     cycle: 2, shuttleId: 'philia', resourceId: 'food',
   });
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
 });
 
 it('rejects a second action in the same cycle and permits one in the next cycle', async () => {

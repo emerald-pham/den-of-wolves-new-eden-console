@@ -67,6 +67,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfAttackPreparation: vi.fn(),
   subscribeGmWolfAttackState: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
+  subscribeGmWolfClueDisclosure: vi.fn(),
   subscribeGmWolfCultIntelligence: vi.fn(),
   subscribeGmArbourVision: vi.fn(),
   subscribeGmFacilitatorRuleCall: vi.fn(),
@@ -87,7 +88,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -158,6 +159,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
     onAssignment(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfClueDisclosure).mockImplementation((_sessionId, onDisclosure) => {
+    onDisclosure(null);
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfCultIntelligence).mockImplementation((_sessionId, onIntelligence) => {
@@ -248,6 +253,35 @@ it('shows the facilitator-only loyalty census without exposing private card extr
   expect(census).toHaveTextContent('wolf-agent');
   expect(census).toHaveTextContent('10');
   expect(census).not.toHaveTextContent(/brief|notes|link|proof/i);
+});
+
+it('shows the latest Wolf clue only in the facilitator console', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmWolfClueDisclosure).mockImplementation((_sessionId, onDisclosure) => {
+    onDisclosure({
+      revision: 5,
+      actorUid: 'u2',
+      action: 'sabotage-supplies',
+      cycle: 3,
+      requestId: 'wolf-supply-1',
+      oldSuspicion: 8,
+      increment: 2,
+      newSuspicion: 10,
+      roll: 6,
+      total: 16,
+      clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+    });
+    return vi.fn();
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const disclosure = await screen.findByRole('region', { name: 'Latest Wolf suspicion clue' });
+  expect(disclosure).toHaveTextContent('Cycle 3');
+  expect(disclosure).toHaveTextContent('Supply sabotage');
+  expect(disclosure).toHaveTextContent('Suspicion 8 + 2 = 10; d6 6; total 16.');
+  expect(disclosure).toHaveTextContent('Point out the wolf activity, and give a hint.');
 });
 
 it('renders and saves facilitator notes and hydrates the hidden Wolf assignment', async () => {

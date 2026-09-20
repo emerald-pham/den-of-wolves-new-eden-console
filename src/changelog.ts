@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [502],
+    implementationProgress: {
+      completed: 349, total: 751, percentage: '46.47%',
+      done: 349, partial: 19, active: 0, missing: 383,
+    },
+    changes: [
+      'A committed Wolf supply sabotage now applies its printed suspicion increment before one server-owned d6 clue roll.',
+      'The facilitator console receives the exact suspicion calculation and source-defined clue instruction while players and observers cannot read or forge the disclosure.',
+      '349 of 751 planned items are complete (46.47%).',
+    ],
+  },
+  {
+    version: '0.4.46',
     implementationPrompts: [497, 499],
     implementationProgress: {
       completed: 348, total: 751, percentage: '46.34%',

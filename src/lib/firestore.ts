@@ -56,6 +56,7 @@ import type {
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationState,
   WolfAttackWindow,
+  WolfClueDisclosure,
   Voyage33Admission,
   Voyage33MaintenanceState,
   WolfAssignment,
@@ -603,6 +604,61 @@ function loyaltyCensus(value: unknown): LoyaltyCensus | null {
   if (entries.length !== raw.entries.length ||
       new Set(entries.map((entry) => entry.uid)).size !== entries.length) return null;
   return { revision: raw.revision, entries };
+}
+
+function wolfClueDisclosure(value: unknown): WolfClueDisclosure | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const actorUid = parseEntityId('player', raw.actorUid);
+  const actions: readonly WolfClueDisclosure['action'][] = [
+    'sabotage-console', 'sabotage-supplies', 'homing-beacon', 'provide-intel',
+  ];
+  const tiers: readonly WolfClueDisclosure['clueTier'][] = [
+    'none', 'natural-change', 'wolf-activity', 'wolf-activity-hint', 'strong-hint', 'traitor-name',
+  ];
+  if (raw.type !== 'wolf-clue-disclosure' || !actorUid ||
+      !actions.includes(raw.action as WolfClueDisclosure['action']) ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      typeof raw.requestId !== 'string' || raw.requestId.length < 1 || raw.requestId.length > 96 ||
+      !Number.isSafeInteger(raw.oldSuspicion) || (raw.oldSuspicion as number) < 0 ||
+      !Number.isSafeInteger(raw.increment) || (raw.increment as number) < 1 ||
+      !Number.isSafeInteger(raw.newSuspicion) ||
+      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + (raw.increment as number) ||
+      !Number.isSafeInteger(raw.roll) || (raw.roll as number) < 1 || (raw.roll as number) > 6 ||
+      !Number.isSafeInteger(raw.total) ||
+      (raw.total as number) !== (raw.newSuspicion as number) + (raw.roll as number) ||
+      !tiers.includes(raw.clueTier as WolfClueDisclosure['clueTier']) ||
+      typeof raw.facilitatorInstruction !== 'string' || raw.facilitatorInstruction.length < 1 ||
+      raw.facilitatorInstruction.length > 160) return null;
+  const expected = (raw.total as number) <= 6
+    ? ['none', 'Nothing.']
+    : (raw.total as number) <= 11
+      ? ['natural-change', 'Point the change out to someone, framed as natural or accidental.']
+      : (raw.total as number) <= 15
+        ? ['wolf-activity', 'Point out the wolf activity to someone.']
+        : (raw.total as number) <= 19
+          ? ['wolf-activity-hint', 'Point out the wolf activity, and give a hint.']
+          : (raw.total as number) <= 23
+            ? ['strong-hint', 'Give someone a strong hint.']
+            : ['traitor-name', "Give someone the traitor's name."];
+  if (raw.clueTier !== expected[0] || raw.facilitatorInstruction !== expected[1]) return null;
+  const createdAt = optionalIso(raw.createdAt);
+  return {
+    revision: raw.revision as number,
+    actorUid,
+    action: raw.action as WolfClueDisclosure['action'],
+    cycle: raw.cycle as number,
+    requestId: raw.requestId,
+    oldSuspicion: raw.oldSuspicion as number,
+    increment: raw.increment as number,
+    newSuspicion: raw.newSuspicion as number,
+    roll: raw.roll as number,
+    total: raw.total as number,
+    clueTier: raw.clueTier as WolfClueDisclosure['clueTier'],
+    facilitatorInstruction: raw.facilitatorInstruction,
+    ...(createdAt ? { createdAt } : {}),
+  };
 }
 
 function wolfAssignment(value: unknown): WolfAssignment | null {
@@ -2413,6 +2469,33 @@ export function subscribeLoyaltyCensus(
     subscribed = false;
     unsubscribe();
     onCensus(null);
+  };
+}
+
+/** Subscribe to the latest facilitator-only Wolf suspicion clue disclosure. */
+export function subscribeGmWolfClueDisclosure(
+  sessionId: string,
+  onDisclosure: (disclosure: WolfClueDisclosure | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfClueDisclosure/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const disclosure = snapshot.exists() ? wolfClueDisclosure(snapshot.data()) : null;
+      if (disclosure && !acceptsRevision(disclosure.revision)) return;
+      onDisclosure(disclosure);
+    },
+    () => {
+      if (!subscribed) return;
+      onDisclosure(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onDisclosure(null);
   };
 }
 

@@ -6098,6 +6098,33 @@ body {
   line-height: 1.5;
 }
 
+.gm-wolf-clue-disclosure {
+  display: grid;
+  gap: 0.7rem;
+  border-color: var(--cic-amber-dim);
+}
+
+.gm-wolf-clue-disclosure .gm-wolf-clue-disclosure__context {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.gm-wolf-clue-disclosure__calculation,
+.gm-wolf-clue-disclosure__instruction {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 1rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.gm-wolf-clue-disclosure__instruction {
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--cic-rule);
+  color: var(--cic-cyan);
+}
+
 .gm-arbour-vision button {
   font-size: 16px;
   line-height: 1.2;

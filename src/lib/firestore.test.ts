@@ -33,6 +33,7 @@ const {
   subscribeConnectedPlayers,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
+  subscribeGmWolfClueDisclosure,
   subscribeGmWolfCultIntelligence,
   subscribeGmWolfAttackPreparation,
   subscribeGmWolfAttackState,
@@ -1259,6 +1260,45 @@ it('hydrates the known facilitator census only from server authority and allowli
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
   });
   expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only canonical facilitator Wolf clue disclosures', () => {
+  const { callbacks } = captureSessionListener();
+  const onDisclosure = vi.fn();
+  subscribeGmWolfClueDisclosure('s1', onDisclosure);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-clue-disclosure', revision: 5, actorUid: 'u2',
+      action: 'sabotage-supplies', cycle: 3, requestId: 'wolf-supply-1',
+      oldSuspicion: 8, increment: 2, newSuspicion: 10,
+      roll: 6, total: 16, clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+      hiddenExtra: 'discard me',
+    }),
+  });
+  expect(onDisclosure).toHaveBeenCalledWith({
+    revision: 5, actorUid: 'u2', action: 'sabotage-supplies', cycle: 3,
+    requestId: 'wolf-supply-1', oldSuspicion: 8, increment: 2,
+    newSuspicion: 10, roll: 6, total: 16,
+    clueTier: 'wolf-activity-hint',
+    facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+  });
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-clue-disclosure', revision: 6, actorUid: 'u2',
+      action: 'sabotage-supplies', cycle: 3, requestId: 'wolf-supply-2',
+      oldSuspicion: 10, increment: 2, newSuspicion: 12,
+      roll: 7, total: 19, clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+    }),
+  });
+  expect(onDisclosure).toHaveBeenLastCalledWith(null);
 });
 
 it('hydrates only a valid private Zealotry response and never exposes census identities', () => {

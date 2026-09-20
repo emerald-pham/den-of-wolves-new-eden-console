@@ -1420,6 +1420,33 @@ describe('private Wolf action commitments', () => {
   });
 });
 
+describe('facilitator Wolf clue disclosure', () => {
+  it('allows only a GM to read the fixed projection and denies every client write or list', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfClueDisclosure/current`), {
+        type: 'wolf-clue-disclosure', revision: 5, actorUid: 'alice',
+        action: 'sabotage-supplies', cycle: 3, requestId: 'wolf-supply-1',
+        oldSuspicion: 8, increment: 2, newSuspicion: 10,
+        roll: 6, total: 16, clueTier: 'wolf-activity-hint',
+        facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+      });
+    });
+
+    const path = `${SESSION}/wolfClueDisclosure/current`;
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), path)));
+    }
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/wolfClueDisclosure`)));
+    }
+  });
+});
+
 describe('players', () => {
   it('bounds ordinary roster reads to the caller current connected fleet group', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

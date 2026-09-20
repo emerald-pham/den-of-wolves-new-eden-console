@@ -94,6 +94,7 @@ import type {
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfAssignment,
+  WolfClueDisclosure,
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
@@ -118,6 +119,13 @@ const WOLF_PREPARATION_CARD_TYPES = [
   { id: 'wolf-strikecarrier', label: 'Fleet Strikecarrier' },
   { id: 'wolf-battlestation', label: 'Battlestation' },
 ] as const;
+
+const WOLF_CLUE_ACTION_LABELS: Readonly<Record<WolfClueDisclosure['action'], string>> = {
+  'sabotage-console': 'Console sabotage',
+  'sabotage-supplies': 'Supply sabotage',
+  'homing-beacon': 'Homing beacon',
+  'provide-intel': 'Intelligence dispatch',
+};
 const WOLF_PREPARATION_MODIFIERS: readonly { id: WolfAttackPreparationModifierId; label: string }[] = [
   { id: 'wolf-commander-target-reroll', label: 'Wolf Commander // targeting reroll' },
   { id: 'aegis-command-and-control', label: 'AEGIS // Command and Control' },
@@ -332,6 +340,7 @@ export default function GmConsole() {
   const [wolfAttackPreparation, setWolfAttackPreparationState] = useState<WolfAttackPreparation | null>(null);
   const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
+  const [wolfClueDisclosure, setWolfClueDisclosure] = useState<WolfClueDisclosure | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [wolfCultFortressCoordinate, setWolfCultFortressCoordinate] = useState('');
@@ -757,6 +766,7 @@ export default function GmConsole() {
       subscribeGmWolfAttackState,
       subscribeGmWolfAttackWindow,
       subscribeGmWolfAssignment,
+      subscribeGmWolfClueDisclosure,
       subscribeGmWolfCultIntelligence,
       subscribeGmArbourVision,
       subscribeGmFacilitatorRuleCall,
@@ -936,6 +946,10 @@ export default function GmConsole() {
         sessionId,
         setWolfAssignment,
       );
+      const stopWolfClueDisclosure = subscribeGmWolfClueDisclosure(
+        sessionId,
+        setWolfClueDisclosure,
+      );
       const stopWolfCultIntelligence = subscribeGmWolfCultIntelligence(
         sessionId,
         (next) => {
@@ -995,6 +1009,7 @@ export default function GmConsole() {
         stopWolfAttackPreparation();
         stopWolfAttackState();
         stopWolfAssignment();
+        stopWolfClueDisclosure();
         stopWolfCultIntelligence();
         stopArbourVision();
         stopFacilitatorRuleCall();
@@ -1020,6 +1035,7 @@ export default function GmConsole() {
       stopZealotryResponse();
       stopCivilUnrestResolution();
       setWolfAssignment(null);
+      setWolfClueDisclosure(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
       useSessionStore.getState().setGmFacilitatorRuleCall(null);
@@ -3599,6 +3615,25 @@ export default function GmConsole() {
                   </table>
                 </div>
               )}
+            </section>
+          )}
+
+          {isGm && wolfClueDisclosure && (
+            <section
+              className="gm-console__module cic-frame gm-wolf-clue-disclosure"
+              aria-label="Latest Wolf suspicion clue"
+            >
+              <h2 className="gm-console__section-title">Wolf suspicion // facilitator clue</h2>
+              <p className="gm-player-roster__hint gm-wolf-clue-disclosure__context">
+                Cycle {wolfClueDisclosure.cycle} // {WOLF_CLUE_ACTION_LABELS[wolfClueDisclosure.action]} // player {wolfClueDisclosure.actorUid}
+              </p>
+              <p className="gm-wolf-clue-disclosure__calculation">
+                Suspicion {wolfClueDisclosure.oldSuspicion} + {wolfClueDisclosure.increment}
+                {' = '}{wolfClueDisclosure.newSuspicion}; d6 {wolfClueDisclosure.roll}; total {wolfClueDisclosure.total}.
+              </p>
+              <p className="gm-wolf-clue-disclosure__instruction" role="status">
+                {wolfClueDisclosure.facilitatorInstruction}
+              </p>
             </section>
           )}
 

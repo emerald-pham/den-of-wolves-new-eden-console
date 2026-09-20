@@ -359,6 +359,7 @@ import {
 } from './wolfCommanderRerolls';
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
+import { resolveWolfSuspicionClue } from './wolfSuspicionClue';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -6223,6 +6224,22 @@ function wolfCultIdentity(entries: readonly LoyaltyCensusEntry[]): { cultUid: st
     : null;
 }
 
+function wolfIdentity(entries: readonly LoyaltyCensusEntry[]): readonly string[] {
+  return entries
+    .filter((entry) => entry.kind === 'wolf-agent' || entry.kind === 'wolf-cult')
+    .map((entry) => `${entry.kind}:${entry.uid}`)
+    .sort();
+}
+
+function sameWolfIdentity(
+  previousEntries: readonly LoyaltyCensusEntry[],
+  nextEntries: readonly LoyaltyCensusEntry[],
+): boolean {
+  const previous = wolfIdentity(previousEntries);
+  const next = wolfIdentity(nextEntries);
+  return previous.length === next.length && previous.every((holder, index) => holder === next[index]);
+}
+
 function wolfCultHolderUids(entries: readonly LoyaltyCensusEntry[]): readonly string[] {
   return entries.filter((entry) => entry.kind === 'wolf-cult').map((entry) => entry.uid);
 }
@@ -6269,9 +6286,12 @@ function setLoyaltyCensusFromSecrets(
     revision: censusRevision,
     entries: nextEntries,
   });
-  const wolfIdentityChanged = !previousWolf || !nextWolf ||
+  if (!sameWolfIdentity(previousEntries, nextEntries)) {
+    tx.delete(db.doc(`sessions/${sessionId}/wolfClueDisclosure/current`));
+  }
+  const wolfCultIdentityChanged = !previousWolf || !nextWolf ||
     previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
-  if (wolfIdentityChanged) {
+  if (wolfCultIdentityChanged) {
     tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
     const staleHolderUids = new Set([
       ...wolfCultHolderUids(previousEntries),
@@ -6324,9 +6344,12 @@ export function setLoyaltyCensusEntries(
     revision: censusRevision,
     entries: nextEntries,
   });
-  const wolfIdentityChanged = !previousWolf || !nextWolf ||
+  if (!sameWolfIdentity(previousEntries, nextEntries)) {
+    tx.delete(db.doc(`sessions/${sessionId}/wolfClueDisclosure/current`));
+  }
+  const wolfCultIdentityChanged = !previousWolf || !nextWolf ||
     previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
-  if (wolfIdentityChanged) {
+  if (wolfCultIdentityChanged) {
     tx.delete(db.doc(`sessions/${sessionId}/wolfCultIntelligence/current`));
     const staleHolderUids = new Set([
       ...wolfCultHolderUids(previousEntries),
@@ -11862,6 +11885,7 @@ export const submitWolfSupplySabotage = onCall<{
   const loyaltyRef = db.doc(`sessions/${submission.sessionId}/secrets/loyalty-${uid}`);
   const assignmentRef = db.doc(`sessions/${submission.sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
+  const clueRef = db.doc(`sessions/${submission.sessionId}/wolfClueDisclosure/current`);
   const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
   const auditRef = db.doc(
     `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
@@ -11876,6 +11900,7 @@ export const submitWolfSupplySabotage = onCall<{
     expectedRevision: submission.expectedCycle,
     payload: { shuttleId: submission.shuttleId, resourceId: submission.resourceId },
   };
+  let clueRoll: number | undefined;
   return db.runTransaction(async (tx): Promise<WolfSupplySabotageResult> => {
     const [session, player, loyalty, assignment, census, currentAction, receipt] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(loyaltyRef), tx.get(assignmentRef),
@@ -11972,7 +11997,7 @@ export const submitWolfSupplySabotage = onCall<{
     const loyaltyPayload = loyalty.get('payload');
     const suspicion = isRecord(loyaltyPayload) ? loyaltyPayload.suspicion : undefined;
     if (!Number.isSafeInteger(suspicion) || (suspicion as number) < 0 ||
-        (suspicion as number) > Number.MAX_SAFE_INTEGER - 2) {
+        (suspicion as number) > Number.MAX_SAFE_INTEGER - 8) {
       throw commandError(
         'failed-precondition',
         'The private Wolf loyalty state is malformed. Ask the facilitator to repair it.',
@@ -12011,7 +12036,9 @@ export const submitWolfSupplySabotage = onCall<{
         'conflict',
       );
     }
-    const nextSuspicion = (suspicion as number) + 2;
+    clueRoll ??= randomInt(1, 7);
+    const clue = resolveWolfSuspicionClue(suspicion as number, 2, clueRoll);
+    const nextSuspicion = clue.newSuspicion;
     const result: WolfSupplySabotageResult = {
       status: 'committed',
       type: 'wolf-supply-sabotage',
@@ -12044,6 +12071,16 @@ export const submitWolfSupplySabotage = onCall<{
       entries: censusEntries!.map((entry) => entry.uid === uid
         ? { ...entry, suspicion: nextSuspicion }
         : entry),
+    });
+    tx.set(clueRef, {
+      type: 'wolf-clue-disclosure',
+      revision: (censusRevision as number) + 1,
+      actorUid: uid,
+      action: 'sabotage-supplies',
+      cycle,
+      requestId: submission.requestId,
+      ...clue,
+      createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(actionRef, record);
     tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });

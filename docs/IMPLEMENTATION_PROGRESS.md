@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**348 / 751 prompts complete (46.34%)**
+**349 / 751 prompts complete (46.47%)**
 
-Status breakdown: **348 done · 19 partial · 384 missing**.
+Status breakdown: **349 done · 19 partial · 383 missing**.
 
 Active prompt: **none**
 
@@ -961,7 +961,7 @@ release classification and evidence.
 | 499 | done | non-feature | 0.4.46 | The server-owned submitWolfSupplySabotage callable validates the Wolf’s exact cover-owned shuttle, canonical active roster, strict cargo ledger, selected stored resource, private loyalty, and matching facilitator census before any write. One transaction destroys the printed floor half of the selected cargo amount, adds exactly two suspicion to both the private loyalty and facilitator census, records the private cycle commitment and audit, and binds an idempotent command receipt. A rejected target leaves the same-cycle action slot available; a focused regression follows the rejection with a valid action in that cycle. No public event reveals the actor or target. Shared live-loyalty parsing preserves the raised Wolf suspicion through later census and Press-state reconciliation. |
 | 500 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 501 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 502 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 502 | done | non-feature | 0.4.47 | The supply-sabotage production transaction now applies its exact +2 suspicion before one cryptographically sampled d6 threshold roll, persists the canonical source-defined clue band in a fixed facilitator-only projection, and returns no roll or clue through the player receipt or public event stream. The GM console subscribes to the allowlisted projection and shows the exact old value, increment, new value, roll, total, and facilitator instruction. Invalid actions and exact replays sample no new roll; Firestore denies player and observer reads, all listing, and every client write. The latest disclosure is cleared when the authoritative Wolf identity changes. Later Wolf action prompts must compose the same resolver with their printed increments, and Prompt 504 remains responsible for durable clue history. |
 | 503 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 503a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 504 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

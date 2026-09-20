@@ -5502,6 +5502,13 @@
       "language": "The supply-sabotage callable strictly validates a canonical cover-owned shuttle and stored resource, then atomically applies floor-half cargo loss, plus two private and facilitator-census suspicion, the one-action-per-cycle commitment, audit, and replay receipt. A failed target writes nothing and a valid alternate target remains available in the same cycle; no public event discloses the action. Live-loyalty parsing preserves action-raised Wolf suspicion through later census and Press-state reconciliation.",
       "source": "functions/src/wolfSupplySabotage.ts; functions/src/wolfSupplySabotage.test.ts; functions/src/wolfActionAuthorization.ts; functions/src/loyaltySuspicion.ts; functions/src/loyaltySuspicion.test.ts; functions/src/requestGuards.ts; functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md Wolf agents table",
       "type": "evidence / production-path / server-authority / transaction / privacy / regression"
+    },
+    {
+      "direction": "502 -> 497",
+      "id": "E-502-SUSPICION-CLUE",
+      "language": "The source-defined Wolf-only threshold resolver validates safe integer inputs, applies the action increment before one d6 roll, and maps every boundary from 0-6 through 24+ to the exact facilitator instruction. Supply sabotage samples cryptographic randomness only after authorization, cycle, target, cargo, loyalty, and census validation; a closure-stable roll survives transaction retries, while invalid requests and exact receipt replays draw nothing. The action consequence, private suspicion, facilitator census, current clue disclosure, cycle commitment, audit, and receipt commit atomically. The fixed clue projection is parsed through an allowlist, rendered in the facilitator console, cleared when Wolf identity changes, and denied to players, observers, collection listing, and all client writes.",
+      "source": "functions/src/wolfSuspicionClue.ts; functions/src/wolfSuspicionClue.test.ts; functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; functions/src/wolfCultIntelligenceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md Suspicion and clues",
+      "type": "evidence / production-path / server-authority / random-threshold / facilitator-disclosure / privacy / regression"
     }
   ],
   "plan": {
@@ -18383,8 +18390,8 @@
         "acceptance": "the exact action increment applies before one authoritative threshold roll and facilitator disclosure.",
         "title": "Resolve suspicion and clue rolls."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-502",
+      "description": "The supply-sabotage production transaction now applies its exact +2 suspicion before one cryptographically sampled d6 threshold roll, persists the canonical source-defined clue band in a fixed facilitator-only projection, and returns no roll or clue through the player receipt or public event stream. The GM console subscribes to the allowlisted projection and shows the exact old value, increment, new value, roll, total, and facilitator instruction. Invalid actions and exact replays sample no new roll; Firestore denies player and observer reads, all listing, and every client write. The latest disclosure is cleared when the authoritative Wolf identity changes. Later Wolf action prompts must compose the same resolver with their printed increments, and Prompt 504 remains responsible for durable clue history.",
+      "evidenceIds": "E-AUDIT-502;E-502-SUSPICION-CLUE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497",
@@ -18392,10 +18399,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.47"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
