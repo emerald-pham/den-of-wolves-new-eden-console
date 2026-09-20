@@ -3971,6 +3971,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "583 -> CAPYBARA-BALANCE-GUIDANCE",
+      "id": "E-583-CAPYBARA-BALANCE-GUIDANCE",
+      "language": "The GM Console shows the documented +6 Wolf damage-capacity consideration only for a full 19- or 20-player Capybara expansion roster. The reminder is facilitator guidance beside Wolf attack timing controls and does not invoke, stage, or declare an attack. Focused regressions prove that Press availability and one versus two GM instances do not change the copy, while a base Capybara configuration does not show expansion guidance. Browser proof verifies the exact message, console font, readable size, and no horizontal overflow at 390x844, 844x390, and 1440x900.",
+      "source": "src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; scripts/prompt-583-render.mjs",
+      "type": "evidence / production-path / rendered review"
+    },
+    {
       "direction": "584 -> 567;571;577;580",
       "id": "E-AUDIT-584",
       "language": "Capybara proof composes mode, maintenance, cargo, and combat.",
@@ -20278,8 +20285,8 @@
         "acceptance": "facilitators see the documented +6 attack-capacity consideration as guidance, never an automatic hidden mutation; Press occupancy and the number of GM instances do not alter it.",
         "title": "Apply the Capybara balance dial."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-583",
+      "description": "The GM Console shows the documented +6 Wolf damage-capacity consideration beside the attack timing controls only for a full 19- or 20-player Capybara expansion roster. The reminder is copy-only and never invokes, stages, declares, or otherwise mutates an attack. Focused regressions prove identical guidance with Press available or unavailable and with one or two GM instances, while a base Capybara configuration does not receive expansion guidance. Rendered browser proof covers phone, short landscape, and desktop viewports with the exact copy, console font, readable size, and no horizontal overflow.",
+      "evidenceIds": "E-AUDIT-583;E-583-CAPYBARA-BALANCE-GUIDANCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234a;569",
@@ -20287,10 +20294,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.26"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {

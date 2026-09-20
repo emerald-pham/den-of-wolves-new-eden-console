@@ -2234,6 +2234,12 @@ export default function GmConsole() {
                 Wolf damage capacity per attack. The facilitator chooses the adjustment; this
                 reminder does not change attacks.
               </p>
+              {draftExpansion === 'capybara' && (
+                <p className="gm-console__hint gm-console__balance-guidance">
+                  Capybara balance // Consider +6 Wolf damage capacity per attack. The facilitator
+                  chooses the adjustment; this reminder does not change attacks.
+                </p>
+              )}
               <div className="gm-turn-control__actions">
                 <button
                   className="cic-action-button"

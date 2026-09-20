@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**304 / 751 prompts complete (40.48%)**
+**305 / 751 prompts complete (40.61%)**
 
-Status breakdown: **304 done · 25 partial · 422 missing**.
+Status breakdown: **305 done · 25 partial · 421 missing**.
 
 Active prompt: **none**
 
@@ -1052,7 +1052,7 @@ release classification and evidence.
 | 580 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 581 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 582 | done | non-feature | 0.4.25 | Production start writes separate recipient-only Capybara Captain and Recycler briefs. Each brief carries its distinct Macaw or Boa duty and the same source-aligned S.A.N. objective to protect the Capybara and its survivors and keep the S.A.N. represented in fleet decisions. The server-owned document names only its assigned UID; existing Firestore rules deny the other player, GM, observer, outsider, collection listing, and every client write. Focused serialization and production-start regressions prove the exact duty split, shared objective, owned craft, and one private write per role at both supported expansion sizes. |
-| 583 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
+| 583 | done | non-feature | 0.4.26 | The GM Console shows the documented +6 Wolf damage-capacity consideration beside the attack timing controls only for a full 19- or 20-player Capybara expansion roster. The reminder is copy-only and never invokes, stages, declares, or otherwise mutates an attack. Focused regressions prove identical guidance with Press available or unavailable and with one or two GM instances, while a base Capybara configuration does not receive expansion guidance. Rendered browser proof covers phone, short landscape, and desktop viewports with the exact copy, console font, readable size, and no horizontal overflow. |
 | 584 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 585 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 586 | done | non-feature | — | The facilitator setup flow now exposes only the supported 8-20 player presets and keeps changes local until one explicit confirmation. Before lock, a live effects summary explains effective Dione availability, printed Union replacement behavior, the server-derived Wolf-card count, and the base, absent, or full Capybara expansion result from the same staged values sent to the authoritative setup callable. Focused roster tests, TypeScript checking, and reduced-motion rendered proof across phone, short landscape, and desktop sizes pass. |

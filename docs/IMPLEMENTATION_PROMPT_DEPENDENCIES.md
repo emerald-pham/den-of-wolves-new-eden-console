@@ -737,7 +737,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 580 | DECISION | missing | 459;578 | none | none | none | none | none | none | none | E-AUDIT-580 | M3;M11 | Resolve Boa combat ambiguity. |
 | 581 | NEW | missing | 573;577 | none | none | none | none | none | none | none | E-AUDIT-581 | M3;M11 | Create post-damage Scrap pickups. |
 | 582 | NEW | done | 569;006 | none | none | none | none | none | none | none | E-AUDIT-582;E-582-PRIVATE-OBJECTIVES | M3;M11 | Expose Capybara objectives privately. |
-| 583 | DECISION | missing | 234a;569 | none | none | none | none | none | none | none | E-AUDIT-583 | M3;M11 | Apply the Capybara balance dial. |
+| 583 | DECISION | done | 234a;569 | none | none | none | none | none | none | none | E-AUDIT-583;E-583-CAPYBARA-BALANCE-GUIDANCE | M3;M11 | Apply the Capybara balance dial. |
 | 584 | PROVE | missing | 567;571;577;580 | none | none | none | none | none | none | none | E-AUDIT-584 | M3;M11 | Run the Capybara vertical scenario. |
 | 585 | PROVE | missing | 567;584 | none | none | none | none | none | none | none | E-AUDIT-585 | M3;M11 | Run the base/expansion isolation scenario. |
 | 586 | EXTEND | done | none | none | none | none | none | none | none | none | E-586-VERIFIED | X | Build the roster configuration flow. |
@@ -1434,6 +1434,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-581 | hard_prompt | 581 -> 573;577 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Scrap pickups consume damage and cargo state. |
 | E-AUDIT-582 | hard_prompt | 582 -> 569;006 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara objectives consume casting and private projection. |
 | E-AUDIT-583 | hard_prompt | 583 -> 234a;569 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara balance consumes facilitator dial and Capybara casting. |
+| E-583-CAPYBARA-BALANCE-GUIDANCE | evidence / production-path / rendered review | 583 -> CAPYBARA-BALANCE-GUIDANCE | src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; scripts/prompt-583-render.mjs | The GM Console shows the documented +6 Wolf damage-capacity consideration only for a full 19- or 20-player Capybara expansion roster. The reminder is facilitator guidance beside Wolf attack timing controls and does not invoke, stage, or declare an attack. Focused regressions prove that Press availability and one versus two GM instances do not change the copy, while a base Capybara configuration does not show expansion guidance. Browser proof verifies the exact message, console font, readable size, and no horizontal overflow at 390x844, 844x390, and 1440x900. |
 | E-AUDIT-584 | hard_prompt | 584 -> 567;571;577;580 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Capybara proof composes mode, maintenance, cargo, and combat. |
 | E-AUDIT-585 | hard_prompt | 585 -> 567;584 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mode-isolation proof consumes mode and Capybara proof. |
 | E-AUDIT-589 | hard_prompt | 589 -> 586 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Ground rules follow roster configuration. |

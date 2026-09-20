@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [583],
+    implementationProgress: {
+      completed: 305, total: 751, percentage: '40.61%',
+      done: 305, partial: 25, active: 0, missing: 421,
+    },
+    changes: [
+      'Facilitators now see the Capybara expansion\'s +6 Wolf attack-capacity guidance without an automatic attack change.',
+      '305 of 751 planned items are complete (40.61%).',
+    ],
+  },
+  {
+    version: '0.4.25',
     implementationPrompts: [582],
     implementationProgress: {
       completed: 304, total: 751, percentage: '40.48%',

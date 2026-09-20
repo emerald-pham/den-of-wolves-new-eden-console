@@ -1578,6 +1578,56 @@ it('keeps Capybara convoy setup under a GM Console Setup subsection', async () =
   expect(screen.getByRole('button', { name: /disable capybara/i })).toBeInTheDocument();
 });
 
+it.each([
+  { pressEnabled: true, pressClaimed: true, liveInstances: [local] },
+  { pressEnabled: false, pressClaimed: false, liveInstances: [local, other] },
+])('shows the same copy-only Capybara balance guidance regardless of Press occupancy or GM count', async ({
+  pressEnabled, pressClaimed, liveInstances,
+}) => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances(liveInstances);
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected a session fixture.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    activeRoleIds: recommendedRoleIds(19),
+    expansion: 'capybara',
+    capybaraEnabled: true,
+    pressEnabled,
+    pressClaimed,
+  });
+
+  renderConsole();
+
+  expect(await screen.findByText(/Capybara balance/)).toHaveTextContent(
+    'Capybara balance // Consider +6 Wolf damage capacity per attack. '
+    + 'The facilitator chooses the adjustment; this reminder does not change attacks.',
+  );
+  expect(setWolfAttackWindow).not.toHaveBeenCalled();
+  expect(stageWolfAttackPreparation).not.toHaveBeenCalled();
+  expect(declareWolfAttack).not.toHaveBeenCalled();
+});
+
+it('does not show Capybara expansion balance guidance for the base Capybara configuration', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local, other]);
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected a session fixture.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    activeRoleIds: recommendedRoleIds(18),
+    expansion: 'base',
+    capybaraEnabled: true,
+    pressEnabled: true,
+    pressClaimed: true,
+  });
+
+  renderConsole();
+
+  await screen.findByRole('region', { name: /fleet dradis/i });
+  expect(screen.queryByText(/Capybara balance/)).not.toBeInTheDocument();
+});
+
 it('gives an authorized GM a deliberate Press availability control', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
