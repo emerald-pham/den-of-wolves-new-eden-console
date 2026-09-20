@@ -210,6 +210,37 @@ it('spends food and water separately and retains both ration bonuses', () => {
   expect(result.cycle.rationBonus).toBe(9);
   expect(() => advanceMaintenance(input({ action: 'rations', cycle: { ...result.cycle, step: 2, revision: 0 }, foodLevel: 3, waterLevel: 3, resources: { ...result.resources, food: 1 } }))).toThrow(/food/i);
 });
+it.each([
+  [15_001, 11, 8],
+  [15_000, 10, 7],
+  [5_001, 10, 7],
+  [5_000, 8, 6],
+] as const)('uses the Capybara replacement ration schedule at %i survivors', (population, food, water) => {
+  const result = advanceMaintenance(input({
+    shipId: 'capybara', action: 'rations', population,
+    cycle: { step: 2, revision: 0, results: {}, charges: [], refuelled: [] },
+    foodLevel: 3, waterLevel: 3,
+    resources: { ore: 0, fuel: 3, food: 30, water: 30, materials: 0, securityTeams: 2, scrap: 3 },
+  }));
+  expect(result.resources).toMatchObject({ food: 30 - food, water: 30 - water });
+  expect(result.cycle.rationBonus).toBe(18);
+});
+it('adds two unrest exactly once when Capybara reaches zero population', () => {
+  const first = advanceMaintenance(input({
+    shipId: 'capybara', action: 'riot', population: 250, unrest: 1,
+    cycle: { step: 4, revision: 0, results: {}, charges: [], refuelled: [] },
+    rolls: [0], entropy: 0,
+  }));
+  expect(first).toMatchObject({ population: 0, unrest: 3 });
+
+  const second = advanceMaintenance(input({
+    shipId: 'capybara', action: 'riot', population: first.population, unrest: first.unrest,
+    damage: first.damage,
+    cycle: { step: 4, revision: 0, results: {}, charges: [], refuelled: [] },
+    rolls: [0], entropy: 0.5,
+  }));
+  expect(second).toMatchObject({ population: 0, unrest: 3 });
+});
 it.each([[1, 1, 0, 2], [3, 3, 6, 1], [6, 6, 9, 0]])('applies unrest thresholds for %s + %s + %s', (a, b, bonus, gain) => {
   const result = advanceMaintenance(input({ action: 'unrest', cycle: { step: 3, revision: 0, results: {}, charges: [], refuelled: [], rationBonus: bonus }, rolls: [a, b] }));
   expect(result.unrest).toBe(gain);

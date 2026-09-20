@@ -1,6 +1,6 @@
 import { drawShipDamage, SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import { addResourceAmount, type ShipResourceInventory } from './resources';
-import { populationChange } from './shipPopulation';
+import { capybaraRationSchedule, populationChange } from './shipPopulation';
 import { MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { maintenanceActionForStep, maintenanceOrderFor } from './maintenanceOrder';
 
@@ -206,8 +206,11 @@ export function advanceMaintenance(input: MaintenanceInput) {
       cycle.results['1'] = `Storage damaged. Lost: ${losses.join(', ') || 'no resources'}.`;
     } else cycle.results['1'] = 'Storage intact. No resources lost.';
   } else if (action === 'rations') {
-    const food = rules.food[input.foodLevel ?? -1];
-    const water = rules.water[input.waterLevel ?? -1];
+    const activeRations = shipId === 'capybara'
+      ? capybaraRationSchedule(population)
+      : rules;
+    const food = activeRations.food[input.foodLevel ?? -1];
+    const water = activeRations.water[input.waterLevel ?? -1];
     if (food === undefined || water === undefined) throw new Error('Select food and water ration levels.');
     if (resources.food < food) throw new Error('Insufficient food for these rations.');
     if (resources.water < water) throw new Error('Insufficient water for these rations.');

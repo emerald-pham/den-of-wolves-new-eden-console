@@ -11,6 +11,7 @@ import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
+import { capybaraRationSchedule } from '@/data/shipPopulation';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -78,7 +79,15 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
     finally { busy.current = false; setPending(false); }
   };
   const ship = SHIPS.find(candidate => candidate.id === shipId);
-  const schedule = ship?.maintenance ?? { ...AEGIS_ROLE_CONSOLES.admiral.rations, reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity };
+  const printedSchedule = ship?.maintenance ?? { ...AEGIS_ROLE_CONSOLES.admiral.rations, reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity };
+  const population = shipState?.population ?? session?.shipSurvivors?.[shipId] ?? ship?.initialSurvivors;
+  const activeCapybaraRations = shipId === 'capybara' && Number.isSafeInteger(population) &&
+    population !== undefined && population >= 0 && population <= 20_000
+    ? capybaraRationSchedule(population)
+    : undefined;
+  const schedule = activeCapybaraRations
+    ? { ...printedSchedule, food: activeCapybaraRations.food, water: activeCapybaraRations.water }
+    : printedSchedule;
   const printedStepCount = ship?.printedStatistics.maintenanceSteps.length ?? 6;
   const chargeable = [...systems, ...(shipId === 'aegis' ? EXECUTIVE_SYSTEMS : [])].filter(system =>
     !['storage', 'reactor'].includes(system.id) && !system.id.startsWith('shuttle-bay') && !system.id.startsWith('armoured-hull'));
@@ -151,7 +160,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
         <h4>{name} maintenance reference</h4>
         <dl>
           <div><dt>Sequence</dt><dd>{labels.map((label, index) => `${index + 1} ${label}`).join(' // ')}</dd></div>
-          <div><dt>Rations</dt><dd>Food {schedule.food.join(' / ')} // Water {schedule.water.join(' / ')}</dd></div>
+          <div><dt>Rations</dt><dd>Food {schedule.food.join(' / ')} // Water {schedule.water.join(' / ')}
+            {activeCapybaraRations ? ` // ${activeCapybaraRations.populationBand} survivors` : ''}</dd></div>
           <div><dt>Unrest</dt><dd>Step 3: roll 2d6 plus both ration bonuses. Under 12 adds 2; under 20 adds 1.</dd></div>
           <div><dt>Damage</dt><dd>Step 4: roll 1d6. Below current unrest draws and applies 1 damage card.</dd></div>
           <div><dt>Charging</dt><dd>Step 5: choose up to {capacity} consoles. Unused charge clears when the next cycle starts.</dd></div>

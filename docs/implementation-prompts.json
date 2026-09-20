@@ -5453,6 +5453,13 @@
       "language": "The shared server-authoritative maintenance production resolver now covers every printed Icebreaker, Shepherd, Quellon, and Refinery 124 production console. Focused pure, callable, metadata, service, and component tests prove exact base and upgraded yields, water and ore costs, independent duplicate-console charges, damage and charge denial, safe integer bounds, bounded Fuel Refinery amounts, atomic resource mutation, revision CAS, replay identity, accessible live run/skip controls, and Vulcan Additional Labour integration. Responsive Chrome proof at 390x844, 844x390, and 1440x900 verifies the production controls do not overflow and retain the console font. Refinery 124 Water Reclamation remains card 5♦ by the existing elimination contract.",
       "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; src/lib/maintenanceService.ts; src/lib/maintenanceService.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; docs/CONSOLE_ARCHITECTURE.md; docs/IMPLEMENTATION_CONTRACTS.md; functions/src/vulcanLabour.ts; functions/src/vulcanLabour.test.ts; functions/src/smallShipCallable.test.ts; src/lib/vulcanLabourService.ts; src/components/VulcanAdditionalLabourPanel.tsx; src/routes/RoleBrief.test.tsx; local responsive Chrome proof at 390x844, 844x390, and 1440x900",
       "type": "evidence / production-path / server-authority / atomic-resources / replay / accessibility / regression"
+    },
+    {
+      "direction": "572 -> 571; printed Capybara ration replacement cards",
+      "id": "E-572-CAPYBARA-RATION-THRESHOLDS",
+      "language": "The server-owned maintenance resolver selects Capybara ration costs from authoritative survivor state at the exact printed replacement boundaries: 15,001–20,000 uses food 0/3/7/11 and water 0/2/5/8; 5,001–15,000 uses 0/3/6/10 and 0/2/4/7; 1–5,000 uses 0/3/5/8 and 0/2/3/6. The ship console renders the same active band. Reaching zero from 250 survivors adds two unrest once, while subsequent riot damage at zero cannot repeat the increase. Focused engine, callable, data, MaintenanceSystems, and FleetSystemsWorkspace tests pass 228/228.",
+      "source": "functions/src/shipPopulation.ts; functions/src/shipPopulation.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/data/shipPopulation.ts; src/data/shipPopulation.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/FleetSystemsWorkspace.test.tsx; authorized routed Capybara ship sheet, facilitator guide, and ration replacement cards via the private source index",
+      "type": "evidence / production-path / server-authority / exact-thresholds / resource-conservation / regression"
     }
   ],
   "plan": {
@@ -20193,8 +20200,8 @@
         "acceptance": "exact discrete values swap ration tables and population zero adds two unrest once.",
         "title": "Resolve Capybara population thresholds."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-572",
+      "description": "Capybara maintenance now selects the server-authoritative printed ration schedule from the current survivor count: the initial 15,001–20,000 table, the 5,001–15,000 replacement table when population reaches 15,000, and the 1–5,000 replacement table when it reaches 5,000. The live console shows the same active band and exact food/water costs. Riot casualties add two unrest only on the transition to zero population; later riots at zero cannot add it again. Focused pure, callable, and component regressions pass 228/228 and preserve request replay, revision, resource, and role authority.",
+      "evidenceIds": "E-AUDIT-572;E-572-CAPYBARA-RATION-THRESHOLDS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "571",
@@ -20202,10 +20209,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.43"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

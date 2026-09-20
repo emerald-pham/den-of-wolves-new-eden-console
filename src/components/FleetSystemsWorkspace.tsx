@@ -13,6 +13,7 @@ import { PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
+import { capybaraRationSchedule } from '@/data/shipPopulation';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -58,6 +59,12 @@ export default function FleetSystemsWorkspace({
   const session = useSessionStore((state) => state.session);
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
   const maintenance = ship.maintenance;
+  const population = shipState?.population ?? session?.shipSurvivors?.[ship.id] ?? ship.initialSurvivors;
+  const capybaraRations = ship.id === 'capybara' && Number.isSafeInteger(population) &&
+    population >= 0 && population <= 20_000
+    ? capybaraRationSchedule(population)
+    : undefined;
+  const displayedRations = capybaraRations ?? maintenance;
   const commandMetrics = ship.printedStatistics;
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[ship.id];
@@ -113,13 +120,15 @@ export default function FleetSystemsWorkspace({
     /> : <>
       {maintenance
       ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} damageDraws={damageDraws} shipState={shipState} rations={<>
-      <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
+      <div className="aegis-ration-table"><table aria-label={`${ship.name} ${ship.id === 'capybara' ? 'active' : 'initial'} ration schedule`}>
         <thead><tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr></thead>
-        <tbody><tr><th>Food</th>{maintenance.food.map((value, index) => <td key={index}>{value}</td>)}</tr>
-          <tr><th>Water</th>{maintenance.water.map((value, index) => <td key={index}>{value}</td>)}</tr>
+        <tbody><tr><th>Food</th>{displayedRations!.food.map((value, index) => <td key={index}>{value}</td>)}</tr>
+          <tr><th>Water</th>{displayedRations!.water.map((value, index) => <td key={index}>{value}</td>)}</tr>
           <tr><th>Bonus</th>{[0, 3, 6, 9].map(value => <td key={value}>+{value}</td>)}</tr></tbody>
       </table></div>
-      <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>
+      {capybaraRations
+        ? <p>Active replacement schedule // {capybaraRations.populationBand} survivors.</p>
+        : <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>}
       </>} />
       : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>}
       {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId && <PdfEscortWingReference />}

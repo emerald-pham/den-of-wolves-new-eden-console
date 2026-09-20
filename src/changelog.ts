@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [572],
+    implementationProgress: {
+      completed: 342, total: 751, percentage: '45.54%',
+      done: 342, partial: 20, active: 0, missing: 389,
+    },
+    changes: [
+      'Capybara maintenance now automatically uses the printed replacement ration schedule when survivor population reaches 15,000 and 5,000.',
+      'The live console shows the active survivor band and matching food and water costs, while reaching zero population adds two unrest only once.',
+      '342 of 751 planned items are complete (45.54%).',
+    ],
+  },
+  {
+    version: '0.4.42',
     implementationPrompts: [198, 199, 200, 208, 209, 220, 221, 228, 229, 230],
     implementationProgress: {
       completed: 341, total: 751, percentage: '45.41%',

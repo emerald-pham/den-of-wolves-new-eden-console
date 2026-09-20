@@ -111,11 +111,26 @@ describe('fleet system reference workspaces', () => {
     const role = ship.roles[0]!;
     renderWorkspace(<FleetSystemsWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
 
-    const table = screen.getByRole('table', { name: 'Capybara initial ration schedule' });
+    const table = screen.getByRole('table', { name: 'Capybara active ration schedule' });
     expect(within(table).getByRole('row', { name: /Food/ })).toHaveTextContent(/Food.*0.*3.*7.*11/);
     expect(within(table).getByRole('row', { name: /Water/ })).toHaveTextContent(/Water.*0.*2.*5.*8/);
     expect(screen.getByText(/Jump requirement/i)).toHaveTextContent(/Short.*3.*Medium.*6.*Long.*12/i);
     expect(screen.getByRole('list', { name: 'Capybara maintenance sequence' }).children).toHaveLength(6);
+  });
+
+  it('shows Capybara replacement rations from the live population band', () => {
+    const ship = SHIPS.find(candidate => candidate.id === 'capybara')!;
+    const shipState: ShipConsoleProjection = {
+      shipId: 'capybara', galacticCoordinate: '0000', population: 15_000, unrest: 0,
+      navigationLogs: { capybara: [] }, upgrades: [], consoleLocked: false,
+    };
+    renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3}
+      galacticCoordinate="0000" shipState={shipState} />);
+
+    const table = screen.getByRole('table', { name: 'Capybara active ration schedule' });
+    expect(within(table).getByRole('row', { name: /Food/ })).toHaveTextContent(/Food.*0.*3.*6.*10/);
+    expect(within(table).getByRole('row', { name: /Water/ })).toHaveTextContent(/Water.*0.*2.*4.*7/);
+    expect(screen.getByText('Active replacement schedule // 5001-15000 survivors.')).toBeVisible();
   });
 
   it('links each role to the real shuttlecraft assigned on its printed sheet', () => {
@@ -175,7 +190,9 @@ it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name mainte
   const entries = Array.from(steps.children);
   expect(entries).toHaveLength(6);
   expect(entries[0]).toContainElement(screen.getByRole('heading', { name: 'Storage' }));
-  expect(entries[1]).toContainElement(screen.getByRole('table', { name: `${ship.name} initial ration schedule` }));
+  expect(entries[1]).toContainElement(screen.getByRole('table', {
+    name: `${ship.name} ${ship.id === 'capybara' ? 'active' : 'initial'} ration schedule`,
+  }));
   expect(entries[4]).toContainElement(screen.getByRole('heading', { name: 'Reactor' }));
   expect(entries[4]?.querySelector('h3')).toHaveTextContent('Reactor');
   expect(entries[5]).toContainElement(screen.getByRole('heading', { name: 'Shuttle Bay' }));
