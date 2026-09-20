@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   owner: 'u1',
   connected: true,
   currentTurn: 1,
+  chartId: 'A',
   coordinate: '0000',
   fuel: 4,
   charges: ['jump-drive'] as string[],
@@ -76,6 +77,7 @@ beforeEach(() => {
   mock.owner = 'u1';
   mock.connected = true;
   mock.currentTurn = 1;
+  mock.chartId = 'A';
   mock.coordinate = '0000';
   mock.fuel = 4;
   mock.charges = ['jump-drive'];
@@ -124,6 +126,7 @@ beforeEach(() => {
         : {
           phase: 'active',
           currentTurn: mock.currentTurn,
+          chartId: mock.chartId,
           capybaraEnabled: true,
           dioneEnabled: true,
           shipGalacticCoordinates: {
@@ -239,6 +242,19 @@ it('changes only the moving ship fleet group and uses the full printed destinati
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/serverState/navigation',
     expect.objectContaining({ pursuitGroups: { 'fleet-1': 2, 'fleet-2': 9 } }),
+  );
+});
+
+it('uses the locked chart to preserve pursuit at the Level 5 Planet destination', async () => {
+  mock.chartId = 'B';
+  mock.pursuitGroups = { 'fleet-1': 8 };
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'level-five-planet', destination: '2580',
+  }))).resolves.toMatchObject({ destination: '2580' });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 8 } }),
   );
 });
 

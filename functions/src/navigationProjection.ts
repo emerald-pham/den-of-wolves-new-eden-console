@@ -154,15 +154,16 @@ export function advancePursuitForCycle(
 
 /**
  * Reduce the moving ship's group by the destination's server-owned printed
- * shortest-path depth from 0000. The existing bounded score carries prior
- * cycle rises and modifiers; movement never increases it and cannot change a
- * different fleet group's authority.
+ * shortest-path depth from 0000, except at the selected chart's Level 5
+ * Planet. The existing bounded score carries prior cycle rises and modifiers;
+ * movement never increases it and cannot change another group's authority.
  */
 export function adjustPursuitForMovement(
   navigation: NavigationState,
   fleetGroups: readonly PursuitFleetGroup[],
   shipId: string,
   destination: string,
+  chart: ChartId,
 ): NavigationState {
   const destinationDepth = jumpDistanceBetween('0000', destination);
   if (destinationDepth === null) {
@@ -186,9 +187,11 @@ export function adjustPursuitForMovement(
   const groupId = matches[0]!.id;
   const current = navigation.pursuitGroups[groupId];
   if (current === undefined) throw new Error(`Fleet group ${groupId} has no pursuit authority.`);
+  const destinationSite = organiserSitesForChart(chart)[destination];
+  const reduction = destinationSite?.code === 'G' ? 0 : destinationDepth;
   const pursuitGroups = {
     ...navigation.pursuitGroups,
-    [groupId]: Math.max(0, Math.min(10, current - destinationDepth)),
+    [groupId]: Math.max(0, Math.min(10, current - reduction)),
   };
   return { ...navigation, pursuitGroups };
 }

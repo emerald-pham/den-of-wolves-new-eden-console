@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [309],
+    implementationProgress: {
+      completed: 312, total: 751, percentage: '41.54%',
+      done: 312, partial: 24, active: 0, missing: 415,
+    },
+    changes: [
+      'Movement to the selected chart’s Level 5 Survivable Planet no longer reduces pursuit for that fleet group.',
+      '312 of 751 planned items are complete (41.54%).',
+    ],
+  },
+  {
+    version: '0.4.31',
     implementationPrompts: [306],
     implementationProgress: {
       completed: 310, total: 751, percentage: '41.28%',

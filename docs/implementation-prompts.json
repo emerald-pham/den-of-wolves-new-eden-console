@@ -5383,6 +5383,13 @@
       "language": "The production cycle transition resolves system I through the locked organiser chart and leaves only a fleet group whose complete vessel set is at that coordinate unchanged. Other groups rise by two in the same transition, capped at 10. Focused graph-level coverage proves the A, B, and C coordinates; callable coverage proves mixed-group isolation, one atomic protected navigation revision, the complete facilitator map, and player projections containing only each recipient’s own group value.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts",
       "type": "evidence / production-path / server-authority / chart-selection / privacy / regression"
+    },
+    {
+      "direction": "309 -> Level 5 Planet pursuit exception",
+      "id": "E-309-LEVEL5-PURSUIT",
+      "language": "The authoritative movement calculation receives the locked server chart and looks up the arrived coordinate in the organiser-only site table. A destination whose selected-chart site code is G applies zero pursuit reduction, while every other printed destination continues to subtract its immutable graph depth only from the moving ship group. Pure coverage proves the distinct G coordinate on charts A, B, and C; callable coverage proves a chart-B movement preserves the protected group value and publishes it through the normal atomic movement transaction.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/starChartLookup.ts",
+      "type": "evidence / production-path / server-authority / chart-selection / exception / regression"
     }
   ],
   "plan": {
@@ -13381,8 +13388,8 @@
         "acceptance": "system G does not reduce pursuit despite its chart depth.",
         "title": "Apply the Level 5 Planet exception."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-309",
+      "description": "Authoritative facilitator movement and successful shipboard jumps now resolve the destination against the session’s locked A, B, or C organiser chart. When that printed site is Level 5 Survivable Planet G, the moving fleet group retains its current pursuit despite the coordinate’s graph depth; ordinary destinations still subtract their full server-computed shortest-path depth and other groups remain unchanged. Focused pure tests prove the distinct G coordinate on all three charts, and callable coverage proves production movement consumes the locked chart rather than client input.",
+      "evidenceIds": "E-AUDIT-309;E-309-LEVEL5-PURSUIT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "306",
@@ -13390,10 +13397,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.32"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

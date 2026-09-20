@@ -191,7 +191,7 @@ it('reduces only the moving fleet group by the destination printed depth from 00
     { id: 'fleet-2', vesselIds: ['shepherd'] },
   ];
 
-  const outbound = adjustPursuitForMovement(current, groups, 'dione', '8378');
+  const outbound = adjustPursuitForMovement(current, groups, 'dione', '8378', 'A');
   expect(outbound.pursuitGroups).toEqual({ 'fleet-1': 2, 'fleet-2': 9 });
 
   const oneStepHome = adjustPursuitForMovement(
@@ -199,10 +199,11 @@ it('reduces only the moving fleet group by the destination printed depth from 00
     groups,
     'dione',
     '3068',
+    'A',
   );
   expect(oneStepHome.pursuitGroups).toEqual({ 'fleet-1': 0, 'fleet-2': 9 });
 
-  expect(adjustPursuitForMovement(current, groups, 'dione', '4888').pursuitGroups)
+  expect(adjustPursuitForMovement(current, groups, 'dione', '4888', 'A').pursuitGroups)
     .toEqual({ 'fleet-1': 1, 'fleet-2': 9 });
 });
 
@@ -211,24 +212,41 @@ it('rejects ambiguous or unprinted movement pursuit authority', () => {
     shipGalacticCoordinates: { dione: '0000' },
     pursuitGroups: { 'fleet-1': 8 },
   }, ['dione']);
-  expect(() => adjustPursuitForMovement(current, [], 'dione', '5143'))
+  expect(() => adjustPursuitForMovement(current, [], 'dione', '5143', 'A'))
     .toThrow(/exactly one fleet group/i);
   expect(() => adjustPursuitForMovement(current, [
     { id: 'fleet-1', vesselIds: ['dione'] },
     { id: 'fleet-2', vesselIds: ['dione'] },
-  ], 'dione', '5143')).toThrow(/exactly one fleet group/i);
+  ], 'dione', '5143', 'A')).toThrow(/exactly one fleet group/i);
   expect(() => adjustPursuitForMovement(
     { ...current, pursuitGroups: {} },
     [{ id: 'fleet-1', vesselIds: ['dione'] }],
     'dione',
     '5143',
+    'A',
   )).toThrow(/no pursuit authority/i);
   expect(() => adjustPursuitForMovement(
     current,
     [{ id: 'fleet-1', vesselIds: ['dione'] }],
     'dione',
     '9999',
+    'A',
   )).toThrow(/unprinted/i);
+});
+
+it.each([
+  ['A', '6964'],
+  ['B', '2580'],
+  ['C', '4753'],
+] as const)('does not reduce pursuit at the selected chart %s Level 5 Planet', (chart, coordinate) => {
+  const current = navigationState({
+    shipGalacticCoordinates: { dione: '0000', shepherd: '5143' },
+    pursuitGroups: { 'fleet-1': 8, 'fleet-2': 9 },
+  }, ['dione', 'shepherd']);
+  expect(adjustPursuitForMovement(current, [
+    { id: 'fleet-1', vesselIds: ['dione'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'] },
+  ], 'dione', coordinate, chart).pursuitGroups).toEqual({ 'fleet-1': 8, 'fleet-2': 9 });
 });
 
 it('replaces a player projection so valid pursuit becomes pending when authority disappears', () => {

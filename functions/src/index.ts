@@ -1144,9 +1144,10 @@ function movementPursuitNavigation(
   fleetGroups: readonly FleetGroupRecord[],
   shipId: string,
   destination: string,
+  chart: 'A' | 'B' | 'C',
 ): NavigationState {
   try {
-    return adjustPursuitForMovement(navigation, fleetGroups, shipId, destination);
+    return adjustPursuitForMovement(navigation, fleetGroups, shipId, destination, chart);
   } catch (cause) {
     throw commandError(
       'failed-precondition',
@@ -9711,7 +9712,11 @@ export const moveShipToLocation = onCall<{
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      movedNavigation, pursuitFleetGroups, change.shipId, move.destination,
+      movedNavigation,
+      pursuitFleetGroups,
+      change.shipId,
+      move.destination,
+      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
     );
     const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
@@ -9937,7 +9942,11 @@ export const jumpShip = onCall<{
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      movedNavigation, pursuitFleetGroups, change.shipId, move.destination,
+      movedNavigation,
+      pursuitFleetGroups,
+      change.shipId,
+      move.destination,
+      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
     );
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision,
