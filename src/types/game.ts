@@ -547,6 +547,23 @@ export interface TotalFleetLossOutcome {
 
 export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome;
 
+/** Public terminal population result calculated from authoritative ledgers. */
+export interface SurvivorOutcome {
+  readonly type: 'survivor-outcome';
+  readonly cycle: number;
+  readonly occurredAt: Timestamp;
+  readonly fleetShipPopulation: number;
+  readonly survivingShipPopulation: number;
+  readonly evacuatedPopulation: number;
+  readonly escapePodCapacity: number;
+  readonly lostPopulation: number;
+  readonly smallVesselPopulation: number;
+  readonly admittedVesselPopulation: number;
+  readonly finalSurvivors: number;
+  readonly survivingShipIds: readonly VesselId[];
+  readonly lostOrDestroyedShipIds: readonly VesselId[];
+}
+
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
@@ -569,6 +586,7 @@ export interface GameSession {
     readonly revision: number;
   };
   readonly gameOutcome?: GameOutcome;
+  readonly survivorOutcome?: SurvivorOutcome;
   readonly pressDispatch?: PressDispatchState;
   readonly fleetTicker?: FleetTickerState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;

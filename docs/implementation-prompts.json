@@ -5432,6 +5432,13 @@
       "language": "Direct GM damage and maintenance catastrophe transactions evaluate the persisted active full-ship roster with the pending destruction applied. When every canonical damage-deck vessel is destroyed, the same transaction writes a privacy-safe total-fleet-loss outcome, enters terminal failure, and removes active cycle projections without clearing survivor, pod, shuttle, small-craft, player-escape, or audit state. Affected players remain on the forced escape route with an explicit read-only endgame record and no action that terminal freeze would reject. Focused pure, callable, hydration, and rendered route/console tests cover Cycle 0, multi-ship non-terminal damage, both destruction paths, malformed public outcomes, retained ledgers, and frozen controls.",
       "source": "functions/src/totalFleetLoss.ts; functions/src/totalFleetLoss.test.ts; functions/src/index.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/routes/EscapeState.tsx; src/routes/EscapeState.test.tsx; functions/src/destructionEscapeCallable.test.ts",
       "type": "evidence / production-path / server-authority / terminal-outcome / retained-ledgers / regression"
+    },
+    {
+      "direction": "562 -> 561;140d;140e",
+      "id": "E-562-SURVIVOR-OUTCOME",
+      "language": "Every server-owned terminal transition now persists one privacy-safe survivor outcome from the canonical active full-ship population tracks, authoritative destruction state, printed pod capacities, admitted small-vessel population state, and admitted Voyage 33-0 population state. Destroyed-ship population survives only up to printed pod capacity; excess is counted as lost. The calculator cannot consume the theatrical fleetSurvivorPopulationAdjustment or turn-start announcement population, and strict browser hydration rejects malformed arithmetic, overlapping vessel lists, and extra private fields. Cargo-shuttle evacuation prompts 140a-140c remain separate: when those transfers later update the same authoritative ship population tracks, this aggregate consumes the reconciled result without double counting or inventing a transfer ledger.",
+      "source": "functions/src/survivorOutcome.ts; functions/src/survivorOutcome.test.ts; functions/src/index.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; functions/src/shipDestruction.ts; functions/src/shipPopulation.ts",
+      "type": "evidence / production-path / server-authority / terminal-outcome / privacy / regression"
     }
   ],
   "plan": {
@@ -19922,8 +19929,8 @@
         "acceptance": "the server totals ship populations, evacuations, pods, lost/destroyed ships, and final survivors from authoritative ledgers and excludes any theatrical announcement-only population adjustment.",
         "title": "Aggregate real survivor outcomes."
       },
-      "description": "Planned [NEW] prompt: aggregate only authoritative survivor ledgers and exclude theatrical announcement adjustments.",
-      "evidenceIds": "E-AUDIT-562",
+      "description": "Terminal debrief, pursuit failure, and total-fleet-loss transactions now persist a privacy-safe survivor outcome from authoritative full-ship population tracks, destroyed-ship state, printed pod capacities, stored small-vessel populations, and admitted Voyage 33-0 population. The result separates surviving ship population, pod evacuations, pod capacity, losses, admitted-vessel population, destroyed ship identities, and final survivors. The pure authority does not accept announcement population or its theatrical adjustment, while strict public hydration rejects inconsistent arithmetic, overlapping vessel lists, and extra fields. Future cargo-shuttle evacuation transfers remain owned by Prompts 140a-140c and will feed the same reconciled ship population tracks.",
+      "evidenceIds": "E-AUDIT-562;E-562-SURVIVOR-OUTCOME",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "561;140e",
@@ -19934,7 +19941,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -230,8 +230,9 @@ import {
   PRESENCE_RECONCILIATION_INTERVAL_MS,
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
-import { destructionTransition } from './shipDestruction';
+import { destructionTransition, escapePodCapacityForShip } from './shipDestruction';
 import { totalFleetLossOutcome } from './totalFleetLoss';
+import { aggregateSurvivorOutcome, type SurvivorOutcome } from './survivorOutcome';
 import {
   missionDeckStateFromCards,
   parseMissionDeckState,
@@ -923,7 +924,57 @@ function activeVesselIdsForSession(session: DocumentSnapshot): readonly string[]
   return activeVesselIdsForRoles(configuredRoleIds(session));
 }
 
+function survivorOutcomeForSession(
+  sessionId: string,
+  session: DocumentSnapshot,
+  damage: ReturnType<typeof shipDamage>,
+  cycle: number,
+  occurredAt: string,
+): SurvivorOutcome {
+  const activeFleetShipIds = activeVesselIdsForSession(session);
+  const rawPopulations = isRecord(session.get('shipSurvivors'))
+    ? session.get('shipSurvivors') as Readonly<Record<string, unknown>>
+    : {};
+  const shipPopulations = Object.fromEntries(activeFleetShipIds.map((shipId) => {
+    const stored = rawPopulations[shipId];
+    const population = stored === undefined ? INITIAL_SHIP_SURVIVORS[shipId] : stored;
+    return [shipId, population];
+  })) as Record<string, number>;
+  const lostOrDestroyedShipIds = activeFleetShipIds.filter((shipId) => damage[shipId]?.destroyed === true);
+  const escapePodCapacities = Object.fromEntries(lostOrDestroyedShipIds.flatMap((shipId) => {
+    const capacity = escapePodCapacityForShip(shipId)?.podCapacity;
+    return capacity === undefined ? [] : [[shipId, capacity]];
+  }));
+  const storedSmallShips = isRecord(session.get('smallShipStates')) ? session.get('smallShipStates') : {};
+  const smallVesselPopulations = Object.fromEntries(SMALL_SHIP_IDS.flatMap((id) => {
+    const state = parseSmallShipState((storedSmallShips as Record<string, unknown>)[id], id);
+    return state ? [[id, state.population]] : [];
+  }));
+  const rawAdmission = session.get('voyage33Admission');
+  const admission = parseVoyage33Admission(rawAdmission, sessionId);
+  const rawVoyageMaintenance = session.get('voyage33Maintenance');
+  const voyageMaintenance = admission
+    ? parseVoyage33MaintenanceState(rawVoyageMaintenance)
+    : undefined;
+  const admittedVesselPopulations: Record<string, number> = admission
+    ? { [VOYAGE_33_ID]: voyageMaintenance?.population ?? admission.population }
+    : {};
+  const outcome = aggregateSurvivorOutcome({
+    cycle,
+    occurredAt,
+    activeFleetShipIds,
+    shipPopulations,
+    destroyedShipIds: lostOrDestroyedShipIds,
+    escapePodCapacities,
+    smallVesselPopulations,
+    admittedVesselPopulations,
+  });
+  if (!outcome) throw new Error('Authoritative survivor ledgers cannot be aggregated.');
+  return outcome;
+}
+
 function totalFleetLossTerminalPatch(
+  sessionId: string,
   session: DocumentSnapshot,
   destroyedShipId: string,
   destroyedShipState: ReturnType<typeof shipDamage>[string],
@@ -943,6 +994,13 @@ function totalFleetLossTerminalPatch(
   return {
     phase: 'failure',
     gameOutcome,
+    survivorOutcome: survivorOutcomeForSession(
+      sessionId,
+      session,
+      nextDamage,
+      gameOutcome.cycle,
+      gameOutcome.occurredAt,
+    ),
     turnPhase: FieldValue.delete(),
     turnState: FieldValue.delete(),
     turnStartAnnouncement: FieldValue.delete(),
@@ -2441,6 +2499,13 @@ function advanceTurnInTransaction(
       turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(),
       fleetTicker,
+      survivorOutcome: survivorOutcomeForSession(
+        sessionId,
+        session,
+        shipDamage(session.get('shipDamage')),
+        maxTurn,
+        tickerTime,
+      ),
       ...(expiredTurnResources
         ? {
           maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -2480,6 +2545,13 @@ function advanceTurnInTransaction(
       currentTurn: nextTurn,
       phase: 'failure',
       gameOutcome,
+      survivorOutcome: survivorOutcomeForSession(
+        sessionId,
+        session,
+        shipDamage(session.get('shipDamage')),
+        gameOutcome.cycle,
+        gameOutcome.occurredAt,
+      ),
       turnPhase: FieldValue.delete(),
       turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(),
@@ -13924,7 +13996,7 @@ export const addShipDamage = onCall<{
     }
     if (!result.destroyed || newlyDestroyed) {
       const terminalPatch = newlyDestroyed
-        ? totalFleetLossTerminalPatch(session, change.shipId, result.state, stableOccurredAt)
+        ? totalFleetLossTerminalPatch(change.sessionId, session, change.shipId, result.state, stableOccurredAt)
         : {};
       tx.update(sessionRef, {
         [`shipDamage.${change.shipId}`]: result.state,
@@ -16072,7 +16144,7 @@ export const runMaintenance = onCall<{
       unrestAlerts, populationAlerts,
     };
     const terminalPatch = destruction && !currentDamage.destroyed
-      ? totalFleetLossTerminalPatch(snapshot, data.shipId, result.damage, serverTime)
+      ? totalFleetLossTerminalPatch(data.sessionId, snapshot, data.shipId, result.damage, serverTime)
       : {};
     const entries = data.action === 'begin' ? [] : (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
     const immutableFields = result.damageDraw ? [

@@ -1681,6 +1681,16 @@ it('creates one terminal failure when authoritative pursuit reaches 10 and block
     currentTurn: 3,
     phase: 'failure',
     gameOutcome: result.gameOutcome,
+    survivorOutcome: expect.objectContaining({
+      type: 'survivor-outcome', cycle: 3,
+      fleetShipPopulation: 32_500,
+      survivingShipPopulation: 32_500,
+      evacuatedPopulation: 0,
+      lostPopulation: 0,
+      finalSurvivors: 32_500,
+      survivingShipIds: ['aegis', 'shepherd'],
+      lostOrDestroyedShipIds: [],
+    }),
     turnPhase: 'delete-field',
     turnState: 'delete-field',
     turnStartAnnouncement: 'delete-field',
@@ -1900,6 +1910,7 @@ it('freezes the configured final turn in debrief and replays the terminal receip
   mock.currentTurn = 6;
   mock.turnLimit = 6;
   mock.turnStartAnnouncement = { turn: 6, survivorPopulation: 242_500 };
+  mock.fleetSurvivorPopulationAdjustment = 999_999;
   mock.turnState = {
     currentTurn: 6,
     maxTurn: 6,
@@ -1965,6 +1976,14 @@ it('freezes the configured final turn in debrief and replays the terminal receip
         text: expect.stringContaining('CREDITS //'),
         sourceId: 'debrief:1',
       }),
+    }),
+    survivorOutcome: expect.objectContaining({
+      type: 'survivor-outcome', cycle: 6,
+      fleetShipPopulation: 2_500,
+      survivingShipPopulation: 2_500,
+      finalSurvivors: 2_500,
+      survivingShipIds: ['aegis'],
+      lostOrDestroyedShipIds: [],
     }),
   }));
   expect(mock.set).toHaveBeenCalledWith(

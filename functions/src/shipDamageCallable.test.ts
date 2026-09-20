@@ -292,6 +292,12 @@ it('commits total fleet loss atomically when the final active full ship is destr
     gameOutcome: expect.objectContaining({
       type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 0,
     }),
+    survivorOutcome: expect.objectContaining({
+      type: 'survivor-outcome', cycle: 0, fleetShipPopulation: 2_500,
+      evacuatedPopulation: 2_500, escapePodCapacity: 3_100,
+      lostPopulation: 0, finalSurvivors: 2_500,
+      survivingShipIds: [], lostOrDestroyedShipIds: ['aegis'],
+    }),
     turnPhase: 'delete-field',
     turnState: 'delete-field',
     turnStartAnnouncement: 'delete-field',

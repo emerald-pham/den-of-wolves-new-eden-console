@@ -1565,6 +1565,52 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     }
     : undefined;
   const gameOutcome = pursuitFailureOutcome ?? totalFleetLossOutcome;
+  const rawSurvivors = data.survivorOutcome;
+  const survivorKeys = [
+    'type', 'cycle', 'occurredAt', 'fleetShipPopulation', 'survivingShipPopulation',
+    'evacuatedPopulation', 'escapePodCapacity', 'lostPopulation', 'smallVesselPopulation',
+    'admittedVesselPopulation', 'finalSurvivors', 'survivingShipIds', 'lostOrDestroyedShipIds',
+  ];
+  const survivorNumbers = rawSurvivors && typeof rawSurvivors === 'object' && !Array.isArray(rawSurvivors)
+    ? [
+      rawSurvivors.fleetShipPopulation, rawSurvivors.survivingShipPopulation,
+      rawSurvivors.evacuatedPopulation, rawSurvivors.escapePodCapacity, rawSurvivors.lostPopulation,
+      rawSurvivors.smallVesselPopulation, rawSurvivors.admittedVesselPopulation, rawSurvivors.finalSurvivors,
+    ]
+    : [];
+  const survivingShipIds = parseEntityIdArray('vessel', rawSurvivors?.survivingShipIds);
+  const lostOrDestroyedShipIds = parseEntityIdArray('vessel', rawSurvivors?.lostOrDestroyedShipIds);
+  const survivorOutcome = rawSurvivors && typeof rawSurvivors === 'object' && !Array.isArray(rawSurvivors) &&
+    rawSurvivors.type === 'survivor-outcome' && Number.isSafeInteger(rawSurvivors.cycle) && rawSurvivors.cycle >= 0 &&
+    typeof rawSurvivors.occurredAt === 'string' && survivorNumbers.length === 8 &&
+    survivorNumbers.every((value) => Number.isSafeInteger(value) && value >= 0) &&
+    rawSurvivors.evacuatedPopulation <= rawSurvivors.escapePodCapacity &&
+    survivingShipIds && lostOrDestroyedShipIds &&
+    new Set([...survivingShipIds, ...lostOrDestroyedShipIds]).size ===
+      survivingShipIds.length + lostOrDestroyedShipIds.length &&
+    rawSurvivors.fleetShipPopulation === rawSurvivors.survivingShipPopulation +
+      rawSurvivors.evacuatedPopulation + rawSurvivors.lostPopulation &&
+    rawSurvivors.finalSurvivors === rawSurvivors.survivingShipPopulation +
+      rawSurvivors.evacuatedPopulation + rawSurvivors.smallVesselPopulation +
+      rawSurvivors.admittedVesselPopulation &&
+    Object.keys(rawSurvivors).length === survivorKeys.length &&
+    Object.keys(rawSurvivors).every((key) => survivorKeys.includes(key))
+    ? {
+      type: 'survivor-outcome' as const,
+      cycle: rawSurvivors.cycle as number,
+      occurredAt: rawSurvivors.occurredAt,
+      fleetShipPopulation: rawSurvivors.fleetShipPopulation as number,
+      survivingShipPopulation: rawSurvivors.survivingShipPopulation as number,
+      evacuatedPopulation: rawSurvivors.evacuatedPopulation as number,
+      escapePodCapacity: rawSurvivors.escapePodCapacity as number,
+      lostPopulation: rawSurvivors.lostPopulation as number,
+      smallVesselPopulation: rawSurvivors.smallVesselPopulation as number,
+      admittedVesselPopulation: rawSurvivors.admittedVesselPopulation as number,
+      finalSurvivors: rawSurvivors.finalSurvivors as number,
+      survivingShipIds,
+      lostOrDestroyedShipIds,
+    }
+    : undefined;
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
@@ -1632,6 +1678,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),
     ...(gameOutcome ? { gameOutcome } : {}),
+    ...(survivorOutcome ? { survivorOutcome } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     universalArbourEnabled: data.universalArbourEnabled === true,

@@ -133,6 +133,31 @@ it('hydrates a privacy-safe total fleet loss without hiding retained craft state
   }).gameOutcome).toBeUndefined();
 });
 
+it('hydrates only an internally consistent privacy-safe survivor outcome', () => {
+  const outcome = {
+    type: 'survivor-outcome' as const,
+    cycle: 6,
+    occurredAt: '2026-09-20T18:00:00.000Z',
+    fleetShipPopulation: 27_000,
+    survivingShipPopulation: 2_000,
+    evacuatedPopulation: 16_000,
+    escapePodCapacity: 16_000,
+    lostPopulation: 9_000,
+    smallVesselPopulation: 900,
+    admittedVesselPopulation: 39_995,
+    finalSurvivors: 58_895,
+    survivingShipIds: ['aegis'],
+    lostOrDestroyedShipIds: ['dione'],
+  };
+  expect(sessionFrom('survivor-outcome', {
+    ...sessionData(8), phase: 'failure', survivorOutcome: outcome,
+  }).survivorOutcome).toEqual(outcome);
+  expect(sessionFrom('malformed-survivor-outcome', {
+    ...sessionData(8), phase: 'failure',
+    survivorOutcome: { ...outcome, finalSurvivors: 999_999, privatePlayerUids: ['secret'] },
+  }).survivorOutcome).toBeUndefined();
+});
+
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   const session = sessionFrom('typed-session', {
     ...sessionData(8),
