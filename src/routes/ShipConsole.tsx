@@ -56,7 +56,20 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const ship = findShip(shipId);
   const shipState = ship && session ? projectShipState(session, ship.id) : undefined;
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
-  const ownShip = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId;
+  const assignedCoreRoleId = me?.assignedRoleId && me.assignedRoleId !== 'press-officer'
+    ? me.assignedRoleId : undefined;
+  const seatedCoreRoleId = me?.seatId && me.seatId !== 'press-officer' ? me.seatId : undefined;
+  const coreRolePointersAgree = !(
+    (me?.assignedRoleId === 'press-officer' && seatedCoreRoleId) ||
+    (me?.seatId === 'press-officer' && assignedCoreRoleId)
+  ) && (!assignedCoreRoleId || !seatedCoreRoleId || assignedCoreRoleId === seatedCoreRoleId);
+  const boundCoreRoleId = coreRolePointersAgree
+    ? assignedCoreRoleId ?? seatedCoreRoleId
+    : undefined;
+  const confirmedCoreRoleId = me?.activeConsoleRoleId === boundCoreRoleId
+    ? boundCoreRoleId
+    : undefined;
+  const ownShip = findConsoleRole(confirmedCoreRoleId)?.shipId;
   const replacementVipHost = Boolean(
     !isGm && me?.replacementRoleId === 'vip-host' && me?.activeConsoleRoleId === null &&
     ship?.id === 'dione' && roleId === 'vip-host',
@@ -84,7 +97,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     ? me?.activeConsoleRoleId
     : undefined);
   const hasConfirmedRole = !observer && (
-    me?.activeConsoleRoleId === consoleRole?.id || replacementVipHost || replacementCommissar
+    confirmedCoreRoleId === consoleRole?.id || replacementVipHost || replacementCommissar
   );
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
@@ -128,6 +141,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
   const canClaimConsoleRole = Boolean(
     session && me && mode === 'console' && ship && consoleRole && validRole && roleEnabled &&
+    !isGm && !me.replacementRoleId && coreRolePointersAgree && boundCoreRoleId === consoleRole.id &&
     activeShipIds.includes(ship.id) &&
     !(ship.id === 'capybara' && session.capybaraEnabled === false) &&
     !(ship.id === 'dione' && session.dioneEnabled === false),

@@ -321,6 +321,9 @@ it.each([
   ['executive-officer', 'Executive Officer'],
   ['wing-commander', 'Wing Commander'],
 ])('uses the same synced AEGIS console for the %s', async (roleId, roleName) => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, assignedRoleId: roleId, seatId: roleId });
   render(
     <MemoryRouter initialEntries={[`/ships/aegis/roles/${roleId}`]}>
       <Routes>
@@ -642,6 +645,11 @@ it('opens a digital cover before activating a non-AEGIS one-shot Emergency Bridg
     });
     return 'applied';
   });
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({
+    ...me, assignedRoleId: 'dione-captain', seatId: 'dione-captain',
+  });
   const { container } = render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -666,7 +674,12 @@ it('does not apply a global Iris lock to an otherwise active player ship console
   const me = useSessionStore.getState().me;
   if (!session || !me) throw new Error('Expected test session state.');
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
-  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'dione-captain' });
+  useSessionStore.getState().setMe({
+    ...me,
+    assignedRoleId: 'dione-captain',
+    seatId: 'dione-captain',
+    activeConsoleRoleId: 'dione-captain',
+  });
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -680,6 +693,11 @@ it('does not apply a global Iris lock to an otherwise active player ship console
 it('tells a lone non-captain that a second person must fire the cannon', async () => {
   const user = userEvent.setup();
   vi.mocked(popShipConfetti).mockResolvedValue('awaiting-officer');
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({
+    ...me, assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+  });
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-engineer']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -818,6 +836,9 @@ it('keeps ship controls read-only until the requested role is confirmed', async 
   if (!session) throw new Error('Expected the test session.');
   useSessionStore.getState().setSession({ ...session, phase: 'active' });
   useSessionStore.getState().setConnection('live');
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, assignedRoleId: 'admiral', seatId: 'admiral' });
   vi.mocked(selectConsoleRole).mockRejectedValueOnce(
     new Error('That console role is already taken.'),
   );
@@ -832,6 +853,28 @@ it('keeps ship controls read-only until the requested role is confirmed', async 
   expect(begin).toBeDisabled();
   await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('admiral'));
   expect(begin).toBeDisabled();
+});
+
+it('does not activate a console selected through another role route', async () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({
+    ...me,
+    assignedRoleId: 'dione-captain',
+    seatId: 'dione-captain',
+    activeConsoleRoleId: null,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /begin maintenance cycle/i })).toBeDisabled();
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
 });
 
 it('does not claim a role from a malformed cross-ship console route', async () => {
@@ -1126,6 +1169,11 @@ it('locks the trigger while the one-shot activation is in flight', async () => {
   vi.mocked(popShipConfetti).mockImplementation(() => new Promise((resolve) => {
     finish = () => resolve('applied');
   }));
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({
+    ...me, assignedRoleId: 'dione-captain', seatId: 'dione-captain',
+  });
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -1265,7 +1313,12 @@ it('exposes the live Construction Bay action on the Wing Commander cards', async
     },
     vesselActionRevisions: { aegis: 0 },
   });
-  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'wing-commander' });
+  useSessionStore.getState().setMe({
+    ...me,
+    assignedRoleId: 'wing-commander',
+    seatId: 'wing-commander',
+    activeConsoleRoleId: 'wing-commander',
+  });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   vi.mocked(buildFighter).mockResolvedValue({
@@ -1320,7 +1373,12 @@ it.each([
   ['aegis', 'wing-commander', 'admiral', ['admiral', 'executive-officer', 'wing-commander']],
   ['capybara', 'capybara-captain', 'capybara-recycler', ['capybara-captain', 'capybara-recycler']],
 ] as const)('updates visiting console authority with the %s crew without claiming the viewed role', async (shipId, ownRole, targetRole, roles) => {
-  const me = { ...useSessionStore.getState().me!, activeConsoleRoleId: ownRole };
+  const me = {
+    ...useSessionStore.getState().me!,
+    assignedRoleId: ownRole,
+    seatId: ownRole,
+    activeConsoleRoleId: ownRole,
+  };
   useSessionStore.setState({ me, connection: 'live' });
   const { subscribeConnectedPlayers } = await import('@/lib/firestore');
   let update: (players: readonly Player[]) => void = () => undefined;
@@ -1420,7 +1478,12 @@ it('lets a transferred recipient view and retransfer a private card from their a
       airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
     },
   });
-  useSessionStore.getState().setMe({ ...activeMe, activeConsoleRoleId: 'admiral' });
+  useSessionStore.getState().setMe({
+    ...activeMe,
+    assignedRoleId: 'admiral',
+    seatId: 'admiral',
+    activeConsoleRoleId: 'admiral',
+  });
   useSessionStore.getState().setConnection('live');
   vi.mocked(subscribeVipCards).mockImplementationOnce((_sessionId, _uid, onCards) => {
     onCards({ sessionId: 's1', ownerUid: 'u1', revision: 4, cards: [{ id: 'party-deck', name: 'Party Deck', status: 'available' }] });

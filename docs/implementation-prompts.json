@@ -870,6 +870,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "166 -> 161;165 and role activation/action authority",
+      "id": "E-166-BOUND-AUTHORITY",
+      "language": "Core console activation requires the requested role to match the player’s authoritative non-Press assignment or claimed seat, with inconsistent pointers denied. Client routes issue activation only for that binding and otherwise preserve read-only inspection. Existing callable action boundaries continue to derive and validate the acting vessel and target role from server-owned active-console state, including the explicit same-vessel short-staff exception.",
+      "source": "functions/src/consoleRolePolicy.ts; functions/src/consoleRolePolicy.test.ts; functions/src/index.ts refreshPresence; functions/src/sessionLifecycleCallable.test.ts; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; docs/CONSOLE_ARCHITECTURE.md; docs/IMPLEMENTATION_CONTRACTS.md Prompt 166",
+      "type": "evidence / role-binding / server-authority / route-read-only / payload-impersonation-denial / regression"
+    },
+    {
       "direction": "169 -> 161;162;165",
       "id": "E-AUDIT-169",
       "language": "Shared fixtures exercise the common vessel and console contracts.",
@@ -9787,8 +9794,8 @@
         "acceptance": "enabled roles see only their vessel and fleet capabilities; a route or payload cannot impersonate another role.",
         "title": "Bind roles to vessel actions."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-166",
+      "description": "Core console activation is now bound server-side to the player’s single authoritative non-Press assigned role or claimed seat, and mismatched assignment/seat pointers fail closed. A crafted refreshPresence payload cannot select another enabled role, while direct console routes may still show permitted nonsecret information read only and do not issue a role claim unless the route matches that binding. Existing replacement-role revocation, separate Press eligibility, same-vessel short-staff relief, active-vessel checks, and scoped GM intervention remain intact. Focused policy, callable, and route regressions prove matched claims, cross-role and cross-vessel denial, inconsistent-pointer denial, and read-only deep links.",
+      "evidenceIds": "E-AUDIT-166;E-166-BOUND-AUTHORITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;165",
@@ -9796,10 +9803,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.51"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

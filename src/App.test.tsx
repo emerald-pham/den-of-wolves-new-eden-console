@@ -1338,7 +1338,12 @@ describe('App', () => {
       useSessionStore.getState().setLastRoute('/console');
     });
     window.location.hash = '#/console';
-    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setIdentity(session, {
+      ...player,
+      role: 'player',
+      assignedRoleId: 'quellon-captain',
+      seatId: 'quellon-captain',
+    });
     useSessionStore.getState().setMode('console');
     useSessionStore.getState().setLastRoute('/console');
 

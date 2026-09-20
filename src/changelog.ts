@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [166],
+    implementationProgress: {
+      completed: 354, total: 751, percentage: '47.14%',
+      done: 354, partial: 18, active: 0, missing: 379,
+    },
+    changes: [
+      'Core console activation now follows the player’s assigned role or claimed seat, even when a different enabled console is opened by a direct link.',
+      'Other enabled consoles remain available as read-only fleet references, while their role and vessel actions stay unavailable to the visiting player.',
+      '354 of 751 planned items are complete (47.14%).',
+    ],
+  },
+  {
+    version: '0.4.50',
     implementationPrompts: [501],
     implementationProgress: {
       completed: 352, total: 751, percentage: '46.87%',

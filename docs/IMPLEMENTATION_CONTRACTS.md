@@ -232,6 +232,25 @@ cannot silently fall through to a generic mutation. This complete metadata
 boundary is the prerequisite for later role-to-action binding, while the
 owning prompts remain responsible for adding their real server behavior.
 
+### Prompt 166 — Role and vessel capability binding
+
+Every core player has at most one server-owned console identity. The identity
+is the non-Press `assignedRoleId` or claimed `seatId`; when both are present
+they must match. `refreshPresence` rejects a requested core console that does
+not equal that identity, so a crafted route or callable payload cannot turn a
+read-only view into another role's authority. Replaced players cannot reactivate
+their historical role, and Press remains a separate station available only to
+an otherwise unassigned player.
+
+The client uses the same pointers only to avoid issuing a knowingly invalid
+claim. It may render enabled nonsecret console information read only, but it
+does not enable the viewed role's controls until the authoritative player
+snapshot confirms the role. Server action boundaries continue to derive the
+acting vessel from that confirmed role and independently recheck target role,
+active vessel, configured roster, phase, damage, resource, revision, and scoped
+GM authority. The existing same-vessel short-staff rule is explicit relief,
+not role impersonation; it never grants another vessel's capability.
+
 ### Prompt 503 — Wolf action receipt audiences
 
 A committed Wolf action produces separate allowlisted outputs in the same

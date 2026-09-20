@@ -189,6 +189,16 @@ the view's access; callables independently recheck authority inside transactions
 GM observers use the same role workspace with a local role selector and Read /
 Write toggle; they never claim the viewed role, and begin each visit read-only.
 
+A role route is a viewing request, never an authority claim. The server binds a
+player's core console activation to the single matching `assignedRoleId` or
+claimed `seatId`, and fails closed when both pointers exist but disagree. A
+deep link to another enabled role therefore remains read only and cannot change
+`activeConsoleRoleId`. Press keeps its separate unassigned-player contract, and
+GM intervention keeps its live-instance and ship-scoped write-grant contract.
+Action payload role and vessel IDs are always checked against the resulting
+server-owned active console; same-ship short-crew relief is the only ordinary
+player exception and is recalculated from the live configured crew.
+
 Maintenance records private per-step undo snapshots, denied to all client SDKs.
 GM rollback restores the previous step's effects only if later changes would not
 be overwritten, and always advances the revision. Undo is limited to recorded

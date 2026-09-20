@@ -442,6 +442,65 @@ describe('presence lease', () => {
     });
   });
 
+  it('binds a core console claim to the player assignment or claimed seat', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral', 'dione-captain'] });
+    player({ assignedRoleId: 'dione-captain', seatId: 'dione-captain' });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'admiral',
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      message: expect.stringMatching(/assigned role|claimed seat/i),
+    });
+    expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'dione-captain',
+    }))).resolves.toEqual({ sessionId: 's1' });
+    expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBe('dione-captain');
+  });
+
+  it('fails closed when assignment and seat pointers disagree', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral', 'dione-captain'] });
+    player({ assignedRoleId: 'dione-captain', seatId: 'admiral' });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'dione-captain',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'admiral',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
+  });
+
+  it('keeps a GM out of player console presence', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral'] });
+    player({ role: 'gm', assignedRoleId: null, seatId: null });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'admiral',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
+  });
+
+  it('reconciles a stale impersonated core role during a passive heartbeat', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral', 'dione-captain'] });
+    player({
+      assignedRoleId: 'dione-captain',
+      seatId: 'dione-captain',
+      activeConsoleRoleId: 'admiral',
+    });
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' })))
+      .resolves.toEqual({ sessionId: 's1' });
+
+    expect(readPaths()).toContain('sessions/s1/players');
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
+  });
+
   it('keeps Press exclusive to an unassigned player instead of letting a core role holder or GM bypass P061', async () => {
     session({ pressEnabled: true, activeRoleIds: ['admiral'] });
     player({ assignedRoleId: 'admiral' });

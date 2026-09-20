@@ -32,7 +32,11 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
 import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
-import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
+import {
+  boundCoreConsoleRole,
+  canSelectConsoleRole,
+  disconnectedRoleState,
+} from './consoleRolePolicy';
 import { isGmAccessActive, isGmAccessPassword } from './gmAccess';
 import {
   FLEET_SHIP_NAMES,
@@ -12854,10 +12858,18 @@ export const refreshPresence = onCall<{
     if (instanceId && (!instance || !isLiveGmInstance(instance, player, uid))) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    const currentCoreRoleId = player.get('activeConsoleRoleId');
+    const invalidCurrentCoreAuthority = typeof currentCoreRoleId === 'string' &&
+      currentCoreRoleId !== 'press-officer' && (
+        player.get('role') !== 'player' ||
+        typeof player.get('replacementRoleId') === 'string' ||
+        boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== currentCoreRoleId
+      );
     const lastFullReconciliationAt = toTimestampMillis(
       reconciliation.get('lastFullReconciliationAt'),
     );
     const cheapHeartbeat = activeConsoleRoleId === undefined &&
+      !invalidCurrentCoreAuthority &&
       lastFullReconciliationAt !== undefined &&
       Date.now() - lastFullReconciliationAt < PRESENCE_RECONCILIATION_INTERVAL_MS;
     if (cheapHeartbeat) {
@@ -12883,6 +12895,7 @@ export const refreshPresence = onCall<{
     ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
+      ...(invalidCurrentCoreAuthority ? { activeConsoleRoleId: null } : {}),
     };
     const removedLoyaltyUids = new Set<string>();
     let pressHolderUidUpdate: string | null | undefined;
@@ -12960,6 +12973,17 @@ export const refreshPresence = onCall<{
           !isJointEngineeringRoleAvailable(configuredRoleIdsForSelection, requestedRoleId))
       ) {
         throw commandError('failed-precondition', 'That console role is not active.', 'conflict');
+      }
+      if (
+        !isPressRequest && (
+          player.get('role') !== 'player' ||
+          boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== requestedRoleId
+        )
+      ) {
+        throw new HttpsError(
+          'permission-denied',
+          'That console does not match your assigned role or claimed seat.',
+        );
       }
       const heldByAnotherPlayer = holders?.docs.some(
         (holder) => holder.id !== uid && (
