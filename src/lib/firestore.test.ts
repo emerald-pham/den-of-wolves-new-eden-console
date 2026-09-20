@@ -156,6 +156,22 @@ it('hydrates only an internally consistent privacy-safe survivor outcome', () =>
     ...sessionData(8), phase: 'failure',
     survivorOutcome: { ...outcome, finalSurvivors: 999_999, privatePlayerUids: ['secret'] },
   }).survivorOutcome).toBeUndefined();
+  expect(sessionFrom('contradictory-pod-outcome', {
+    ...sessionData(8), phase: 'failure',
+    survivorOutcome: {
+      ...outcome,
+      fleetShipPopulation: 2_000,
+      survivingShipPopulation: 2_000,
+      evacuatedPopulation: 0,
+      escapePodCapacity: 3_100,
+      lostPopulation: 0,
+      smallVesselPopulation: 0,
+      admittedVesselPopulation: 0,
+      finalSurvivors: 2_000,
+      survivingShipIds: ['aegis'],
+      lostOrDestroyedShipIds: [],
+    },
+  }).survivorOutcome).toBeUndefined();
 });
 
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {

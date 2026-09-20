@@ -1588,6 +1588,11 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     survivingShipIds && lostOrDestroyedShipIds &&
     new Set([...survivingShipIds, ...lostOrDestroyedShipIds]).size ===
       survivingShipIds.length + lostOrDestroyedShipIds.length &&
+    (lostOrDestroyedShipIds.length > 0 || (
+      rawSurvivors.evacuatedPopulation === 0 &&
+      rawSurvivors.escapePodCapacity === 0 &&
+      rawSurvivors.lostPopulation === 0
+    )) &&
     rawSurvivors.fleetShipPopulation === rawSurvivors.survivingShipPopulation +
       rawSurvivors.evacuatedPopulation + rawSurvivors.lostPopulation &&
     rawSurvivors.finalSurvivors === rawSurvivors.survivingShipPopulation +
