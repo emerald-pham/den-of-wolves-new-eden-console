@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**303 / 751 prompts complete (40.35%)**
+**304 / 751 prompts complete (40.48%)**
 
-Status breakdown: **303 done · 25 partial · 423 missing**.
+Status breakdown: **304 done · 25 partial · 422 missing**.
 
 Active prompt: **none**
 
@@ -1051,7 +1051,7 @@ release classification and evidence.
 | 579 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 580 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 581 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 582 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 582 | done | non-feature | 0.4.25 | Production start writes separate recipient-only Capybara Captain and Recycler briefs. Each brief carries its distinct Macaw or Boa duty and the same source-aligned S.A.N. objective to protect the Capybara and its survivors and keep the S.A.N. represented in fleet decisions. The server-owned document names only its assigned UID; existing Firestore rules deny the other player, GM, observer, outsider, collection listing, and every client write. Focused serialization and production-start regressions prove the exact duty split, shared objective, owned craft, and one private write per role at both supported expansion sizes. |
 | 583 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 584 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 585 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

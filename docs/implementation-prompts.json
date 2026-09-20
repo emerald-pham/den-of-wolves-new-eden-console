@@ -5327,6 +5327,13 @@
       "language": "Verified against the production Wolf-attack declaration and combat calculation path: server-owned activeVesselIds selects the immutable six-target base ring or seven-target full-Capybara ring; base rolls are bounded d6 samples, expansion rolls are bounded d8 samples, 7 maps to Capybara, every sampled 8 is recorded and rerolled, and capybara-small cannot enter the active full-vessel ring. Focused declaration coverage proves exact base mapping, expansion 7/8 behavior, no committed state for the small identity, and client requests cannot supply outcomes; combat-math and Commander receipt tests preserve the same ring and reroll contract. No runtime code or player release changed for this evidence closure.",
       "source": "functions/src/index.ts; functions/src/wolfCombatMath.ts; functions/src/wolfCommanderRerolls.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfCommanderRerolls.test.ts",
       "type": "evidence / production-path / server-authority / regression"
+    },
+    {
+      "direction": "582 -> PRIVATE-CAPYBARA-OBJECTIVES",
+      "id": "E-582-PRIVATE-OBJECTIVES",
+      "language": "The server-owned Capybara Captain and Recycler role-brief records contain distinct Macaw and Boa responsibilities plus one shared source-aligned S.A.N. objective. Production start writes each role exactly once to its assigned UID with only that UID in visibleToUids and the matching owned craft. Focused role-brief and 19/20-player start tests prove the content and audience; the unchanged Firestore role-brief boundary denies every other player, GM, observer, outsider, collection listing, and client write.",
+      "source": "functions/src/roleBriefs.ts; functions/src/roleBriefs.test.ts; functions/src/startCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence / production-path / private-projection / content / authorization"
     }
   ],
   "plan": {
@@ -20246,8 +20253,8 @@
         "acceptance": "Captain and Recycler see their distinct duties and shared S.A.N. goal without broad brief access.",
         "title": "Expose Capybara objectives privately."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-582",
+      "description": "Production start writes separate recipient-only Capybara Captain and Recycler briefs. Each brief carries its distinct Macaw or Boa duty and the same source-aligned S.A.N. objective to protect the Capybara and its survivors and keep the S.A.N. represented in fleet decisions. The server-owned document names only its assigned UID; existing Firestore rules deny the other player, GM, observer, outsider, collection listing, and every client write. Focused serialization and production-start regressions prove the exact duty split, shared objective, owned craft, and one private write per role at both supported expansion sizes.",
+      "evidenceIds": "E-AUDIT-582;E-582-PRIVATE-OBJECTIVES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "569;006",
@@ -20255,10 +20262,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.25"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

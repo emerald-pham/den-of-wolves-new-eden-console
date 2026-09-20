@@ -20,6 +20,8 @@ const COMMON_ROLE_RULES_BASE = [
 /** Base-game copy retained as a named fixture for projection tests. */
 export const COMMON_ROLE_RULES = COMMON_ROLE_RULES_BASE;
 const COMMON_ROLE_RULES_CAPYBARA = `${COMMON_ROLE_RULES_BASE} In the Capybara expansion, Wolf targeting uses a d8: 7 targets Capybara and 8 is rerolled; Scrap is a Capybara-only resource used by its ship and shuttles.`;
+export const CAPYBARA_SHARED_OBJECTIVE =
+  'Protect the Capybara and the S.A.N. survivors, make sure the S.A.N. is heard in fleet decisions, and do not let the Capybara be taken for granted.';
 
 export interface RoleBriefContent {
   readonly roleId: string;
@@ -132,12 +134,12 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'capybara-captain': {
     roleName: 'Capybara Captain',
     vesselName: 'S.A.N.S. Capybara',
-    text: 'Run Capybara maintenance, gather resources, liaise with other ships, and use the Macaw to repair the fleet. Protect the Capybara and the S.A.N. survivors.',
+    text: `Run Capybara maintenance, gather resources, liaise with other ships, and use the Macaw to repair the fleet. ${CAPYBARA_SHARED_OBJECTIVE}`,
   },
   'capybara-recycler': {
     roleName: 'Capybara Recycler',
     vesselName: 'S.A.N.S. Capybara',
-    text: 'Help supply the fleet and move resources where they are needed. Use the Boa to recycle resources into scrap, assist on away missions, and protect the Capybara team.',
+    text: `Help supply the fleet and move resources where they are needed. Use the Boa to recycle resources into Scrap and assist on away missions. ${CAPYBARA_SHARED_OBJECTIVE}`,
   },
   'press-officer': {
     roleName: 'Press Officer',

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CAPYBARA_SHARED_OBJECTIVE,
   COMMON_ROLE_RULES,
   roleBriefFor,
   serializedRoleBrief,
@@ -72,6 +73,25 @@ describe('role brief projection', () => {
     expect(base?.commonRules).not.toContain('d8');
     expect(expansion?.commonRules).toContain('d8');
     expect(expansion?.commonRules).toContain('Scrap');
+  });
+
+  it('keeps distinct Capybara duties and one shared S.A.N. objective in recipient-only briefs', () => {
+    const captain = serializedRoleBrief('s1', 'captain', 'capybara-captain', 1, {
+      capybaraExpansion: true,
+    });
+    const recycler = serializedRoleBrief('s1', 'recycler', 'capybara-recycler', 1, {
+      capybaraExpansion: true,
+    });
+
+    expect(captain).toMatchObject({ assignmentUid: 'captain', visibleToUids: ['captain'] });
+    expect(captain?.text).toContain('Macaw');
+    expect(captain?.text).not.toContain('Boa');
+    expect(captain?.text).toContain(CAPYBARA_SHARED_OBJECTIVE);
+
+    expect(recycler).toMatchObject({ assignmentUid: 'recycler', visibleToUids: ['recycler'] });
+    expect(recycler?.text).toContain('Boa');
+    expect(recycler?.text).not.toContain('Macaw');
+    expect(recycler?.text).toContain(CAPYBARA_SHARED_OBJECTIVE);
   });
 
   it('adds Voyage 33-0 motivation only to entitled private role briefs', () => {

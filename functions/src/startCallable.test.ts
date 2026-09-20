@@ -803,8 +803,8 @@ it.each([19, 20] as const)('casts distinct private Capybara briefs once at %i pl
     sessionId: 's1', instanceId: 'bridge', requestId: `capybara-briefs-${playerCount}`, expectedSetupRevision: 0,
   }));
 
-  for (const [roleId, craftId] of [
-    ['capybara-captain', 'macaw'], ['capybara-recycler', 'boa'],
+  for (const [roleId, craftId, duty] of [
+    ['capybara-captain', 'macaw', 'Macaw'], ['capybara-recycler', 'boa', 'Boa'],
   ] as const) {
     const holders = mock.playerDocs.filter(player => player.fields.assignedRoleId === roleId);
     expect(holders).toHaveLength(1);
@@ -814,6 +814,9 @@ it.each([19, 20] as const)('casts distinct private Capybara briefs once at %i pl
     expect(writes[0][1]).toMatchObject({
       roleId, assignmentUid: uid, visibleToUids: [uid], ownedCraftIds: [craftId],
     });
+    expect(writes[0][1].text).toContain(duty);
+    expect(writes[0][1].text).toContain('Protect the Capybara and the S.A.N. survivors');
+    expect(writes[0][1].text).toContain('make sure the S.A.N. is heard in fleet decisions');
   }
   const briefs = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/roleBriefs/'));
   expect(briefs.filter(([, brief]) => brief.roleId === 'capybara-captain')).toHaveLength(1);

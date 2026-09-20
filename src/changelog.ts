@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [582],
+    implementationProgress: {
+      completed: 304, total: 751, percentage: '40.48%',
+      done: 304, partial: 25, active: 0, missing: 422,
+    },
+    changes: [
+      'Capybara Captain and Recycler now receive complete, role-specific objectives in their private briefs.',
+      '304 of 751 planned items are complete (40.48%).',
+    ],
+  },
+  {
+    version: '0.4.24',
     implementationPrompts: [670],
     implementationProgress: {
       completed: 302, total: 751, percentage: '40.21%',
