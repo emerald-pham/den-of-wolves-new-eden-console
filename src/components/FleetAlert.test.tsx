@@ -228,7 +228,7 @@ it('queues an urgent alert after the standing tail without duplicating or losing
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
     fleetTicker: tickerState(tickerMessage({
-      id: airspaceId, sequence: 1, source: 'automatic', priority: 40,
+      id: airspaceId, sequence: 1, source: 'automatic', priority: 50,
       sourceId: 'airspace:1:restricted',
     }), 1),
   } as never));
@@ -236,7 +236,7 @@ it('queues an urgent alert after the standing tail without duplicating or losing
   const standingGroups = [...view.container.querySelectorAll<HTMLElement>(
     `.fleet-ticker__group[data-message-id="${airspaceId}"]`,
   )];
-  expect(standingGroups).toHaveLength(2);
+  expect(standingGroups).toHaveLength(1);
 
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
@@ -250,7 +250,7 @@ it('queues an urgent alert after the standing tail without duplicating or losing
   expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // URGENT BROADCAST' })).toBeVisible();
   expect(view.container.querySelectorAll(
     `.fleet-ticker__group[data-message-id="${airspaceId}"]`,
-  )).toHaveLength(2);
+  )).toHaveLength(1);
   expect(view.container.querySelectorAll(
     `.fleet-ticker__group[data-message-id="${alertId}"]`,
   )).toHaveLength(2);

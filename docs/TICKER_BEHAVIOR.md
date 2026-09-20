@@ -9,13 +9,14 @@ It supersedes conflicting ticker priority, handoff, and Stand Down timing
 descriptions elsewhere. Documentation of this contract is not a claim that
 every case below has already been implemented or verified in production.
 
-## Three sources
+## Sources and priority tiers
 
-| Source | What it contributes | When it supplies the next message |
-| --- | --- | --- |
-| ATC | The current authoritative airspace status | The default, while no eligible Press dispatch or Aegis sequence takes precedence |
-| Press | The current pool of published, eligible news dispatches | Normal news playback once Press has eligible dispatches |
-| Aegis | Red Alert and Stand Down | Highest priority; temporarily replaces the eligible playback pool |
+| Priority | Source | What it contributes | Playback rule |
+| --- | --- | --- | --- |
+| Lowest | ATC at Cycle 0 | The initial authoritative **Airspace Closed** status | Repeats while no higher tier is eligible |
+| Medium | Press | The current pool of published, eligible news dispatches | Rotates normally |
+| Medium | ATC airspace change | The authoritative **Airspace Closed** or **Airspace Open** alert | Plays once, in server order with Press |
+| Highest | Aegis | Red Alert and Stand Down | Replaces the future eligible pool; Stand Down plays twice |
 
 Cycle 0 always has **Airspace Closed**. ATC uses **Airspace Closed** or
 **Airspace Open** as appropriate. ATC never includes cycle numbers; cycle
@@ -31,18 +32,19 @@ track** contains message instances that have already entered the screen.
 Changing the pool does not remove, replace, reposition, or accelerate text on
 the visible track.
 
-1. ATC repeats indefinitely until Press has an eligible dispatch.
+1. Cycle 0 ATC repeats indefinitely until Press or a higher tier is eligible.
 2. Press then controls the normal pool. Select the next eligible dispatch in
-   the authoritative Press order and continue that rotation. A new ATC phase
-   notice updates the fallback status; it does not take the pool away from
-   eligible Press news.
-3. Red Alert replaces the eligible pool with Aegis alert copy. That copy
+   the authoritative Press order and continue that rotation.
+3. A later ATC airspace alert has equal priority to Press and plays once in
+   authoritative server order. It does not erase Press already on the track.
+4. Red Alert replaces the eligible pool with Aegis alert copy. That copy
    repeats until the authoritative alert changes or Stand Down arrives.
    Press may continue managing its pool while suspended.
-4. Stand Down replaces the alert pool and plays **exactly twice**. Then the
+5. Stand Down replaces the alert pool and plays **exactly twice**. Then the
    next eligible Press dispatch follows the second copy. Resume from the
    current Press pool; never resurrect a withdrawn or dismissed dispatch.
-5. If no eligible Press dispatch remains, resume the current ATC status.
+6. If no eligible Press dispatch remains, keep the ticker surface present and
+   use the current authoritative fallback.
    An empty news pool never removes the ticker.
 
 A new Red Alert takes priority over a pending Stand Down continuation, using
@@ -72,8 +74,10 @@ one.
 
 Select from the latest eligible pool at the next entry opportunity. Copies
 prepared offscreen are replaceable until they begin entering; visible copies
-are committed to finishing. An alert therefore wins the next available place
-without erasing a Press or ATC message already in motion.
+are committed to finishing. If no copy has entered yet, the single current copy
+staged at the right edge is also committed. Later repetitions remain
+replaceable. An alert therefore wins the next available place without erasing
+the current Press or ATC message.
 
 A compact geometry rule for implementation is:
 

@@ -77,6 +77,18 @@ describe('fleetTickerState', () => {
     expect(state.queued[0]?.priority).toBe(50);
   });
 
+  it('normalizes cached Wolf Attack airspace copy to the medium one-pass tier', () => {
+    const state = fleetTickerState({
+      revision: 1, nextSequence: 1, replayCursor: 1,
+      current: message({ sourceId: 'wolf-attack:3', priority: 40 }),
+      queued: [], draining: [], dismissed: [],
+    });
+
+    expect(state.current).toMatchObject({
+      sourceId: 'wolf-attack:3', priority: 50, passCount: 1,
+    });
+  });
+
   it('fails closed for malformed or untrusted current copy', () => {
     expect(fleetTickerState({
       revision: 2,

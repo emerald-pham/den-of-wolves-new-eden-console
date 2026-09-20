@@ -450,7 +450,7 @@ function fleetTickerStateFromLegacy(
     }, now);
   } else if (phase?.airspace.tickerActive) {
     state = publishFleetTicker(sessionId, state, {
-      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
       text: phase.airspace.state === 'restricted'
         ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
       tone: 'normal', gap: 'long', sourceId: `airspace:${phase.turn}:${phase.airspace.state}`,
@@ -569,7 +569,7 @@ function fleetTickerBaseline(
   }
   if (!phase || phase.turn !== turn) return state;
   return publishFleetTicker(sessionId, state, {
-    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
     text: phase.airspace.state === 'restricted'
       ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
     tone: 'normal', gap: 'long', sourceId: `airspace:${turn}:${phase.airspace.state}`,
@@ -603,7 +603,7 @@ function fleetTickerFiniteFallback(
     }
     : phase?.turn === turn
       ? {
-        source: 'automatic' as const, priority: FLEET_TICKER_PRIORITIES.airspace,
+        source: 'automatic' as const, priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
         text: phase.airspace.state === 'restricted'
           ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
         tone: 'normal' as const, gap: 'long' as const,
@@ -742,7 +742,7 @@ function reconcilePresenceTimer(
     text: FLEET_TICKER_COPY.emptySession, tone: 'normal', gap: 'long',
     sourceId: `empty-session:${next.turn}:${next.timerPause.pausedAt}`,
   } : {
-    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
     text: next.airspace.state === 'restricted'
       ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
     tone: 'normal', gap: 'long', sourceId: `airspace:${next.turn}:${next.airspace.state}`,
@@ -2390,7 +2390,7 @@ function advanceTurnInTransaction(
       sourceId: 'debrief:1',
     }, tickerTime)
     : publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, tickerTime), {
-      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
       text: FLEET_TICKER_COPY.airspaceClosed, tone: 'normal', gap: 'long',
       sourceId: `airspace:${nextTurn}:restricted`,
     }, tickerTime);
@@ -10442,7 +10442,7 @@ export const beginOpenAirspacePhase = onCall<{
     };
     const turnState = phaseTransitionTurnState(session, turnPhase);
     const fleetTicker = publishSessionFleetTicker(requestData.sessionId, session, {
-      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
       text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
       sourceId: `airspace:${turnPhase.turn}:lifted`,
     }, transitionServerTime);
@@ -10569,7 +10569,7 @@ export const setEmergencyTimerPaused = onCall<{
       text: FLEET_TICKER_COPY.emergency, tone: 'danger', gap: 'long',
       sourceId: `emergency:${currentTurn}:${turnPhase.timerPause.pausedAt}`,
     } : {
-      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
       text: turnPhase.airspace.state === 'restricted'
         ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
       tone: 'normal', gap: 'long', sourceId: `airspace:${currentTurn}:${turnPhase.airspace.state}`,
@@ -11270,6 +11270,7 @@ export const declareWolfAttack = onCall<{
     const fleetTicker = publishSessionFleetTicker(declaration.sessionId, session, {
       source: 'automatic',
       priority: FLEET_TICKER_PRIORITIES.airspace,
+      passCount: 1,
       text: FLEET_TICKER_COPY.airspaceClosed,
       tone: 'normal',
       gap: 'long',
@@ -11641,7 +11642,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
       };
       const turnState = phaseTransitionTurnState(session, turnPhase);
       const fleetTicker = publishSessionFleetTicker(requestData.sessionId, session, {
-        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
         text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
         sourceId: `airspace:${turnPhase.turn}:lifted`,
       }, transitionServerTime);

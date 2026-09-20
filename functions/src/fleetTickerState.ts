@@ -51,7 +51,7 @@ export const FLEET_TICKER_PRIORITIES = {
   // urgent AEGIS/Admiral copy still preempts both.
   press: 50,
   turnZero: 30,
-  airspace: 40,
+  airspace: 50,
   emergency: 60,
   turnStart: 70,
   admiral: 80,
@@ -91,18 +91,24 @@ function message(value: unknown): FleetTickerMessage | null {
         (typeof value.passCount !== 'number' || !Number.isSafeInteger(value.passCount) || value.passCount < 1)) ||
       (value.expiresAt !== undefined && !validInstant(value.expiresAt)) ||
       !validInstant(value.createdAt)) return null;
+  const airspacePhaseAlert = value.source === 'automatic' && (
+    /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(value.sourceId ?? '') ||
+    /^wolf-attack:[1-9]\d*$/.test(value.sourceId ?? '')
+  );
   return {
     id: value.id,
     sequence: value.sequence,
     source: value.source,
     // Normalize persisted pre-contract Press records so an old priority 20
     // cannot preempt the source ordering after the next phase update.
-    priority: value.source === 'press' ? FLEET_TICKER_PRIORITIES.press : value.priority,
+    priority: value.source === 'press' || airspacePhaseAlert
+      ? FLEET_TICKER_PRIORITIES.press : value.priority,
     text: value.text,
     tone: value.tone,
     gap: value.gap,
     ...(value.sourceId === undefined ? {} : { sourceId: value.sourceId }),
-    ...(value.passCount === undefined ? {} : { passCount: value.passCount }),
+    ...(airspacePhaseAlert ? { passCount: 1 }
+      : value.passCount === undefined ? {} : { passCount: value.passCount }),
     ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
     createdAt: value.createdAt,
   };
@@ -246,7 +252,8 @@ function withDraining(
 function isAirspaceTickerMessage(entry: Pick<FleetTickerMessage, 'source' | 'sourceId'>): boolean {
   return entry.source === 'automatic' && typeof entry.sourceId === 'string' &&
     (entry.sourceId === 'turn-zero-atc' ||
-      /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(entry.sourceId));
+      /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(entry.sourceId) ||
+      /^wolf-attack:[1-9]\d*$/.test(entry.sourceId));
 }
 
 /** Retire generated ATC notices, optionally retaining the current phase source. */

@@ -15,7 +15,10 @@ const alert = {
   source: 'admiral' as const, priority: 80, text: 'RED ALERT', tone: 'danger' as const,
   sourceId: 'red-alert:1',
 };
-const airspace = { source: 'automatic' as const, priority: 40, text: 'AIRSPACE CLOSED', tone: 'normal' as const, gap: 'long' as const };
+const airspace = {
+  source: 'automatic' as const, priority: 50, text: 'AIRSPACE CLOSED',
+  tone: 'normal' as const, gap: 'long' as const, passCount: 1,
+};
 const pressOne = {
   source: 'press' as const, priority: 50, text: 'SNN // FIRST REPORT', tone: 'normal' as const,
   gap: 'long' as const, sourceId: 'press-1',
@@ -43,13 +46,17 @@ describe('fleet ticker state', () => {
     expect(next.draining).toHaveLength(0);
   });
 
-  it('keeps eligible Press ahead of an airspace phase update', () => {
+  it('plays a same-priority airspace phase alert once, then returns to Press', () => {
     const press = publishFleetTicker('s1', emptyFleetTickerState(), pressOne, now);
-    const next = publishFleetTicker('s1', press, airspace, now);
+    const next = publishFleetTicker('s1', press, {
+      ...airspace, sourceId: 'airspace:1:restricted',
+    }, now);
 
-    expect(next.current?.source).toBe('press');
-    expect(next.current?.sourceId).toBe('press-1');
-    expect(next.queued.map(({ sourceId }) => sourceId)).toEqual([undefined]);
+    expect(next.current).toMatchObject({
+      source: 'automatic', sourceId: 'airspace:1:restricted', priority: 50, passCount: 1,
+    });
+    expect(next.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
+    expect(next.draining.map(({ sourceId }) => sourceId)).toEqual(['press-1']);
   });
 
   it('normalizes a persisted pre-contract Press priority before queue sorting', () => {
@@ -65,6 +72,20 @@ describe('fleet ticker state', () => {
 
     expect(state.queued.map(({ sourceId }) => sourceId)).toEqual(['press-1', undefined]);
     expect(state.queued[0]?.priority).toBe(50);
+  });
+
+  it('normalizes a persisted Wolf Attack airspace alert to the medium one-pass tier', () => {
+    const state = fleetTickerState({
+      ...emptyFleetTickerState(), revision: 1, nextSequence: 1, replayCursor: 1,
+      current: {
+        ...airspace, priority: 40, passCount: undefined, sourceId: 'wolf-attack:3',
+        id: 's1:fleet-ticker:1', sequence: 1, createdAt: now,
+      },
+    });
+
+    expect(state.current).toMatchObject({
+      sourceId: 'wolf-attack:3', priority: 50, passCount: 1,
+    });
   });
 
   it('retires current and queued airspace notices before Press takes over', () => {

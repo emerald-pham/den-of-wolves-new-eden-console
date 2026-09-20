@@ -31,12 +31,31 @@ function displayFleetTickerMessage(
     id: message.id,
     text: message.text,
     source: message.source,
+    priority: message.priority,
     tone: message.tone,
     gap: message.gap,
+    ...(message.sourceId === undefined ? {} : { sourceId: message.sourceId }),
     ...(pressText ? { pressText } : {}),
     ...(message.passCount === undefined ? {} : { passes: message.passCount }),
     ...(message.expiresAt === undefined ? {} : { expiresAt: message.expiresAt }),
     serverAuthoritative: true as const,
+  };
+}
+
+function standingAirspaceFallback(
+  message: AuthoritativeFleetTickerMessage,
+) {
+  const isStandingState = message.source === 'automatic' &&
+    message.passCount === 1 &&
+    (/^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(message.sourceId ?? '') ||
+      /^wolf-attack:[1-9]\d*$/.test(message.sourceId ?? ''));
+  if (!isStandingState) return undefined;
+  const { passes: _finitePasses, ...standing } = displayFleetTickerMessage(message);
+  void _finitePasses;
+  return {
+    ...standing,
+    id: `${message.id}:standing`,
+    priority: 30,
   };
 }
 
@@ -164,10 +183,16 @@ export default function FleetBroadcast() {
     const visibleMessage = streamMessage ?? queue[0];
     const visibleQueue = streamMessage ? queue : queue.slice(1);
     if (visibleMessage) {
+      const visibleAuthority = streamMessage
+        ? authoritativeTicker.current
+        : authoritativeTicker.queued.find((entry) => entry.id === visibleMessage.id);
+      const standingFallback = visibleAuthority
+        ? standingAirspaceFallback(visibleAuthority)
+        : undefined;
       return <FleetBroadcastSurface
         message={visibleMessage}
         {...(visibleQueue.length > 0 ? { queue: visibleQueue } : {})}
-        fallback={visibleQueue[0] ?? awaitingDispatch}
+        fallback={visibleQueue[0] ?? standingFallback ?? awaitingDispatch}
       />;
     }
     return <FleetBroadcastSurface message={awaitingDispatch} />;

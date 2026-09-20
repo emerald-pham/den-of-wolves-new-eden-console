@@ -640,6 +640,47 @@ async function runTickerLifecycleCase() {
     await captureGeometry('press-one', { targetId: lifecycle.pressOne.id, requiredExits: 1 });
 
     await setTicker(lifecycle.aegis, [lifecycle.pressOne, lifecycle.pressTwo]);
+    await page.waitForFunction(({ outgoingId, incomingId }) => {
+      const frame = document.querySelector('#ticker-lifecycle-harness .fleet-ticker__window');
+      return Boolean(frame?.querySelector(`[data-message-id="${outgoingId}"]`) &&
+        frame?.querySelector(`[data-message-id="${incomingId}"]`));
+    }, { outgoingId: lifecycle.pressOne.id, incomingId: lifecycle.aegis.id });
+    const priorityHandoff = await page.evaluate(({ outgoingId, incomingId }) => {
+      const frame = document.querySelector('#ticker-lifecycle-harness .fleet-ticker__window');
+      if (!frame) return { error: 'frame missing' };
+      const frameBounds = frame.getBoundingClientRect();
+      const outgoing = [...frame.querySelectorAll(`[data-message-id="${outgoingId}"]`)]
+        .map((group) => {
+          const bounds = group.getBoundingClientRect();
+          return {
+            left: bounds.left, right: bounds.right,
+            copies: group.querySelectorAll('.fleet-ticker__copy').length,
+            text: group.textContent ?? '',
+          };
+        }).filter(({ left, right }) => right > frameBounds.left && left < frameBounds.right);
+      const incoming = [...frame.querySelectorAll(`[data-message-id="${incomingId}"]`)]
+        .map((group) => {
+          const bounds = group.getBoundingClientRect();
+          return { left: bounds.left, right: bounds.right };
+        }).sort((left, right) => left.left - right.left);
+      const trailingEdge = Math.max(frameBounds.right, ...outgoing.map(({ right }) => right));
+      return {
+        label: 'press-to-red-alert-handoff',
+        frameLeft: frameBounds.left,
+        frameRight: frameBounds.right,
+        outgoing,
+        incoming,
+        retainedPaintedPress: outgoing.length > 0 && outgoing.every(({ copies, text }) => (
+          copies === 1 && text.includes('SNN // ONE')
+        )),
+        incomingBehindTail: incoming.length > 0 && incoming[0].left >= trailingEdge - 2,
+      };
+    }, { outgoingId: lifecycle.pressOne.id, incomingId: lifecycle.aegis.id });
+    samples.push(priorityHandoff);
+    if (priorityHandoff.error || !priorityHandoff.retainedPaintedPress ||
+        !priorityHandoff.incomingBehindTail) {
+      throw new Error(`lifecycle/press-to-red-alert-handoff: ${JSON.stringify(priorityHandoff)}`);
+    }
     await captureGeometry('aegis', { targetId: lifecycle.aegis.id, requiredExits: 1 });
     await waitForText(lifecycle.aegis.text, 10_000);
 

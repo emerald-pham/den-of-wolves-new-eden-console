@@ -121,11 +121,17 @@ it('shows server-owned Turn 0 ATC before Press publishes and follows the Turn 1 
   }, member));
 
   const turnOneProps = (renderTicker.mock.calls.at(-1) as unknown[] | undefined)?.[0] as {
-    message?: { id: string; text: string; serverAuthoritative?: boolean };
+    message?: { id: string; text: string; priority?: number; passes?: number; serverAuthoritative?: boolean };
+    fallback?: { id: string; text: string; priority?: number; passes?: number };
   };
   expect(turnOneProps.message).toMatchObject({
-    id: 's1:fleet-ticker:2', text: TURN_ONE_AIRSPACE_TEXT, serverAuthoritative: true,
+    id: 's1:fleet-ticker:2', text: TURN_ONE_AIRSPACE_TEXT,
+    priority: 50, passes: 1, serverAuthoritative: true,
   });
+  expect(turnOneProps.fallback).toMatchObject({
+    id: 's1:fleet-ticker:2:standing', text: TURN_ONE_AIRSPACE_TEXT, priority: 30,
+  });
+  expect(turnOneProps.fallback).not.toHaveProperty('passes');
   expect(turnOneProps.message?.text).not.toContain('IRIS');
 });
 

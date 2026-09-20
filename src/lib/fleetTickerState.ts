@@ -36,18 +36,23 @@ function parseMessage(value: unknown): FleetTickerMessage | null {
     : /^airspace:[1-9]\d*:restricted$/.test(value.sourceId ?? '') ? 'AIRSPACE CONTROL // AIRSPACE CLOSED'
     : /^airspace:[1-9]\d*:lifted$/.test(value.sourceId ?? '') ? 'AIRSPACE CONTROL // AIRSPACE OPEN'
     : value.text;
+  const airspacePhaseAlert = value.source === 'automatic' && (
+    /^airspace:[1-9]\d*:(?:restricted|lifted)$/.test(value.sourceId ?? '') ||
+    /^wolf-attack:[1-9]\d*$/.test(value.sourceId ?? '')
+  );
   return {
     id: value.id,
     sequence: value.sequence,
     source: value.source,
     // Normalize cached pre-contract Press records before sorting the next
     // eligible pool; source identity remains the server authority.
-    priority: value.source === 'press' ? PRESS_PRIORITY : value.priority,
+    priority: value.source === 'press' || airspacePhaseAlert ? PRESS_PRIORITY : value.priority,
     text,
     tone: value.tone,
     gap: value.gap,
     ...(value.sourceId === undefined ? {} : { sourceId: value.sourceId }),
-    ...(value.passCount === undefined ? {} : { passCount: value.passCount }),
+    ...(airspacePhaseAlert ? { passCount: 1 }
+      : value.passCount === undefined ? {} : { passCount: value.passCount }),
     ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
     createdAt: value.createdAt,
   };

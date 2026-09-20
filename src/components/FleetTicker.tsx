@@ -14,6 +14,8 @@ export interface FleetMessage {
   readonly id: string;
   readonly text: string;
   readonly source?: 'automatic' | 'admiral' | 'press';
+  readonly sourceId?: string;
+  readonly priority?: number;
   readonly tone: 'danger' | 'normal';
   readonly pressText?: string | undefined;
   readonly gap?: 'standard' | 'long';
@@ -103,6 +105,8 @@ function messageSignature(message: FleetMessage | undefined): string {
   return [
     message.id,
     message.source ?? '',
+    message.sourceId ?? '',
+    message.priority ?? '',
     message.text,
     message.tone,
     message.pressText ?? '',
@@ -430,6 +434,47 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     return bounds.right > frame.left && bounds.left <= frame.right;
   }, []);
 
+  const committedGroupsForHandoff = useCallback((): readonly MovingGroup[] => {
+    const frame = windowRef.current?.getBoundingClientRect();
+    if (!frame || frame.width <= 0) return groupsRef.current.filter(isOnScreen);
+
+    return groupsRef.current.flatMap((group) => {
+      const element = groupElements.current.get(group.key);
+      const copies = element
+        ? [...element.querySelectorAll<HTMLElement>('.fleet-ticker__copy')]
+        : [];
+      const measured = copies.flatMap((copy) => {
+        const bounds = copy.getBoundingClientRect();
+        if (bounds.width <= 0 && bounds.height <= 0) return [];
+        return [{ bounds }];
+      });
+      if (measured.length === 0) return isOnScreen(group) ? [group] : [];
+
+      // Copies with painted pixels in the lane are irrevocably committed. If
+      // none has entered yet, retain exactly the first copy staged at the
+      // right edge as the current pass. Later lower-priority repetitions are
+      // still eligible-pool material and may be replaced by the new source.
+      const visible = measured.filter(({ bounds }) => (
+        bounds.right > frame.left && bounds.left < frame.right
+      ));
+      const boundary = visible.length > 0 ? [] : measured.filter(({ bounds }) => (
+        bounds.right > frame.left && bounds.left <= frame.right
+      )).slice(0, 1);
+      return [...visible, ...boundary].map(({ bounds }) => {
+        const committed: MovingGroup = {
+          key: sequence.current,
+          message: group.message,
+          startX: bounds.left - frame.left,
+          width: bounds.width,
+          copyCount: 1,
+          animationDelay: 0,
+        };
+        sequence.current += 1;
+        return committed;
+      });
+    });
+  }, [isOnScreen]);
+
   const reconcilePaintedGeometry = useCallback(() => {
     const frame = windowRef.current?.getBoundingClientRect();
     if (!frame || frame.width <= 0 || groupsRef.current.length === 0) return;
@@ -518,8 +563,10 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
       nextMessage = activeMessage.current;
     }
 
-    let nextGroups: readonly MovingGroup[] = groupsRef.current.filter(isOnScreen);
     const currentChanged = messageSignature(activeMessage.current) !== messageSignature(nextMessage);
+    let nextGroups: readonly MovingGroup[] = currentChanged
+      ? committedGroupsForHandoff()
+      : groupsRef.current.filter(isOnScreen);
     const outgoingMessage = activeMessage.current;
     if (currentChanged) {
       activeMessage.current = nextMessage;
@@ -562,7 +609,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
 
     setGroups(nextGroups);
     setProcessedKey(inputKey);
-  }, [appendGroups, expiredId, fontReady, geometryFor, inputKey, isOnScreen, pressPool, probeFor, setGroups]);
+  }, [appendGroups, committedGroupsForHandoff, expiredId, fontReady, geometryFor, inputKey, isOnScreen, pressPool, probeFor, setGroups]);
 
   useEffect(() => {
     const frame = windowRef.current;

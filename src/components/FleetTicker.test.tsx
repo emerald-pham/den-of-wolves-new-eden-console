@@ -46,7 +46,7 @@ it('lets the old broadcast leave naturally while its replacement follows on the 
   )).not.toBeInTheDocument();
   expect(cancellationStatus).toBeVisible();
 });
-it('keeps the next lower-priority pass at the mobile right edge before appending Red Alert', () => {
+it('keeps the current mobile Press pass, drops only its unentered repeats, and appends Red Alert', () => {
   const press = {
     id: 'mobile-press-current', source: 'press' as const,
     text: 'SNN // CURRENT DISPATCH', tone: 'normal' as const,
@@ -65,11 +65,21 @@ it('keeps the next lower-priority pass at the mobile right edge before appending
     `.fleet-ticker__group[data-message-id="${press.id}"]`,
   )];
   pressGroups.forEach((group, index) => {
-    const left = index === 0 ? 390 : 900;
+    const left = index === 0 ? 0 : 900;
     group.getBoundingClientRect = () => ({
-      left, right: left + 510, top: 0, bottom: 28, width: 510, height: 28,
+      left, right: left + 780, top: 0, bottom: 28, width: 780, height: 28,
       x: left, y: 0, toJSON: () => undefined,
     });
+    [...group.querySelectorAll<HTMLElement>('.fleet-ticker__copy')]
+      .forEach((copy, copyIndex) => {
+        const copyLeft = index === 0
+          ? 100 + (copyIndex * 520)
+          : left + (copyIndex * 520);
+        copy.getBoundingClientRect = () => ({
+          left: copyLeft, right: copyLeft + 260, top: 0, bottom: 28,
+          width: 260, height: 28, x: copyLeft, y: 0, toJSON: () => undefined,
+        });
+      });
   });
 
   view.rerender(<FleetTicker message={redAlert} />);
@@ -81,9 +91,52 @@ it('keeps the next lower-priority pass at the mobile right edge before appending
     `.fleet-ticker__group[data-message-id="${redAlert.id}"]`,
   );
   expect(retainedPress).toHaveLength(1);
+  expect(retainedPress[0]!.querySelectorAll('.fleet-ticker__copy')).toHaveLength(1);
+  expect(retainedPress[0]!.textContent?.match(/CURRENT DISPATCH/g)).toHaveLength(1);
   expect(appendedAlert).toBeInTheDocument();
   expect(Number.parseFloat(appendedAlert!.style.getPropertyValue('--fleet-ticker-start-x')))
-    .toBeGreaterThanOrEqual(900);
+    .toBeGreaterThanOrEqual(390);
+});
+
+it('keeps one current Press pass staged at the mobile right edge before Red Alert', () => {
+  const press = {
+    id: 'mobile-press-boundary', source: 'press' as const,
+    text: 'SNN // CURRENT DISPATCH', tone: 'normal' as const,
+  };
+  const redAlert = {
+    id: 'mobile-red-alert-boundary', source: 'admiral' as const,
+    text: 'AEGIS // RED ALERT', tone: 'danger' as const,
+  };
+  const view = render(<FleetTicker message={press} />);
+  const frame = view.container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 390, top: 0, bottom: 28, width: 390, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  const groups = [...view.container.querySelectorAll<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${press.id}"]`,
+  )];
+  groups.forEach((group, groupIndex) => {
+    [...group.querySelectorAll<HTMLElement>('.fleet-ticker__copy')]
+      .forEach((copy, copyIndex) => {
+        const left = 390 + (groupIndex * 900) + (copyIndex * 260);
+        copy.getBoundingClientRect = () => ({
+          left, right: left + 260, top: 0, bottom: 28,
+          width: 260, height: 28, x: left, y: 0, toJSON: () => undefined,
+        });
+      });
+  });
+
+  view.rerender(<FleetTicker message={redAlert} />);
+
+  const retainedPress = view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${press.id}"]`,
+  );
+  expect(retainedPress).toHaveLength(1);
+  expect(retainedPress[0]!.querySelectorAll('.fleet-ticker__copy')).toHaveLength(1);
+  expect(view.container.querySelector(
+    `.fleet-ticker__group[data-message-id="${redAlert.id}"]`,
+  )).toBeInTheDocument();
 });
 it('keeps queued identities singular while rapid updates append new tracks', () => {
   const firstQueued = {
@@ -279,6 +332,22 @@ it('returns to a standing press bulletin after a finite broadcast completes', ()
   finishMovingPasses(container, cancelled.id);
   expect(screen.getByRole('status', { name: standby.text })).toBeVisible();
 });
+it('returns to the authoritative standing airspace copy after one moving alert pass', () => {
+  const airspaceAlert = {
+    id: 'airspace-alert', source: 'automatic' as const, sourceId: 'airspace:2:lifted',
+    priority: 50, text: 'AIRSPACE CONTROL // AIRSPACE OPEN', tone: 'normal' as const,
+    passes: 1, serverAuthoritative: true,
+  };
+  const standing = {
+    id: 'airspace-alert:standing', source: 'automatic' as const,
+    sourceId: 'airspace:2:lifted', priority: 30,
+    text: airspaceAlert.text, tone: 'normal' as const, serverAuthoritative: true,
+  };
+  const { container } = render(<FleetTicker message={airspaceAlert} fallback={standing} />);
+  finishMovingPasses(container, airspaceAlert.id);
+  expect(screen.getByRole('status', { name: standing.text })).toBeVisible();
+  expect(container.querySelector(`[data-message-id="${standing.id}"]`)).toBeInTheDocument();
+});
 it('lets the final broadcast slide away before clearing its instrument', () => {
   const view = render(<FleetTicker message={alert} />);
   view.rerender(<FleetTicker />);
@@ -315,6 +384,21 @@ it('shows readable stationary copy in reduced motion and clears finite messages'
   expect(screen.getByRole('status', { name: new RegExp(cancelled.text) })).toHaveTextContent(cancelled.text);
   act(() => vi.advanceTimersByTime(120000));
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
+});
+it('returns to standing airspace after one reduced-motion alert pass', () => {
+  vi.useFakeTimers(); setMotionOverride('reduce');
+  const airspaceAlert = {
+    id: 'reduced-airspace-alert', source: 'automatic' as const,
+    text: 'AIRSPACE CONTROL // AIRSPACE CLOSED', tone: 'normal' as const,
+    passes: 1, serverAuthoritative: true,
+  };
+  const standing = {
+    id: 'reduced-airspace-standing', source: 'automatic' as const,
+    text: airspaceAlert.text, tone: 'normal' as const,
+  };
+  render(<FleetTicker message={airspaceAlert} fallback={standing} />);
+  act(() => vi.advanceTimersByTime(60_000));
+  expect(screen.getByRole('status', { name: standing.text })).toBeVisible();
 });
 it('announces two geometry-timed reduced-motion copies before advancing', () => {
   vi.useFakeTimers(); setMotionOverride('reduce');

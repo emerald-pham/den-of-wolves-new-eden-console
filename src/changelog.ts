@@ -26,6 +26,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 316, partial: 23, active: 0, missing: 412,
     },
     changes: [
+      'Ticker priority changes now preserve every Press copy already painted, remove only repetitions that have not entered, and append Red Alert behind the retained tail without overlap or a blank reset.',
+      'Cycle 0 airspace remains the lowest-priority standing bulletin; Press and one-pass airspace changes share the middle tier; Aegis Red Alert and its two-pass Stand Down remain highest priority.',
+      '316 of 751 planned items are complete (42.08%).',
+    ],
+  },
+  {
+    version: '0.4.34',
+    implementationProgress: {
+      completed: 316, total: 751, percentage: '42.08%',
+      done: 316, partial: 23, active: 0, missing: 412,
+    },
+    changes: [
       'AEGIS Red Alert now waits for the lower-priority ticker copy already staged at the right edge to finish, then enters immediately behind it without replaying the lower-priority pool.',
       'Settings buttons and fields now keep the fleet console typeface instead of falling back to browser Arial.',
       '316 of 751 planned items are complete (42.08%).',
