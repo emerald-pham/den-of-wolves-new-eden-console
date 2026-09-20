@@ -725,7 +725,7 @@
     {
       "direction": "145 -> 141",
       "id": "E-AUDIT-145",
-      "language": "P432 now fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts airspace and snapshots all parked craft; ordinary movement and jump callables reject the restricted phase. Relocation to nearest hosts and equal-distance ties remain unresolved under P146/P373.",
+      "language": "The production P432 declaration fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present. Its single transaction restricts authoritative airspace and persists the complete craft and shuttle-docking snapshot, which begins server-owned parking; ordinary movement and jump callables reject that restricted phase. This closes P145 without claiming P373 nearest-host relocation or the P146 equal-distance host policy.",
       "source": "functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/jumpCallable.test.ts; functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_WOLF_ATTACKS.md - The sequence",
       "type": "hard_prompt"
     },
@@ -9202,7 +9202,7 @@
         "acceptance": "extend the existing authoritative airspace/turn primitives so declaring an attack blocks ordinary movement and begins server-owned parking for every shuttle without weakening current restrictions.",
         "title": "Lock airspace for a Wolf attack."
       },
-      "description": "Partial production boundary: `declareWolfAttack` validates complete shuttle docking and fighter-wing state, atomically restricts `turnPhase.airspace`, and records every parked craft/docking snapshot; `moveShipToLocation` and `jumpShip` reject the restricted phase. The declaration does not relocate craft to nearest hosts or resolve equal-distance ties, so P146 and the P373 nearest-host contract remain genuine blockers.",
+      "description": "Complete production boundary: `declareWolfAttack` fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts `turnPhase.airspace` and starts server-owned parking by recording the complete craft and shuttle-docking snapshot. `moveShipToLocation` and `jumpShip` reject that restricted phase, so no ordinary movement can follow the declaration. This prompt deliberately stops at the parking-start boundary: P373 owns nearest-host relocation and P146 owns only the unresolved equal-distance host policy.",
       "evidenceIds": "E-AUDIT-145",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9214,7 +9214,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**322 / 751 prompts complete (42.88%)**
+**323 / 751 prompts complete (43.01%)**
 
-Status breakdown: **322 done · 22 partial · 407 missing**.
+Status breakdown: **323 done · 21 partial · 407 missing**.
 
 Active prompt: **none**
 
@@ -568,7 +568,7 @@ release classification and evidence.
 | 142 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 143 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 144 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 145 | partial | non-feature | — | Partial production boundary: `declareWolfAttack` validates complete shuttle docking and fighter-wing state, atomically restricts `turnPhase.airspace`, and records every parked craft/docking snapshot; `moveShipToLocation` and `jumpShip` reject the restricted phase. The declaration does not relocate craft to nearest hosts or resolve equal-distance ties, so P146 and the P373 nearest-host contract remain genuine blockers. |
+| 145 | done | non-feature | — | Complete production boundary: `declareWolfAttack` fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts `turnPhase.airspace` and starts server-owned parking by recording the complete craft and shuttle-docking snapshot. `moveShipToLocation` and `jumpShip` reject that restricted phase, so no ordinary movement can follow the declaration. This prompt deliberately stops at the parking-start boundary: P373 owns nearest-host relocation and P146 owns only the unresolved equal-distance host policy. |
 | 146 | missing | non-feature | — | The printed nearest-host parking rule does not select among equally distant legal hosts. The owner is deciding between a recorded GM choice among tied hosts and an automatic fixed ship-order tie-break. No tie policy is selected or implemented until that decision arrives; ordinary nearest-host parking remains Prompt 373. |
 | 147 | partial | non-feature | — | Partial production boundary: the P432 declaration now validates and snapshots all represented parked craft, including fighter-wing bay state, and the restricted phase blocks ordinary movement. The current typed craft catalog has no printed combat-capability field, battle-table attack action, or audience-safe attack projection, so P147 cannot close until the P433-related combat surface consumes that catalog. Do not infer battle eligibility from parked status or craft kind, and do not add combat resolution or nearest-host tie policy here. |
 | 148 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
