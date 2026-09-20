@@ -141,6 +141,8 @@ import {
   type NavigationLogs,
 } from './navigation';
 import {
+  advancePursuitForCycle,
+  isValidPursuitAuthority,
   navigationState,
   navigationStateDocumentPath,
   playerDiscoveryProjection,
@@ -1036,6 +1038,181 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   };
 }
 
+interface TurnPursuitAuthority {
+  readonly navigation: NavigationState;
+  readonly navigationRevision: number;
+  readonly fleetGroups: readonly FleetGroupRecord[];
+  readonly players: readonly DocumentSnapshot[];
+  readonly chart: 'A' | 'B' | 'C';
+  readonly legacyHeaderPresent: boolean;
+  readonly legacyMigration: boolean;
+}
+
+function requireTurnPursuitMembership(
+  activeVesselIds: readonly string[],
+  fleetGroups: readonly FleetGroupRecord[],
+  players: readonly DocumentSnapshot[],
+): void {
+  const activeVesselSet = new Set(activeVesselIds);
+  const vesselGroups = new Map<string, string>();
+  const memberGroups = new Map<string, string>();
+  const activePlayers = players.filter((player) => player.exists && !isKickedPlayer(player));
+  const activePlayerIds = new Set(activePlayers.map((player) => player.id));
+  for (const group of fleetGroups) {
+    for (const vesselId of group.vesselIds) {
+      if (!activeVesselSet.has(vesselId) || vesselGroups.has(vesselId)) {
+        throw commandError(
+          'failed-precondition',
+          'The stored fleet-group vessel authority is malformed; pursuit cannot advance.',
+          'malformed-input',
+        );
+      }
+      vesselGroups.set(vesselId, group.id);
+    }
+    for (const uid of group.memberUids) {
+      if (!activePlayerIds.has(uid) || memberGroups.has(uid)) {
+        throw commandError(
+          'failed-precondition',
+          'The stored fleet-group member authority is malformed; pursuit cannot advance.',
+          'malformed-input',
+        );
+      }
+      memberGroups.set(uid, group.id);
+    }
+  }
+  if (vesselGroups.size !== activeVesselSet.size ||
+      activeVesselIds.some((vesselId) => !vesselGroups.has(vesselId)) ||
+      memberGroups.size !== activePlayerIds.size ||
+      activePlayers.some((player) =>
+        player.get('fleetGroupId') !== memberGroups.get(player.id))) {
+    throw commandError(
+      'failed-precondition',
+      'The stored fleet-group authority is incomplete or mismatched; pursuit cannot advance.',
+      'malformed-input',
+    );
+  }
+}
+
+async function readTurnPursuitAuthority(
+  tx: Transaction,
+  sessionId: string,
+  session: DocumentSnapshot,
+): Promise<TurnPursuitAuthority | undefined> {
+  const [storedNavigation, groups, players] = await Promise.all([
+    tx.get(navigationStateRef(sessionId)),
+    tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
+    tx.get(db.collection(`sessions/${sessionId}/players`)),
+  ]);
+  const rawNavigation = storedNavigation.exists &&
+    typeof (storedNavigation as unknown as { data?: unknown }).data === 'function'
+    ? storedNavigation.data()
+    : undefined;
+  const privatePursuitPresent = isRecord(rawNavigation) &&
+    Object.prototype.hasOwnProperty.call(rawNavigation, 'pursuitGroups');
+  const legacyHeaderPresent = session.get('pursuitGroups') !== undefined;
+  const rawPursuitAuthority = privatePursuitPresent
+    ? (rawNavigation as Record<string, unknown>).pursuitGroups
+    : session.get('pursuitGroups');
+  if ((privatePursuitPresent || legacyHeaderPresent) &&
+      !isValidPursuitAuthority(rawPursuitAuthority)) {
+    throw commandError(
+      'failed-precondition',
+      'Pursuit authority is malformed; the cycle cannot advance.',
+      'malformed-input',
+    );
+  }
+  const activeVesselIds = activeVesselIdsForSession(session);
+  const navigation = navigationStateForSession(
+    storedNavigation,
+    session,
+    activeVesselIds,
+  );
+  if (Object.keys(navigation.pursuitGroups).length === 0) {
+    if (privatePursuitPresent || legacyHeaderPresent) {
+      throw commandError(
+        'failed-precondition',
+        'Pursuit authority is malformed; the cycle cannot advance.',
+        'malformed-input',
+      );
+    }
+    // Sessions created before pursuit authority existed can continue without
+    // inventing a score. Their trackers remain pending until migrated.
+    return undefined;
+  }
+  const fleetGroups = groups.docs.map((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    if (!group || group.id !== snapshot.id) {
+      throw commandError(
+        'failed-precondition',
+        'The stored fleet-group authority is malformed; pursuit cannot advance.',
+        'malformed-input',
+      );
+    }
+    return group;
+  });
+  requireTurnPursuitMembership(activeVesselIds, fleetGroups, players.docs);
+  const rawRevision = storedNavigation.get('revision');
+  const navigationRevision = Number.isSafeInteger(rawRevision) && (rawRevision as number) >= 0
+    ? rawRevision as number
+    : 0;
+  const chartId = session.get('chartId');
+  return {
+    navigation,
+    navigationRevision,
+    fleetGroups,
+    players: players.docs,
+    chart: chartId === 'B' || chartId === 'C' ? chartId : 'A',
+    legacyHeaderPresent,
+    legacyMigration: legacyHeaderPresent && !privatePursuitPresent,
+  };
+}
+
+function writeTurnPursuitState(
+  tx: Transaction,
+  sessionId: string,
+  authority: TurnPursuitAuthority | undefined,
+  advance: boolean,
+): void {
+  if (!authority) return;
+  let navigation = authority.navigation;
+  try {
+    if (advance) {
+      navigation = advancePursuitForCycle(
+        authority.navigation,
+        authority.fleetGroups,
+        authority.chart,
+      );
+    }
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Pursuit cannot advance from malformed group authority.',
+      'malformed-input',
+    );
+  }
+  const revision = authority.navigationRevision + 1;
+  const protectedNavigation = {
+    ...navigationProjectionFields(navigation),
+    revision,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  tx.set(
+    navigationStateRef(sessionId),
+    protectedNavigation,
+    { mergeFields: Object.keys(protectedNavigation) },
+  );
+  publishDiscoveryProjections(
+    tx,
+    sessionId,
+    authority.players,
+    navigation,
+    revision,
+    authority.chart,
+    authority.fleetGroups,
+    true,
+  );
+}
+
 function removeLegacyNavigationField(): unknown {
   const deleteField = (FieldValue as unknown as { delete?: () => unknown }).delete;
   return typeof deleteField === 'function' ? deleteField() : null;
@@ -1133,10 +1310,11 @@ function publishDiscoveryProjections(
   revision: number,
   chart: 'A' | 'B' | 'C' = 'A',
   fleetGroups: readonly FleetGroupRecord[] = [],
+  replaceProjectionMaps = false,
 ): void {
   const shipFleetGroupIds = Object.fromEntries(fleetGroups.flatMap((group) =>
     group.vesselIds.map((shipId) => [shipId, group.id])));
-  tx.set(gmDiscoveryProjectionRef(sessionId), {
+  const gmProjection = {
     ...navigationProjectionFields(navigation),
     knownSystems: allDiscoverySystems(),
     pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
@@ -1144,7 +1322,12 @@ function publishDiscoveryProjections(
     ...(Object.keys(shipFleetGroupIds).length > 0 ? { shipFleetGroupIds } : {}),
     revision,
     updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  };
+  tx.set(
+    gmDiscoveryProjectionRef(sessionId),
+    gmProjection,
+    replaceProjectionMaps ? { mergeFields: Object.keys(gmProjection) } : { merge: true },
+  );
   for (const player of players) {
     if (!player.exists || isKickedPlayer(player) || typeof player.id !== 'string' || player.id.length === 0) continue;
     const groupId = player.get('fleetGroupId');
@@ -2096,6 +2279,7 @@ function advanceTurnInTransaction(
   skipTurnStartAnnouncement: boolean,
   additionalFields: Record<string, unknown> = {},
   transition?: TurnAdvanceEvent,
+  pursuitAuthority?: TurnPursuitAuthority,
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
   if (currentTurn >= 1) requireSmallShipsDockedAtBoundary(session, 'Team');
@@ -2131,6 +2315,9 @@ function advanceTurnInTransaction(
     )
     : undefined;
   if (maxTurn !== undefined && currentTurn >= maxTurn) {
+    if (pursuitAuthority?.legacyMigration) {
+      writeTurnPursuitState(tx, sessionId, pursuitAuthority, false);
+    }
     tx.update(sessionRef, {
       currentTurn: maxTurn,
       phase: 'debrief',
@@ -2145,6 +2332,9 @@ function advanceTurnInTransaction(
         }
         : {}),
       ...additionalFields,
+      ...(pursuitAuthority?.legacyHeaderPresent
+        ? { pursuitGroups: removeLegacyNavigationField() }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     return {
@@ -2158,6 +2348,7 @@ function advanceTurnInTransaction(
         : {}),
     };
   }
+  writeTurnPursuitState(tx, sessionId, pursuitAuthority, true);
   tx.update(sessionRef, {
     currentTurn: nextTurn,
     turnStartAnnouncement: skipTurnStartAnnouncement
@@ -2174,6 +2365,9 @@ function advanceTurnInTransaction(
       }
       : {}),
     ...additionalFields,
+    ...(pursuitAuthority?.legacyHeaderPresent
+      ? { pursuitGroups: removeLegacyNavigationField() }
+      : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
   if (transition && currentTurn >= 1) {
@@ -9940,6 +10134,11 @@ export const advanceTurn = onCall<{
         'invalid-phase',
       );
     }
+    const pursuitAuthority = await readTurnPursuitAuthority(
+      tx,
+      advance.sessionId,
+      session,
+    );
     const result = advanceTurnInTransaction(
       tx,
       sessionRef,
@@ -9952,6 +10151,7 @@ export const advanceTurn = onCall<{
         transitionServerTime,
         reason: advance.overridePhaseTimer === true ? 'override' : 'expiry',
       },
+      pursuitAuthority,
     );
     if (result.phase === 'debrief') {
       tx.set(receiptRef, {

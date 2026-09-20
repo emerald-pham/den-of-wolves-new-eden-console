@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [305],
+    implementationProgress: {
+      completed: 308, total: 751, percentage: '41.01%',
+      done: 308, partial: 24, active: 0, missing: 419,
+    },
+    changes: [
+      'At each numbered cycle handoff, every fleet group’s server-owned pursuit rises by 2 exactly once; a group in the Ion Nebula keeps its current value.',
+      'Pursuit updates now reach facilitator and group-local player trackers atomically without exposing another group’s score.',
+      '308 of 751 planned items are complete (41.01%).',
+    ],
+  },
+  {
+    version: '0.4.28',
     implementationPrompts: [485],
     implementationProgress: {
       completed: 307, total: 751, percentage: '40.88%',

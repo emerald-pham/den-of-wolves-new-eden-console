@@ -3,6 +3,7 @@ import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
 import { isStarSystemCoordinate, type NavigationLogEntry, type NavigationLogs } from './navigation';
 import { discoverySystemsForCoordinates, pursuitDistanceForCoordinate } from './starChartProjection';
+import { organiserSitesForChart, type ChartId } from './starChartLookup';
 import {
   systemHistory,
   systemHistoryForShip,
@@ -15,6 +16,11 @@ export interface NavigationState {
   readonly shipNavigationLogs: NavigationLogs;
   readonly systemHistory?: SystemHistory;
   readonly pursuitGroups: Readonly<Record<string, number>>;
+}
+
+export interface PursuitFleetGroup {
+  readonly id: string;
+  readonly vesselIds: readonly string[];
 }
 
 export interface PlayerDiscoveryProjection {
@@ -56,6 +62,13 @@ function logsForShip(value: unknown, shipId: string): readonly NavigationLogEntr
 
 function validPursuitValue(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 10;
+}
+
+/** Validate a complete authority map before the tolerant snapshot parser normalizes it. */
+export function isValidPursuitAuthority(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).length === 0) return false;
+  return Object.entries(value).every(([groupId, amount]) =>
+    (groupId === 'fleet' || /^fleet-[1-9][0-9]*$/.test(groupId)) && validPursuitValue(amount));
 }
 
 /**
@@ -105,6 +118,37 @@ export function navigationState(
     ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
     pursuitGroups: pursuitGroups(raw, legacyPursuitGroups),
   };
+}
+
+/**
+ * Apply the shared cycle clock to every authoritative fleet group. A group in
+ * the Ion Nebula keeps its current score; every other group rises by two,
+ * capped at the terminal track value. Missing group authority is rejected
+ * instead of silently creating, dropping, or cross-applying pursuit state.
+ */
+export function advancePursuitForCycle(
+  navigation: NavigationState,
+  fleetGroups: readonly PursuitFleetGroup[],
+  chart: ChartId,
+): NavigationState {
+  const groupsById = new Map(fleetGroups.map((group) => [group.id, group]));
+  const ionNebulaCoordinates = new Set(Object.entries(organiserSitesForChart(chart))
+    .filter(([, site]) => site.code === 'I')
+    .map(([coordinate]) => coordinate));
+  for (const group of fleetGroups) {
+    if (navigation.pursuitGroups[group.id] === undefined) {
+      throw new Error(`Fleet group ${group.id} has no pursuit authority.`);
+    }
+  }
+  const pursuitGroups: Record<string, number> = {};
+  for (const [groupId, value] of Object.entries(navigation.pursuitGroups)) {
+    const group = groupsById.get(groupId);
+    if (!group) throw new Error(`Pursuit group ${groupId} has no fleet-group authority.`);
+    const inIonNebula = group.vesselIds.every((shipId) =>
+      ionNebulaCoordinates.has(navigation.shipGalacticCoordinates[shipId] ?? ''));
+    pursuitGroups[groupId] = inIonNebula ? value : Math.min(10, value + 2);
+  }
+  return { ...navigation, pursuitGroups };
 }
 
 export function knownCoordinates(

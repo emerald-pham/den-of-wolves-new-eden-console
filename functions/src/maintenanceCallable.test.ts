@@ -15,6 +15,11 @@ const mock = vi.hoisted(() => ({
   smallShipStates: {} as Record<string, unknown>,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
+  navigation: undefined as Record<string, unknown> | undefined,
+  legacyPursuitGroups: undefined as unknown,
+  fleetGroups: [] as Array<{ id: string; vesselIds: string[]; memberUids: string[] }>,
+  discoveryPlayers: [] as Array<{ id: string; fields: Record<string, unknown> }>,
+  activeVesselIds: undefined as readonly string[] | undefined,
   commandReceipts: {} as Record<string, Record<string, unknown>>,
   race: undefined as {
     attempts: number;
@@ -190,6 +195,8 @@ vi.mock('firebase-admin/firestore', () => ({
             capybaraEnabled: mock.capybaraEnabled,
             dioneEnabled: mock.dioneEnabled,
             smallShipStates: mock.smallShipStates,
+            activeVesselIds: mock.activeVesselIds,
+            pursuitGroups: mock.legacyPursuitGroups,
           };
           const updates: Array<readonly [string, Record<string, unknown>]> = [];
           const sets: Array<readonly [string, Record<string, unknown>]> = [];
@@ -198,6 +205,34 @@ vi.mock('firebase-admin/firestore', () => ({
               if (path.includes('/commandReceipts/')) {
                 const fields = mock.commandReceipts[path];
                 return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+              }
+              if (path === 'sessions/s1/serverState/navigation') {
+                const fields = mock.navigation;
+                return {
+                  exists: fields !== undefined,
+                  data: fields === undefined ? undefined : () => fields,
+                  get: (key: string) => fields?.[key],
+                };
+              }
+              if (path === 'sessions/s1/fleetGroups') {
+                return {
+                  docs: mock.fleetGroups.map((fields) => ({
+                    id: fields.id,
+                    exists: true,
+                    data: () => fields,
+                    get: (key: string) => fields[key as keyof typeof fields],
+                  })),
+                };
+              }
+              if (path === 'sessions/s1/players') {
+                return {
+                  docs: mock.discoveryPlayers.map(({ id, fields }) => ({
+                    id,
+                    exists: true,
+                    data: () => fields,
+                    get: (key: string) => fields[key],
+                  })),
+                };
               }
               if (path.includes('/setupMutationRequests/') ||
                   path.includes('/gmResponsibilityRequests/') ||
@@ -327,6 +362,11 @@ beforeEach(() => {
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
   mock.fleetTicker = undefined;
+  mock.navigation = undefined;
+  mock.legacyPursuitGroups = undefined;
+  mock.fleetGroups = [];
+  mock.discoveryPlayers = [];
+  mock.activeVesselIds = undefined;
   mock.turnPhase = undefined;
   mock.turnState = undefined;
   mock.turnLimit = 6;
@@ -386,6 +426,34 @@ beforeEach(() => {
       } as Record<string, unknown>;
       return { exists: true, get: (key: string) => fields[key] };
     }
+    if (path === 'sessions/s1/serverState/navigation') {
+      const fields = mock.navigation;
+      return {
+        exists: fields !== undefined,
+        data: fields === undefined ? undefined : () => fields,
+        get: (key: string) => fields?.[key],
+      };
+    }
+    if (path === 'sessions/s1/fleetGroups') {
+      return {
+        docs: mock.fleetGroups.map((fields) => ({
+          id: fields.id,
+          exists: true,
+          data: () => fields,
+          get: (key: string) => fields[key as keyof typeof fields],
+        })),
+      };
+    }
+    if (path === 'sessions/s1/players') {
+      return {
+        docs: mock.discoveryPlayers.map(({ id, fields }) => ({
+          id,
+          exists: true,
+          data: () => fields,
+          get: (key: string) => fields[key],
+        })),
+      };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
           role: mock.role, connected: mock.connected,
@@ -420,6 +488,8 @@ beforeEach(() => {
           fleetTicker: mock.fleetTicker,
           pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
+          activeVesselIds: mock.activeVesselIds,
+          pursuitGroups: mock.legacyPursuitGroups,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -1463,6 +1533,185 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('advances private group pursuit once with the cycle transition and republishes only entitled values', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
+  mock.currentTurn = 1;
+  mock.activeVesselIds = ['dione', 'shepherd'];
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.navigation = {
+    revision: 3,
+    shipGalacticCoordinates: { dione: '5143', shepherd: '1096' },
+    shipNavigationLogs: { dione: [], shepherd: [] },
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+  };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['dione'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['u2'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+    { id: 'u2', fields: { fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' } },
+  ];
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-pursuit', expectedTurn: 1,
+  }))).resolves.toMatchObject({ currentTurn: 2 });
+
+  const navigationWrite = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/serverState/navigation');
+  expect(navigationWrite?.[1]).toMatchObject({
+    pursuitGroups: { 'fleet-1': 4, 'fleet-2': 7 },
+    revision: 4,
+  });
+  expect(navigationWrite?.[2]).toEqual({
+    mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']),
+  });
+  const gmWrite = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/gmDiscovery/current');
+  expect(gmWrite?.[1]).toMatchObject({
+    pursuitGroups: { 'fleet-1': 4, 'fleet-2': 7 },
+    shipFleetGroupIds: { dione: 'fleet-1', shepherd: 'fleet-2' },
+    revision: 4,
+  });
+  expect(gmWrite?.[2]).toEqual({
+    mergeFields: expect.arrayContaining(['pursuitGroups', 'shipFleetGroupIds', 'revision']),
+  });
+  const firstPlayerWrite = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/playerDiscoveries/u1');
+  const secondPlayerWrite = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/playerDiscoveries/u2');
+  expect(firstPlayerWrite?.[1]).toMatchObject({ groupId: 'fleet-1', pursuitValue: 4, revision: 4 });
+  expect(secondPlayerWrite?.[1]).toMatchObject({ groupId: 'fleet-2', pursuitValue: 7, revision: 4 });
+  expect(firstPlayerWrite?.[1]).not.toHaveProperty('pursuitGroups');
+  expect(secondPlayerWrite?.[1]).not.toHaveProperty('pursuitGroups');
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.not.objectContaining({
+    pursuitGroups: expect.anything(),
+  }));
+});
+
+it('blocks a cycle transition when stored pursuit authority is malformed', async () => {
+  mock.currentTurn = 1;
+  mock.activeVesselIds = ['dione'];
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.navigation = {
+    revision: 3,
+    shipGalacticCoordinates: { dione: '5143' },
+    shipNavigationLogs: { dione: [] },
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 'broken' },
+  };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['dione'], memberUids: ['u1'] },
+  ];
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-malformed-pursuit', expectedTurn: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/pursuit authority is malformed/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('migrates legacy member-readable pursuit authority and deletes it atomically', async () => {
+  mock.currentTurn = 1;
+  mock.activeVesselIds = ['dione'];
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.legacyPursuitGroups = { fleet: 2 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['dione'], memberUids: ['u1'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+  ];
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-legacy-pursuit', expectedTurn: 1,
+  }))).resolves.toMatchObject({ currentTurn: 2 });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 4 }, revision: 1 }),
+    { mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']) },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/playerDiscoveries/u1',
+    expect.objectContaining({ groupId: 'fleet-1', pursuitValue: 4, revision: 1 }),
+  );
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    pursuitGroups: 'delete-field',
+    currentTurn: 2,
+  }));
+});
+
+it('blocks pursuit advancement when vessel membership or player pointers mismatch group authority', async () => {
+  mock.currentTurn = 1;
+  mock.activeVesselIds = ['dione', 'shepherd'];
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.navigation = {
+    revision: 3,
+    shipGalacticCoordinates: { dione: '5143', shepherd: '1096' },
+    shipNavigationLogs: { dione: [], shepherd: [] },
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4 },
+  };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['dione'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['u2'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-2', assignedRoleId: 'dione-captain' } },
+    { id: 'u2', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'shepherd-captain' } },
+  ];
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-swapped-pursuit', expectedTurn: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/incomplete or mismatched/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['dione'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['u2'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+    { id: 'u2', fields: { fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' } },
+  ];
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-duplicate-vessel', expectedTurn: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/vessel authority is malformed/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('blocks a next-Team transition while an admitted small ship is undocked', async () => {
   mock.currentTurn = 1;
   mock.turnPhase = {
@@ -1551,6 +1800,14 @@ it('freezes the configured final turn in debrief and replays the terminal receip
     },
   };
   mock.shuttleFuelled = { starlight: true };
+  mock.activeVesselIds = ['aegis'];
+  mock.legacyPursuitGroups = { fleet: 8 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'aegis-captain' } },
+  ];
   mock.turnPhase = {
     turn: 6,
     teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -1580,6 +1837,7 @@ it('freezes the configured final turn in debrief and replays the terminal receip
     turnPhase: 'delete-field',
     turnState: 'delete-field',
     turnStartAnnouncement: 'delete-field',
+    pursuitGroups: 'delete-field',
     fleetTicker: expect.objectContaining({
       revision: 2,
       current: expect.objectContaining({
@@ -1599,6 +1857,15 @@ it('freezes the configured final turn in debrief and replays the terminal receip
       }),
       result: expect.objectContaining({ currentTurn: 6, phase: 'debrief' }),
     }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 8 }, revision: 1 }),
+    { mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']) },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/playerDiscoveries/u1',
+    expect.objectContaining({ groupId: 'fleet-1', pursuitValue: 8, revision: 1 }),
   );
   expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/'))).toBe(false);
   mock.phase = 'debrief';
@@ -1993,6 +2260,20 @@ it('serializes simultaneous airspace expiry observers into one transition event'
   };
   mock.shuttleFuelled = { starlight: true, pallas: false };
   mock.gmInstanceOwners = { 'bridge-a': 'u1', 'bridge-b': 'u2' };
+  mock.activeVesselIds = ['aegis'];
+  mock.navigation = {
+    revision: 1,
+    shipGalacticCoordinates: { aegis: '0000' },
+    shipNavigationLogs: { aegis: [] },
+    pursuitGroups: { 'fleet-1': 2 },
+  };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1', 'u2'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' } },
+    { id: 'u2', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'vice-admiral' } },
+  ];
   mock.update.mockClear();
   mock.set.mockClear();
   let advanceRelease!: () => void;
@@ -2027,7 +2308,10 @@ it('serializes simultaneous airspace expiry observers into one transition event'
   });
   expect(mock.currentTurn).toBe(2);
   expect(mock.update).toHaveBeenCalledTimes(1);
-  expect(mock.set).toHaveBeenCalledTimes(1);
+  const pursuitWrites = mock.set.mock.calls.filter(([path]) =>
+    path === 'sessions/s1/serverState/navigation');
+  expect(pursuitWrites).toHaveLength(1);
+  expect(pursuitWrites[0]?.[1]).toMatchObject({ pursuitGroups: { 'fleet-1': 4 }, revision: 2 });
   expect(mock.maintenanceCycles).toEqual({
     aegis: expect.objectContaining({ charges: [], refuelled: [] }),
   });

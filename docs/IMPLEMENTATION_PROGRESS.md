@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**307 / 751 prompts complete (40.88%)**
+**308 / 751 prompts complete (41.01%)**
 
-Status breakdown: **307 done · 24 partial · 420 missing**.
+Status breakdown: **308 done · 24 partial · 419 missing**.
 
 Active prompt: **none**
 
@@ -747,7 +747,7 @@ release classification and evidence.
 | 302 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 303 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 304 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 305 | missing | non-feature | — | The current start transaction initializes pursuitGroups.fleet to 2, but advanceTurnInTransaction does not update it. This remains unimplemented. An applicable-group increment must consume the authoritative group and location foundation from Prompt 485 so the Ion Nebula no-rise exception is respected; adding two blindly to every map entry would violate the source. Keep split-fleet clock semantics as the separate pending Prompt 107 decision. |
+| 305 | done | non-feature | 0.4.29 | Each active fleet group now advances its private server-owned pursuit score by two, capped at 10, in the same transaction that commits the next shared cycle. The transition republishes the full map only to the facilitator projection and replaces each player projection with that player’s group-local value. The server resolves Ion Nebula I through the locked A, B, or C chart and leaves only a group whose vessels are present there unchanged. Raw map validation and exact vessel, member, and player-pointer checks block malformed or mismatched authority instead of guessing. Any legacy member-readable pursuit header is migrated and deleted atomically, the final debrief adds nothing, and competing facilitator attempts serialize behind the cycle revision so only one committed transition can apply the rise. |
 | 306 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 307 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 308 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

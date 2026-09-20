@@ -2430,7 +2430,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 302
 - [ ] Prompt 303
 - [ ] Prompt 304
-- [ ] Prompt 305
+- [x] Prompt 305
 - [ ] Prompt 306
 - [ ] Prompt 307
 - [ ] Prompt 308
@@ -3191,7 +3191,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 302 — [EXTEND] Record every jump transition.** Acceptance: completed, failed, integrity, wrong-destination, and emergency results each create one audience-safe event.
 - **Prompt 303 — [PRESERVE] Audit jump-button truthfulness.** Acceptance: digits, lock, power rail, pending, success, failure, and cooldown reflect server authority and remain keyboard/touch usable.
 - **Prompt 304 — [EXTEND] Reconcile jump retries.** Acceptance: a timeout retry returns the committed result or fresh denial without spending or moving twice.
-- **Prompt 305 — [NEW] Advance pursuit each turn.** Acceptance: each applicable group adds two exactly once at the defined turn transition.
+- **Prompt 305 — [NEW] Advance pursuit each cycle.** Acceptance: each applicable group adds two exactly once at the defined cycle transition.
 - **Prompt 306 — [NEW] Reduce pursuit by chart depth.** Acceptance: each group uses the printed shortest-path distance from 0000 after movement.
 - **Prompt 307 — [NEW] Isolate pursuit by fleet group.** Acceptance: a split creates independent values and one group's action cannot mutate another's.
 - **Prompt 308 — [NEW] Apply Ion Nebula pursuit behavior.** Acceptance: the system I group suppresses the applicable rise while other groups remain unaffected.

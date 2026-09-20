@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import {
+  advancePursuitForCycle,
+  isValidPursuitAuthority,
   navigationState,
   navigationStateDocumentPath,
   playerDiscoveryProjection,
@@ -123,6 +125,59 @@ it('migrates legacy pursuit without allowing aliases to overwrite canonical stat
   expect(pursuitGroups({}, { 'fleet-1': 2, fleet: 10 })).toEqual({ 'fleet-1': 2 });
   expect(pursuitGroups({}, { 'fleet-1': 'bad', fleet: 10 })).toEqual({});
   expect(pursuitGroups({ pursuitGroups: { 'fleet-1': 4 } }, { fleet: 10 })).toEqual({ 'fleet-1': 4 });
+});
+
+it('validates complete pursuit authority before tolerant snapshot normalization', () => {
+  expect(isValidPursuitAuthority({ fleet: 2 })).toBe(true);
+  expect(isValidPursuitAuthority({ fleet: 10, 'fleet-1': 2, 'fleet-2': 4 })).toBe(true);
+  expect(isValidPursuitAuthority({ 'fleet-1': 2, 'fleet-2': 4 })).toBe(true);
+  expect(isValidPursuitAuthority({})).toBe(false);
+  expect(isValidPursuitAuthority({ 'fleet-1': 2, 'fleet-2': 'bad' })).toBe(false);
+  expect(isValidPursuitAuthority({ 'fleet-1': 2, bogus: 7 })).toBe(false);
+});
+
+it('advances each fleet group once while suppressing only a group in the Ion Nebula', () => {
+  const current = navigationState({
+    shipGalacticCoordinates: { dione: '5143', shepherd: '1096', aegis: '1096', icebreaker: '5143' },
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7, 'fleet-3': 9, 'fleet-4': 9 },
+  }, ['dione', 'shepherd', 'aegis', 'icebreaker']);
+
+  expect(advancePursuitForCycle(current, [
+    { id: 'fleet-1', vesselIds: ['dione'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'] },
+    { id: 'fleet-3', vesselIds: ['aegis', 'dione'] },
+    { id: 'fleet-4', vesselIds: ['icebreaker'] },
+  ], 'A').pursuitGroups).toEqual({
+    'fleet-1': 4,
+    'fleet-2': 7,
+    'fleet-3': 10,
+    'fleet-4': 10,
+  });
+});
+
+it.each([
+  ['A', '1096'],
+  ['B', '6931'],
+  ['C', '6964'],
+] as const)('resolves the Ion Nebula coordinate from selected chart %s', (chart, coordinate) => {
+  const current = navigationState({
+    shipGalacticCoordinates: { dione: coordinate },
+    pursuitGroups: { 'fleet-1': 2 },
+  }, ['dione']);
+  expect(advancePursuitForCycle(
+    current,
+    [{ id: 'fleet-1', vesselIds: ['dione'] }],
+    chart,
+  ).pursuitGroups).toEqual({ 'fleet-1': 2 });
+});
+
+it('rejects an orphan pursuit score instead of guessing its group membership', () => {
+  const current = navigationState({ pursuitGroups: { 'fleet-1': 2 } }, ['dione']);
+  expect(() => advancePursuitForCycle(current, [], 'A')).toThrow(/no fleet-group authority/i);
+  expect(() => advancePursuitForCycle(current, [
+    { id: 'fleet-1', vesselIds: ['dione'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'] },
+  ], 'A')).toThrow(/no pursuit authority/i);
 });
 
 it('replaces a player projection so valid pursuit becomes pending when authority disappears', () => {
