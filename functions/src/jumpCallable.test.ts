@@ -26,6 +26,7 @@ const mock = vi.hoisted(() => ({
   }>,
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
+  wolfAttackState: undefined as Record<string, unknown> | undefined,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -92,6 +93,7 @@ beforeEach(() => {
   mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } }];
   mock.upgrades = {};
   mock.damage = {};
+  mock.wolfAttackState = undefined;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -101,6 +103,14 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path === 'sessions/s1/wolfAttackState/current') {
+      const fields = mock.wolfAttackState;
+      return {
+        exists: fields !== undefined,
+        data: fields === undefined ? undefined : () => fields,
+        get: (key: string) => fields?.[key],
+      };
+    }
     if (path === 'sessions/s1/fleetGroups') {
       return { docs: mock.fleetGroups.map((group) => ({
         exists: true, id: group.id, data: () => group, get: (key: string) => group[key as keyof typeof group],
@@ -126,6 +136,12 @@ beforeEach(() => {
         : {
           phase: 'active',
           currentTurn: mock.currentTurn,
+          turnPhase: {
+            turn: mock.currentTurn,
+            teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+            openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+            airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+          },
           chartId: mock.chartId,
           capybaraEnabled: true,
           dioneEnabled: true,
@@ -171,6 +187,29 @@ it('rejects malformed coordinates before reading or changing any authoritative s
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.randomUUID).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['declared', { status: 'declared', airspaceLocked: true, parkingReleaseCondition: 'normal-movement-reopened' }],
+  ['legacy', { status: 'declared', airspaceLocked: true }],
+  ['malformed', { status: 7, airspaceLocked: 'unknown' }],
+])('blocks jump and movement from a lifted phase with %s Wolf attack state', async (_label, attackState) => {
+  mock.wolfAttackState = attackState;
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: `blocked-jump-${_label}`, destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/awaits facilitator resolution.*movement remains blocked/i),
+  });
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: `blocked-move-${_label}`, destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/awaits facilitator resolution.*movement remains blocked/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('denies destroyed ships before movement or jump can change navigation state', async () => {
@@ -459,6 +498,9 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
 
 it('rejects Coordination jumps while the server phase is Team', async () => {
   mock.get.mockImplementation(async (path: string) => {
+    if (path === 'sessions/s1/wolfAttackState/current') {
+      return { exists: false, data: () => undefined, get: () => undefined };
+    }
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
@@ -538,6 +580,9 @@ it('honours an existing integrity lock without changing authoritative state', as
 it('denies a player operating a different ship even with a valid printed destination', async () => {
   mock.role = 'player';
   mock.get.mockImplementation(async (path: string) => {
+    if (path === 'sessions/s1/wolfAttackState/current') {
+      return { exists: false, data: () => undefined, get: () => undefined };
+    }
     if (path.includes('/players/')) {
       return { exists: true, get: (key: string) => ({ role: 'player', connected: true, activeConsoleRoleId: 'dione-captain' } as Record<string, unknown>)[key] };
     }

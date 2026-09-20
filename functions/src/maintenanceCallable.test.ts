@@ -15,6 +15,7 @@ const mock = vi.hoisted(() => ({
   smallShipStates: {} as Record<string, unknown>,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
+  wolfAttackState: undefined as Record<string, unknown> | undefined,
   navigation: undefined as Record<string, unknown> | undefined,
   legacyPursuitGroups: undefined as unknown,
   fleetGroups: [] as Array<{ id: string; vesselIds: string[]; memberUids: string[] }>,
@@ -260,6 +261,14 @@ vi.mock('firebase-admin/firestore', () => ({
                   path.includes('/events/advance-test-')) {
                 return { exists: false, get: () => undefined };
               }
+              if (path === 'sessions/s1/wolfAttackState/current') {
+                const fields = mock.wolfAttackState;
+                return {
+                  exists: fields !== undefined,
+                  data: fields === undefined ? undefined : () => fields,
+                  get: (key: string) => fields?.[key],
+                };
+              }
               const fields: Record<string, unknown> = path.includes('/players/')
                 ? {
                     role: mock.role, connected: mock.connected,
@@ -374,6 +383,7 @@ beforeEach(() => {
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
   mock.fleetTicker = undefined;
+  mock.wolfAttackState = undefined;
   mock.navigation = undefined;
   mock.legacyPursuitGroups = undefined;
   mock.fleetGroups = [];
@@ -440,6 +450,14 @@ beforeEach(() => {
     }
     if (path === 'sessions/s1/serverState/navigation') {
       const fields = mock.navigation;
+      return {
+        exists: fields !== undefined,
+        data: fields === undefined ? undefined : () => fields,
+        get: (key: string) => fields?.[key],
+      };
+    }
+    if (path === 'sessions/s1/wolfAttackState/current') {
+      const fields = mock.wolfAttackState;
       return {
         exists: fields !== undefined,
         data: fields === undefined ? undefined : () => fields,
@@ -2456,6 +2474,49 @@ it('does not reopen normal airspace after the coordination window has ended', as
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('keeps an overrunning Wolf attack locked through Team Phase until facilitator resolution', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.wolfAttackState = {
+    status: 'declared',
+    airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+    parkedShuttleDockings: [
+      { shuttleId: 'starlight', shipId: 'dione', dockedAt: 'CYCLE 1 // RELOCATED' },
+    ],
+  };
+
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/awaits facilitator resolution.*movement remains blocked/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.wolfAttackState.parkedShuttleDockings).toEqual([
+    { shuttleId: 'starlight', shipId: 'dione', dockedAt: 'CYCLE 1 // RELOCATED' },
+  ]);
+
+  mock.wolfAttackState = {
+    ...mock.wolfAttackState,
+    status: 'resolved',
+    airspaceLocked: false,
+  };
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).resolves.toMatchObject({
+    turnPhase: { airspace: { state: 'lifted' } },
+  });
+});
+
 it('requires an active session member to synchronize normal airspace', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
@@ -2870,6 +2931,42 @@ it('lets only the active GM pause and resume a live turn clock with an audit eve
   }));
 });
 
+it('keeps an unresolved Wolf attack restricted across emergency pause and resume', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:07:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.wolfAttackState = {
+    status: 'declared', airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  };
+  mock.randomUUID.mockReturnValue('attack-pause-event');
+
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
+  }))).resolves.toMatchObject({
+    turnPhase: {
+      airspace: { state: 'restricted' },
+      timerPause: { window: 'open', remainingMs: 780_000 },
+    },
+  });
+
+  mock.turnPhase = mock.update.mock.calls.at(-1)?.[1].turnPhase;
+  vi.setSystemTime(new Date('2026-09-06T12:08:00.000Z'));
+  const resumed = await setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: false,
+  }));
+  expect(resumed).toMatchObject({
+    turnPhase: { airspace: { state: 'restricted' } },
+  });
+  expect(resumed.turnPhase).not.toHaveProperty('timerPause');
+});
+
 it('denies stale, expired, Turn 0, and non-GM emergency timer requests without writing', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:02:00.000Z'));
@@ -2962,6 +3059,42 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not let the Press exception lift an unresolved Wolf attack after the Team deadline', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:00.000Z'));
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.wolfAttackState = {
+    status: 'declared', airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  };
+
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    turnPhase: { airspace: { state: 'restricted', pressAccess: true } },
+  });
+  expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({
+    turnPhase: expect.objectContaining({ airspace: expect.objectContaining({ state: 'restricted' }) }),
+  }));
+
+  mock.turnPhase = {
+    ...mock.turnPhase,
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.wolfAttackState = {
+    status: 'resolved', airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  };
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    turnPhase: { airspace: { state: 'lifted' } },
+  });
 });
 
 it('denies Press airspace unlock while Press is disabled without writing', async () => {

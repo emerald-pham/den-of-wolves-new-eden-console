@@ -138,6 +138,7 @@ function prepareResume(
       return snapshot(seat, seatExists);
     }
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') {
       const navigation = snapshot(navigationFields, navigationExists);
       return navigationExists ? { ...navigation, data: () => navigationFields } : navigation;
@@ -650,6 +651,7 @@ it('rejects a session that closes after the initial read but before resume commi
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -687,6 +689,7 @@ it('returns fresh server state after the resume transaction instead of its initi
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -720,6 +723,7 @@ it('replaces a stale membership lock but refuses an active membership in another
       if (path === 'activeMemberships/u1') return snapshot(membership);
       if (path === 'sessions/s2/players/u1') return snapshot(otherPlayer);
       if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+      if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
       if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
       throw new Error('Unexpected read: ' + path);
     });

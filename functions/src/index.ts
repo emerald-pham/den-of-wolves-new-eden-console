@@ -338,6 +338,7 @@ import {
   WOLF_ATTACK_PARKING_RELEASE,
   WOLF_ATTACK_DECLARATION_STEP,
   type WolfAttackStageState,
+  wolfAttackBlocksNormalMovement,
 } from './wolfAttackDeclaration';
 import {
   CORE_WOLF_TARGET_RING,
@@ -697,12 +698,35 @@ function persistActivePressRecovery(
   }
 }
 
+/** Every clock path shares the same private attack-state interlock. */
+function preserveWolfAttackAirspaceRestriction(
+  phase: ActiveTurnPhase,
+  attackState: DocumentSnapshot | undefined,
+): ActiveTurnPhase {
+  if (!attackState?.exists || !wolfAttackBlocksNormalMovement(attackState.data())) return phase;
+  if (phase.airspace.state === 'restricted') return phase;
+  return {
+    ...phase,
+    airspace: { ...phase.airspace, state: 'restricted', tickerActive: true },
+  };
+}
+
+function requireWolfAttackMovementReleased(attackState: DocumentSnapshot): void {
+  if (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data())) return;
+  throw commandError(
+    'failed-precondition',
+    'The Wolf attack awaits facilitator resolution; normal movement remains blocked.',
+    'invalid-phase',
+  );
+}
+
 /** Presence and clock changes commit together, so rejoin/expiry races retry on
  * the same session version. A reconnect can release only an automatic hold. */
 function reconcilePresenceTimer(
   tx: Transaction,
   sessionRef: DocumentReference,
   session: DocumentSnapshot,
+  attackState: DocumentSnapshot | undefined,
   connected: boolean,
 ): void {
   const debrief = session.get('debriefMode') as { active?: unknown } | undefined;
@@ -737,6 +761,7 @@ function reconcilePresenceTimer(
     persistActivePressRecovery(tx, sessionRef, session, new Date(now).toISOString());
     return;
   }
+  next = preserveWolfAttackAirspaceRestriction(next, attackState);
   const serverTime = new Date(now).toISOString();
   const turnState = updatedTurnState(session, next);
   const priorTicker = fleetTickerForMutation(sessionRef.id, session, serverTime);
@@ -8591,6 +8616,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           'unauthorized',
         );
       }
+      const attackState = sessionDoc.get('phase') === 'active'
+        ? await tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`))
+        : undefined;
       const membershipActive = await membershipIsActive(tx, membership, uid);
       if (activeSessionConflicts(
         membership.exists ? membership.get('sessionId') as string : undefined,
@@ -8643,7 +8671,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipNavigationLogs: removeLegacyNavigationField(),
         pursuitGroups: removeLegacyNavigationField(),
       });
-      reconcilePresenceTimer(tx, sessionRef, sessionDoc, true);
+      reconcilePresenceTimer(tx, sessionRef, sessionDoc, attackState, true);
       if (player.exists) {
         const storedGroupId = player.get('fleetGroupId');
         if (storedGroupId !== undefined && storedGroupId !== group.id) {
@@ -8894,6 +8922,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         'unauthorized',
       );
     }
+    const attackState = currentSession.get('phase') === 'active'
+      ? await tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`))
+      : undefined;
     const membershipActive = await membershipIsActive(tx, membership, uid);
     if (activeSessionConflicts(
       membership.exists ? membership.get('sessionId') as string : undefined,
@@ -8974,7 +9005,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
     ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
-    reconcilePresenceTimer(tx, sessionRef, currentSession, true);
+    reconcilePresenceTimer(tx, sessionRef, currentSession, attackState, true);
     tx.update(playerRef, {
       fleetGroupId: group.id,
       connected: true,
@@ -9863,6 +9894,7 @@ export const moveShipToLocation = onCall<{
   const change = requireShipNavigationMoveRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
   const fleetGroupsRef = db.collection(`sessions/${change.sessionId}/fleetGroups`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
@@ -9876,6 +9908,7 @@ export const moveShipToLocation = onCall<{
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
+    const attackState = await tx.get(attackStateRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
@@ -9884,6 +9917,7 @@ export const moveShipToLocation = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
     if (replay) return replay;
+    requireWolfAttackMovementReleased(attackState);
     requireActionPhase(session, 'movement', 'facilitator');
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -9991,6 +10025,7 @@ export const jumpShip = onCall<{
   const change = requireShipJumpRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
   const fleetGroupsRef = db.collection(`sessions/${change.sessionId}/fleetGroups`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
@@ -10009,6 +10044,7 @@ export const jumpShip = onCall<{
       tx, change.sessionId, uid, change.shipId, change.instanceId, false, true,
     );
     const session = await tx.get(sessionRef);
+    const attackState = await tx.get(attackStateRef);
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
     const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
@@ -10017,6 +10053,7 @@ export const jumpShip = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
+    requireWolfAttackMovementReleased(attackState);
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -10552,10 +10589,13 @@ export const beginOpenAirspacePhase = onCall<{
   const requestData = requireOpenAirspacePhaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
+  const attackStateRef = db.doc(`sessions/${requestData.sessionId}/wolfAttackState/current`);
   const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async tx => {
-    const [session, player] = await Promise.all([tx.get(sessionRef), tx.get(playerRef)]);
+    const [session, player, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackStateRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     requireActiveGameplayPhase(session);
@@ -10576,6 +10616,13 @@ export const beginOpenAirspacePhase = onCall<{
     requireLiveAirspaceWindow(phase);
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
       throw commandError('failed-precondition', 'The airspace-closed timer is still active.', 'invalid-phase');
+    }
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack awaits facilitator resolution; normal movement remains blocked.',
+        'invalid-phase',
+      );
     }
     if (phase.airspace.state === 'lifted') {
       const turnState = sessionTurnState(session, phase);
@@ -10658,13 +10705,14 @@ export const setEmergencyTimerPaused = onCall<{
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);
+  const attackStateRef = db.doc(`sessions/${requestData.sessionId}/wolfAttackState/current`);
   // Firestore may retry a transaction; one logical command must retain one audit id.
   const eventId = randomUUID();
   const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async tx => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    const [session, player, instance, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isLiveGmInstance(instance, player, uid)) {
@@ -10682,16 +10730,24 @@ export const setEmergencyTimerPaused = onCall<{
     if (!phase || phase.turn !== currentTurn) {
       throw commandError('failed-precondition', 'No current cycle phase is available.', 'invalid-phase');
     }
-    const currentlyPaused = phase.timerPause !== undefined;
+    const lockedPhase = preserveWolfAttackAirspaceRestriction(phase, attackState);
+    const currentlyPaused = lockedPhase.timerPause !== undefined;
     if (currentlyPaused === requestData.paused) {
-      const turnState = sessionTurnState(session, phase);
-      return { turnPhase: phase, ...(turnState ? { turnState } : {}) };
+      const turnState = sessionTurnState(session, lockedPhase);
+      if (lockedPhase !== phase) {
+        tx.update(sessionRef, {
+          turnPhase: lockedPhase,
+          ...(turnState ? { turnState } : {}),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      return { turnPhase: lockedPhase, ...(turnState ? { turnState } : {}) };
     }
 
-    const turnPhase = requestData.paused
-      ? pauseActiveTurnPhase(phase)
-      : resumePausedTurnPhase(phase);
-    if (!turnPhase) {
+    const transitionedPhase = requestData.paused
+      ? pauseActiveTurnPhase(lockedPhase)
+      : resumePausedTurnPhase(lockedPhase);
+    if (!transitionedPhase) {
       throw commandError(
         'failed-precondition',
         requestData.paused
@@ -10700,6 +10756,7 @@ export const setEmergencyTimerPaused = onCall<{
         'stale-revision',
       );
     }
+    const turnPhase = preserveWolfAttackAirspaceRestriction(transitionedPhase, attackState);
     const window = turnPhase.timerPause?.window ?? phase.timerPause?.window;
     if (!window) {
       throw new HttpsError('internal', 'The emergency timer transition had no active window.');
@@ -11751,21 +11808,25 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
   const uid = requireUid(request.auth);
   const requestData = requireAirspaceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
+  const attackStateRef = db.doc(`sessions/${requestData.sessionId}/wolfAttackState/current`);
   const transitionServerTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const player = await tx.get(db.doc(`sessions/${requestData.sessionId}/players/${uid}`));
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral', requestData.instanceId);
-    const session = await tx.get(sessionRef);
+    const [session, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(attackStateRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireActiveGameplayPhase(session);
     if (session.get('pressEnabled') === false) {
       throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
     }
-    const phase = turnPhaseState(session.get('turnPhase'));
-    if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
+    const storedPhase = turnPhaseState(session.get('turnPhase'));
+    if (!storedPhase || storedPhase.turn !== sessionTurn(session.get('currentTurn'))) {
       throw commandError('failed-precondition', 'No current airspace window is available.', 'invalid-phase');
     }
+    const phase = preserveWolfAttackAirspaceRestriction(storedPhase, attackState);
     if (phase.timerPause) {
       throw commandError(
         'failed-precondition',
@@ -11776,7 +11837,11 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
     requireLiveAirspaceWindow(phase);
     // A late command can be the first live request after the team deadline.
     // Heal the shared clock before evaluating a restriction-only exception.
-    if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+    if (
+      phase.airspace.state === 'restricted' &&
+      Date.now() >= Date.parse(phase.teamPhaseEndsAt) &&
+      (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data()))
+    ) {
       const turnPhase = {
         ...phase,
         airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
@@ -12404,7 +12469,7 @@ export const disconnectFromSession = onCall<{
   const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
 
   await db.runTransaction(async (tx) => {
-    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets, census] = await Promise.all([
+    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets, census, attackState] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
@@ -12414,6 +12479,7 @@ export const disconnectFromSession = onCall<{
       tx.get(allPlayers),
       tx.get(secretsRef),
       tx.get(censusRef),
+      tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`)),
     ]);
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -12486,7 +12552,7 @@ export const disconnectFromSession = onCall<{
       tx.delete(membershipRef);
     }
     if (wasConnected && connected.size === 1) {
-      reconcilePresenceTimer(tx, sessionRef, sessionDoc, false);
+      reconcilePresenceTimer(tx, sessionRef, sessionDoc, attackState, false);
       tx.update(sessionRef, {
         deleteAfter: Timestamp.fromDate(deletionDeadline(new Date())),
         updatedAt: FieldValue.serverTimestamp(),
@@ -12576,7 +12642,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
     const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
     const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
     await db.runTransaction(async (tx) => {
-      const [session, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets, census] = await Promise.all([
+      const [session, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets, census, attackState] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
@@ -12586,6 +12652,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         tx.get(allPlayers),
         tx.get(secretsRef),
         tx.get(censusRef),
+        tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`)),
       ]);
       const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
       if (
@@ -12646,7 +12713,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         tx.delete(membershipRef);
       }
       if (connected.size === 1) {
-        reconcilePresenceTimer(tx, sessionRef, session, false);
+        reconcilePresenceTimer(tx, sessionRef, session, attackState, false);
         tx.update(sessionRef, {
           deleteAfter: Timestamp.fromDate(deletionDeadline(new Date())),
           updatedAt: FieldValue.serverTimestamp(),

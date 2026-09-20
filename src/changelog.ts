@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [157],
+    implementationProgress: {
+      completed: 346, total: 751, percentage: '46.07%',
+      done: 346, partial: 19, active: 0, missing: 386,
+    },
+    changes: [
+      'A Wolf attack that overruns into the next Team Phase now keeps airspace closed and parked shuttles at their live hosts until the facilitator resolves the attack.',
+      '346 of 751 planned items are complete (46.07%).',
+    ],
+  },
+  {
+    version: '0.4.44',
     implementationPrompts: [147],
     implementationProgress: {
       completed: 343, total: 751, percentage: '45.67%',

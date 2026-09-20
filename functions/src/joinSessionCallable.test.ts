@@ -114,6 +114,7 @@ it('records an allowed code attempt before looking up the code', async () => {
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === 'joinCodes/482109') return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -137,6 +138,7 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -197,6 +199,7 @@ it('reclaims a canonical missing seat after setup hydration without clearing its
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -228,6 +231,7 @@ it('persists the Turn 0 ATC bulletin when joining an existing empty stream', asy
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -274,6 +278,7 @@ it('omits a valid-shaped turn entity when it disagrees with the current phase or
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -305,6 +310,7 @@ it('projects only the public fleet ticker fields on join', async () => {
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -344,6 +350,7 @@ it('recovers an active legacy press dispatch from an old authoritative drain on 
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -376,6 +383,7 @@ it('keeps a legacy inactive alert streamless until its server command writes a d
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -447,6 +455,7 @@ it('returns only the public session projection when the persisted root has priva
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -542,6 +551,7 @@ it('replaces a stale membership lock when the same identity joins its remembered
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: false });
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -570,6 +580,7 @@ it('rejects a browser that was kicked from this session', async () => {
     if (path === 'sessions/s1/players/u1') return snapshot({ kickedAt: 'server-time' });
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -594,6 +605,7 @@ it('refuses to displace an identity that is actively connected in another sessio
       connected: true,
       lastSeenAt: mock.Timestamp.fromDate(new Date()),
     });
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -615,6 +627,7 @@ it('treats a legacy connected player without a heartbeat as active elsewhere', a
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: true });
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -648,6 +661,7 @@ it('migrates every non-kicked legacy player into the stable group and backfills 
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
@@ -698,6 +712,7 @@ it('assigns a joining identity to the stable group once across repeated joins', 
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(groupFields ?? {}, groupFields !== undefined);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });

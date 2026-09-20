@@ -1070,6 +1070,55 @@ describe('empty-session clock continuity', () => {
     expect(read('sessions/s1')?.turnPhase).not.toHaveProperty('timerPause');
   });
 
+  it.each([
+    ['declared', { status: 'declared', airspaceLocked: true, parkingReleaseCondition: 'normal-movement-reopened' }],
+    ['legacy', { status: 'declared', airspaceLocked: true }],
+    ['malformed', { status: 7, airspaceLocked: 'unknown' }],
+  ])('keeps %s Wolf attack state restricted through an empty-session reconnect', async (_label, attackState) => {
+    const elapsedTeam = {
+      ...phase,
+      teamPhaseEndsAt: '2026-09-06T19:59:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T20:14:00.000Z',
+    };
+    session({ phase: 'active', currentTurn: 2, turnPhase: elapsedTeam,
+      createdAt: mock.Timestamp.fromDate(NOW), updatedAt: mock.Timestamp.fromDate(NOW) });
+    player({ joinedAt: mock.Timestamp.fromDate(NOW) });
+    put('sessions/s1/wolfAttackState/current', attackState);
+
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toMatchObject({
+      airspace: { state: 'restricted' },
+      timerPause: { reason: 'empty-session', window: 'open' },
+    });
+
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+    await resumeSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toMatchObject({
+      airspace: { state: 'restricted' },
+    });
+    expect(read('sessions/s1')?.turnPhase).not.toHaveProperty('timerPause');
+    expect([...mock.documents.values()].filter(value => value.type === 'airspace-opened')).toHaveLength(0);
+  });
+
+  it('allows an explicitly resolved Wolf attack to follow normal empty-session expiry', async () => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: {
+      ...phase,
+      teamPhaseEndsAt: '2026-09-06T19:59:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T20:14:00.000Z',
+    } });
+    player();
+    put('sessions/s1/wolfAttackState/current', {
+      status: 'resolved', airspaceLocked: false,
+      parkingReleaseCondition: 'normal-movement-reopened',
+    });
+
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+    expect(read('sessions/s1')?.turnPhase).toMatchObject({
+      airspace: { state: 'lifted' },
+      timerPause: { reason: 'empty-session', window: 'open' },
+    });
+  });
+
   it('keeps a populated session running', async () => {
     session({ phase: 'active', currentTurn: 2, turnPhase: phase });
     player();

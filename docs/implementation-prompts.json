@@ -5481,6 +5481,13 @@
       "language": "The central server fleet-group module exposes one fail-closed ordinary-communication audience primitive: missing group identity is rejected and sender and recipient must share the exact server-owned group. The scout-taxi exception has a distinct authority-path discriminator and cannot be expressed by weakening the ordinary check. Prompt 339 remains responsible for composing the later ordinary message endpoint with this policy, while Prompt 343 owns taxi eligibility and mutation.",
       "source": "functions/src/fleetGroups.ts; functions/src/fleetGroups.test.ts; IMPLEMENTATION_PLAN.md Prompts 151, 339, and 343",
       "type": "evidence / server-authority / communication-policy / regression"
+    },
+    {
+      "direction": "157 -> 145;148;428",
+      "id": "E-157-ATTACK-OVERRUN-LOCK",
+      "language": "All authoritative paths that can lift or consume open airspace read the private Wolf attack document in their transaction: direct expiry, the AEGIS Press exception, facilitator emergency pause or resume, last-player disconnect, expiry, join, or reconnect, chart movement, and jumps. Declared, legacy, and malformed unresolved state fails closed even when an older session already persisted lifted airspace, while preserving the ordinary restricted Press exception and live-host parking snapshot; only an explicit resolved state with airspace unlocked and the normal-movement release condition permits reopening.",
+      "source": "functions/src/wolfAttackDeclaration.ts; functions/src/index.ts beginOpenAirspacePhase, unlockPressAirspace, setEmergencyTimerPaused, reconcilePresenceTimer, moveShipToLocation, jumpShip; functions/src/maintenanceCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/jumpCallable.test.ts",
+      "type": "evidence / authority / release"
     }
   ],
   "plan": {
@@ -9522,8 +9529,8 @@
         "acceptance": "shuttles remain where left and prohibited movement stays blocked until facilitator resolution.",
         "title": "Preserve an overrun attack into Team Phase."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-157",
+      "description": "Every authoritative clock and fleet-navigation path now reads the private Wolf attack state before reopening or using normal movement. Direct airspace expiry, the AEGIS Press exception, facilitator emergency pause or resume, last-player disconnect or reconnect, chart movement, and jumps all keep declared, legacy, and malformed unresolved attacks restricted through the next Team Phase without changing the live-host shuttle parking snapshot. Only an explicit facilitator-resolved state with the normal-movement release condition permits reopening.",
+      "evidenceIds": "E-AUDIT-157;E-157-ATTACK-OVERRUN-LOCK",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "145",
@@ -9531,10 +9538,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.45"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

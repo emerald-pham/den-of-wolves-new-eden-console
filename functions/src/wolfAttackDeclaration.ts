@@ -38,3 +38,15 @@ export interface WolfAttackStageState {
   readonly declaredAt: string;
   readonly announcementId: string;
 }
+
+/**
+ * A missing attack permits the normal phase clock. Once attack state exists,
+ * only an explicit facilitator-resolved state may release ordinary movement;
+ * malformed or older unresolved documents remain locked.
+ */
+export function wolfAttackBlocksNormalMovement(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return true;
+  const state = value as Record<string, unknown>;
+  return state.status !== 'resolved' || state.airspaceLocked !== false ||
+    state.parkingReleaseCondition !== WOLF_ATTACK_PARKING_RELEASE;
+}

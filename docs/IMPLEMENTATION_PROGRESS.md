@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**345 / 751 prompts complete (45.94%)**
+**346 / 751 prompts complete (46.07%)**
 
-Status breakdown: **345 done · 19 partial · 387 missing**.
+Status breakdown: **346 done · 19 partial · 386 missing**.
 
 Active prompt: **none**
 
@@ -580,7 +580,7 @@ release classification and evidence.
 | 154 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 155 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 156 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 157 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 157 | done | non-feature | 0.4.45 | Every authoritative clock and fleet-navigation path now reads the private Wolf attack state before reopening or using normal movement. Direct airspace expiry, the AEGIS Press exception, facilitator emergency pause or resume, last-player disconnect or reconnect, chart movement, and jumps all keep declared, legacy, and malformed unresolved attacks restricted through the next Team Phase without changing the live-host shuttle parking snapshot. Only an explicit facilitator-resolved state with the normal-movement release condition permits reopening. |
 | 158 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 159 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 160 | done | non-feature | — | The Foundation Regression Matrix publishes every catalog row numbered 001–159, including lettered rows and retired Prompt 071, with each row's current catalog status, concrete acceptance-specific red-test target, recorded owner decision or dependency, and inspected repository proof links or an explicit no-production-proof gap. Partial and missing behavior remains open; rendered UI alone is never treated as completion. |
