@@ -42,6 +42,7 @@ const ROUTES = [
   { slug: 'ship-observer', path: '/ships/aegis/observer', label: 'Change role', expectedPath: '/ships/aegis/roles', gm: true },
   { slug: 'ship-root', path: '/ships/aegis', label: 'Leave ship', expectedPath: '/console', gm: true },
   { slug: 'union', path: '/union/roles/joint-engineering-quellon-refinery', label: 'Back to role selection', expectedPath: '/console', activeRoleId: 'joint-engineering-quellon-refinery', roles: UNION_ROLES },
+  { slug: 'replacement', path: '/replacement/doctor', label: 'Back to fleet', expectedPath: '/console', replacementRoleId: 'doctor' },
   { slug: 'not-found', path: '/missing-console', label: 'Back to the console', expectedPath: '/', noSession: true },
 ];
 
@@ -85,6 +86,7 @@ function persistedState(route, timestamp) {
     displayName: route.gm ? 'Facilitator' : 'Navigator', role: route.gm ? 'gm' : 'player',
     seatId: null, joinedAt: new Date(timestamp).toISOString(),
     ...(route.activeRoleId ? { activeConsoleRoleId: route.activeRoleId } : {}),
+    ...(route.replacementRoleId ? { replacementRoleId: route.replacementRoleId, activeConsoleRoleId: null } : {}),
     ...(route.assignedRoleId ? { assignedRoleId: route.assignedRoleId } : {}),
     ...(route.escape ? {
       escapeState: {
