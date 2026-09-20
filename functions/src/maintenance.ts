@@ -2,7 +2,7 @@ import { drawShipDamage, SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipD
 import { addResourceAmount, type ShipResourceInventory } from './resources';
 import { populationChange } from './shipPopulation';
 import { MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
-import { maintenanceOrderFor } from './maintenanceOrder';
+import { maintenanceActionForStep, maintenanceOrderFor } from './maintenanceOrder';
 
 export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
@@ -134,11 +134,9 @@ export function advanceMaintenance(input: MaintenanceInput) {
   if (input.damage.destroyed && action !== 'end') throw new Error('This ship is destroyed.');
   if (input.expectedRevision !== cycleInput.revision) throw new Error('Maintenance changed. Refresh before proceeding.');
   const aegisOmegaComplete = shipId === 'aegis' && cycleInput.step === 7 && cycleInput.results['7'] !== undefined;
-  const expectedAction = cycleInput.step === 0
-    ? 'begin'
-    : aegisOmegaComplete || (input.damage.destroyed && cycleInput.step === 7)
+  const expectedAction = aegisOmegaComplete || (input.damage.destroyed && cycleInput.step === 7)
       ? 'end'
-      : order[cycleInput.step - 1] ?? (cycleInput.step === order.length + 1 ? 'end' : undefined);
+      : maintenanceActionForStep(shipId, cycleInput.step);
   // Production consoles branch from the powered Reactor before the step-6
   // shuttle bay. They consume a charge but do not advance the lane.
   const isProduction = action === 'production';

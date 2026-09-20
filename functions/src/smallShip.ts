@@ -1,4 +1,5 @@
 import { addResourceAmount, type ShipResourceInventory } from './resources';
+import { maintenanceActionForStep } from './maintenanceOrder';
 
 /**
  * Shared rules for the four optional base-game small ships.  A small ship is
@@ -158,11 +159,7 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
   if (!cycleInput) throw new Error('Malformed small-ship state.');
   if (!state.hostShipId) throw new Error('Small ship must be docked with a host ship.');
   if (input.expectedRevision !== cycleInput.revision) throw new Error('Small-ship maintenance changed. Refresh before proceeding.');
-  const expectedAction = cycleInput.step === 0 ? 'begin'
-    : cycleInput.step === 1 ? 'rations'
-      : cycleInput.step === 2 ? 'unrest'
-        : cycleInput.step === 3 ? 'riot'
-          : cycleInput.step === 4 ? 'reactor' : 'end';
+  const expectedAction = maintenanceActionForStep(state.id, cycleInput.step);
   const isProduction = action === 'production';
   if ((!isProduction && expectedAction !== action) || (isProduction && cycleInput.step !== 5)) {
     throw new Error('This small-ship action is not available at the current step.');

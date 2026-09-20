@@ -508,9 +508,9 @@
     {
       "direction": "114 -> MAINTENANCE-ORDER",
       "id": "E-AUDIT-114-ORDER",
-      "language": "The server-owned maintenance callable resolves the registered full-vessel order: AEGIS runs Shuttle Bay Zeta at step 6 and Shuttle Bay Omega at step 7, while the other six active full vessels run steps 1–6. Supplemental identities remain explicit metadata-only registrations until their runtime foundations land.",
-      "source": "functions/src/maintenanceOrder.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/routes/ShipConsole.test.tsx",
-      "type": "evidence"
+      "language": "The server-owned registry now enumerates the printed sequence for all twelve implemented vessel identities: AEGIS runs Storage through separate Zeta and Omega bay steps; the other six full ships run their registered six-step lanes; Gorgoneion, base Capybara, Warrior, Vulcan, and Voyage 33-0 run their registered four-step host-funded lanes. The full-ship, small-ship, and Voyage engines all resolve their next legal action from this registry, while their distinct resource, damage, production, and closure rules remain in their owning engines.",
+      "source": "functions/src/maintenanceOrder.ts; functions/src/maintenanceOrder.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/smallShip.ts; functions/src/smallShip.test.ts; functions/src/voyage33Maintenance.ts; functions/src/voyage33Maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/smallShipCallable.test.ts; functions/src/voyage33MaintenanceCallable.test.ts",
+      "type": "evidence / production-path / server-authority / regression"
     },
     {
       "direction": "114 -> 121;235;241;242;246;250;571;591",
@@ -8268,7 +8268,7 @@
         "acceptance": "each vessel executes its printed step count and sequence rather than a generic inferred flow.",
         "title": "Register vessel-specific maintenance order."
       },
-      "description": "The implemented full-vessel maintenance path now reads a registered order: AEGIS presents and authorizes Shuttle Bay Zeta at step 6 then Omega at step 7, while the other six full ships execute their printed 1–6 lane before explicit cycle closure. Focused server callable/state tests cover out-of-order bay and end actions, duplicate and retry-safe lifecycle, revision authority, and rendered AEGIS separation. Five supplemental identities are still metadata-only and therefore the each-vessel acceptance remains partial: Gorgoneion, base Capybara, Warrior, and Vulcan need shared small-ship runtime (P234) plus variant work (P235/P241/P242/P246), Voyage 33-0 admission is P249 and its Voyage-specific maintenance is P250; this prompt's whole-vessel order closure consumes P250. The population-loss exception belongs to P121. No unimplemented gameplay is implied.",
+      "description": "All twelve implemented vessel identities now consume one server-owned maintenance-order registry instead of inferring a generic lane. AEGIS retains its printed seven-step sequence with separate Shuttle Bay Zeta and Omega actions; Dione, Icebreaker, Shepherd, Quellon, Refinery 124, and expansion Capybara retain their registered six-step lanes; Gorgoneion, base Capybara, Warrior, Vulcan, and Voyage 33-0 each consume the registered four-step host-funded lane through their distinct server engines. Focused pure and callable tests prove exact order, step counts, explicit closure, stale and out-of-order denial, and the existing AEGIS completion exception. Production, damage, population, docking, and variant effects remain with their owning prompts.",
       "evidenceIds": "E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8282,7 +8282,7 @@
       ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
