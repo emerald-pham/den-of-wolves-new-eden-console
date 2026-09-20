@@ -33,7 +33,6 @@ import { commandError } from './commandErrors';
 import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
-import { mayClaimGmInstance } from './gmControlsLock';
 import { isGmAccessActive, isGmAccessPassword } from './gmAccess';
 import {
   FLEET_SHIP_NAMES,
@@ -8738,12 +8737,6 @@ export const claimGmInstance = onCall<{
       throw commandError('failed-precondition', 'Release your core station before joining as GM.', 'conflict');
     }
     const liveInstances = liveGmInstanceDocs(activeInstances.docs, players.docs);
-    if (
-      !existing.exists &&
-      !mayClaimGmInstance(session.get('gmControlsLocked') === true, liveInstances.length)
-    ) {
-      throw commandError('failed-precondition', 'GM registration is locked.', 'conflict');
-    }
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
@@ -8753,6 +8746,12 @@ export const claimGmInstance = onCall<{
       // Its old scoped ship grant must not follow that name into the new lease.
       tx.delete(gmShipConsoleWriteGrantRef(claim.sessionId, claim.instanceId));
     }
+    const replayedResponsibilities = existing.exists && !replacingStaleInstance
+      ? normalizedResponsibilities(existing)
+      : [];
+    const replayedLegacyResponsibility = existing.exists && !replacingStaleInstance
+      ? existing.get('responsibility')
+      : undefined;
     const visibleToUids = wolfSecret.exists ? wolfSecret.get('visibleToUids') : undefined;
     if (
       wolfSecret.exists &&
@@ -8772,7 +8771,14 @@ export const claimGmInstance = onCall<{
       lastSeenAt: FieldValue.serverTimestamp(),
       ...(firstActiveGm
         ? { responsibilities: ['main', 'assistant'], responsibility: 'main' }
-        : {}),
+        : replayedResponsibilities.length > 0
+          ? {
+            responsibilities: replayedResponsibilities,
+            ...(replayedLegacyResponsibility === 'main' || replayedLegacyResponsibility === 'assistant'
+              ? { responsibility: replayedLegacyResponsibility }
+              : {}),
+          }
+          : {}),
       claimedAt: replacingStaleInstance
         ? FieldValue.serverTimestamp()
         : existing.get('claimedAt') ?? FieldValue.serverTimestamp(),

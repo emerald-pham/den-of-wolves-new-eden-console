@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
   claimGmInstance,
   claimSeat,
   releaseSeat,
-  setGmControlsLocked,
   type CommandDisposition,
 } from '@/lib/sessionService';
 import {
@@ -38,12 +37,9 @@ export default function RoleSelect() {
   const isGm = useSessionStore(selectIsGm);
   const pendingClaim = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'claimGmInstance'));
-  const pendingLock = useSessionStore((state) =>
-    state.pendingCommands.some((command) => command.kind === 'setGmControlsLocked'));
   const setMode = useSessionStore((state) => state.setMode);
   const [instanceName, setInstanceName] = useState('');
   const [claiming, setClaiming] = useState(false);
-  const [changingLock, setChangingLock] = useState(false);
   const [pendingSeatId, setPendingSeatId] = useState<string | null>(null);
   const [seatStatus, setSeatStatus] = useState<string | null>(null);
   const [interventionSeatId, setInterventionSeatId] = useState<string | null>(null);
@@ -51,27 +47,6 @@ export default function RoleSelect() {
   const interventionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const interventionDialogRef = useRef<HTMLDivElement | null>(null);
   const interventionReasonRef = useRef<HTMLTextAreaElement | null>(null);
-  const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
-  const controlsLocked = session?.gmControlsLocked === true;
-  const endgameEvaluation = session?.phase === 'debrief' || session?.phase === 'closed';
-
-  useEffect(() => {
-    if (!session?.id || !controlsLocked || isGm) return;
-    let active = true;
-    let unsubscribe: () => void = () => undefined;
-    void import('@/lib/firestore').then(({ subscribeGmInstances }) => {
-      if (!active) return;
-      unsubscribe = subscribeGmInstances(
-        session.id,
-        (instances) => setActiveGmCount(instances.length),
-        () => setActiveGmCount(null),
-      );
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [controlsLocked, isGm, session?.id]);
 
   useDialogFocus({
     open: interventionSeatId !== null,
@@ -155,20 +130,7 @@ export default function RoleSelect() {
     }
   }
 
-  async function toggleLock(): Promise<void> {
-    if (endgameEvaluation) return;
-    setChangingLock(true);
-    try {
-      await setGmControlsLocked(session?.gmControlsLocked !== true);
-    } catch {
-      // The shared interception notice carries the actionable server error.
-    } finally {
-      setChangingLock(false);
-    }
-  }
-
   const claimLabel = isGm ? 'GM joined' : pendingClaim ? 'GM join queued' : 'Join as GM';
-  const registrationLocked = controlsLocked && activeGmCount !== 0;
   const hasEnteredInstanceName = isGm && (gmInstance?.name ?? '').trim().length > 0;
 
   return (
@@ -310,13 +272,13 @@ export default function RoleSelect() {
         </section>
       )}
 
-      <div className="role-select__grid role-select__grid--four">
+      <div className="role-select__grid role-select__grid--two">
         <form className="role-card role-claim cic-frame" onSubmit={(event) => void claim(event)}>
           <button
             className="role-claim__button"
             type="submit"
             disabled={
-              isGm || pendingClaim || claiming || registrationLocked ||
+              isGm || pendingClaim || claiming ||
               instanceName.trim().length === 0 || !gmAccessAuthenticated
             }
           >
@@ -329,7 +291,7 @@ export default function RoleSelect() {
             id="gm-instance-name"
             className="role-claim__input"
             value={isGm ? gmInstance?.name ?? instanceName : instanceName}
-            disabled={isGm || pendingClaim || claiming || registrationLocked}
+            disabled={isGm || pendingClaim || claiming}
             maxLength={40}
             autoComplete="off"
             onChange={(event) => setInstanceName(event.target.value)}
@@ -339,29 +301,7 @@ export default function RoleSelect() {
               🔐 Authorize GM access through Settings.
             </span>
           )}
-          {registrationLocked && <span className="role-card__description">GM registration locked.</span>}
-          {controlsLocked && activeGmCount === 0 && !isGm && (
-            <span className="role-card__description">Failsafe active // no active GM.</span>
-          )}
         </form>
-        <button
-          className="role-card role-controls-lock cic-frame"
-          type="button"
-          aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} lock out more GMs being added`}
-          aria-pressed={controlsLocked}
-          disabled={!isGm || endgameEvaluation || changingLock || pendingLock}
-          onClick={() => void toggleLock()}
-        >
-          <span className="role-controls-lock__icon" aria-hidden="true">
-            {controlsLocked ? '🔒' : '🔓'}
-          </span>
-          <span className="role-card__name">Lock out more GMs being added</span>
-          <span className="role-card__description">
-            {endgameEvaluation
-              ? 'Endgame evaluation // registration controls frozen'
-              : pendingLock ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
-          </span>
-        </button>
         {MODES.map(({ mode, label, description }) => (
           <button
             className="role-card cic-frame"

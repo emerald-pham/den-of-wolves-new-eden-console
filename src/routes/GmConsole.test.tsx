@@ -2174,31 +2174,16 @@ it('can cancel adding Capybara back to the convoy', async () => {
   expect(screen.getByRole('button', { name: /enable capybara/i })).toBeInTheDocument();
 });
 
-it('locks and unlocks subsequent GM registration without locking Setup', async () => {
-  const user = userEvent.setup();
+it('keeps additional authorized GM registration available from the GM surface', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(setGmControlsLocked).mockImplementation(async (locked) => {
-    const activeSession = useSessionStore.getState().session;
-    if (activeSession) {
-      useSessionStore.getState().setSession({ ...activeSession, gmControlsLocked: locked });
-    }
-    return 'applied';
-  });
   renderConsole();
 
-  await user.click(await screen.findByRole('button', {
-    name: /lock gm registration/i,
-  }));
-
-  expect(setGmControlsLocked).toHaveBeenCalledWith(true);
-  expect(await screen.findByRole('button', {
-    name: /unlock gm registration/i,
-  })).toHaveAttribute('aria-pressed', 'true');
+  expect(await screen.findByText(/additional authorized gms.*role select/i)).toBeVisible();
+  expect(screen.queryByRole('button', { name: /gm registration/i })).not.toBeInTheDocument();
+  expect(setGmControlsLocked).not.toHaveBeenCalled();
   const setup = screen.getByRole('button', { name: /^setup$/i });
   expect(setup).toBeEnabled();
-  await user.click(setup);
-  expect(screen.getByRole('group', { name: /active roles/i })).toBeInTheDocument();
 });
 
 it('shows endgame evaluation and removes GM advance controls after the final turn', async () => {
@@ -2221,7 +2206,8 @@ it('shows endgame evaluation and removes GM advance controls after the final tur
   expect(within(turnControls).queryByRole('button', { name: /advance to cycle/i })).not.toBeInTheDocument();
   expect(within(turnControls).queryByRole('button', { name: /skip to cycle/i })).not.toBeInTheDocument();
   expect(advanceTurn).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: /lock gm registration/i })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: /gm registration/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/additional authorized gms.*role select/i)).toBeVisible();
   await userEvent.setup().click(screen.getByRole('button', { name: /^setup$/i }));
   expect(screen.getByRole('button', { name: /disable press/i })).toBeDisabled();
   expect(screen.getByRole('status', { name: /press availability status/i })).toHaveTextContent(

@@ -5313,6 +5313,13 @@
       "language": "Prompt 659 inventories reachable production literals, JSX text and accessibility attributes, command-facing errors, onboarding, install/update metadata, and the visible changelog against a checked-in CIC vocabulary. The production copy removes numbered-clock turn wording, retired Iris and Firebase labels, click-only safety language, browser identity phrasing, and the inactive System reduced motion is off sentence without changing compatible internal wire fields or motion behavior. The deterministic guard reports exact source violations; its fixture proves visible, accessible, and changelog failures while documented protocol and developer-only exclusions remain bounded.",
       "source": "docs/PLAYER_COPY_LEXICON.md; config/player-copy-contract.json; scripts/player-copy-contract.mjs; src/config/playerCopyContract.test.ts; src/components/ConnectionIndicator.tsx; src/components/AppHeader.tsx; src/components/TurnStartAnnouncement.tsx; src/components/EmergencyTimerPauseControl.tsx; src/routes/GmConsole.tsx; src/routes/RoleSelect.tsx; src/routes/Landing.tsx; src/components/PrivateLoyaltyPanel.tsx; src/changelog.ts; focused Vitest evidence",
       "type": "evidence / production-path / copy / accessibility / deterministic-guard"
+    },
+    {
+      "direction": "670 -> GM-REGISTRATION-AUTHORITY",
+      "id": "E-670-ADDITIONAL-GM-REGISTRATION",
+      "language": "An authenticated joined player with current GM access can claim a distinct GM instance even when a legacy registration-lock field is true and another GM remains live. Role Select does not subscribe to or disable on that field, and the GM instances panel presents authorized additional access without a lock control. The callable retains GM-access, membership, core-seat, exact-instance ownership, stale-replacement, secret-audience, and safe same-instance replay behavior.",
+      "source": "functions/src/index.ts; functions/src/gmSessionCallable.test.ts; src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; focused Functions and UI tests",
+      "type": "evidence / production-path / authorization / replay / UI"
     }
   ],
   "plan": {
@@ -22538,8 +22545,8 @@
         "acceptance": "after auditing the actual registration blocker, remove the unwanted lockout that prevents an authorized additional GM instance from being added through both the Role Select screen and the GM console. Existing authorized GM/session state, server-owned GM grant and instance identity, existing write/observer authority, stale and unauthorized claim denial, and safe idempotent replay handling remain intact; focused regressions cover both surfaces and prove that the repair does not grant arbitrary privilege or broadly relax authorization.",
         "title": "Allow authorized additional GMs to register from both surfaces."
       },
-      "description": "Planned [REPAIR] prompt: remove the unwanted additional-GM registration lockout from Role Select and the GM console while preserving server-owned identity, legitimate authorization, existing authority, and focused denial coverage.",
-      "evidenceIds": "E-670-DEPENDENCIES",
+      "description": "Completed as a bounded authority repair. Role Select no longer subscribes to or disables GM claiming from the retired registration-lock state, and the GM instances panel no longer exposes a control that can lock out another authorized facilitator. The claim callable ignores the legacy lock field while still requiring current GM access authorization, active session membership, no core seat or assignment, and a unique or same-owner instance identity. Focused regressions prove an authorized second GM can join beside a live first GM, same-instance replay preserves the original claim, both UI surfaces keep additional registration available, and unauthorized, expired, conflicting-seat, foreign-instance, and stale authority paths remain denied. The legacy field and setter remain readable for compatibility with already deployed clients but no longer control admission.",
+      "evidenceIds": "E-670-DEPENDENCIES;E-670-ADDITIONAL-GM-REGISTRATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "044;045;046",
@@ -22547,10 +22554,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.24"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

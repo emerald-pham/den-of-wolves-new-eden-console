@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -231,26 +231,7 @@ describe('RoleSelect', () => {
     expect(screen.getByText('Console route')).toBeInTheDocument();
   });
 
-  it('shows a greyed lock control to non-GMs and blocks claims when a GM is present', async () => {
-    useSessionStore.getState().setSession({ ...session, gmControlsLocked: true });
-    useSessionStore.getState().setMe({ ...gm, role: 'player' });
-    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
-    vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
-      onInstances([{
-        id: 'active-gm', sessionId: 's1', uid: 'gm2', name: 'GM station',
-        deviceLabel: 'Tablet', claimedAt: '2026-01-01T00:00:00.000Z',
-      }]);
-      return vi.fn();
-    });
-    renderRoute();
-
-    expect(await screen.findByRole('button', {
-      name: /unlock lock out more gms being added/i,
-    })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^join as gm/i })).toBeDisabled();
-  });
-
-  it('keeps the locked-session GM registration failsafe available when no GM remains', async () => {
+  it('allows an authorized additional GM when a legacy locked flag and active GM are present', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession({ ...session, gmControlsLocked: true });
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
@@ -258,50 +239,15 @@ describe('RoleSelect', () => {
     vi.mocked(claimGmInstance).mockResolvedValue('applied');
     renderRoute();
 
-    expect(await screen.findByText(/failsafe.*no active gm/i)).toBeInTheDocument();
-    await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Recovery');
-    const claim = await screen.findByRole('button', { name: /^join as gm/i });
-    await waitFor(() => expect(claim).toBeEnabled());
+    expect(subscribeGmInstances).not.toHaveBeenCalled();
+    expect(screen.queryByText(/registration locked|failsafe/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lock out more gms/i })).not.toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Second bridge');
+    const claim = screen.getByRole('button', { name: /^join as gm/i });
+    expect(claim).toBeEnabled();
     await user.click(claim);
 
-    expect(claimGmInstance).toHaveBeenCalledWith('Recovery');
-  });
-
-  it('lets this GM toggle the lock from the registration and Setup controls', async () => {
-    const user = userEvent.setup();
-    useSessionStore.getState().setSession(session);
-    useSessionStore.getState().setMe(gm);
-    useSessionStore.getState().setGmInstance({
-      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
-      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
-    });
-    vi.mocked(setGmControlsLocked).mockImplementation(async (locked) => {
-      useSessionStore.getState().setSession({ ...session, gmControlsLocked: locked });
-      return 'applied';
-    });
-    renderRoute();
-
-    await user.click(screen.getByRole('button', {
-      name: /lock lock out more gms being added/i,
-    }));
-
-    expect(setGmControlsLocked).toHaveBeenCalledWith(true);
-  });
-
-  it('freezes GM registration locking during endgame evaluation', () => {
-    useSessionStore.getState().setSession({ ...session, phase: 'debrief' });
-    useSessionStore.getState().setMe(gm);
-    useSessionStore.getState().setGmInstance({
-      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
-      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
-    });
-    renderRoute();
-
-    expect(screen.getByRole('button', {
-      name: /lock lock out more gms being added/i,
-    })).toBeDisabled();
-    expect(screen.getByText(/endgame evaluation.*registration controls frozen/i)).toBeVisible();
-    expect(setGmControlsLocked).not.toHaveBeenCalled();
+    expect(claimGmInstance).toHaveBeenCalledWith('Second bridge');
   });
 
   it('shows accessible stable core stations with claim/release beside each state', async () => {

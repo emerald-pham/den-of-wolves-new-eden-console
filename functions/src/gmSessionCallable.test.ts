@@ -743,18 +743,51 @@ describe('GM instance ownership', () => {
     player('u1');
     await login();
 
-    await expect(claimGmInstance.run(request({
+    const claim = {
       sessionId: 's1',
       instanceId: 'bridge',
       name: 'Bridge laptop',
       deviceLabel: 'Test browser',
-    }))).resolves.toMatchObject({
+    };
+    await expect(claimGmInstance.run(request(claim))).resolves.toMatchObject({
+      instance: { id: 'bridge', uid: 'u1' },
+    });
+    const claimedAt = read('sessions/s1/gmInstances/bridge')?.claimedAt;
+    await expect(claimGmInstance.run(request(claim))).resolves.toMatchObject({
       instance: { id: 'bridge', uid: 'u1' },
     });
 
     expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
       uid: 'u1', connected: true,
       lastSeenAt: expect.anything(),
+      claimedAt,
+      responsibilities: ['main', 'assistant'],
+      responsibility: 'main',
+    });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
+  });
+
+  it('allows an authorized additional GM despite a legacy registration lock and replays safely', async () => {
+    session({ gmControlsLocked: true });
+    player('u1');
+    player('u2', { role: 'gm' });
+    instance('primary', 'u2');
+    await login();
+
+    const claim = {
+      sessionId: 's1', instanceId: 'bridge', name: 'Second bridge', deviceLabel: 'Test browser',
+    };
+    await expect(claimGmInstance.run(request(claim))).resolves.toMatchObject({
+      instance: { id: 'bridge', uid: 'u1' },
+    });
+    const claimedAt = read('sessions/s1/gmInstances/bridge')?.claimedAt;
+    await expect(claimGmInstance.run(request(claim))).resolves.toMatchObject({
+      instance: { id: 'bridge', uid: 'u1' },
+    });
+
+    expect(read('sessions/s1/gmInstances/primary')).toMatchObject({ uid: 'u2' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      uid: 'u1', connected: true, claimedAt,
     });
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
   });

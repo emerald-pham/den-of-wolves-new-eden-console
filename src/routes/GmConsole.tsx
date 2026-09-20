@@ -39,7 +39,6 @@ import {
   confirmSetup,
   setDebriefMode,
   setPressEnabled,
-  setGmControlsLocked,
   setFacilitatorResponsibility,
   setFacilitatorCensusNote,
   deliverWolfCultIntelligence,
@@ -445,7 +444,6 @@ export default function GmConsole() {
   const [pressMutationMessage, setPressMutationMessage] = useState<string | null>(null);
   const pressTriggerRef = useRef<HTMLButtonElement>(null);
   const pressDialogRef = useRef<HTMLElement>(null);
-  const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
   const [skippingTurn, setSkippingTurn] = useState(false);
   const [confirmTurnAdvance, setConfirmTurnAdvance] = useState(false);
@@ -496,7 +494,6 @@ export default function GmConsole() {
   const pressProjectionMessage = instances.length > 1
     ? `Shared Press projection // ${instances.length} active GM instances`
     : 'Shared Press projection // one active GM is sufficient; additional GMs are optional';
-  const controlsLocked = session?.gmControlsLocked === true;
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
   const endgameEvaluation = session?.phase === 'debrief';
@@ -524,9 +521,6 @@ export default function GmConsole() {
     wolfWindowTurn === currentTurn;
   const wolfWindowDeferAvailable = currentTurn === 1 &&
     (wolfAttackWindow === null || wolfAttackWindow.status === 'due');
-  const lockQueued = pendingCommands.some(
-    (command) => command.kind === 'setGmControlsLocked',
-  );
   const debriefQueued = pendingCommands.some(
     (command) => command.kind === 'setDebriefMode',
   );
@@ -1503,18 +1497,6 @@ export default function GmConsole() {
     setPendingPressEnabled(null);
   }
 
-  async function toggleLock(): Promise<void> {
-    if (endgameEvaluation) return;
-    setChangingLock(true);
-    try {
-      await setGmControlsLocked(!controlsLocked);
-    } catch {
-      // The shared interception notice reports the server rejection.
-    } finally {
-      setChangingLock(false);
-    }
-  }
-
   async function changeDebriefMode(active: boolean): Promise<void> {
     setChangingDebrief(true);
     try {
@@ -2116,7 +2098,7 @@ export default function GmConsole() {
             <div><dt>Available ships</dt><dd>{availableShips.length}</dd></div>
             <div><dt>Active roles</dt><dd>{activeRoleIds.length}</dd></div>
             <div><dt>Connected players</dt><dd>{connectedPlayers.length}</dd></div>
-            <div><dt>GM registration</dt><dd>{controlsLocked ? 'Locked' : 'Unlocked'}</dd></div>
+            <div><dt>GM registration</dt><dd>Authorized access</dd></div>
           </>}
         >
         <div className="gm-console__grid">
@@ -3735,20 +3717,9 @@ export default function GmConsole() {
 
           <section className="gm-console__module cic-frame" aria-label="GM instances">
             <h2 className="gm-console__section-title">GM instances</h2>
-            <button
-              className="gm-controls-lock cic-action-button"
-              type="button"
-              aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration`}
-              aria-pressed={controlsLocked}
-              disabled={endgameEvaluation || changingLock || lockQueued}
-              onClick={() => void toggleLock()}
-            >
-              <span aria-hidden="true">{controlsLocked ? '🔒' : '🔓'}</span>
-              GM registration // {lockQueued ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
-            </button>
-            {endgameEvaluation && <p className="gm-console__status" role="status">
-              Endgame evaluation // GM registration controls are frozen.
-            </p>}
+            <p className="gm-console__status" role="status">
+              Additional authorized GMs can join from Role Select.
+            </p>
             {loading ? <p className="gm-console__status">Receiving instance manifest…</p> : (
               <ul className="gm-instance-list">
                 {instances.map((instance) => {

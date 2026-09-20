@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [670],
+    implementationProgress: {
+      completed: 302, total: 751, percentage: '40.21%',
+      done: 302, partial: 25, active: 0, missing: 424,
+    },
+    changes: [
+      'Authorized additional GMs can now join an active session from Role Select at any time, and the GM console clearly shows that additional authorized access remains available.',
+      'GM access authorization, active session membership, core-station conflicts, and exact console identity protections remain enforced.',
+      '302 of 751 planned items are complete (40.21%).',
+    ],
+  },
+  {
+    version: '0.4.23',
     implementationPrompts: [659],
     implementationProgress: {
       completed: 301, total: 751, percentage: '40.08%',
