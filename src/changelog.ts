@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [504],
+    implementationProgress: {
+      completed: 351, total: 751, percentage: '46.74%',
+      done: 351, partial: 19, active: 0, missing: 381,
+    },
+    changes: [
+      'Each Wolf suspicion change now leaves a durable private record of its source, calculation, clue roll, disclosure, actor, and cycle.',
+      'Facilitators can audit the history in the console while players, observers, and clients cannot read or alter it.',
+      '351 of 751 planned items are complete (46.74%).',
+    ],
+  },
+  {
+    version: '0.4.48',
     implementationPrompts: [503],
     implementationProgress: {
       completed: 350, total: 751, percentage: '46.60%',

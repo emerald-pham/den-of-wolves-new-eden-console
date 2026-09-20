@@ -799,6 +799,14 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // Suspicion changes remain as immutable facilitator audit history after
+      // the latest-action projection advances. Hidden identities, rolls, clue
+      // bands, and disclosure instructions never cross the GM boundary.
+      match /wolfSuspicionHistory/{requestId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // The latest suspicion threshold result names a hidden Wolf and carries
       // the facilitator's clue instruction. Only an authenticated facilitator
       // may read the fixed projection; clients cannot enumerate or mutate it.

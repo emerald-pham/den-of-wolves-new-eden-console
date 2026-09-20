@@ -5516,6 +5516,13 @@
       "language": "The committed supply-sabotage action separates three audiences atomically. Its authenticated callable response gives only the Wolf actor the standard server-owned action envelope and private action consequence, omitting the clue roll and facilitator instruction. The shared session cargo ledger carries only the operational consequence and no public event names the action or actor. A fixed facilitator projection carries the complete action, suspicion calculation, d6 result, clue instruction, replay identity, and audit identity; a strict client allowlist renders it in the GM console, while rules deny all lower-audience reads, collection listing, and client writes. Exact replay returns the original actor receipt without another mutation or projection write, and an authoritative Wolf-holder change clears stale hidden records.",
       "source": "functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; functions/src/wolfCultIntelligenceCallable.test.ts; functions/src/vesselActionEnvelope.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 167 and audience projection rules",
       "type": "evidence / production-path / server-authority / action-envelope / audience-projection / privacy / atomicity / regression"
+    },
+    {
+      "direction": "504 -> 502;503",
+      "id": "E-504-PRIVATE-SUSPICION-HISTORY",
+      "language": "The supply-sabotage transaction atomically preserves each suspicion calculation and clue result as an immutable facilitator-only history entry. The record includes old and new values, increment, source, cycle, actor and cover role, roll, total, canonical clue band and disclosure, request and audit identity, and server timestamp. Exact replay cannot duplicate the entry or reroll. A strict newest-first server listener renders the latest thirty entries in the GM console, while Firestore denies all lower audiences and every client write.",
+      "source": "functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 504",
+      "type": "evidence / production-path / server-authority / durable-audit / privacy / replay / client-allowlist / regression"
     }
   ],
   "plan": {
@@ -18467,11 +18474,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "old/new value, source, roll, clue, disclosure, actor, and turn are durable but not broadly readable.",
+        "acceptance": "old/new value, source, roll, clue, disclosure, actor, and cycle are durable but not broadly readable.",
         "title": "Audit suspicion history privately."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-504",
+      "description": "Every committed Wolf suspicion change now writes one immutable server-owned history entry atomically with the private loyalty value, current clue projection, and action receipt. Each record preserves the old value, increment, new value, source, cycle, actor and cover role, d6 roll, total, canonical clue band and disclosure, request identity, audit identity, and server timestamp. A strict server-snapshot listener renders the newest thirty records in the facilitator console; Firestore permits only facilitators to get or list them and denies every player, observer, and client write. Exact replay returns before the mutation path, so it cannot add a duplicate history record or resample the roll.",
+      "evidenceIds": "E-AUDIT-504;E-504-PRIVATE-SUSPICION-HISTORY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "502;503",
@@ -18479,10 +18486,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.49"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

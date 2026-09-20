@@ -136,6 +136,15 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
     oldSuspicion: 0, suspicionIncrement: 2, newSuspicion: 2,
     roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
   });
+  expect(mock.documents.get('sessions/s1/wolfSuspicionHistory/wolf-supply-1')).toEqual({
+    type: 'wolf-suspicion-history', status: 'committed',
+    action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
+    sessionId: 's1', requestId: 'wolf-supply-1', cycle: 2,
+    actorUid: 'u2', actorRoleId: 'dione-engineer',
+    oldSuspicion: 0, increment: 2, newSuspicion: 2,
+    roll: 1, total: 3, clueTier: 'none', disclosure: 'Nothing.',
+    auditId: 'wolf-supply-sabotage-wolf-supply-1', createdAt: 'server-time',
+  });
   expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
   expect(cryptoMock.randomInt).toHaveBeenCalledWith(1, 7);
   expect(mock.documents.get('sessions/s1/wolfActionState/u2')).toMatchObject({

@@ -1477,6 +1477,36 @@ describe('Wolf action receipt audiences', () => {
   });
 });
 
+describe('private Wolf suspicion history', () => {
+  it('allows facilitators to audit history and denies every lower audience and client write', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfSuspicionHistory/wolf-supply-1`), {
+        type: 'wolf-suspicion-history', status: 'committed',
+        action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
+        sessionId: 's1', requestId: 'wolf-supply-1', cycle: 3,
+        actorUid: 'alice', actorRoleId: 'dione-engineer',
+        oldSuspicion: 0, increment: 2, newSuspicion: 2,
+        roll: 1, total: 3, clueTier: 'none', disclosure: 'Nothing.',
+        auditId: 'wolf-supply-sabotage-wolf-supply-1', createdAt: 'server-time',
+      });
+    });
+
+    const path = `${SESSION}/wolfSuspicionHistory/wolf-supply-1`;
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/wolfSuspicionHistory`)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), path)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/wolfSuspicionHistory`)));
+    }
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+    }
+  });
+});
+
 describe('players', () => {
   it('bounds ordinary roster reads to the caller current connected fleet group', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

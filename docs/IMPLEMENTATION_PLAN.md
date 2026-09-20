@@ -2647,7 +2647,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 502
 - [x] Prompt 503
 - [ ] Prompt 503a
-- [ ] Prompt 504
+- [x] Prompt 504
 - [ ] Prompt 505
 - [ ] Prompt 506
 - [ ] Prompt 507
@@ -3414,7 +3414,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 502 — [NEW] Resolve suspicion and clue rolls.** Acceptance: the exact action increment applies before one authoritative threshold roll and facilitator disclosure.
 - **Prompt 503 — [NEW] Deliver Wolf action receipts by audience.** Acceptance: the Wolf sees their result, affected crews see only consequences, and facilitators see the full record.
 - **Prompt 503a — [NEW] Trigger the hacking overlay from authority.** Acceptance: only a committed Wolf hacking state launches shared approved copy, remains aria-hidden/nonblocking, and suppresses nonessential motion.
-- **Prompt 504 — [PROVE] Audit suspicion history privately.** Acceptance: old/new value, source, roll, clue, disclosure, actor, and turn are durable but not broadly readable.
+- **Prompt 504 — [PROVE] Audit suspicion history privately.** Acceptance: old/new value, source, roll, clue, disclosure, actor, and cycle are durable but not broadly readable.
 - **Prompt 505 — [NEW] Investigate as the Intelligence Agent.** Acceptance: one target per turn returns an approximately 80%-accurate private server result.
 - **Prompt 506 — [PROVE] Prove investigation randomness ownership.** Acceptance: hidden truth and reported result are separately recorded and no client can submit “Wolf” or “loyal.”
 - **Prompt 507 — [NEW] Apply Intelligence Agent suspicion.** Acceptance: each investigation adds two and only a Wolf-aligned investigator triggers Wolf clue behavior.

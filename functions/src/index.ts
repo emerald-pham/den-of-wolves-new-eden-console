@@ -11896,6 +11896,9 @@ export const submitWolfSupplySabotage = onCall<{
   const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
   const clueRef = db.doc(`sessions/${submission.sessionId}/wolfClueDisclosure/current`);
   const actionReceiptRef = db.doc(`sessions/${submission.sessionId}/wolfActionReceipts/current`);
+  const suspicionHistoryRef = db.doc(
+    `sessions/${submission.sessionId}/wolfSuspicionHistory/${submission.requestId}`,
+  );
   const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
   const auditRef = db.doc(
     `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
@@ -12123,6 +12126,26 @@ export const submitWolfSupplySabotage = onCall<{
       total: clue.total,
       clueTier: clue.clueTier,
       facilitatorInstruction: clue.facilitatorInstruction,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(suspicionHistoryRef, {
+      type: 'wolf-suspicion-history',
+      status: 'committed',
+      action: 'sabotage-supplies',
+      source: 'wolf-supply-sabotage',
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      cycle,
+      actorUid: uid,
+      actorRoleId: authorization.coverRoleId,
+      oldSuspicion: clue.oldSuspicion,
+      increment: clue.increment,
+      newSuspicion: clue.newSuspicion,
+      roll: clue.roll,
+      total: clue.total,
+      clueTier: clue.clueTier,
+      disclosure: clue.facilitatorInstruction,
+      auditId: envelope.auditId,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(actionRef, record);

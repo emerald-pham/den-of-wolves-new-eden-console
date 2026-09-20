@@ -94,6 +94,7 @@ import type {
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfActionReceipt,
+  WolfSuspicionHistoryEntry,
   WolfAssignment,
   WolfClueDisclosure,
   ArbourVision,
@@ -350,6 +351,7 @@ export default function GmConsole() {
   const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [wolfActionReceipt, setWolfActionReceipt] = useState<WolfActionReceipt | null>(null);
+  const [wolfSuspicionHistory, setWolfSuspicionHistory] = useState<readonly WolfSuspicionHistoryEntry[]>([]);
   const [wolfClueDisclosure, setWolfClueDisclosure] = useState<WolfClueDisclosure | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
@@ -776,6 +778,7 @@ export default function GmConsole() {
       subscribeGmWolfAttackState,
       subscribeGmWolfAttackWindow,
       subscribeGmWolfActionReceipt,
+      subscribeGmWolfSuspicionHistory,
       subscribeGmWolfAssignment,
       subscribeGmWolfClueDisclosure,
       subscribeGmWolfCultIntelligence,
@@ -961,6 +964,10 @@ export default function GmConsole() {
         sessionId,
         setWolfActionReceipt,
       );
+      const stopWolfSuspicionHistory = subscribeGmWolfSuspicionHistory(
+        sessionId,
+        setWolfSuspicionHistory,
+      );
       const stopWolfClueDisclosure = subscribeGmWolfClueDisclosure(
         sessionId,
         setWolfClueDisclosure,
@@ -1025,6 +1032,7 @@ export default function GmConsole() {
         stopWolfAttackState();
         stopWolfAssignment();
         stopWolfActionReceipt();
+        stopWolfSuspicionHistory();
         stopWolfClueDisclosure();
         stopWolfCultIntelligence();
         stopArbourVision();
@@ -1052,6 +1060,7 @@ export default function GmConsole() {
       stopCivilUnrestResolution();
       setWolfAssignment(null);
       setWolfActionReceipt(null);
+      setWolfSuspicionHistory([]);
       setWolfClueDisclosure(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
@@ -3663,6 +3672,31 @@ export default function GmConsole() {
               <p className="gm-wolf-action-receipt__instruction" role="status">
                 {wolfActionReceipt.facilitatorInstruction}
               </p>
+            </section>
+          )}
+
+          {isGm && wolfSuspicionHistory.length > 0 && (
+            <section
+              className="gm-console__module cic-frame gm-wolf-action-receipt"
+              aria-label="Private Wolf suspicion history"
+            >
+              <h2 className="gm-console__section-title">Wolf suspicion // private history</h2>
+              <ol className="gm-wolf-suspicion-history">
+                {wolfSuspicionHistory.map((entry) => (
+                  <li key={entry.requestId}>
+                    <p className="gm-wolf-action-receipt__context">
+                      Cycle {entry.cycle} // {entry.actorUid} // {entry.actorRoleId}
+                    </p>
+                    <p>
+                      {entry.oldSuspicion} + {entry.increment} = {entry.newSuspicion}; d6 {entry.roll}; total {entry.total}; {WOLF_CLUE_TIER_LABELS[entry.clueTier]}.
+                    </p>
+                    <p className="gm-wolf-action-receipt__instruction">{entry.disclosure}</p>
+                    <p className="gm-player-roster__hint">
+                      {entry.source} // {entry.requestId} // {entry.auditId} // {entry.createdAt}
+                    </p>
+                  </li>
+                ))}
+              </ol>
             </section>
           )}
 

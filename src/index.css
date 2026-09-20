@@ -6133,6 +6133,28 @@ body {
   overflow-wrap: anywhere;
 }
 
+.gm-wolf-suspicion-history {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 1rem/1.5 var(--cic-mono);
+}
+
+.gm-wolf-suspicion-history > li {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--cic-rule);
+  background: rgba(0, 0, 0, 0.18);
+  overflow-wrap: anywhere;
+}
+
+.gm-wolf-suspicion-history p {
+  margin: 0.25rem 0 0;
+  font: inherit;
+}
+
 .gm-wolf-action-receipt__context {
   color: var(--cic-amber);
 }

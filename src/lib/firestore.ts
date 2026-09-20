@@ -57,6 +57,7 @@ import type {
   WolfAttackDeclarationState,
   WolfAttackWindow,
   WolfActionReceipt,
+  WolfSuspicionHistoryEntry,
   WolfClueDisclosure,
   Voyage33Admission,
   Voyage33MaintenanceState,
@@ -607,6 +608,11 @@ function loyaltyCensus(value: unknown): LoyaltyCensus | null {
   return { revision: raw.revision, entries };
 }
 
+function isCanonicalRequestId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 128 &&
+    /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 function wolfClueDisclosure(value: unknown): WolfClueDisclosure | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
@@ -621,7 +627,7 @@ function wolfClueDisclosure(value: unknown): WolfClueDisclosure | null {
       !actions.includes(raw.action as WolfClueDisclosure['action']) ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
-      typeof raw.requestId !== 'string' || raw.requestId.length < 1 || raw.requestId.length > 96 ||
+      !isCanonicalRequestId(raw.requestId) ||
       !Number.isSafeInteger(raw.oldSuspicion) || (raw.oldSuspicion as number) < 0 ||
       !Number.isSafeInteger(raw.increment) || (raw.increment as number) < 1 ||
       !Number.isSafeInteger(raw.newSuspicion) ||
@@ -676,7 +682,7 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
       raw.action !== 'sabotage-supplies' || parsedSessionId !== parseEntityId('session', sessionId) ||
       !actorUid || !actorRoleId || !findConsoleRole(actorRoleId) || !vesselId || !craft ||
       craft.captainRoleId !== actorRoleId ||
-      requestId.length < 1 || requestId.length > 96 || raw.idempotencyKey !== requestId ||
+      !isCanonicalRequestId(requestId) || raw.idempotencyKey !== requestId ||
       raw.auditId !== `wolf-supply-sabotage-${requestId}` || raw.phase !== 'active' ||
       !Number.isSafeInteger(raw.projectionRevision) || (raw.projectionRevision as number) < 1 ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
@@ -730,6 +736,55 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
     clueTier: raw.clueTier as WolfActionReceipt['clueTier'],
     facilitatorInstruction: raw.facilitatorInstruction,
     ...(createdAt ? { createdAt } : {}),
+  };
+}
+
+function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspicionHistoryEntry | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const parsedSessionId = parseEntityId('session', raw.sessionId);
+  const actorUid = parseEntityId('player', raw.actorUid);
+  const actorRoleId = parseEntityId('role', raw.actorRoleId);
+  const requestId = typeof raw.requestId === 'string' ? raw.requestId : '';
+  const tiers: readonly WolfSuspicionHistoryEntry['clueTier'][] = [
+    'none', 'natural-change', 'wolf-activity', 'wolf-activity-hint', 'strong-hint', 'traitor-name',
+  ];
+  const createdAt = optionalIso(raw.createdAt);
+  if (raw.type !== 'wolf-suspicion-history' || raw.status !== 'committed' ||
+      raw.action !== 'sabotage-supplies' || raw.source !== 'wolf-supply-sabotage' ||
+      parsedSessionId !== parseEntityId('session', sessionId) || !actorUid ||
+      !actorRoleId || !findConsoleRole(actorRoleId) || !createdAt ||
+      !isCanonicalRequestId(requestId) ||
+      raw.auditId !== `wolf-supply-sabotage-${requestId}` ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.oldSuspicion) || (raw.oldSuspicion as number) < 0 ||
+      raw.increment !== 2 || !Number.isSafeInteger(raw.newSuspicion) ||
+      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + 2 ||
+      !Number.isSafeInteger(raw.roll) || (raw.roll as number) < 1 || (raw.roll as number) > 6 ||
+      !Number.isSafeInteger(raw.total) ||
+      (raw.total as number) !== (raw.newSuspicion as number) + (raw.roll as number) ||
+      !tiers.includes(raw.clueTier as WolfSuspicionHistoryEntry['clueTier']) ||
+      typeof raw.disclosure !== 'string') return null;
+  const expected = (raw.total as number) <= 6
+    ? ['none', 'Nothing.']
+    : (raw.total as number) <= 11
+      ? ['natural-change', 'Point the change out to someone, framed as natural or accidental.']
+      : (raw.total as number) <= 15
+        ? ['wolf-activity', 'Point out the wolf activity to someone.']
+        : (raw.total as number) <= 19
+          ? ['wolf-activity-hint', 'Point out the wolf activity, and give a hint.']
+          : (raw.total as number) <= 23
+            ? ['strong-hint', 'Give someone a strong hint.']
+            : ['traitor-name', "Give someone the traitor's name."];
+  if (raw.clueTier !== expected[0] || raw.disclosure !== expected[1]) return null;
+  return {
+    type: 'wolf-suspicion-history', status: 'committed', action: 'sabotage-supplies',
+    source: 'wolf-supply-sabotage', sessionId: parsedSessionId!, requestId,
+    cycle: raw.cycle as number, actorUid, actorRoleId,
+    oldSuspicion: raw.oldSuspicion as number, increment: 2,
+    newSuspicion: raw.newSuspicion as number, roll: raw.roll as number,
+    total: raw.total as number, clueTier: raw.clueTier as WolfSuspicionHistoryEntry['clueTier'],
+    disclosure: raw.disclosure, auditId: raw.auditId as string, createdAt,
   };
 }
 
@@ -2595,6 +2650,37 @@ export function subscribeGmWolfActionReceipt(
     subscribed = false;
     unsubscribe();
     onReceipt(null);
+  };
+}
+
+/** Subscribe to the latest durable facilitator-only suspicion audit entries. */
+export function subscribeGmWolfSuspicionHistory(
+  sessionId: string,
+  onHistory: (history: readonly WolfSuspicionHistoryEntry[]) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    query(
+      collection(db(), `sessions/${sessionId}/wolfSuspicionHistory`),
+      orderBy('createdAt', 'desc'),
+      limit(30),
+    ),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onHistory(snapshot.docs.flatMap((entry) => {
+        const parsed = wolfSuspicionHistoryEntry(entry.data(), sessionId);
+        return parsed ? [parsed] : [];
+      }));
+    },
+    () => {
+      if (!subscribed) return;
+      onHistory([]);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onHistory([]);
   };
 }
 

@@ -215,6 +215,23 @@ document, denies collection listing and every client write, and denies all
 player and observer reads. An authoritative Wolf-holder change clears the
 latest full receipt so a stale hidden identity cannot survive reassignment.
 
+### Prompt 504 — Private Wolf suspicion history
+
+Every committed suspicion change writes one immutable history document in the
+same server transaction as the loyalty value, current clue projection, and
+action receipt. The record preserves the old value, increment, new value,
+source action, cycle, actor and cover role, d6 roll, calculated total, clue
+band, facilitator disclosure, request identity, audit identity, and server
+timestamp. Exact replay returns before the write path and therefore cannot add
+a second history entry or reroll the clue.
+
+The history collection is facilitator-only. Firestore permits authenticated
+facilitators to get and list its records, denies every player and observer read,
+and denies every client write. The GM listener accepts server snapshots only,
+strictly allowlists complete canonical records, and displays the latest thirty
+entries in newest-first order. Current projections may advance or be cleared
+when hidden Wolf identities change; committed history remains durable.
+
 ## 1. Source and ambiguity ledger — Prompt 003
 
 The source map in the plan is authoritative for routing. Printed ship,

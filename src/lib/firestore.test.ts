@@ -34,6 +34,7 @@ const {
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmWolfActionReceipt,
+  subscribeGmWolfSuspicionHistory,
   subscribeGmWolfClueDisclosure,
   subscribeGmWolfCultIntelligence,
   subscribeGmWolfAttackPreparation,
@@ -1379,6 +1380,49 @@ it('hydrates only canonical complete facilitator Wolf action receipts', () => {
     }),
   });
   expect(onReceipt).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only canonical durable Wolf suspicion history from server snapshots', () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onHistory = vi.fn();
+  const stop = subscribeGmWolfSuspicionHistory('s1', onHistory);
+  const valid = {
+    type: 'wolf-suspicion-history', status: 'committed',
+    action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
+    sessionId: 's1', requestId: 'wolf-supply-1', cycle: 3,
+    actorUid: 'u2', actorRoleId: 'dione-engineer',
+    oldSuspicion: 8, increment: 2, newSuspicion: 10,
+    roll: 6, total: 16, clueTier: 'wolf-activity-hint',
+    disclosure: 'Point out the wolf activity, and give a hint.',
+    auditId: 'wolf-supply-sabotage-wolf-supply-1',
+    createdAt: '2026-09-20T20:00:00.000Z', hiddenExtra: 'discard me',
+  };
+  const longRequestId = `wolf-supply-${'x'.repeat(100)}`;
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    docs: [{ data: () => valid }],
+  });
+  expect(onHistory).not.toHaveBeenCalled();
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [
+      { data: () => valid },
+      { data: () => ({ ...valid, requestId: 'tampered', total: 17 }) },
+      { data: () => ({
+        ...valid,
+        requestId: longRequestId,
+        auditId: `wolf-supply-sabotage-${longRequestId}`,
+      }) },
+    ],
+  });
+  expect(onHistory).toHaveBeenLastCalledWith([
+    expect.objectContaining({ requestId: 'wolf-supply-1', oldSuspicion: 8, newSuspicion: 10 }),
+    expect.objectContaining({ requestId: longRequestId }),
+  ]);
+  expect(onHistory.mock.calls.at(-1)?.[0]?.[0]).not.toHaveProperty('hiddenExtra');
+  stop();
+  expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
+  expect(onHistory).toHaveBeenLastCalledWith([]);
 });
 
 it('hydrates only a valid private Zealotry response and never exposes census identities', () => {

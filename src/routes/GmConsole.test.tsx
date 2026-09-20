@@ -68,6 +68,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfAttackState: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
   subscribeGmWolfActionReceipt: vi.fn(),
+  subscribeGmWolfSuspicionHistory: vi.fn(),
   subscribeGmWolfClueDisclosure: vi.fn(),
   subscribeGmWolfCultIntelligence: vi.fn(),
   subscribeGmArbourVision: vi.fn(),
@@ -89,7 +90,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -164,6 +165,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfActionReceipt).mockImplementation((_sessionId, onReceipt) => {
     onReceipt(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfSuspicionHistory).mockImplementation((_sessionId, onHistory) => {
+    onHistory([]);
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfClueDisclosure).mockImplementation((_sessionId, onDisclosure) => {
@@ -339,6 +344,32 @@ it('shows the complete Wolf action receipt only in the facilitator console', asy
   expect(receipt).toHaveTextContent('Wolf activity with hint');
   expect(receipt).toHaveTextContent('wolf-supply-sabotage-wolf-supply-1');
   expect(receipt).toHaveTextContent('2026-09-20T20:00:00.000Z');
+});
+
+it('shows durable Wolf suspicion history in the facilitator console', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmWolfSuspicionHistory).mockImplementation((_sessionId, onHistory) => {
+    onHistory([{
+      type: 'wolf-suspicion-history', status: 'committed',
+      action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
+      sessionId: 's1', requestId: 'wolf-supply-1', cycle: 3,
+      actorUid: 'u2', actorRoleId: 'dione-engineer',
+      oldSuspicion: 8, increment: 2, newSuspicion: 10,
+      roll: 6, total: 16, clueTier: 'wolf-activity-hint',
+      disclosure: 'Point out the wolf activity, and give a hint.',
+      auditId: 'wolf-supply-sabotage-wolf-supply-1',
+      createdAt: '2026-09-20T20:00:00.000Z',
+    }]);
+    return vi.fn();
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const history = await screen.findByRole('region', { name: 'Private Wolf suspicion history' });
+  expect(history).toHaveTextContent('Cycle 3 // u2 // dione-engineer');
+  expect(history).toHaveTextContent('8 + 2 = 10; d6 6; total 16; Wolf activity with hint.');
+  expect(history).toHaveTextContent('Point out the wolf activity, and give a hint.');
+  expect(history).toHaveTextContent('wolf-supply-sabotage // wolf-supply-1 // wolf-supply-sabotage-wolf-supply-1 // 2026-09-20T20:00:00.000Z');
 });
 
 it('renders and saves facilitator notes and hydrates the hidden Wolf assignment', async () => {

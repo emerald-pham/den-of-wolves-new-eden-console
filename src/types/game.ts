@@ -882,6 +882,28 @@ export interface WolfActionReceipt {
   readonly createdAt?: string;
 }
 
+/** Durable facilitator-only audit entry for one suspicion change and disclosure roll. */
+export interface WolfSuspicionHistoryEntry {
+  readonly type: 'wolf-suspicion-history';
+  readonly status: 'committed';
+  readonly action: 'sabotage-supplies';
+  readonly source: 'wolf-supply-sabotage';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly actorUid: PlayerId;
+  readonly actorRoleId: RoleId;
+  readonly oldSuspicion: number;
+  readonly increment: number;
+  readonly newSuspicion: number;
+  readonly roll: number;
+  readonly total: number;
+  readonly clueTier: WolfClueTier;
+  readonly disclosure: string;
+  readonly auditId: string;
+  readonly createdAt: string;
+}
+
 export interface ShuttleDocking {
   readonly shuttleId: ShuttleId;
   readonly shipId: VesselId;
