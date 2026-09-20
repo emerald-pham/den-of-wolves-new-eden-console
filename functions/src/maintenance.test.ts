@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { advanceMaintenance, MAINTENANCE_ORDERS, MAINTENANCE_RULES, type MaintenanceInput } from './maintenance';
+import { resolveJumpAttempt } from './jumpDrive';
 const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => ({
   shipId: 'aegis', cycle: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
   currentTurn: 1, expectedRevision: 0, action: 'begin', resources: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
@@ -550,6 +551,83 @@ it.each(['macaw', 'boa'] as const)('applies Capybara\'s single 6♠ bay to one %
     fuelled: result.fuelled,
     refuels: { 'shuttle-bay': shuttleId === 'macaw' ? 'boa' : 'macaw' },
   })).toThrow(/action is not available at the current step/i);
+});
+
+it('runs full Capybara maintenance through production, bay, and its charged jump in order', () => {
+  let state = input({
+    shipId: 'capybara',
+    resources: {
+      ore: 0, fuel: 12, food: 20, water: 10, materials: 0, securityTeams: 2, scrap: 2,
+    },
+    population: 20_000,
+    dockings: [
+      { shipId: 'capybara', shuttleId: 'macaw' },
+      { shipId: 'capybara', shuttleId: 'boa' },
+    ],
+    fuelled: { macaw: false, boa: false },
+    rolls: [6, 6],
+  });
+  const apply = (overrides: Partial<MaintenanceInput>) => {
+    const result = advanceMaintenance({ ...state, ...overrides });
+    state = { ...state, ...result, expectedRevision: result.cycle.revision };
+    return result;
+  };
+
+  apply({ action: 'begin' });
+  apply({ action: 'storage' });
+  apply({ action: 'rations', foodLevel: 1, waterLevel: 1 });
+  apply({ action: 'unrest', rolls: [6, 6] });
+  apply({ action: 'riot', rolls: [6] });
+  const reactor = apply({
+    action: 'reactor',
+    consoles: ['advanced-hydroponics', 'water-production', 'jump-drive'],
+  });
+  expect(reactor.cycle).toMatchObject({
+    step: 6,
+    charges: ['advanced-hydroponics', 'water-production', 'jump-drive'],
+  });
+
+  apply({
+    action: 'production', productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+  });
+  const production = apply({
+    action: 'production', productionConsoleId: 'water-production', productionScrap: false,
+  });
+  expect(production.cycle.charges).toEqual(['jump-drive']);
+  expect(production.cycle.results['5']).toMatch(/Advanced Hydroponics.*Water Production/);
+
+  const bay = apply({ action: 'bays', refuels: { 'shuttle-bay': 'macaw' } });
+  expect(bay).toMatchObject({
+    cycle: { step: 7, refuelled: ['macaw'], charges: ['jump-drive'] },
+    fuelled: { macaw: true, boa: false },
+  });
+  const completed = apply({ action: 'end' });
+  expect(completed.cycle).toMatchObject({
+    step: 0,
+    charges: ['jump-drive'],
+    results: {
+      '1': expect.stringContaining('Storage intact'),
+      '2': expect.stringContaining('Spent 3 food and 2 water'),
+      '3': expect.stringContaining('unrest'),
+      '4': expect.stringContaining('No riot'),
+      '5': expect.stringContaining('Water Production'),
+      '6': expect.stringContaining('refuelled macaw'),
+      '7': 'Maintenance cycle complete.',
+    },
+  });
+  expect(completed.population).toBe(20_000);
+
+  const jump = resolveJumpAttempt({
+    shipId: 'capybara', origin: '0000', destination: '5143', currentTurn: 1,
+    fuel: completed.resources.fuel, charged: completed.cycle.charges.includes('jump-drive'),
+    damaged: false, upgraded: false, now: new Date('2026-09-06T12:05:00.000Z'),
+    transitionId: 'capybara-jump-1',
+  });
+  expect(jump).toMatchObject({
+    status: 'jumped',
+    origin: '0000', destination: '5143', length: 'short', fuelCost: 3, remainingFuel: 8,
+    transition: { id: 'capybara-jump-1', shipId: 'capybara' },
+  });
 });
 
 it.each(['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'])('completes a %s cycle, including riot damage', shipId => {

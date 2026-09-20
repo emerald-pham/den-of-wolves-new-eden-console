@@ -5439,6 +5439,13 @@
       "language": "Every server-owned terminal transition now persists one privacy-safe survivor outcome from the canonical active full-ship population tracks, authoritative destruction state, printed pod capacities, admitted small-vessel population state, and admitted Voyage 33-0 population state. Destroyed-ship population survives only up to printed pod capacity; excess is counted as lost. The calculator cannot consume the theatrical fleetSurvivorPopulationAdjustment or turn-start announcement population, and strict browser hydration rejects malformed arithmetic, overlapping vessel lists, and extra private fields. Cargo-shuttle evacuation prompts 140a-140c remain separate: when those transfers later update the same authoritative ship population tracks, this aggregate consumes the reconciled result without double counting or inventing a transfer ledger.",
       "source": "functions/src/survivorOutcome.ts; functions/src/survivorOutcome.test.ts; functions/src/index.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; functions/src/shipDestruction.ts; functions/src/shipPopulation.ts",
       "type": "evidence / production-path / server-authority / terminal-outcome / privacy / regression"
+    },
+    {
+      "direction": "571 -> FULL-MAINTENANCE",
+      "id": "E-571-FULL-MAINTENANCE",
+      "language": "A deterministic production-path regression advances expansion Capybara through begin, Storage, exact food and water rations, unrest, riot, Reactor, two charged production consoles, its single shuttle bay, explicit maintenance completion, and a charged short jump. The Reactor carries exactly three charges; production consumes only its own charges, the bay refuels only one docked shuttle and spends one fuel, and the retained Jump Drive charge resolves the printed three-fuel short jump. Focused maintenance engine, callable, jump, MaintenanceSystems, and FleetSystemsWorkspace suites pass 170/170. Existing callable tests cover authenticated console authority, CAS/replay, stale rejection, production choices, damage and upgrades, and bay restrictions; the proof adds no gameplay behavior.",
+      "source": "functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; src/components/MaintenanceSystems.test.tsx; src/components/FleetSystemsWorkspace.test.tsx; focused tests 170/170",
+      "type": "evidence / production-path / full-cycle / deterministic"
     }
   ],
   "plan": {
@@ -20136,8 +20143,8 @@
         "acceptance": "steps 1–6, rations, population, three charges, storage, production, bay, and jump all resolve in order.",
         "title": "Run full Capybara maintenance."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-571",
+      "description": "The existing production maintenance and jump paths now have one deterministic end-to-end Capybara proof. It advances the full six-step printed maintenance order, spends the selected food and water rations against the full-ship population state, resolves unrest and riot, charges exactly three eligible consoles, consumes Advanced Hydroponics and Water Production while retaining the Jump Drive charge, refuels one docked shuttle at the single bay, closes the cycle, and completes the charged short jump at the printed three-fuel cost. Existing callable and UI suites separately verify server authority, CAS/replay, production variants, damage and upgrade rules, bay restrictions, and visible controls. This is proof of existing behavior; no runtime or player-facing change is introduced.",
+      "evidenceIds": "E-AUDIT-571;E-571-FULL-MAINTENANCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;253;569",
@@ -20148,7 +20155,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

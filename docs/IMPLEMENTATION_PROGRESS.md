@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**330 / 751 prompts complete (43.94%)**
+**331 / 751 prompts complete (44.07%)**
 
-Status breakdown: **330 done · 20 partial · 401 missing**.
+Status breakdown: **331 done · 20 partial · 400 missing**.
 
 Active prompt: **none**
 
@@ -1040,7 +1040,7 @@ release classification and evidence.
 | 568 | done | non-feature | — | Completed as a server-authority repair: Scrap remains defined only on the enabled Capybara ship ledger, while Macaw and Boa cargo accepts Scrap only when both Capybara expansion roles are active. Join/resume projections, maintenance writes, and rollback restoration strip unauthorized or unsafe Scrap; existing Capybara production and active-ship counter authority remain bounded to the typed Capybara inventory. Focused unit and callable authority regressions pass, and Terra found no actionable findings on exact candidate 1148712209601ff6ae22286154ad20c5db829ff8. No version, release, or player-facing copy change is claimed. |
 | 569 | done | non-feature | — | The authoritative supported roster includes the Captain and Recycler exactly once as an atomic pair at 19/20 players and rejects incomplete, duplicated, mixed-mode, or unsupported lower-count expansion rosters. Production start writes one recipient-only brief per assigned player with distinct Macaw/Boa ownership; optional Press and extra GM instances do not consume either core role. This records existing runtime behavior with explicit production-path regressions, not a new feature release. |
 | 570 | done | non-feature | — | The production Wolf-attack declaration derives its target ring from the server-owned active full-vessel fleet. Base sessions retain the six-vessel d6 ring; a full expansion Capybara adds the seventh target, switches every server-owned targeting roll to d8, maps 7 to Capybara, and rerolls each 8 before target resolution. The base small Capybara identity does not activate or enter the ring, and malformed active-fleet state fails closed before mutation. Existing combat-math, declaration-callable, receipt-parser, and Commander-reroll regressions cover initial and selected rerolls while keeping outcomes server-generated. This closes the stale roadmap row from existing production behavior and adds no runtime change or release. |
-| 571 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 571 | done | non-feature | — | The existing production maintenance and jump paths now have one deterministic end-to-end Capybara proof. It advances the full six-step printed maintenance order, spends the selected food and water rations against the full-ship population state, resolves unrest and riot, charges exactly three eligible consoles, consumes Advanced Hydroponics and Water Production while retaining the Jump Drive charge, refuels one docked shuttle at the single bay, closes the cycle, and completes the charged short jump at the printed three-fuel cost. Existing callable and UI suites separately verify server authority, CAS/replay, production variants, damage and upgrade rules, bay restrictions, and visible controls. This is proof of existing behavior; no runtime or player-facing change is introduced. |
 | 572 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 573 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 574 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
