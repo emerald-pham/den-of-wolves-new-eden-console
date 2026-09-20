@@ -867,7 +867,14 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
         endsAt: expect.any(String),
       },
     });
-    expect(storedSession.pursuitGroups).toEqual({ fleet: 2 });
+    expect(storedSession.pursuitGroups).toBeUndefined();
+    expect(read(`sessions/${sessionId}/serverState/navigation`)).toMatchObject({
+      pursuitGroups: { 'fleet-1': 2 },
+    });
+    expect(read(`sessions/${sessionId}/gmDiscovery/current`)).toMatchObject({
+      pursuitGroups: { 'fleet-1': 2 },
+      shipFleetGroupIds: expect.objectContaining({ aegis: 'fleet-1' }),
+    });
     expect(storedSession.fighterWingCounts).toEqual({
       'fighter-wing-alpha': { count: 4, revision: 0 },
       'fighter-wing-bravo': { count: 4, revision: 0 },

@@ -3551,6 +3551,14 @@ body {
   white-space: nowrap;
 }
 
+.pursuit-tracker__countdown strong[data-pending='true'] {
+  max-inline-size: 12rem;
+  color: var(--cic-danger);
+  font: 400 0.62rem/1.2 var(--cic-mono);
+  letter-spacing: 0.08em;
+  white-space: normal;
+}
+
 .pursuit-tracker__countdown small {
   font: 400 0.52rem/1 var(--cic-mono);
   letter-spacing: 0.08em;

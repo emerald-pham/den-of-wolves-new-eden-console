@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [485],
+    implementationProgress: {
+      completed: 307, total: 751, percentage: '40.88%',
+      done: 307, partial: 24, active: 0, missing: 420,
+    },
+    changes: [
+      'Cycle 1 pursuit now comes from one server-owned fleet-group value initialized at 2, and every pursuit tracker reads that authority instead of recalculating pressure in the browser.',
+      'Missing or malformed pursuit telemetry now stays visibly pending and cannot declare the fleet surrounded.',
+      '307 of 751 planned items are complete (40.88%).',
+    ],
+  },
+  {
+    version: '0.4.27',
     implementationPrompts: [602],
     implementationProgress: {
       completed: 306, total: 751, percentage: '40.75%',

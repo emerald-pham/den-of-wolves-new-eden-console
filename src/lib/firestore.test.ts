@@ -258,7 +258,7 @@ it('removes hidden state nested in public and crew projections while preserving 
       id: 'secret-host', shuttleId: 'starlight', shipId: 'wolfAssignment',
       action: 'docked', occurredAt: 'SESSION START',
     }],
-    pursuitGroups: { fleet: 2, candidateBonus: 4 },
+    pursuitGroups: { fleet: 2, 'fleet-2': 4, candidateBonus: 4, overflowing: 11 },
     fleetRedAlert: { active: true, revision: 2, candidateBonus: 3 },
     shipGalacticCoordinates: { aegis: '0011', facilitatorNote: 'hidden adjudication' },
     maintenanceCycles: {
@@ -305,7 +305,7 @@ it('removes hidden state nested in public and crew projections while preserving 
   expect(session.shipDamage?.aegis).toEqual({ damagedSystemIds: ['storage'], destroyed: false });
   expect(session.shipUpgrades?.aegis).toEqual(['storage']);
   expect(session.shipGalacticCoordinates).toBeUndefined();
-  expect(session.pursuitGroups).toEqual({ fleet: 2 });
+  expect(session.pursuitGroups).toBeUndefined();
   expect(session.confettiUsedShipIds).toEqual(['aegis']);
   expect(session.shuttleDockings).toEqual(expect.arrayContaining([
     expect.objectContaining({ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' }),
@@ -2062,14 +2062,16 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     sessionSnapshotAuthority: sessionSnapshotAuthorityFor('s1', 'u1'),
   });
 
-  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted'), false));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', {
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+  }), false));
   callbacks[2]?.({
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
       knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
-      pursuitDistance: 1, navigationLogs: [], revision: 2,
+      pursuitDistance: 1, pursuitValue: 2, navigationLogs: [], revision: 2,
       systemHistory: {
         '5143': {
           coordinate: '5143',
@@ -2085,6 +2087,8 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     data: () => ({
       shipGalacticCoordinates: { aegis: '5143' }, shipNavigationLogs: { aegis: [] },
       knownSystems: { 'system-01': '0000', 'system-02': '5143' }, revision: 2,
+      pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+      shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
       systemHistory: {
         aegis: {
           '5143': {
@@ -2135,15 +2139,19 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
   });
 
   expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).not.toHaveProperty('pursuitGroups');
   expect(onPlayerDiscovery).toHaveBeenCalledTimes(1);
   expect(onPlayerDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({
-    currentCoordinate: '5143', knownCoordinates: ['0000', '5143'],
+    currentCoordinate: '5143', knownCoordinates: ['0000', '5143'], pursuitValue: 2,
   }));
+  expect(onPlayerDiscovery.mock.lastCall?.[0]).not.toHaveProperty('pursuitGroups');
   const ownProjection = onPlayerDiscovery.mock.lastCall?.[0] as { systemHistory?: Record<string, { attempts: readonly { id: string }[] }> };
   expect(ownProjection.systemHistory?.['5143']?.attempts[0]?.id).toBe('attempt-1');
   expect(onGmDiscovery).toHaveBeenCalledTimes(1);
   expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+    shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
   });
   const gmProjection = onGmDiscovery.mock.lastCall?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[] }>> };
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.attempts[0]?.id).toBe('attempt-1');

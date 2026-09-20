@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { navigationState, navigationStateDocumentPath, playerDiscoveryProjection } from './navigationProjection';
+import {
+  navigationState,
+  navigationStateDocumentPath,
+  playerDiscoveryProjection,
+  pursuitGroups,
+  writePlayerDiscoveryProjection,
+} from './navigationProjection';
 
 const firestore = getFirestore(initializeApp({ projectId: 'p284-navigation-test' }, 'p284-navigation-path'));
 
@@ -42,6 +48,7 @@ describe('server discovery projections', () => {
     }, ['dione', 'shepherd'])).toEqual({
       shipGalacticCoordinates: { dione: '5143', shepherd: '0000' },
       shipNavigationLogs: { dione: [], shepherd: [] },
+      pursuitGroups: {},
     });
   });
 
@@ -60,6 +67,7 @@ describe('server discovery projections', () => {
     }, ['dione'])).toEqual({
       shipGalacticCoordinates: { dione: '9999' },
       shipNavigationLogs: { dione: [] },
+      pursuitGroups: {},
     });
 
     expect(playerDiscoveryProjection(
@@ -69,15 +77,17 @@ describe('server discovery projections', () => {
   });
 
   it('entitles each ship to its own authoritative visits without group union', () => {
+    const groupedNavigation = { ...navigation, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 } };
     const dione = playerDiscoveryProjection(
-      player({ fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' }), navigation, 4,
+      player({ fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' }), groupedNavigation, 4,
     );
     const shepherd = playerDiscoveryProjection(
-      player({ fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' }), navigation, 4,
+      player({ fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' }), groupedNavigation, 4,
     );
 
     expect(dione).toMatchObject({
       groupId: 'fleet-1', shipId: 'dione', currentCoordinate: '5143', pursuitDistance: 1,
+      pursuitValue: 2,
     });
     expect(dione.knownCoordinates).toEqual(['0000', '5143']);
     expect(dione.navigationLogs).toHaveLength(1);
@@ -86,6 +96,7 @@ describe('server discovery projections', () => {
     expect(dione.knownCoordinates).not.toContain('1413');
     expect(shepherd).toMatchObject({
       groupId: 'fleet-2', shipId: 'shepherd', currentCoordinate: '1413', pursuitDistance: 1,
+      pursuitValue: 7,
     });
     expect(shepherd.navigationLogs).toHaveLength(1);
     expect(shepherd.navigationLogs[0]?.shipId).toBe('shepherd');
@@ -104,6 +115,48 @@ describe('server discovery projections', () => {
       revision: 4,
     });
   });
+});
+
+it('migrates legacy pursuit without allowing aliases to overwrite canonical state', () => {
+  expect(pursuitGroups({}, { fleet: 2 })).toEqual({ 'fleet-1': 2 });
+  expect(pursuitGroups({}, { fleet: 10, 'fleet-1': 2 })).toEqual({ 'fleet-1': 2 });
+  expect(pursuitGroups({}, { 'fleet-1': 2, fleet: 10 })).toEqual({ 'fleet-1': 2 });
+  expect(pursuitGroups({}, { 'fleet-1': 'bad', fleet: 10 })).toEqual({});
+  expect(pursuitGroups({ pursuitGroups: { 'fleet-1': 4 } }, { fleet: 10 })).toEqual({ 'fleet-1': 4 });
+});
+
+it('replaces a player projection so valid pursuit becomes pending when authority disappears', () => {
+  const set = vi.fn();
+  const ref = { path: 'sessions/s1/playerDiscoveries/u1' };
+  const owner = player({ fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' });
+  writePlayerDiscoveryProjection(
+    { set } as never,
+    ref as never,
+    owner,
+    { ...navigation, pursuitGroups: { 'fleet-1': 2 } },
+    5,
+  );
+  writePlayerDiscoveryProjection(
+    { set } as never,
+    ref as never,
+    owner,
+    { ...navigation, pursuitGroups: {} },
+    6,
+  );
+  writePlayerDiscoveryProjection(
+    { set } as never,
+    ref as never,
+    player({ fleetGroupId: 'fleet-2', assignedRoleId: 'dione-captain' }),
+    { ...navigation, pursuitGroups: { 'fleet-1': 2 } },
+    7,
+  );
+
+  expect(set.mock.calls[0]?.[1]).toMatchObject({ pursuitValue: 2, revision: 5 });
+  expect(set.mock.calls[1]?.[1]).not.toHaveProperty('pursuitValue');
+  expect(set.mock.calls[1]?.[1]).toMatchObject({ groupId: 'fleet-1', revision: 6 });
+  expect(set.mock.calls[1]).toHaveLength(2);
+  expect(set.mock.calls[2]?.[1]).not.toHaveProperty('pursuitValue');
+  expect(set.mock.calls[2]?.[1]).toMatchObject({ groupId: 'fleet-2', revision: 7 });
 });
 
 it('replacement entitlement supersedes historical assignment without a fallback', () => {

@@ -249,6 +249,8 @@ function AppRoutes() {
             ...(current.organiserSites ? { organiserSites: current.organiserSites } : {}),
             ...(current.organiserSystemHistory ? { organiserSystemHistory: current.organiserSystemHistory } : {}),
             ...(current.pursuitDistances ? { pursuitDistances: current.pursuitDistances } : {}),
+            ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
+            ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
         },

@@ -145,6 +145,8 @@ export interface PlayerDiscoveryProjection {
   /** Opaque browser node ID to the coordinates this player is entitled to see. */
   readonly knownSystems: Readonly<Record<string, GalacticCoordinate>>;
   readonly pursuitDistance: number;
+  /** Server-owned pursuit value for this member's current fleet group only. */
+  readonly pursuitValue?: number;
   readonly navigationLogs: readonly ShipNavigationLogEntry[];
   readonly systemHistory?: SystemHistoryForShip;
   readonly revision: number;
@@ -616,6 +618,8 @@ export interface GameSession {
   readonly shipJumpTransitions?: ShipJumpTransitions;
   /** Server-owned pursuit value per initial fleet group. */
   readonly pursuitGroups?: Readonly<Record<string, number>>;
+  /** Facilitator-only server mapping from each plotted ship to its fleet group. */
+  readonly shipFleetGroupIds?: Readonly<Record<string, GroupId>>;
   /** Facilitator-only pursuit depth by plotted ship. */
   readonly pursuitDistances?: Readonly<Record<string, number>>;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */

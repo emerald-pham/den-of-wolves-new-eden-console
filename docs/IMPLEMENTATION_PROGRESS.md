@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**306 / 751 prompts complete (40.75%)**
+**307 / 751 prompts complete (40.88%)**
 
-Status breakdown: **306 done · 24 partial · 421 missing**.
+Status breakdown: **307 done · 24 partial · 420 missing**.
 
 Active prompt: **none**
 
@@ -943,7 +943,7 @@ release classification and evidence.
 | 482 | missing | non-feature | — | Planned [EXTEND] prompt: existing damage/correction and craft catalogs do not yet compose ordinary post-attack repair. |
 | 483 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 484 | missing | non-feature | — | Planned [EXTEND] crew/GM/broadcast aftermath and one-GM recovery-work projection prompt. |
-| 485 | missing | non-feature | — | Planned [REPAIR] prompt: pursuit presentation/client calculation exists, but no authoritative group value drives attack scheduling/navigation/failure. |
+| 485 | done | non-feature | 0.4.28 | Cycle 1 now writes pursuit 2 under the canonical initial fleet group, and pursuit trackers read only that bounded server-owned value. Browser cycle and map-depth presentation no longer derives attack pressure; absent, malformed, or stale telemetry remains pending and cannot declare the fleet surrounded. Legacy `fleet` snapshots migrate to `fleet-1`, while unrelated or out-of-range fields fail closed. This establishes the shared authority consumed by later rise, jump-exception, split-group, attack-scheduling, and failure prompts without implementing their mutations early. |
 | 485a | missing | non-feature | — | Future pursuit-color repair: restore `0215488`'s normal ship/faction treatment outside authoritative Red Alert and use danger red only while the shared alert is active; `0d64e25` records the always-danger departure. Preserve countdown, values, split-fleet scope, terminal text, reconnect/stand-down/reduced-motion truth, and do not claim P485's broader server-owned pursuit acceptance. |
 | 486 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 487 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

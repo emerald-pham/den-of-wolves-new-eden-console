@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   charges: ['jump-drive'] as string[],
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
+  pursuitGroups: { 'fleet-1': 2 } as Record<string, number>,
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
   transactionRetries: 0,
@@ -72,6 +73,7 @@ beforeEach(() => {
   mock.charges = ['jump-drive'];
   mock.jumpStates = {};
   mock.systemHistory = {};
+  mock.pursuitGroups = { 'fleet-1': 2 };
   mock.upgrades = {};
   mock.damage = {};
   mock.transactionRetries = 0;
@@ -116,6 +118,7 @@ beforeEach(() => {
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
           systemHistory: mock.systemHistory,
+          pursuitGroups: mock.pursuitGroups,
           maintenanceCycles: {
             aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
           },
@@ -159,6 +162,26 @@ it('denies destroyed ships before movement or jump can change navigation state',
     message: expect.stringMatching(/destroyed ships cannot move or jump/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('retains protected pursuit authority through facilitator movement and ship jumps', async () => {
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'pursuit-move', destination: '5143',
+  }))).resolves.toMatchObject({ destination: '5143' });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2 } }),
+  );
+
+  mock.coordinate = '0000';
+  mock.set.mockClear();
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'pursuit-jump', destination: '5143',
+  }))).resolves.toMatchObject({ status: 'jumped', destination: '5143' });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2 } }),
+  );
 });
 
 it('rejects an unprinted locked coordinate with a server-owned one-hour integrity lockout', async () => {

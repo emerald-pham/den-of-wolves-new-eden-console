@@ -14,6 +14,7 @@ export interface NavigationState {
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
   readonly shipNavigationLogs: NavigationLogs;
   readonly systemHistory?: SystemHistory;
+  readonly pursuitGroups: Readonly<Record<string, number>>;
 }
 
 export interface PlayerDiscoveryProjection {
@@ -23,6 +24,7 @@ export interface PlayerDiscoveryProjection {
   readonly knownCoordinates: readonly string[];
   readonly knownSystems: Readonly<Record<string, string>>;
   readonly pursuitDistance: number;
+  readonly pursuitValue?: number;
   readonly navigationLogs: readonly NavigationLogEntry[];
   readonly systemHistory?: SystemHistoryForShip;
   readonly revision: number;
@@ -52,7 +54,38 @@ function logsForShip(value: unknown, shipId: string): readonly NavigationLogEntr
   return value.filter((entry): entry is NavigationLogEntry => validLog(entry, shipId));
 }
 
-export function navigationState(value: unknown, activeVesselIds: readonly string[]): NavigationState {
+function validPursuitValue(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 10;
+}
+
+/**
+ * Parse the protected group map, with a deterministic one-time fallback for
+ * legacy session headers. A present canonical key always wins, even when it is
+ * malformed, so an old `fleet` alias can never revive or overwrite it.
+ */
+export function pursuitGroups(
+  value: unknown,
+  legacyValue?: unknown,
+): Readonly<Record<string, number>> {
+  const protectedRecord = isRecord(value) ? value : undefined;
+  const source = protectedRecord && Object.prototype.hasOwnProperty.call(protectedRecord, 'pursuitGroups')
+    ? protectedRecord.pursuitGroups
+    : legacyValue;
+  if (!isRecord(source)) return {};
+  const result: Record<string, number> = {};
+  for (const [groupId, amount] of Object.entries(source)) {
+    if (/^fleet-[1-9][0-9]*$/.test(groupId) && validPursuitValue(amount)) result[groupId] = amount;
+  }
+  const canonicalPresent = Object.prototype.hasOwnProperty.call(source, 'fleet-1');
+  if (!canonicalPresent && validPursuitValue(source.fleet)) result['fleet-1'] = source.fleet;
+  return result;
+}
+
+export function navigationState(
+  value: unknown,
+  activeVesselIds: readonly string[],
+  legacyPursuitGroups?: unknown,
+): NavigationState {
   const raw = isRecord(value) ? value : {};
   const coordinates = isRecord(raw.shipGalacticCoordinates) ? raw.shipGalacticCoordinates : {};
   const logs = isRecord(raw.shipNavigationLogs) ? raw.shipNavigationLogs : {};
@@ -70,6 +103,7 @@ export function navigationState(value: unknown, activeVesselIds: readonly string
     ])),
     shipNavigationLogs,
     ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
+    pursuitGroups: pursuitGroups(raw, legacyPursuitGroups),
   };
 }
 
@@ -105,6 +139,9 @@ export function playerDiscoveryProjection(
       knownCoordinates: [INITIAL_COORDINATE],
       knownSystems: discoverySystemsForCoordinates([INITIAL_COORDINATE]),
       pursuitDistance: 0,
+      ...(navigation.pursuitGroups[groupId] !== undefined
+        ? { pursuitValue: navigation.pursuitGroups[groupId] }
+        : {}),
       navigationLogs: [],
       revision,
     };
@@ -121,6 +158,9 @@ export function playerDiscoveryProjection(
     knownCoordinates: knownCoordinates(currentCoordinate, entries),
     knownSystems: discoverySystemsForCoordinates(knownCoordinates(currentCoordinate, entries)),
     pursuitDistance: pursuitDistanceForCoordinate(currentCoordinate),
+    ...(navigation.pursuitGroups[groupId] !== undefined
+      ? { pursuitValue: navigation.pursuitGroups[groupId] }
+      : {}),
     navigationLogs: entries,
     ...(ownHistory ? { systemHistory: ownHistory } : {}),
     revision,

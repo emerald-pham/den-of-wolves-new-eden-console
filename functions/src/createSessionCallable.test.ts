@@ -627,6 +627,7 @@ it('carries private system history through setup reconciliation and prunes remov
   const storedNavigation = {
     shipGalacticCoordinates: Object.fromEntries(currentActiveVesselIds.map((shipId) => [shipId, '0000'])),
     shipNavigationLogs: Object.fromEntries(currentActiveVesselIds.map((shipId) => [shipId, []])),
+    pursuitGroups: { 'fleet-1': 2 },
     systemHistory: {
       aegis: {
         '5143': {
@@ -677,6 +678,7 @@ it('carries private system history through setup reconciliation and prunes remov
     aegis: { '5143': { attempts: [{ id: 'aegis-attempt' }] } },
   });
   expect(navigationWrite?.systemHistory).not.toHaveProperty('dione');
+  expect(navigationWrite?.pursuitGroups).toEqual({ 'fleet-1': 2 });
 });
 
 it('locks the effective vessel mode after casting begins without mutating setup', async () => {

@@ -733,7 +733,7 @@ it('starts production through one server receipt and hydrates the GM-private set
   expect(reply.status).toBe('committed');
   expect(useSessionStore.getState().session).toMatchObject({
     phase: 'active', currentTurn: 1, configurationLocked: true, setupRevision: 5,
-    pursuitGroups: { fleet: 2 },
+    pursuitGroups: { 'fleet-1': 2 },
   });
   expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
     source: 'routine-start', committedSetupRevision: 5,

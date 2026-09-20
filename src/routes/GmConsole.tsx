@@ -2885,6 +2885,10 @@ export default function GmConsole() {
                       shipId={ship.id}
                       shipName={ship.name}
                       shipCoordinate={shipCoordinate}
+                      {...(session.shipFleetGroupIds?.[ship.id] &&
+                        session.pursuitGroups?.[session.shipFleetGroupIds[ship.id]!] !== undefined
+                        ? { pursuitValue: session.pursuitGroups[session.shipFleetGroupIds[ship.id]!] }
+                        : {})}
                       {...(session.pursuitDistances?.[ship.id] !== undefined
                         ? { pursuitDistance: session.pursuitDistances[ship.id] }
                         : {})}

@@ -321,10 +321,28 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     },
   });
   expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.objectContaining({
-    phase: 'active', configurationLocked: true, setupRevision: 1, pursuitGroups: { fleet: 2 },
+    phase: 'active', configurationLocked: true, setupRevision: 1, pursuitGroups: 'delete-field',
   }));
   const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
-  expect(sessionUpdate?.pursuitGroups).toEqual({ fleet: 2 });
+  expect(sessionUpdate?.pursuitGroups).toBe('delete-field');
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/serverState/navigation' }),
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2 } }),
+    { merge: true },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/gmDiscovery/current' }),
+    expect.objectContaining({
+      pursuitGroups: { 'fleet-1': 2 },
+      shipFleetGroupIds: expect.objectContaining({ aegis: 'fleet-1' }),
+    }),
+    { merge: true },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/playerDiscoveries/u2' }),
+    expect.objectContaining({ groupId: 'fleet-1', pursuitValue: 2 }),
+    { merge: true },
+  );
   const activeVesselIds = mock.session.activeVesselIds as string[];
   expect(sessionUpdate).toMatchObject({
     shipDamage: Object.fromEntries(activeVesselIds.map((shipId) => [shipId, {

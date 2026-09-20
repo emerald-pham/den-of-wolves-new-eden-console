@@ -1016,7 +1016,7 @@ function navigationStateForSession(
   // Treat those as an absent private document so legacy migration remains
   // compatible while real Admin snapshots still take the private path.
   if (navigationDoc.exists && typeof (navigationDoc as unknown as { data?: unknown }).data === 'function') {
-    return navigationState(navigationDoc.data(), activeVesselIds);
+    return navigationState(navigationDoc.data(), activeVesselIds, session.get('pursuitGroups'));
   }
   // Legacy sessions predate the private navigation state. This is a bounded
   // migration source only; callers persist the normalized state before the
@@ -1024,13 +1024,14 @@ function navigationStateForSession(
   return navigationState({
     shipGalacticCoordinates: session.get('shipGalacticCoordinates'),
     shipNavigationLogs: session.get('shipNavigationLogs'),
-  }, activeVesselIds);
+  }, activeVesselIds, session.get('pursuitGroups'));
 }
 
 function navigationProjectionFields(navigation: NavigationState): Record<string, unknown> {
   return {
     shipGalacticCoordinates: navigation.shipGalacticCoordinates,
     shipNavigationLogs: navigation.shipNavigationLogs,
+    pursuitGroups: navigation.pursuitGroups,
     ...(navigation.systemHistory ? { systemHistory: navigation.systemHistory } : {}),
   };
 }
@@ -1131,15 +1132,19 @@ function publishDiscoveryProjections(
   navigation: NavigationState,
   revision: number,
   chart: 'A' | 'B' | 'C' = 'A',
+  fleetGroups: readonly FleetGroupRecord[] = [],
 ): void {
+  const shipFleetGroupIds = Object.fromEntries(fleetGroups.flatMap((group) =>
+    group.vesselIds.map((shipId) => [shipId, group.id])));
   tx.set(gmDiscoveryProjectionRef(sessionId), {
     ...navigationProjectionFields(navigation),
     knownSystems: allDiscoverySystems(),
     pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
     organiserSites: organiserSitesForChart(chart),
+    ...(Object.keys(shipFleetGroupIds).length > 0 ? { shipFleetGroupIds } : {}),
     revision,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  }, { merge: true });
   for (const player of players) {
     if (!player.exists || isKickedPlayer(player) || typeof player.id !== 'string' || player.id.length === 0) continue;
     const groupId = player.get('fleetGroupId');
@@ -3408,6 +3413,7 @@ export const confirmSetup = onCall<{
       shipGalacticCoordinates: nextShipGalacticCoordinates,
       shipNavigationLogs: nextShipNavigationLogs,
       systemHistory: currentNavigation.systemHistory,
+      pursuitGroups: currentNavigation.pursuitGroups,
     }, nextActiveVesselIds);
     tx.set(navigationStateRef(command.sessionId), {
       ...navigationProjectionFields(nextNavigation),
@@ -4051,7 +4057,7 @@ export const startGame = onCall<{
     const missionDeckState = persistedMissionDeck ?? (candidateMissionDeck ??=
       missionDeckStateFromCards(shuffledMissionDeck()));
 
-    ensureInitialFleetGroup(
+    const initialGroup = ensureInitialFleetGroup(
       tx,
       start.sessionId,
       lockedSetup.activeVesselIds,
@@ -4061,6 +4067,24 @@ export const startGame = onCall<{
     );
 
     const committedSetupRevision = start.expectedSetupRevision + 1;
+    const initialPursuitGroups = { [initialGroup.id]: 2 };
+    tx.set(navigationStateRef(start.sessionId), {
+      pursuitGroups: initialPursuitGroups,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    tx.set(gmDiscoveryProjectionRef(start.sessionId), {
+      pursuitGroups: initialPursuitGroups,
+      shipFleetGroupIds: Object.fromEntries(initialGroup.vesselIds.map((shipId) => [shipId, initialGroup.id])),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    for (const player of players.docs) {
+      if (!player.exists || isKickedPlayer(player)) continue;
+      tx.set(playerDiscoveryProjectionRef(start.sessionId, player.id), {
+        groupId: initialGroup.id,
+        pursuitValue: 2,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
     const gmUids = [...new Set(effectiveLiveGmInstances
       .map((instance) => instance.uid))];
     const serverTime = new Date().toISOString();
@@ -4169,7 +4193,7 @@ export const startGame = onCall<{
       phase: 'active',
       configurationLocked: true,
       setupRevision: committedSetupRevision,
-      pursuitGroups: { fleet: 2 },
+      pursuitGroups: removeLegacyNavigationField(),
       ...turnOneState,
     });
     const result = {
@@ -8117,6 +8141,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
+      tx.set(navigationStateRef(sessionId), {
+        pursuitGroups: navigation.pursuitGroups,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
       tx.set(gmDiscoveryProjectionRef(sessionId), {
         ...navigationProjectionFields(navigation), knownSystems: allDiscoverySystems(), revision: navigationRevision,
         updatedAt: FieldValue.serverTimestamp(),
@@ -8124,10 +8152,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       publishDiscoveryProjections(
         tx, sessionId, playerDocs, navigation, navigationRevision,
         sessionDoc.get('chartId') === 'B' || sessionDoc.get('chartId') === 'C' ? sessionDoc.get('chartId') : 'A',
+        [group],
       );
       tx.update(sessionRef, {
         shipGalacticCoordinates: removeLegacyNavigationField(),
         shipNavigationLogs: removeLegacyNavigationField(),
+        pursuitGroups: removeLegacyNavigationField(),
       });
       reconcilePresenceTimer(tx, sessionRef, sessionDoc, true);
       if (player.exists) {
@@ -8164,8 +8194,11 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
             ? { assignedRoleId: null } : {}),
           ...(returningSeat?.clearPointer ? { seatId: null } : {}),
         });
+        const projectionPlayer = {
+          get: (field: string) => field === 'fleetGroupId' ? group.id : player.get(field),
+        };
         tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-          ...playerDiscoveryProjection(player, navigation, navigationRevision),
+          ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision),
           groupId: group.id,
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -8204,6 +8237,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           groupId: group.id,
           knownCoordinates: ['0000'], knownSystems: discoverySystemsForCoordinates(['0000']),
           pursuitDistance: 0, navigationLogs: [], revision: navigationRevision,
+          ...(navigation.pursuitGroups[group.id] !== undefined
+            ? { pursuitValue: navigation.pursuitGroups[group.id] }
+            : {}),
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
@@ -8413,6 +8449,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
     }
+    tx.set(navigationStateRef(sessionId), {
+      pursuitGroups: navigation.pursuitGroups,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
     tx.set(gmDiscoveryProjectionRef(sessionId), {
       ...navigationProjectionFields(navigation), knownSystems: allDiscoverySystems(), revision: navigationRevision,
       updatedAt: FieldValue.serverTimestamp(),
@@ -8420,10 +8460,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     publishDiscoveryProjections(
       tx, sessionId, playerDocs, navigation, navigationRevision,
       currentSession.get('chartId') === 'B' || currentSession.get('chartId') === 'C' ? currentSession.get('chartId') : 'A',
+      [group],
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
       shipNavigationLogs: removeLegacyNavigationField(),
+      pursuitGroups: removeLegacyNavigationField(),
     });
     const storedGroupId = currentPlayer.get('fleetGroupId');
     if (storedGroupId !== undefined && storedGroupId !== group.id) {
@@ -8459,8 +8501,11 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { assignedRoleId: null } : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
     });
+    const projectionPlayer = {
+      get: (field: string) => field === 'fleetGroupId' ? group.id : currentPlayer.get(field),
+    };
     tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-      ...playerDiscoveryProjection(currentPlayer, navigation, navigationRevision),
+      ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision),
       groupId: group.id,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -9402,6 +9447,7 @@ export const moveShipToLocation = onCall<{
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
       systemHistory: currentNavigation.systemHistory,
+      pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
@@ -9620,6 +9666,7 @@ export const jumpShip = onCall<{
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
       systemHistory: currentNavigation.systemHistory,
+      pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision,

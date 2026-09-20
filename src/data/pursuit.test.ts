@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  authoritativePursuitValue,
   MAX_PURSUIT,
   pursuitDistanceForCoordinate,
-  pursuitScoreForPosition,
   pursuitStatusForScore,
 } from './pursuit';
 
@@ -13,15 +13,12 @@ describe('pursuit track calculations', () => {
     expect(pursuitDistanceForCoordinate('4888', 7)).toBe(7);
   });
 
-  it('recalculates a ship position from the turn load and its own depth', () => {
-    expect(pursuitScoreForPosition(1, '0000')).toBe(2);
-    expect(pursuitScoreForPosition(4, '8378', 6)).toBe(2);
-    expect(pursuitScoreForPosition(4, '5143', 1)).toBe(7);
-  });
-
-  it('keeps the track inside the printed 0–10 instrument range', () => {
-    expect(pursuitScoreForPosition(1, '4888', 7)).toBe(0);
-    expect(pursuitScoreForPosition(5, '0000')).toBe(MAX_PURSUIT);
+  it('accepts only an authoritative value on the printed 0–10 track', () => {
+    expect(authoritativePursuitValue(2)).toBe(2);
+    expect(authoritativePursuitValue(MAX_PURSUIT)).toBe(MAX_PURSUIT);
+    for (const stale of [-1, 11, 2.5, Number.NaN, undefined, '10']) {
+      expect(authoritativePursuitValue(stale)).toBeUndefined();
+    }
     expect(pursuitStatusForScore(MAX_PURSUIT)).toBe('surrounded');
     expect(pursuitStatusForScore(8)).toBe('critical');
     expect(pursuitStatusForScore(7)).toBe('tracked');

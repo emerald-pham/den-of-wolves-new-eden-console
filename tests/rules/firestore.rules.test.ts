@@ -877,24 +877,39 @@ describe('session header', () => {
   it('isolates player discovery projection reads and reserves organiser lookup for GMs', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/alice`), {
-        groupId: 'fleet-1', shipId: 'aegis', knownCoordinates: ['0000'], navigationLogs: [], revision: 1,
+        groupId: 'fleet-1', shipId: 'aegis', knownCoordinates: ['0000'], navigationLogs: [],
+        pursuitValue: 2, revision: 1,
       });
       await setDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/press`), {
-        groupId: 'fleet-2', shipId: 'dione', knownCoordinates: ['0000'], navigationLogs: [], revision: 1,
+        groupId: 'fleet-2', shipId: 'dione', knownCoordinates: ['0000'], navigationLogs: [],
+        pursuitValue: 7, revision: 1,
       });
       await setDoc(doc(ctx.firestore(), `${SESSION}/gmDiscovery/current`), {
-        knownSystems: { 'system-01': '0000' }, organiserSites: { '0000': { code: 'START' } }, revision: 1,
+        knownSystems: { 'system-01': '0000' }, organiserSites: { '0000': { code: 'START' } },
+        pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+        shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' }, revision: 1,
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/navigation`), {
+        pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 }, revision: 1,
       });
     });
 
-    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)));
+    const aliceProjection = await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)));
+    expect(aliceProjection.data()).toMatchObject({ groupId: 'fleet-1', pursuitValue: 2 });
+    expect(aliceProjection.data()).not.toHaveProperty('pursuitGroups');
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/press`)));
     await assertFails(getDocs(collection(as('alice'), `${SESSION}/playerDiscoveries`)));
     await assertFails(setDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`), { groupId: 'fleet-2' }));
     await assertFails(updateDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`), { groupId: 'fleet-2' }));
 
-    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`)));
+    const gmProjection = await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`)));
+    expect(gmProjection.data()).toMatchObject({
+      pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+      shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
+    });
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/gmDiscovery/current`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/serverState/navigation`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/serverState/navigation`)));
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/gmDiscovery`)));
     await assertFails(setDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`), { revision: 2 }));
 

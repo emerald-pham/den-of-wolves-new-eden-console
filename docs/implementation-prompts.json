@@ -3215,6 +3215,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "485 -> pursuit authority",
+      "id": "E-485-AUTHORITATIVE-PURSUIT",
+      "language": "Cycle 1 now stores pursuit 2 under the canonical initial fleet-group identity, and the client accepts only integer 0-10 values for canonical fleet group IDs while migrating the legacy fleet key. Player and facilitator pursuit trackers consume that server value; cycle and map-depth presentation cannot recalculate it. Missing, malformed, or stale telemetry renders as pending and cannot produce a surrounded/game-over state. Focused start, session-composition, snapshot-boundary, service, pursuit, ship-console, and facilitator-console tests pass, along with root typecheck and Functions build. Later prompts 486-490 own authoritative rise, jump exceptions, and split-group mutations against this state.",
+      "source": "functions/src/index.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/data/pursuit.ts; src/data/pursuit.test.ts; src/components/PursuitTracker.tsx; src/components/PursuitTracker.test.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx",
+      "type": "evidence / production-path / authority / presentation / fail-closed"
+    },
+    {
       "direction": "485a -> 485",
       "id": "E-AUDIT-485A",
       "language": "Pursuit color consumes authoritative pursuit state.",
@@ -17760,8 +17767,8 @@
         "acceptance": "repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.",
         "title": "Make pursuit authoritative from Turn 1."
       },
-      "description": "Planned [REPAIR] prompt: pursuit presentation/client calculation exists, but no authoritative group value drives attack scheduling/navigation/failure.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-485",
+      "description": "Cycle 1 now writes pursuit 2 under the canonical initial fleet group, and pursuit trackers read only that bounded server-owned value. Browser cycle and map-depth presentation no longer derives attack pressure; absent, malformed, or stale telemetry remains pending and cannot declare the fleet surrounded. Legacy `fleet` snapshots migrate to `fleet-1`, while unrelated or out-of-range fields fail closed. This establishes the shared authority consumed by later rise, jump-exception, split-group, attack-scheduling, and failure prompts without implementing their mutations early.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-485;E-485-AUTHORITATIVE-PURSUIT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "077",
@@ -17769,10 +17776,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.28"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

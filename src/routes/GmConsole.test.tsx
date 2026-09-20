@@ -1298,13 +1298,17 @@ it('keeps fighter counts read-only until GM write mode and sends one wing correc
   expect(setFighterWingCount).toHaveBeenCalledWith('fighter-wing-alpha', 3);
 });
 
-it('shows each ship-local pursuit tracker beneath its resource controls', async () => {
+it('shows the authoritative group pursuit beneath every grouped ship resource control', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   const activeSession = useSessionStore.getState().session;
   if (activeSession) useSessionStore.getState().setSession({
     ...activeSession,
     currentTurn: 4,
+    pursuitGroups: { 'fleet-1': 2 },
+    shipFleetGroupIds: Object.fromEntries([
+      'aegis', 'dione', 'icebreaker', 'capybara', 'shepherd', 'quellon', 'refinery-124',
+    ].map((shipId) => [shipId, 'fleet-1'])),
     shipGalacticCoordinates: {
       aegis: '0000',
       dione: '5143',
@@ -1323,13 +1327,13 @@ it('shows each ship-local pursuit tracker beneath its resource controls', async 
 
   const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
   const expectedTrackByShip = [
-    ['AEGIS', 'Start system', '8 / 10'],
-    ['Dione', '-1 pursuit distance', '7 / 10'],
-    ['Icebreaker', '-2 pursuit distance', '6 / 10'],
+    ['AEGIS', 'Start system', '2 / 10'],
+    ['Dione', '-1 pursuit distance', '2 / 10'],
+    ['Icebreaker', '-2 pursuit distance', '2 / 10'],
     ['Capybara', '-6 pursuit distance', '2 / 10'],
-    ['Shepherd', 'Start system', '8 / 10'],
-    ['Quellon', '-4 pursuit distance', '4 / 10'],
-    ['Refinery 124', '-7 pursuit distance', '1 / 10'],
+    ['Shepherd', 'Start system', '2 / 10'],
+    ['Quellon', '-4 pursuit distance', '2 / 10'],
+    ['Refinery 124', '-7 pursuit distance', '2 / 10'],
   ] as const;
 
   for (const [shipName, distance, track] of expectedTrackByShip) {

@@ -75,6 +75,7 @@ beforeEach(() => {
     },
     {
       uid: 'u1', sessionId: 's1', displayName: 'Player', role: 'player', seatId: null,
+      fleetGroupId: 'fleet-1',
       joinedAt: '2026-01-01T00:00:00.000Z',
     },
   );
@@ -127,7 +128,7 @@ it('places the pursuit tracker beneath shipboard DRADIS and uses this ship posit
       groupId: 'fleet-1', shipId: 'capybara', currentCoordinate: '8378',
       knownCoordinates: ['0000', '8378'],
       knownSystems: { 'system-01': '0000', 'system-17': '8378' },
-      pursuitDistance: 6, navigationLogs: [], revision: 1,
+      pursuitDistance: 6, pursuitValue: 2, navigationLogs: [], revision: 1,
     },
   });
 

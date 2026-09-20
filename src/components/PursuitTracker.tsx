@@ -1,7 +1,7 @@
 import {
   MAX_PURSUIT,
+  authoritativePursuitValue,
   pursuitDistanceForCoordinate,
-  pursuitScoreForPosition,
   pursuitStatusForScore,
 } from '@/data/pursuit';
 import LiveChangeRegion from './LiveChangeRegion';
@@ -12,6 +12,7 @@ interface PursuitTrackerProps {
   readonly shipName: string;
   readonly shipCoordinate: string;
   readonly pursuitDistance?: number;
+  readonly pursuitValue?: number;
 }
 
 const TRACK_SEGMENTS = Array.from({ length: MAX_PURSUIT }, (_, index) => index);
@@ -31,17 +32,21 @@ export default function PursuitTracker({
   shipName,
   shipCoordinate,
   pursuitDistance = 0,
+  pursuitValue,
 }: PursuitTrackerProps) {
   const coordinate = shipCoordinate || '0000';
   const entitledDistance = pursuitDistanceForCoordinate(coordinate, pursuitDistance);
-  const pursuitScore = pursuitScoreForPosition(currentTurn, coordinate, entitledDistance);
+  const authoritativeValue = authoritativePursuitValue(pursuitValue);
+  const hasAuthoritativeValue = authoritativeValue !== undefined;
+  const pursuitScore = authoritativeValue ?? 0;
   const status = pursuitStatusForScore(pursuitScore);
-  const threatLevel = pursuitThreatLevelForScore(pursuitScore);
+  const threatLevel = hasAuthoritativeValue ? pursuitThreatLevelForScore(pursuitScore) : 'tracked';
   const failureCountdown = MAX_PURSUIT - pursuitScore;
   const failureCountdownLabel = `${failureCountdown} cycle${failureCountdown === 1 ? '' : 's'}`;
-  const turnLoad = Math.max(0, Math.floor(currentTurn)) * 2;
   const mapDepth = entitledDistance === 0 ? 'Start system' : `-${entitledDistance} pursuit distance`;
-  const statusLabel = status === 'surrounded'
+  const statusLabel = !hasAuthoritativeValue
+    ? currentTurn < 1 ? 'STANDBY // CYCLE 0' : 'AWAITING SERVER PURSUIT'
+    : status === 'surrounded'
     ? 'SURROUNDED // GAME OVER'
     : status === 'critical'
       ? 'CRITICAL // WOLF FORCES CLOSING'
@@ -58,25 +63,23 @@ export default function PursuitTracker({
       data-threat-level={threatLevel}
     >
       <header className="pursuit-tracker__header">
-        <p className="pursuit-tracker__eyebrow">PURSUIT // SHIP-LOCAL</p>
+        <p className="pursuit-tracker__eyebrow">PURSUIT // GROUP-LOCAL</p>
         <h2>Pursuit</h2>
       </header>
 
       <p className="pursuit-tracker__countdown" aria-live="polite">
         <span>WOLF PURSUIT TRACK // </span>
-        <strong>
-          {failureCountdown} <small>{failureCountdown === 1 ? 'cycle' : 'cycles'}</small>
+        <strong data-pending={!hasAuthoritativeValue}>
+          {hasAuthoritativeValue
+            ? <>{failureCountdown} <small>{failureCountdown === 1 ? 'cycle' : 'cycles'}</small></>
+            : 'Awaiting server telemetry'}
         </strong>
       </p>
 
       <div className="pursuit-tracker__readout">
         <p className="pursuit-tracker__metric">
           <span>Current track // </span>
-          <strong>{pursuitScore} / {MAX_PURSUIT}</strong>
-        </p>
-        <p className="pursuit-tracker__metric">
-          <span>Cycle load // </span>
-          <strong>+{turnLoad}</strong>
+          <strong>{hasAuthoritativeValue ? pursuitScore : '—'} / {MAX_PURSUIT}</strong>
         </p>
         <p className="pursuit-tracker__metric pursuit-tracker__metric--map">
           <span>Distance from Home Systems // </span>
@@ -90,7 +93,9 @@ export default function PursuitTracker({
         aria-valuemin={0}
         aria-valuemax={MAX_PURSUIT}
         aria-valuenow={pursuitScore}
-        aria-valuetext={`${pursuitScore} of ${MAX_PURSUIT}; ${failureCountdownLabel} to failure`}
+        aria-valuetext={hasAuthoritativeValue
+          ? `${pursuitScore} of ${MAX_PURSUIT}; ${failureCountdownLabel} to failure`
+          : 'Awaiting authoritative pursuit value'}
         role="progressbar"
       >
         {TRACK_SEGMENTS.map((segment) => (
@@ -101,7 +106,7 @@ export default function PursuitTracker({
       <LiveChangeRegion
         as="p"
         className={`pursuit-tracker__status pursuit-tracker__status--${status}`}
-        changeKey={`${shipId}:${currentTurn}:${coordinate}:${entitledDistance}:${pursuitScore}:${threatLevel}`}
+        changeKey={`${shipId}:${statusLabel}:${coordinate}:${entitledDistance}:${hasAuthoritativeValue ? pursuitScore : 'pending'}:${threatLevel}`}
         message={statusLabel}
         role={null}
       />

@@ -902,6 +902,7 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
     ? {}
     : { [shipId ?? 'unknown']: raw.navigationLogs });
   const ownHistory = systemHistoryForShip(raw?.systemHistory);
+  const projectedPursuitValue = nonNegativeInteger(raw?.pursuitValue);
   return {
     groupId,
     ...(shipId ? { shipId } : {}),
@@ -909,6 +910,9 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
     knownCoordinates,
     knownSystems,
     pursuitDistance: nonNegativeInteger(raw?.pursuitDistance) ?? 0,
+    ...(projectedPursuitValue !== undefined && projectedPursuitValue <= 10
+      ? { pursuitValue: projectedPursuitValue }
+      : {}),
     navigationLogs: shipId ? logs[shipId] ?? [] : [],
     ...(ownHistory ? { systemHistory: ownHistory } : {}),
     revision,
@@ -922,7 +926,11 @@ function organiserSiteProjection(value: unknown): OrganiserSiteProjection | unde
   return { code: raw.code, name: raw.name, candidate: raw.candidate, summary: raw.summary };
 }
 
-function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | undefined {
+type GmDiscoveryProjection = Pick<GameSession,
+  'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' |
+  'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds'>;
+
+function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefined {
   const raw = recordValue(value);
   if (!raw) return undefined;
   const parsedSystemHistory = systemHistory(raw.systemHistory);
@@ -931,6 +939,13 @@ function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticC
     const parsed = organiserSiteProjection(site);
     return parsed ? [[coordinate, parsed]] : [];
   }));
+  const shipFleetGroupIds = Object.fromEntries(Object.entries(recordValue(raw.shipFleetGroupIds) ?? {}).flatMap(
+    ([shipId, groupId]) => {
+      const parsedShipId = parseEntityId('vessel', shipId);
+      const parsedGroupId = parseEntityId('group', groupId);
+      return parsedShipId && parsedGroupId ? [[parsedShipId, parsedGroupId]] : [];
+    },
+  ));
   return {
     shipGalacticCoordinates: shipGalacticCoordinates(raw.shipGalacticCoordinates),
     shipNavigationLogs: shipNavigationLogs(raw.shipNavigationLogs),
@@ -942,6 +957,8 @@ function gmDiscoveryProjection(value: unknown): Pick<GameSession, 'shipGalacticC
       const parsed = nonNegativeInteger(distance);
       return parsed === undefined ? [] : [[shipId, parsed]];
     })),
+    pursuitGroups: pursuitGroups(raw.pursuitGroups),
+    shipFleetGroupIds,
   };
 }
 
@@ -1397,8 +1414,11 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   const result: Record<string, number> = {};
   for (const [group, amount] of Object.entries(value as Record<string, unknown>)) {
-    if (group === 'fleet' && typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0) {
-      result[group] = amount;
+    const parsedGroup = /^fleet-[1-9][0-9]*$/.test(group)
+      ? parseEntityId('group', group)
+      : undefined;
+    if (parsedGroup && typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0 && amount <= 10) {
+      result[parsedGroup] = amount;
     }
   }
   return result;
@@ -1598,7 +1618,6 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     vesselActionRevisions: vesselActionRevisions(data.vesselActionRevisions),
     shipJumpStates: shipJumpStates(data.shipJumpStates),
     shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
-    pursuitGroups: pursuitGroups(data.pursuitGroups),
     fleetRedAlert: fleetRedAlert(data.fleetRedAlert),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
@@ -1719,7 +1738,7 @@ export interface SessionStateHandlers {
   /** Audience-scoped navigation/discovery projection for this member. */
   readonly onPlayerDiscovery?: (projection: PlayerDiscoveryProjection | null) => void;
   /** Facilitator-only organiser navigation/chart projection. */
-  readonly onGmDiscovery?: (projection: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null) => void;
+  readonly onGmDiscovery?: (projection: GmDiscoveryProjection | null) => void;
   /** Whether the accepted session snapshot is backed by server authority. */
   readonly onSessionFreshness?: (fresh: boolean) => void;
   /** Retain accepted server authority when an equivalent listener is restarted. */

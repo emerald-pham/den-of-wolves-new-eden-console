@@ -2814,7 +2814,11 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
         configurationLocked: true,
         currentTurn: reply.currentTurn,
         setupRevision: reply.setupRevision,
-        pursuitGroups: { ...current.pursuitGroups, fleet: 2 },
+        pursuitGroups: { 'fleet-1': 2 },
+        shipFleetGroupIds: Object.fromEntries((current.activeVesselIds ?? []).map((shipId) => [shipId, 'fleet-1'])),
+        ...(current.playerDiscovery
+          ? { playerDiscovery: { ...current.playerDiscovery, pursuitValue: 2 } }
+          : {}),
       });
     }
     useSessionStore.getState().setGmSetupReceipt(reply.setupReceipt);

@@ -10,19 +10,20 @@ it('tracks only the current ship and reads pursuit depth from the galactic map',
       shipName="Shepherd"
       shipCoordinate="8378"
       pursuitDistance={6}
+      pursuitValue={4}
     />,
   );
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
   expect(tracker).not.toHaveTextContent('Relative to Shepherd // 8378');
-  expect(tracker).toHaveTextContent('Current track // 2 / 10');
+  expect(tracker).toHaveTextContent('Current track // 4 / 10');
   expect(tracker).toHaveTextContent('Distance from Home Systems // -6 pursuit distance');
   expect(tracker).not.toHaveTextContent('Map depth //');
   expect(tracker).not.toHaveTextContent('Map depth is shared; position is ship-local.');
   expect(tracker).not.toHaveTextContent('Dione');
 });
 
-it('rebases the score when a split ship has a different position', () => {
+it('keeps the authoritative group score when cycle and ship position change', () => {
   const { rerender } = render(
     <PursuitTracker
       currentTurn={4}
@@ -30,10 +31,26 @@ it('rebases the score when a split ship has a different position', () => {
       shipName="Dione"
       shipCoordinate="5143"
       pursuitDistance={1}
+      pursuitValue={7}
     />,
   );
 
   expect(screen.getByRole('region', { name: 'Pursuit tracker' })).toHaveTextContent('Current track // 7 / 10');
+  expect(screen.getByRole('region', { name: 'Pursuit tracker' })).not.toHaveTextContent('Cycle load');
+
+  rerender(
+    <PursuitTracker
+      currentTurn={9}
+      shipId="dione"
+      shipName="Dione"
+      shipCoordinate="5143"
+      pursuitDistance={1}
+      pursuitValue={7}
+    />,
+  );
+
+  expect(screen.getByRole('region', { name: 'Pursuit tracker' })).toHaveTextContent('Current track // 7 / 10');
+  expect(screen.getByRole('region', { name: 'Pursuit tracker' })).not.toHaveTextContent('Cycle load');
 
   rerender(
     <PursuitTracker
@@ -42,10 +59,11 @@ it('rebases the score when a split ship has a different position', () => {
       shipName="Shepherd"
       shipCoordinate="8378"
       pursuitDistance={6}
+      pursuitValue={7}
     />,
   );
 
-  expect(screen.getByRole('region', { name: 'Pursuit tracker' })).toHaveTextContent('Current track // 2 / 10');
+  expect(screen.getByRole('region', { name: 'Pursuit tracker' })).toHaveTextContent('Current track // 7 / 10');
 });
 
 it('keeps the wolf pursuit countdown visible at the lower end of the cycle', () => {
@@ -56,6 +74,7 @@ it('keeps the wolf pursuit countdown visible at the lower end of the cycle', () 
       shipName="Shepherd"
       shipCoordinate="0000"
       pursuitDistance={0}
+      pursuitValue={2}
     />,
   );
 
@@ -82,11 +101,12 @@ it('calls the full Wolf Pursuit countdown ten cycles', () => {
   );
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
-  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 10 cycles');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // Awaiting server telemetry');
   expect(tracker.querySelector('[role="progressbar"]')).toHaveAttribute(
     'aria-valuetext',
-    '0 of 10; 10 cycles to failure',
+    'Awaiting authoritative pursuit value',
   );
+  expect(tracker).not.toHaveTextContent('GAME OVER');
 });
 
 it('escalates the apocalyptic threat treatment through closing, critical, and terminal states', () => {
@@ -97,6 +117,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
       shipName="Dione"
       shipCoordinate="5143"
       pursuitDistance={1}
+      pursuitValue={7}
     />,
   );
 
@@ -111,6 +132,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
       shipName="Shepherd"
       shipCoordinate="0000"
       pursuitDistance={0}
+      pursuitValue={8}
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'critical');
@@ -123,6 +145,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
       shipName="Shepherd"
       shipCoordinate="0000"
       pursuitDistance={0}
+      pursuitValue={10}
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'terminal');
@@ -138,6 +161,7 @@ it('announces threshold severity changes once while keeping hydrated state quiet
       shipName="Shepherd"
       shipCoordinate="0000"
       pursuitDistance={0}
+      pursuitValue={8}
     />,
   );
 
@@ -152,6 +176,7 @@ it('announces threshold severity changes once while keeping hydrated state quiet
       shipName="Shepherd"
       shipCoordinate="0000"
       pursuitDistance={0}
+      pursuitValue={10}
     />,
   );
   expect(status).toHaveTextContent('SURROUNDED // GAME OVER');
