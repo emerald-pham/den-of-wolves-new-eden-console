@@ -14179,6 +14179,7 @@ export const adjustShipPopulation = onCall<{
       return stale;
     }
     const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const unrestAlerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
     const population = populationForShip(change.shipId, session.get('shipSurvivors'));
     if (population === undefined) throw new HttpsError('invalid-argument', 'Unknown survivor track.');
     let result: ReturnType<typeof populationChange>;
@@ -14193,20 +14194,29 @@ export const adjustShipPopulation = onCall<{
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid population change.', 'conflict');
     }
     const nextAlerts = { ...alerts };
+    const nextUnrestAlerts = { ...unrestAlerts };
+    const unrest = shipUnrest(session.get('shipUnrest'))[change.shipId] ?? 0;
+    const nextUnrest = population > 0 && result.amount === 0
+      ? Math.min(10, unrest + 2)
+      : unrest;
     if (result.alertRaised) {
       const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
       const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
       if (targetGmInstanceIds.length > 0) {
-        nextAlerts[change.shipId] = {
+        const alert = {
           shipId: change.shipId,
           shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId] ?? change.shipId,
-          population: result.amount, targetGmInstanceIds, createdAt: new Date().toISOString(),
+          targetGmInstanceIds, createdAt: new Date().toISOString(),
         };
+        nextAlerts[change.shipId] = { ...alert, population: result.amount };
+        if (unrest < 8 && nextUnrest >= 8) nextUnrestAlerts[change.shipId] = alert;
       }
     }
     tx.update(sessionRef, {
       [`shipSurvivors.${change.shipId}`]: result.amount,
+      [`shipUnrest.${change.shipId}`]: nextUnrest,
       populationAlerts: nextAlerts,
+      unrestAlerts: nextUnrestAlerts,
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -14327,6 +14337,7 @@ export const applyShipCounterSteps = onCall<{
     }
 
     const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const unrestAlerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
     const population = populationForShip(change.shipId, session.get('shipSurvivors'));
     if (population === undefined) throw new HttpsError('invalid-argument', 'Unknown survivor track.');
     let result: ReturnType<typeof applyPopulationSteps>;
@@ -14345,23 +14356,31 @@ export const applyShipCounterSteps = onCall<{
       );
     }
     const nextAlerts = { ...alerts };
+    const nextUnrestAlerts = { ...unrestAlerts };
+    const unrest = shipUnrest(session.get('shipUnrest'))[change.shipId] ?? 0;
+    const nextUnrest = population > 0 && result.amount === 0
+      ? Math.min(10, unrest + 2)
+      : unrest;
     if (result.alertRaised) {
       const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
       const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
       if (targetGmInstanceIds.length > 0) {
-        nextAlerts[change.shipId] = {
+        const alert = {
           shipId: change.shipId,
           shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId]
             ?? change.shipId,
-          population: result.amount,
           targetGmInstanceIds,
           createdAt: new Date().toISOString(),
         };
+        nextAlerts[change.shipId] = { ...alert, population: result.amount };
+        if (unrest < 8 && nextUnrest >= 8) nextUnrestAlerts[change.shipId] = alert;
       }
     }
     tx.update(sessionRef, {
       [`shipSurvivors.${change.shipId}`]: result.amount,
+      [`shipUnrest.${change.shipId}`]: nextUnrest,
       populationAlerts: nextAlerts,
+      unrestAlerts: nextUnrestAlerts,
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });

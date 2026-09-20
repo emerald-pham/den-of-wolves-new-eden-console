@@ -23,18 +23,18 @@ it('initializes the current survivor count for every fleet ship', () => {
 describe('Capybara survivor track', () => {
   it.each([
     [20_000, '15001-20000', [0, 3, 7, 11], [0, 2, 5, 8]],
-    [15_001, '15001-20000', [0, 3, 7, 11], [0, 2, 5, 8]],
+    [16_000, '15001-20000', [0, 3, 7, 11], [0, 2, 5, 8]],
     [15_000, '5001-15000', [0, 3, 6, 10], [0, 2, 4, 7]],
-    [5_001, '5001-15000', [0, 3, 6, 10], [0, 2, 4, 7]],
+    [6_000, '5001-15000', [0, 3, 6, 10], [0, 2, 4, 7]],
     [5_000, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
-    [1, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
+    [250, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
     [0, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
   ] as const)('selects the printed replacement schedule at %i survivors',
     (population, populationBand, food, water) => {
       expect(capybaraRationSchedule(population)).toEqual({ populationBand, food, water });
     });
-  it.each([-1, 20_001, 1.5, Number.NaN])('rejects invalid Capybara population %s', population => {
-    expect(() => capybaraRationSchedule(population)).toThrow(/printed range/i);
+  it.each([-1, 20_001, 14_999, 1.5, Number.NaN])('rejects invalid Capybara population %s', population => {
+    expect(() => capybaraRationSchedule(population)).toThrow(/printed track/i);
   });
   it('preserves every printed step and the initial population', () => {
     expect(populationTrackForShip('capybara')?.steps).toEqual([20000,18500,17000,16000,15000,14000,13000,12000,11000,10000,9000,8000,7000,6000,5000,4500,4000,3500,3000,2500,2000,1500,1250,1000,750,500,250,0]);

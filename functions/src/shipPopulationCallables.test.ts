@@ -1,6 +1,10 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true, phase: 'active', shipId: 'capybara', population: 16000, alerts: {} as Record<string, unknown> }));
+const mock = vi.hoisted(() => ({
+  get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  phase: 'active', shipId: 'capybara', population: 16000, unrest: 0,
+  alerts: {} as Record<string, unknown>, unrestAlerts: {} as Record<string, unknown>,
+}));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
@@ -12,7 +16,9 @@ function request(data: Record<string, unknown>, uid = 'u1') {
   return { data: data.requestId === undefined ? { ...data, requestId: 'test-population' } : data, auth: { uid } } as CallableRequest<{ sessionId: string; shipId: string; delta: number; instanceId: string }>;
 }
 beforeEach(() => {
-  mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.phase = 'active'; mock.shipId = 'capybara'; mock.population = 16000; mock.alerts = {};
+  mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.phase = 'active';
+  mock.shipId = 'capybara'; mock.population = 16000; mock.unrest = 0;
+  mock.alerts = {}; mock.unrestAlerts = {};
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
@@ -23,7 +29,8 @@ beforeEach(() => {
       : {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
         phase: mock.phase,
-        shipSurvivors: { [mock.shipId]: mock.population }, populationAlerts: mock.alerts,
+        shipSurvivors: { [mock.shipId]: mock.population }, shipUnrest: { [mock.shipId]: mock.unrest },
+        populationAlerts: mock.alerts, unrestAlerts: mock.unrestAlerts,
       };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -101,6 +108,28 @@ it.each([
   mock.population = population;
 
   await expect(adjustShipPopulation.run(request({ ...data, shipId, delta })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('adds two unrest once when Capybara reaches zero population', async () => {
+  mock.population = 250;
+  mock.unrest = 7;
+
+  await expect(adjustShipPopulation.run(request(data))).resolves.toMatchObject({
+    amount: 0,
+    alertRaised: true,
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipSurvivors.capybara': 0,
+    'shipUnrest.capybara': 9,
+    populationAlerts: { capybara: expect.objectContaining({ population: 0 }) },
+    unrestAlerts: { capybara: expect.objectContaining({ targetGmInstanceIds: ['gm1', 'gm2'] }) },
+  }));
+
+  mock.population = 0;
+  mock.update.mockReset();
+  await expect(adjustShipPopulation.run(request({ ...data, requestId: 'already-zero' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
 });

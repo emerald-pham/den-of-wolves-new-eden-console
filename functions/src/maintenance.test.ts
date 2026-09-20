@@ -211,9 +211,9 @@ it('spends food and water separately and retains both ration bonuses', () => {
   expect(() => advanceMaintenance(input({ action: 'rations', cycle: { ...result.cycle, step: 2, revision: 0 }, foodLevel: 3, waterLevel: 3, resources: { ...result.resources, food: 1 } }))).toThrow(/food/i);
 });
 it.each([
-  [15_001, 11, 8],
+  [16_000, 11, 8],
   [15_000, 10, 7],
-  [5_001, 10, 7],
+  [6_000, 10, 7],
   [5_000, 8, 6],
 ] as const)('uses the Capybara replacement ration schedule at %i survivors', (population, food, water) => {
   const result = advanceMaintenance(input({

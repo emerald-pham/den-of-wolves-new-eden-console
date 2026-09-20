@@ -19,8 +19,8 @@ const CAPYBARA_RATION_SCHEDULES: Readonly<Record<RationSchedule['populationBand'
  * Population zero keeps the last applicable table; its separate printed
  * consequence is the one-time unrest increase when the counter reaches zero. */
 export function capybaraRationSchedule(population: number): RationSchedule {
-  if (!Number.isSafeInteger(population) || population < 0 || population > 20_000) {
-    throw new Error('Capybara population is outside its printed range.');
+  if (!populationTrackForShip('capybara')?.steps.includes(population)) {
+    throw new Error('Capybara population is not on its printed track.');
   }
   if (population <= 5_000) return CAPYBARA_RATION_SCHEDULES['1-5000'];
   if (population <= 15_000) return CAPYBARA_RATION_SCHEDULES['5001-15000'];

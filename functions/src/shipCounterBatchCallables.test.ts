@@ -50,7 +50,7 @@ beforeEach(() => {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
         phase: mock.phase,
         shipResources: { dione: { fuel: mock.fuel } },
-        shipUnrest: { dione: mock.unrest },
+        shipUnrest: { dione: mock.unrest, capybara: mock.unrest },
         shipSurvivors: { capybara: mock.population },
         unrestAlerts: mock.unrestAlerts,
         populationAlerts: mock.populationAlerts,
@@ -124,6 +124,29 @@ it('preserves the first population threshold and targets every active GM', async
     'shipSurvivors.capybara': 15_000,
     populationAlerts: { capybara: expect.objectContaining({ population: 15_000, targetGmInstanceIds: ['gm1', 'gm2'] }) },
   }));
+});
+
+it('adds two unrest once when an ordered Capybara population input reaches zero', async () => {
+  mock.population = 250;
+  mock.unrest = 7;
+
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'capybara', counter: 'population', steps: [-1],
+  }))).resolves.toMatchObject({ amount: 0, appliedSteps: [-1], alertRaised: true });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipSurvivors.capybara': 0,
+    'shipUnrest.capybara': 9,
+    populationAlerts: { capybara: expect.objectContaining({ population: 0 }) },
+    unrestAlerts: { capybara: expect.objectContaining({ targetGmInstanceIds: ['gm1', 'gm2'] }) },
+  }));
+
+  mock.population = 0;
+  mock.update.mockReset();
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'capybara', counter: 'population', steps: [-1],
+    requestId: 'already-zero',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('does not let a batch bypass an unresolved GM alert', async () => {

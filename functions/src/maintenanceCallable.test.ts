@@ -895,6 +895,36 @@ it('spends the server-selected Capybara replacement rations at the 15,000 thresh
   expect(maintenance.session.shipResources).toMatchObject({ capybara: { food: 10, water: 13 } });
 });
 
+it('rejects off-track Capybara population before spending rations or advancing maintenance', async () => {
+  mock.grantShip = 'capybara';
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
+      maintenanceCycles: {
+        capybara: { step: 2, revision: 0, results: {}, charges: [], refuelled: [] },
+      },
+      shipResources: { capybara: { ore: 0, fuel: 3, food: 20, water: 20, materials: 0, securityTeams: 2, scrap: 2 } },
+      shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 14_999 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'capybara', action: 'rations', expectedRevision: 0,
+    requestId: 'capybara-off-track-rations', foodLevel: 3, waterLevel: 3,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/printed track/i),
+  });
+  expect(maintenance.session).toMatchObject({
+    shipResources: { capybara: { food: 20, water: 20 } },
+    maintenanceCycles: { capybara: { step: 2, revision: 0 } },
+  });
+});
+
 it('resolves Capybara Scrap Refinery choices through the callable receipt and CAS boundary', async () => {
   mock.grantShip = 'capybara';
   const maintenance = {
