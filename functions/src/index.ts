@@ -3183,10 +3183,11 @@ function vesselActionEnvelope(
   requestId: string,
   action: string,
   hostShipId?: string,
+  actorRoleId: string | null = vesselActorRoleId(player),
 ): VesselActionEnvelope {
   return buildVesselActionEnvelope({
     actorUid,
-    actorRoleId: vesselActorRoleId(player),
+    actorRoleId,
     vesselId,
     ...(hostShipId === undefined ? {} : { hostShipId }),
     turn: sessionTurn(session.get('currentTurn')),
@@ -6288,6 +6289,7 @@ function setLoyaltyCensusFromSecrets(
   });
   if (!sameWolfIdentity(previousEntries, nextEntries)) {
     tx.delete(db.doc(`sessions/${sessionId}/wolfClueDisclosure/current`));
+    tx.delete(db.doc(`sessions/${sessionId}/wolfActionReceipts/current`));
   }
   const wolfCultIdentityChanged = !previousWolf || !nextWolf ||
     previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
@@ -6346,6 +6348,7 @@ export function setLoyaltyCensusEntries(
   });
   if (!sameWolfIdentity(previousEntries, nextEntries)) {
     tx.delete(db.doc(`sessions/${sessionId}/wolfClueDisclosure/current`));
+    tx.delete(db.doc(`sessions/${sessionId}/wolfActionReceipts/current`));
   }
   const wolfCultIdentityChanged = !previousWolf || !nextWolf ||
     previousWolf.cultUid !== nextWolf.cultUid || previousWolf.agentUid !== nextWolf.agentUid;
@@ -11845,12 +11848,13 @@ type WolfSupplySabotageResult = Readonly<{
   destroyedAmount: number;
   remainingAmount: number;
   suspicion: number;
-}>;
+}> & VesselActionEnvelope;
 
 function isWolfSupplySabotageResult(
   value: unknown,
   sessionId: string,
   requestId: string,
+  actorUid: string,
 ): value is WolfSupplySabotageResult {
   return isRecord(value) && value.status === 'committed' &&
     value.type === 'wolf-supply-sabotage' && value.sessionId === sessionId &&
@@ -11864,7 +11868,12 @@ function isWolfSupplySabotageResult(
     (RESOURCE_IDS as readonly string[]).includes(value.resourceId) &&
     Number.isSafeInteger(value.destroyedAmount) && (value.destroyedAmount as number) >= 0 &&
     Number.isSafeInteger(value.remainingAmount) && (value.remainingAmount as number) >= 0 &&
-    Number.isSafeInteger(value.suspicion) && (value.suspicion as number) >= 0;
+    Number.isSafeInteger(value.suspicion) && (value.suspicion as number) >= 0 &&
+    isVesselActionResult(value) &&
+    value.actorUid === actorUid && value.actorRoleId === value.coverRoleId &&
+    value.vesselId === value.shuttleId && value.phase === 'active' &&
+    value.idempotencyKey === requestId &&
+    value.auditId === `wolf-supply-sabotage-${requestId}`;
 }
 
 /**
@@ -11886,6 +11895,7 @@ export const submitWolfSupplySabotage = onCall<{
   const assignmentRef = db.doc(`sessions/${submission.sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
   const clueRef = db.doc(`sessions/${submission.sessionId}/wolfClueDisclosure/current`);
+  const actionReceiptRef = db.doc(`sessions/${submission.sessionId}/wolfActionReceipts/current`);
   const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
   const auditRef = db.doc(
     `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
@@ -11913,7 +11923,7 @@ export const submitWolfSupplySabotage = onCall<{
       receipt,
       fingerprint,
       (value): value is WolfSupplySabotageResult =>
-        isWolfSupplySabotageResult(value, submission.sessionId, submission.requestId),
+        isWolfSupplySabotageResult(value, submission.sessionId, submission.requestId, uid),
       'Wolf supply sabotage',
     );
     if (replay) return replay;
@@ -12039,19 +12049,31 @@ export const submitWolfSupplySabotage = onCall<{
     clueRoll ??= randomInt(1, 7);
     const clue = resolveWolfSuspicionClue(suspicion as number, 2, clueRoll);
     const nextSuspicion = clue.newSuspicion;
+    const actionRevision = revision + 1;
+    const envelope = vesselActionEnvelope(
+      session,
+      player,
+      uid,
+      submission.shuttleId,
+      actionRevision,
+      submission.requestId,
+      'wolf-supply-sabotage',
+      undefined,
+      authorization.coverRoleId,
+    );
     const result: WolfSupplySabotageResult = {
       status: 'committed',
       type: 'wolf-supply-sabotage',
       sessionId: submission.sessionId,
       requestId: submission.requestId,
       cycle,
-      revision: revision + 1,
       coverRoleId: authorization.coverRoleId,
       shuttleId: submission.shuttleId,
       resourceId: submission.resourceId,
       destroyedAmount: consequence.destroyedAmount,
       remainingAmount: consequence.remainingAmount,
       suspicion: nextSuspicion,
+      ...envelope,
     };
     const record = {
       ...result,
@@ -12080,6 +12102,27 @@ export const submitWolfSupplySabotage = onCall<{
       cycle,
       requestId: submission.requestId,
       ...clue,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(actionReceiptRef, {
+      type: 'wolf-action-receipt',
+      status: 'committed',
+      action: 'sabotage-supplies',
+      projectionRevision: (censusRevision as number) + 1,
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      cycle,
+      ...envelope,
+      resourceId: submission.resourceId,
+      destroyedAmount: consequence.destroyedAmount,
+      remainingAmount: consequence.remainingAmount,
+      oldSuspicion: clue.oldSuspicion,
+      suspicionIncrement: clue.increment,
+      newSuspicion: clue.newSuspicion,
+      roll: clue.roll,
+      total: clue.total,
+      clueTier: clue.clueTier,
+      facilitatorInstruction: clue.facilitatorInstruction,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(actionRef, record);

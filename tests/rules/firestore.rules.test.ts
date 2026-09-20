@@ -1447,6 +1447,36 @@ describe('facilitator Wolf clue disclosure', () => {
   });
 });
 
+describe('Wolf action receipt audiences', () => {
+  it('allows only a GM to get the full fixed receipt and denies listing and client writes', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfActionReceipts/current`), {
+        type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
+        projectionRevision: 5, sessionId: 's1', requestId: 'wolf-supply-1', cycle: 3, revision: 1,
+        actorUid: 'alice', actorRoleId: 'dione-engineer', vesselId: 'philia',
+        phase: 'active', idempotencyKey: 'wolf-supply-1',
+        auditId: 'wolf-supply-sabotage-wolf-supply-1',
+        resourceId: 'food', destroyedAmount: 2, remainingAmount: 3,
+        oldSuspicion: 0, suspicionIncrement: 2, newSuspicion: 2,
+        roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+      });
+    });
+
+    const path = `${SESSION}/wolfActionReceipts/current`;
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), path)));
+    }
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/wolfActionReceipts`)));
+    }
+  });
+});
+
 describe('players', () => {
   it('bounds ordinary roster reads to the caller current connected fleet group', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [503],
+    implementationProgress: {
+      completed: 350, total: 751, percentage: '46.60%',
+      done: 350, partial: 19, active: 0, missing: 382,
+    },
+    changes: [
+      'Committed Wolf actions now return the acting Wolf a replay-safe private receipt while keeping clue details facilitator-only.',
+      'Affected crews receive only the authoritative operational consequence, and the facilitator console receives the complete action and audit record.',
+      '350 of 751 planned items are complete (46.60%).',
+    ],
+  },
+  {
+    version: '0.4.47',
     implementationPrompts: [502],
     implementationProgress: {
       completed: 349, total: 751, percentage: '46.47%',

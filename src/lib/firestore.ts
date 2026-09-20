@@ -56,6 +56,7 @@ import type {
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationState,
   WolfAttackWindow,
+  WolfActionReceipt,
   WolfClueDisclosure,
   Voyage33Admission,
   Voyage33MaintenanceState,
@@ -656,6 +657,77 @@ function wolfClueDisclosure(value: unknown): WolfClueDisclosure | null {
     roll: raw.roll as number,
     total: raw.total as number,
     clueTier: raw.clueTier as WolfClueDisclosure['clueTier'],
+    facilitatorInstruction: raw.facilitatorInstruction,
+    ...(createdAt ? { createdAt } : {}),
+  };
+}
+
+function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const parsedSessionId = parseEntityId('session', raw.sessionId);
+  const actorUid = parseEntityId('player', raw.actorUid);
+  const actorRoleId = parseEntityId('role', raw.actorRoleId);
+  const vesselId = parseEntityId('shuttle', raw.vesselId);
+  const requestId = typeof raw.requestId === 'string' ? raw.requestId : '';
+  const resourceIds = new Set<string>(RESOURCE_DEFINITIONS.map((resource) => resource.id));
+  const craft = vesselId ? SHUTTLECRAFT.find((candidate) => candidate.id === vesselId) : undefined;
+  if (raw.type !== 'wolf-action-receipt' || raw.status !== 'committed' ||
+      raw.action !== 'sabotage-supplies' || parsedSessionId !== parseEntityId('session', sessionId) ||
+      !actorUid || !actorRoleId || !findConsoleRole(actorRoleId) || !vesselId || !craft ||
+      craft.captainRoleId !== actorRoleId ||
+      requestId.length < 1 || requestId.length > 96 || raw.idempotencyKey !== requestId ||
+      raw.auditId !== `wolf-supply-sabotage-${requestId}` || raw.phase !== 'active' ||
+      !Number.isSafeInteger(raw.projectionRevision) || (raw.projectionRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      typeof raw.resourceId !== 'string' || !resourceIds.has(raw.resourceId) ||
+      !Number.isSafeInteger(raw.destroyedAmount) || (raw.destroyedAmount as number) < 0 ||
+      !Number.isSafeInteger(raw.remainingAmount) || (raw.remainingAmount as number) < 0 ||
+      !Number.isSafeInteger(raw.oldSuspicion) || (raw.oldSuspicion as number) < 0 ||
+      raw.suspicionIncrement !== 2 || !Number.isSafeInteger(raw.newSuspicion) ||
+      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + 2 ||
+      !Number.isSafeInteger(raw.roll) || (raw.roll as number) < 1 || (raw.roll as number) > 6 ||
+      !Number.isSafeInteger(raw.total) ||
+      (raw.total as number) !== (raw.newSuspicion as number) + (raw.roll as number) ||
+      typeof raw.facilitatorInstruction !== 'string') return null;
+  const expected = (raw.total as number) <= 6
+    ? ['none', 'Nothing.']
+    : (raw.total as number) <= 11
+      ? ['natural-change', 'Point the change out to someone, framed as natural or accidental.']
+      : (raw.total as number) <= 15
+        ? ['wolf-activity', 'Point out the wolf activity to someone.']
+        : (raw.total as number) <= 19
+          ? ['wolf-activity-hint', 'Point out the wolf activity, and give a hint.']
+          : (raw.total as number) <= 23
+            ? ['strong-hint', 'Give someone a strong hint.']
+            : ['traitor-name', "Give someone the traitor's name."];
+  if (raw.clueTier !== expected[0] || raw.facilitatorInstruction !== expected[1]) return null;
+  const createdAt = optionalIso(raw.createdAt);
+  return {
+    type: 'wolf-action-receipt',
+    status: 'committed',
+    action: 'sabotage-supplies',
+    projectionRevision: raw.projectionRevision as number,
+    sessionId: parsedSessionId!,
+    requestId,
+    cycle: raw.cycle as number,
+    actorUid,
+    actorRoleId,
+    vesselId,
+    phase: 'active',
+    revision: raw.revision as number,
+    idempotencyKey: requestId,
+    auditId: raw.auditId as string,
+    resourceId: raw.resourceId,
+    destroyedAmount: raw.destroyedAmount as number,
+    remainingAmount: raw.remainingAmount as number,
+    oldSuspicion: raw.oldSuspicion as number,
+    suspicionIncrement: 2,
+    newSuspicion: raw.newSuspicion as number,
+    roll: raw.roll as number,
+    total: raw.total as number,
+    clueTier: raw.clueTier as WolfActionReceipt['clueTier'],
     facilitatorInstruction: raw.facilitatorInstruction,
     ...(createdAt ? { createdAt } : {}),
   };
@@ -2496,6 +2568,33 @@ export function subscribeGmWolfClueDisclosure(
     subscribed = false;
     unsubscribe();
     onDisclosure(null);
+  };
+}
+
+/** Subscribe to the latest complete facilitator-only Wolf action receipt. */
+export function subscribeGmWolfActionReceipt(
+  sessionId: string,
+  onReceipt: (receipt: WolfActionReceipt | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfActionReceipts/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const receipt = snapshot.exists() ? wolfActionReceipt(snapshot.data(), sessionId) : null;
+      if (receipt && !acceptsRevision(receipt.projectionRevision)) return;
+      onReceipt(receipt);
+    },
+    () => {
+      if (!subscribed) return;
+      onReceipt(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onReceipt(null);
   };
 }
 

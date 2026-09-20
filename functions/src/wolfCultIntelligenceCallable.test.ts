@@ -200,6 +200,7 @@ it('clears private Wolf projections when the agent changes or the census loses a
   ], previous as never);
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/current' }));
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfClueDisclosure/current' }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfActionReceipts/current' }));
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/u2' }));
 
   tx.delete.mockClear();
@@ -210,6 +211,7 @@ it('clears private Wolf projections when the agent changes or the census loses a
   ], previous as never);
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/current' }));
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfClueDisclosure/current' }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfActionReceipts/current' }));
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/wolfCultIntelligence/u2' }));
 });
 
@@ -233,6 +235,9 @@ it('preserves the latest clue across a non-Wolf census rebuild and clears it whe
   expect(tx.delete).not.toHaveBeenCalledWith(expect.objectContaining({
     path: 'sessions/s1/wolfClueDisclosure/current',
   }));
+  expect(tx.delete).not.toHaveBeenCalledWith(expect.objectContaining({
+    path: 'sessions/s1/wolfActionReceipts/current',
+  }));
 
   tx.delete.mockClear();
   setLoyaltyCensusEntries(tx as never, 's1', 5, [
@@ -241,5 +246,8 @@ it('preserves the latest clue across a non-Wolf census rebuild and clears it whe
   ], previous as never);
   expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({
     path: 'sessions/s1/wolfClueDisclosure/current',
+  }));
+  expect(tx.delete).toHaveBeenCalledWith(expect.objectContaining({
+    path: 'sessions/s1/wolfActionReceipts/current',
   }));
 });

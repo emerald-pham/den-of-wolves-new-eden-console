@@ -6119,6 +6119,60 @@ body {
   overflow-wrap: anywhere;
 }
 
+.gm-wolf-action-receipt {
+  display: grid;
+  gap: 0.75rem;
+  border-color: var(--cic-amber-dim);
+  font-family: var(--cic-mono);
+}
+
+.gm-wolf-action-receipt__context,
+.gm-wolf-action-receipt__instruction {
+  margin: 0;
+  font: 1rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.gm-wolf-action-receipt__context {
+  color: var(--cic-amber);
+}
+
+.gm-wolf-action-receipt__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.6rem 1rem;
+  margin: 0;
+}
+
+.gm-wolf-action-receipt__grid > div {
+  min-width: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.gm-wolf-action-receipt__grid dt,
+.gm-wolf-action-receipt__grid dd {
+  margin: 0;
+  font: 1rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.gm-wolf-action-receipt__grid dt {
+  color: var(--cic-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gm-wolf-action-receipt__grid dd {
+  color: var(--cic-ink);
+}
+
+.gm-wolf-action-receipt__instruction {
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--cic-rule);
+  color: var(--cic-cyan);
+}
+
 .gm-wolf-clue-disclosure__instruction {
   padding-top: 0.65rem;
   border-top: 1px solid var(--cic-rule);

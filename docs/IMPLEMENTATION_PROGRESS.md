@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**349 / 751 prompts complete (46.47%)**
+**350 / 751 prompts complete (46.60%)**
 
-Status breakdown: **349 done · 19 partial · 383 missing**.
+Status breakdown: **350 done · 19 partial · 382 missing**.
 
 Active prompt: **none**
 
@@ -962,7 +962,7 @@ release classification and evidence.
 | 500 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 501 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 502 | done | non-feature | 0.4.47 | The supply-sabotage production transaction now applies its exact +2 suspicion before one cryptographically sampled d6 threshold roll, persists the canonical source-defined clue band in a fixed facilitator-only projection, and returns no roll or clue through the player receipt or public event stream. The GM console subscribes to the allowlisted projection and shows the exact old value, increment, new value, roll, total, and facilitator instruction. Invalid actions and exact replays sample no new roll; Firestore denies player and observer reads, all listing, and every client write. The latest disclosure is cleared when the authoritative Wolf identity changes. Later Wolf action prompts must compose the same resolver with their printed increments, and Prompt 504 remains responsible for durable clue history. |
-| 503 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 503 | done | non-feature | 0.4.48 | The server-owned supply-sabotage transaction now returns the authenticated Wolf a complete standard action envelope and private consequence while withholding the clue roll and facilitator instruction. Affected crews receive only the authoritative cargo change through ordinary session state; no member-readable event, action identity, suspicion, roll, clue, or audit record is published. The same transaction writes a fixed facilitator-only full receipt with actor, cover, craft, cycle, phase, revision, idempotency key, audit ID, consequence, suspicion arithmetic, roll, clue band, and instruction. A strict allowlisted listener renders that record in the GM console, Firestore denies player and observer reads plus all listing and client writes, and Wolf-identity changes clear stale receipts. |
 | 503a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 504 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 505 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

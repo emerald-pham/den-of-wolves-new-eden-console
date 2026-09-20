@@ -33,6 +33,7 @@ const {
   subscribeConnectedPlayers,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
+  subscribeGmWolfActionReceipt,
   subscribeGmWolfClueDisclosure,
   subscribeGmWolfCultIntelligence,
   subscribeGmWolfAttackPreparation,
@@ -1299,6 +1300,85 @@ it('hydrates only canonical facilitator Wolf clue disclosures', () => {
     }),
   });
   expect(onDisclosure).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only canonical complete facilitator Wolf action receipts', () => {
+  const { callbacks } = captureSessionListener();
+  const onReceipt = vi.fn();
+  subscribeGmWolfActionReceipt('s1', onReceipt);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
+      projectionRevision: 5, sessionId: 's1', requestId: 'wolf-supply-1', cycle: 3, revision: 1,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'philia',
+      phase: 'active', idempotencyKey: 'wolf-supply-1',
+      auditId: 'wolf-supply-sabotage-wolf-supply-1',
+      resourceId: 'food', destroyedAmount: 2, remainingAmount: 3,
+      oldSuspicion: 8, suspicionIncrement: 2, newSuspicion: 10,
+      roll: 6, total: 16, clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+      hiddenExtra: 'discard me',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(expect.objectContaining({
+    type: 'wolf-action-receipt', actorUid: 'u2', vesselId: 'philia',
+    destroyedAmount: 2, newSuspicion: 10, roll: 6, total: 16,
+  }));
+  expect(onReceipt.mock.calls.at(-1)?.[0]).not.toHaveProperty('hiddenExtra');
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-supply-tampered', cycle: 4, revision: 1,
+      actorUid: 'u3', actorRoleId: 'admiral', vesselId: 'philia',
+      phase: 'active', idempotencyKey: 'wolf-supply-tampered',
+      auditId: 'wolf-supply-sabotage-wolf-supply-tampered',
+      resourceId: 'food', destroyedAmount: 1, remainingAmount: 2,
+      oldSuspicion: 0, suspicionIncrement: 2, newSuspicion: 2,
+      roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(null);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-supply-2', cycle: 4, revision: 1,
+      actorUid: 'u3', actorRoleId: 'dione-engineer', vesselId: 'philia',
+      phase: 'active', idempotencyKey: 'wolf-supply-2',
+      auditId: 'wolf-supply-sabotage-wolf-supply-2',
+      resourceId: 'food', destroyedAmount: 1, remainingAmount: 2,
+      oldSuspicion: 0, suspicionIncrement: 2, newSuspicion: 2,
+      roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(expect.objectContaining({
+    projectionRevision: 6, revision: 1, actorUid: 'u3',
+  }));
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
+      projectionRevision: 7, sessionId: 's1', requestId: 'wolf-supply-3', cycle: 4, revision: 2,
+      actorUid: 'u3', actorRoleId: 'dione-engineer', vesselId: 'philia',
+      phase: 'active', idempotencyKey: 'wolf-supply-3',
+      auditId: 'wolf-supply-sabotage-wolf-supply-3',
+      resourceId: 'food', destroyedAmount: 1, remainingAmount: 1,
+      oldSuspicion: 2, suspicionIncrement: 2, newSuspicion: 4,
+      roll: 7, total: 11, clueTier: 'natural-change',
+      facilitatorInstruction: 'Point the change out to someone, framed as natural or accidental.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(null);
 });
 
 it('hydrates only a valid private Zealotry response and never exposes census identities', () => {

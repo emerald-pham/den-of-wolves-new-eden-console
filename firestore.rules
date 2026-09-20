@@ -790,6 +790,15 @@ service cloud.firestore {
         }
       }
 
+      // The latest complete Wolf action record contains the hidden actor,
+      // private suspicion, roll, and audit identity. Only a facilitator may
+      // read the fixed projection; crews receive consequences through their
+      // ordinary authoritative vessel state instead.
+      match /wolfActionReceipts/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+      }
+
       // The latest suspicion threshold result names a hidden Wolf and carries
       // the facilitator's clue instruction. Only an authenticated facilitator
       // may read the fixed projection; clients cannot enumerate or mutate it.

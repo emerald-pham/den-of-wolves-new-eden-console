@@ -197,6 +197,24 @@ public audit projections. Requests from older clients without a stable request
 identity follow the existing reconcile or fail-closed guidance rather than
 receiving a fabricated idempotency key.
 
+### Prompt 503 — Wolf action receipt audiences
+
+A committed Wolf action produces separate allowlisted outputs in the same
+transaction. The authenticated Wolf receives the standard action envelope and
+their action consequence through the callable response. That reply excludes
+the suspicion clue roll and facilitator instruction. Exact retries return the
+same stored private result without another mutation, random draw, or audit.
+
+Affected crews observe only the authoritative operational consequence in their
+ordinary vessel state. No member-readable event or receipt names the Wolf,
+action, suspicion, roll, clue, or audit identity. The fixed facilitator receipt
+contains the complete actor, cover, craft, cycle, phase, revision, idempotency
+key, audit ID, consequence, suspicion calculation, roll, clue band, and
+instruction. Firestore permits an authenticated facilitator to get that fixed
+document, denies collection listing and every client write, and denies all
+player and observer reads. An authoritative Wolf-holder change clears the
+latest full receipt so a stale hidden identity cannot survive reassignment.
+
 ## 1. Source and ambiguity ledger — Prompt 003
 
 The source map in the plan is authoritative for routing. Printed ship,

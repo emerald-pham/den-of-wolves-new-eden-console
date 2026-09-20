@@ -2645,7 +2645,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 500
 - [ ] Prompt 501
 - [x] Prompt 502
-- [ ] Prompt 503
+- [x] Prompt 503
 - [ ] Prompt 503a
 - [ ] Prompt 504
 - [ ] Prompt 505

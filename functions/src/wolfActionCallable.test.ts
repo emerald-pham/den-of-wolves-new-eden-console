@@ -98,12 +98,18 @@ beforeEach(() => {
 });
 
 it('atomically resolves supply sabotage, suspicion, and the private cycle commitment', async () => {
-  await expect(submitWolfSupplySabotage.run(request())).resolves.toEqual({
+  const reply = await submitWolfSupplySabotage.run(request());
+  expect(reply).toMatchObject({
     status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
     requestId: 'wolf-supply-1', cycle: 2, revision: 1,
     coverRoleId: 'dione-engineer', shuttleId: 'philia', resourceId: 'food',
     destroyedAmount: 2, remainingAmount: 3, suspicion: 2,
+    actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'philia',
+    phase: 'active', idempotencyKey: 'wolf-supply-1',
+    auditId: 'wolf-supply-sabotage-wolf-supply-1',
   });
+  expect(reply).not.toHaveProperty('roll');
+  expect(reply).not.toHaveProperty('facilitatorInstruction');
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     shuttleCargo: { philia: { food: 3 }, maliades: { water: 4 } },
   });
@@ -118,6 +124,16 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
     type: 'wolf-clue-disclosure', revision: 5, actorUid: 'u2',
     action: 'sabotage-supplies', cycle: 2, requestId: 'wolf-supply-1',
     oldSuspicion: 0, increment: 2, newSuspicion: 2,
+    roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+  expect(mock.documents.get('sessions/s1/wolfActionReceipts/current')).toMatchObject({
+    type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
+    projectionRevision: 5, sessionId: 's1', requestId: 'wolf-supply-1', cycle: 2, revision: 1,
+    actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'philia',
+    phase: 'active', idempotencyKey: 'wolf-supply-1',
+    auditId: 'wolf-supply-sabotage-wolf-supply-1',
+    resourceId: 'food', destroyedAmount: 2, remainingAmount: 3,
+    oldSuspicion: 0, suspicionIncrement: 2, newSuspicion: 2,
     roll: 1, total: 3, clueTier: 'none', facilitatorInstruction: 'Nothing.',
   });
   expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
@@ -206,6 +222,20 @@ it('replays the exact request without applying cargo or suspicion twice', async 
   await expect(submitWolfSupplySabotage.run(request())).resolves.toMatchObject({
     requestId: 'wolf-supply-1', cycle: 2, revision: 1,
   });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('denies a foreign actor reusing the private action receipt without disclosing it', async () => {
+  await submitWolfSupplySabotage.run(request());
+  mock.set.mockClear(); mock.update.mockClear();
+  cryptoMock.randomInt.mockClear();
+
+  await expect(submitWolfSupplySabotage.run(request(baseData, 'u3'))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();

@@ -853,6 +853,35 @@ export interface WolfClueDisclosure {
   readonly createdAt?: string;
 }
 
+/** Latest complete facilitator-only record of a committed Wolf action. */
+export interface WolfActionReceipt {
+  readonly type: 'wolf-action-receipt';
+  readonly status: 'committed';
+  readonly action: 'sabotage-supplies';
+  readonly projectionRevision: number;
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly actorUid: PlayerId;
+  readonly actorRoleId: RoleId;
+  readonly vesselId: ShuttleId;
+  readonly phase: 'active';
+  readonly revision: number;
+  readonly idempotencyKey: string;
+  readonly auditId: string;
+  readonly resourceId: string;
+  readonly destroyedAmount: number;
+  readonly remainingAmount: number;
+  readonly oldSuspicion: number;
+  readonly suspicionIncrement: number;
+  readonly newSuspicion: number;
+  readonly roll: number;
+  readonly total: number;
+  readonly clueTier: WolfClueTier;
+  readonly facilitatorInstruction: string;
+  readonly createdAt?: string;
+}
+
 export interface ShuttleDocking {
   readonly shuttleId: ShuttleId;
   readonly shipId: VesselId;

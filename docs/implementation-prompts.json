@@ -5509,6 +5509,13 @@
       "language": "The source-defined Wolf-only threshold resolver validates safe integer inputs, applies the action increment before one d6 roll, and maps every boundary from 0-6 through 24+ to the exact facilitator instruction. Supply sabotage samples cryptographic randomness only after authorization, cycle, target, cargo, loyalty, and census validation; a closure-stable roll survives transaction retries, while invalid requests and exact receipt replays draw nothing. The action consequence, private suspicion, facilitator census, current clue disclosure, cycle commitment, audit, and receipt commit atomically. The fixed clue projection is parsed through an allowlist, rendered in the facilitator console, cleared when Wolf identity changes, and denied to players, observers, collection listing, and all client writes.",
       "source": "functions/src/wolfSuspicionClue.ts; functions/src/wolfSuspicionClue.test.ts; functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; functions/src/wolfCultIntelligenceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md Suspicion and clues",
       "type": "evidence / production-path / server-authority / random-threshold / facilitator-disclosure / privacy / regression"
+    },
+    {
+      "direction": "503 -> 497;167",
+      "id": "E-503-WOLF-ACTION-AUDIENCES",
+      "language": "The committed supply-sabotage action separates three audiences atomically. Its authenticated callable response gives only the Wolf actor the standard server-owned action envelope and private action consequence, omitting the clue roll and facilitator instruction. The shared session cargo ledger carries only the operational consequence and no public event names the action or actor. A fixed facilitator projection carries the complete action, suspicion calculation, d6 result, clue instruction, replay identity, and audit identity; a strict client allowlist renders it in the GM console, while rules deny all lower-audience reads, collection listing, and client writes. Exact replay returns the original actor receipt without another mutation or projection write, and an authoritative Wolf-holder change clears stale hidden records.",
+      "source": "functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; functions/src/wolfCultIntelligenceCallable.test.ts; functions/src/vesselActionEnvelope.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 167 and audience projection rules",
+      "type": "evidence / production-path / server-authority / action-envelope / audience-projection / privacy / atomicity / regression"
     }
   ],
   "plan": {
@@ -18415,8 +18422,8 @@
         "acceptance": "the Wolf sees their result, affected crews see only consequences, and facilitators see the full record.",
         "title": "Deliver Wolf action receipts by audience."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-503",
+      "description": "The server-owned supply-sabotage transaction now returns the authenticated Wolf a complete standard action envelope and private consequence while withholding the clue roll and facilitator instruction. Affected crews receive only the authoritative cargo change through ordinary session state; no member-readable event, action identity, suspicion, roll, clue, or audit record is published. The same transaction writes a fixed facilitator-only full receipt with actor, cover, craft, cycle, phase, revision, idempotency key, audit ID, consequence, suspicion arithmetic, roll, clue band, and instruction. A strict allowlisted listener renders that record in the GM console, Firestore denies player and observer reads plus all listing and client writes, and Wolf-identity changes clear stale receipts.",
+      "evidenceIds": "E-AUDIT-503;E-503-WOLF-ACTION-AUDIENCES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497;167",
@@ -18424,10 +18431,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.48"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

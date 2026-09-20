@@ -93,6 +93,7 @@ import type {
   WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
+  WolfActionReceipt,
   WolfAssignment,
   WolfClueDisclosure,
   ArbourVision,
@@ -125,6 +126,14 @@ const WOLF_CLUE_ACTION_LABELS: Readonly<Record<WolfClueDisclosure['action'], str
   'sabotage-supplies': 'Supply sabotage',
   'homing-beacon': 'Homing beacon',
   'provide-intel': 'Intelligence dispatch',
+};
+const WOLF_CLUE_TIER_LABELS: Readonly<Record<WolfClueDisclosure['clueTier'], string>> = {
+  none: 'No clue',
+  'natural-change': 'Natural or accidental change',
+  'wolf-activity': 'Wolf activity',
+  'wolf-activity-hint': 'Wolf activity with hint',
+  'strong-hint': 'Strong hint',
+  'traitor-name': 'Traitor name',
 };
 const WOLF_PREPARATION_MODIFIERS: readonly { id: WolfAttackPreparationModifierId; label: string }[] = [
   { id: 'wolf-commander-target-reroll', label: 'Wolf Commander // targeting reroll' },
@@ -340,6 +349,7 @@ export default function GmConsole() {
   const [wolfAttackPreparation, setWolfAttackPreparationState] = useState<WolfAttackPreparation | null>(null);
   const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
+  const [wolfActionReceipt, setWolfActionReceipt] = useState<WolfActionReceipt | null>(null);
   const [wolfClueDisclosure, setWolfClueDisclosure] = useState<WolfClueDisclosure | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
@@ -765,6 +775,7 @@ export default function GmConsole() {
       subscribeGmWolfAttackPreparation,
       subscribeGmWolfAttackState,
       subscribeGmWolfAttackWindow,
+      subscribeGmWolfActionReceipt,
       subscribeGmWolfAssignment,
       subscribeGmWolfClueDisclosure,
       subscribeGmWolfCultIntelligence,
@@ -946,6 +957,10 @@ export default function GmConsole() {
         sessionId,
         setWolfAssignment,
       );
+      const stopWolfActionReceipt = subscribeGmWolfActionReceipt(
+        sessionId,
+        setWolfActionReceipt,
+      );
       const stopWolfClueDisclosure = subscribeGmWolfClueDisclosure(
         sessionId,
         setWolfClueDisclosure,
@@ -1009,6 +1024,7 @@ export default function GmConsole() {
         stopWolfAttackPreparation();
         stopWolfAttackState();
         stopWolfAssignment();
+        stopWolfActionReceipt();
         stopWolfClueDisclosure();
         stopWolfCultIntelligence();
         stopArbourVision();
@@ -1035,6 +1051,7 @@ export default function GmConsole() {
       stopZealotryResponse();
       stopCivilUnrestResolution();
       setWolfAssignment(null);
+      setWolfActionReceipt(null);
       setWolfClueDisclosure(null);
       useSessionStore.getState().setGmWolfCultIntelligence(null);
       useSessionStore.getState().setGmArbourVision(null);
@@ -3618,7 +3635,39 @@ export default function GmConsole() {
             </section>
           )}
 
-          {isGm && wolfClueDisclosure && (
+          {isGm && wolfActionReceipt && (
+            <section
+              className="gm-console__module cic-frame gm-wolf-action-receipt"
+              aria-label="Latest Wolf action receipt"
+            >
+              <h2 className="gm-console__section-title">Wolf action // facilitator receipt</h2>
+              <p className="gm-wolf-action-receipt__context">
+                COMMITTED // Cycle {wolfActionReceipt.cycle} // revision {wolfActionReceipt.revision}
+              </p>
+              <dl className="gm-wolf-action-receipt__grid">
+                <div><dt>Actor</dt><dd>{wolfActionReceipt.actorUid}</dd></div>
+                <div><dt>Cover</dt><dd>{wolfActionReceipt.actorRoleId}</dd></div>
+                <div><dt>Craft</dt><dd>{wolfActionReceipt.vesselId}</dd></div>
+                <div><dt>Action</dt><dd>{WOLF_CLUE_ACTION_LABELS[wolfActionReceipt.action]}</dd></div>
+                <div><dt>Phase</dt><dd>{wolfActionReceipt.phase.toUpperCase()}</dd></div>
+                <div><dt>Projection revision</dt><dd>{wolfActionReceipt.projectionRevision}</dd></div>
+                <div><dt>Request</dt><dd>{wolfActionReceipt.requestId}</dd></div>
+                <div><dt>Idempotency key</dt><dd>{wolfActionReceipt.idempotencyKey}</dd></div>
+                <div><dt>Consequence</dt><dd>{wolfActionReceipt.destroyedAmount} {wolfActionReceipt.resourceId} destroyed; {wolfActionReceipt.remainingAmount} remain</dd></div>
+                <div><dt>Suspicion</dt><dd>{wolfActionReceipt.oldSuspicion} + {wolfActionReceipt.suspicionIncrement} = {wolfActionReceipt.newSuspicion}</dd></div>
+                <div><dt>Clue roll</dt><dd>d6 {wolfActionReceipt.roll}; total {wolfActionReceipt.total}</dd></div>
+                <div><dt>Clue band</dt><dd>{WOLF_CLUE_TIER_LABELS[wolfActionReceipt.clueTier]}</dd></div>
+                <div><dt>Audit</dt><dd>{wolfActionReceipt.auditId}</dd></div>
+                {wolfActionReceipt.createdAt && <div><dt>Recorded</dt><dd>{wolfActionReceipt.createdAt}</dd></div>}
+              </dl>
+              <p className="gm-wolf-action-receipt__instruction" role="status">
+                {wolfActionReceipt.facilitatorInstruction}
+              </p>
+            </section>
+          )}
+
+          {isGm && wolfClueDisclosure &&
+            wolfClueDisclosure.requestId !== wolfActionReceipt?.requestId && (
             <section
               className="gm-console__module cic-frame gm-wolf-clue-disclosure"
               aria-label="Latest Wolf suspicion clue"

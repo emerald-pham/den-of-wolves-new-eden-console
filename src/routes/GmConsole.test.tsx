@@ -67,6 +67,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfAttackPreparation: vi.fn(),
   subscribeGmWolfAttackState: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
+  subscribeGmWolfActionReceipt: vi.fn(),
   subscribeGmWolfClueDisclosure: vi.fn(),
   subscribeGmWolfCultIntelligence: vi.fn(),
   subscribeGmArbourVision: vi.fn(),
@@ -88,7 +89,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -159,6 +160,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
     onAssignment(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfActionReceipt).mockImplementation((_sessionId, onReceipt) => {
+    onReceipt(null);
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfClueDisclosure).mockImplementation((_sessionId, onDisclosure) => {
@@ -282,6 +287,58 @@ it('shows the latest Wolf clue only in the facilitator console', async () => {
   expect(disclosure).toHaveTextContent('Supply sabotage');
   expect(disclosure).toHaveTextContent('Suspicion 8 + 2 = 10; d6 6; total 16.');
   expect(disclosure).toHaveTextContent('Point out the wolf activity, and give a hint.');
+});
+
+it('shows the complete Wolf action receipt only in the facilitator console', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmWolfActionReceipt).mockImplementation((_sessionId, onReceipt) => {
+    onReceipt({
+      type: 'wolf-action-receipt',
+      status: 'committed',
+      action: 'sabotage-supplies',
+      projectionRevision: 5,
+      sessionId: 's1',
+      requestId: 'wolf-supply-1',
+      cycle: 3,
+      actorUid: 'u2',
+      actorRoleId: 'dione-engineer',
+      vesselId: 'philia',
+      phase: 'active',
+      revision: 1,
+      idempotencyKey: 'wolf-supply-1',
+      auditId: 'wolf-supply-sabotage-wolf-supply-1',
+      resourceId: 'food',
+      destroyedAmount: 2,
+      remainingAmount: 3,
+      oldSuspicion: 8,
+      suspicionIncrement: 2,
+      newSuspicion: 10,
+      roll: 6,
+      total: 16,
+      clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+      createdAt: '2026-09-20T20:00:00.000Z',
+    });
+    return vi.fn();
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const receipt = await screen.findByRole('region', { name: 'Latest Wolf action receipt' });
+  expect(receipt).toHaveTextContent('COMMITTED // Cycle 3 // revision 1');
+  expect(receipt).toHaveTextContent('u2');
+  expect(receipt).toHaveTextContent('dione-engineer');
+  expect(receipt).toHaveTextContent('philia');
+  expect(receipt).toHaveTextContent('ACTIVE');
+  expect(receipt).toHaveTextContent('Projection revision5');
+  expect(receipt).toHaveTextContent('Requestwolf-supply-1');
+  expect(receipt).toHaveTextContent('Idempotency keywolf-supply-1');
+  expect(receipt).toHaveTextContent('2 food destroyed; 3 remain');
+  expect(receipt).toHaveTextContent('8 + 2 = 10');
+  expect(receipt).toHaveTextContent('d6 6; total 16');
+  expect(receipt).toHaveTextContent('Wolf activity with hint');
+  expect(receipt).toHaveTextContent('wolf-supply-sabotage-wolf-supply-1');
+  expect(receipt).toHaveTextContent('2026-09-20T20:00:00.000Z');
 });
 
 it('renders and saves facilitator notes and hydrates the hidden Wolf assignment', async () => {
