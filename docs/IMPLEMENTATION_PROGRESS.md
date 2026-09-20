@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**344 / 751 prompts complete (45.81%)**
+**345 / 751 prompts complete (45.94%)**
 
-Status breakdown: **344 done · 19 partial · 388 missing**.
+Status breakdown: **345 done · 19 partial · 387 missing**.
 
 Active prompt: **none**
 
@@ -574,7 +574,7 @@ release classification and evidence.
 | 148 | done | non-feature | — | The server-owned Wolf declaration now binds its complete live-host docking snapshot to an explicit normal-movement-reopened release condition. Declaration leaves the authoritative session docking ledger unchanged, and a relocated Starlight regression proves a craft parked away from its printed starting ship remains at that host instead of teleporting home. |
 | 149 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 150 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 151 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 151 | done | non-feature | — | The central server fleet-group contract now fails closed when ordinary communication lacks group identity and authorizes it only when sender and recipient share the same authoritative group. Scout-taxi communication is reserved under a separate authority-path discriminator, so later taxi work cannot bypass the ordinary boundary. Prompt 339 still owns composition into the future ordinary message endpoint; Prompt 343 owns taxi eligibility and state changes. |
 | 152 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 153 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 154 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

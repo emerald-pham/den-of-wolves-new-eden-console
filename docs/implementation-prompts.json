@@ -5474,6 +5474,13 @@
       "language": "The authoritative declaration state records that its complete live-host docking snapshot remains held until normal movement reopens; a relocated Starlight regression proves declaration preserves the session docking ledger and never restores the printed starting host.",
       "source": "functions/src/wolfAttackDeclaration.ts; functions/src/index.ts; functions/src/wolfAttackDeclarationCallable.test.ts",
       "type": "evidence / production-path / server-authority / parking-retention / regression"
+    },
+    {
+      "direction": "151 -> 286;339;343",
+      "id": "E-151-COMMUNICATION-BOUNDARY",
+      "language": "The central server fleet-group module exposes one fail-closed ordinary-communication audience primitive: missing group identity is rejected and sender and recipient must share the exact server-owned group. The scout-taxi exception has a distinct authority-path discriminator and cannot be expressed by weakening the ordinary check. Prompt 339 remains responsible for composing the later ordinary message endpoint with this policy, while Prompt 343 owns taxi eligibility and mutation.",
+      "source": "functions/src/fleetGroups.ts; functions/src/fleetGroups.test.ts; IMPLEMENTATION_PLAN.md Prompts 151, 339, and 343",
+      "type": "evidence / server-authority / communication-policy / regression"
     }
   ],
   "plan": {
@@ -9377,8 +9384,8 @@
         "acceptance": "ordinary messages cannot cross fleet groups and scout-taxi exceptions use a separate authorized path.",
         "title": "Block split-fleet communications."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-151",
+      "description": "The central server fleet-group contract now fails closed when ordinary communication lacks group identity and authorizes it only when sender and recipient share the same authoritative group. Scout-taxi communication is reserved under a separate authority-path discriminator, so later taxi work cannot bypass the ordinary boundary. Prompt 339 still owns composition into the future ordinary message endpoint; Prompt 343 owns taxi eligibility and state changes.",
+      "evidenceIds": "E-AUDIT-151;E-151-COMMUNICATION-BOUNDARY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "286",
@@ -9389,7 +9396,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

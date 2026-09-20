@@ -4,11 +4,30 @@
  * membership invariants enforced here.
  */
 export const INITIAL_FLEET_GROUP_ID = 'fleet-1';
+export const SCOUT_TAXI_COMMUNICATION_PATH = 'scout-taxi-authority' as const;
 
 export interface FleetGroupRecord {
   readonly id: string;
   readonly vesselIds: readonly string[];
   readonly memberUids: readonly string[];
+}
+
+/**
+ * Resolve the only legal audience for ordinary player communication. A
+ * cross-group request fails closed; later scout-taxi work must use its distinct
+ * server-authorized path instead of weakening this rule.
+ */
+export function ordinaryFleetCommunicationGroup(
+  senderGroupId: string,
+  recipientGroupId: string,
+): string {
+  if (!senderGroupId || !recipientGroupId) {
+    throw new Error('Ordinary communication requires server-owned fleet-group identity.');
+  }
+  if (senderGroupId !== recipientGroupId) {
+    throw new Error('Ordinary communication cannot cross fleet groups.');
+  }
+  return senderGroupId;
 }
 
 function uniqueStrings(value: readonly string[], label: string): readonly string[] {

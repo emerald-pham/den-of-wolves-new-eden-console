@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   INITIAL_FLEET_GROUP_ID,
+  SCOUT_TAXI_COMMUNICATION_PATH,
   addFleetGroupMember,
   assertFleetGroupMatches,
   fleetGroupRecord,
   initialFleetGroup,
+  ordinaryFleetCommunicationGroup,
   withFleetGroupVessels,
 } from './fleetGroups';
 
@@ -33,5 +35,16 @@ describe('fleet-group identity', () => {
     expect(() => initialFleetGroup(['aegis', 'aegis'], ['gm-1'])).toThrow(/unique/);
     expect(() => assertFleetGroupMatches(group, ['icebreaker'], ['gm-1'])).toThrow(/canonical/);
     expect(withFleetGroupVessels(group, ['aegis', 'dione']).vesselIds).toEqual(['aegis', 'dione']);
+  });
+
+  it('keeps ordinary communication group-local and reserves a separate scout-taxi path', () => {
+    expect(ordinaryFleetCommunicationGroup('fleet-1', 'fleet-1')).toBe('fleet-1');
+    expect(() => ordinaryFleetCommunicationGroup('fleet-1', 'fleet-2'))
+      .toThrow(/cannot cross fleet groups/i);
+    expect(() => ordinaryFleetCommunicationGroup('', 'fleet-1'))
+      .toThrow(/server-owned fleet-group identity/i);
+    expect(() => ordinaryFleetCommunicationGroup('fleet-1', ''))
+      .toThrow(/server-owned fleet-group identity/i);
+    expect(SCOUT_TAXI_COMMUNICATION_PATH).toBe('scout-taxi-authority');
   });
 });
