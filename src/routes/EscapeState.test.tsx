@@ -5,8 +5,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import EscapeState from './EscapeState';
 
-vi.mock('@/lib/sessionService', () => ({ fleeDestroyedShip: vi.fn() }));
-const { fleeDestroyedShip } = await import('@/lib/sessionService');
+vi.mock('@/lib/sessionService', () => ({ fleeDestroyedShip: vi.fn(), disconnectFromSession: vi.fn() }));
+const { fleeDestroyedShip, disconnectFromSession } = await import('@/lib/sessionService');
 
 const session = {
   id: 's1', name: 'Table one', joinCode: '4821', phase: 'active' as const,
@@ -25,18 +25,36 @@ beforeEach(() => {
   useSessionStore.getState().setSession(session);
   useSessionStore.getState().setMe(player);
   vi.mocked(fleeDestroyedShip).mockReset();
+  vi.mocked(disconnectFromSession).mockReset();
+  vi.mocked(disconnectFromSession).mockResolvedValue('applied');
 });
 
 function renderRoute() {
   return render(
     <MemoryRouter initialEntries={['/escape']}>
       <Routes>
+        <Route path="/" element={<p>Landing route</p>} />
         <Route path="/escape" element={<EscapeState />} />
         <Route path="/roles" element={<p>Role selection</p>} />
       </Routes>
     </MemoryRouter>,
   );
 }
+
+it('offers an explicit confirmed session release while escape state blocks in-session routes', async () => {
+  const user = userEvent.setup();
+  renderRoute();
+
+  await user.click(screen.getByRole('button', { name: 'Leave session' }));
+  expect(disconnectFromSession).not.toHaveBeenCalled();
+  expect(useSessionStore.getState().me?.escapeState).toBeDefined();
+
+  const confirm = screen.getByRole('button', { name: 'ARE YOU SURE?' });
+  expect(confirm).toHaveAccessibleName('ARE YOU SURE?');
+  await user.click(confirm);
+  expect(disconnectFromSession).toHaveBeenCalledOnce();
+  expect(screen.getByText('Landing route')).toBeVisible();
+});
 
 it('gives the affected player a flee action and retains identity copy', async () => {
   const user = userEvent.setup();

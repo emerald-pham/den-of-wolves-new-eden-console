@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [602],
+    implementationProgress: {
+      completed: 306, total: 751, percentage: '40.75%',
+      done: 306, partial: 24, active: 0, missing: 421,
+    },
+    changes: [
+      'Every console now provides a visible keyboard return to its logical parent, with explicit confirmation before leaving the session from locked or root screens.',
+      '306 of 751 planned items are complete (40.75%).',
+    ],
+  },
+  {
+    version: '0.4.26',
     implementationPrompts: [583],
     implementationProgress: {
       completed: 305, total: 751, percentage: '40.61%',

@@ -13,6 +13,7 @@ import {
   type ConsoleMode,
 } from '@/store/useSessionStore';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
+import SessionExitControl from '@/components/SessionExitControl';
 
 const MODES: readonly {
   mode: ConsoleMode;
@@ -136,6 +137,7 @@ export default function RoleSelect() {
   return (
     <main className="role-select">
       <div className="role-select__intro">
+        <SessionExitControl />
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title">Connect this device</h1>
         <p className="role-select__lede">Choose how this console will be used.</p>

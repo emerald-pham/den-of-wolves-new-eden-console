@@ -46,11 +46,9 @@ export default function JointEngineeringConsole() {
     }}>
       <main className="session-mode">
         <section className="session-mode__panel cic-frame">
-          {isGm && (
-            <Link className="session-mode__back cic-text-button" to="/console">
-              Back to role selection
-            </Link>
-          )}
+          <Link className="session-mode__back cic-text-button" to="/console">
+            Back to role selection
+          </Link>
           <p className="eyebrow">{session.name} // Joint station</p>
           <h1 className="role-select__title">Joint Engineering Union</h1>
           <p className="role-select__lede">{role.name}</p>

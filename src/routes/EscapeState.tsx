@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { fleeDestroyedShip } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
+import SessionExitControl from '@/components/SessionExitControl';
 
 /** Player-facing handoff for the server-owned destroyed-ship transition. */
 export default function EscapeState() {
@@ -38,6 +39,7 @@ export default function EscapeState() {
   return (
     <main className="session-mode escape-state">
       <section className="session-mode__panel cic-frame" aria-labelledby="escape-state-title">
+        <SessionExitControl />
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title" id="escape-state-title">Escape state // ship destroyed</h1>
         <p className="role-select__lede">

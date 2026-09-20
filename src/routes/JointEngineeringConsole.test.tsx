@@ -104,7 +104,8 @@ it('lets a GM open an enabled union station and return to role selection', async
   expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
 
-it('keeps a non-GM engineer at the selected station until settings releases it', () => {
+it('lets a non-GM engineer return to role selection without releasing the held station', async () => {
+  const user = userEvent.setup();
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
   useSessionStore.getState().setMe({
@@ -115,12 +116,16 @@ it('keeps a non-GM engineer at the selected station until settings releases it',
   render(
     <MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
       <Routes>
+        <Route path="/console" element={<p>Role selection</p>} />
         <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
       </Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('link', { name: /back to role selection/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('link', { name: 'Back to role selection' }));
+  expect(screen.getByText('Role selection')).toBeVisible();
+  expect(useSessionStore.getState().me?.activeConsoleRoleId)
+    .toBe('joint-engineering-quellon-refinery');
 });
 
 it('keeps an engineer at a held station if the GM disables it', () => {

@@ -135,6 +135,13 @@
       "type": "sequence"
     },
     {
+      "direction": "602 -> UNIVERSAL-RETURN-NAVIGATION",
+      "id": "E-602-UNIVERSAL-RETURN-PROOF",
+      "language": "Every nonlanding route now exposes a visible keyboard-focusable return to its logical parent. Role selection and the locked escape screen use the established danger-red, blur- and Escape-cancelable two-step Leave session control; the first Enter activation preserves the live identity and state, and only a second Enter on ARE YOU SURE? releases the session. Ordinary Joint Engineering operators can return to role selection without releasing their held console. A checked-in inventory test binds every App route to the real-browser matrix so new routes cannot silently bypass the proof. The browser matrix keyboard-activates all 13 route families at 390x844, 844x390, and 1440x900 and verifies the resulting logical destination, semantic link or button controls, focus, at least 44px targets, viewport containment, unobstructed hit targets, console typography, no horizontal overflow, and retained session identity after every state-preserving return. Focused Press coverage separately keyboard-activates the claimed-station return and proves that role authority is released before navigation.",
+      "source": "src/components/SessionExitControl.tsx; src/routes/RoleSelect.tsx; src/routes/EscapeState.tsx; src/routes/JointEngineeringConsole.tsx; src/routes/ShuttleConsole.test.tsx; src/config/returnNavigationContract.test.ts; scripts/prompt-602-return-navigation.mjs",
+      "type": "evidence / production-path / accessibility / rendered review"
+    },
+    {
       "direction": "602a -> AUTHORITATIVE-SHUTTLE-ASSOCIATION; CONSOLE-ROUTE-ENTITLEMENT",
       "id": "E-602A",
       "language": "The ordinary return target is resolved from authoritative docking/association state and canonical route entitlement.",
@@ -20778,8 +20785,8 @@
         "acceptance": "every nonlanding route has a visible keyboard-accessible logical return that preserves state unless explicitly released.",
         "title": "Prove return navigation everywhere."
       },
-      "description": "0.3.25 restores compact Finale presentation geometry: the decorative ball is placed in a safe top-right gap so the existing Back to roles and Settings controls remain reachable; focused CSS geometry coverage and the authorized-GM enable/retract service-path test preserve the existing route and authority behavior. Universal every-route return proof, route activation coverage, and full rendered viewport evidence remain open.",
-      "evidenceIds": "E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE",
+      "description": "0.3.25 restored compact Finale geometry around the existing controls. Release 0.4.27 completes the universal contract: every declared nonlanding route is bound to a real-browser proof case, ordinary Joint Engineering operators gain a state-preserving return, and role selection plus the locked escape screen gain the established danger-red, cancelable two-step session exit. Focused tests prove confirmation, blur and Escape cancellation, and preservation behavior; the route-inventory guard fails when a route lacks a proof case. The browser matrix keyboard-activates all 13 route families across phone, short landscape, and desktop, verifies each destination, proves identity retention or explicit confirmed release, and checks keyboard focus, 44px targets, containment, unobstructed hit targets, console typography, and no horizontal overflow.",
+      "evidenceIds": "E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE;E-602-UNIVERSAL-RETURN-PROOF",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -20788,11 +20795,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.25"
+        "0.3.25",
+        "0.4.27"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "RETURN-REPAIR",
-      "status": "partial",
+      "status": "done",
       "tag": "PROVE"
     },
     {

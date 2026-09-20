@@ -11,13 +11,14 @@ vi.mock('@/lib/sessionService', () => ({
   setGmControlsLocked: vi.fn(),
   claimSeat: vi.fn(),
   releaseSeat: vi.fn(),
+  disconnectFromSession: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
 }));
 
-const { claimGmInstance, setGmControlsLocked, claimSeat, releaseSeat } = await import('@/lib/sessionService');
+const { claimGmInstance, setGmControlsLocked, claimSeat, releaseSeat, disconnectFromSession } = await import('@/lib/sessionService');
 const { subscribeGmInstances } = await import('@/lib/firestore');
 
 const session: GameSession = {
@@ -61,6 +62,8 @@ describe('RoleSelect', () => {
       onInstances([]);
       return vi.fn();
     });
+    vi.mocked(disconnectFromSession).mockReset();
+    vi.mocked(disconnectFromSession).mockResolvedValue('applied');
   });
 
   afterEach(() => {
@@ -83,8 +86,45 @@ describe('RoleSelect', () => {
     expect(screen.queryByRole('button', { name: /gm console/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^setup/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /select a role/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Leave session' })).toBeVisible();
     expect(screen.queryByRole('button', { name: /press.*snn/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/observer/i)).not.toBeInTheDocument();
+  });
+
+  it('requires a deliberate confirmation before leaving the session root', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    renderRoute();
+
+    await user.click(screen.getByRole('button', { name: 'Leave session' }));
+    expect(disconnectFromSession).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().session?.id).toBe('s1');
+
+    const confirm = screen.getByRole('button', { name: 'ARE YOU SURE?' });
+    expect(confirm).toHaveStyle({
+      color: 'var(--cic-danger)',
+      borderColor: 'var(--cic-danger)',
+    });
+    await user.click(confirm);
+    expect(disconnectFromSession).toHaveBeenCalledOnce();
+    expect(screen.getByText('Landing route')).toBeVisible();
+  });
+
+  it('disarms session release on Escape and blur', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    renderRoute();
+
+    await user.click(screen.getByRole('button', { name: 'Leave session' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: 'Leave session' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Leave session' }));
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Leave session' })).toBeVisible();
+    expect(disconnectFromSession).not.toHaveBeenCalled();
   });
 
   it('opens the role selection screen from the intermediate screen', async () => {
