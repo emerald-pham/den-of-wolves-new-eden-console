@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**343 / 751 prompts complete (45.67%)**
+**344 / 751 prompts complete (45.81%)**
 
-Status breakdown: **343 done · 19 partial · 389 missing**.
+Status breakdown: **344 done · 19 partial · 388 missing**.
 
 Active prompt: **none**
 
@@ -571,7 +571,7 @@ release classification and evidence.
 | 145 | done | non-feature | — | Complete production boundary: `declareWolfAttack` fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts `turnPhase.airspace` and starts server-owned parking by recording the complete craft and shuttle-docking snapshot. `moveShipToLocation` and `jumpShip` reject that restricted phase, so no ordinary movement can follow the declaration. This prompt deliberately stops at the parking-start boundary: P373 owns nearest-host relocation and P146 owns only the unresolved equal-distance host policy. |
 | 146 | missing | non-feature | — | The printed nearest-host parking rule does not select among equally distant legal hosts. The owner is deciding between a recorded GM choice among tied hosts and an automatic fixed ship-order tie-break. No tie policy is selected or implemented until that decision arrives; ordinary nearest-host parking remains Prompt 373. |
 | 147 | done | non-feature | 0.4.44 | The typed client and server craft catalogs now explicitly distinguish printed range-combat craft from park-only craft. An authoritative Wolf attack declaration snapshots every represented craft as parked, then registers battle-table actions only for Maliades, Highwall, Boa, AEGIS Fighter Wings Alpha and Bravo, and the PDF Escort Fighter Wing. Boarding-support, repair, scouting, cargo, and service shuttles remain parked for their later printed steps. Legacy ownership manifests remain valid because battle eligibility is re-derived from the server catalog rather than trusted from persisted client-shaped state. Focused catalog, composition, start, and declaration regressions pass 122/122. |
-| 148 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 148 | done | non-feature | — | The server-owned Wolf declaration now binds its complete live-host docking snapshot to an explicit normal-movement-reopened release condition. Declaration leaves the authoritative session docking ledger unchanged, and a relocated Starlight regression proves a craft parked away from its printed starting ship remains at that host instead of teleporting home. |
 | 149 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 150 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 151 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

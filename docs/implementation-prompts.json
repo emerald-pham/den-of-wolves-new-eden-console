@@ -5467,6 +5467,13 @@
       "language": "The server-owned craft catalog marks only Maliades, Highwall, Boa, AEGIS Fighter Wings Alpha and Bravo, and the PDF Escort Fighter Wing as battle-table craft. Declaration still requires every represented craft to be parked, records that complete parked set, and derives typed battle-table action registrations from the immutable catalog. Boarding-support and other non-range craft never enter those action registrations. The matching client shuttle catalog explicitly marks only Maliades, Highwall, and Boa; fighter wings remain in their typed ship-console catalogs. Legacy manifests may omit the new derived field and are safely normalized, while changed explicit values fail validation. Focused catalog, setup/start, session-composition, shuttle, and declaration tests pass 122/122.",
       "source": "functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; src/data/vessels/templates.ts; src/data/vessels/maliades.ts; src/data/vessels/highwall.ts; src/data/vessels/boa.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; authorized routed Wolf attack reference and audited full specification",
       "type": "evidence / production-path / server-authority / typed-catalog / battle-action-filter / legacy-compatibility / regression"
+    },
+    {
+      "direction": "148 -> 145;432",
+      "id": "E-148-PARKING-RETENTION",
+      "language": "The authoritative declaration state records that its complete live-host docking snapshot remains held until normal movement reopens; a relocated Starlight regression proves declaration preserves the session docking ledger and never restores the printed starting host.",
+      "source": "functions/src/wolfAttackDeclaration.ts; functions/src/index.ts; functions/src/wolfAttackDeclarationCallable.test.ts",
+      "type": "evidence / production-path / server-authority / parking-retention / regression"
     }
   ],
   "plan": {
@@ -9301,8 +9308,8 @@
         "acceptance": "surviving craft stay at their authoritative hosts until normal movement reopens and never teleport home.",
         "title": "Preserve post-attack parking."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-148",
+      "description": "The server-owned Wolf declaration now binds its complete live-host docking snapshot to an explicit normal-movement-reopened release condition. Declaration leaves the authoritative session docking ledger unchanged, and a relocated Starlight regression proves a craft parked away from its printed starting ship remains at that host instead of teleporting home.",
+      "evidenceIds": "E-AUDIT-148;E-148-PARKING-RETENTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "145",
@@ -9313,7 +9320,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

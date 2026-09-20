@@ -3,6 +3,7 @@ import type { WolfAttackPreparation } from './wolfAttackPreparation';
 /** The declaration boundary owns only the first printed attack step. */
 export const WOLF_ATTACK_DECLARATION_STEP = 'targeting' as const;
 export type WolfAttackDeclarationStep = typeof WOLF_ATTACK_DECLARATION_STEP;
+export const WOLF_ATTACK_PARKING_RELEASE = 'normal-movement-reopened' as const;
 
 /** Private server state created by the atomic declaration transaction. */
 export interface WolfAttackStageState {
@@ -15,6 +16,8 @@ export interface WolfAttackStageState {
   readonly deadlineAt: string;
   readonly airspaceLocked: true;
   readonly parkedCraftIds: readonly string[];
+  /** Surviving craft keep these hosts until the ordinary movement authority reopens. */
+  readonly parkingReleaseCondition: typeof WOLF_ATTACK_PARKING_RELEASE;
   /** Only these printed range-combat craft receive battle-table actions. */
   readonly battleTableCraftActions: readonly {
     readonly craftId: string;

@@ -64,6 +64,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 
 import { declareWolfAttack } from './index';
 import { initialFighterWingCounts } from './fighterWings';
+import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
 const firstTurnCards = [
   ...Array<string>(10).fill('wolf-fighter-wing'),
@@ -75,6 +76,10 @@ const baseData = {
   requestId: 'wolf-declare-1',
   expectedRevision: 1,
 };
+const activeRoleIds = [
+  'admiral', 'wing-commander', 'dione-engineer', 'icebreaker-miner',
+  'quellon-explorer', 'shepherd-scientist', 'refinery-124-engineer',
+] as const;
 
 function request(data: Record<string, unknown> = baseData, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -90,7 +95,7 @@ function session(fields: Fields = {}): void {
     configurationLocked: true,
     currentTurn: 1,
     activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
-    activeRoleIds: ['admiral', 'wing-commander', 'dione-engineer', 'icebreaker-miner', 'quellon-explorer', 'shepherd-scientist', 'refinery-124-engineer'],
+    activeRoleIds,
     fighterWingCounts: initialFighterWingCounts(),
     turnPhase: {
       turn: 1,
@@ -190,6 +195,7 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   expect(state).toMatchObject({
     type: 'wolf-attack-state', status: 'declared', currentStep: 'targeting',
     preparationRevision: 1, airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
     battleTableCraftActions: [
       { craftId: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
       { craftId: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
@@ -225,6 +231,24 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toEqual([
     'sessions/s1/events/wolf-attack-wolf-declare-1',
   ]);
+});
+
+it('retains each authoritative shuttle host until normal movement reopens', async () => {
+  const dockings = initialShuttleDockingsForRoles(activeRoleIds).map((docking) =>
+    docking.shuttleId === 'starlight'
+      ? { ...docking, shipId: 'dione', dockedAt: 'CYCLE 1 // RELOCATED' }
+      : docking);
+  session({ shuttleDockings: dockings });
+
+  await declareWolfAttack.run(request({ ...baseData, requestId: 'retain-live-hosts' }));
+
+  expect(mock.documents.get('sessions/s1').shuttleDockings).toEqual(dockings);
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    parkingReleaseCondition: 'normal-movement-reopened',
+    parkedShuttleDockings: expect.arrayContaining([
+      { shuttleId: 'starlight', shipId: 'dione', dockedAt: 'CYCLE 1 // RELOCATED' },
+    ]),
+  });
 });
 
 it('uses only committed private pursuit authority and rejects malformed or changed snapshots', async () => {

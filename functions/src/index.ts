@@ -335,6 +335,7 @@ import {
   type WolfAttackPreparation,
 } from './wolfAttackPreparation';
 import {
+  WOLF_ATTACK_PARKING_RELEASE,
   WOLF_ATTACK_DECLARATION_STEP,
   type WolfAttackStageState,
 } from './wolfAttackDeclaration';
@@ -11427,6 +11428,7 @@ export const declareWolfAttack = onCall<{
       deadlineAt: inputs.phase.openAirspaceEndsAt,
       airspaceLocked: true,
       parkedCraftIds: [...inputs.parkedCraftIds],
+      parkingReleaseCondition: WOLF_ATTACK_PARKING_RELEASE,
       battleTableCraftActions: inputs.battleTableCraftActions.map((action) => ({ ...action })),
       parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       calculationReceipt,
