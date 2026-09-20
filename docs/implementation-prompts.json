@@ -5544,6 +5544,13 @@
       "language": "Every configured damage-deck console has one server-only metadata record with card, phase, maintenance step, charge, damage, upgrade, effect, and authoritative resolver disposition. Implemented actions carry a typed resolver ID. Not-yet-landed actions carry the explicit fail-closed.unavailable ID plus exactly one owning follow-on prompt; no consumer may treat them as implemented or expose a generic action. Tests prove complete deck coverage and the exact set of remaining resolver owners without copying hidden card identity into client vessel catalogs.",
       "source": "functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; functions/src/vulcanLabour.ts; src/data/vessels/templates.ts; src/data/vessels/aegis.ts; src/data/aegisConsoles.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 165",
       "type": "evidence / server-only-metadata / fail-closed-resolver / complete-coverage / dependency-boundary / regression"
+    },
+    {
+      "direction": "280 -> 060;166",
+      "id": "E-280-REASSIGNMENT-SHELLS",
+      "language": "The fleet roster exposes only the current player replacement assignment. Each of the seven canonical replacement-role routes requires an authenticated player in console mode whose exact replacementRoleId matches the route and whose core-console authority has been cleared. Authorized routes render shared console chrome, role and vessel identity, and an explicit non-invention boundary without any gameplay control. Mismatched, unassigned, extra-ship, GM, and stale-core-authority routes redirect to the fleet roster.",
+      "source": "src/routes/ReplacementRoleWorkspace.tsx; src/routes/ReplacementRoleWorkspace.test.tsx; src/routes/SessionMode.tsx; src/routes/SessionMode.test.tsx; src/data/replacementRoles.ts; docs/CONSOLE_ARCHITECTURE.md; docs/IMPLEMENTATION_CONTRACTS.md Prompt 280",
+      "type": "evidence / client-authority / exact-reassignment / fail-closed-route / workspace-shell / no-fictional-action / regression"
     }
   ],
   "plan": {
@@ -12876,8 +12883,8 @@
         "acceptance": "Comms Officer, VIP Host, Commissar, Doctor, Militia Leader, Fighter Ace, and Wolf Commander each load only after valid reassignment and expose no fictional action.",
         "title": "Build replacement-role workspace shells."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-280",
+      "description": "All seven source-defined replacement roles now receive a dedicated console workspace only when the live player projection carries that exact facilitator reassignment and no stale core-console authority. The shared shell exposes identity and station context while deliberately providing no invented action, target, resource, or outcome; mismatched deep links fail closed to the fleet roster.",
+      "evidenceIds": "E-AUDIT-280;E-280-REASSIGNMENT-SHELLS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "060;166",
@@ -12885,10 +12892,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.52"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

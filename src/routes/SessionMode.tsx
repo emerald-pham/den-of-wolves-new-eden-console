@@ -7,6 +7,7 @@ import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
 import type { Seat, Voyage33Admission } from '@/types/game';
+import { replacementRoleFor } from '@/data/replacementRoles';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -45,6 +46,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         seats={seats}
         viewerUid={me.uid}
         activeConsoleRoleId={me.activeConsoleRoleId ?? null}
+        replacementRoleId={me.replacementRoleId ?? null}
       />
     );
   }
@@ -88,6 +90,7 @@ function FleetRoster({
   seats,
   viewerUid,
   activeConsoleRoleId,
+  replacementRoleId,
 }: {
   sessionName: string;
   capybaraEnabled: boolean;
@@ -102,6 +105,7 @@ function FleetRoster({
   seats: readonly Seat[];
   viewerUid: string;
   activeConsoleRoleId: string | null;
+  replacementRoleId: string | null;
 }) {
   const [query, setQuery] = useState('');
   const active = new Set(activeRoleIds);
@@ -124,6 +128,14 @@ function FleetRoster({
   const voyage33Admitted = admittedVesselIds?.includes(VOYAGE_33_0.id) &&
     voyage33Admission?.id === VOYAGE_33_0.id &&
     matchesConsoleSearch(normalizedQuery, VOYAGE_33_0.name, VOYAGE_33_0.nation, VOYAGE_33_0.description);
+  const replacementRole = replacementRoleId ? replacementRoleFor(replacementRoleId) : undefined;
+  const visibleReplacementRole = !isGm && activeConsoleRoleId === null &&
+    replacementRole?.kind === 'role' && matchesConsoleSearch(
+    normalizedQuery,
+    replacementRole.name,
+    replacementRole.vesselName,
+    'replacement',
+  ) ? replacementRole : undefined;
   return (
     <main className="fleet-roster">
       <header className="fleet-roster__header">
@@ -147,6 +159,17 @@ function FleetRoster({
       <section className="fleet-group" aria-labelledby="independent-roles">
         <h2 className="fleet-group__title" id="independent-roles">Independent stations</h2>
         <div className="role-select__grid">
+          {visibleReplacementRole && <Link
+            className="role-card cic-frame"
+            to={`/replacement/${visibleReplacementRole.id}`}
+            aria-label={visibleReplacementRole.name}
+          >
+            <span className="role-card__name">{visibleReplacementRole.name}</span>
+            <span className="role-card__description">
+              {visibleReplacementRole.vesselName} // facilitator reassignment
+            </span>
+            <span className="role-card__status">ASSIGNED TO YOU</span>
+          </Link>}
           {isGm && <Link
             className="role-card cic-frame"
             to="/gm"

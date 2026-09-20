@@ -40,6 +40,7 @@ import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import EscapeState from '@/routes/EscapeState';
+import ReplacementRoleWorkspace from '@/routes/ReplacementRoleWorkspace';
 import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
@@ -48,7 +49,8 @@ const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const hasConsoleDradis = (path: string): boolean =>
-  path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') || path.startsWith('/shuttles/');
+  path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
+  path.startsWith('/shuttles/') || path.startsWith('/replacement/');
 
 function stripNavigationProjection(session: GameSession): GameSession {
   const next = { ...session };
@@ -117,10 +119,18 @@ function AppRoutes() {
     : undefined;
   const shuttleHost = shuttleId ? dockingForShuttle(session ?? {}, shuttleId)?.shipId : undefined;
   const pressDocking = dockingForShuttle(session ?? {}, 'snn-press-shuttle');
+  const replacementRouteRoleId = location.pathname.startsWith('/replacement/')
+    ? location.pathname.slice('/replacement/'.length).split('/')[0]
+    : undefined;
+  const replacementRouteShipId = replacementRouteRoleId
+    ? replacementRoleFor(replacementRouteRoleId)?.vesselId
+    : undefined;
   const shipId = location.pathname.startsWith('/ships/')
     ? location.pathname.slice('/ships/'.length).split('/')[0] ?? 'aegis'
     : location.pathname === '/press'
       ? pressDocking?.shipId ?? 'dione'
+      : replacementRouteShipId
+        ? findShip(replacementRouteShipId)?.id ?? 'aegis'
       : shuttleHost ?? 'aegis';
 
   useEffect(() => {
@@ -674,6 +684,7 @@ function AppRoutes() {
               <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
               <Route path="/ships/:shipId" element={<ShipConsole />} />
               <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
+              <Route path="/replacement/:roleId" element={<ReplacementRoleWorkspace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>}
           </>

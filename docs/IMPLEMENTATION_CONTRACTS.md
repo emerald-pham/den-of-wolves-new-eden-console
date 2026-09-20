@@ -534,6 +534,20 @@ composition or hidden-state story is complete.
 | 099 | verified | `functions/src/maintenanceCallable.test.ts` proves begin, storage, rations, unrest, riot, reactor, bays, and end requests are denied during lifted Coordination with stable Team-phase errors and no writes. |
 | 100 | partial | `functions/src/jumpCallable.test.ts`, `functions/src/navigation.test.ts`, and jump/move callables exist; a complete Coordination-only gate for movement, transfer, scouting, research, and jumps is not proven. Target coordination-action gate matrix. |
 
+### Prompt 280 — replacement-role workspace shells
+
+Comms Officer, VIP Host, Commissar, Rosal Militia Leader, Doctor, P.D.F.
+Fighter Ace, and Wolf Commander share one presentation contract. The fleet
+roster shows only the replacement role assigned to the current player. Its
+route loads only when the authoritative player projection names the exact same
+replacement role and carries no active core-console role. Any mismatch fails
+closed to the fleet roster.
+
+These workspaces establish identity and routing only. They expose no invented
+action, target, resource, cost, roll, or result. Each future role procedure
+must add its own server-authority boundary and denial tests before adding a
+control to the shell.
+
 ## 6. Contract closure criteria
 
 The following are required before claiming the first-100 contract slice is

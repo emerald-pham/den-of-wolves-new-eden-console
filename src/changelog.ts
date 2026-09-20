@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [280],
+    implementationProgress: {
+      completed: 355, total: 751, percentage: '47.27%',
+      done: 355, partial: 18, active: 0, missing: 378,
+    },
+    changes: [
+      'Every facilitator-assigned replacement role now has a dedicated console workspace that opens only for the player holding that exact reassignment.',
+      'Replacement workspaces show the assigned role and station while withholding controls until an authoritative procedure exists.',
+      '355 of 751 planned items are complete (47.27%).',
+    ],
+  },
+  {
+    version: '0.4.51',
     implementationPrompts: [166],
     implementationProgress: {
       completed: 354, total: 751, percentage: '47.14%',

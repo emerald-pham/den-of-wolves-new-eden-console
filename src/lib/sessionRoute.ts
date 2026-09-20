@@ -5,7 +5,8 @@ export function isSessionRoute(path: string): boolean {
   return SESSION_ROUTES.has(path) ||
     path.startsWith('/ships/') ||
     path.startsWith('/union/') ||
-    path.startsWith('/shuttles/');
+    path.startsWith('/shuttles/') ||
+    path.startsWith('/replacement/');
 }
 
 /** Keep a persisted return path inside the authenticated route surface. */

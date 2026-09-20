@@ -199,6 +199,22 @@ Action payload role and vessel IDs are always checked against the resulting
 server-owned active console; same-ship short-crew relief is the only ordinary
 player exception and is recalculated from the live configured crew.
 
+### Replacement-role workspace boundary
+
+The seven replacement roles use one shared console shell at
+`/replacement/:roleId`. The fleet roster offers that route only for the live
+player's exact `replacementRoleId`. The route independently requires a player
+projection in console mode, the same canonical replacement role, and a cleared
+`activeConsoleRoleId`; a mismatched deep link or stale core-console pointer
+returns to the fleet roster.
+
+The shell may display the reassigned role, its printed station or vessel, the
+operator, and whether the console is ready. It must not invent a gameplay
+action, target, resource, cost, roll, or outcome. Later prompt owners add real
+controls only after their corresponding server authority exists. Extra-ship
+captain assignments remain outside this shell and keep their vessel-specific
+routes.
+
 Maintenance records private per-step undo snapshots, denied to all client SDKs.
 GM rollback restores the previous step's effects only if later changes would not
 be overwritten, and always advances the revision. Undo is limited to recorded

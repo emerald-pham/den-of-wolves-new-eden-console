@@ -136,6 +136,45 @@ it('offers Press Officer and the GM Console from Select a role', async () => {
   expect(screen.getByText('GM console')).toBeInTheDocument();
 });
 
+it('offers only the current facilitator-assigned replacement workspace', () => {
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({
+    ...me,
+    role: 'player',
+    replacementRoleId: 'doctor',
+    activeConsoleRoleId: null,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: 'Doctor' }))
+    .toHaveAttribute('href', '/replacement/doctor');
+  expect(screen.getByRole('link', { name: 'Doctor' })).toHaveTextContent('ASSIGNED TO YOU');
+  expect(screen.queryByRole('link', { name: 'Wolf Commander' })).not.toBeInTheDocument();
+});
+
+it('withholds the replacement workspace card when core-console authority is stale', () => {
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({
+    ...me,
+    role: 'player',
+    replacementRoleId: 'doctor',
+    activeConsoleRoleId: 'quellon-captain',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: 'Doctor' })).not.toBeInTheDocument();
+});
+
 it('composes a legacy createSession reply through hydration into the Press role card', async () => {
   useSessionStore.getState().reset();
   const legacySession = {
