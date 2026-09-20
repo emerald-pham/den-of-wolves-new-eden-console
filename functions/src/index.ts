@@ -12499,15 +12499,6 @@ export const investigateAsIntelligenceAgent = onCall<{
       tx, submission.sessionId, submission.requestId, 'Intelligence Agent investigation', [],
     );
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    requireActiveGameplayPhase(session);
-    const cycle = sessionTurn(session.get('currentTurn'));
-    if (session.get('phase') !== 'active' || cycle < 1 || cycle !== submission.expectedCycle) {
-      throw commandError(
-        'failed-precondition',
-        'The cycle changed. Refresh before choosing an investigation target.',
-        'stale-revision',
-      );
-    }
     const actorCard = privateLoyaltyPayload(actorLoyalty, uid);
     if (!isActivePlayer(actor) || actor.get('role') !== 'player' ||
         actorCard?.kind !== 'intelligence-agent') {
@@ -12529,6 +12520,15 @@ export const investigateAsIntelligenceAgent = onCall<{
     // already sanitized, so revalidating the target would make transport
     // retries unreliable without protecting any additional private truth.
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (session.get('phase') !== 'active' || cycle < 1 || cycle !== submission.expectedCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The cycle changed. Refresh before choosing an investigation target.',
+        'stale-revision',
+      );
+    }
     const targetCard = privateLoyaltyPayload(targetLoyalty, submission.targetUid);
     const targetDisplayName = target.get('displayName');
     const actorFleetGroupId = actor.get('fleetGroupId');

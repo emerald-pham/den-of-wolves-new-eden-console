@@ -146,6 +146,7 @@ it('allows only one committed investigation in a cycle', async () => {
 
 it('replays the exact request without another roll or write', async () => {
   const first = await investigateAsIntelligenceAgent.run(request());
+  put('sessions/s1', { phase: 'debrief', currentTurn: 3 });
   put('sessions/s1/players/u3', {
     role: 'player', connected: false, displayName: 'Target', fleetGroupId: 'fleet-2',
   });
