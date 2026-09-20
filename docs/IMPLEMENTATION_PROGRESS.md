@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**355 / 751 prompts complete (47.27%)**
+**356 / 751 prompts complete (47.40%)**
 
-Status breakdown: **355 done · 18 partial · 378 missing**.
+Status breakdown: **356 done · 18 partial · 377 missing**.
 
 Active prompt: **none**
 
@@ -965,7 +965,7 @@ release classification and evidence.
 | 503 | done | non-feature | 0.4.48 | The server-owned supply-sabotage transaction now returns the authenticated Wolf a complete standard action envelope and private consequence while withholding the clue roll and facilitator instruction. Affected crews receive only the authoritative cargo change through ordinary session state; no member-readable event, action identity, suspicion, roll, clue, or audit record is published. The same transaction writes a fixed facilitator-only full receipt with actor, cover, craft, cycle, phase, revision, idempotency key, audit ID, consequence, suspicion arithmetic, roll, clue band, and instruction. A strict allowlisted listener renders that record in the GM console, Firestore denies player and observer reads plus all listing and client writes, and Wolf-identity changes clear stale receipts. |
 | 503a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 504 | done | non-feature | 0.4.49 | Every committed Wolf suspicion change now writes one immutable server-owned history entry atomically with the private loyalty value, current clue projection, and action receipt. Each record preserves the old value, increment, new value, source, cycle, actor and cover role, d6 roll, total, canonical clue band and disclosure, request identity, audit identity, and server timestamp. A strict server-snapshot listener renders the newest thirty records in the facilitator console; Firestore permits only facilitators to get or list them and denies every player, observer, and client write. Exact replay returns before the mutation path, so it cannot add a duplicate history record or resample the roll. |
-| 505 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 505 | done | non-feature | 0.4.53 | The current Intelligence Agent can investigate one other connected player in their server-owned fleet group during each active cycle. One callable transaction verifies both private loyalty assignments, enforces the per-cycle limit, draws a server-owned five-outcome roll, and returns only the private reported alignment. Exact replay is write-free and roll-free; stale holder projections are removed on loyalty or Press/facilitator identity cleanup. |
 | 506 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 507 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 508 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

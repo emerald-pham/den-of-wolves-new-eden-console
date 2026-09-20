@@ -592,6 +592,65 @@ describe('Universal Arbour vision boundary', () => {
   });
 });
 
+describe('Intelligence Agent investigation boundary', () => {
+  it('exposes only the current holder projection and keeps truth records server-only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/secrets/loyalty-alice`), {
+        visibleToUids: ['alice'],
+        payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 },
+      });
+      await setDoc(doc(db, `${SESSION}/intelligenceInvestigations/alice`), {
+        type: 'intelligence-investigation', sessionId: 's1',
+        investigatorUid: 'alice', visibleToUids: ['alice'], requestId: 'investigate-1',
+        cycle: 2, revision: 1, targetUid: 'press', targetDisplayName: 'Press Officer',
+        reportedWolf: false,
+      });
+      await setDoc(doc(db, `${SESSION}/intelligenceInvestigationAudits/investigate-1`), {
+        type: 'intelligence-investigation-audit', sessionId: 's1',
+        investigatorUid: 'alice', targetUid: 'press', actualWolf: true,
+        reportedWolf: false, accurate: false, accuracyRoll: 5,
+      });
+    });
+
+    const holder = doc(as('alice'), `${SESSION}/intelligenceInvestigations/alice`);
+    await assertSucceeds(getDoc(holder));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/intelligenceInvestigations/alice`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/intelligenceInvestigations/alice`)));
+    await assertFails(getDoc(doc(as('observer'), `${SESSION}/intelligenceInvestigations/alice`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/intelligenceInvestigations`)));
+    await assertFails(setDoc(holder, { reportedWolf: true }));
+
+    for (const uid of ['alice', 'press', 'gm1']) {
+      await assertFails(getDoc(doc(
+        as(uid), `${SESSION}/intelligenceInvestigationAudits/investigate-1`,
+      )));
+      await assertFails(getDocs(collection(
+        as(uid), `${SESSION}/intelligenceInvestigationAudits`,
+      )));
+    }
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/secrets/loyalty-alice`), {
+        payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 },
+      });
+    });
+    await assertFails(getDoc(holder));
+  });
+
+  it('permits an empty exact-holder listener before the first investigation', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/secrets/loyalty-alice`), {
+        visibleToUids: ['alice'],
+        payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 },
+      });
+    });
+    await assertSucceeds(getDoc(doc(
+      as('alice'), `${SESSION}/intelligenceInvestigations/alice`,
+    )));
+  });
+});
+
 describe('facilitator rule-call boundary', () => {
   it('keeps GM history private and exposes only an exact selected-player projection', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

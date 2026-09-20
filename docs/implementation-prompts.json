@@ -5551,6 +5551,13 @@
       "language": "The fleet roster exposes only the current player replacement assignment. Each of the seven canonical replacement-role routes requires an authenticated player in console mode whose exact replacementRoleId matches the route and whose core-console authority has been cleared. Authorized routes render shared console chrome, role and vessel identity, and an explicit non-invention boundary without any gameplay control. Mismatched, unassigned, extra-ship, GM, and stale-core-authority routes redirect to the fleet roster.",
       "source": "src/routes/ReplacementRoleWorkspace.tsx; src/routes/ReplacementRoleWorkspace.test.tsx; src/routes/SessionMode.tsx; src/routes/SessionMode.test.tsx; src/data/replacementRoles.ts; docs/CONSOLE_ARCHITECTURE.md; docs/IMPLEMENTATION_CONTRACTS.md Prompt 280",
       "type": "evidence / client-authority / exact-reassignment / fail-closed-route / workspace-shell / no-fictional-action / regression"
+    },
+    {
+      "direction": "505 -> 280;501",
+      "id": "E-505-PRIVATE-INVESTIGATION",
+      "language": "The callable accepts only target identity and expected cycle from the current canonical Intelligence Agent. It restricts fresh targets to connected members of the same server-owned fleet group, enforces one investigation per cycle, and draws one server-owned d5-equivalent outcome with four accurate faces. The holder projection and reply expose only the reported alignment; actual loyalty, accuracy and roll remain in a server-only audit denied to every client. Exact retry returns the sanitized committed result without another draw or write, reassignment cleanup removes stale projections, and the client preserves authority and cycle checkpoints.",
+      "source": "functions/src/index.ts investigateAsIntelligenceAgent; functions/src/requestGuards.ts; functions/src/intelligenceInvestigationCallable.test.ts; src/lib/intelligenceInvestigationService.ts; src/lib/intelligenceInvestigationService.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 505; docs/CONSOLE_ARCHITECTURE.md",
+      "type": "evidence / server-authority / private-result / one-per-cycle / randomness / idempotency / fleet-group / rules / regression"
     }
   ],
   "plan": {
@@ -18533,11 +18540,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "one target per turn returns an approximately 80%-accurate private server result.",
+        "acceptance": "one target per cycle returns an approximately 80%-accurate private server result.",
         "title": "Investigate as the Intelligence Agent."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-505",
+      "description": "The current Intelligence Agent can investigate one other connected player in their server-owned fleet group during each active cycle. One callable transaction verifies both private loyalty assignments, enforces the per-cycle limit, draws a server-owned five-outcome roll, and returns only the private reported alignment. Exact replay is write-free and roll-free; stale holder projections are removed on loyalty or Press/facilitator identity cleanup.",
+      "evidenceIds": "E-AUDIT-505;E-505-PRIVATE-INVESTIGATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "280;501",
@@ -18545,10 +18552,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.53"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

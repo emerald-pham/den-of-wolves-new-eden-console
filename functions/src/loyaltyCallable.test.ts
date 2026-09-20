@@ -125,6 +125,9 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
     targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
   }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] });
 
+  expect(mock.delete).toHaveBeenCalledWith(expect.objectContaining({
+    path: 'sessions/s1/intelligenceInvestigations/u2',
+  }));
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
     expect.objectContaining({

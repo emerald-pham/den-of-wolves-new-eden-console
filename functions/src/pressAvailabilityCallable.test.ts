@@ -165,6 +165,9 @@ it('changes Press with a server revision, audit, and holder revocation only', as
     visibleToUids: ['u2'],
     payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 0 },
   });
+  put('sessions/s1/intelligenceInvestigations/u2', {
+    type: 'intelligence-investigation', sessionId: 's1', investigatorUid: 'u2',
+  });
   put('sessions/s1/secrets/loyalty-u3', {
     visibleToUids: ['u3'],
     payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
@@ -193,6 +196,7 @@ it('changes Press with a server revision, audit, and holder revocation only', as
     assignedRoleId: null,
   });
   expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toBeUndefined();
+  expect(mock.documents.get('sessions/s1/intelligenceInvestigations/u2')).toBeUndefined();
   expect(mock.documents.get('sessions/s1/players/u3')).toMatchObject({
     activeConsoleRoleId: null,
     assignedRoleId: 'admiral',

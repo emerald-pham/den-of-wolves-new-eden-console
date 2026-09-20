@@ -3867,6 +3867,13 @@ body {
   font: 1rem/1.45 var(--cic-mono);
 }
 
+.private-loyalty-panel__investigation select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  font: 1rem/1.45 var(--cic-mono);
+}
+
 .private-loyalty-panel__wolf-action .cic-action-button { min-height: 44px; }
 .gm-start-receipt {
   display: grid;

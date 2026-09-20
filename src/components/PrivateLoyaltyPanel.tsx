@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { PrivateLoyalty } from '@/types/game';
+import type { IntelligenceInvestigation, Player, PrivateLoyalty } from '@/types/game';
 import { findConsoleRole } from '@/data/roles';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import { submitWolfIntelligence } from '@/lib/wolfActionService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
 import { replacementRoleFor } from '@/data/replacementRoles';
+import {
+  subscribeConnectedPlayers,
+  subscribeIntelligenceInvestigation,
+} from '@/lib/firestore';
+import { investigatePlayer } from '@/lib/intelligenceInvestigationService';
 
 const LOYALTY_LABELS: Readonly<Record<string, string>> = {
   'fleet-loyalist': 'Fleet Loyalist',
@@ -55,7 +60,9 @@ export default function PrivateLoyaltyPanel() {
   const endgameEvaluation = useSessionStore((state) =>
     isEndgameEvaluationPhase(state.session?.phase));
   const me = useSessionStore((state) => state.me);
-  const identity = JSON.stringify([sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId]);
+  const identity = JSON.stringify([
+    sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId, me?.fleetGroupId,
+  ]);
   const [feedback, setFeedback] = useState<{
     identity: string; card: PrivateLoyalty; pending: boolean; error: string;
   } | null>(null);
@@ -63,6 +70,11 @@ export default function PrivateLoyaltyPanel() {
   const [wolfPending, setWolfPending] = useState(false);
   const [wolfResult, setWolfResult] = useState<string | null>(null);
   const [wolfError, setWolfError] = useState('');
+  const [investigationTargets, setInvestigationTargets] = useState<readonly Player[]>([]);
+  const [investigationTargetUid, setInvestigationTargetUid] = useState('');
+  const [investigation, setInvestigation] = useState<IntelligenceInvestigation | null>(null);
+  const [investigationPending, setInvestigationPending] = useState(false);
+  const [investigationError, setInvestigationError] = useState('');
   const currentFeedback = feedback?.identity === identity && feedback.card === loyalty ? feedback : null;
   const pending = currentFeedback?.pending ?? false;
   const error = currentFeedback?.error ?? '';
@@ -75,6 +87,29 @@ export default function PrivateLoyaltyPanel() {
     setWolfResult(null);
     setWolfError('');
   }, [identity, loyalty?.kind]);
+  useEffect(() => {
+    setInvestigationTargets([]);
+    setInvestigationTargetUid('');
+    setInvestigation(null);
+    setInvestigationPending(false);
+    setInvestigationError('');
+    if (loyalty?.kind !== 'intelligence-agent' || !sessionId || !me?.uid) return;
+    const stopInvestigation = subscribeIntelligenceInvestigation(
+      sessionId, me.uid, setInvestigation,
+    );
+    const stopTargets = subscribeConnectedPlayers(sessionId, (players) => {
+      const next = players
+        .filter((player) => player.role === 'player' && player.uid !== me.uid)
+        .sort((left, right) => left.displayName.localeCompare(right.displayName));
+      setInvestigationTargets(next);
+      setInvestigationTargetUid((current) =>
+        next.some((player) => player.uid === current) ? current : next[0]?.uid ?? '');
+    });
+    return () => {
+      stopTargets();
+      stopInvestigation();
+    };
+  }, [loyalty?.kind, me?.fleetGroupId, me?.uid, sessionId]);
   if (!loyalty) return null;
 
   const discloseAndroidProof = async () => {
@@ -135,6 +170,32 @@ export default function PrivateLoyaltyPanel() {
       }
     } finally {
       if (isCurrentSessionAuthority(checkpoint)) setWolfPending(false);
+    }
+  };
+
+  const runInvestigation = async () => {
+    if (investigationPending || !wolfActionAvailable || loyalty.kind !== 'intelligence-agent' ||
+        !investigationTargetUid || investigation?.cycle === currentCycle) return;
+    const state = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
+    const dispatchedCard = loyalty;
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
+    setInvestigationPending(true);
+    setInvestigationError('');
+    try {
+      const result = await investigatePlayer(investigationTargetUid);
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
+          dispatchedCard.kind === 'intelligence-agent') {
+        setInvestigation(result);
+      }
+    } catch (cause) {
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard) {
+        setInvestigationError(normalizeCommandError(cause).message);
+      }
+    } finally {
+      if (isCurrentSessionAuthority(checkpoint)) setInvestigationPending(false);
     }
   };
 
@@ -202,6 +263,54 @@ export default function PrivateLoyaltyPanel() {
             )}
             {wolfResult && <p role="status">{wolfResult}</p>}
             {wolfError && <p role="alert">{wolfError}</p>}
+          </section>
+        )}
+        {loyalty.kind === 'intelligence-agent' && (
+          <section
+            className="private-loyalty-panel__wolf-action private-loyalty-panel__investigation"
+            aria-labelledby="intelligence-investigation-title"
+          >
+            <p className="eyebrow">Private Intelligence Bureau action</p>
+            <h3 id="intelligence-investigation-title">Investigate a player</h3>
+            <p>One investigation per cycle // result is approximately 80% accurate.</p>
+            <label htmlFor="intelligence-investigation-target">Investigation target</label>
+            <select
+              id="intelligence-investigation-target"
+              value={investigationTargetUid}
+              disabled={investigationPending || !wolfActionAvailable ||
+                investigation?.cycle === currentCycle || investigationTargets.length === 0}
+              onChange={(event) => setInvestigationTargetUid(event.target.value)}
+            >
+              {investigationTargets.map((player) => (
+                <option value={player.uid} key={player.uid}>{player.displayName}</option>
+              ))}
+            </select>
+            <button
+              className="cic-action-button"
+              type="button"
+              disabled={investigationPending || !wolfActionAvailable ||
+                investigation?.cycle === currentCycle || !investigationTargetUid}
+              onClick={() => void runInvestigation()}
+            >
+              {investigationPending ? 'Investigating…' : 'Run private investigation'}
+            </button>
+            {!wolfActionAvailable && (
+              <p className="private-loyalty-panel__proof-status" role="status">
+                Investigations are available during active cycles.
+              </p>
+            )}
+            {wolfActionAvailable && investigationTargets.length === 0 && (
+              <p className="private-loyalty-panel__proof-status" role="status">
+                No other connected players are available in this fleet group.
+              </p>
+            )}
+            {investigation && (
+              <p className="private-loyalty-panel__proof-status" role="status">
+                Cycle {investigation.cycle} // {investigation.targetDisplayName} //{' '}
+                {investigation.reportedWolf ? 'WOLF AGENT' : 'NOT WOLF AGENT'}
+              </p>
+            )}
+            {investigationError && <p role="alert">{investigationError}</p>}
           </section>
         )}
         {loyalty.kind === 'wolf-cult' && wolfCultIntelligence && (

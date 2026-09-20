@@ -1224,6 +1224,33 @@ export function requireWolfIntelligenceRequest(data: {
   };
 }
 
+/** Validate one Intelligence Agent target without accepting a claimed result. */
+export function requireIntelligenceInvestigationRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  targetUid?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  expectedCycle: number;
+  targetUid: string;
+} {
+  const allowedKeys = new Set(['sessionId', 'requestId', 'expectedCycle', 'targetUid']);
+  if (Object.keys(data).some((key) => !allowedKeys.has(key))) {
+    throw new HttpsError('invalid-argument', 'Investigation requests may contain only target identity and cycle authority.');
+  }
+  if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedCycle: data.expectedCycle as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+  };
+}
+
 /** A facilitator's private census annotation is revisioned and clearable. */
 export function requireFacilitatorCensusNoteRequest(data: {
   sessionId?: unknown;

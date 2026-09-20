@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [505],
+    implementationProgress: {
+      completed: 356, total: 751, percentage: '47.40%',
+      done: 356, partial: 18, active: 0, missing: 377,
+    },
+    changes: [
+      'The Intelligence Agent can now investigate one connected player in their fleet group during each active cycle and receive a private server-generated report.',
+      'Each report is accurate four times in five; the hidden loyalty, accuracy draw, and audit remain outside every player client.',
+      '356 of 751 planned items are complete (47.40%).',
+    ],
+  },
+  {
+    version: '0.4.52',
     implementationPrompts: [280],
     implementationProgress: {
       completed: 355, total: 751, percentage: '47.27%',

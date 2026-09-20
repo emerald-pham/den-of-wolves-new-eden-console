@@ -32,6 +32,29 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    function isCurrentIntelligenceAgentHolder(sessionId, investigationUid) {
+      let secretId = 'loyalty-' + uid();
+      let secretPath = /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId);
+      return isMember(sessionId)
+        && investigationUid == uid()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.role == 'player'
+        && exists(secretPath)
+        && get(secretPath).data.visibleToUids.size() == 1
+        && get(secretPath).data.visibleToUids[0] == uid()
+        && get(secretPath).data.payload.type == 'loyalty'
+        && get(secretPath).data.payload.kind == 'intelligence-agent';
+    }
+
+    function isCanonicalIntelligenceInvestigation(sessionId, investigationUid) {
+      return resource.data.type == 'intelligence-investigation'
+        && resource.data.sessionId == sessionId
+        && resource.data.investigatorUid == uid()
+        && resource.data.visibleToUids.size() == 1
+        && resource.data.visibleToUids[0] == uid();
+    }
+
     function civilUnrestRoleOwnsShip(roleId, shipId) {
       return (shipId == 'dione' && roleId in ['dione-captain', 'dione-engineer', 'dione-president'])
         || (shipId == 'icebreaker' && roleId in ['icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner'])
@@ -421,6 +444,17 @@ service cloud.firestore {
           && uid() in resource.data.visibleToUids
           && (!isGmPrivateSecret(secretId) || isGm(sessionId));
         allow write: if false;
+      }
+
+      // The current Intelligence Agent receives one server-authored private
+      // result. Live loyalty authority is checked on every read so demotion
+      // revokes a cached or retained projection immediately. Truth, accuracy,
+      // and roll records remain in an unmatched server-only audit collection.
+      match /intelligenceInvestigations/{investigationUid} {
+        allow get: if isCurrentIntelligenceAgentHolder(sessionId, investigationUid)
+          && (resource == null
+            || isCanonicalIntelligenceInvestigation(sessionId, investigationUid));
+        allow list, write: if false;
       }
 
       // Away-mission hands are private projections. The participant may read

@@ -733,6 +733,19 @@ export interface PrivateLoyalty {
   readonly proofRevealed?: boolean;
 }
 
+/** Current private Intelligence Agent report; hidden truth and roll stay server-only. */
+export interface IntelligenceInvestigation {
+  readonly type: 'intelligence-investigation';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly investigatorUid: PlayerId;
+  readonly targetUid: PlayerId;
+  readonly targetDisplayName: string;
+  readonly reportedWolf: boolean;
+}
+
 /** Facilitator-authored Wolf Cult intelligence, private to the current Cult holder. */
 export interface WolfCultIntelligence {
   readonly sessionId: SessionId;

@@ -22,6 +22,7 @@ import type {
   GameSession,
   GmInstance,
   HummingbirdHarvest,
+  IntelligenceInvestigation,
   LoyaltyCensus,
   PopulationAlert,
   Player,
@@ -277,6 +278,34 @@ function wolfCultIntelligence(
     agentUid,
     codeWord: raw.codeWord,
     label: 'WOLF INTEL',
+  };
+}
+
+function intelligenceInvestigation(
+  value: unknown,
+  sessionId: string,
+  uid: string,
+): IntelligenceInvestigation | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const investigatorUid = parseEntityId('player', raw.investigatorUid);
+  const targetUid = parseEntityId('player', raw.targetUid);
+  if (
+    raw.type !== 'intelligence-investigation' || raw.sessionId !== sessionId ||
+    investigatorUid !== uid || !targetUid || targetUid === uid ||
+    !Array.isArray(raw.visibleToUids) || raw.visibleToUids.length !== 1 ||
+    raw.visibleToUids[0] !== uid || typeof raw.requestId !== 'string' ||
+    raw.requestId.length === 0 || !Number.isSafeInteger(raw.cycle) ||
+    (raw.cycle as number) < 1 || !Number.isSafeInteger(raw.revision) ||
+    (raw.revision as number) < 1 || typeof raw.targetDisplayName !== 'string' ||
+    raw.targetDisplayName.trim().length === 0 || raw.targetDisplayName.length > 40 ||
+    typeof raw.reportedWolf !== 'boolean'
+  ) return null;
+  return {
+    type: 'intelligence-investigation', sessionId: entityId('session', sessionId),
+    requestId: raw.requestId, cycle: raw.cycle as number, revision: raw.revision as number,
+    investigatorUid, targetUid, targetDisplayName: raw.targetDisplayName,
+    reportedWolf: raw.reportedWolf,
   };
 }
 
@@ -3067,6 +3096,35 @@ export function subscribeConnectedPlayers(
       // a stale callback cannot leave old-group data on screen.
       onPlayers([]);
       onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
+}
+
+/** Subscribe to the exact holder's current private Intelligence Agent report. */
+export function subscribeIntelligenceInvestigation(
+  sessionId: string,
+  uid: string,
+  onInvestigation: (investigation: IntelligenceInvestigation | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  onInvestigation(null);
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/intelligenceInvestigations/${uid}`),
+    (snapshot) => {
+      if (!subscribed) return;
+      onInvestigation(snapshot.exists()
+        ? intelligenceInvestigation(snapshot.data(), sessionId, uid)
+        : null);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      onInvestigation(null);
+      if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
     },
   );
   return () => {

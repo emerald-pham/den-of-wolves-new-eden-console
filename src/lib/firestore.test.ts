@@ -31,6 +31,7 @@ const {
   sessionSnapshotAuthorityFor,
   subscribeGmInstances,
   subscribeConnectedPlayers,
+  subscribeIntelligenceInvestigation,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmWolfActionReceipt,
@@ -1607,6 +1608,45 @@ it('keeps the GM Wolf Cult intelligence projection monotonic and clears terminal
 
   unsubscribe();
   expect(onIntelligence).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only a canonical private Intelligence Agent investigation', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onInvestigation = vi.fn();
+  const onError = vi.fn();
+  const unsubscribe = subscribeIntelligenceInvestigation(
+    's1', 'u1', onInvestigation, onError,
+  );
+
+  callbacks[0]?.({
+    exists: () => true,
+    data: () => ({
+      type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
+      cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
+      targetDisplayName: 'Target', reportedWolf: true, visibleToUids: ['u1'],
+    }),
+  });
+  expect(onInvestigation).toHaveBeenLastCalledWith({
+    type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
+    cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
+    targetDisplayName: 'Target', reportedWolf: true,
+  });
+
+  callbacks[0]?.({
+    exists: () => true,
+    data: () => ({
+      type: 'intelligence-investigation', sessionId: 's1', requestId: 'forged',
+      cycle: 3, revision: 3, investigatorUid: 'u1', targetUid: 'u2',
+      targetDisplayName: 'Target', reportedWolf: true, visibleToUids: ['u3'],
+      actualWolf: true,
+    }),
+  });
+  expect(onInvestigation).toHaveBeenLastCalledWith(null);
+
+  errors[0]?.({ code: 'permission-denied' });
+  expect(onInvestigation).toHaveBeenLastCalledWith(null);
+  expect(onError).not.toHaveBeenCalled();
+  unsubscribe();
 });
 
 it('hydrates the facilitator-only Wolf timing marker and rejects malformed state', () => {

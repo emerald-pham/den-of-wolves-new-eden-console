@@ -5,10 +5,20 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import { submitWolfIntelligence } from '@/lib/wolfActionService';
+import { investigatePlayer } from '@/lib/intelligenceInvestigationService';
+import {
+  subscribeConnectedPlayers,
+  subscribeIntelligenceInvestigation,
+} from '@/lib/firestore';
 import PrivateLoyaltyPanel from './PrivateLoyaltyPanel';
 
 vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
 vi.mock('@/lib/wolfActionService', () => ({ submitWolfIntelligence: vi.fn() }));
+vi.mock('@/lib/intelligenceInvestigationService', () => ({ investigatePlayer: vi.fn() }));
+vi.mock('@/lib/firestore', () => ({
+  subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+  subscribeIntelligenceInvestigation: vi.fn(() => vi.fn()),
+}));
 
 function prepareLivePlayer() {
   useSessionStore.getState().setSession({ id: 's1' } as never);
@@ -21,6 +31,11 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   vi.mocked(revealAndroidProof).mockReset();
   vi.mocked(submitWolfIntelligence).mockReset();
+  vi.mocked(investigatePlayer).mockReset();
+  vi.mocked(subscribeConnectedPlayers).mockReset();
+  vi.mocked(subscribeConnectedPlayers).mockReturnValue(vi.fn());
+  vi.mocked(subscribeIntelligenceInvestigation).mockReset();
+  vi.mocked(subscribeIntelligenceInvestigation).mockReturnValue(vi.fn());
 });
 afterEach(() => {
   cleanup();
@@ -106,6 +121,58 @@ it('does not apply a stale Wolf intelligence result after the private card chang
     kind: 'fleet-loyalist', suspicion: 0,
   });
   expect(screen.queryByText(/handler message sent privately/i)).not.toBeInTheDocument();
+});
+
+it('privately investigates one selected player and locks the action for that cycle', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, displayName: 'Agent', fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      { uid: 'u2', role: 'player', displayName: 'Agent' },
+      { uid: 'u3', role: 'player', displayName: 'Morgan' },
+    ] as never);
+    return vi.fn();
+  });
+  vi.mocked(investigatePlayer).mockResolvedValue({
+    status: 'committed', type: 'intelligence-investigation', sessionId: 's1',
+    requestId: 'investigate-1', cycle: 2, revision: 1, investigatorUid: 'u2',
+    targetUid: 'u3', targetDisplayName: 'Morgan', reportedWolf: true,
+  });
+
+  render(<PrivateLoyaltyPanel />);
+  expect(screen.getByRole('combobox', { name: 'Investigation target' })).toHaveValue('u3');
+  await user.click(screen.getByRole('button', { name: 'Run private investigation' }));
+
+  await waitFor(() => expect(investigatePlayer).toHaveBeenCalledWith('u3'));
+  expect(screen.getByRole('status')).toHaveTextContent('Cycle 2 // Morgan // WOLF AGENT');
+  expect(screen.getByRole('button', { name: 'Run private investigation' })).toBeDisabled();
+});
+
+it('hydrates a prior private investigation without exposing a new action outside active cycles', () => {
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'briefing', currentTurn: 2 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  vi.mocked(subscribeIntelligenceInvestigation).mockImplementation(
+    (_sessionId, _uid, onInvestigation) => {
+      onInvestigation({
+        type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
+        cycle: 1, revision: 1, investigatorUid: 'u2', targetUid: 'u3',
+        targetDisplayName: 'Morgan', reportedWolf: false,
+      });
+      return vi.fn();
+    },
+  );
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByText(/Cycle 1.*NOT WOLF AGENT/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Run private investigation' })).toBeDisabled();
+  expect(screen.getByText(/available during active cycles/i)).toBeVisible();
 });
 
 it('shows a Press holder card with its private partner pointer when present', () => {

@@ -215,6 +215,20 @@ controls only after their corresponding server authority exists. Extra-ship
 captain assignments remain outside this shell and keep their vessel-specific
 routes.
 
+### Private Intelligence Agent workspace
+
+The Intelligence Agent procedure lives inside the existing holder-only loyalty
+panel. Its target roster uses the ordinary member projection, so it contains
+only connected players in the holder's current server-owned fleet group. The
+client sends a target identity and cycle checkpoint; it never sends an answer,
+accuracy choice, loyalty kind, or suspicion change.
+
+The callable owns the one-per-cycle limit and random result. Its player-facing
+projection is keyed to the current holder and contains only the reported
+alignment. Hidden truth and the accuracy draw remain in a server-only audit
+collection. Any future investigation effect must extend that transaction and
+private boundary rather than deriving hidden truth in the browser.
+
 Maintenance records private per-step undo snapshots, denied to all client SDKs.
 GM rollback restores the previous step's effects only if later changes would not
 be overwritten, and always advances the revision. Undo is limited to recorded

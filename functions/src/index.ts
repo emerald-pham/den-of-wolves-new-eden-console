@@ -70,6 +70,7 @@ import {
   requireWolfCommanderRerollRequest,
   requireWolfSupplySabotageRequest,
   requireWolfIntelligenceRequest,
+  requireIntelligenceInvestigationRequest,
   requireFacilitatorCensusNoteRequest,
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
@@ -2160,6 +2161,7 @@ function clearPressPrivateState(
   const removedLoyalty = !hasCoreStation(player);
   if (!hasCoreStation(player)) {
     tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${player.id}`));
+    tx.delete(db.doc(`sessions/${sessionId}/intelligenceInvestigations/${player.id}`));
   }
   if (removeWolfRole) removePressWolfRole(tx, wolfSecretRef, wolfSecret);
   return removedLoyalty;
@@ -8277,6 +8279,9 @@ export const assignLoyalty = onCall<{
     `sessions/${assignment.sessionId}/loyaltyAssignmentRequests/${assignment.requestId}`,
   );
   const targetSecretRef = db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.targetUid}`);
+  const targetInvestigationRef = db.doc(
+    `sessions/${assignment.sessionId}/intelligenceInvestigations/${assignment.targetUid}`,
+  );
   const secretsRef = db.collection(`sessions/${assignment.sessionId}/secrets`);
   const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
   const partnerRef = assignment.partnerUid
@@ -8284,6 +8289,9 @@ export const assignLoyalty = onCall<{
     : undefined;
   const partnerSecretRef = assignment.partnerUid
     ? db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.partnerUid}`)
+    : undefined;
+  const partnerInvestigationRef = assignment.partnerUid
+    ? db.doc(`sessions/${assignment.sessionId}/intelligenceInvestigations/${assignment.partnerUid}`)
     : undefined;
   const fingerprint = loyaltyAssignmentFingerprint(assignment, uid);
   const sharedReceiptRef = commandReceiptRef(assignment.sessionId, assignment.requestId);
@@ -8485,8 +8493,16 @@ export const assignLoyalty = onCall<{
         createdAt: FieldValue.serverTimestamp(),
       });
     }
+    tx.delete(targetInvestigationRef);
+    if (partnerInvestigationRef) tx.delete(partnerInvestigationRef);
     for (const displacedPartnerRef of reciprocalDisplacedPartnerRefs) {
       tx.delete(displacedPartnerRef);
+      const displacedUid = displacedPartnerRef.id.slice('loyalty-'.length);
+      if (displacedUid) {
+        tx.delete(db.doc(
+          `sessions/${assignment.sessionId}/intelligenceInvestigations/${displacedUid}`,
+        ));
+      }
     }
     const censusPatches = new Map<string, LoyaltyCensusEntry | null>([
       [assignment.targetUid, { uid: assignment.targetUid, kind, suspicion: validSuspicion }],
@@ -9391,6 +9407,7 @@ export const claimGmInstance = onCall<{
     if (hasPressState(player)) {
       if (!hasCoreStation(player)) {
         tx.delete(db.doc(`sessions/${claim.sessionId}/secrets/loyalty-${uid}`));
+        tx.delete(db.doc(`sessions/${claim.sessionId}/intelligenceInvestigations/${uid}`));
         setLoyaltyCensusFromSecrets(
           tx,
           claim.sessionId,
@@ -9877,6 +9894,9 @@ export const setPressEnabled = onCall<{
           tx.update(candidate.ref, releasedPressFields(candidate));
           if (!hasCoreStation(candidate)) {
             tx.delete(db.doc(`sessions/${setting.sessionId}/secrets/loyalty-${candidate.id}`));
+            tx.delete(db.doc(
+              `sessions/${setting.sessionId}/intelligenceInvestigations/${candidate.id}`,
+            ));
             removedLoyaltyUids.add(candidate.id);
           }
         });
@@ -12392,6 +12412,182 @@ export const submitWolfIntelligence = onCall<{
     });
     tx.set(actionRef, record);
     tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type IntelligenceInvestigationResult = Readonly<{
+  status: 'committed';
+  type: 'intelligence-investigation';
+  sessionId: string;
+  requestId: string;
+  cycle: number;
+  revision: number;
+  investigatorUid: string;
+  targetUid: string;
+  targetDisplayName: string;
+  reportedWolf: boolean;
+}>;
+
+function isIntelligenceInvestigationResult(
+  value: unknown,
+  sessionId: string,
+  requestId: string,
+): value is IntelligenceInvestigationResult {
+  return isRecord(value) && value.status === 'committed' &&
+    value.type === 'intelligence-investigation' && value.sessionId === sessionId &&
+    value.requestId === requestId &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    typeof value.investigatorUid === 'string' && value.investigatorUid.length > 0 &&
+    typeof value.targetUid === 'string' && value.targetUid.length > 0 &&
+    typeof value.targetDisplayName === 'string' && value.targetDisplayName.length > 0 &&
+    value.targetDisplayName.length <= 40 && typeof value.reportedWolf === 'boolean';
+}
+
+function privateLoyaltyPayload(
+  secret: DocumentSnapshot,
+  holderUid: string,
+): { kind: string; suspicion: number | null } | null {
+  const audience = secret.get('visibleToUids');
+  const payload = secret.get('payload');
+  if (!secret.exists || !Array.isArray(audience) || audience.length !== 1 ||
+      audience[0] !== holderUid || !isRecord(payload) || payload.type !== 'loyalty' ||
+      typeof payload.kind !== 'string') return null;
+  const decision = liveLoyaltySuspicionDecision(payload.kind, payload.suspicion);
+  return decision.allowed ? { kind: payload.kind, suspicion: payload.suspicion as number | null } : null;
+}
+
+/** Resolve one private Intelligence Agent investigation with server-owned 4-in-5 accuracy. */
+export const investigateAsIntelligenceAgent = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  targetUid?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const submission = requireIntelligenceInvestigationRequest(request.data ?? {});
+  if (submission.targetUid === uid) {
+    throw new HttpsError('invalid-argument', 'Choose another player to investigate.');
+  }
+  const sessionRef = db.doc(`sessions/${submission.sessionId}`);
+  const actorRef = db.doc(`sessions/${submission.sessionId}/players/${uid}`);
+  const actorLoyaltyRef = db.doc(`sessions/${submission.sessionId}/secrets/loyalty-${uid}`);
+  const targetRef = db.doc(`sessions/${submission.sessionId}/players/${submission.targetUid}`);
+  const targetLoyaltyRef = db.doc(
+    `sessions/${submission.sessionId}/secrets/loyalty-${submission.targetUid}`,
+  );
+  const stateRef = db.doc(`sessions/${submission.sessionId}/intelligenceInvestigations/${uid}`);
+  const auditRef = db.doc(
+    `sessions/${submission.sessionId}/intelligenceInvestigationAudits/${submission.requestId}`,
+  );
+  const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'intelligence-investigation', sessionId: submission.sessionId,
+    requestId: submission.requestId, actorUid: uid, instanceId: null,
+    expectedRevision: submission.expectedCycle, payload: { targetUid: submission.targetUid },
+  };
+  let accuracyRoll: number | undefined;
+  return db.runTransaction(async (tx): Promise<IntelligenceInvestigationResult> => {
+    const [session, actor, actorLoyalty, target, targetLoyalty, current, receipt] =
+      await Promise.all([
+        tx.get(sessionRef), tx.get(actorRef), tx.get(actorLoyaltyRef), tx.get(targetRef),
+        tx.get(targetLoyaltyRef), tx.get(stateRef), tx.get(receiptRef),
+      ]);
+    await rejectForeignLegacyM1Command(
+      tx, submission.sessionId, submission.requestId, 'Intelligence Agent investigation', [],
+    );
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (session.get('phase') !== 'active' || cycle < 1 || cycle !== submission.expectedCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The cycle changed. Refresh before choosing an investigation target.',
+        'stale-revision',
+      );
+    }
+    const actorCard = privateLoyaltyPayload(actorLoyalty, uid);
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player' ||
+        actorCard?.kind !== 'intelligence-agent') {
+      throw commandError(
+        'permission-denied',
+        'Only the live Intelligence Agent may investigate a player.',
+        'unauthorized',
+      );
+    }
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is IntelligenceInvestigationResult =>
+        isIntelligenceInvestigationResult(value, submission.sessionId, submission.requestId) &&
+        value.investigatorUid === uid,
+      'Intelligence Agent investigation',
+    );
+    // An exact retry remains available to the still-authorized investigator
+    // after the target disconnects or changes loyalty. The committed report is
+    // already sanitized, so revalidating the target would make transport
+    // retries unreliable without protecting any additional private truth.
+    if (replay) return replay;
+    const targetCard = privateLoyaltyPayload(targetLoyalty, submission.targetUid);
+    const targetDisplayName = target.get('displayName');
+    const actorFleetGroupId = actor.get('fleetGroupId');
+    if (!isActivePlayer(target) || target.get('role') !== 'player' ||
+        typeof actorFleetGroupId !== 'string' || actorFleetGroupId.length === 0 ||
+        target.get('fleetGroupId') !== actorFleetGroupId ||
+        !targetCard || typeof targetDisplayName !== 'string' ||
+        targetDisplayName.trim().length === 0 || targetDisplayName.trim().length > 40) {
+      throw commandError(
+        'failed-precondition',
+        'That investigation target is unavailable.',
+        'conflict',
+      );
+    }
+    let revision = 0;
+    if (current.exists) {
+      const storedCycle = current.get('cycle');
+      const storedRevision = current.get('revision');
+      if (current.get('type') !== 'intelligence-investigation' ||
+          current.get('sessionId') !== submission.sessionId ||
+          current.get('investigatorUid') !== uid ||
+          !Number.isSafeInteger(storedCycle) || (storedCycle as number) < 1 ||
+          !Number.isSafeInteger(storedRevision) || (storedRevision as number) < 1 ||
+          (storedRevision as number) >= Number.MAX_SAFE_INTEGER) {
+        throw commandError(
+          'failed-precondition',
+          'The private investigation state is malformed. Ask the facilitator to repair it.',
+          'malformed-input',
+        );
+      }
+      if ((storedCycle as number) >= cycle) {
+        throw commandError(
+          'failed-precondition',
+          'The Intelligence Agent has already investigated a player this cycle.',
+          'conflict',
+        );
+      }
+      revision = storedRevision as number;
+    }
+    accuracyRoll ??= randomInt(1, 6);
+    const accurate = accuracyRoll <= 4;
+    const actualWolf = targetCard.kind === 'wolf-agent' || targetCard.kind === 'wolf-cult';
+    const result: IntelligenceInvestigationResult = {
+      status: 'committed', type: 'intelligence-investigation',
+      sessionId: submission.sessionId, requestId: submission.requestId, cycle,
+      revision: revision + 1, investigatorUid: uid, targetUid: submission.targetUid,
+      targetDisplayName: targetDisplayName.trim(),
+      reportedWolf: accurate ? actualWolf : !actualWolf,
+    };
+    tx.set(stateRef, {
+      ...result, visibleToUids: [uid], updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'intelligence-investigation-audit', sessionId: submission.sessionId,
+      requestId: submission.requestId, cycle, revision: revision + 1,
+      investigatorUid: uid, targetUid: submission.targetUid, targetLoyaltyKind: targetCard.kind,
+      actualWolf, reportedWolf: result.reportedWolf, accurate, accuracyRoll,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

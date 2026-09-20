@@ -216,6 +216,31 @@ client write. Exact retries return the original private result without another
 message, suspicion increase, random draw, history entry, or audit write, and a
 foreign actor cannot use the receipt to recover the result.
 
+### Prompt 505 — Private Intelligence Agent investigation
+
+During each active cycle, the current Intelligence Agent may select one other
+connected player from the same server-owned fleet group. The client submits
+only that target identity and the expected cycle. The server rechecks the
+investigator's live private loyalty, the target's live private loyalty and
+group, and the one-per-cycle state before drawing a single five-outcome roll.
+Four outcomes report the target's Wolf alignment accurately and one reports
+the inverse. Wolf Agent and Wolf Cult both count as Wolf aligned.
+
+The holder-only projection and callable response contain the reported answer,
+target label, cycle, and revision. They never contain the target's loyalty,
+actual alignment, accuracy outcome, or whether the answer was accurate. Those
+facts exist together only in a server-owned audit record denied to every
+client, including facilitators. Firestore permits only the current canonical
+Intelligence Agent holder to get their exact projection and denies listing or
+client writes. Exact request replay returns the committed sanitized answer
+without another draw or write, even if the target has since disconnected or
+changed loyalty; a foreign actor or altered payload cannot replay it.
+
+Loyalty reassignment and Press or facilitator identity cleanup remove stale
+investigation projections so a later Intelligence Agent holder cannot inherit
+an earlier holder's answer. The two-point suspicion change and any related
+Wolf clue behavior remain owned by Prompt 507.
+
 ### Prompt 165 — Complete console metadata
 
 Every configured damage-deck console has one server-only metadata record that
