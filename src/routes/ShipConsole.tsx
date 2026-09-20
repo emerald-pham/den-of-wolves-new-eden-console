@@ -427,7 +427,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <p className="ship-console__description">{ship.description}</p>
         {gameplayFrozen && (
           <p className="ship-console__status" role="status">
-            Final cycle complete // Endgame evaluation in progress. Gameplay controls are frozen.
+            {session?.gameOutcome?.cause === 'total-fleet-loss'
+              ? `All full fleet ships lost in Cycle ${session.gameOutcome.cycle} // Survivors, escape pods, and small craft remain available for endgame evaluation. Gameplay controls are frozen.`
+              : 'Final cycle complete // Endgame evaluation in progress. Gameplay controls are frozen.'}
           </p>
         )}
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />

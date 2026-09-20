@@ -1537,7 +1537,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     : setup?.turnLimit;
   const turnState = turnStateForPhaseContext(data.turnState, phaseClock, currentTurn, maxTurn);
   const rawOutcome = data.gameOutcome;
-  const gameOutcome = rawOutcome && typeof rawOutcome === 'object' && !Array.isArray(rawOutcome) &&
+  const pursuitFailureOutcome = rawOutcome && typeof rawOutcome === 'object' && !Array.isArray(rawOutcome) &&
     rawOutcome.type === 'game-outcome' && rawOutcome.result === 'failure' &&
     rawOutcome.cause === 'pursuit-limit' && Number.isSafeInteger(rawOutcome.cycle) &&
     rawOutcome.cycle >= 1 && Number.isSafeInteger(rawOutcome.navigationRevision) &&
@@ -1551,6 +1551,20 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       occurredAt: rawOutcome.occurredAt,
     }
     : undefined;
+  const totalFleetLossOutcome = rawOutcome && typeof rawOutcome === 'object' && !Array.isArray(rawOutcome) &&
+    rawOutcome.type === 'game-outcome' && rawOutcome.result === 'failure' &&
+    rawOutcome.cause === 'total-fleet-loss' && Number.isSafeInteger(rawOutcome.cycle) &&
+    rawOutcome.cycle >= 0 && typeof rawOutcome.occurredAt === 'string' &&
+    Object.keys(rawOutcome).every((key) => ['type', 'result', 'cause', 'cycle', 'occurredAt'].includes(key))
+    ? {
+      type: 'game-outcome' as const,
+      result: 'failure' as const,
+      cause: 'total-fleet-loss' as const,
+      cycle: rawOutcome.cycle as number,
+      occurredAt: rawOutcome.occurredAt,
+    }
+    : undefined;
+  const gameOutcome = pursuitFailureOutcome ?? totalFleetLossOutcome;
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);

@@ -789,6 +789,30 @@ it('freezes ship gameplay controls while showing the final-turn evaluation state
   expect(screen.getByRole('button', { name: /engage icn console lock/i })).toBeDisabled();
 });
 
+it('keeps the retained craft path explicit after total fleet loss', () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'failure',
+    currentTurn: 2,
+    gameOutcome: {
+      type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 2,
+      occurredAt: '2026-09-20T14:30:00.000Z',
+    },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText(
+    /all full fleet ships lost in cycle 2.*survivors, escape pods, and small craft remain available/i,
+  )).toHaveAttribute('role', 'status');
+});
+
 it('keeps ship controls read-only until the requested role is confirmed', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');

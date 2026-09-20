@@ -528,7 +528,7 @@ export interface SessionSetup {
 }
 
 /** Public, privacy-safe terminal result committed by server authority. */
-export interface GameOutcome {
+export interface PursuitFailureOutcome {
   readonly type: 'game-outcome';
   readonly result: 'failure';
   readonly cause: 'pursuit-limit';
@@ -536,6 +536,16 @@ export interface GameOutcome {
   readonly navigationRevision: number;
   readonly occurredAt: Timestamp;
 }
+
+export interface TotalFleetLossOutcome {
+  readonly type: 'game-outcome';
+  readonly result: 'failure';
+  readonly cause: 'total-fleet-loss';
+  readonly cycle: number;
+  readonly occurredAt: Timestamp;
+}
+
+export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome;
 
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */

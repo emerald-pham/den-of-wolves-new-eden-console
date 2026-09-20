@@ -109,6 +109,30 @@ it('hydrates only a valid privacy-safe pursuit failure outcome', () => {
   }).gameOutcome).toBeUndefined();
 });
 
+it('hydrates a privacy-safe total fleet loss without hiding retained craft state', () => {
+  const outcome = {
+    type: 'game-outcome' as const,
+    result: 'failure' as const,
+    cause: 'total-fleet-loss' as const,
+    cycle: 0,
+    occurredAt: '2026-09-20T14:30:00.000Z',
+  };
+  const session = sessionFrom('total-fleet-loss', {
+    ...sessionData(8), phase: 'failure', currentTurn: 0, gameOutcome: outcome,
+    shuttleCargo: { starlight: { food: 2 } },
+    smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2, population: 1_000, unrest: 1, cycle: { step: 1, revision: 3, results: { '1': 'Rations applied.' }, charges: [], turn: 1 } } },
+  });
+  expect(session.gameOutcome).toEqual(outcome);
+  expect(session.shuttleCargo).toEqual({ starlight: { food: 2 } });
+  expect(session.smallShipStates?.gorgoneion).toMatchObject({
+    id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2, population: 1_000,
+  });
+  expect(sessionFrom('malformed-total-fleet-loss', {
+    ...sessionData(8), phase: 'failure', currentTurn: 0,
+    gameOutcome: { ...outcome, destroyedShipIds: ['aegis'] },
+  }).gameOutcome).toBeUndefined();
+});
+
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   const session = sessionFrom('typed-session', {
     ...sessionData(8),

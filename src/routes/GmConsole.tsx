@@ -2172,7 +2172,9 @@ export default function GmConsole() {
                 <p className="gm-console__status" role="status">
                   {session?.gameOutcome?.cause === 'pursuit-limit'
                     ? `Pursuit reached 10 in Cycle ${session.gameOutcome.cycle} // Endgame evaluation active. Advance and skip controls are disabled.`
-                    : 'Final cycle complete // Endgame evaluation active. Advance and skip controls are disabled.'}
+                    : session?.gameOutcome?.cause === 'total-fleet-loss'
+                      ? `All full fleet ships lost in Cycle ${session.gameOutcome.cycle} // Survivors, escape pods, and small craft remain available for endgame evaluation. Advance and skip controls are disabled.`
+                      : 'Final cycle complete // Endgame evaluation active. Advance and skip controls are disabled.'}
                 </p>
               ) : currentTurn === 0 ? (
                 <p className="gm-console__status" role="status">

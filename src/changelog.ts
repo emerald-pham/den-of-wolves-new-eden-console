@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [561],
+    implementationProgress: {
+      completed: 320, total: 751, percentage: '42.61%',
+      done: 320, partial: 23, active: 0, missing: 408,
+    },
+    changes: [
+      'Destroying the last active full fleet ship now creates a distinct total-fleet-loss outcome and freezes active play in the same server transaction.',
+      'Survivors, escape pods, shuttles, and small craft remain readable for endgame evaluation after the full fleet is lost.',
+      '320 of 751 planned items are complete (42.61%).',
+    ],
+  },
+  {
+    version: '0.4.38',
     implementationPrompts: [560],
     implementationProgress: {
       completed: 319, total: 751, percentage: '42.48%',

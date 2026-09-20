@@ -5,6 +5,8 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
   phase: 'active',
+  activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'] as string[],
+  currentTurn: 1,
   damage: {} as Record<string, unknown>, survivors: {} as Record<string, number>, retry: false,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
@@ -20,7 +22,7 @@ vi.mock('firebase-admin/firestore', () => ({
       return callback(tx);
     },
   }),
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
@@ -38,6 +40,8 @@ beforeEach(() => {
   mock.owner = 'u1';
   mock.grantShip = 'aegis';
   mock.phase = 'active';
+  mock.activeVesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
+  mock.currentTurn = 1;
   mock.connected = true;
   mock.damage = {};
   mock.survivors = {};
@@ -63,7 +67,8 @@ beforeEach(() => {
       : path.includes('/gmInstances/')
         ? { uid: mock.owner, connected: true, lastSeenAt: new Date(), shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() } }
         : {
-          activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
+          activeVesselIds: mock.activeVesselIds,
+          currentTurn: mock.currentTurn,
           phase: mock.phase,
           shipDamage: mock.damage,
           shipSurvivors: mock.survivors,
@@ -266,6 +271,35 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/commandReceipts/test-damage', expect.objectContaining({
     result: expect.objectContaining({ destroyed: true, revision: 0 }),
   }));
+});
+
+it('commits total fleet loss atomically when the final active full ship is destroyed', async () => {
+  mock.activeVesselIds = ['aegis'];
+  mock.currentTurn = 0;
+  mock.damage = {
+    aegis: {
+      damagedSystemIds: SHIP_DAMAGE_DECKS.aegis.map(({ systemId }) => systemId),
+      destroyed: false,
+    },
+  };
+
+  await expect(addShipDamage.run(request({ ...data, requestId: 'final-ship' })))
+    .resolves.toMatchObject({ destroyed: true });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipDamage.aegis': expect.objectContaining({ destroyed: true }),
+    phase: 'failure',
+    gameOutcome: expect.objectContaining({
+      type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 0,
+    }),
+    turnPhase: 'delete-field',
+    turnState: 'delete-field',
+    turnStartAnnouncement: 'delete-field',
+  }));
+  const terminalUpdate = mock.update.mock.calls.find(([path, fields]) =>
+    path === 'sessions/s1' && (fields as Record<string, unknown>).phase === 'failure')?.[1] as Record<string, unknown>;
+  expect(terminalUpdate).not.toHaveProperty('shuttleCargo');
+  expect(terminalUpdate).not.toHaveProperty('smallShipStates');
 });
 
 it.each([['aegis', 2000], ['dione', 95000], ['icebreaker', 37000], ['shepherd', 28000], ['quellon', 28000], ['refinery-124', 18500], ['capybara', 18500]])(

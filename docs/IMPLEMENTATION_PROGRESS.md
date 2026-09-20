@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**319 / 751 prompts complete (42.48%)**
+**320 / 751 prompts complete (42.61%)**
 
-Status breakdown: **319 done · 23 partial · 409 missing**.
+Status breakdown: **320 done · 23 partial · 408 missing**.
 
 Active prompt: **none**
 
@@ -1030,7 +1030,7 @@ release classification and evidence.
 | 558 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 559 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 560 | done | non-feature | 0.4.38 | Version 0.4.38 completes the pursuit-failure freeze across normal gameplay callables. The server now applies one shared terminal-phase guard to the previously uncovered facilitator notes, private calls, Android disclosure, cycle transmission, clock, and airspace mutations, while lifecycle, setup, read-only authority, and debrief infrastructure remain explicitly classified. Runtime zero-write tests cover failure, success, and debrief states; a source-level policy gate requires every current and future callable to be terminal-guarded or deliberately exempt, and the GM console disables the affected facilitator controls during endgame evaluation. |
-| 561 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 561 | done | non-feature | 0.4.39 | Version 0.4.39 adds a distinct server-authoritative total-fleet-loss outcome. Both direct damage and maintenance catastrophe transactions evaluate the canonical active full-ship roster after the pending destruction, freeze active play atomically when no usable full ship remains, and preserve survivor, escape-pod, shuttle, small-craft, and audit ledgers for endgame evaluation. Public hydration accepts only the privacy-safe outcome shape, and GM and ship consoles explain the retained evaluation path. |
 | 562 | missing | non-feature | — | Planned [NEW] prompt: aggregate only authoritative survivor ledgers and exclude theatrical announcement adjustments. |
 | 563 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 564 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

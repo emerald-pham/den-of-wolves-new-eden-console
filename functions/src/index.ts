@@ -231,6 +231,7 @@ import {
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { destructionTransition } from './shipDestruction';
+import { totalFleetLossOutcome } from './totalFleetLoss';
 import {
   missionDeckStateFromCards,
   parseMissionDeckState,
@@ -920,6 +921,32 @@ function activeVesselIdsForSession(session: DocumentSnapshot): readonly string[]
     return [...new Set(stored.filter((value): value is string => typeof value === 'string'))];
   }
   return activeVesselIdsForRoles(configuredRoleIds(session));
+}
+
+function totalFleetLossTerminalPatch(
+  session: DocumentSnapshot,
+  destroyedShipId: string,
+  destroyedShipState: ReturnType<typeof shipDamage>[string],
+  occurredAt: string,
+): Record<string, unknown> {
+  const nextDamage = {
+    ...shipDamage(session.get('shipDamage')),
+    [destroyedShipId]: destroyedShipState,
+  };
+  const gameOutcome = totalFleetLossOutcome(
+    activeVesselIdsForSession(session),
+    nextDamage,
+    sessionTurn(session.get('currentTurn')),
+    occurredAt,
+  );
+  if (!gameOutcome) return {};
+  return {
+    phase: 'failure',
+    gameOutcome,
+    turnPhase: FieldValue.delete(),
+    turnState: FieldValue.delete(),
+    turnStartAnnouncement: FieldValue.delete(),
+  };
 }
 
 /** Destruction removes a full ship from navigation while retaining its
@@ -13815,6 +13842,7 @@ export const addShipDamage = onCall<{
   // retries the transaction callback.
   const entropyRange = 0x1_0000_0000;
   let drawEntropy: number | undefined;
+  let stableOccurredAt: string | undefined;
   const eventId = `damage-${identity.requestId}`;
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
@@ -13836,6 +13864,7 @@ export const addShipDamage = onCall<{
       return stale;
     }
     drawEntropy ??= randomInt(0, entropyRange);
+    stableOccurredAt ??= new Date().toISOString();
     const storedDamage = shipDamage(session.get('shipDamage'));
     const current = storedDamage[change.shipId] ?? { damagedSystemIds: [], destroyed: false };
     const result = drawShipDamage(
@@ -13894,12 +13923,16 @@ export const addShipDamage = onCall<{
       );
     }
     if (!result.destroyed || newlyDestroyed) {
+      const terminalPatch = newlyDestroyed
+        ? totalFleetLossTerminalPatch(session, change.shipId, result.state, stableOccurredAt)
+        : {};
       tx.update(sessionRef, {
         [`shipDamage.${change.shipId}`]: result.state,
         [`shipSurvivors.${change.shipId}`]: nextPopulation,
         [`shipUnrest.${change.shipId}`]: nextUnrest,
         populationAlerts, unrestAlerts,
         ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
+        ...terminalPatch,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
@@ -16038,6 +16071,9 @@ export const runMaintenance = onCall<{
       shuttleCargo: result.cargo, shuttleFuelled: result.fuelled,
       unrestAlerts, populationAlerts,
     };
+    const terminalPatch = destruction && !currentDamage.destroyed
+      ? totalFleetLossTerminalPatch(snapshot, data.shipId, result.damage, serverTime)
+      : {};
     const entries = data.action === 'begin' ? [] : (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
     const immutableFields = result.damageDraw ? [
       `shipDamage.${data.shipId}`,
@@ -16078,7 +16114,7 @@ export const runMaintenance = onCall<{
         data.requestId, 'maintenance'),
     };
     tx.set(undoRef, { turn: currentTurn, entries });
-    tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(ref, { ...patch, ...terminalPatch, updatedAt: FieldValue.serverTimestamp() });
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'maintenance',
       envelope: buildAuthoritativeEventEnvelope({

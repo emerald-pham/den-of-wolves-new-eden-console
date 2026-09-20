@@ -617,11 +617,13 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1,
+      activeVesselIds: ['aegis'],
       maintenanceCycles: { aegis: { step: 4, revision: 4, results: {}, charges: [], refuelled: [] } },
       shipDamage: { aegis: { damagedSystemIds: exhaustedAegis, destroyed: false } },
       shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
       shipUnrest: { aegis: 10 }, shipSurvivors: { aegis: 2500 },
       shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
     receipts: {}, undo: {}, events: {}, damageDraws: {},
@@ -646,6 +648,16 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
   expect(maintenance.session.shipSurvivors).toEqual({ aegis: 2500 });
   expect(maintenance.session.shipResources).toEqual({
     aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
+  });
+  expect(maintenance.session).toMatchObject({
+    phase: 'failure',
+    gameOutcome: {
+      type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 1,
+    },
+    shipSurvivors: { aegis: 2500 },
+    shuttleCargo: {},
+    shuttleFuelled: {},
+    smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
   });
 });
 

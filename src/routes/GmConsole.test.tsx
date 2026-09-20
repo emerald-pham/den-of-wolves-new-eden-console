@@ -2370,6 +2370,32 @@ it('shows the pursuit failure outcome and freezes cycle and setup mutations', as
   expect(authorFacilitatorRuleCall).not.toHaveBeenCalled();
 });
 
+it('distinguishes total fleet loss while retaining survivors and small craft for evaluation', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'failure',
+    currentTurn: 2,
+    shipSurvivors: { aegis: 2500 },
+    shuttleCargo: { starlight: { food: 2 } },
+    smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2, population: 1_000, unrest: 1, cycle: { step: 1, revision: 3, results: { '1': 'Rations applied.' }, charges: [], turn: 1 } } },
+    gameOutcome: {
+      type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 2,
+      occurredAt: '2026-09-20T14:30:00.000Z',
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const cycleControls = await screen.findByRole('region', { name: /cycle controls/i });
+  expect(cycleControls).toHaveTextContent(
+    /all full fleet ships lost in cycle 2.*survivors, escape pods, and small craft remain available/i,
+  );
+  expect(within(cycleControls).queryByRole('button', { name: /advance to cycle/i })).not.toBeInTheDocument();
+});
+
 it('closes the Press availability dialog if endgame evaluation starts', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
