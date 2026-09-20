@@ -3841,6 +3841,33 @@ body {
   font: 0.875rem/1.5 var(--cic-mono);
 }
 .private-loyalty-panel__proof .cic-action-button { min-height: 44px; }
+
+.private-loyalty-panel__wolf-action {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--cic-rule);
+  font-family: var(--cic-mono);
+}
+
+.private-loyalty-panel__wolf-action h3,
+.private-loyalty-panel__wolf-action p,
+.private-loyalty-panel__wolf-action label {
+  margin: 0;
+  font-family: var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.private-loyalty-panel__wolf-action textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 5rem;
+  resize: vertical;
+  font: 1rem/1.45 var(--cic-mono);
+}
+
+.private-loyalty-panel__wolf-action .cic-action-button { min-height: 44px; }
 .gm-start-receipt {
   display: grid;
   gap: 0.55rem;

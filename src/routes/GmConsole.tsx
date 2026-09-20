@@ -3656,13 +3656,18 @@ export default function GmConsole() {
               <dl className="gm-wolf-action-receipt__grid">
                 <div><dt>Actor</dt><dd>{wolfActionReceipt.actorUid}</dd></div>
                 <div><dt>Cover</dt><dd>{wolfActionReceipt.actorRoleId}</dd></div>
-                <div><dt>Craft</dt><dd>{wolfActionReceipt.vesselId}</dd></div>
+                {wolfActionReceipt.vesselId && <div><dt>Craft</dt><dd>{wolfActionReceipt.vesselId}</dd></div>}
                 <div><dt>Action</dt><dd>{WOLF_CLUE_ACTION_LABELS[wolfActionReceipt.action]}</dd></div>
                 <div><dt>Phase</dt><dd>{wolfActionReceipt.phase.toUpperCase()}</dd></div>
                 <div><dt>Projection revision</dt><dd>{wolfActionReceipt.projectionRevision}</dd></div>
                 <div><dt>Request</dt><dd>{wolfActionReceipt.requestId}</dd></div>
                 <div><dt>Idempotency key</dt><dd>{wolfActionReceipt.idempotencyKey}</dd></div>
-                <div><dt>Consequence</dt><dd>{wolfActionReceipt.destroyedAmount} {wolfActionReceipt.resourceId} destroyed; {wolfActionReceipt.remainingAmount} remain</dd></div>
+                {wolfActionReceipt.action === 'sabotage-supplies' && (
+                  <div><dt>Consequence</dt><dd>{wolfActionReceipt.destroyedAmount} {wolfActionReceipt.resourceId} destroyed; {wolfActionReceipt.remainingAmount} remain</dd></div>
+                )}
+                {wolfActionReceipt.action === 'provide-intel' && wolfActionReceipt.message && (
+                  <div><dt>Handler message</dt><dd>{wolfActionReceipt.message}</dd></div>
+                )}
                 <div><dt>Suspicion</dt><dd>{wolfActionReceipt.oldSuspicion} + {wolfActionReceipt.suspicionIncrement} = {wolfActionReceipt.newSuspicion}</dd></div>
                 <div><dt>Clue roll</dt><dd>d6 {wolfActionReceipt.roll}; total {wolfActionReceipt.total}</dd></div>
                 <div><dt>Clue band</dt><dd>{WOLF_CLUE_TIER_LABELS[wolfActionReceipt.clueTier]}</dd></div>

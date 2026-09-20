@@ -197,6 +197,25 @@ public audit projections. Requests from older clients without a stable request
 identity follow the existing reconcile or fail-closed guidance rather than
 receiving a fabricated idempotency key.
 
+### Prompt 501 — Private Wolf intelligence
+
+An active Wolf Agent or Wolf Cult may send one short handler message through
+the same server-owned, one-action-per-cycle boundary as every other Wolf
+action. The server derives the sender's live canonical cover, requires matching
+private loyalty and facilitator census state, adds exactly three suspicion,
+and resolves one server-owned clue roll in the same transaction. A committed
+supply action blocks intelligence in that cycle and committed intelligence
+blocks every later Wolf action in that cycle.
+
+The authenticated sender receives only their message, cover, cycle receipt,
+and resulting suspicion. The full message, hidden actor, calculation, clue,
+and audit identity are available only through the facilitator projection and
+durable history; no public event or ordinary member document carries them.
+Firestore denies those records to players and observers and denies every
+client write. Exact retries return the original private result without another
+message, suspicion increase, random draw, history entry, or audit write, and a
+foreign actor cannot use the receipt to recover the result.
+
 ### Prompt 503 — Wolf action receipt audiences
 
 A committed Wolf action produces separate allowlisted outputs in the same

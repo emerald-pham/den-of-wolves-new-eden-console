@@ -58,7 +58,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { submitWolfSupplySabotage } from './index';
+import { submitWolfIntelligence, submitWolfSupplySabotage } from './index';
 
 const baseData = {
   sessionId: 's1', requestId: 'wolf-supply-1', expectedCycle: 2,
@@ -154,6 +154,134 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
   expect(mock.documents.get('sessions/s1/wolfActionState/u2/audit/wolf-supply-1'))
     .toMatchObject({ actorUid: 'u2', cycle: 2, action: 'sabotage-supplies' });
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
+});
+
+it('sends private Wolf intelligence with three suspicion and facilitator-only clue records', async () => {
+  const reply = await submitWolfIntelligence.run(request({
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2,
+    message: 'Convoy diverted toward the outer relay.',
+  }));
+  expect(reply).toEqual({
+    status: 'committed', type: 'wolf-intelligence', sessionId: 's1',
+    requestId: 'wolf-intel-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer',
+    message: 'Convoy diverted toward the outer relay.', suspicion: 3,
+  });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({
+    payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 3 },
+  });
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    action: 'provide-intel', oldSuspicion: 0, increment: 3, newSuspicion: 3,
+    roll: 1, total: 4, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+  expect(mock.documents.get('sessions/s1/wolfActionReceipts/current')).toMatchObject({
+    type: 'wolf-action-receipt', action: 'provide-intel', actorUid: 'u2',
+    actorRoleId: 'dione-engineer', message: 'Convoy diverted toward the outer relay.',
+    oldSuspicion: 0, suspicionIncrement: 3, newSuspicion: 3,
+    auditId: 'wolf-intelligence-wolf-intel-1',
+  });
+  expect(mock.documents.get('sessions/s1/wolfSuspicionHistory/wolf-intel-1')).toMatchObject({
+    type: 'wolf-suspicion-history', action: 'provide-intel', source: 'wolf-intelligence',
+    actorUid: 'u2', actorRoleId: 'dione-engineer', oldSuspicion: 0,
+    increment: 3, newSuspicion: 3, auditId: 'wolf-intelligence-wolf-intel-1',
+  });
+  expect(mock.documents.get('sessions/s1/wolfActionState/u2')).toMatchObject({
+    action: 'provide-intel', cycle: 2, revision: 1, state: 'committed',
+  });
+  expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
+});
+
+it('replays the exact Wolf intelligence request without another message, suspicion change, or roll', async () => {
+  const data = {
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
+  };
+  await submitWolfIntelligence.run(request(data));
+  mock.set.mockClear(); mock.update.mockClear(); cryptoMock.randomInt.mockClear();
+  await expect(submitWolfIntelligence.run(request(data))).resolves.toMatchObject({
+    requestId: 'wolf-intel-1', message: 'Relay quiet.', suspicion: 3,
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('denies a foreign actor reusing a Wolf intelligence receipt without disclosing it', async () => {
+  const data = {
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
+  };
+  await submitWolfIntelligence.run(request(data));
+  mock.set.mockClear(); mock.update.mockClear(); cryptoMock.randomInt.mockClear();
+
+  await expect(submitWolfIntelligence.run(request(data, 'u3'))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('reuses one intelligence clue roll across Firestore transaction retries', async () => {
+  const attemptedClues: Fields[] = [];
+  mock.runTransaction.mockImplementationOnce(async (callback) => {
+    let result: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const set = vi.fn((target: { path: string }, fields: Fields) => {
+        if (target.path === 'sessions/s1/wolfClueDisclosure/current') attemptedClues.push(fields);
+      });
+      result = await callback({ get: mock.get, set, update: vi.fn(), delete: vi.fn() });
+    }
+    return result;
+  });
+  cryptoMock.randomInt.mockReset();
+  cryptoMock.randomInt.mockReturnValueOnce(1).mockReturnValueOnce(6);
+
+  await expect(submitWolfIntelligence.run(request({
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
+  }))).resolves.toMatchObject({ status: 'committed', suspicion: 3 });
+
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
+  expect(attemptedClues).toHaveLength(2);
+  expect(attemptedClues.map((clue) => ({ roll: clue.roll, total: clue.total }))).toEqual([
+    { roll: 1, total: 4 },
+    { roll: 1, total: 4 },
+  ]);
+});
+
+it('shares the one-action-per-cycle commitment across Wolf action types', async () => {
+  await submitWolfSupplySabotage.run(request());
+  await expect(submitWolfIntelligence.run(request({
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfActionReceipts/current')).toMatchObject({
+    action: 'sabotage-supplies', requestId: 'wolf-supply-1',
+  });
+});
+
+it('rejects non-Wolves and malformed Wolf intelligence before any private result', async () => {
+  put('sessions/s1/secrets/loyalty-u2', {
+    visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 0 },
+  });
+  await expect(submitWolfIntelligence.run(request({
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(submitWolfIntelligence.run(request({
+    sessionId: 's1', requestId: 'wolf-intel-2', expectedCycle: 2, message: '   ',
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.documents.has('sessions/s1/wolfActionState/u2')).toBe(false);
+});
+
+it('rejects a Wolf intelligence request from a stale cover outside the active roster', async () => {
+  put('sessions/s1', {
+    ...mock.documents.get('sessions/s1'),
+    activeRoleIds: recommendedRoleIds(8),
+  });
+  await expect(submitWolfIntelligence.run(request({
+    sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.documents.has('sessions/s1/wolfActionState/u2')).toBe(false);
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 
 it('reuses one clue roll across Firestore transaction retries', async () => {

@@ -678,25 +678,33 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
   const requestId = typeof raw.requestId === 'string' ? raw.requestId : '';
   const resourceIds = new Set<string>(RESOURCE_DEFINITIONS.map((resource) => resource.id));
   const craft = vesselId ? SHUTTLECRAFT.find((candidate) => candidate.id === vesselId) : undefined;
+  const supplyAction = raw.action === 'sabotage-supplies';
+  const intelligenceAction = raw.action === 'provide-intel';
+  const expectedIncrement = supplyAction ? 2 : intelligenceAction ? 3 : 0;
+  const expectedAuditId = supplyAction
+    ? `wolf-supply-sabotage-${requestId}`
+    : `wolf-intelligence-${requestId}`;
   if (raw.type !== 'wolf-action-receipt' || raw.status !== 'committed' ||
-      raw.action !== 'sabotage-supplies' || parsedSessionId !== parseEntityId('session', sessionId) ||
-      !actorUid || !actorRoleId || !findConsoleRole(actorRoleId) || !vesselId || !craft ||
-      craft.captainRoleId !== actorRoleId ||
+      (!supplyAction && !intelligenceAction) || parsedSessionId !== parseEntityId('session', sessionId) ||
+      !actorUid || !actorRoleId || !findConsoleRole(actorRoleId) ||
       !isCanonicalRequestId(requestId) || raw.idempotencyKey !== requestId ||
-      raw.auditId !== `wolf-supply-sabotage-${requestId}` || raw.phase !== 'active' ||
+      raw.auditId !== expectedAuditId || raw.phase !== 'active' ||
       !Number.isSafeInteger(raw.projectionRevision) || (raw.projectionRevision as number) < 1 ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-      typeof raw.resourceId !== 'string' || !resourceIds.has(raw.resourceId) ||
-      !Number.isSafeInteger(raw.destroyedAmount) || (raw.destroyedAmount as number) < 0 ||
-      !Number.isSafeInteger(raw.remainingAmount) || (raw.remainingAmount as number) < 0 ||
       !Number.isSafeInteger(raw.oldSuspicion) || (raw.oldSuspicion as number) < 0 ||
-      raw.suspicionIncrement !== 2 || !Number.isSafeInteger(raw.newSuspicion) ||
-      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + 2 ||
+      raw.suspicionIncrement !== expectedIncrement || !Number.isSafeInteger(raw.newSuspicion) ||
+      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + expectedIncrement ||
       !Number.isSafeInteger(raw.roll) || (raw.roll as number) < 1 || (raw.roll as number) > 6 ||
       !Number.isSafeInteger(raw.total) ||
       (raw.total as number) !== (raw.newSuspicion as number) + (raw.roll as number) ||
       typeof raw.facilitatorInstruction !== 'string') return null;
+  if (supplyAction && (!vesselId || !craft || craft.captainRoleId !== actorRoleId ||
+      typeof raw.resourceId !== 'string' || !resourceIds.has(raw.resourceId) ||
+      !Number.isSafeInteger(raw.destroyedAmount) || (raw.destroyedAmount as number) < 0 ||
+      !Number.isSafeInteger(raw.remainingAmount) || (raw.remainingAmount as number) < 0)) return null;
+  if (intelligenceAction && (typeof raw.message !== 'string' || !raw.message.trim() ||
+      raw.message.length > 240)) return null;
   const expected = (raw.total as number) <= 6
     ? ['none', 'Nothing.']
     : (raw.total as number) <= 11
@@ -713,23 +721,25 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
   return {
     type: 'wolf-action-receipt',
     status: 'committed',
-    action: 'sabotage-supplies',
+    action: raw.action as WolfActionReceipt['action'],
     projectionRevision: raw.projectionRevision as number,
     sessionId: parsedSessionId!,
     requestId,
     cycle: raw.cycle as number,
     actorUid,
     actorRoleId,
-    vesselId,
+    ...(supplyAction && vesselId ? { vesselId } : {}),
     phase: 'active',
     revision: raw.revision as number,
     idempotencyKey: requestId,
     auditId: raw.auditId as string,
-    resourceId: raw.resourceId,
-    destroyedAmount: raw.destroyedAmount as number,
-    remainingAmount: raw.remainingAmount as number,
+    ...(supplyAction ? {
+      resourceId: raw.resourceId as string,
+      destroyedAmount: raw.destroyedAmount as number,
+      remainingAmount: raw.remainingAmount as number,
+    } : { message: raw.message as string }),
     oldSuspicion: raw.oldSuspicion as number,
-    suspicionIncrement: 2,
+    suspicionIncrement: expectedIncrement,
     newSuspicion: raw.newSuspicion as number,
     roll: raw.roll as number,
     total: raw.total as number,
@@ -750,16 +760,22 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
     'none', 'natural-change', 'wolf-activity', 'wolf-activity-hint', 'strong-hint', 'traitor-name',
   ];
   const createdAt = optionalIso(raw.createdAt);
+  const supplyAction = raw.action === 'sabotage-supplies' && raw.source === 'wolf-supply-sabotage';
+  const intelligenceAction = raw.action === 'provide-intel' && raw.source === 'wolf-intelligence';
+  const expectedIncrement = supplyAction ? 2 : intelligenceAction ? 3 : 0;
+  const expectedAuditId = supplyAction
+    ? `wolf-supply-sabotage-${requestId}`
+    : `wolf-intelligence-${requestId}`;
   if (raw.type !== 'wolf-suspicion-history' || raw.status !== 'committed' ||
-      raw.action !== 'sabotage-supplies' || raw.source !== 'wolf-supply-sabotage' ||
+      (!supplyAction && !intelligenceAction) ||
       parsedSessionId !== parseEntityId('session', sessionId) || !actorUid ||
       !actorRoleId || !findConsoleRole(actorRoleId) || !createdAt ||
       !isCanonicalRequestId(requestId) ||
-      raw.auditId !== `wolf-supply-sabotage-${requestId}` ||
+      raw.auditId !== expectedAuditId ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
       !Number.isSafeInteger(raw.oldSuspicion) || (raw.oldSuspicion as number) < 0 ||
-      raw.increment !== 2 || !Number.isSafeInteger(raw.newSuspicion) ||
-      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + 2 ||
+      raw.increment !== expectedIncrement || !Number.isSafeInteger(raw.newSuspicion) ||
+      (raw.newSuspicion as number) !== (raw.oldSuspicion as number) + expectedIncrement ||
       !Number.isSafeInteger(raw.roll) || (raw.roll as number) < 1 || (raw.roll as number) > 6 ||
       !Number.isSafeInteger(raw.total) ||
       (raw.total as number) !== (raw.newSuspicion as number) + (raw.roll as number) ||
@@ -778,10 +794,12 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
             : ['traitor-name', "Give someone the traitor's name."];
   if (raw.clueTier !== expected[0] || raw.disclosure !== expected[1]) return null;
   return {
-    type: 'wolf-suspicion-history', status: 'committed', action: 'sabotage-supplies',
-    source: 'wolf-supply-sabotage', sessionId: parsedSessionId!, requestId,
+    type: 'wolf-suspicion-history', status: 'committed',
+    action: raw.action as WolfSuspicionHistoryEntry['action'],
+    source: raw.source as WolfSuspicionHistoryEntry['source'],
+    sessionId: parsedSessionId!, requestId,
     cycle: raw.cycle as number, actorUid, actorRoleId,
-    oldSuspicion: raw.oldSuspicion as number, increment: 2,
+    oldSuspicion: raw.oldSuspicion as number, increment: expectedIncrement,
     newSuspicion: raw.newSuspicion as number, roll: raw.roll as number,
     total: raw.total as number, clueTier: raw.clueTier as WolfSuspicionHistoryEntry['clueTier'],
     disclosure: raw.disclosure, auditId: raw.auditId as string, createdAt,

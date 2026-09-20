@@ -3,6 +3,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { PrivateLoyalty } from '@/types/game';
 import { findConsoleRole } from '@/data/roles';
 import { revealAndroidProof } from '@/lib/androidProofService';
+import { submitWolfIntelligence } from '@/lib/wolfActionService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -49,6 +50,8 @@ export default function PrivateLoyaltyPanel() {
   const wolfCultIntelligence = useSessionStore((state) => state.wolfCultIntelligence);
   const setPrivateLoyalty = useSessionStore((state) => state.setPrivateLoyalty);
   const sessionId = useSessionStore((state) => state.session?.id);
+  const sessionPhase = useSessionStore((state) => state.session?.phase);
+  const currentCycle = useSessionStore((state) => state.session?.currentTurn);
   const endgameEvaluation = useSessionStore((state) =>
     isEndgameEvaluationPhase(state.session?.phase));
   const me = useSessionStore((state) => state.me);
@@ -56,10 +59,22 @@ export default function PrivateLoyaltyPanel() {
   const [feedback, setFeedback] = useState<{
     identity: string; card: PrivateLoyalty; pending: boolean; error: string;
   } | null>(null);
+  const [wolfMessage, setWolfMessage] = useState('');
+  const [wolfPending, setWolfPending] = useState(false);
+  const [wolfResult, setWolfResult] = useState<string | null>(null);
+  const [wolfError, setWolfError] = useState('');
   const currentFeedback = feedback?.identity === identity && feedback.card === loyalty ? feedback : null;
   const pending = currentFeedback?.pending ?? false;
   const error = currentFeedback?.error ?? '';
+  const wolfActionAvailable = sessionPhase === 'active' && Number.isSafeInteger(currentCycle) &&
+    (currentCycle as number) >= 1;
   useEffect(() => { setFeedback(null); }, [identity, loyalty]);
+  useEffect(() => {
+    setWolfMessage('');
+    setWolfPending(false);
+    setWolfResult(null);
+    setWolfError('');
+  }, [identity, loyalty?.kind]);
   if (!loyalty) return null;
 
   const discloseAndroidProof = async () => {
@@ -91,6 +106,35 @@ export default function PrivateLoyaltyPanel() {
         currentFeedback.card === dispatchedCard
         ? { ...currentFeedback, pending: false }
         : currentFeedback);
+    }
+  };
+
+  const sendWolfIntelligence = async () => {
+    if (wolfPending || !wolfActionAvailable ||
+        (loyalty.kind !== 'wolf-agent' && loyalty.kind !== 'wolf-cult')) return;
+    const state = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
+    const dispatchedCard = loyalty;
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
+    setWolfPending(true);
+    setWolfResult(null);
+    setWolfError('');
+    try {
+      const result = await submitWolfIntelligence(wolfMessage);
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
+          (dispatchedCard.kind === 'wolf-agent' || dispatchedCard.kind === 'wolf-cult')) {
+        setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
+        setWolfMessage('');
+        setWolfResult(`Handler message sent privately. Suspicion // ${result.suspicion}.`);
+      }
+    } catch (cause) {
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard) {
+        setWolfError(normalizeCommandError(cause).message);
+      }
+    } finally {
+      if (isCurrentSessionAuthority(checkpoint)) setWolfPending(false);
     }
   };
 
@@ -130,6 +174,36 @@ export default function PrivateLoyaltyPanel() {
             {error && <p role="alert">{error}</p>}
           </div>
         ))}
+        {(loyalty.kind === 'wolf-agent' || loyalty.kind === 'wolf-cult') && (
+          <section className="private-loyalty-panel__wolf-action" aria-labelledby="wolf-intelligence-title">
+            <p className="eyebrow">Private Wolf action</p>
+            <h3 id="wolf-intelligence-title">Send intelligence</h3>
+            <label htmlFor="wolf-intelligence-message">Short handler message</label>
+            <textarea
+              id="wolf-intelligence-message"
+              maxLength={240}
+              rows={3}
+              value={wolfMessage}
+              disabled={wolfPending || !wolfActionAvailable}
+              onChange={(event) => setWolfMessage(event.target.value)}
+            />
+            <button
+              className="cic-action-button"
+              type="button"
+              disabled={wolfPending || !wolfActionAvailable || !wolfMessage.trim()}
+              onClick={() => void sendWolfIntelligence()}
+            >
+              {wolfPending ? 'Sending…' : 'Send private intelligence'}
+            </button>
+            {!wolfActionAvailable && (
+              <p className="private-loyalty-panel__proof-status" role="status">
+                Private Wolf actions are available during active cycles.
+              </p>
+            )}
+            {wolfResult && <p role="status">{wolfResult}</p>}
+            {wolfError && <p role="alert">{wolfError}</p>}
+          </section>
+        )}
         {loyalty.kind === 'wolf-cult' && wolfCultIntelligence && (
           <section className="role-brief__rules role-brief__rules--wolf-cult-intelligence" aria-labelledby="wolf-cult-intelligence-title">
             <p className="eyebrow">{wolfCultIntelligence.label}</p>

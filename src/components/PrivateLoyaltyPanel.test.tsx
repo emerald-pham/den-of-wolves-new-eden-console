@@ -4,9 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { revealAndroidProof } from '@/lib/androidProofService';
+import { submitWolfIntelligence } from '@/lib/wolfActionService';
 import PrivateLoyaltyPanel from './PrivateLoyaltyPanel';
 
 vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
+vi.mock('@/lib/wolfActionService', () => ({ submitWolfIntelligence: vi.fn() }));
 
 function prepareLivePlayer() {
   useSessionStore.getState().setSession({ id: 's1' } as never);
@@ -18,6 +20,7 @@ function prepareLivePlayer() {
 beforeEach(() => {
   useSessionStore.getState().reset();
   vi.mocked(revealAndroidProof).mockReset();
+  vi.mocked(submitWolfIntelligence).mockReset();
 });
 afterEach(() => {
   cleanup();
@@ -32,6 +35,77 @@ it('shows only the current core player loyalty card and suspicion', () => {
   expect(screen.getByRole('region', { name: /private loyalty card/i })).toHaveTextContent('Wolf Agent');
   expect(screen.getByText(/Suspicion \/\/ 0/)).toBeInTheDocument();
   expect(screen.queryByText(/fleet loyalist/i)).not.toBeInTheDocument();
+});
+
+it('sends a short private Wolf handler message and applies the server suspicion result', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfIntelligence).mockResolvedValue({
+    status: 'committed', type: 'wolf-intelligence', sessionId: 's1',
+    requestId: 'wolf-intel-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', message: 'Relay quiet.', suspicion: 3,
+  });
+
+  render(<PrivateLoyaltyPanel />);
+  await user.type(screen.getByRole('textbox', { name: 'Short handler message' }), 'Relay quiet.');
+  await user.click(screen.getByRole('button', { name: 'Send private intelligence' }));
+
+  await waitFor(() => expect(submitWolfIntelligence).toHaveBeenCalledWith('Relay quiet.'));
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Handler message sent privately. Suspicion // 3.',
+  );
+  expect(useSessionStore.getState().privateLoyalty).toMatchObject({
+    kind: 'wolf-agent', suspicion: 3,
+  });
+});
+
+it('does not offer live Wolf intelligence outside an active cycle', () => {
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'briefing', currentTurn: 0 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('textbox', { name: 'Short handler message' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Send private intelligence' })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent(/available during active cycles/i);
+});
+
+it('does not offer Wolf intelligence when an active snapshot still reports cycle zero', () => {
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 0 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('textbox', { name: 'Short handler message' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Send private intelligence' })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent(/available during active cycles/i);
+});
+
+it('does not apply a stale Wolf intelligence result after the private card changes', async () => {
+  const user = userEvent.setup();
+  const reply = deferred<Awaited<ReturnType<typeof submitWolfIntelligence>>>();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfIntelligence).mockReturnValue(reply.promise);
+
+  render(<PrivateLoyaltyPanel />);
+  await user.type(screen.getByRole('textbox', { name: 'Short handler message' }), 'Relay quiet.');
+  await user.click(screen.getByRole('button', { name: 'Send private intelligence' }));
+  await waitFor(() => expect(submitWolfIntelligence).toHaveBeenCalledTimes(1));
+  act(() => useSessionStore.getState().setPrivateLoyalty({ kind: 'fleet-loyalist', suspicion: 0 }));
+  await act(async () => reply.resolve({
+    status: 'committed', type: 'wolf-intelligence', sessionId: 's1',
+    requestId: 'wolf-intel-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', message: 'Relay quiet.', suspicion: 3,
+  }));
+
+  expect(useSessionStore.getState().privateLoyalty).toEqual({
+    kind: 'fleet-loyalist', suspicion: 0,
+  });
+  expect(screen.queryByText(/handler message sent privately/i)).not.toBeInTheDocument();
 });
 
 it('shows a Press holder card with its private partner pointer when present', () => {
@@ -107,7 +181,6 @@ it('does not resurrect an Android proof marker after the private card switches',
   await act(async () => reply.resolve({ disclosed: true }));
 
   expect(useSessionStore.getState().privateLoyalty).toEqual({ kind: 'wolf-agent', suspicion: 0 });
-  expect(screen.queryByRole('status')).not.toBeInTheDocument();
   expect(screen.queryByText(/proof disclosed/i)).not.toBeInTheDocument();
 });
 

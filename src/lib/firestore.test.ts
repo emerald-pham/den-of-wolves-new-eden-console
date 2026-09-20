@@ -1334,6 +1334,25 @@ it('hydrates only canonical complete facilitator Wolf action receipts', () => {
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'provide-intel',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-intel-1', cycle: 4, revision: 2,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
+      idempotencyKey: 'wolf-intel-1', auditId: 'wolf-intelligence-wolf-intel-1',
+      message: 'Relay quiet.', oldSuspicion: 8, suspicionIncrement: 3, newSuspicion: 11,
+      roll: 1, total: 12, clueTier: 'wolf-activity',
+      facilitatorInstruction: 'Point out the wolf activity to someone.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(expect.objectContaining({
+    action: 'provide-intel', message: 'Relay quiet.', suspicionIncrement: 3,
+    newSuspicion: 11, auditId: 'wolf-intelligence-wolf-intel-1',
+  }));
+  expect(onReceipt.mock.calls.at(-1)?.[0]).not.toHaveProperty('resourceId');
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
       type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
       projectionRevision: 6, sessionId: 's1', requestId: 'wolf-supply-tampered', cycle: 4, revision: 1,
       actorUid: 'u3', actorRoleId: 'admiral', vesselId: 'philia',
@@ -1398,6 +1417,13 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
     createdAt: '2026-09-20T20:00:00.000Z', hiddenExtra: 'discard me',
   };
   const longRequestId = `wolf-supply-${'x'.repeat(100)}`;
+  const intelligence = {
+    ...valid,
+    action: 'provide-intel', source: 'wolf-intelligence', requestId: 'wolf-intel-1',
+    oldSuspicion: 8, increment: 3, newSuspicion: 11, roll: 1, total: 12,
+    clueTier: 'wolf-activity', disclosure: 'Point out the wolf activity to someone.',
+    auditId: 'wolf-intelligence-wolf-intel-1',
+  };
   callbacks[0]?.({
     metadata: { fromCache: true },
     docs: [{ data: () => valid }],
@@ -1413,11 +1439,15 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
         requestId: longRequestId,
         auditId: `wolf-supply-sabotage-${longRequestId}`,
       }) },
+      { data: () => intelligence },
     ],
   });
   expect(onHistory).toHaveBeenLastCalledWith([
     expect.objectContaining({ requestId: 'wolf-supply-1', oldSuspicion: 8, newSuspicion: 10 }),
     expect.objectContaining({ requestId: longRequestId }),
+    expect.objectContaining({
+      requestId: 'wolf-intel-1', source: 'wolf-intelligence', increment: 3, newSuspicion: 11,
+    }),
   ]);
   expect(onHistory.mock.calls.at(-1)?.[0]?.[0]).not.toHaveProperty('hiddenExtra');
   stop();

@@ -346,6 +346,32 @@ it('shows the complete Wolf action receipt only in the facilitator console', asy
   expect(receipt).toHaveTextContent('2026-09-20T20:00:00.000Z');
 });
 
+it('shows a private Wolf handler message and its suspicion receipt to the facilitator', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmWolfActionReceipt).mockImplementation((_sessionId, onReceipt) => {
+    onReceipt({
+      type: 'wolf-action-receipt', status: 'committed', action: 'provide-intel',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-intel-1', cycle: 4,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active', revision: 2,
+      idempotencyKey: 'wolf-intel-1', auditId: 'wolf-intelligence-wolf-intel-1',
+      message: 'Relay quiet.', oldSuspicion: 8, suspicionIncrement: 3, newSuspicion: 11,
+      roll: 1, total: 12, clueTier: 'wolf-activity',
+      facilitatorInstruction: 'Point out the wolf activity to someone.',
+      createdAt: '2026-09-20T21:00:00.000Z',
+    });
+    return vi.fn();
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const receipt = await screen.findByRole('region', { name: 'Latest Wolf action receipt' });
+  expect(receipt).toHaveTextContent('Intelligence dispatch');
+  expect(receipt).toHaveTextContent('Handler messageRelay quiet.');
+  expect(receipt).toHaveTextContent('8 + 3 = 11');
+  expect(receipt).toHaveTextContent('wolf-intelligence-wolf-intel-1');
+  expect(receipt).not.toHaveTextContent(/destroyed|remain/i);
+});
+
 it('shows durable Wolf suspicion history in the facilitator console', async () => {
   useSessionStore.getState().setGmInstance(local);
   vi.mocked(subscribeGmWolfSuspicionHistory).mockImplementation((_sessionId, onHistory) => {

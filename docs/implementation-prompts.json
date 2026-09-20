@@ -5523,6 +5523,13 @@
       "language": "The supply-sabotage transaction atomically preserves each suspicion calculation and clue result as an immutable facilitator-only history entry. The record includes old and new values, increment, source, cycle, actor and cover role, roll, total, canonical clue band and disclosure, request and audit identity, and server timestamp. Exact replay cannot duplicate the entry or reroll. A strict newest-first server listener renders the latest thirty entries in the GM console, while Firestore denies all lower audiences and every client write.",
       "source": "functions/src/index.ts submitWolfSupplySabotage; functions/src/wolfActionCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 504",
       "type": "evidence / production-path / server-authority / durable-audit / privacy / replay / client-allowlist / regression"
+    },
+    {
+      "direction": "501 -> 497;502;503;504",
+      "id": "E-501-PRIVATE-WOLF-INTELLIGENCE",
+      "language": "The production callable accepts only a canonical short message from an authenticated active Wolf Agent or Wolf Cult whose live cover, private loyalty, Wolf assignment, and facilitator census agree. One transaction consumes the shared cycle action slot, adds exactly three suspicion, reuses one closure-stable server d6 across transaction retries, and writes the sender-only callable result plus facilitator-only current receipt, clue projection, durable history, audit, and replay receipt. Supply sabotage and intelligence exclude each other in the same cycle; exact replay performs no writes or roll, foreign receipt reuse is denied, and no public event exposes the message or hidden actor. The routed private loyalty panel keeps the console font, active-cycle gating, and stale-authority protection.",
+      "source": "functions/src/index.ts submitWolfIntelligence; functions/src/requestGuards.ts; functions/src/wolfActionCallable.test.ts; src/lib/wolfActionService.ts; src/lib/wolfActionService.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 501",
+      "type": "evidence / production-path / server-authority / transaction / private-message / random-threshold / audience-projection / replay / regression"
     }
   ],
   "plan": {
@@ -18381,8 +18388,8 @@
         "acceptance": "the short handler message and +3 suspicion reach only the permitted Wolf/facilitator readers.",
         "title": "Send Wolf intelligence privately."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-501",
+      "description": "The submitWolfIntelligence callable authorizes an active Wolf Agent or Wolf Cult through the canonical live cover and shared one-action-per-cycle boundary, validates matching private loyalty and facilitator census state, then atomically stores the trimmed short handler message, adds exactly three suspicion, resolves one server-owned clue roll, and writes the private commitment, facilitator receipt, durable history, audit, and replay receipt. The sender receives only their message, cover, cycle receipt, and resulting suspicion; the full record is restricted to facilitator projections and no public event is emitted. Exact retries cannot resend, reroll, or reapply suspicion, foreign receipt reuse is denied, and supply sabotage and intelligence exclude each other within the same cycle.",
+      "evidenceIds": "E-AUDIT-501;E-501-PRIVATE-WOLF-INTELLIGENCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497",
@@ -18390,10 +18397,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.50"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

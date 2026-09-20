@@ -857,21 +857,22 @@ export interface WolfClueDisclosure {
 export interface WolfActionReceipt {
   readonly type: 'wolf-action-receipt';
   readonly status: 'committed';
-  readonly action: 'sabotage-supplies';
+  readonly action: 'sabotage-supplies' | 'provide-intel';
   readonly projectionRevision: number;
   readonly sessionId: SessionId;
   readonly requestId: string;
   readonly cycle: number;
   readonly actorUid: PlayerId;
   readonly actorRoleId: RoleId;
-  readonly vesselId: ShuttleId;
+  readonly vesselId?: ShuttleId;
   readonly phase: 'active';
   readonly revision: number;
   readonly idempotencyKey: string;
   readonly auditId: string;
-  readonly resourceId: string;
-  readonly destroyedAmount: number;
-  readonly remainingAmount: number;
+  readonly resourceId?: string;
+  readonly destroyedAmount?: number;
+  readonly remainingAmount?: number;
+  readonly message?: string;
   readonly oldSuspicion: number;
   readonly suspicionIncrement: number;
   readonly newSuspicion: number;
@@ -886,8 +887,8 @@ export interface WolfActionReceipt {
 export interface WolfSuspicionHistoryEntry {
   readonly type: 'wolf-suspicion-history';
   readonly status: 'committed';
-  readonly action: 'sabotage-supplies';
-  readonly source: 'wolf-supply-sabotage';
+  readonly action: 'sabotage-supplies' | 'provide-intel';
+  readonly source: 'wolf-supply-sabotage' | 'wolf-intelligence';
   readonly sessionId: SessionId;
   readonly requestId: string;
   readonly cycle: number;

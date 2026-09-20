@@ -1201,6 +1201,29 @@ export function requireWolfSupplySabotageRequest(data: {
   };
 }
 
+/** Validate one private Wolf intelligence message before its authority transaction. */
+export function requireWolfIntelligenceRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  message?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  expectedCycle: number;
+  message: string;
+} {
+  if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedCycle: data.expectedCycle as number,
+    message: requiredText(data.message, 'message', 240),
+  };
+}
+
 /** A facilitator's private census annotation is revisioned and clearable. */
 export function requireFacilitatorCensusNoteRequest(data: {
   sessionId?: unknown;

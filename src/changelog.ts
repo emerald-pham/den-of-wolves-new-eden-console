@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [501],
+    implementationProgress: {
+      completed: 352, total: 751, percentage: '46.87%',
+      done: 352, partial: 19, active: 0, missing: 380,
+    },
+    changes: [
+      'Wolf Agents and Wolf Cult members can now send a short private handler message during an active cycle, adding exactly three suspicion through the server-owned action boundary.',
+      'Only the sending Wolf and facilitator receive the message; exact retries do not send it or apply suspicion twice.',
+      '352 of 751 planned items are complete (46.87%).',
+    ],
+  },
+  {
+    version: '0.4.49',
     implementationPrompts: [504],
     implementationProgress: {
       completed: 351, total: 751, percentage: '46.74%',
