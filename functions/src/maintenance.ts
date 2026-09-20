@@ -17,6 +17,7 @@ export interface MaintenanceInput {
   rolls: number[]; entropy: number; foodLevel?: number; waterLevel?: number;
   consoles?: string[]; refuels?: Record<string, string>; productionConsoleId?: string;
   productionMode?: 'run' | 'skip'; productionScrap?: boolean;
+  productionOreAmount?: number;
   upgraded?: readonly string[]; now: string;
   damageDrawId?: string;
 }
@@ -51,13 +52,37 @@ interface ProductionRule {
   readonly scrapFoodYield?: number;
   readonly scrapWaterYield?: number;
   readonly materialYield?: number;
+  readonly upgradedMaterialYield?: number;
   readonly scrapYield?: number;
+  readonly oreRefineryMax?: number;
+  readonly upgradedOreRefineryMax?: number;
 }
 
 const PRODUCTION_RULES: Readonly<Record<string, Readonly<Record<string, ProductionRule>>>> = {
   dione: {
     hydroponics: { label: 'Hydroponics', waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
     'water-reclamation': { label: 'Water Reclamation', waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+  },
+  icebreaker: {
+    hydroponics: { label: 'Hydroponics', waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
+    'water-reclamation': { label: 'Water Reclamation', waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+    'mining-drone-control': { label: 'Mining Drone Control', waterCost: 0, materialYield: 3, upgradedMaterialYield: 5 },
+  },
+  shepherd: {
+    'water-reclamation': { label: 'Water Reclamation', waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+    'advanced-hydroponics': { label: 'Advanced Hydroponics', waterCost: 2, foodYield: 12, upgradedFoodYield: 16 },
+    'advanced-hydroponics-ii': { label: 'Advanced Hydroponics II', waterCost: 2, foodYield: 12, upgradedFoodYield: 16 },
+  },
+  quellon: {
+    hydroponics: { label: 'Hydroponics', waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
+    'water-production': { label: 'Water Production', waterCost: 0, waterYield: 12, upgradedWaterYield: 16 },
+    'water-production-ii': { label: 'Water Production II', waterCost: 0, waterYield: 12, upgradedWaterYield: 16 },
+  },
+  'refinery-124': {
+    hydroponics: { label: 'Hydroponics', waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
+    'water-reclamation': { label: 'Water Reclamation', waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+    'fuel-refinery': { label: 'Fuel Refinery', waterCost: 0, oreRefineryMax: 10, upgradedOreRefineryMax: 15 },
+    'fuel-refinery-ii': { label: 'Fuel Refinery II', waterCost: 0, oreRefineryMax: 10, upgradedOreRefineryMax: 15 },
   },
   capybara: {
     'advanced-hydroponics': {
@@ -141,7 +166,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
   // shuttle bay. They consume a charge but do not advance the lane.
   const isProduction = action === 'production';
   if ((!isProduction && expectedAction !== action) ||
-      (isProduction && (!['dione', 'capybara'].includes(shipId) || cycleInput.step !== 6))) {
+      (isProduction && (!PRODUCTION_RULES[shipId] || cycleInput.step !== 6))) {
     throw new Error('This action is not available at the current step.');
   }
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
@@ -222,13 +247,22 @@ export function advanceMaintenance(input: MaintenanceInput) {
     const consoleId = input.productionConsoleId;
     const productionRules = PRODUCTION_RULES[shipId];
     const rule = consoleId === undefined ? undefined : productionRules?.[consoleId];
-    const shipLabel = shipId === 'capybara' ? 'Capybara' : 'Dione';
+    const shipLabel = ({
+      dione: 'Dione', icebreaker: 'Icebreaker', shepherd: 'Shepherd', quellon: 'Quellon',
+      'refinery-124': 'Refinery 124', capybara: 'Capybara',
+    } as Readonly<Record<string, string>>)[shipId] ?? shipId;
     if (!consoleId || !rule) throw new Error(`Select a ${shipLabel} production console.`);
     if (!cycleInput.charges.includes(consoleId)) throw new Error('Production console is not charged.');
     const productionMode = input.productionMode ?? 'run';
     if (productionMode !== 'run' && productionMode !== 'skip') throw new Error(`Invalid ${shipLabel} production choice.`);
     if (input.productionScrap && shipId !== 'capybara') throw new Error('Scrap production spending is only available on Capybara.');
     if (input.productionScrap && productionMode === 'skip') throw new Error('Scrap cannot be spent when skipping production.');
+    if (input.productionOreAmount !== undefined && rule.oreRefineryMax === undefined) {
+      throw new Error('Ore spending is only available on a Fuel Refinery.');
+    }
+    if (input.productionOreAmount !== undefined && productionMode === 'skip') {
+      throw new Error('Ore cannot be spent when skipping production.');
+    }
     const priorProductionResult = cycleInput.results['5'] ?? '';
     const dioneHydroponics = PRODUCTION_RULES.dione?.hydroponics;
     if (shipId === 'dione' && consoleId === 'water-reclamation' && cycleInput.charges.includes('hydroponics') &&
@@ -247,7 +281,21 @@ export function advanceMaintenance(input: MaintenanceInput) {
       const upgraded = input.upgraded?.includes(consoleId) ?? false;
       const scrap = input.productionScrap === true;
       const scrapCost = scrap ? 1 : 0;
-      if (rule.materialYield !== undefined || rule.scrapYield !== undefined) {
+      if (rule.oreRefineryMax !== undefined) {
+        const max = upgraded && rule.upgradedOreRefineryMax !== undefined
+          ? rule.upgradedOreRefineryMax : rule.oreRefineryMax;
+        const oreAmount = input.productionOreAmount;
+        if (!Number.isSafeInteger(oreAmount) || oreAmount === undefined || oreAmount < 1 || oreAmount > max) {
+          throw new Error(`Choose between 1 and ${max} ore to refine.`);
+        }
+        if (resources.ore < oreAmount) throw new Error('Insufficient ore for refining.');
+        resources = {
+          ...resources,
+          ore: addResourceAmount(resources.ore, -oreAmount),
+          fuel: addResourceAmount(resources.fuel, oreAmount),
+        };
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: spent ${oreAmount} ore, generated ${oreAmount} fuel.`;
+      } else if (rule.materialYield !== undefined || rule.scrapYield !== undefined) {
         if (scrap) {
           if ((resources.scrap ?? 0) < scrapCost) throw new Error('Insufficient Scrap for production.');
           resources = {
@@ -256,12 +304,17 @@ export function advanceMaintenance(input: MaintenanceInput) {
             materials: addResourceAmount(resources.materials, rule.materialYield ?? 0),
           };
           cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: spent 1 Scrap, generated ${rule.materialYield ?? 0} materials.`;
-        } else {
+        } else if (rule.scrapYield !== undefined) {
           resources = {
             ...resources,
             scrap: addResourceAmount(resources.scrap ?? 0, rule.scrapYield ?? 0),
           };
           cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: generated ${rule.scrapYield ?? 0} Scrap.`;
+        } else {
+          const materialYield = upgraded && rule.upgradedMaterialYield !== undefined
+            ? rule.upgradedMaterialYield : rule.materialYield ?? 0;
+          resources = { ...resources, materials: addResourceAmount(resources.materials, materialYield) };
+          cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: generated ${materialYield} materials.`;
         }
       } else if (rule.foodYield !== undefined) {
         if (resources.water < rule.waterCost) throw new Error('Insufficient water for Hydroponics.');

@@ -15656,6 +15656,7 @@ type VulcanLabourCommandFingerprint = Readonly<{
   targetShipId: string;
   targetConsoleId: string;
   productionScrap: boolean | null;
+  productionOreAmount: number | null;
 }>;
 
 function sameVulcanLabourFingerprint(
@@ -15669,7 +15670,8 @@ function sameVulcanLabourFingerprint(
     value.targetExpectedRevision === expected.targetExpectedRevision &&
     value.sourceConsoleId === expected.sourceConsoleId &&
     value.targetShipId === expected.targetShipId && value.targetConsoleId === expected.targetConsoleId &&
-    (value.productionScrap ?? null) === expected.productionScrap;
+    (value.productionScrap ?? null) === expected.productionScrap &&
+    (value.productionOreAmount ?? null) === expected.productionOreAmount;
 }
 
 function vulcanLabourReceiptReply(
@@ -15729,13 +15731,13 @@ async function requireVulcanLabourAuthority(
 export const runVulcanAdditionalLabour = onCall<{
   sessionId?: unknown; requestId?: unknown; instanceId?: unknown; expectedRevision?: unknown;
   targetExpectedRevision?: unknown; sourceConsoleId?: unknown; targetShipId?: unknown;
-  targetConsoleId?: unknown; productionScrap?: unknown;
+  targetConsoleId?: unknown; productionScrap?: unknown; productionOreAmount?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
     'sessionId', 'requestId', 'instanceId', 'expectedRevision', 'targetExpectedRevision',
-    'sourceConsoleId', 'targetShipId', 'targetConsoleId', 'productionScrap',
+    'sourceConsoleId', 'targetShipId', 'targetConsoleId', 'productionScrap', 'productionOreAmount',
   ];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
       Object.keys(raw).some(key => !allowed.includes(key))) {
@@ -15743,7 +15745,9 @@ export const runVulcanAdditionalLabour = onCall<{
   }
   const data = requireVulcanAdditionalLabourRequest(raw);
   if (!VULCAN_ADDITIONAL_LABOUR_CONSOLES.includes(data.sourceConsoleId as VulcanAdditionalLabourConsole) ||
-      (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId))) {
+      (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId)) ||
+      ((data.targetConsoleId === 'fuel-refinery' || data.targetConsoleId === 'fuel-refinery-ii') !==
+        (data.productionOreAmount !== undefined))) {
     throw new HttpsError('invalid-argument', 'Invalid Additional Labour console or GM instance.');
   }
   const fingerprint: VulcanLabourCommandFingerprint = {
@@ -15752,6 +15756,7 @@ export const runVulcanAdditionalLabour = onCall<{
     targetExpectedRevision: data.targetExpectedRevision, sourceConsoleId: data.sourceConsoleId,
     targetShipId: data.targetShipId, targetConsoleId: data.targetConsoleId,
     productionScrap: data.productionScrap ?? null,
+    productionOreAmount: data.productionOreAmount ?? null,
   };
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
   const requestRef = db.doc(`sessions/${data.sessionId}/vulcanLabourRequests/${data.requestId}`);
@@ -15820,6 +15825,7 @@ export const runVulcanAdditionalLabour = onCall<{
         targetCargo: isRecord(session.get('shuttleCargo')) ? session.get('shuttleCargo') as Record<string, Record<string, number>> : {},
         targetFuelled: isRecord(session.get('shuttleFuelled')) ? session.get('shuttleFuelled') as Record<string, boolean> : {},
         targetUpgrades: upgrades, now: serverTime, productionScrap: data.productionScrap,
+        productionOreAmount: data.productionOreAmount,
       });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Additional Labour failed.', 'conflict');
@@ -15877,6 +15883,7 @@ type MaintenanceRequestFingerprint = Readonly<{
   productionConsoleId: string | null;
   productionMode: 'run' | 'skip' | null;
   productionScrap: boolean | null;
+  productionOreAmount: number | null;
   consoleRoleId: string | null;
 }>;
 
@@ -15888,6 +15895,7 @@ type MaintenanceCommand = ReturnType<typeof requireMaintenanceRequest> & {
   productionConsoleId?: string;
   productionMode?: 'run' | 'skip';
   productionScrap?: boolean;
+  productionOreAmount?: number;
   consoleRoleId?: string;
 };
 
@@ -15906,6 +15914,7 @@ function maintenanceRequestFingerprint(command: MaintenanceCommand, actorUid: st
     productionConsoleId: command.productionConsoleId ?? null,
     productionMode: command.productionMode ?? null,
     productionScrap: command.productionScrap ?? null,
+    productionOreAmount: command.productionOreAmount ?? null,
     consoleRoleId: command.consoleRoleId ?? null,
   };
 }
@@ -15933,6 +15942,7 @@ function sameMaintenanceRequestFingerprint(
     candidate.productionConsoleId === expected.productionConsoleId &&
     candidate.productionMode === expected.productionMode &&
     (candidate.productionScrap ?? null) === expected.productionScrap &&
+    (candidate.productionOreAmount ?? null) === expected.productionOreAmount &&
     candidate.consoleRoleId === expected.consoleRoleId;
 }
 
@@ -16019,11 +16029,11 @@ function maintenanceReceiptReply(
 export const runMaintenance = onCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown;
-  consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; productionScrap?: unknown; consoleRoleId?: unknown;
+  consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; productionScrap?: unknown; productionOreAmount?: unknown; consoleRoleId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
-  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'productionScrap', 'consoleRoleId'];
+  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'productionScrap', 'productionOreAmount', 'consoleRoleId'];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }
@@ -16039,6 +16049,7 @@ export const runMaintenance = onCall<{
     ...(raw.productionConsoleId === undefined ? {} : { productionConsoleId: raw.productionConsoleId as string }),
     ...(raw.productionMode === undefined ? {} : { productionMode: raw.productionMode as 'run' | 'skip' }),
     ...(raw.productionScrap === undefined ? {} : { productionScrap: raw.productionScrap as boolean }),
+    ...(raw.productionOreAmount === undefined ? {} : { productionOreAmount: raw.productionOreAmount as number }),
     ...(raw.consoleRoleId === undefined ? {} : { consoleRoleId: raw.consoleRoleId as string }),
   };
   if (!MAINTENANCE_RULES[data.shipId] ||
@@ -16051,10 +16062,21 @@ export const runMaintenance = onCall<{
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
     (data.productionConsoleId !== undefined && (typeof data.productionConsoleId !== 'string' || !(
       (data.shipId === 'dione' && ['hydroponics', 'water-reclamation'].includes(data.productionConsoleId)) ||
+      (data.shipId === 'icebreaker' && ['hydroponics', 'water-reclamation', 'mining-drone-control'].includes(data.productionConsoleId)) ||
+      (data.shipId === 'shepherd' && ['water-reclamation', 'advanced-hydroponics', 'advanced-hydroponics-ii'].includes(data.productionConsoleId)) ||
+      (data.shipId === 'quellon' && ['hydroponics', 'water-production', 'water-production-ii'].includes(data.productionConsoleId)) ||
+      (data.shipId === 'refinery-124' && ['hydroponics', 'water-reclamation', 'fuel-refinery', 'fuel-refinery-ii'].includes(data.productionConsoleId)) ||
       (data.shipId === 'capybara' && ['advanced-hydroponics', 'water-production', 'scrap-refinery'].includes(data.productionConsoleId))
     ))) ||
     (data.productionMode !== undefined && data.productionMode !== 'run' && data.productionMode !== 'skip') ||
     (data.productionScrap !== undefined && typeof data.productionScrap !== 'boolean') ||
+    (data.productionOreAmount !== undefined && (!Number.isSafeInteger(data.productionOreAmount) || data.productionOreAmount < 1 || data.productionOreAmount > 15)) ||
+    (data.action !== 'production' && [data.productionConsoleId, data.productionMode, data.productionScrap, data.productionOreAmount]
+      .some(value => value !== undefined)) ||
+    ((data.productionConsoleId === 'fuel-refinery' || data.productionConsoleId === 'fuel-refinery-ii') &&
+      data.productionMode !== 'skip' && data.productionOreAmount === undefined) ||
+    (data.productionOreAmount !== undefined &&
+      data.productionConsoleId !== 'fuel-refinery' && data.productionConsoleId !== 'fuel-refinery-ii') ||
     (data.consoleRoleId !== undefined && !/^[\w-]{1,128}$/.test(data.consoleRoleId))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }

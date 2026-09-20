@@ -210,7 +210,7 @@ it('renders Capybara production controls with optional Scrap spending', async ()
     ]}
     renderSystem={() => null} rations={null} />);
 
-  expect(screen.getByText(/Live stores: 9 food \/\/ 4 water \/\/ 2 Scrap/)).toBeVisible();
+  expect(screen.getByText(/Live stores: 9 food \/\/ 4 water \/\/ 0 materials \/\/ 0 ore \/\/ 3 fuel \/\/ 2 Scrap/)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Run Advanced Hydroponics' })).toBeEnabled();
   expect(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Advanced Hydroponics' })).toBeEnabled();
   await userEvent.click(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Advanced Hydroponics' }));
@@ -232,6 +232,58 @@ it('renders Capybara production controls with optional Scrap spending', async ()
   expect(screen.getByRole('button', { name: 'Run Water Production' })).toBeEnabled();
   expect(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Water Production' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Skip Water Production' })).toBeEnabled();
+});
+
+it.each([
+  ['icebreaker', ['hydroponics', 'water-reclamation', 'mining-drone-control']],
+  ['shepherd', ['water-reclamation', 'advanced-hydroponics', 'advanced-hydroponics-ii']],
+  ['quellon', ['hydroponics', 'water-production', 'water-production-ii']],
+] as const)('exposes each charged %s production console as an independent action', (shipId, consoleIds) => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { [shipId]: { ore: 12, fuel: 5, food: 20, water: 20, materials: 3, securityTeams: 2 } },
+    shipDamage: { [shipId]: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { [shipId]: { step: 6, revision: 3, results: {}, charges: [...consoleIds], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name={shipId} shipId={shipId}
+    systems={consoleIds.map(id => ({ id, name: id, timing: 5 as const }))}
+    renderSystem={() => null} rations={null} />);
+
+  for (const consoleId of consoleIds) {
+    expect(screen.getByRole('button', { name: `Run ${consoleId}` })).toBeEnabled();
+    expect(screen.getByRole('button', { name: `Skip ${consoleId}` })).toBeEnabled();
+  }
+});
+
+it('submits a bounded ore amount for each Refinery 124 Fuel Refinery', async () => {
+  const user = userEvent.setup();
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { 'refinery-124': { ore: 12, fuel: 5, food: 9, water: 4, materials: 0, securityTeams: 6 } },
+    shipDamage: { 'refinery-124': { damagedSystemIds: [], destroyed: false } },
+    shipUpgrades: { 'refinery-124': ['fuel-refinery-ii'] },
+    maintenanceCycles: { 'refinery-124': {
+      step: 6, revision: 3, results: {}, charges: ['fuel-refinery', 'fuel-refinery-ii'], refuelled: [],
+    } },
+  } });
+  render(<MaintenanceSystems name="Refinery 124" shipId="refinery-124"
+    systems={[
+      { id: 'fuel-refinery', name: 'Fuel Refinery', timing: 5 },
+      { id: 'fuel-refinery-ii', name: 'Fuel Refinery II', timing: 5 },
+    ]}
+    renderSystem={() => null} rations={null} />);
+
+  const firstAmount = screen.getByRole('spinbutton', { name: 'Fuel Refinery ore to refine' });
+  const secondAmount = screen.getByRole('spinbutton', { name: 'Fuel Refinery II ore to refine' });
+  expect(firstAmount).toHaveAttribute('max', '10');
+  expect(secondAmount).toHaveAttribute('max', '15');
+  await user.clear(firstAmount);
+  await user.type(firstAmount, '10');
+  await user.click(screen.getByRole('button', { name: 'Run Fuel Refinery' }));
+  expect(run).toHaveBeenCalledWith('refinery-124', 'production', 3, {
+    productionConsoleId: 'fuel-refinery', productionOreAmount: 10,
+  }, undefined);
+  expect(screen.getByRole('button', { name: 'Run Fuel Refinery II' })).toBeEnabled();
 });
 
 it('renders Capybara\'s single bay with exactly the two docked shuttle choices', async () => {

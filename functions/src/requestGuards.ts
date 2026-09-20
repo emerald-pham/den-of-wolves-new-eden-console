@@ -338,6 +338,7 @@ export function requireVulcanAdditionalLabourRequest(data: {
   targetShipId?: unknown;
   targetConsoleId?: unknown;
   productionScrap?: unknown;
+  productionOreAmount?: unknown;
 }): {
   sessionId: string;
   requestId: string;
@@ -348,6 +349,7 @@ export function requireVulcanAdditionalLabourRequest(data: {
   targetShipId: string;
   targetConsoleId: string;
   productionScrap?: boolean;
+  productionOreAmount?: number;
 } {
   const revision = (value: unknown, field: string): number => {
     if (!Number.isSafeInteger(value) || (value as number) < 0) {
@@ -357,6 +359,11 @@ export function requireVulcanAdditionalLabourRequest(data: {
   };
   if (data.productionScrap !== undefined && typeof data.productionScrap !== 'boolean') {
     throw new HttpsError('invalid-argument', 'productionScrap must be boolean.');
+  }
+  if (data.productionOreAmount !== undefined &&
+      (!Number.isSafeInteger(data.productionOreAmount) || (data.productionOreAmount as number) < 1 ||
+        (data.productionOreAmount as number) > 15)) {
+    throw new HttpsError('invalid-argument', 'productionOreAmount must be an integer from 1 to 15.');
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
@@ -368,6 +375,7 @@ export function requireVulcanAdditionalLabourRequest(data: {
     targetShipId: requiredId(data.targetShipId, 'targetShipId'),
     targetConsoleId: requiredId(data.targetConsoleId, 'targetConsoleId'),
     ...(data.productionScrap === undefined ? {} : { productionScrap: data.productionScrap }),
+    ...(data.productionOreAmount === undefined ? {} : { productionOreAmount: data.productionOreAmount as number }),
   };
 }
 

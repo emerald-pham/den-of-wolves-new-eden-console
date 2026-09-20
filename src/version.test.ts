@@ -37,6 +37,9 @@ it('retains fleet DRADIS range behavior in player-facing release notes', () => {
 it('keeps implementation-plan features mapped when release notes declare coverage', () => {
   const versions = CHANGELOG.map((entry) => entry.version);
   const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const catalog = JSON.parse(readFileSync('docs/implementation-prompts.json', 'utf8')) as {
+    prompts: Array<{ id: string; status: string; releases: string[] }>;
+  };
 
   expect(new Set(versions).size).toBe(versions.length);
   expect(currentEntry).toBeDefined();
@@ -45,9 +48,14 @@ it('keeps implementation-plan features mapped when release notes declare coverag
     return;
   }
   expect(currentEntry.implementationPrompts.length).toBeGreaterThan(0);
-  expect(currentEntry.implementationPrompts.length).toBeLessThanOrEqual(currentEntry.changes.length);
   expect(new Set(currentEntry.implementationPrompts).size)
     .toBe(currentEntry.implementationPrompts.length);
+  for (const promptId of currentEntry.implementationPrompts) {
+    const prompt = catalog.prompts.find((candidate) => candidate.id === String(promptId));
+    expect(prompt, `Prompt ${promptId} must exist in the catalog`).toBeDefined();
+    expect(prompt?.status, `Prompt ${promptId} must be complete`).toBe('done');
+    expect(prompt?.releases, `Prompt ${promptId} must name release ${APP_VERSION}`).toContain(APP_VERSION);
+  }
 });
 
 it('keeps roadmap jargon out of rendered changelog fields while retaining provenance', () => {

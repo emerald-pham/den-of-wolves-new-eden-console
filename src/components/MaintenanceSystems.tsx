@@ -52,8 +52,10 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [consoles, setConsoles] = useState<string[]>([]);
   const [refuels, setRefuels] = useState<Record<string, string>>({});
   const [productionScrap, setProductionScrap] = useState<Record<string, boolean>>({});
+  const [productionOreAmount, setProductionOreAmount] = useState<Record<string, number>>({});
   useEffect(() => {
-    setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setProductionScrap({}); setError(''); setDamageNotices([]);
+    setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setProductionScrap({});
+    setProductionOreAmount({}); setError(''); setDamageNotices([]);
   }, [shipId, step]);
   const damage = shipState ? shipState.damage : session?.shipDamage?.[shipId];
   const resources = shipState ? shipState.resources : session?.shipResources?.[shipId];
@@ -84,11 +86,14 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const docked = session?.shuttleDockings?.filter(dock => dock.shipId === shipId) ?? [];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
   const productionSystems = systems.filter(system =>
-    ['hydroponics', 'water-reclamation', 'advanced-hydroponics', 'water-production', 'scrap-refinery'].includes(system.id));
+    ['hydroponics', 'water-reclamation', 'mining-drone-control', 'advanced-hydroponics',
+      'advanced-hydroponics-ii', 'water-production', 'water-production-ii', 'fuel-refinery',
+      'fuel-refinery-ii', 'scrap-refinery'].includes(system.id));
   const productionDisabled = (consoleId: string, mode: 'run' | 'skip' = 'run') => {
     const isDione = shipId === 'dione';
     const isCapybara = shipId === 'capybara';
-    const baseDisabled = blocked || maintenancePhaseBlocked || (!isDione && !isCapybara) || step !== 6 ||
+    const supportedShip = ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'].includes(shipId);
+    const baseDisabled = blocked || maintenancePhaseBlocked || !supportedShip || step !== 6 ||
       !resources || !cycle?.charges.includes(consoleId) || damage?.destroyed === true;
     const waterBlockedByHydroponics = isDione && consoleId === 'water-reclamation' && cycle?.charges.includes('hydroponics') &&
       !damage?.damagedSystemIds.includes('hydroponics') && resources?.water !== undefined && resources.water >= 1;
@@ -97,9 +102,14 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
       (isCapybara && consoleId === 'scrap-refinery' && productionScrap[consoleId] === true);
     const capybaraWaterBlocked = isCapybara && consoleId === 'advanced-hydroponics' && (resources?.water ?? 0) < 2;
     const capybaraScrapBlocked = isCapybara && productionScrap[consoleId] === true && (resources?.scrap ?? 0) < 1;
+    const waterCost = consoleId.startsWith('advanced-hydroponics') ? 2 : consoleId === 'hydroponics' ? 1 : 0;
+    const waterCostBlocked = !isCapybara && waterCost > 0 && (resources?.water ?? 0) < waterCost;
+    const refineryMax = upgrades.includes(consoleId) ? 15 : 10;
+    const oreAmount = productionOreAmount[consoleId] ?? 1;
+    const refineryBlocked = consoleId.startsWith('fuel-refinery') &&
+      (!Number.isInteger(oreAmount) || oreAmount < 1 || oreAmount > refineryMax || (resources?.ore ?? 0) < oreAmount);
     return baseDisabled || damage?.damagedSystemIds.includes(consoleId) || hydroponicsForeclosedByWater ||
-      (isDione && consoleId === 'hydroponics' && (resources?.water ?? 0) < 1) ||
-      waterBlockedByHydroponics || capybaraWaterBlocked || capybaraScrapBlocked;
+      waterBlockedByHydroponics || capybaraWaterBlocked || capybaraScrapBlocked || waterCostBlocked || refineryBlocked;
   };
   const scrapRefinerySelectionDisabled = (consoleId: string) => blocked || maintenancePhaseBlocked ||
     shipId !== 'capybara' || step !== 6 || !resources || !cycle?.charges.includes(consoleId) ||
@@ -108,6 +118,9 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
     productionConsoleId: consoleId as NonNullable<MaintenanceChoices['productionConsoleId']>,
     ...(mode ? { productionMode: mode } : {}),
     ...(!mode && productionScrap[consoleId] === true ? { productionScrap: true } : {}),
+    ...(!mode && consoleId.startsWith('fuel-refinery')
+      ? { productionOreAmount: productionOreAmount[consoleId] ?? 1 }
+      : {}),
   });
   const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));
@@ -226,7 +239,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             {step === 6 && productionSystems.length > 0 && <fieldset disabled={blocked} className="maintenance-controls">
               <legend>{name} production consoles</legend>
               <p>Resolve or explicitly skip charged production consoles before shuttle bay refuelling. Live stores: {resources
-                ? `${resources.food} food // ${resources.water} water${shipId === 'capybara' ? ` // ${resources.scrap ?? 0} Scrap` : ''}`
+                ? `${resources.food} food // ${resources.water} water // ${resources.materials} materials // ${resources.ore} ore // ${resources.fuel} fuel${shipId === 'capybara' ? ` // ${resources.scrap ?? 0} Scrap` : ''}`
                 : 'awaiting live resource state'}.</p>
               {productionSystems.map(system => <div key={system.id}>
                 {shipId === 'capybara' && system.id === 'scrap-refinery' && <fieldset className="maintenance-controls__choice">
@@ -251,6 +264,18 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                     disabled={productionDisabled(system.id) || (resources?.scrap ?? 0) < 1}
                     onChange={event => setProductionScrap(previous => ({ ...previous, [system.id]: event.target.checked }))} />
                   Spend 1 Scrap for +6 output
+                </label>}
+                {system.id.startsWith('fuel-refinery') && <label>
+                  Ore to refine
+                  <input type="number" min={1} max={upgrades.includes(system.id) ? 15 : 10}
+                    aria-label={`${system.name} ore to refine`}
+                    value={productionOreAmount[system.id] ?? 1}
+                    disabled={blocked || maintenancePhaseBlocked || !cycle?.charges.includes(system.id) ||
+                      damage?.destroyed === true || damage?.damagedSystemIds.includes(system.id)}
+                    onChange={event => setProductionOreAmount(previous => ({
+                      ...previous, [system.id]: Number(event.target.value),
+                    }))} />
+                  {' '}of {Math.min(resources?.ore ?? 0, upgrades.includes(system.id) ? 15 : 10)} available
                 </label>}
                 <button className="cic-action-button" disabled={productionDisabled(system.id)}
                   onClick={() => void execute('production', productionChoices(system.id))}>

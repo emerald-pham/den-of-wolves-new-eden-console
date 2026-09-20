@@ -484,6 +484,65 @@ it('rejects Capybara production without chargeable resources or a usable console
   expect(base.resources).toMatchObject({ food: 9, water: 1, scrap: 0 });
 });
 
+it.each([
+  { prompt: '198', shipId: 'icebreaker', consoleId: 'hydroponics', resource: 'food', base: 3, upgraded: 5, waterCost: 1 },
+  { prompt: '199', shipId: 'icebreaker', consoleId: 'water-reclamation', resource: 'water', base: 2, upgraded: 4, waterCost: 0 },
+  { prompt: '200', shipId: 'icebreaker', consoleId: 'mining-drone-control', resource: 'materials', base: 3, upgraded: 5, waterCost: 0 },
+  { prompt: '208', shipId: 'shepherd', consoleId: 'water-reclamation', resource: 'water', base: 2, upgraded: 4, waterCost: 0 },
+  { prompt: '209', shipId: 'shepherd', consoleId: 'advanced-hydroponics', resource: 'food', base: 12, upgraded: 16, waterCost: 2 },
+  { prompt: '209', shipId: 'shepherd', consoleId: 'advanced-hydroponics-ii', resource: 'food', base: 12, upgraded: 16, waterCost: 2 },
+  { prompt: '220', shipId: 'quellon', consoleId: 'hydroponics', resource: 'food', base: 3, upgraded: 5, waterCost: 1 },
+  { prompt: '221', shipId: 'quellon', consoleId: 'water-production', resource: 'water', base: 12, upgraded: 16, waterCost: 0 },
+  { prompt: '221', shipId: 'quellon', consoleId: 'water-production-ii', resource: 'water', base: 12, upgraded: 16, waterCost: 0 },
+  { prompt: '228', shipId: 'refinery-124', consoleId: 'hydroponics', resource: 'food', base: 3, upgraded: 5, waterCost: 1 },
+  { prompt: '229', shipId: 'refinery-124', consoleId: 'water-reclamation', resource: 'water', base: 2, upgraded: 4, waterCost: 0 },
+] as const)('resolves Prompt $prompt $shipId $consoleId at base and upgraded output', ({
+  shipId, consoleId, resource, base: baseYield, upgraded: upgradedYield, waterCost,
+}) => {
+  const resources = { ore: 12, fuel: 5, food: 9, water: 8, materials: 3, securityTeams: 2 };
+  for (const [upgradeIds, expectedYield] of [[[], baseYield], [[consoleId], upgradedYield]] as const) {
+    const result = advanceMaintenance(input({
+      shipId, action: 'production', productionConsoleId: consoleId, upgraded: upgradeIds,
+      cycle: { step: 6, revision: 0, results: {}, charges: [consoleId], refuelled: [] },
+      resources,
+    }));
+    expect(result.resources[resource]).toBe(resources[resource] + expectedYield -
+      (resource === 'water' ? waterCost : 0));
+    expect(result.resources.water).toBe(resources.water - waterCost +
+      (resource === 'water' ? expectedYield : 0));
+    expect(result.cycle).toMatchObject({ step: 6, revision: 1, charges: [] });
+  }
+});
+
+it('resolves both Refinery 124 Fuel Refinery consoles independently with base and upgraded limits', () => {
+  const first = advanceMaintenance(input({
+    shipId: 'refinery-124', action: 'production', productionConsoleId: 'fuel-refinery', productionOreAmount: 10,
+    cycle: { step: 6, revision: 0, results: {}, charges: ['fuel-refinery', 'fuel-refinery-ii'], refuelled: [] },
+    resources: { ore: 25, fuel: 5, food: 9, water: 4, materials: 0, securityTeams: 6 },
+  }));
+  expect(first.resources).toMatchObject({ ore: 15, fuel: 15 });
+  expect(first.cycle.charges).toEqual(['fuel-refinery-ii']);
+
+  const second = advanceMaintenance(input({
+    shipId: 'refinery-124', action: 'production', productionConsoleId: 'fuel-refinery-ii', productionOreAmount: 15,
+    expectedRevision: first.cycle.revision, cycle: first.cycle, resources: first.resources,
+    upgraded: ['fuel-refinery-ii'],
+  }));
+  expect(second.resources).toMatchObject({ ore: 0, fuel: 30 });
+  expect(second.cycle.charges).toEqual([]);
+  expect(second.cycle.results['5']).toMatch(/Fuel Refinery:.*Fuel Refinery II:/);
+
+  expect(() => advanceMaintenance(input({
+    shipId: 'refinery-124', action: 'production', productionConsoleId: 'fuel-refinery', productionOreAmount: 11,
+    cycle: { step: 6, revision: 0, results: {}, charges: ['fuel-refinery'], refuelled: [] },
+  }))).toThrow(/between 1 and 10 ore/i);
+  expect(() => advanceMaintenance(input({
+    shipId: 'refinery-124', action: 'production', productionConsoleId: 'fuel-refinery', productionOreAmount: 10,
+    cycle: { step: 6, revision: 0, results: {}, charges: ['fuel-refinery'], refuelled: [] },
+    resources: { ore: 9, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  }))).toThrow(/Insufficient ore/i);
+});
+
 it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId', ({ shipId, nominalCapacity, damagedPenalty, eligibleConsoles }) => {
   const variants = [
     { label: 'nominal', capacity: nominalCapacity, damaged: false, upgraded: false },

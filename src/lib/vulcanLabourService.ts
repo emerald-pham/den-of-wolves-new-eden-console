@@ -10,6 +10,7 @@ export async function runVulcanAdditionalLabour(
   expectedRevision: number,
   targetExpectedRevision: number,
   productionScrap?: boolean,
+  productionOreAmount?: number,
   requestId = window.crypto.randomUUID(),
 ): Promise<unknown> {
   const { session, gmInstance } = useSessionStore.getState();
@@ -19,6 +20,7 @@ export async function runVulcanAdditionalLabour(
     sessionId: session.id, requestId, sourceConsoleId, targetShipId, targetConsoleId,
     expectedRevision, targetExpectedRevision,
     ...(productionScrap === undefined ? {} : { productionScrap }),
+    ...(productionOreAmount === undefined ? {} : { productionOreAmount }),
     ...(gmInstance ? { instanceId: gmInstance.id } : {}),
   };
   return (await httpsCallable<typeof payload, unknown>(functions(), 'runVulcanAdditionalLabour')(payload)).data;

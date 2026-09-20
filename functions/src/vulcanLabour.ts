@@ -34,6 +34,7 @@ export type VulcanLabourInput = Readonly<{
   targetUpgrades: readonly string[];
   now: string;
   productionScrap?: boolean;
+  productionOreAmount?: number;
 }>;
 
 export type VulcanLabourResult = Readonly<{
@@ -125,6 +126,7 @@ export function applyVulcanAdditionalLabour(input: VulcanLabourInput): VulcanLab
       upgraded: input.targetUpgrades,
       productionConsoleId: input.targetConsoleId,
       productionScrap: input.productionScrap,
+      productionOreAmount: input.productionOreAmount,
       now: input.now,
     } satisfies MaintenanceInput);
     resolvedCycle = {

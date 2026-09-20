@@ -858,7 +858,7 @@
     {
       "direction": "165 -> 161;162;130;122;127;177",
       "id": "E-165-METADATA-PARTIAL",
-      "language": "The server-only CONSOLE_METADATA catalog derives one typed record for every configured damage-deck console, including its card identity, phase, maintenance step, charge requirement, printed damage/upgrade/effect rules, and implemented or deferred authoritative resolver. Client vessel and AEGIS definitions carry only an opaque shipId:systemId lookup key, preserving the existing no-card client-catalog boundary. Implemented resolver links cover damage.draw, maintenance.storage, maintenance.reactor, maintenance.bays, maintenance.production (Dione and expansion Capybara production), and jump.resolve. Deferred action links are explicit: aegis:construction-bay -> 178; aegis:fighter-bay-alpha, aegis:fighter-bay-bravo, aegis:command-and-control, aegis:missile-launchers, and aegis:point-defence-lasers -> 182; dione:vip-lounge -> 190/191; dione:fighter-bay -> 192; icebreaker:hydroponics -> 198; icebreaker:water-reclamation -> 199; icebreaker:mining-drone-control -> 200; icebreaker:ram-scoop -> 202; shepherd:water-reclamation -> 208; shepherd:advanced-hydroponics and shepherd:advanced-hydroponics-ii -> 209; quellon:hydroponics -> 220; quellon:water-production and quellon:water-production-ii -> 221; refinery-124:hydroponics -> 228; refinery-124:water-reclamation -> 229; refinery-124:fuel-refinery and refinery-124:fuel-refinery-ii -> 230; refinery-124:fighter-bay -> 231. Identity-only Gorgoneion, base Capybara, Warrior, Vulcan, and Voyage 33-0 console sets remain explicitly unregistered for their later vessel prompts. P165 is partial because the metadata links are not a substitute for those absent action resolvers.",
+      "language": "The server-only CONSOLE_METADATA catalog derives a typed record for every configured damage-deck console while client vessel and AEGIS definitions retain only opaque lookup keys. Implemented resolver links now cover damage draws, Storage, Reactor charging, shuttle-bay fuelling, Dione, Icebreaker, Shepherd, Quellon, Refinery 124, and expansion Capybara maintenance production, Dione VIP draws, and Jump Drive resolution. Remaining deferred links name their owning prompts for AEGIS construction and combat, fighter bays, Dione VIP use, and Icebreaker Ram Scoop; P165 remains partial until those resolvers land.",
       "source": "functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; functions/src/shipDamage.ts; src/data/vessels/templates.ts; src/data/vessels/aegis.ts; src/data/aegisConsoles.ts; src/data/roleProcedures.ts; src/data/vesselTemplates.test.ts; src/data/aegisConsoles.test.ts; private routed ship-system derivative",
       "type": "evidence"
     },
@@ -5446,6 +5446,13 @@
       "language": "A deterministic production-path regression advances expansion Capybara through begin, Storage, exact food and water rations, unrest, riot, Reactor, two charged production consoles, its single shuttle bay, explicit maintenance completion, and a charged short jump. The Reactor carries exactly three charges; production consumes only its own charges, the bay refuels only one docked shuttle and spends one fuel, and the retained Jump Drive charge resolves the printed three-fuel short jump. Focused maintenance engine, callable, jump, MaintenanceSystems, and FleetSystemsWorkspace suites pass 170/170. Existing callable tests cover authenticated console authority, CAS/replay, stale rejection, production choices, damage and upgrades, and bay restrictions; the proof adds no gameplay behavior.",
       "source": "functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; src/components/MaintenanceSystems.test.tsx; src/components/FleetSystemsWorkspace.test.tsx; focused tests 170/170",
       "type": "evidence / production-path / full-cycle / deterministic"
+    },
+    {
+      "direction": "198;199;200;208;209;220;221;228;229;230 -> 114;122;125;194;204;216;224",
+      "id": "E-198-230-PRODUCTION",
+      "language": "The shared server-authoritative maintenance production resolver now covers every printed Icebreaker, Shepherd, Quellon, and Refinery 124 production console. Focused pure, callable, metadata, service, and component tests prove exact base and upgraded yields, water and ore costs, independent duplicate-console charges, damage and charge denial, safe integer bounds, bounded Fuel Refinery amounts, atomic resource mutation, revision CAS, replay identity, accessible live run/skip controls, and Vulcan Additional Labour integration. Responsive Chrome proof at 390x844, 844x390, and 1440x900 verifies the production controls do not overflow and retain the console font. Refinery 124 Water Reclamation remains card 5♦ by the existing elimination contract.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; src/lib/maintenanceService.ts; src/lib/maintenanceService.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; docs/CONSOLE_ARCHITECTURE.md; docs/IMPLEMENTATION_CONTRACTS.md; functions/src/vulcanLabour.ts; functions/src/vulcanLabour.test.ts; functions/src/smallShipCallable.test.ts; src/lib/vulcanLabourService.ts; src/components/VulcanAdditionalLabourPanel.tsx; src/routes/RoleBrief.test.tsx; local responsive Chrome proof at 390x844, 844x390, and 1440x900",
+      "type": "evidence / production-path / server-authority / atomic-resources / replay / accessibility / regression"
     }
   ],
   "plan": {
@@ -9669,7 +9676,7 @@
         "acceptance": "every console names card, phase, step, charge, damage, upgrade, effect, and authoritative resolver.",
         "title": "Complete console metadata."
       },
-      "description": "Partial metadata foundation: Functions-only `CONSOLE_METADATA` now gives each configured damage-deck console a server-side card, phase, charge step, charge/damage/upgrade/effect contract, and an explicit implemented or deferred resolver link. Client vessel and AEGIS definitions carry only opaque `shipId:systemId` lookup keys, so the existing no-card client catalog remains intact. Existing authoritative links cover damage draws, Storage, Reactor charging, shuttle-bay fuelling, Dione production, expansion Capybara Advanced Hydroponics, Water Production, and Scrap Refinery, and Jump Drive resolution. Deferred action links are recorded exactly for AEGIS Construction Bay (178); AEGIS combat consoles and Fighter Bays (182); Dione VIP Lounge and Fighter Bay (190-192); Icebreaker Hydroponics, Water Reclamation, Mining Drone Control, and Ram Scoop (198-202); Shepherd production (208-209); Quellon production (220-221); Refinery 124 production and Fighter Bay (228-231). Identity-only small ships and Voyage 33-0 have no registered console definitions yet and are tracked against their later vessel prompts. Focused Functions metadata, client key, AEGIS, and vessel-catalog tests pass; no gameplay release is claimed until the deferred action resolvers land.",
+      "description": "Partial metadata foundation: Functions-only `CONSOLE_METADATA` gives each configured damage-deck console a server-side card, phase, charge step, charge/damage/upgrade/effect contract, and an implemented or deferred resolver link. Client vessel and AEGIS definitions carry only opaque `shipId:systemId` lookup keys. Implemented links now cover damage draws, Storage, Reactor charging, shuttle-bay fuelling, Dione, Icebreaker, Shepherd, Quellon, Refinery 124, and expansion Capybara maintenance production, Dione VIP draws, and Jump Drive resolution. Deferred links remain for AEGIS Construction Bay and combat consoles, Dione and Refinery fighter bays, Dione VIP use, and Icebreaker Ram Scoop. P165 remains partial until those action resolvers land.",
       "evidenceIds": "E-AUDIT-165;E-165-METADATA-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -10484,8 +10491,8 @@
         "acceptance": "charged J♠ converts one water to three food, or five upgraded.",
         "title": "Resolve Icebreaker Hydroponics."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-198",
+      "description": "Icebreaker Hydroponics is now a server-authoritative maintenance production action: charged J♠ spends one water for three food, or five when upgraded. The atomic callable enforces authority, phase, charge, damage, resources, revision CAS, replay fingerprints, and charge consumption; the live console exposes run and skip controls.",
+      "evidenceIds": "E-AUDIT-198;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;122;125;194",
@@ -10493,10 +10500,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10507,8 +10516,8 @@
         "acceptance": "charged Q♠ produces two water, or four upgraded, without borrowing another ship's data.",
         "title": "Resolve Icebreaker Water Reclamation."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-199",
+      "description": "Icebreaker Water Reclamation is now a server-authoritative maintenance production action: charged Q♠ produces two water, or four when upgraded. The atomic callable enforces authority, phase, charge, damage, revision CAS, replay fingerprints, safe resource bounds, and charge consumption; the live console exposes run and skip controls.",
+      "evidenceIds": "E-AUDIT-199;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;122;125;194",
@@ -10516,10 +10525,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10530,8 +10541,8 @@
         "acceptance": "charged K♠ produces three materials, or five upgraded, through one auditable transaction.",
         "title": "Resolve Mining Drone Control."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-200",
+      "description": "Icebreaker Mining Drone Control is now a server-authoritative maintenance production action: charged K♠ produces three materials, or five when upgraded, in one atomic resource transaction. Authority, phase, charge, damage, revision CAS, replay, safe resource bounds, UI controls, and charge consumption are covered.",
+      "evidenceIds": "E-AUDIT-200;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;122;125;194",
@@ -10539,10 +10550,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10760,8 +10773,8 @@
         "acceptance": "charged 4♠ produces two water, or four upgraded.",
         "title": "Resolve Shepherd Water Reclamation."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-208",
+      "description": "Shepherd Water Reclamation is now a server-authoritative maintenance production action: charged 4♠ produces two water, or four when upgraded. Authority, phase, charge, damage, revision CAS, replay, safe resource bounds, UI controls, and charge consumption are covered.",
+      "evidenceIds": "E-AUDIT-208;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;204",
@@ -10769,10 +10782,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10783,8 +10798,8 @@
         "acceptance": "each independently spends two water for 12 food, or 16 upgraded.",
         "title": "Resolve both Shepherd Advanced Hydroponics consoles."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-209",
+      "description": "Both Shepherd Advanced Hydroponics consoles now resolve independently through the authoritative maintenance path. Each charged console spends two water for 12 food, or 16 when that console is upgraded, and consumes only its own charge. Atomic resource guards, replay, CAS, damage, UI controls, and duplicate-console independence are covered.",
+      "evidenceIds": "E-AUDIT-209;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;204",
@@ -10792,10 +10807,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11082,8 +11099,8 @@
         "acceptance": "charged 4♣ converts one water into three food, or five upgraded.",
         "title": "Resolve Quellon Hydroponics."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-220",
+      "description": "Quellon Hydroponics is now a server-authoritative maintenance production action: charged 4♣ spends one water for three food, or five when upgraded. Authority, phase, charge, damage, revision CAS, replay, UI controls, and charge consumption are covered.",
+      "evidenceIds": "E-AUDIT-220;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;216",
@@ -11091,10 +11108,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11105,8 +11124,8 @@
         "acceptance": "each independently creates 12 water, or 16 upgraded.",
         "title": "Resolve both Water Production consoles."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-221",
+      "description": "Both Quellon Water Production consoles now resolve independently through the authoritative maintenance path. Each charged console produces 12 water, or 16 when that console is upgraded, and consumes only its own charge. Safe resource bounds, replay, CAS, damage, UI controls, and duplicate-console independence are covered.",
+      "evidenceIds": "E-AUDIT-221;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;216",
@@ -11114,10 +11133,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11312,8 +11333,8 @@
         "acceptance": "charged 4♦ converts one water into three food, or five upgraded.",
         "title": "Resolve Refinery 124 Hydroponics."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-228",
+      "description": "Refinery 124 Hydroponics is now a server-authoritative maintenance production action: charged 4♦ spends one water for three food, or five when upgraded. Authority, phase, charge, damage, revision CAS, replay, UI controls, and charge consumption are covered.",
+      "evidenceIds": "E-AUDIT-228;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;224",
@@ -11321,10 +11342,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11335,8 +11358,8 @@
         "acceptance": "charged 5♦ produces two water, or four upgraded, with the elimination-based card decision documented.",
         "title": "Resolve Refinery 124 Water Reclamation."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-229",
+      "description": "Refinery 124 Water Reclamation is now a server-authoritative maintenance production action: charged 5♦ produces two water, or four when upgraded. The existing elimination decision remains explicit in the server-only card catalog and architecture contract; the atomic callable covers authority, damage, replay, CAS, safe resource bounds, UI controls, and charge consumption.",
+      "evidenceIds": "E-AUDIT-229;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;224",
@@ -11344,10 +11367,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11358,8 +11383,8 @@
         "acceptance": "each converts up to ten ore one-for-one, including the exact upgraded allowance, without overspend.",
         "title": "Resolve both Fuel Refinery consoles."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-230",
+      "description": "Both Refinery 124 Fuel Refinery consoles now convert a chosen positive amount of ore to fuel one-for-one through one atomic maintenance transaction. Each console independently permits up to 10 ore, or 15 when that console is upgraded, rejects overspend and malformed amounts, binds the amount into replay identity, and consumes only its own charge; the live console exposes bounded numeric controls.",
+      "evidenceIds": "E-AUDIT-230;E-198-230-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125;224",
@@ -11367,10 +11392,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.42"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

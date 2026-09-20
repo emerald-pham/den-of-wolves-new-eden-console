@@ -8,9 +8,12 @@ export interface MaintenanceChoices {
   readonly waterLevel?: number;
   readonly consoles?: readonly string[];
   readonly refuels?: Readonly<Record<string, string>>;
-  readonly productionConsoleId?: 'hydroponics' | 'water-reclamation' | 'advanced-hydroponics' | 'water-production' | 'scrap-refinery';
+  readonly productionConsoleId?: 'hydroponics' | 'water-reclamation' | 'mining-drone-control' |
+    'advanced-hydroponics' | 'advanced-hydroponics-ii' | 'water-production' | 'water-production-ii' |
+    'fuel-refinery' | 'fuel-refinery-ii' | 'scrap-refinery';
   readonly productionMode?: 'run' | 'skip';
   readonly productionScrap?: boolean;
+  readonly productionOreAmount?: number;
 }
 
 interface PendingMaintenanceRequest {
@@ -48,6 +51,7 @@ function maintenanceChoicesFingerprint(choices: MaintenanceChoices): string {
     productionConsoleId: choices.productionConsoleId ?? null,
     productionMode: choices.productionMode ?? null,
     productionScrap: choices.productionScrap ?? null,
+    productionOreAmount: choices.productionOreAmount ?? null,
   });
 }
 

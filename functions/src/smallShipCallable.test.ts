@@ -517,3 +517,44 @@ it('runs Vulcan Additional Labour atomically for two independent charges, immedi
     ...first, requestId: 'vulcan-labour-team', expectedRevision: 2,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+it('runs upgraded Fuel Refinery through Additional Labour with a replay-bound ore amount', async () => {
+  const vulcan = {
+    ...emptySmallShipState('vulcan', 'aegis'),
+    cycle: {
+      step: 5, revision: 0, turn: 1, results: {}, charges: ['additional-labour-1'],
+    },
+  };
+  mock.session = {
+    activeVesselIds: ['aegis', 'refinery-124'], phase: 'active', currentTurn: 1,
+    turnPhase: { turn: 1, airspace: { state: 'lifted' } },
+    shipResources: {
+      aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+      'refinery-124': { ore: 15, fuel: 5, food: 9, water: 4, materials: 0, securityTeams: 6 },
+    },
+    shipDamage: {}, shipUpgrades: { 'refinery-124': ['fuel-refinery-ii'] },
+    smallShipStates: { vulcan },
+    maintenanceCycles: {
+      'refinery-124': { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
+    },
+  };
+  const command = {
+    sessionId: 's1', requestId: 'vulcan-refinery', instanceId: 'gm1',
+    expectedRevision: 0, targetExpectedRevision: 0,
+    sourceConsoleId: 'additional-labour-1', targetShipId: 'refinery-124',
+    targetConsoleId: 'fuel-refinery-ii', productionOreAmount: 15,
+  };
+  await expect(runVulcanAdditionalLabour.run(request(command))).resolves.toMatchObject({
+    status: 'committed', immediate: true, message: expect.stringContaining('spent 15 ore'),
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.refinery-124': expect.objectContaining({ ore: 0, fuel: 20 }),
+  }));
+  const receiptPath = 'sessions/s1/vulcanLabourRequests/vulcan-refinery';
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.receipts[receiptPath] = receipt;
+  await expect(runVulcanAdditionalLabour.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...command, productionOreAmount: 14,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/request id/i) });
+});

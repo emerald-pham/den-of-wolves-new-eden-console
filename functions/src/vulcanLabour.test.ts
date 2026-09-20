@@ -55,6 +55,21 @@ it('resolves an implemented maintenance production effect atomically', () => {
   expect(result.message).toContain('Hydroponics');
 });
 
+it('binds a Fuel Refinery ore choice into immediate Additional Labour production', () => {
+  const result = applyVulcanAdditionalLabour({
+    ...base,
+    targetShipId: 'refinery-124',
+    targetConsoleId: 'fuel-refinery-ii',
+    targetResources: { ...targetResources, ore: 15, fuel: 5 },
+    targetUpgrades: ['fuel-refinery-ii'],
+    productionOreAmount: 15,
+  });
+  expect(result.immediate).toBe(true);
+  expect(result.targetResources).toMatchObject({ ore: 0, fuel: 20 });
+  expect(result.targetCycle).toMatchObject({ revision: 1, charges: [] });
+  expect(result.message).toContain('spent 15 ore, generated 15 fuel');
+});
+
 it('rejects a duplicate, damaged, stale-turn, or unknown target before mutation', () => {
   expect(() => applyVulcanAdditionalLabour({
     ...base, targetCycle: { ...emptyMaintenanceCycle(), charges: ['jump-drive'] },

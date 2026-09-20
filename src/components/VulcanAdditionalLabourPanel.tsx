@@ -11,6 +11,7 @@ export default function VulcanAdditionalLabourPanel() {
   const [targetShipId, setTargetShipId] = useState('');
   const [targetConsoleId, setTargetConsoleId] = useState('');
   const [productionScrap, setProductionScrap] = useState(false);
+  const [productionOreAmount, setProductionOreAmount] = useState(1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -33,6 +34,11 @@ export default function VulcanAdditionalLabourPanel() {
   );
   const coordination = session?.turnPhase === undefined || session.turnPhase.airspace.state === 'lifted';
   const ready = sourceState?.cycle.step === 5 && sourceState.cycle.turn === session?.currentTurn && sourceCharges.length > 0;
+  const fuelRefinery = effectiveTargetConsoleId === 'fuel-refinery' || effectiveTargetConsoleId === 'fuel-refinery-ii';
+  const refineryMax = session?.shipUpgrades?.[effectiveTargetShipId]?.includes(effectiveTargetConsoleId) ? 15 : 10;
+  const targetOre = session?.shipResources?.[effectiveTargetShipId]?.ore ?? 0;
+  const invalidOreAmount = fuelRefinery && (!Number.isInteger(productionOreAmount) ||
+    productionOreAmount < 1 || productionOreAmount > refineryMax || productionOreAmount > targetOre);
 
   if (!session) return null;
 
@@ -40,6 +46,7 @@ export default function VulcanAdditionalLabourPanel() {
     setTargetShipId(nextShipId);
     setTargetConsoleId(VULCAN_LABOUR_TARGETS[nextShipId]?.[0]?.id ?? '');
     setProductionScrap(false);
+    setProductionOreAmount(1);
   };
   const submit = async () => {
     if (!sourceState || !effectiveTargetShipId || !effectiveTargetConsoleId || pending) return;
@@ -51,6 +58,7 @@ export default function VulcanAdditionalLabourPanel() {
         sourceCharges[0]!, effectiveTargetShipId, effectiveTargetConsoleId,
         sourceState.cycle.revision, targetCycle?.revision ?? 0,
         effectiveTargetShipId === 'capybara' && effectiveTargetConsoleId === 'scrap-refinery' ? productionScrap : undefined,
+        fuelRefinery ? productionOreAmount : undefined,
       );
       const message = typeof result === 'object' && result !== null && 'message' in result && typeof result.message === 'string'
         ? result.message : 'Additional Labour committed.';
@@ -81,7 +89,10 @@ export default function VulcanAdditionalLabourPanel() {
             </select>
           </label>
           <label>Console
-            <select aria-label="Additional Labour target console" value={effectiveTargetConsoleId} onChange={(event) => setTargetConsoleId(event.target.value)}>
+            <select aria-label="Additional Labour target console" value={effectiveTargetConsoleId} onChange={(event) => {
+              setTargetConsoleId(event.target.value);
+              setProductionOreAmount(1);
+            }}>
               {selectedTargets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
             </select>
           </label>
@@ -93,7 +104,12 @@ export default function VulcanAdditionalLabourPanel() {
               </select>
             </label>
           )}
-          <button className="cic-action-button" type="button" disabled={!coordination || !effectiveTargetConsoleId || targetAlreadyCharged || damaged || pending} onClick={() => void submit()}>
+          {fuelRefinery && <label>Ore to refine
+            <input type="number" min={1} max={refineryMax} aria-label="Additional Labour ore to refine"
+              value={productionOreAmount} onChange={(event) => setProductionOreAmount(Number(event.target.value))} />
+            {' '}of {Math.min(targetOre, refineryMax)} available
+          </label>}
+          <button className="cic-action-button" type="button" disabled={!coordination || !effectiveTargetConsoleId || targetAlreadyCharged || damaged || invalidOreAmount || pending} onClick={() => void submit()}>
             {pending ? 'Charging…' : `Use Additional Labour // ${sourceCharges.length} left`}
           </button>
           {!coordination && <p role="status">Additional Labour is available during Coordination Phase.</p>}

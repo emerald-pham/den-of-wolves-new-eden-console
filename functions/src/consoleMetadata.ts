@@ -187,11 +187,11 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'icebreaker:storage': commonStorage(implemented('maintenance.storage')),
   'icebreaker:reactor': commonReactor(4, 1),
   'icebreaker:shuttle-bay': commonShuttleBay(6, implemented('maintenance.bays')),
-  'icebreaker:hydroponics': commonHydroponics(deferred('Icebreaker Hydroponics has no authoritative production resolver.', ['198'])),
-  'icebreaker:water-reclamation': commonWaterReclamation(deferred('Icebreaker Water Reclamation has no authoritative production resolver.', ['199'])),
+  'icebreaker:hydroponics': commonHydroponics(implemented('maintenance.production')),
+  'icebreaker:water-reclamation': commonWaterReclamation(implemented('maintenance.production')),
   'icebreaker:mining-drone-control': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Upgraded output is two more materials.'),
-    effect: 'Gain 3 material from mining drones. Upgraded: +2 materials.', resolver: deferred('Mining Drone Control has no authoritative production resolver.', ['200']),
+    effect: 'Gain 3 material from mining drones. Upgraded: +2 materials.', resolver: implemented('maintenance.production'),
   },
   'icebreaker:jump-drive': commonJumpDrive('3 / 6 / 12'),
   'icebreaker:ram-scoop': {
@@ -202,43 +202,43 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'shepherd:storage': commonStorage(implemented('maintenance.storage')),
   'shepherd:reactor': commonReactor(3, 1),
   'shepherd:shuttle-bay': commonShuttleBay(6, implemented('maintenance.bays')),
-  'shepherd:water-reclamation': commonWaterReclamation(deferred('Shepherd Water Reclamation has no authoritative production resolver.', ['208'])),
+  'shepherd:water-reclamation': commonWaterReclamation(implemented('maintenance.production')),
   'shepherd:advanced-hydroponics': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Upgraded output is 16 food.'),
-    effect: 'Spend 2 water to generate 12 food. Upgraded: +4 food.', resolver: deferred('Shepherd Advanced Hydroponics has no authoritative production resolver.', ['209']),
+    effect: 'Spend 2 water to generate 12 food. Upgraded: +4 food.', resolver: implemented('maintenance.production'),
   },
   'shepherd:advanced-hydroponics-ii': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Upgraded output is 16 food.'),
-    effect: 'Spend 2 water to generate 12 food. Upgraded: +4 food.', resolver: deferred('Shepherd Advanced Hydroponics II has no authoritative production resolver.', ['209']),
+    effect: 'Spend 2 water to generate 12 food. Upgraded: +4 food.', resolver: implemented('maintenance.production'),
   },
   'shepherd:jump-drive': commonJumpDrive('3 / 6 / 12'),
 
   'quellon:storage': commonStorage(implemented('maintenance.storage')),
   'quellon:reactor': commonReactor(3, 1),
   'quellon:shuttle-bay': commonShuttleBay(6, implemented('maintenance.bays')),
-  'quellon:hydroponics': commonHydroponics(deferred('Quellon Hydroponics has no authoritative production resolver.', ['220'])),
+  'quellon:hydroponics': commonHydroponics(implemented('maintenance.production')),
   'quellon:water-production': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Upgraded output is 16 water.'),
-    effect: 'Generate 12 water. Upgraded: +4 water.', resolver: deferred('Quellon Water Production has no authoritative production resolver.', ['221']),
+    effect: 'Generate 12 water. Upgraded: +4 water.', resolver: implemented('maintenance.production'),
   },
   'quellon:water-production-ii': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Upgraded output is 16 water.'),
-    effect: 'Generate 12 water. Upgraded: +4 water.', resolver: deferred('Quellon Water Production II has no authoritative production resolver.', ['221']),
+    effect: 'Generate 12 water. Upgraded: +4 water.', resolver: implemented('maintenance.production'),
   },
   'quellon:jump-drive': commonJumpDrive('2 / 4 / 8'),
 
   'refinery-124:storage': commonStorage(implemented('maintenance.storage')),
   'refinery-124:reactor': commonReactor(4, 1),
   'refinery-124:shuttle-bay': commonShuttleBay(6, implemented('maintenance.bays')),
-  'refinery-124:hydroponics': commonHydroponics(deferred('Refinery 124 Hydroponics has no authoritative production resolver.', ['228'])),
-  'refinery-124:water-reclamation': commonWaterReclamation(deferred('Refinery 124 Water Reclamation has no authoritative production resolver.', ['229'])),
+  'refinery-124:hydroponics': commonHydroponics(implemented('maintenance.production')),
+  'refinery-124:water-reclamation': commonWaterReclamation(implemented('maintenance.production')),
   'refinery-124:fuel-refinery': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Refine up to 15 ore when upgraded.'),
-    effect: 'Spend up to 10 strytium ore; for each ore spent gain 1 strytium fuel.', resolver: deferred('Fuel Refinery has no authoritative production resolver.', ['230']),
+    effect: 'Spend up to 10 strytium ore; for each ore spent gain 1 strytium fuel.', resolver: implemented('maintenance.production'),
   },
   'refinery-124:fuel-refinery-ii': {
     phase: 'Team', step: 5, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: printed('Refine up to 15 ore when upgraded.'),
-    effect: 'Spend up to 10 strytium ore; for each ore spent gain 1 strytium fuel.', resolver: deferred('Fuel Refinery II has no authoritative production resolver.', ['230']),
+    effect: 'Spend up to 10 strytium ore; for each ore spent gain 1 strytium fuel.', resolver: implemented('maintenance.production'),
   },
   'refinery-124:fighter-bay': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: noUpgrade,

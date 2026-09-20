@@ -733,6 +733,55 @@ it('resolves Dione production atomically with authoritative resources, charge co
   expect(maintenance.session.shipResources).toMatchObject({ dione: { food: 16, water: 13 } });
 });
 
+it.each([
+  { prompt: '198', shipId: 'icebreaker', consoleId: 'hydroponics', expected: { food: 14, water: 8 } },
+  { prompt: '199', shipId: 'icebreaker', consoleId: 'water-reclamation', expected: { water: 11 } },
+  { prompt: '200', shipId: 'icebreaker', consoleId: 'mining-drone-control', expected: { materials: 6 } },
+  { prompt: '208', shipId: 'shepherd', consoleId: 'water-reclamation', expected: { water: 10 } },
+  { prompt: '209', shipId: 'shepherd', consoleId: 'advanced-hydroponics', expected: { food: 22, water: 6 } },
+  { prompt: '209', shipId: 'shepherd', consoleId: 'advanced-hydroponics-ii', expected: { food: 22, water: 6 } },
+  { prompt: '220', shipId: 'quellon', consoleId: 'hydroponics', expected: { food: 13, water: 7 } },
+  { prompt: '221', shipId: 'quellon', consoleId: 'water-production', expected: { water: 20 } },
+  { prompt: '221', shipId: 'quellon', consoleId: 'water-production-ii', expected: { water: 20 } },
+  { prompt: '228', shipId: 'refinery-124', consoleId: 'hydroponics', expected: { food: 12, water: 3 } },
+  { prompt: '229', shipId: 'refinery-124', consoleId: 'water-reclamation', expected: { water: 6 } },
+  { prompt: '230', shipId: 'refinery-124', consoleId: 'fuel-refinery', ore: 10, expected: { ore: 2, fuel: 15 } },
+] as const)('commits Prompt $prompt $shipId $consoleId through the authoritative callable', async ({
+  shipId, consoleId, expected, ...variant
+}) => {
+  mock.grantShip = shipId;
+  mock.maintenanceCycles = {
+    [shipId]: { step: 6, revision: 0, results: {}, charges: [consoleId], refuelled: [] },
+  };
+  const result = await runMaintenance.run(request({
+    ...data, shipId, action: 'production', requestId: `production-${shipId}-${consoleId}`,
+    productionConsoleId: consoleId,
+    ...('ore' in variant ? { productionOreAmount: variant.ore } : {}),
+  }));
+  expect(result).toMatchObject({
+    status: 'committed', committedRevision: 1,
+    cycle: { step: 6, charges: [] }, result: { resources: expected },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    [`shipResources.${shipId}`]: expect.objectContaining(expected),
+    [`maintenanceCycles.${shipId}`]: expect.objectContaining({ revision: 1, charges: [] }),
+  }));
+});
+
+it('rejects unbound or malformed Fuel Refinery amounts before authority or state mutation', async () => {
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'refinery-124', action: 'production', productionConsoleId: 'fuel-refinery',
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runMaintenance.run(request({
+    ...data, action: 'begin', productionOreAmount: 1,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'refinery-124', action: 'production', productionConsoleId: 'hydroponics',
+    productionOreAmount: 1,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('resolves Capybara production with optional Scrap exactly once across replay and stale CAS', async () => {
   mock.grantShip = 'capybara';
   const maintenance = {

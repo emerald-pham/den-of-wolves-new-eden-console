@@ -203,7 +203,7 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
     {
       id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'gm1', currentTurn: 1,
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-      activeVesselIds: ['aegis', 'dione'],
+      activeVesselIds: ['aegis', 'dione', 'refinery-124'],
       turnPhase: {
         turn: 1, teamPhaseEndsAt: '2026-09-12T17:00:00.000Z', openAirspaceEndsAt: '2026-09-12T18:00:00.000Z',
         airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
@@ -216,8 +216,16 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
       },
       maintenanceCycles: {
         dione: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
+        'refinery-124': { step: 0, revision: 2, results: {}, charges: [], refuelled: [] },
       },
-      shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+      shipDamage: {
+        dione: { damagedSystemIds: [], destroyed: false },
+        'refinery-124': { damagedSystemIds: [], destroyed: false },
+      },
+      shipResources: {
+        'refinery-124': { ore: 12, fuel: 5, food: 9, water: 4, materials: 0, securityTeams: 6 },
+      },
+      shipUpgrades: { 'refinery-124': ['fuel-refinery-ii'] },
     },
     {
       uid: 'u1', sessionId: 's1', displayName: 'Player', role: 'player', seatId: null,
@@ -242,10 +250,21 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target ship' }), 'dione');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target console' }), 'hydroponics');
   await user.click(screen.getByRole('button', { name: /use additional labour/i }));
-  expect(runVulcanAdditionalLabour).toHaveBeenCalledWith('additional-labour-1', 'dione', 'hydroponics', 3, 0, undefined);
+  expect(runVulcanAdditionalLabour).toHaveBeenCalledWith('additional-labour-1', 'dione', 'hydroponics', 3, 0, undefined, undefined);
   expect(screen.getByText(/Hydroponics: spent 1 water/i)).toBeVisible();
   expect(screen.getByText(/If another action changes the session first, refresh before trying again/i)).toBeVisible();
   expect(screen.getByRole('link', { name: /return to role selection/i })).toBeVisible();
+
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target ship' }), 'refinery-124');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target console' }), 'fuel-refinery-ii');
+  const ore = screen.getByRole('spinbutton', { name: 'Additional Labour ore to refine' });
+  expect(ore).toHaveAttribute('max', '15');
+  await user.clear(ore);
+  await user.type(ore, '12');
+  await user.click(screen.getByRole('button', { name: /use additional labour/i }));
+  expect(runVulcanAdditionalLabour).toHaveBeenLastCalledWith(
+    'additional-labour-1', 'refinery-124', 'fuel-refinery-ii', 3, 2, undefined, 12,
+  );
 });
 
 it('keeps Vulcan Additional Labour guidance readable and outcome-focused', () => {

@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [198, 199, 200, 208, 209, 220, 221, 228, 229, 230],
+    implementationProgress: {
+      completed: 341, total: 751, percentage: '45.41%',
+      done: 341, partial: 20, active: 0, missing: 390,
+    },
+    changes: [
+      'Icebreaker, Shepherd, Quellon, and Refinery 124 can now resolve every charged food, water, mining, and refining console through the authoritative maintenance controls.',
+      'Each duplicate production console keeps its own charge, while Refinery 124 converts a chosen bounded amount of ore to fuel one-for-one with its upgraded allowance.',
+      '341 of 751 planned items are complete (45.41%).',
+    ],
+  },
+  {
+    version: '0.4.41',
     implementationPrompts: [594],
     implementationProgress: {
       completed: 330, total: 751, percentage: '43.94%',
