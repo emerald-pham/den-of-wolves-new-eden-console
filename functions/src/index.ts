@@ -64,6 +64,7 @@ import {
   requireWolfAttackPreparationRequest,
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
+  requireWolfActionRequest,
   requireFacilitatorCensusNoteRequest,
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
@@ -353,6 +354,7 @@ import {
   parseWolfTargetingReceipt,
   type WolfCommanderTargetingView,
 } from './wolfCommanderRerolls';
+import { isWolfActionKind, wolfActionAuthorization, type WolfActionKind } from './wolfActionAuthorization';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -11798,6 +11800,149 @@ export const applyWolfCommanderTargetRerolls = onCall<{
       requestId: change.requestId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfActionReservationResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-action-reservation';
+  sessionId: string;
+  requestId: string;
+  cycle: number;
+  revision: number;
+  action: WolfActionKind;
+  coverRoleId: string;
+}>;
+
+function isWolfActionReservationResult(
+  value: unknown,
+  sessionId: string,
+): value is WolfActionReservationResult {
+  return isRecord(value) && value.status === 'committed' &&
+    value.type === 'wolf-action-reservation' && value.sessionId === sessionId &&
+    typeof value.requestId === 'string' && Number.isSafeInteger(value.cycle) &&
+    (value.cycle as number) >= 1 && Number.isSafeInteger(value.revision) &&
+    (value.revision as number) >= 1 && isWolfActionKind(value.action) &&
+    typeof value.coverRoleId === 'string';
+}
+
+/**
+ * Reserve the caller's single Wolf action for the current cycle. Later action
+ * prompts resolve targets and consequences against this private reservation.
+ */
+export const submitWolfAction = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  action?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const submission = requireWolfActionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${submission.sessionId}`);
+  const playerRef = db.doc(`sessions/${submission.sessionId}/players/${uid}`);
+  const loyaltyRef = db.doc(`sessions/${submission.sessionId}/secrets/loyalty-${uid}`);
+  const assignmentRef = db.doc(`sessions/${submission.sessionId}/secrets/wolf-assignment`);
+  const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
+  const auditRef = db.doc(
+    `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
+  );
+  const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'submit-wolf-action',
+    sessionId: submission.sessionId,
+    requestId: submission.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: submission.expectedCycle,
+    payload: { action: submission.action },
+  };
+  return db.runTransaction(async (tx): Promise<WolfActionReservationResult> => {
+    const [session, player, loyalty, assignment, currentAction, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(loyaltyRef), tx.get(assignmentRef),
+      tx.get(actionRef), tx.get(receiptRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, submission.sessionId, submission.requestId, 'Wolf action', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is WolfActionReservationResult =>
+        isWolfActionReservationResult(value, submission.sessionId),
+      'Wolf action',
+    );
+    if (replay) return replay;
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (cycle < 1 || cycle !== submission.expectedCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The cycle changed. Refresh before choosing a Wolf action.',
+        'stale-revision',
+      );
+    }
+    const authorization = wolfActionAuthorization({
+      actorUid: uid,
+      active: isActivePlayer(player),
+      connectedRole: player.get('role'),
+      assignedRoleId: player.get('assignedRoleId'),
+      replacementRoleId: player.get('replacementRoleId'),
+      escapeState: player.get('escapeState'),
+      loyaltyAudience: loyalty.get('visibleToUids'),
+      loyaltyPayload: loyalty.get('payload'),
+      wolfAssignmentPayload: assignment.get('payload'),
+    });
+    if (!authorization.allowed) {
+      throw commandError(
+        'permission-denied',
+        'Only a live active Wolf in its assigned cover role may use this action.',
+        'unauthorized',
+      );
+    }
+    let revision = 0;
+    if (currentAction.exists) {
+      const storedCycle = currentAction.get('cycle');
+      const storedRevision = currentAction.get('revision');
+      if (currentAction.get('type') !== 'wolf-action-reservation' ||
+          currentAction.get('actorUid') !== uid || !Number.isSafeInteger(storedCycle) ||
+          (storedCycle as number) < 1 || !Number.isSafeInteger(storedRevision) ||
+          (storedRevision as number) < 1) {
+        throw commandError(
+          'failed-precondition',
+          'The private Wolf action state is malformed. Ask the facilitator to repair it.',
+          'malformed-input',
+        );
+      }
+      if ((storedCycle as number) >= cycle) {
+        throw commandError(
+          'failed-precondition',
+          'This Wolf has already submitted its action for the current cycle.',
+          'conflict',
+        );
+      }
+      revision = storedRevision as number;
+    }
+    const result: WolfActionReservationResult = {
+      status: 'committed',
+      type: 'wolf-action-reservation',
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      cycle,
+      revision: revision + 1,
+      action: submission.action,
+      coverRoleId: authorization.coverRoleId,
+    };
+    const record = {
+      ...result,
+      actorUid: uid,
+      state: 'reserved',
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(actionRef, record);
+    tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

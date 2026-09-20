@@ -21,6 +21,7 @@ import { isReplacementEligibilityReason } from './replacementRoles';
 import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 import { parseZealotryResponseInput, type ZealotryResponseAction } from './zealotryResponse';
 import { parseCivilUnrestResolutionInput } from './civilUnrestResolution';
+import { isWolfActionKind, type WolfActionKind } from './wolfActionAuthorization';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1169,6 +1170,32 @@ export function requireWolfCommanderRerollRequest(data: {
     expectedTurn: data.expectedTurn as number,
     expectedRevision: data.expectedRevision as number,
     rosterIndexes: [...rosterIndexes],
+  };
+}
+
+/** A Wolf actor may reserve only one source-defined action for a numbered cycle. */
+export function requireWolfActionRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  action?: unknown;
+}): {
+  sessionId: string;
+  requestId: string;
+  expectedCycle: number;
+  action: WolfActionKind;
+} {
+  if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
+  }
+  if (!isWolfActionKind(data.action)) {
+    throw new HttpsError('invalid-argument', 'action must be a supported Wolf action.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedCycle: data.expectedCycle as number,
+    action: data.action,
   };
 }
 

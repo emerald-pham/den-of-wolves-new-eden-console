@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [497],
+    implementationProgress: {
+      completed: 347, total: 751, percentage: '46.21%',
+      done: 347, partial: 19, active: 0, missing: 385,
+    },
+    changes: [
+      'A live Wolf Agent can now reserve exactly one private action per cycle through a server-owned authorization check tied to their hidden loyalty and original cover role.',
+      'Replacement and displaced players cannot use the Wolf action boundary, and no player or facilitator client can read or forge its private reservation or audit.',
+      '347 of 751 planned items are complete (46.21%).',
+    ],
+  },
+  {
+    version: '0.4.45',
     implementationPrompts: [157],
     implementationProgress: {
       completed: 346, total: 751, percentage: '46.07%',

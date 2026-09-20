@@ -779,6 +779,17 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // A reserved Wolf action identifies a hidden agent and its intended
+      // action. The callable returns only the actor's receipt; no client may
+      // read, list, forge, or erase this server-owned state or its audit.
+      match /wolfActionState/{playerUid} {
+        allow read, write: if false;
+
+        match /audit/{requestId} {
+          allow read, write: if false;
+        }
+      }
+
       // Destroyed-ship reconciliation contains private fleet-group transfer
       // details and is exposed only through the GM callable result.
       match /shipStoreScavenges/{sourceShipId} {

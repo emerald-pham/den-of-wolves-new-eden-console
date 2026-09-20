@@ -5488,6 +5488,13 @@
       "language": "All authoritative paths that can lift or consume open airspace read the private Wolf attack document in their transaction: direct expiry, the AEGIS Press exception, facilitator emergency pause or resume, last-player disconnect, expiry, join, or reconnect, chart movement, and jumps. Declared, legacy, and malformed unresolved state fails closed even when an older session already persisted lifted airspace, while preserving the ordinary restricted Press exception and live-host parking snapshot; only an explicit resolved state with airspace unlocked and the normal-movement release condition permits reopening.",
       "source": "functions/src/wolfAttackDeclaration.ts; functions/src/index.ts beginOpenAirspacePhase, unlockPressAirspace, setEmergencyTimerPaused, reconcilePresenceTimer, moveShipToLocation, jumpShip; functions/src/maintenanceCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/jumpCallable.test.ts",
       "type": "evidence / authority / release"
+    },
+    {
+      "direction": "497 -> one private Wolf action per cycle",
+      "id": "E-497-AUTHORIZATION",
+      "language": "The submitWolfAction callable binds an exact recipient-only Wolf loyalty to the live setup-selected cover role, rejects inactive, replacement, and destroyed-ship escape actors, accepts only the four routed action identifiers, and atomically reserves one private action per cycle. Canonical receipts make exact retries idempotent and reject collisions; private state and audit paths deny every client read, list, and write. Later prompts own action-specific targets, effects, suspicion, and audience receipts.",
+      "source": "functions/src/wolfActionAuthorization.ts; functions/src/requestGuards.ts; functions/src/index.ts; functions/src/wolfActionAuthorization.test.ts; functions/src/wolfActionCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md Wolf agents table; focused Functions and Firestore rules tests",
+      "type": "evidence / authority"
     }
   ],
   "plan": {
@@ -18250,8 +18257,8 @@
         "acceptance": "only a living active Wolf with the correct cover role can submit one eligible action.",
         "title": "Authorize one Wolf action per turn."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-497",
+      "description": "The new submitWolfAction callable atomically reserves one of the four source-defined Wolf actions for the current cycle. It requires an active connected player, an exact recipient-only Wolf Agent or Wolf Cult loyalty, the unchanged setup-selected cover role, and no replacement-role or destroyed-ship escape state. A private per-player reservation and audit enforce one action per cycle with canonical request replay and collision protection; all clients, including the actor and GM, are denied direct Firestore access. Console sabotage, supply sabotage, homing-beacon, and intelligence consequences remain owned by Prompts 498–501.",
+      "evidenceIds": "E-AUDIT-497;E-497-AUTHORIZATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "495;496",
@@ -18259,10 +18266,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.46"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
