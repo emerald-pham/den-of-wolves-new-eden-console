@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capybaraRationSchedule } from './shipPopulation';
+import { capybaraRationSchedule, isPopulationOnPrintedTrack } from './shipPopulation';
 
 describe('Capybara ration replacement schedules', () => {
   it.each([
@@ -12,6 +12,8 @@ describe('Capybara ration replacement schedules', () => {
       expect(capybaraRationSchedule(population)).toEqual({ populationBand, food, water });
     });
   it('rejects a persisted population that is not on the printed track', () => {
+    expect(isPopulationOnPrintedTrack('capybara', 15_000)).toBe(true);
+    expect(isPopulationOnPrintedTrack('capybara', 14_999)).toBe(false);
     expect(() => capybaraRationSchedule(14_999)).toThrow(/printed track/i);
   });
 });

@@ -110,6 +110,19 @@ it('sends separate ration choices and displays server results across remounts', 
   expect(run).toHaveBeenCalledWith('aegis', 'rations', 2, { foodLevel: 1, waterLevel: 2 }, undefined);
 });
 
+it('keeps malformed Capybara survivor state rendered and locks ration submission', () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipSurvivors: { capybara: 14_999 },
+    maintenanceCycles: { capybara: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name="Capybara" shipId="capybara" systems={[]}
+    renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
+  expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
+});
+
 it('renders Dione production controls from live charges and resource state', async () => {
   useSessionStore.setState({ session: {
     ...session,

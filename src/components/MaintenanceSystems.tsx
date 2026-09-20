@@ -11,7 +11,7 @@ import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
-import { capybaraRationSchedule } from '@/data/shipPopulation';
+import { capybaraRationSchedule, isPopulationOnPrintedTrack } from '@/data/shipPopulation';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -81,8 +81,10 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const ship = SHIPS.find(candidate => candidate.id === shipId);
   const printedSchedule = ship?.maintenance ?? { ...AEGIS_ROLE_CONSOLES.admiral.rations, reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity };
   const population = shipState?.population ?? session?.shipSurvivors?.[shipId] ?? ship?.initialSurvivors;
-  const activeCapybaraRations = shipId === 'capybara' && Number.isSafeInteger(population) &&
-    population !== undefined && population >= 0 && population <= 20_000
+  const capybaraPopulationOffTrack = shipId === 'capybara' &&
+    !isPopulationOnPrintedTrack(shipId, population);
+  const activeCapybaraRations = shipId === 'capybara' &&
+    isPopulationOnPrintedTrack(shipId, population)
     ? capybaraRationSchedule(population)
     : undefined;
   const schedule = activeCapybaraRations
@@ -187,7 +189,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             <div className="maintenance-systems__step"><span>{step}</span><strong>{label}</strong></div>
             {step === 1 && <button className="cic-action-button" disabled={disabled(1)} onClick={() => void execute('storage')}>Check storage</button>}
             {step === 2 && <><p>Select food and water rations separately. Add both bonuses to the roll in step 3.</p>{rations}
-              <fieldset disabled={disabled(2)} className="maintenance-controls"><legend>Choose rations</legend>
+              {capybaraPopulationOffTrack && <p role="alert">Rations locked // survivor count is off the printed track.</p>}
+              <fieldset disabled={disabled(2) || capybaraPopulationOffTrack} className="maintenance-controls"><legend>Choose rations</legend>
                 {(['Food', 'Water'] as const).map(resource => <label key={resource}>{resource} ration level
                   <select aria-label={`${resource} ration level`} value={resource === 'Food' ? foodLevel : waterLevel}
                     onChange={event => (resource === 'Food' ? setFoodLevel : setWaterLevel)(Number(event.target.value))}>

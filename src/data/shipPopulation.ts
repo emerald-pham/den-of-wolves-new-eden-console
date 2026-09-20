@@ -18,7 +18,7 @@ const CAPYBARA_RATION_SCHEDULES: Readonly<Record<RationSchedule['populationBand'
 };
 
 export function capybaraRationSchedule(population: number): RationSchedule {
-  if (!populationTrackForShip('capybara')?.steps.includes(population)) {
+  if (!isPopulationOnPrintedTrack('capybara', population)) {
     throw new Error('Capybara population is not on its printed track.');
   }
   if (population <= 5_000) return CAPYBARA_RATION_SCHEDULES['1-5000'];
@@ -38,6 +38,11 @@ export const SHIP_SPECIFICATIONS: Readonly<Record<string, {
 
 export function populationTrackForShip(shipId: string): ShipPopulationTrack | undefined {
   return SHIP_POPULATION_TRACKS[shipId];
+}
+
+export function isPopulationOnPrintedTrack(shipId: string, population: unknown): population is number {
+  return Number.isSafeInteger(population) &&
+    populationTrackForShip(shipId)?.steps.includes(population as number) === true;
 }
 
 export function populationForShip(shipId: string, stored?: Readonly<Record<string, number>>): number | undefined {

@@ -13,7 +13,7 @@ import { PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
-import { capybaraRationSchedule } from '@/data/shipPopulation';
+import { capybaraRationSchedule, isPopulationOnPrintedTrack } from '@/data/shipPopulation';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -60,8 +60,9 @@ export default function FleetSystemsWorkspace({
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
   const maintenance = ship.maintenance;
   const population = shipState?.population ?? session?.shipSurvivors?.[ship.id] ?? ship.initialSurvivors;
-  const capybaraRations = ship.id === 'capybara' && Number.isSafeInteger(population) &&
-    population >= 0 && population <= 20_000
+  const capybaraPopulationOffTrack = ship.id === 'capybara' &&
+    !isPopulationOnPrintedTrack(ship.id, population);
+  const capybaraRations = ship.id === 'capybara' && !capybaraPopulationOffTrack
     ? capybaraRationSchedule(population)
     : undefined;
   const displayedRations = capybaraRations ?? maintenance;
@@ -126,7 +127,9 @@ export default function FleetSystemsWorkspace({
           <tr><th>Water</th>{displayedRations!.water.map((value, index) => <td key={index}>{value}</td>)}</tr>
           <tr><th>Bonus</th>{[0, 3, 6, 9].map(value => <td key={value}>+{value}</td>)}</tr></tbody>
       </table></div>
-      {capybaraRations
+      {capybaraPopulationOffTrack
+        ? <p role="alert">Ration schedule unavailable // survivor count is off the printed track.</p>
+        : capybaraRations
         ? <p>Active replacement schedule // {capybaraRations.populationBand} survivors.</p>
         : <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>}
       </>} />

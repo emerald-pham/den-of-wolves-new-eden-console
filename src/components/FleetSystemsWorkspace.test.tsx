@@ -133,6 +133,19 @@ describe('fleet system reference workspaces', () => {
     expect(screen.getByText('Active replacement schedule // 5001-15000 survivors.')).toBeVisible();
   });
 
+  it('keeps the Capybara console rendered when survivor state is off the printed track', () => {
+    const ship = SHIPS.find(candidate => candidate.id === 'capybara')!;
+    const shipState: ShipConsoleProjection = {
+      shipId: 'capybara', galacticCoordinate: '0000', population: 14_999, unrest: 0,
+      navigationLogs: { capybara: [] }, upgrades: [], consoleLocked: false,
+    };
+    renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3}
+      galacticCoordinate="0000" shipState={shipState} />);
+
+    expect(screen.getByRole('region', { name: 'Capybara Capybara Captain console' })).toBeVisible();
+    expect(screen.getByText(/ration schedule unavailable.*off the printed track/i)).toBeVisible();
+  });
+
   it('links each role to the real shuttlecraft assigned on its printed sheet', () => {
     const ship = SHIPS.find((candidate) => candidate.id === 'dione')!;
     const role = ship.roles.find((candidate) => candidate.id === 'dione-engineer')!;
