@@ -5390,6 +5390,13 @@
       "language": "The authoritative movement calculation receives the locked server chart and looks up the arrived coordinate in the organiser-only site table. A destination whose selected-chart site code is G applies zero pursuit reduction, while every other printed destination continues to subtract its immutable graph depth only from the moving ship group. Pure coverage proves the distinct G coordinate on charts A, B, and C; callable coverage proves a chart-B movement preserves the protected group value and publishes it through the normal atomic movement transaction.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/starChartLookup.ts",
       "type": "evidence / production-path / server-authority / chart-selection / exception / regression"
+    },
+    {
+      "direction": "487 -> jump-derived attack pursuit",
+      "id": "E-487-JUMP-ATTACK-PURSUIT",
+      "language": "Successful movement derives printed shortest-path depth from the immutable server graph, takes chart exceptions from the locked organiser chart, and writes only the moving canonical group value to protected navigation and group-local projections. Callable tests prove a client-supplied origin cannot replace stored navigation authority, full destination depth changes only one group, and legacy public pursuit is deleted. Wolf attack declaration separately reads the committed private navigation revision and complete group map in preflight and transaction, rejects malformed, orphaned, or changed snapshots before writes, and stores the exact values only in its hidden calculation receipt.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts",
+      "type": "evidence / production-path / server-authority / transaction / privacy / attack-pressure / regression"
     }
   ],
   "plan": {
@@ -17883,8 +17890,8 @@
         "acceptance": "attack pressure uses each group's selected-chart depth and never client-reported distance.",
         "title": "Verify jump-based pursuit reduction."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-487",
+      "description": "Verified end to end across the production authority boundary: successful facilitator movement and shipboard jumps derive destination depth from the immutable server graph, apply the selected-chart Level 5 Planet exception, and atomically commit only the moving group’s protected pursuit value. Wolf attack declaration then snapshots the complete canonical group map and navigation revision from that committed private document, re-reads both pursuit and group membership inside the declaration transaction, and records the values only in the hidden calculation receipt. Client-supplied origin or distance cannot affect the reduction; malformed, orphaned, or concurrently changed authority blocks the attack before writes.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-487;E-487-JUMP-ATTACK-PURSUIT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485;306",
@@ -17892,10 +17899,14 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.30",
+        "0.4.31",
+        "0.4.32"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**312 / 751 prompts complete (41.54%)**
+**313 / 751 prompts complete (41.68%)**
 
-Status breakdown: **312 done · 24 partial · 415 missing**.
+Status breakdown: **313 done · 24 partial · 414 missing**.
 
 Active prompt: **none**
 
@@ -946,7 +946,7 @@ release classification and evidence.
 | 485 | done | non-feature | 0.4.28 | Cycle 1 now writes pursuit 2 under the canonical initial fleet group, and pursuit trackers read only that bounded server-owned value. Browser cycle and map-depth presentation no longer derives attack pressure; absent, malformed, or stale telemetry remains pending and cannot declare the fleet surrounded. Legacy `fleet` snapshots migrate to `fleet-1`, while unrelated or out-of-range fields fail closed. This establishes the shared authority consumed by later rise, jump-exception, split-group, attack-scheduling, and failure prompts without implementing their mutations early. |
 | 485a | missing | non-feature | — | Future pursuit-color repair: restore `0215488`'s normal ship/faction treatment outside authoritative Red Alert and use danger red only while the shared alert is active; `0d64e25` records the always-danger departure. Preserve countdown, values, split-fleet scope, terminal text, reconnect/stand-down/reduced-motion truth, and do not claim P485's broader server-owned pursuit acceptance. |
 | 486 | done | non-feature | 0.4.30 | The Wolf-attack declaration now reads the protected navigation document and canonical fleet-group documents alongside its other server authority, then records every active group’s committed pursuit value and navigation revision in the hidden calculation receipt. Missing, malformed, orphaned, or concurrently changed pursuit authority rejects the declaration before any attack state, audit, event, receipt, airspace lock, or ticker mutation. The member-safe attack announcement exposes none of the private pressure map, while the existing cycle-transition tests prove each active group rises by two only once. |
-| 487 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 487 | done | non-feature | 0.4.30, 0.4.31, 0.4.32 | Verified end to end across the production authority boundary: successful facilitator movement and shipboard jumps derive destination depth from the immutable server graph, apply the selected-chart Level 5 Planet exception, and atomically commit only the moving group’s protected pursuit value. Wolf attack declaration then snapshots the complete canonical group map and navigation revision from that committed private document, re-reads both pursuit and group membership inside the declaration transaction, and records the values only in the hidden calculation receipt. Client-supplied origin or distance cannot affect the reduction; malformed, orphaned, or concurrently changed authority blocks the attack before writes. |
 | 488 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 489 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 490 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
