@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [591],
+    implementationProgress: {
+      completed: 329, total: 751, percentage: '43.81%',
+      done: 329, partial: 21, active: 0, missing: 401,
+    },
+    changes: [
+      'Every full-ship maintenance console now shows a vessel-specific reference for its exact numbered sequence, ration costs, unrest and damage checks, reactor capacity, and cycle-end charge and shuttle-fuel expiry.',
+      'The reference keeps the established space-console display and monospace typography on phone, landscape, and desktop layouts.',
+      '329 of 751 planned items are complete (43.81%).',
+    ],
+  },
+  {
+    version: '0.4.39',
     implementationPrompts: [561],
     implementationProgress: {
       completed: 320, total: 751, percentage: '42.61%',

@@ -4022,8 +4022,8 @@
     {
       "direction": "591 -> 161;162;114",
       "id": "E-AUDIT-591",
-      "language": "Vessel help consumes vessel definitions and maintenance order.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "The active ship maintenance surface consumes the registered vessel definition and centralized maintenance order to show its exact sequence, rations, unrest and damage rules, reactor capacity, and cycle-scoped charge and shuttle-fuel expiry. Focused component and typography tests cover AEGIS and every six-step full vessel at compact and wide CSS layouts. Real Chrome proof verifies containment and console fonts at 390x844, 844x390, and 1440x900.",
+      "source": "src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/components/FleetSystemsWorkspace.test.tsx; src/data/vessels; functions/src/maintenanceOrder.ts; functions/src/turnTransition.ts; src/index.css; src/styles/aesthetic.test.ts; scripts/prompt-591-render.mjs; /tmp/prompt-591-render",
       "type": "hard_prompt"
     },
     {
@@ -20648,7 +20648,7 @@
         "acceptance": "the active ship sees its exact numbered steps, rations, unrest, damage, charging, and fuel expiry.",
         "title": "Show vessel-specific maintenance help."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "Every active full-ship maintenance console now presents a vessel-specific reference assembled from the same registered schedule that drives its controls: the exact numbered sequence, printed food and water rations, unrest and damage rolls, live reactor capacity, unused-charge expiry, and shuttle-fuel expiry. The compact reference uses the established display and monospace console typography, stacks safely on phone widths, and remains alongside the existing actionable maintenance sequence.",
       "evidenceIds": "E-AUDIT-591",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20657,10 +20657,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.40"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

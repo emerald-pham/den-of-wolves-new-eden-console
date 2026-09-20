@@ -747,7 +747,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 589a | PRESERVE | done | none | none | none | none | none | none | none | none | E-589A-MOTION-VERIFIED | X | Audit the motion-safety gate. |
 | 589b | REPAIR | done | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-589B-VERIFIED;E-PRESENTATION | X | Simplify the authenticated-session waiver's human-first copy. |
 | 590 | EXTEND | missing | 589 | none | none | none | none | none | none | none | E-AUDIT-590 | X | Teach the core game loop. |
-| 591 | EXTEND | missing | 161;162;114 | none | none | none | none | none | none | none | E-AUDIT-591 | X | Show vessel-specific maintenance help. |
+| 591 | EXTEND | done | 161;162;114 | none | none | none | none | none | none | none | E-AUDIT-591 | X | Show vessel-specific maintenance help. |
 | 592 | EXTEND | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-592 | X | Show craft-specific help. |
 | 593 | EXTEND | missing | 541 | none | none | none | none | none | none | none | E-AUDIT-593 | X | Show candidate preparation help. |
 | 594 | EXTEND | partial | 168 | none | none | none | none | none | none | none | E-AUDIT-594;E-594-DECISION-ATTRIBUTION | X | Label facilitator decisions. |
@@ -1441,7 +1441,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-585 | hard_prompt | 585 -> 567;584 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mode-isolation proof consumes mode and Capybara proof. |
 | E-AUDIT-589 | hard_prompt | 589 -> 586 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Ground rules follow roster configuration. |
 | E-AUDIT-590 | hard_prompt | 590 -> 589 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Core-loop help consumes ground rules. |
-| E-AUDIT-591 | hard_prompt | 591 -> 161;162;114 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Vessel help consumes vessel definitions and maintenance order. |
+| E-AUDIT-591 | hard_prompt | 591 -> 161;162;114 | src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/components/FleetSystemsWorkspace.test.tsx; src/data/vessels; functions/src/maintenanceOrder.ts; functions/src/turnTransition.ts; src/index.css; src/styles/aesthetic.test.ts; scripts/prompt-591-render.mjs; /tmp/prompt-591-render | The active ship maintenance surface consumes the registered vessel definition and centralized maintenance order to show its exact sequence, rations, unrest and damage rules, reactor capacity, and cycle-scoped charge and shuttle-fuel expiry. Focused component and typography tests cover AEGIS and every six-step full vessel at compact and wide CSS layouts. Real Chrome proof verifies containment and console fonts at 390x844, 844x390, and 1440x900. |
 | E-AUDIT-592 | hard_prompt | 592 -> 361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft help consumes the authoritative manifest. |
 | E-AUDIT-593 | hard_prompt | 593 -> 541 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Candidate help consumes candidate state. |
 | E-AUDIT-594 | hard_prompt | 594 -> 168 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Facilitator-decision labels consume the ambiguity ledger. |

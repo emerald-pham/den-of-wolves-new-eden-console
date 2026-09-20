@@ -134,6 +134,17 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   return <div className="maintenance-systems">
     <section className="maintenance-systems__cycle" aria-label={`${name} maintenance cycle`}>
       <h3>Maintenance cycle</h3>
+      <aside className="maintenance-reference cic-frame" aria-label={`${name} maintenance reference`}>
+        <h4>{name} maintenance reference</h4>
+        <dl>
+          <div><dt>Sequence</dt><dd>{labels.map((label, index) => `${index + 1} ${label}`).join(' // ')}</dd></div>
+          <div><dt>Rations</dt><dd>Food {schedule.food.join(' / ')} // Water {schedule.water.join(' / ')}</dd></div>
+          <div><dt>Unrest</dt><dd>Step 3: roll 2d6 plus both ration bonuses. Under 12 adds 2; under 20 adds 1.</dd></div>
+          <div><dt>Damage</dt><dd>Step 4: roll 1d6. Below current unrest draws and applies 1 damage card.</dd></div>
+          <div><dt>Charging</dt><dd>Step 5: choose up to {capacity} consoles. Unused charge clears when the next cycle starts.</dd></div>
+          <div><dt>Fuel expiry</dt><dd>Shuttle fuel granted during maintenance clears when the next cycle starts.</dd></div>
+        </dl>
+      </aside>
       <button className="cic-action-button" disabled={disabled(0)}
         style={confirmBegin ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' } : undefined}
         onBlur={() => setConfirmBegin(false)}

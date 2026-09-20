@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**328 / 751 prompts complete (43.68%)**
+**329 / 751 prompts complete (43.81%)**
 
-Status breakdown: **328 done · 21 partial · 402 missing**.
+Status breakdown: **329 done · 21 partial · 401 missing**.
 
 Active prompt: **none**
 
@@ -1062,7 +1062,7 @@ release classification and evidence.
 | 589a | done | non-feature | — | The browser-wide motion gate requires an explicit normal or reduced choice, keeps underlying content inert and reduced until acknowledgement, and preserves later Settings overrides during a valid window. Live expiry now reopens the gate after 24 hours without a reload and rechecks suspended tabs on visibility/focus. Focused tests and real-browser phone, desktop, and short-landscape checks cover first entry, keyboard focus, expiry, renewed choice, and reload. |
 | 589b | done | non-feature | 0.3.64 | The authenticated-session waiver now solely owns the exact human-first body Be bold. Remember the human on the other side. Existing title, eyebrow, checkboxes, focus handling, review delay, local 24-hour lifetime and session wiring are preserved. Component and session integration tests pass; actual rendered four-viewport checks confirm complete accessible text, 14px monospaced body, 44px checkbox targets, no horizontal overflow and reduced motion. |
 | 590 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 591 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 591 | done | non-feature | 0.4.40 | Every active full-ship maintenance console now presents a vessel-specific reference assembled from the same registered schedule that drives its controls: the exact numbered sequence, printed food and water rations, unrest and damage rolls, live reactor capacity, unused-charge expiry, and shuttle-fuel expiry. The compact reference uses the established display and monospace console typography, stacks safely on phone widths, and remains alongside the existing actionable maintenance sequence. |
 | 592 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 593 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 594 | partial | non-feature | 0.4.5 | Partial production-path implementation: existing GM Religious Zealotry, Civil Unrest, and durable facilitator rule-call results now show their source, actor, and recorded time when the authorized projection supplies them. Selected-player rule calls keep actor identity withheld and accurately show time unavailable when the private projection omits the server timestamp; replacement eligibility and assignment statuses identify their facilitator source but retain unavailable actor/time wording because those callable results do not expose that metadata. No player or GM surface invents names or timestamps, so acceptance remains partial for adjudications whose authoritative projection lacks metadata. |

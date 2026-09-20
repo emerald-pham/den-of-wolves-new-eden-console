@@ -67,6 +67,10 @@ describe('fleet system reference workspaces', () => {
       })).toBeInTheDocument();
       if (role.id === 'admiral') {
         expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
+        const reference = screen.getByRole('complementary', { name: `${ship.name} maintenance reference` });
+        expect(reference).toHaveTextContent(/sequence.*1 storage.*7 shuttle bay omega/i);
+        expect(reference).toHaveTextContent(/rations.*food 0 \/ 3 \/ 5 \/ 8.*water 0 \/ 2 \/ 3 \/ 6/i);
+        expect(reference).toHaveTextContent(/fuel expiry.*shuttle fuel.*next cycle/i);
         return;
       }
       if (role.id === 'wing-commander') {
@@ -150,6 +154,13 @@ it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name mainte
   expect(screen.getByRole('list', { name: `${ship.name} maintenance sequence` })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Storage' })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
+  const reference = screen.getByRole('complementary', { name: `${ship.name} maintenance reference` });
+  expect(reference).toHaveTextContent(/sequence.*1 storage.*6 shuttle bay/i);
+  expect(reference).toHaveTextContent(new RegExp(
+    `Rations.*Food ${ship.maintenance!.food.join(' / ')}.*Water ${ship.maintenance!.water.join(' / ')}`,
+    'i',
+  ));
+  expect(reference).toHaveTextContent(/unrest.*step 3.*damage.*step 4.*charging.*step 5.*fuel expiry.*next cycle/i);
 
   const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
   const baseline = jump.getByText(/charged:|airspace open|short \/\//i, { selector: 'p' });
