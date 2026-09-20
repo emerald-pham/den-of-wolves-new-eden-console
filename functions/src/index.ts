@@ -1236,8 +1236,8 @@ function writeTurnPursuitState(
   sessionId: string,
   authority: TurnPursuitAuthority | undefined,
   advance: boolean,
-): void {
-  if (!authority) return;
+): { readonly navigation: NavigationState; readonly revision: number } | undefined {
+  if (!authority) return undefined;
   let navigation = authority.navigation;
   try {
     if (advance) {
@@ -1275,6 +1275,7 @@ function writeTurnPursuitState(
     authority.fleetGroups,
     true,
   );
+  return { navigation, revision };
 }
 
 function removeLegacyNavigationField(): unknown {
@@ -2239,7 +2240,8 @@ function requireActionPhase(
 
 type TurnAdvanceResult = {
   readonly currentTurn: number;
-  readonly phase?: 'debrief';
+  readonly phase?: 'debrief' | 'failure';
+  readonly gameOutcome?: PursuitFailureOutcome;
   readonly turnState?: ActiveTurnState;
   readonly turnStartAnnouncement?: TurnStartAnnouncement;
   readonly turnPhase?: ReturnType<typeof startTurnPhase>;
@@ -2247,11 +2249,32 @@ type TurnAdvanceResult = {
   readonly shuttleFuelled?: Record<string, boolean>;
 };
 
+type PursuitFailureOutcome = {
+  readonly type: 'game-outcome';
+  readonly result: 'failure';
+  readonly cause: 'pursuit-limit';
+  readonly cycle: number;
+  readonly navigationRevision: number;
+  readonly occurredAt: string;
+};
+
+function isPursuitFailureOutcome(value: unknown): value is PursuitFailureOutcome {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const outcome = value as Record<string, unknown>;
+  return outcome.type === 'game-outcome' && outcome.result === 'failure' &&
+    outcome.cause === 'pursuit-limit' && Number.isSafeInteger(outcome.cycle) &&
+    (outcome.cycle as number) >= 1 && Number.isSafeInteger(outcome.navigationRevision) &&
+    (outcome.navigationRevision as number) >= 1 && typeof outcome.occurredAt === 'string';
+}
+
 function isTurnAdvanceResult(value: unknown): value is TurnAdvanceResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   if (!Number.isSafeInteger(result.currentTurn) || (result.currentTurn as number) < 0) return false;
   if (result.phase === 'debrief') return result.turnPhase === undefined;
+  if (result.phase === 'failure') {
+    return result.turnPhase === undefined && isPursuitFailureOutcome(result.gameOutcome);
+  }
   return result.phase === undefined && turnPhaseState(result.turnPhase) !== undefined;
 }
 
@@ -2412,7 +2435,49 @@ function advanceTurnInTransaction(
         : {}),
     };
   }
-  writeTurnPursuitState(tx, sessionId, pursuitAuthority, true);
+  const pursuitWrite = writeTurnPursuitState(tx, sessionId, pursuitAuthority, true);
+  const pursuitFailed = pursuitWrite !== undefined &&
+    Object.values(pursuitWrite.navigation.pursuitGroups).some((value) => value >= 10);
+  if (pursuitFailed) {
+    const gameOutcome: PursuitFailureOutcome = {
+      type: 'game-outcome',
+      result: 'failure',
+      cause: 'pursuit-limit',
+      cycle: nextTurn,
+      navigationRevision: pursuitWrite.revision,
+      occurredAt: transition?.transitionServerTime ?? new Date().toISOString(),
+    };
+    tx.update(sessionRef, {
+      currentTurn: nextTurn,
+      phase: 'failure',
+      gameOutcome,
+      turnPhase: FieldValue.delete(),
+      turnState: FieldValue.delete(),
+      turnStartAnnouncement: FieldValue.delete(),
+      ...(expiredTurnResources
+        ? {
+          maintenanceCycles: expiredTurnResources.maintenanceCycles,
+          shuttleFuelled: expiredTurnResources.shuttleFuelled,
+        }
+        : {}),
+      ...additionalFields,
+      ...(pursuitAuthority?.legacyHeaderPresent
+        ? { pursuitGroups: removeLegacyNavigationField() }
+        : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      currentTurn: nextTurn,
+      phase: 'failure',
+      gameOutcome,
+      ...(expiredTurnResources
+        ? {
+          maintenanceCycles: expiredTurnResources.maintenanceCycles,
+          shuttleFuelled: expiredTurnResources.shuttleFuelled,
+        }
+        : {}),
+    };
+  }
   tx.update(sessionRef, {
     currentTurn: nextTurn,
     turnStartAnnouncement: skipTurnStartAnnouncement
@@ -10240,7 +10305,7 @@ export const advanceTurn = onCall<{
       },
       pursuitAuthority,
     );
-    if (result.phase === 'debrief') {
+    if (result.phase === 'debrief' || result.phase === 'failure') {
       tx.set(receiptRef, {
         fingerprint,
         result,
@@ -13146,6 +13211,7 @@ export const adjustShipResource = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'resource adjustment');
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -13199,6 +13265,7 @@ export const adjustShipUnrest = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest adjustment');
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -13520,6 +13587,7 @@ export const dismissUnrestAlert = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest dismissal');
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, dismissal.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, dismissal.shipId, currentRevision,
@@ -13584,7 +13652,7 @@ export const addShipDamage = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship damage');
     if (replay) return replay;
-    if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -13763,6 +13831,7 @@ export const adjustShipPopulation = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'population adjustment');
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -13850,6 +13919,7 @@ export const applyShipCounterSteps = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'counter batch');
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -14288,6 +14358,7 @@ export const dismissPopulationAlert = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'population dismissal');
     if (replay) return replay;
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, dismissal.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, dismissal.shipId, currentRevision,
@@ -16491,7 +16562,7 @@ export const repairAllShipDamage = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship repair');
     if (replay) return replay;
-    if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,

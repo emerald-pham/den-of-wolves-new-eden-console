@@ -1595,6 +1595,46 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.turnStartAnnouncement).toBeUndefined();
   });
 
+  it('reconciles an authoritative pursuit failure and clears the active cycle projection', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      phase: 'active',
+      currentTurn: 2,
+      turnStartAnnouncement: { turn: 2, survivorPopulation: 242_500 },
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+    });
+    const gameOutcome = {
+      type: 'game-outcome' as const,
+      result: 'failure' as const,
+      cause: 'pursuit-limit' as const,
+      cycle: 3,
+      navigationRevision: 9,
+      occurredAt: '2026-09-06T12:20:07.000Z',
+    };
+    const callable = callableReturning({
+      data: { currentTurn: 3, phase: 'failure', gameOutcome },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await advanceTurn({ requestId: 'advance-ui-pursuit-failure' });
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      phase: 'failure', currentTurn: 3, gameOutcome,
+    });
+    expect(useSessionStore.getState().session?.turnPhase).toBeUndefined();
+    expect(useSessionStore.getState().session?.turnState).toBeUndefined();
+    expect(useSessionStore.getState().session?.turnStartAnnouncement).toBeUndefined();
+  });
+
   it('leaves a slight server-clock lag retryable while the same team phase remains live', async () => {
     useSessionStore.getState().setSession({
       ...session,

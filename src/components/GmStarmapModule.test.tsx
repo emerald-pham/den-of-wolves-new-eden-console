@@ -78,10 +78,10 @@ it('does not render an old organiser chart on reload before a fresh GM projectio
   localStorage.clear();
 });
 
-it('freezes ship movement during endgame evaluation', async () => {
+it.each(['debrief', 'failure'] as const)('freezes ship movement during %s endgame evaluation', async (phase) => {
   const user = userEvent.setup();
   vi.mocked(moveShipToLocation).mockClear();
-  render(<GmStarmapModule session={{ ...session, phase: 'debrief' }} />);
+  render(<GmStarmapModule session={{ ...session, phase }} />);
 
   const module = screen.getByRole('region', { name: 'GM starmap' });
   await user.click(within(module).getByRole('button', { name: /system 5143/i }));

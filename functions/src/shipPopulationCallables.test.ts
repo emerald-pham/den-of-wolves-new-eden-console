@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true, shipId: 'capybara', population: 16000, alerts: {} as Record<string, unknown> }));
+const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true, phase: 'active', shipId: 'capybara', population: 16000, alerts: {} as Record<string, unknown> }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
@@ -12,7 +12,7 @@ function request(data: Record<string, unknown>, uid = 'u1') {
   return { data: data.requestId === undefined ? { ...data, requestId: 'test-population' } : data, auth: { uid } } as CallableRequest<{ sessionId: string; shipId: string; delta: number; instanceId: string }>;
 }
 beforeEach(() => {
-  mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.shipId = 'capybara'; mock.population = 16000; mock.alerts = {};
+  mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.phase = 'active'; mock.shipId = 'capybara'; mock.population = 16000; mock.alerts = {};
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
@@ -22,6 +22,7 @@ beforeEach(() => {
       : path.includes('/gmInstances/') ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
       : {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
+        phase: mock.phase,
         shipSurvivors: { [mock.shipId]: mock.population }, populationAlerts: mock.alerts,
       };
     return { exists: true, get: (key: string) => fields[key] };
@@ -123,5 +124,11 @@ it('preserves the other GM acknowledgement and does not alter unrest', async () 
 it('blocks advancing while a threshold is awaiting acknowledgement', async () => {
   mock.alerts = { capybara: { targetGmInstanceIds: ['gm1'] } };
   await expect(adjustShipPopulation.run(request(data))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it('rejects population changes after pursuit failure without writing', async () => {
+  mock.phase = 'failure';
+  await expect(adjustShipPopulation.run(request({ ...data, requestId: 'terminal-population' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
   expect(mock.update).not.toHaveBeenCalled();
 });

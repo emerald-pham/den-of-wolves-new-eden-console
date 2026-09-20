@@ -21,14 +21,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: [309],
+    implementationPrompts: [105],
     implementationProgress: {
-      completed: 312, total: 751, percentage: '41.54%',
-      done: 312, partial: 24, active: 0, missing: 415,
+      completed: 314, total: 751, percentage: '41.81%',
+      done: 314, partial: 23, active: 0, missing: 414,
     },
     changes: [
-      'Movement to the selected chart’s Level 5 Survivable Planet no longer reduces pursuit for that fleet group.',
-      '312 of 751 planned items are complete (41.54%).',
+      'When any fleet group’s server-owned pursuit reaches 10 at a cycle handoff, the session now enters one authoritative failure state and freezes normal gameplay controls and mutations.',
+      'The failure result is replay-safe and visible without revealing another fleet group’s location or pursuit score.',
+      '314 of 751 planned items are complete (41.81%).',
     ],
   },
   {

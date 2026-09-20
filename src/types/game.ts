@@ -527,6 +527,16 @@ export interface SessionSetup {
   readonly activeVesselIds: readonly VesselId[];
 }
 
+/** Public, privacy-safe terminal result committed by server authority. */
+export interface GameOutcome {
+  readonly type: 'game-outcome';
+  readonly result: 'failure';
+  readonly cause: 'pursuit-limit';
+  readonly cycle: number;
+  readonly navigationRevision: number;
+  readonly occurredAt: Timestamp;
+}
+
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
@@ -548,6 +558,7 @@ export interface GameSession {
     readonly active: boolean;
     readonly revision: number;
   };
+  readonly gameOutcome?: GameOutcome;
   readonly pressDispatch?: PressDispatchState;
   readonly fleetTicker?: FleetTickerState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;

@@ -496,7 +496,7 @@ export default function GmConsole() {
     : 'Shared Press projection // one active GM is sufficient; additional GMs are optional';
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
-  const endgameEvaluation = session?.phase === 'debrief';
+  const endgameEvaluation = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const canReplayTurnAnnouncement = Boolean(
     session?.turnStartAnnouncement && session.turnStartAnnouncement.turn === currentTurn && currentTurn >= 1,
   );
@@ -2044,6 +2044,7 @@ export default function GmConsole() {
   }
 
   async function confirmRoster(lockChart = false): Promise<void> {
+    if (endgameEvaluation) return;
     if (lockChart && chartLocked) return;
     if (!rosterConfigurationValid) return;
     const activeSession = session;
@@ -2133,7 +2134,9 @@ export default function GmConsole() {
             <div className="gm-turn-control__actions">
               {endgameEvaluation ? (
                 <p className="gm-console__status" role="status">
-                  Final cycle complete // Endgame evaluation active. Advance and skip controls are disabled.
+                  {session?.gameOutcome?.cause === 'pursuit-limit'
+                    ? `Pursuit reached 10 in Cycle ${session.gameOutcome.cycle} // Endgame evaluation active. Advance and skip controls are disabled.`
+                    : 'Final cycle complete // Endgame evaluation active. Advance and skip controls are disabled.'}
                 </p>
               ) : currentTurn === 0 ? (
                 <p className="gm-console__status" role="status">
@@ -2916,7 +2919,7 @@ export default function GmConsole() {
                   aria-label={`${capybaraEnabled ? 'Disable' : 'Enable'} Capybara`}
                   aria-pressed={capybaraEnabled}
                   ref={capybaraTriggerRef}
-                  disabled={changingCapybara || capybaraQueued}
+                  disabled={endgameEvaluation || changingCapybara || capybaraQueued}
                   onClick={() => setPendingCapybaraEnabled(!capybaraEnabled)}
                 >
                   Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
@@ -2927,7 +2930,7 @@ export default function GmConsole() {
                   aria-label={`${dioneEnabled ? 'Disable' : 'Enable'} Dione`}
                   aria-pressed={dioneEnabled}
                   ref={dioneTriggerRef}
-                  disabled={changingDione || dioneQueued}
+                  disabled={endgameEvaluation || changingDione || dioneQueued}
                   onClick={() => setPendingDioneEnabled(!dioneEnabled)}
                 >
                   Dione // {dioneQueued ? 'Change queued' : dioneEnabled ? 'In convoy' : 'Offline'}
@@ -2937,7 +2940,7 @@ export default function GmConsole() {
                   type="button"
                   aria-label={`${universalArbourEnabled ? 'Disable' : 'Enable'} Universal Arbour`}
                   aria-pressed={universalArbourEnabled}
-                  disabled={confirmingRoster || rosterQueued}
+                  disabled={endgameEvaluation || confirmingRoster || rosterQueued}
                   onClick={() => changeUniversalArbour(!universalArbourEnabled)}
                 >
                   Universal Arbour // {universalArbourEnabled ? 'Configured' : 'Off'}
@@ -2947,7 +2950,7 @@ export default function GmConsole() {
                   type="button"
                   aria-label={`${wolfCultEnabled ? 'Disable' : 'Enable'} Wolf Cult`}
                   aria-pressed={wolfCultEnabled}
-                  disabled={confirmingRoster || rosterQueued || (draftPlayerCount < 14 && !wolfCultEnabled)}
+                  disabled={endgameEvaluation || confirmingRoster || rosterQueued || (draftPlayerCount < 14 && !wolfCultEnabled)}
                   onClick={() => changeWolfCult(!wolfCultEnabled)}
                 >
                   Wolf Cult // {wolfCultEnabled ? 'Configured' : 'Off'}
@@ -2991,7 +2994,7 @@ export default function GmConsole() {
                   <label className="gm-role-preset">
                     <span>Star chart</span>
                     <select aria-label="Star chart" value={draftChartId}
-                      disabled={chartLocked || confirmingRoster || rosterQueued}
+                      disabled={endgameEvaluation || chartLocked || confirmingRoster || rosterQueued}
                       onChange={(event) => {
                         const value = event.target.value;
                         if (value === 'A' || value === 'B' || value === 'C') setDraftChartId(value);
@@ -3009,7 +3012,7 @@ export default function GmConsole() {
                     Confirm the staged setup and lock this chart. Other roster choices remain editable until start.
                   </p>
                   <button className="cic-action-button" type="button"
-                    disabled={chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
+                    disabled={endgameEvaluation || chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
                     onClick={() => void confirmRoster(true)}>
                     Lock star chart
                   </button>
@@ -3021,7 +3024,7 @@ export default function GmConsole() {
                     <select
                       aria-label="Recommended player count"
                       value={draftRecommendedPlayerCount?.toString() ?? 'custom'}
-                      disabled={confirmingRoster || rosterQueued}
+                      disabled={endgameEvaluation || confirmingRoster || rosterQueued}
                       onChange={(event) => chooseRecommendedRoster(Number(event.target.value))}
                     >
                       <option value="custom" disabled>Custom roster</option>
@@ -3099,7 +3102,7 @@ export default function GmConsole() {
                       aria-label="Confirm setup // Confirm roster"
                       disabled={
                         !rosterConfigurationValid ||
-                        confirmingRoster || rosterQueued
+                        endgameEvaluation || confirmingRoster || rosterQueued
                       }
                       onClick={() => void confirmRoster()}
                     >
@@ -3119,7 +3122,7 @@ export default function GmConsole() {
                             role="switch"
                             aria-label={`${role.name} role availability`}
                             checked={enabled}
-                            disabled={confirmingRoster || rosterQueued}
+                            disabled={endgameEvaluation || confirmingRoster || rosterQueued}
                             onChange={() => toggleDraftRole(role.id, !enabled)}
                           />
                         </label>
@@ -3143,7 +3146,7 @@ export default function GmConsole() {
                                 role="switch"
                                 aria-label={`${role.name} role availability`}
                                 checked={enabled}
-                                disabled={confirmingRoster || rosterQueued}
+                                disabled={endgameEvaluation || confirmingRoster || rosterQueued}
                                 onChange={() => toggleDraftRole(role.id, !enabled)}
                               />
                             </label>

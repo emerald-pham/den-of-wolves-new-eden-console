@@ -97,7 +97,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   );
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
   const consoleLocked = shipState?.consoleLocked ?? false;
-  const effectiveWritable = writable && !consoleLocked && session?.phase !== 'debrief';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
+  const effectiveWritable = writable && !consoleLocked && !gameplayFrozen;
   const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost || replacementCommissar;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -374,7 +375,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   async function toggleConsoleLock(): Promise<void> {
-    if (!ship || !writable || session?.phase === 'debrief' || lockPending) return;
+    if (!ship || !writable || gameplayFrozen || lockPending) return;
     setLockPending(true);
     try {
       await setShipConsoleLock(ship.id, !consoleLocked);
@@ -424,7 +425,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
-        {session.phase === 'debrief' && (
+        {gameplayFrozen && (
           <p className="ship-console__status" role="status">
             Final cycle complete // Endgame evaluation in progress. Gameplay controls are frozen.
           </p>
@@ -441,7 +442,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <button
             className="cic-action-button"
             type="button"
-            disabled={!writable || session.phase === 'debrief' || lockPending}
+            disabled={!writable || gameplayFrozen || lockPending}
             onClick={() => void toggleConsoleLock()}
           >
             {consoleLocked ? 'Release ICN console lock' : 'Engage ICN console lock'}
@@ -674,7 +675,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               </button>
             </div>
             <p className="confetti-dispenser__status">
-              ONE USE // {session.phase === 'debrief'
+              ONE USE // {gameplayFrozen
                 ? 'ENDGAME EVALUATION // COMMAND FROZEN'
                 : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
             </p>

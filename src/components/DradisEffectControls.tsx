@@ -24,7 +24,7 @@ export default function DradisEffectControls({ expanded }: { expanded: boolean }
   const connection = useSessionStore((state) => state.connection);
   const phase = useSessionStore((state) => state.session?.phase);
   const [pendingEffect, setPendingEffect] = useState<string | null>(null);
-  const gameplayFrozen = phase === 'debrief' || phase === 'closed';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(phase ?? '');
 
   if (!expanded || !isGm) return null;
 

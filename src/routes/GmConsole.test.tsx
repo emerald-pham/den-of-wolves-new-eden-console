@@ -2269,6 +2269,37 @@ it('shows endgame evaluation and removes GM advance controls after the final tur
   );
 });
 
+it('shows the pursuit failure outcome and freezes cycle and setup mutations', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'failure',
+    currentTurn: 3,
+    gameOutcome: {
+      type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: 3,
+      navigationRevision: 9, occurredAt: '2026-09-06T12:20:07.000Z',
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const cycleControls = await screen.findByRole('region', { name: /cycle controls/i });
+  expect(cycleControls).toHaveTextContent(
+    /pursuit reached 10 in cycle 3.*endgame evaluation active.*advance and skip controls are disabled/i,
+  );
+  expect(within(cycleControls).queryByRole('button', { name: /advance to cycle/i })).not.toBeInTheDocument();
+  expect(within(cycleControls).queryByRole('button', { name: /skip to cycle/i })).not.toBeInTheDocument();
+
+  await userEvent.setup().click(screen.getByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /confirm setup.*confirm roster/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /disable capybara/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /disable dione/i })).toBeDisabled();
+  expect(confirmSetup).not.toHaveBeenCalled();
+  expect(advanceTurn).not.toHaveBeenCalled();
+});
+
 it('closes the Press availability dialog if endgame evaluation starts', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;

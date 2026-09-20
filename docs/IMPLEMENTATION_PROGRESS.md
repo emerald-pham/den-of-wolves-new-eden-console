@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**313 / 751 prompts complete (41.68%)**
+**314 / 751 prompts complete (41.81%)**
 
-Status breakdown: **313 done · 24 partial · 414 missing**.
+Status breakdown: **314 done · 23 partial · 414 missing**.
 
 Active prompt: **none**
 
@@ -516,7 +516,7 @@ release classification and evidence.
 | 103 | done | non-feature | — | Existing next-turn initialization is preserved by the atomic transition in `functions/src/index.ts:597-654` and callable path at `:3217-3271`; `functions/src/turnTransition.ts:8-27` resets turn-scoped charges and shuttle fuel, while `functions/src/maintenanceCallable.test.ts:578-703` covers schedule/expiry and `:792-937` covers overlapping advance/CAS/stale write-free behavior. Proof-only; no runtime change. |
 | 103a | missing | non-feature | — | Planned [NEW] prompt: hide AIRSPACE CLOSED on the turn-advance interstitial, freeze the authoritative deadline until clear/dismiss, resume from preserved remaining time, and cover stale/retry/reconnect/multi-client/accessibility behavior; no production-path evidence has been recorded. Depends on Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. |
 | 104 | done | feature | 0.3.46 | When the configured final turn completes, the server keeps the maximum turn, expires only turn-scoped charges and fuel flags, transitions the session to debrief, and clears the live phase entity and announcement. Normal gameplay mutations are rejected in endgame evaluation while existing GM debrief controls and read routes remain available; no winner or outcome is inferred. |
-| 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
+| 105 | done | non-feature | 0.4.33 | Version 0.4.33 atomically turns any server-owned fleet-group pursuit value reaching 10 during cycle advancement into one privacy-safe public failure outcome, clears the active cycle projection, stores a replayable terminal command receipt, and rejects later cycle, ship-counter, damage, repair, movement, setup, Press, alert, and confetti actions through server and rendered terminal guards. Firestore and the immediate callable path hydrate the same visible outcome without exposing fleet-group identities or scores; focused tests cover split-group privacy, Ion Nebula suppression, idempotent replay, zero-write post-failure mutations, and terminal controls. |
 | 106 | done | non-feature | — | The authoritative session listener hydrates the latest parsed turn, phase, and announcement snapshot, while `TurnStartAnnouncement` opens a visual transmission only for a newer live turn or server revision. The production listener integration test drives Turn 1 to Turn 2, confirms one transmission, unsubscribes and reconnects with the same server snapshot, then verifies the current state rehydrates without a duplicate visual effect. Existing announcement timing and event-snapshot replacement tests continue to cover intentional replay and stable server IDs. Proof-only; no runtime change. |
 | 106a | done | non-feature | — | Existing FleetBroadcast/FleetTicker precedence and shared-track draining are preserved. The focused FleetAlert regression proves an urgent authoritative red alert supersedes lower-priority airspace content, queues once behind the visible tail, drains that tail once, and remains visible after the standing state clears. Proof-only; no production change. |
 | 106b | done | feature | 0.3.27 | Prompt 106B preserves exact turn-transmission lifecycle timing: Turn 0 lockout and finale credits keep accessible status visible while outgoing tails drain, then clear and replay at the next authorized transition. Focused red/green and rendered evidence cover compact reduced-motion wrapping, ordinary-turn composition, lockout/finale drain, and revision replay. |

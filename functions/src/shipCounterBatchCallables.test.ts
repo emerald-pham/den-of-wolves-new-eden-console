@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   fuel: 6, unrest: 7, population: 16_000,
+  phase: 'active',
   retry: false, retryFuel: undefined as number | undefined,
   unrestAlerts: {} as Record<string, unknown>, populationAlerts: {} as Record<string, unknown>,
 }));
@@ -35,6 +36,7 @@ function request(data: Record<string, unknown>, uid = 'u1') {
 beforeEach(() => {
   mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true;
   mock.fuel = 6; mock.unrest = 7; mock.population = 16_000;
+  mock.phase = 'active';
   mock.retry = false; mock.retryFuel = undefined;
   mock.unrestAlerts = {}; mock.populationAlerts = {};
   mock.update.mockReset();
@@ -46,6 +48,7 @@ beforeEach(() => {
       : path.includes('/gmInstances/') ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
       : {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
+        phase: mock.phase,
         shipResources: { dione: { fuel: mock.fuel } },
         shipUnrest: { dione: mock.unrest },
         shipSurvivors: { capybara: mock.population },
@@ -141,5 +144,18 @@ it('rejects untrusted counter batches before changing session state', async () =
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'unrest', steps: [1],
   }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects single and batched counter mutations after pursuit failure without writing', async () => {
+  mock.phase = 'failure';
+  await expect(adjustShipResource.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', resourceId: 'fuel', delta: 1,
+    requestId: 'terminal-resource',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+    resourceId: 'fuel', steps: [1], requestId: 'terminal-batch',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
   expect(mock.update).not.toHaveBeenCalled();
 });

@@ -37,8 +37,8 @@ export default function FleetAlertControl() {
   const cooldownNotice = lockout
     ? `${lockoutMinutes} ${lockoutMinutes === 1 ? 'MINUTE' : 'MINUTES'} REMAINING // FLEET ALERT COOLDOWN`
     : null;
-  const unavailable = !access.writable || connection !== 'live' ||
-    session?.phase === 'debrief' || session?.phase === 'closed';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
+  const unavailable = !access.writable || connection !== 'live' || gameplayFrozen;
   const execute = async (nextActive = !active) => {
     if (busy.current || unavailable) return;
     busy.current = true; setPending(true); setError('');
@@ -81,7 +81,7 @@ export default function FleetAlertControl() {
       </button>
     </div>
     <p className="confetti-dispenser__status">
-      FLEET COMMAND // {session?.phase === 'debrief'
+      FLEET COMMAND // {gameplayFrozen
           ? 'ENDGAME EVALUATION // COMMAND FROZEN'
           : pending
             ? 'TRANSMITTING'

@@ -1536,6 +1536,21 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? data.turnLimit
     : setup?.turnLimit;
   const turnState = turnStateForPhaseContext(data.turnState, phaseClock, currentTurn, maxTurn);
+  const rawOutcome = data.gameOutcome;
+  const gameOutcome = rawOutcome && typeof rawOutcome === 'object' && !Array.isArray(rawOutcome) &&
+    rawOutcome.type === 'game-outcome' && rawOutcome.result === 'failure' &&
+    rawOutcome.cause === 'pursuit-limit' && Number.isSafeInteger(rawOutcome.cycle) &&
+    rawOutcome.cycle >= 1 && Number.isSafeInteger(rawOutcome.navigationRevision) &&
+    rawOutcome.navigationRevision >= 1 && typeof rawOutcome.occurredAt === 'string'
+    ? {
+      type: 'game-outcome' as const,
+      result: 'failure' as const,
+      cause: 'pursuit-limit' as const,
+      cycle: rawOutcome.cycle as number,
+      navigationRevision: rawOutcome.navigationRevision as number,
+      occurredAt: rawOutcome.occurredAt,
+    }
+    : undefined;
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
@@ -1602,6 +1617,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),
+    ...(gameOutcome ? { gameOutcome } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     universalArbourEnabled: data.universalArbourEnabled === true,

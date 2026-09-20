@@ -29,7 +29,7 @@ export default function PressConfetti({ shuttle }: {
     command.payload.sessionId === session.id &&
     command.payload.shipId === shuttle.id));
   const authorized = me?.activeConsoleRoleId === shuttle.captainRoleId;
-  const gameplayFrozen = session?.phase === 'debrief' || session?.phase === 'closed';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
 
   useEffect(() => {
     if (!session?.id) return;

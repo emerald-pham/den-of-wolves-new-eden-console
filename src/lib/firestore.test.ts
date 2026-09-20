@@ -91,6 +91,24 @@ it('projects Press occupancy as a public boolean without exposing its holder', (
   expect(session).not.toHaveProperty('pressHolderUid');
 });
 
+it('hydrates only a valid privacy-safe pursuit failure outcome', () => {
+  const outcome = {
+    type: 'game-outcome' as const,
+    result: 'failure' as const,
+    cause: 'pursuit-limit' as const,
+    cycle: 3,
+    navigationRevision: 9,
+    occurredAt: '2026-09-06T12:20:07.000Z',
+  };
+  expect(sessionFrom('pursuit-failure', {
+    ...sessionData(8), phase: 'failure', currentTurn: 3, gameOutcome: outcome,
+  }).gameOutcome).toEqual(outcome);
+  expect(sessionFrom('malformed-pursuit-failure', {
+    ...sessionData(8), phase: 'failure', currentTurn: 3,
+    gameOutcome: { ...outcome, groupId: 'private-group', navigationRevision: '9' },
+  }).gameOutcome).toBeUndefined();
+});
+
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   const session = sessionFrom('typed-session', {
     ...sessionData(8),

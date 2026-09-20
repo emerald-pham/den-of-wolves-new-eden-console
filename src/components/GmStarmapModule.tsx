@@ -44,7 +44,7 @@ export default function GmStarmapModule({ session }: Props) {
   }, [fleetMarkers, selectedShipId]);
 
   const selectedShip = fleetMarkers.find((marker) => marker.id === selectedShipId);
-  const gameplayFrozen = session.phase === 'debrief' || session.phase === 'closed';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session.phase);
   const canMove = Boolean(
     selectedShip && selectedCoordinate !== selectedShip.coordinate && !moving && !gameplayFrozen,
   );

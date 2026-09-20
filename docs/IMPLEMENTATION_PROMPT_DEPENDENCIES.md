@@ -201,7 +201,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 103 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Initialize the next turn. |
 | 103a | NEW | missing | 091-096;098;101-103;106b;108-109;154-158 | none | none | none | none | none | none | none | E-103A | M2 | Hold the airspace deadline behind turn-advance interstitials. |
 | 104 | PROVE | done | 078;103 | none | none | none | none | none | none | none | E-104-FINAL-TURN;E-AUDIT-104 | M2 | Complete the configured final turn. |
-| 105 | NEW | partial | 077;485 | none | none | none | none | none | none | none | E-AUDIT-105 | M2 | Trigger pursuit-10 failure. |
+| 105 | NEW | done | 077;485 | none | none | none | none | none | none | none | E-AUDIT-105 | M2 | Trigger pursuit-10 failure. |
 | 106 | PRESERVE | done | none | none | none | none | none | none | none | none | E-106-LIFECYCLE-REPLAY | M2 | Replay lifecycle announcements. |
 | 106a | PRESERVE | done | none | none | none | none | none | none | none | none | E-106A | M2 | Enforce FleetBroadcast precedence. |
 | 106b | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Verify exact turn-transmission timing. |

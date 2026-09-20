@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
+  phase: 'active',
   damage: {} as Record<string, unknown>, survivors: {} as Record<string, number>, retry: false,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
@@ -36,6 +37,7 @@ beforeEach(() => {
   mock.role = 'gm';
   mock.owner = 'u1';
   mock.grantShip = 'aegis';
+  mock.phase = 'active';
   mock.connected = true;
   mock.damage = {};
   mock.survivors = {};
@@ -62,6 +64,7 @@ beforeEach(() => {
         ? { uid: mock.owner, connected: true, lastSeenAt: new Date(), shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() } }
         : {
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
+          phase: mock.phase,
           shipDamage: mock.damage,
           shipSurvivors: mock.survivors,
         };
@@ -303,4 +306,14 @@ it('rejects random damage draws after the session closes', async () => {
   mock.get.mockImplementation(async (path: string) => path === 'sessions/s1' ? { exists: true, get: (key: string) => key === 'phase' ? 'closed' : undefined } : previous(path));
   await expect(addShipDamage.run(request(data))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+it('rejects damage and repair mutations after pursuit failure without writing', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.phase = 'failure';
+  await expect(addShipDamage.run(request({ ...data, requestId: 'terminal-damage' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
+  await expect(repairAllShipDamage.run(request({ ...data, requestId: 'terminal-repair' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });

@@ -22,7 +22,8 @@ export default function PressDispatch({ shuttle }: {
   const hasPressAuthority = me?.activeConsoleRoleId === shuttle.captainRoleId;
   // The independent Press desk is explicitly available during Turn 0. Keep
   // the ordinary endgame phase gates and server authority checks intact.
-  const authorized = hasPressAuthority && session?.phase !== 'debrief' && session?.phase !== 'closed';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
+  const authorized = hasPressAuthority && !gameplayFrozen;
 
   async function publish(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -106,7 +107,7 @@ export default function PressDispatch({ shuttle }: {
         ) : <p className="press-dispatch__empty">No active dispatches</p>}
       </div>
       <p className="press-dispatch__status" aria-live="polite">
-        {notice || (session?.phase === 'debrief'
+        {notice || (gameplayFrozen
             ? 'Endgame evaluation // gameplay dispatches frozen'
             : !authorized ? 'Press Officer authority required' : '')}
       </p>

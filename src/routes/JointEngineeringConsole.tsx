@@ -17,7 +17,7 @@ export default function JointEngineeringConsole() {
   const role = findConsoleRole(roleId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const roleEnabled = Boolean(role && isJointEngineeringRoleAvailable(activeRoleIds, role.id));
-  const gameplayFrozen = session?.phase === 'debrief' || session?.phase === 'closed';
+  const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const canClaimRole = Boolean(
     session && me && mode === 'console' && role && role.shipId === 'joint-engineering-union' &&
     roleEnabled && !gameplayFrozen && (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === role.id),

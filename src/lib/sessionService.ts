@@ -2647,6 +2647,7 @@ export async function setDebriefMode(active: boolean): Promise<CommandDispositio
 interface TurnAdvanceReply {
   readonly currentTurn: number;
   readonly phase?: GameSession['phase'];
+  readonly gameOutcome?: GameSession['gameOutcome'];
   readonly turnState?: unknown;
   readonly turnStartAnnouncement?: { turn: number; survivorPopulation: number };
   readonly turnPhase?: unknown;
@@ -2859,11 +2860,18 @@ function applyTurnAdvanceReply(
   // A terminal reply is the authoritative lifecycle checkpoint. Do not let
   // optional phase/entity/announcement fields from the same response reopen
   // the completed turn projection after the debrief transition.
-  if (reply.phase === 'debrief') {
+  if (reply.phase === 'debrief' || reply.phase === 'failure') {
+    const gameOutcome = reply.gameOutcome;
+    const validFailureOutcome = reply.phase === 'failure' && gameOutcome?.type === 'game-outcome' &&
+      gameOutcome.result === 'failure' && gameOutcome.cause === 'pursuit-limit' &&
+      Number.isSafeInteger(gameOutcome.cycle) && gameOutcome.cycle >= 1 &&
+      Number.isSafeInteger(gameOutcome.navigationRevision) && gameOutcome.navigationRevision >= 1 &&
+      typeof gameOutcome.occurredAt === 'string';
     const terminalSession = {
       ...activeSession,
       currentTurn: reply.currentTurn,
-      phase: 'debrief' as const,
+      phase: reply.phase,
+      ...(validFailureOutcome ? { gameOutcome } : {}),
       ...(reply.maintenanceCycles
         ? { maintenanceCycles: reply.maintenanceCycles }
         : {}),

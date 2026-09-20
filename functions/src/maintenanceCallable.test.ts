@@ -1595,6 +1595,88 @@ it('advances private group pursuit once with the cycle transition and republishe
   }));
 });
 
+it('creates one terminal failure when authoritative pursuit reaches 10 and blocks later gameplay', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
+  mock.currentTurn = 2;
+  mock.activeVesselIds = ['aegis', 'shepherd'];
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.navigation = {
+    revision: 8,
+    shipGalacticCoordinates: { aegis: '5143', shepherd: '1096' },
+    shipNavigationLogs: { aegis: [], shepherd: [] },
+    pursuitGroups: { 'fleet-1': 8, 'fleet-2': 4 },
+  };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['u2'] },
+  ];
+  mock.discoveryPlayers = [
+    { id: 'u1', fields: { fleetGroupId: 'fleet-1', assignedRoleId: 'aegis-captain' } },
+    { id: 'u2', fields: { fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' } },
+  ];
+  const terminalRequest = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-pursuit-failure', expectedTurn: 2,
+  };
+
+  const result = await advanceTurn.run(request(terminalRequest));
+
+  expect(result).toEqual({
+    currentTurn: 3,
+    phase: 'failure',
+    gameOutcome: {
+      type: 'game-outcome',
+      result: 'failure',
+      cause: 'pursuit-limit',
+      cycle: 3,
+      navigationRevision: 9,
+      occurredAt: '2026-09-06T12:20:07.000Z',
+    },
+    maintenanceCycles: {},
+    shuttleFuelled: {},
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 3,
+    phase: 'failure',
+    gameOutcome: result.gameOutcome,
+    turnPhase: 'delete-field',
+    turnState: 'delete-field',
+    turnStartAnnouncement: 'delete-field',
+  }));
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 10, 'fleet-2': 4 }, revision: 9 }),
+    { mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']) },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/commandReceipts/advance-test-pursuit-failure',
+    expect.objectContaining({ result }),
+  );
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/'))).toBe(false);
+
+  mock.phase = 'failure';
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request(terminalRequest))).resolves.toEqual(result);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-after-pursuit-failure',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/endgame evaluation/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('blocks a cycle transition when stored pursuit authority is malformed', async () => {
   mock.currentTurn = 1;
   mock.activeVesselIds = ['dione'];
