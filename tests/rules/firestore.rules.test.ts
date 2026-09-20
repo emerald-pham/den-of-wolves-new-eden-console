@@ -1801,6 +1801,28 @@ it('keeps Dione VIP hands private to the owner and server-written', async () => 
 });
 
 describe('complete server-owned denial matrix', () => {
+  it('keeps destroyed-ship store reconciliation private from players and GMs', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), SESSION + '/shipStoreScavenges/aegis'), {
+        sourceShipId: 'aegis', transfers: [{ recipientShipId: 'dione' }],
+      });
+      await setDoc(doc(ctx.firestore(), SESSION + '/shipStoreScavenges/aegis/audit/scavenge-1'), {
+        requestId: 'scavenge-1', actorUid: 'gm1',
+      });
+    });
+    for (const uid of ['alice', 'gm1']) {
+      const db = as(uid);
+      for (const path of [
+        SESSION + '/shipStoreScavenges/aegis',
+        SESSION + '/shipStoreScavenges/aegis/audit/scavenge-1',
+      ]) {
+        await assertFails(getDoc(doc(db, path)));
+        await assertFails(setDoc(doc(db, path), { forged: true }));
+        await assertFails(deleteDoc(doc(db, path)));
+      }
+    }
+  });
+
   it('denies direct lifecycle and retention changes from both players and GMs', async () => {
     for (const uid of ['alice', 'gm1']) {
       const header = doc(as(uid), SESSION);
@@ -1853,6 +1875,8 @@ describe('complete server-owned denial matrix', () => {
       SESSION + '/maintenanceUndo/aegis',
       SESSION + '/craftOwnership/manifest',
       SESSION + '/fleetGroups/fleet-1',
+      SESSION + '/shipStoreScavenges/aegis',
+      SESSION + '/shipStoreScavenges/aegis/audit/scavenge-1',
       SESSION + '/arbourVisionAuthority/current',
       'joinCodes/482109',
       'activeMemberships/alice',
@@ -1882,6 +1906,7 @@ describe('complete server-owned denial matrix', () => {
       'shipConfetti',
       'craftOwnership',
       'fleetGroups',
+      'shipStoreScavenges',
     ];
 
     for (const name of protectedCollections) {

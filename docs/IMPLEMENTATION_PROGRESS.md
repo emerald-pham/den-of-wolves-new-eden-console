@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**317 / 751 prompts complete (42.21%)**
+**318 / 751 prompts complete (42.34%)**
 
-Status breakdown: **317 done · 23 partial · 411 missing**.
+Status breakdown: **318 done · 23 partial · 410 missing**.
 
 Active prompt: **none**
 
@@ -563,7 +563,7 @@ release classification and evidence.
 | 140d | done | non-feature | — | The authoritative damage and maintenance riot transactions expose one stable catastrophe with the destroyed vessel's printed crew-plus-passenger pod capacity, preserve current survivors/resources/retained craft, and replay an already-destroyed result without advancing revision or emitting another catastrophe. All seven printed damage-deck vessels have matching capacity coverage and production-callable tests. Primary component review resolves the earlier small-vessel scope concern: small ships have no damage path, and identity-only extra vessels have no printed damage deck or independent capacity to invent. Unsupported variants remain rejected by the damage resolver; any future source-authorized destruction extension must supply its own capacity. This verifies the existing runtime rather than introducing new gameplay. |
 | 140e | done | non-feature | — | The authoritative destruction path now moves every assigned, replacement, or active-console holder of the destroyed vessel into escape state while preserving identity and server-owned resources and craft. A dedicated route suspends destroyed-ship actions, provides a receipt-backed flee command with stable reconnect replay, and waits for explicit facilitator reassignment; reassignment clears escape state and rejects the destroyed vessel. Maintenance authority checks precede VIP and Union bypasses. Focused tests, independent Terra review, TypeScript builds, and responsive reduced-motion browser proof pass. |
 | 140f | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 140g | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 140g | done | non-feature | 0.4.37 | An active GM can now transfer every retained resource from a destroyed ship to one living recipient in the same authoritative fleet group. The callable validates typed resource support, requires exact full-ledger reconciliation, rejects cross-group, destroyed, inactive, stale, replay-conflicting, and repeated requests, and commits source zeroing, recipient credits, vessel revisions, a private completion record, and a private audit record in one Firestore transaction. The GM console fails closed when group authority or a legal recipient is unavailable, excludes recipients that cannot hold Scrap, and applies only server-confirmed ledgers. Firestore rules deny players and GMs direct access to the private reconciliation records. |
 | 141 | done | feature | 0.3.23 | The authoritative `beginOpenAirspacePhase` transition now rejects reopening restricted normal airspace after the server-owned Coordination deadline while preserving active-member authorization, expected-turn CAS, lifted retry idempotency, and the deterministic member-visible `airspace-opened` event; Prompts 142–144 remain separate shuttle behavior. |
 | 142 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 143 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

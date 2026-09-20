@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['140g'],
+    implementationProgress: {
+      completed: 318, total: 751, percentage: '42.34%',
+      done: 318, partial: 23, active: 0, missing: 410,
+    },
+    changes: [
+      'Facilitators can now transfer every retained store from a destroyed ship to a living ship in the same fleet group with one server-authoritative action.',
+      'The transfer reconciles both resource ledgers and their audit history atomically, rejects stale or repeated allocations, and keeps private fleet-group details off the shared session view.',
+      '318 of 751 planned items are complete (42.34%).',
+    ],
+  },
+  {
+    version: '0.4.36',
     implementationPrompts: ['485a'],
     implementationProgress: {
       completed: 317, total: 751, percentage: '42.21%',

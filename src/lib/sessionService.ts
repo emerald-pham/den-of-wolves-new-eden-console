@@ -27,7 +27,7 @@ import type {
 } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
-import type { ResourceId } from '@/data/resources';
+import { resourcesForShip, type ResourceId, type ShipResourceInventory } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
 import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
@@ -2393,6 +2393,177 @@ export interface ShipNavigationMoveStaleReply extends Partial<VesselActionEnvelo
 export type ShipNavigationMoveReply =
   | ShipNavigationMoveCommittedReply
   | ShipNavigationMoveStaleReply;
+
+export interface ShipStoreScavengeAllocation {
+  readonly recipientShipId: string;
+  readonly resources: Readonly<Partial<Record<ResourceId, number>>>;
+}
+
+export type ShipStoreScavengeReply =
+  | (VesselActionEnvelope & {
+    readonly status: 'committed';
+    readonly sourceShipId: string;
+    readonly transfers: readonly ShipStoreScavengeAllocation[];
+    readonly inventories: Readonly<Record<string, ShipResourceInventory>>;
+    readonly revisions: Readonly<Record<string, number>>;
+  })
+  | (VesselActionEnvelope & {
+    readonly status: 'stale';
+    readonly sourceShipId: string;
+    readonly currentRevision: number;
+  });
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isSafeLedgerAmount(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function validScavengeInventory(
+  value: unknown,
+  template: ShipResourceInventory | undefined,
+): value is ShipResourceInventory {
+  if (!isPlainRecord(value) || !template) return false;
+  const expectedKeys = Object.keys(template).sort();
+  const actualKeys = Object.keys(value).sort();
+  return expectedKeys.length === actualKeys.length &&
+    expectedKeys.every((key, index) => key === actualKeys[index] && isSafeLedgerAmount(value[key]));
+}
+
+function requireShipStoreScavengeReply(
+  value: unknown,
+  expected: {
+    readonly session: GameSession;
+    readonly actorUid: string | undefined;
+    readonly requestId: string;
+    readonly sourceShipId: string;
+    readonly allocations: Readonly<Record<string, Partial<Record<ResourceId, number>>>>;
+  },
+): ShipStoreScavengeReply {
+  if (!isPlainRecord(value) || (value.status !== 'committed' && value.status !== 'stale') ||
+      value.sourceShipId !== expected.sourceShipId || value.actorUid !== expected.actorUid ||
+      value.vesselId !== expected.sourceShipId || value.idempotencyKey !== expected.requestId ||
+      typeof value.auditId !== 'string' || value.auditId.length === 0 ||
+      !(typeof value.actorRoleId === 'string' || value.actorRoleId === null) ||
+      !isSafeLedgerAmount(value.turn) || sessionPhase(value.phase) === undefined ||
+      !isSafeLedgerAmount(value.revision)) {
+    throw new Error('The server returned an invalid destroyed-ship store result.');
+  }
+  if (value.status === 'stale') {
+    if (!isSafeLedgerAmount(value.currentRevision) || value.revision !== value.currentRevision) {
+      throw new Error('The server returned an invalid destroyed-ship store result.');
+    }
+    return value as unknown as ShipStoreScavengeReply;
+  }
+
+  if (!isPlainRecord(value.inventories) || !isPlainRecord(value.revisions) ||
+      !Array.isArray(value.transfers)) {
+    throw new Error('The server returned an invalid destroyed-ship store result.');
+  }
+  const affectedShipIds = [expected.sourceShipId, ...Object.keys(expected.allocations)].sort();
+  if (Object.keys(value.inventories).sort().join('\u0000') !== affectedShipIds.join('\u0000') ||
+      Object.keys(value.revisions).sort().join('\u0000') !== affectedShipIds.join('\u0000')) {
+    throw new Error('The server returned an invalid destroyed-ship store result.');
+  }
+  for (const shipId of affectedShipIds) {
+    if (!isSafeLedgerAmount(value.revisions[shipId]) ||
+        !validScavengeInventory(
+          value.inventories[shipId],
+          resourcesForShip(shipId, expected.session.shipResources),
+        )) {
+      throw new Error('The server returned an invalid destroyed-ship store result.');
+    }
+  }
+  if (value.revisions[expected.sourceShipId] !== value.revision) {
+    throw new Error('The server returned an invalid destroyed-ship store result.');
+  }
+  const transfers = new Map<string, Record<string, unknown>>();
+  for (const transfer of value.transfers) {
+    if (!isPlainRecord(transfer) || typeof transfer.recipientShipId !== 'string' ||
+        !isPlainRecord(transfer.resources) || transfers.has(transfer.recipientShipId)) {
+      throw new Error('The server returned an invalid destroyed-ship store result.');
+    }
+    transfers.set(transfer.recipientShipId, transfer.resources);
+  }
+  for (const [recipientShipId, allocation] of Object.entries(expected.allocations)) {
+    const transfer = transfers.get(recipientShipId);
+    const expectedEntries = Object.entries(allocation).sort(([left], [right]) => left.localeCompare(right));
+    const actualEntries = transfer
+      ? Object.entries(transfer).sort(([left], [right]) => left.localeCompare(right))
+      : [];
+    if (JSON.stringify(actualEntries) !== JSON.stringify(expectedEntries)) {
+      throw new Error('The server returned an invalid destroyed-ship store result.');
+    }
+  }
+  if (transfers.size !== Object.keys(expected.allocations).length) {
+    throw new Error('The server returned an invalid destroyed-ship store result.');
+  }
+  return value as unknown as ShipStoreScavengeReply;
+}
+
+/** GM-only, atomic reconciliation of every retained store on a destroyed ship. */
+export async function scavengeDestroyedShipStores(
+  sourceShipId: string,
+  allocations: Readonly<Record<string, Partial<Record<ResourceId, number>>>>,
+): Promise<ShipStoreScavengeReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before scavenging a destroyed ship.');
+  }
+  requireFreshSessionAuthority();
+  const payload = {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    sourceShipId,
+    allocations,
+    requestId: commandId(),
+    expectedRevision: store.session.vesselActionRevisions?.[sourceShipId] ?? 0,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(
+      functions(),
+      'scavengeDestroyedShipStores',
+    );
+    const reply = requireShipStoreScavengeReply((await call(payload)).data, {
+      session: store.session,
+      actorUid: sessionAuthorityUid(store),
+      requestId: payload.requestId,
+      sourceShipId,
+      allocations,
+    });
+    const current = useSessionStore.getState().session;
+    if (!current || current.id !== payload.sessionId || !authorityCheckpointIsCurrent(checkpoint)) {
+      return reply;
+    }
+    if (reply.status === 'stale') {
+      const localRevision = current.vesselActionRevisions?.[sourceShipId] ?? 0;
+      if (reply.currentRevision >= localRevision) {
+        useSessionStore.getState().setSession({
+          ...current,
+          vesselActionRevisions: {
+            ...(current.vesselActionRevisions ?? {}),
+            [sourceShipId]: reply.currentRevision,
+          },
+        });
+      }
+      recordStaleAuthorityReply();
+      return reply;
+    }
+    useSessionStore.getState().setSession({
+      ...current,
+      shipResources: { ...(current.shipResources ?? {}), ...reply.inventories },
+      vesselActionRevisions: { ...(current.vesselActionRevisions ?? {}), ...reply.revisions },
+    });
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
 
 interface ShipConsoleLockCommittedReply extends Partial<VesselActionEnvelope> {
   readonly status?: never;

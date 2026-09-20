@@ -52,6 +52,61 @@ export function requireEscapeRequest(data: {
   };
 }
 
+export function requireShipStoreScavengeRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  sourceShipId?: unknown;
+  expectedRevision?: unknown;
+  allocations?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  sourceShipId: string;
+  expectedRevision: number;
+  allocations: Record<string, Partial<Record<ResourceId, number>>>;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (typeof data.allocations !== 'object' || data.allocations === null || Array.isArray(data.allocations)) {
+    throw new HttpsError('invalid-argument', 'allocations must be a recipient map.');
+  }
+  const recipientEntries = Object.entries(data.allocations);
+  if (recipientEntries.length < 1 || recipientEntries.length > 6) {
+    throw new HttpsError('invalid-argument', 'allocations must contain between one and six recipients.');
+  }
+  const allocations = Object.fromEntries(recipientEntries.map(([rawShipId, rawResources]) => {
+    const shipId = requiredId(rawShipId, 'allocations recipient');
+    if (typeof rawResources !== 'object' || rawResources === null || Array.isArray(rawResources)) {
+      throw new HttpsError('invalid-argument', `allocations[${shipId}] must be a resource map.`);
+    }
+    const resources = Object.entries(rawResources);
+    if (resources.length < 1 || resources.length > RESOURCE_IDS.length) {
+      throw new HttpsError('invalid-argument', `allocations[${shipId}] must contain resources.`);
+    }
+    return [shipId, Object.fromEntries(resources.map(([resourceId, amount]) => {
+      if (!RESOURCE_IDS.includes(resourceId as ResourceId) || !Number.isSafeInteger(amount) ||
+          (amount as number) <= 0) {
+        throw new HttpsError(
+          'invalid-argument',
+          `allocations[${shipId}][${resourceId}] must be a positive safe integer resource amount.`,
+        );
+      }
+      return [resourceId, amount as number];
+    }))];
+  }));
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    sourceShipId: requiredId(data.sourceShipId, 'sourceShipId'),
+    expectedRevision: data.expectedRevision as number,
+    allocations,
+  };
+}
+
 export function requireAirspaceRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -52,6 +52,7 @@ import {
   advanceTurn,
   startGame,
   setFighterWingCount,
+  scavengeDestroyedShipStores,
   extendAirspaceWindow,
   setWolfAttackWindow,
   stageWolfAttackPreparation,
@@ -404,6 +405,9 @@ export default function GmConsole() {
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
+  const [scavengeRecipients, setScavengeRecipients] = useState<Readonly<Record<string, string>>>({});
+  const [scavengeMutation, setScavengeMutation] = useState<string | null>(null);
+  const [scavengeMessage, setScavengeMessage] = useState<Readonly<Record<string, string>>>({});
   const [fighterWingDrafts, setFighterWingDrafts] = useState<Readonly<Record<string, string>>>({});
   const [fighterWingMutation, setFighterWingMutation] = useState<string | null>(null);
   const [stagedCounters, setStagedCounters] = useState<Readonly<Record<string, StagedCounter>>>({});
@@ -1395,6 +1399,37 @@ export default function GmConsole() {
       });
     } catch {
       // The shared interception notice reports the server rejection.
+    }
+  }
+
+  async function transferDestroyedStores(
+    sourceShipId: string,
+    recipientShipId: string,
+    resources: NonNullable<ReturnType<typeof resourcesForShip>>,
+  ): Promise<void> {
+    const allocation = Object.fromEntries(RESOURCE_DEFINITIONS.flatMap((resource) => {
+      const amount = resources[resource.id];
+      return amount === undefined || amount <= 0 ? [] : [[resource.id, amount]];
+    })) as Partial<Record<ResourceId, number>>;
+    setScavengeMutation(sourceShipId);
+    setScavengeMessage((messages) => ({ ...messages, [sourceShipId]: '' }));
+    try {
+      const result = await scavengeDestroyedShipStores(sourceShipId, {
+        [recipientShipId]: allocation,
+      });
+      setScavengeMessage((messages) => ({
+        ...messages,
+        [sourceShipId]: result.status === 'stale'
+          ? 'Store transfer stale // review the live ledgers and retry.'
+          : 'All retained stores transferred and reconciled.',
+      }));
+    } catch {
+      setScavengeMessage((messages) => ({
+        ...messages,
+        [sourceShipId]: 'Store transfer rejected // no balances changed.',
+      }));
+    } finally {
+      setScavengeMutation(null);
     }
   }
 
@@ -2759,6 +2794,23 @@ export default function GmConsole() {
                   Boolean(thresholdHolds[counterKey(unrestTarget)]) ||
                   unrestCounter.preview.alertRaised || unrestCounter.staged?.sending === true;
                 if (!resources) return null;
+                const destroyed = session.shipDamage?.[ship.id]?.destroyed === true;
+                const retainedStoreCount = RESOURCE_DEFINITIONS.reduce(
+                  (total, resource) => total + (resources[resource.id] ?? 0),
+                  0,
+                );
+                const sourceGroupId = session.shipFleetGroupIds?.[ship.id];
+                const eligibleScavengeRecipients = SHIPS.filter((candidate) => {
+                  if (candidate.id === ship.id || !sourceGroupId ||
+                      session.shipFleetGroupIds?.[candidate.id] !== sourceGroupId ||
+                      session.shipDamage?.[candidate.id]?.destroyed === true ||
+                      !session.activeVesselIds?.includes(candidate.id)) return false;
+                  const candidateResources = resourcesForShip(candidate.id, session.shipResources);
+                  return resources.scrap === undefined || resources.scrap === 0 ||
+                    candidateResources?.scrap !== undefined;
+                });
+                const selectedScavengeRecipient = scavengeRecipients[ship.id] ??
+                  eligibleScavengeRecipients[0]?.id ?? '';
                 return (
                   <section
                     className="gm-fleet-resource-ship"
@@ -2807,6 +2859,50 @@ export default function GmConsole() {
                         );
                       })}
                     </ul>
+                    {destroyed && (
+                      <div className="gm-fleet-resource-ship__scavenge" aria-label={`${ship.name} destroyed-ship store transfer`}>
+                        <h4 className="gm-fleet-resource-ship__category">Destroyed-ship stores</h4>
+                        {retainedStoreCount === 0 ? (
+                          <p role="status">Store ledger reconciled // no retained resources.</p>
+                        ) : eligibleScavengeRecipients.length === 0 ? (
+                          <p role="status">No living recipient is available in this fleet group.</p>
+                        ) : (
+                          <>
+                            <label>
+                              Recipient ship
+                              <select
+                                aria-label={`${ship.name} store recipient`}
+                                value={selectedScavengeRecipient}
+                                disabled={scavengeMutation === ship.id}
+                                onChange={(event) => setScavengeRecipients((recipients) => ({
+                                  ...recipients,
+                                  [ship.id]: event.target.value,
+                                }))}
+                              >
+                                {eligibleScavengeRecipients.map((candidate) => (
+                                  <option value={candidate.id} key={candidate.id}>{candidate.name}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              className="cic-action-button"
+                              type="button"
+                              disabled={scavengeMutation === ship.id || !selectedScavengeRecipient}
+                              onClick={() => void transferDestroyedStores(
+                                ship.id,
+                                selectedScavengeRecipient,
+                                resources,
+                              )}
+                            >
+                              {scavengeMutation === ship.id
+                                ? 'Transferring retained stores…'
+                                : 'Transfer all retained stores'}
+                            </button>
+                          </>
+                        )}
+                        {scavengeMessage[ship.id] && <p role="status">{scavengeMessage[ship.id]}</p>}
+                      </div>
+                    )}
                     <h4 className="gm-fleet-resource-ship__category">Census</h4>
                     <ul>
                       {population !== undefined && (

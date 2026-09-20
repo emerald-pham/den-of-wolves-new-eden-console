@@ -91,6 +91,7 @@ import {
   requireUnrestDismissalRequest,
   requireSessionRequest,
   requireEscapeRequest,
+  requireShipStoreScavengeRequest,
   requireAirspaceRequest,
   requireDisconnectRequest,
   requirePresenceRequest,
@@ -201,6 +202,7 @@ import {
   shipUnrest,
   unrestChange,
 } from './resources';
+import { planShipStoreScavenge, requireScavengeInventories } from './shipStoreScavenge';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
 import {
   INITIAL_FLEET_GROUP_ID,
@@ -13188,6 +13190,205 @@ type StoredUnrestAlert = {
   targetGmInstanceIds: string[];
   createdAt: string;
 };
+
+/** Reconcile all retained stores from one destroyed ship exactly once. */
+export const scavengeDestroyedShipStores = onCall<{
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  sourceShipId: string;
+  expectedRevision: number;
+  allocations: Record<string, Record<string, number>>;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipStoreScavengeRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const playerRef = db.doc(`sessions/${change.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${change.sessionId}/gmInstances/${change.instanceId}`);
+  const stateRef = db.doc(`sessions/${change.sessionId}/shipStoreScavenges/${change.sourceShipId}`);
+  const auditRef = db.doc(
+    `sessions/${change.sessionId}/shipStoreScavenges/${change.sourceShipId}/audit/${change.requestId}`,
+  );
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const allocationFingerprint = JSON.stringify(Object.fromEntries(
+    Object.entries(change.allocations).sort(([left], [right]) => left.localeCompare(right)).map(
+      ([shipId, resources]) => [shipId, Object.fromEntries(
+        Object.entries(resources).sort(([left], [right]) => left.localeCompare(right)),
+      )],
+    ),
+  ));
+  const fingerprint = vesselActionFingerprint(
+    'scavenge-destroyed-ship-stores',
+    change.sessionId,
+    change.requestId,
+    uid,
+    change.instanceId,
+    change.expectedRevision,
+    { sourceShipId: change.sourceShipId, allocations: allocationFingerprint },
+  );
+
+  return db.runTransaction(async (tx) => {
+    const [session, player, instance, prior, priorState, groups] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+      tx.get(receiptRef),
+      tx.get(stateRef),
+      tx.get(db.collection(`sessions/${change.sessionId}/fleetGroups`)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'gm' ||
+        !isLiveGmInstance(instance, player, uid)) {
+      throw new HttpsError('permission-denied', 'Active GM instance required.');
+    }
+    requirePlayerShipActionAuthority(player);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'destroyed-ship store scavenge');
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    if (priorState.exists) {
+      throw commandError(
+        'already-exists',
+        'This destroyed ship has already had its stores reconciled.',
+        'conflict',
+      );
+    }
+    const currentRevision = vesselActionRevision(session, change.sourceShipId);
+    if (change.expectedRevision !== currentRevision) {
+      const stale = {
+        status: 'stale' as const,
+        sourceShipId: change.sourceShipId,
+        currentRevision,
+        requestId: change.requestId,
+        ...vesselActionEnvelope(
+          session,
+          player,
+          uid,
+          change.sourceShipId,
+          currentRevision,
+          change.requestId,
+          'scavenge-destroyed-ship-stores',
+        ),
+      };
+      txSetIfSupported(tx, receiptRef, {
+        fingerprint, result: stale, createdAt: FieldValue.serverTimestamp(),
+      });
+      return stale;
+    }
+
+    const fleetGroupIds: Record<string, string> = {};
+    for (const snapshot of groups.docs) {
+      const group = fleetGroupRecord(snapshot.data());
+      if (!group || group.id !== snapshot.id) {
+        throw commandError(
+          'failed-precondition',
+          'The fleet-group authority is malformed; stores cannot be scavenged.',
+          'malformed-input',
+        );
+      }
+      for (const vesselId of group.vesselIds) {
+        if (fleetGroupIds[vesselId]) {
+          throw commandError(
+            'failed-precondition',
+            'A vessel appears in more than one fleet group; stores cannot be scavenged.',
+            'malformed-input',
+          );
+        }
+        fleetGroupIds[vesselId] = group.id;
+      }
+    }
+    const damages = shipDamage(session.get('shipDamage'));
+    let plan: ReturnType<typeof planShipStoreScavenge>;
+    try {
+      plan = planShipStoreScavenge({
+        sourceShipId: change.sourceShipId,
+        allocations: change.allocations,
+        activeVesselIds: activeVesselIdsForSession(session),
+        destroyedShipIds: Object.entries(damages)
+          .filter(([, damage]) => damage.destroyed)
+          .map(([shipId]) => shipId),
+        shipFleetGroupIds: fleetGroupIds,
+        inventories: requireScavengeInventories(
+          session.get('shipResources'),
+          [change.sourceShipId, ...Object.keys(change.allocations)],
+        ),
+      });
+    } catch (error) {
+      throw commandError(
+        'failed-precondition',
+        error instanceof Error ? error.message : 'The destroyed-ship allocation is invalid.',
+        'conflict',
+      );
+    }
+
+    const changedShipIds = [
+      change.sourceShipId,
+      ...plan.transfers.map((transfer) => transfer.recipientShipId),
+    ];
+    const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+    const revisions: Record<string, number> = {};
+    const storedVesselRevisions = session.get('vesselActionRevisions');
+    for (const shipId of changedShipIds) {
+      updates[`shipResources.${shipId}`] = plan.inventories[shipId];
+      const storedRevision = isRecord(storedVesselRevisions)
+        ? storedVesselRevisions[shipId]
+        : undefined;
+      if (storedRevision !== undefined &&
+          (!Number.isSafeInteger(storedRevision) || (storedRevision as number) < 0)) {
+        throw commandError(
+          'failed-precondition',
+          'A vessel revision ledger is malformed; stores were not changed.',
+          'malformed-input',
+        );
+      }
+      const currentShipRevision = vesselActionRevision(session, shipId);
+      if (currentShipRevision >= Number.MAX_SAFE_INTEGER) {
+        throw commandError(
+          'failed-precondition',
+          'A vessel revision has reached the safe ledger limit; stores were not changed.',
+          'conflict',
+        );
+      }
+      const revision = currentShipRevision + 1;
+      Object.assign(updates, vesselActionRevisionPatch(shipId, revision));
+      revisions[shipId] = revision;
+    }
+    tx.update(sessionRef, updates);
+    const result = {
+      status: 'committed' as const,
+      sourceShipId: change.sourceShipId,
+      transfers: plan.transfers,
+      inventories: Object.fromEntries(changedShipIds.map((shipId) => [shipId, plan.inventories[shipId]])),
+      revisions,
+      requestId: change.requestId,
+      ...vesselActionEnvelope(
+        session,
+        player,
+        uid,
+        change.sourceShipId,
+        revisions[change.sourceShipId]!,
+        change.requestId,
+        'scavenge-destroyed-ship-stores',
+      ),
+    };
+    const authorityRecord = {
+      type: 'destroyed-ship-store-scavenge',
+      sessionId: change.sessionId,
+      sourceShipId: change.sourceShipId,
+      actorUid: uid,
+      instanceId: change.instanceId,
+      requestId: change.requestId,
+      transfers: plan.transfers,
+      revisions,
+      completedAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(stateRef, authorityRecord);
+    tx.set(auditRef, authorityRecord);
+    txSetIfSupported(tx, receiptRef, {
+      fingerprint, result, createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
 
 export const adjustShipResource = onCall<{
   sessionId: string; shipId: string; resourceId: string; delta: number; instanceId?: string;

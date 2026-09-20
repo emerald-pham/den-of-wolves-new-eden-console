@@ -18,6 +18,7 @@ import {
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipDamageRequest,
+  requireShipStoreScavengeRequest,
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
@@ -500,6 +501,24 @@ describe('callable request guards', () => {
       sessionId: 's1', instanceId: 'gm1', shipId: 'aegis', counter: 'resource',
       resourceId: 'fuel', steps: [1, -1, 1],
     });
+  });
+
+  it('requires a bounded destroyed-ship allocation with positive known resources', () => {
+    const request = {
+      sessionId: 's1', instanceId: 'gm1', requestId: 'scavenge-1',
+      sourceShipId: 'aegis', expectedRevision: 3,
+      allocations: { dione: { ore: 2, fuel: 1 } },
+    };
+    expect(requireShipStoreScavengeRequest(request)).toEqual(request);
+    expectHttpsError(() => requireShipStoreScavengeRequest({
+      ...request, allocations: { dione: { ore: 0 } },
+    }), 'invalid-argument');
+    expectHttpsError(() => requireShipStoreScavengeRequest({
+      ...request, allocations: { dione: { antimatter: 1 } },
+    }), 'invalid-argument');
+    expectHttpsError(() => requireShipStoreScavengeRequest({
+      ...request, expectedRevision: -1,
+    }), 'invalid-argument');
   });
 
   it('requires a named GM instance to dismiss a ship unrest alert', () => {

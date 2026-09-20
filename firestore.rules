@@ -779,6 +779,16 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Destroyed-ship reconciliation contains private fleet-group transfer
+      // details and is exposed only through the GM callable result.
+      match /shipStoreScavenges/{sourceShipId} {
+        allow read, write: if false;
+
+        match /audit/{requestId} {
+          allow read, write: if false;
+        }
+      }
+
       // Maintenance receipts are server-owned replay state and may contain
       // authoritative command details that are not part of the read model.
       match /maintenanceRequests/{requestId} {

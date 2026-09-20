@@ -63,6 +63,7 @@ const {
   setReplacementEligibility,
   assignReplacementRole,
   fleeDestroyedShip,
+  scavengeDestroyedShipStores,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -2750,7 +2751,7 @@ it('sends population changes and acknowledgement with the GM instance', async ()
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance({ id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now' });
   const call = callableReturning({ data: {} });
-  vi.mocked(httpsCallable).mockReturnValue(call);
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
   const { adjustShipPopulation, dismissPopulationAlert } = await import('./sessionService');
   await adjustShipPopulation('capybara', -1);
   expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'adjustShipPopulation');
@@ -2790,6 +2791,80 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
   }));
   expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(8);
   expect(result).toEqual({ amount: 8, alertRaised: false });
+});
+
+it('sends destroyed-ship stores through the GM callable and applies confirmed ledgers', async () => {
+  useSessionStore.getState().setIdentity({
+    ...session,
+    phase: 'active',
+    vesselActionRevisions: { aegis: 4, dione: 7 },
+    shipResources: {
+      aegis: { ore: 2, fuel: 3, food: 0, water: 1, materials: 2, securityTeams: 1 },
+      dione: { ore: 0, fuel: 1, food: 2, water: 3, materials: 0, securityTeams: 2 },
+    },
+  }, player);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  const inventories = {
+    aegis: { ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+    dione: { ore: 2, fuel: 4, food: 2, water: 4, materials: 2, securityTeams: 3 },
+  };
+  const call = vi.fn(async (payload: { requestId: string }) => ({ data: {
+    status: 'committed', sourceShipId: 'aegis',
+    transfers: [{
+      recipientShipId: 'dione',
+      resources: { ore: 2, fuel: 3, water: 1, materials: 2, securityTeams: 1 },
+    }],
+    inventories, revisions: { aegis: 5, dione: 8 },
+    actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 0, phase: 'active',
+    revision: 5, idempotencyKey: payload.requestId,
+    auditId: `scavenge-destroyed-ship-stores-${payload.requestId}`,
+  } }));
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await scavengeDestroyedShipStores('aegis', {
+    dione: { ore: 2, fuel: 3, water: 1, materials: 2, securityTeams: 1 },
+  });
+
+  expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'scavengeDestroyedShipStores');
+  expect(call).toHaveBeenLastCalledWith(expect.objectContaining({
+    sessionId: 's1', instanceId: 'gm1', sourceShipId: 'aegis', expectedRevision: 4,
+    requestId: expect.any(String),
+  }));
+  expect(useSessionStore.getState().session?.shipResources).toMatchObject(inventories);
+  expect(useSessionStore.getState().session?.vesselActionRevisions).toEqual({ aegis: 5, dione: 8 });
+});
+
+it('rejects malformed destroyed-ship replies without changing local ledgers', async () => {
+  const originalResources = {
+    aegis: { ore: 2, fuel: 3, food: 0, water: 1, materials: 2, securityTeams: 1 },
+    dione: { ore: 0, fuel: 1, food: 2, water: 3, materials: 0, securityTeams: 2 },
+  };
+  useSessionStore.getState().setIdentity({
+    ...session, phase: 'active', vesselActionRevisions: { aegis: 4, dione: 7 },
+    shipResources: originalResources,
+  }, player);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  vi.mocked(httpsCallable).mockReturnValue(vi.fn(async (payload: { requestId: string }) => ({ data: {
+    status: 'committed', sourceShipId: 'aegis', transfers: [],
+    inventories: { aegis: { ...originalResources.aegis, ore: -1 } },
+    revisions: { aegis: 5 },
+    actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 0, phase: 'active',
+    revision: 5, idempotencyKey: payload.requestId, auditId: `bad-${payload.requestId}`,
+  } })) as never);
+
+  await expect(scavengeDestroyedShipStores('aegis', {
+    dione: { ore: 2, fuel: 3, water: 1, materials: 2, securityTeams: 1 },
+  })).rejects.toThrow(/invalid destroyed-ship store result/i);
+  expect(useSessionStore.getState().session?.shipResources).toEqual(originalResources);
+  expect(useSessionStore.getState().session?.vesselActionRevisions).toEqual({ aegis: 4, dione: 7 });
 });
 
 describe('authoritative setup and seating wrappers', () => {

@@ -55,6 +55,7 @@ vi.mock('@/lib/sessionService', () => ({
   recordZealotryResponse: vi.fn(),
   recordCivilUnrestResolution: vi.fn(),
   applyShipCounterSteps: vi.fn(),
+  scavengeDestroyedShipStores: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
 
@@ -83,7 +84,7 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
@@ -1379,6 +1380,48 @@ it('keeps resource stores read-only until enabled and resets after leaving', asy
   expect(within(
     within(returnedFleet).getByRole('group', { name: 'Dione resource controls' }),
   ).getByRole('button', { name: /increase strytium fuel/i })).toBeDisabled();
+});
+
+it('transfers every retained store only to a living ship in the same fleet group', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    activeVesselIds: ['aegis', 'dione', 'capybara'],
+    shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-1', capybara: 'fleet-2' },
+    shipDamage: {
+      aegis: { damagedSystemIds: [], destroyed: true },
+      dione: { damagedSystemIds: [], destroyed: false },
+      capybara: { damagedSystemIds: [], destroyed: false },
+    },
+    shipResources: {
+      ...INITIAL_SHIP_RESOURCES,
+      aegis: { ore: 2, fuel: 3, food: 0, water: 1, materials: 4, securityTeams: 1 },
+    },
+  });
+  vi.mocked(scavengeDestroyedShipStores).mockResolvedValue({
+    status: 'committed', sourceShipId: 'aegis', transfers: [], inventories: {}, revisions: {},
+    actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 0, phase: 'active',
+    revision: 5, idempotencyKey: 'scavenge-1', auditId: 'scavenge-scavenge-1',
+  });
+  renderConsole();
+
+  const aegis = await screen.findByRole('group', { name: 'AEGIS resource controls' });
+  const recipient = within(aegis).getByRole('combobox', { name: 'AEGIS store recipient' });
+  expect(recipient).toHaveValue('dione');
+  expect(within(recipient).getByRole('option', { name: 'Dione' })).toBeInTheDocument();
+  expect(within(recipient).queryByRole('option', { name: 'Capybara' })).not.toBeInTheDocument();
+
+  await user.click(within(aegis).getByRole('button', { name: 'Transfer all retained stores' }));
+  expect(scavengeDestroyedShipStores).toHaveBeenCalledWith('aegis', {
+    dione: { ore: 2, fuel: 3, water: 1, materials: 4, securityTeams: 1 },
+  });
+  expect(await within(aegis).findByText('All retained stores transferred and reconciled.'))
+    .toBeInTheDocument();
 });
 
 it('updates a GM counter immediately and sends rapid changes in one ordered batch', async () => {

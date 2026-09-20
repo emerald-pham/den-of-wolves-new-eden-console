@@ -5411,6 +5411,13 @@
       "language": "The production movement authority resolves the arrived coordinate against the session’s locked organiser chart and applies zero pursuit reduction when that printed site is Level 5 Survivable Planet G. Pure coverage proves the distinct G coordinate on charts A, B, and C, while callable coverage proves facilitator movement and shipboard jumps preserve only the moving group’s committed pursuit at G, reject client-supplied origin or distance as authority, and publish the unchanged value through the protected navigation revision consumed by Wolf attack pressure.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/starChartLookup.ts",
       "type": "evidence / production-path / server-authority / chart-selection / exception / transaction / attack-pressure / regression"
+    },
+    {
+      "direction": "140g",
+      "id": "E-140G-SCAVENGE-AUTHORITY",
+      "language": "The GM production control sends one complete retained-store allocation to a server-authoritative callable. The transaction accepts only an active GM instance, a destroyed active source, and active living recipients in the same authoritative fleet group; it requires every positive typed resource to reconcile exactly once, advances all affected vessel revisions, and writes private one-shot authority and audit records atomically. Command receipts make identical retries replay-safe and reject payload reuse. Focused planner, callable, request-guard, service, GM-console, and Firestore-rule tests pass, along with root typecheck and the Functions build.",
+      "source": "functions/src/shipStoreScavenge.ts; functions/src/shipStoreScavenge.test.ts; functions/src/shipStoreScavengeCallable.test.ts; functions/src/index.ts scavengeDestroyedShipStores; functions/src/requestGuards.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence / production-path / authority / privacy / atomic-reconciliation"
     }
   ],
   "plan": {
@@ -9055,8 +9062,8 @@
         "acceptance": "permitted resources transfer once to legal recipients while destroyed-ship balances and audit history reconcile atomically.",
         "title": "Scavenge destroyed-ship stores."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140G",
+      "description": "An active GM can now transfer every retained resource from a destroyed ship to one living recipient in the same authoritative fleet group. The callable validates typed resource support, requires exact full-ledger reconciliation, rejects cross-group, destroyed, inactive, stale, replay-conflicting, and repeated requests, and commits source zeroing, recipient credits, vessel revisions, a private completion record, and a private audit record in one Firestore transaction. The GM console fails closed when group authority or a legal recipient is unavailable, excludes recipients that cannot hold Scrap, and applies only server-confirmed ledgers. Firestore rules deny players and GMs direct access to the private reconciliation records.",
+      "evidenceIds": "E-AUDIT-140G;E-140G-SCAVENGE-AUTHORITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140d;111",
@@ -9064,10 +9071,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.37"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

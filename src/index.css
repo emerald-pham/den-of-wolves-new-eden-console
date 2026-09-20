@@ -1942,6 +1942,37 @@ body {
   margin: 0.75rem;
 }
 
+.gm-fleet-resource-ship__scavenge {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--cic-scream);
+  background: color-mix(in srgb, var(--cic-hostile) 22%, var(--cic-panel));
+  color: var(--cic-ink);
+  font: 0.62rem/1.45 var(--cic-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gm-fleet-resource-ship__scavenge label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.gm-fleet-resource-ship__scavenge select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 0.72rem/1.2 var(--cic-mono);
+}
+
+.gm-fleet-resource-ship__scavenge p {
+  margin: 0;
+}
+
 .gm-fleet-resources .ship-counter__controls button {
   border-color: var(--cic-ink);
   color: var(--cic-ink);
