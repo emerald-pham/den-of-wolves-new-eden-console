@@ -5397,6 +5397,13 @@
       "language": "Successful movement derives printed shortest-path depth from the immutable server graph, takes chart exceptions from the locked organiser chart, and writes only the moving canonical group value to protected navigation and group-local projections. Callable tests prove a client-supplied origin cannot replace stored navigation authority, full destination depth changes only one group, and legacy public pursuit is deleted. Wolf attack declaration separately reads the committed private navigation revision and complete group map in preflight and transaction, rejects malformed, orphaned, or changed snapshots before writes, and stores the exact values only in its hidden calculation receipt.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts",
       "type": "evidence / production-path / server-authority / transaction / privacy / attack-pressure / regression"
+    },
+    {
+      "direction": "488 -> Ion Nebula threat suppression and hazard preservation",
+      "id": "E-488-ION-THREAT-SUPPRESSION",
+      "language": "The production cycle transition resolves system I from the locked organiser chart and suppresses the cycle pursuit rise only when every vessel in that canonical fleet group is present there; other groups continue to rise and the transaction republishes only protected facilitator and group-local pursuit projections. This navigation-only exception does not erase or replace the Ion Nebula mission contract: the server-owned I definition independently retains its group-local maintenance-damage hazard on 3+, and focused tests assert the pursuit exception and environmental hazard together.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/missionCards.ts; functions/src/missionCards.test.ts",
+      "type": "evidence / production-path / server-authority / chart-selection / group-isolation / environmental-hazard / regression"
     }
   ],
   "plan": {
@@ -17919,8 +17926,8 @@
         "acceptance": "system I prevents the specified rise for that group while preserving environmental damage.",
         "title": "Verify Ion Nebula threat suppression."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-488",
+      "description": "Verified across the production authority and canonical mission contracts: the cycle transition resolves Ion Nebula I from the session’s locked chart and leaves only a fleet group whose complete vessel set is present there at its current pursuit value, while other represented groups rise normally. The protected navigation transaction and recipient-specific projections do not modify the independent Ion Nebula site rules, which retain the group-local 3+ maintenance-damage hazard. Focused pure, callable, and mission-catalog tests cover all three chart coordinates, mixed-group isolation, private projections, and the preserved environmental hazard.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-488;E-488-ION-THREAT-SUPPRESSION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485;306",
@@ -17928,10 +17935,13 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.98",
+        "0.4.29"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
