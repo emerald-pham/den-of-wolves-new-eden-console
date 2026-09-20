@@ -541,6 +541,13 @@ it('resolves both Refinery 124 Fuel Refinery consoles independently with base an
     cycle: { step: 6, revision: 0, results: {}, charges: ['fuel-refinery'], refuelled: [] },
     resources: { ore: 9, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
   }))).toThrow(/Insufficient ore/i);
+  for (const fuel of [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER - 5]) {
+    expect(() => advanceMaintenance(input({
+      shipId: 'refinery-124', action: 'production', productionConsoleId: 'fuel-refinery', productionOreAmount: 10,
+      cycle: { step: 6, revision: 0, results: {}, charges: ['fuel-refinery'], refuelled: [] },
+      resources: { ore: 10, fuel, food: 0, water: 0, materials: 0, securityTeams: 0 },
+    }))).toThrow(/fuel storage capacity/i);
+  }
 });
 
 it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId', ({ shipId, nominalCapacity, damagedPenalty, eligibleConsoles }) => {

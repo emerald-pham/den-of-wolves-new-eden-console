@@ -289,6 +289,9 @@ export function advanceMaintenance(input: MaintenanceInput) {
           throw new Error(`Choose between 1 and ${max} ore to refine.`);
         }
         if (resources.ore < oreAmount) throw new Error('Insufficient ore for refining.');
+        if (resources.fuel > Number.MAX_SAFE_INTEGER - oreAmount) {
+          throw new Error('Insufficient fuel storage capacity for refining.');
+        }
         resources = {
           ...resources,
           ore: addResourceAmount(resources.ore, -oreAmount),

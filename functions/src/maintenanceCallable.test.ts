@@ -782,6 +782,51 @@ it('rejects unbound or malformed Fuel Refinery amounts before authority or state
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('binds Fuel Refinery ore to replay identity and rejects non-conserving fuel overflow', async () => {
+  mock.grantShip = 'refinery-124';
+  const session = (fuel: number) => ({
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'refinery-124'],
+    maintenanceCycles: {
+      'refinery-124': { step: 6, revision: 0, results: {}, charges: ['fuel-refinery'], refuelled: [] },
+    },
+    shipResources: {
+      'refinery-124': { ore: 10, fuel, food: 9, water: 4, materials: 0, securityTeams: 6 },
+    },
+    shipDamage: { 'refinery-124': { damagedSystemIds: [], destroyed: false } },
+    shipUnrest: { 'refinery-124': 0 }, shipSurvivors: { 'refinery-124': 20_000 },
+    shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {}, unrestAlerts: {}, populationAlerts: {},
+  } as Record<string, unknown>);
+  const maintenance = {
+    session: session(Number.MAX_SAFE_INTEGER - 5),
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  const command = {
+    ...data, shipId: 'refinery-124', action: 'production', requestId: 'refinery-capacity',
+    productionConsoleId: 'fuel-refinery', productionOreAmount: 5,
+  };
+  await expect(runMaintenance.run(request(command))).resolves.toMatchObject({
+    status: 'committed', result: { resources: { ore: 5, fuel: Number.MAX_SAFE_INTEGER } },
+  });
+  await expect(runMaintenance.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(runMaintenance.run(request({
+    ...command, productionOreAmount: 4,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/request id/i) });
+
+  const overflow = {
+    session: session(Number.MAX_SAFE_INTEGER - 5),
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance: overflow };
+  await expect(runMaintenance.run(request({
+    ...command, requestId: 'refinery-overflow', productionOreAmount: 10,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/fuel storage capacity/i) });
+  expect(overflow.session).toMatchObject({
+    shipResources: { 'refinery-124': { ore: 10, fuel: Number.MAX_SAFE_INTEGER - 5 } },
+    maintenanceCycles: { 'refinery-124': { revision: 0, charges: ['fuel-refinery'] } },
+  });
+});
+
 it('resolves Capybara production with optional Scrap exactly once across replay and stale CAS', async () => {
   mock.grantShip = 'capybara';
   const maintenance = {
