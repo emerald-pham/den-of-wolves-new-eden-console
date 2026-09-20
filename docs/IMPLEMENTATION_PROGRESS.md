@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**315 / 751 prompts complete (41.94%)**
+**316 / 751 prompts complete (42.08%)**
 
-Status breakdown: **315 done · 23 partial · 413 missing**.
+Status breakdown: **316 done · 23 partial · 412 missing**.
 
 Active prompt: **none**
 
@@ -948,7 +948,7 @@ release classification and evidence.
 | 486 | done | non-feature | 0.4.30 | The Wolf-attack declaration now reads the protected navigation document and canonical fleet-group documents alongside its other server authority, then records every active group’s committed pursuit value and navigation revision in the hidden calculation receipt. Missing, malformed, orphaned, or concurrently changed pursuit authority rejects the declaration before any attack state, audit, event, receipt, airspace lock, or ticker mutation. The member-safe attack announcement exposes none of the private pressure map, while the existing cycle-transition tests prove each active group rises by two only once. |
 | 487 | done | non-feature | 0.4.30, 0.4.31, 0.4.32 | Verified end to end across the production authority boundary: successful facilitator movement and shipboard jumps derive destination depth from the immutable server graph, apply the selected-chart Level 5 Planet exception, and atomically commit only the moving group’s protected pursuit value. Wolf attack declaration then snapshots the complete canonical group map and navigation revision from that committed private document, re-reads both pursuit and group membership inside the declaration transaction, and records the values only in the hidden calculation receipt. Client-supplied origin or distance cannot affect the reduction; malformed, orphaned, or concurrently changed authority blocks the attack before writes. |
 | 488 | done | non-feature | 0.3.98, 0.4.29 | Verified across the production authority and canonical mission contracts: the cycle transition resolves Ion Nebula I from the session’s locked chart and leaves only a fleet group whose complete vessel set is present there at its current pursuit value, while other represented groups rise normally. The protected navigation transaction and recipient-specific projections do not modify the independent Ion Nebula site rules, which retain the group-local 3+ maintenance-damage hazard. Focused pure, callable, and mission-catalog tests cover all three chart coordinates, mixed-group isolation, private projections, and the preserved environmental hazard. |
-| 489 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 489 | done | non-feature | 0.4.32 | Verified across the production movement and attack-pressure authority chain: facilitator movement and shipboard jumps resolve the destination from the session’s locked organiser chart, and arriving at that chart’s Level 5 Survivable Planet G preserves the moving fleet group’s current pursuit instead of subtracting graph depth. The atomic protected navigation revision then supplies that unchanged group value to later Wolf attack calculation; client-reported origin or distance cannot create a reduction. Focused pure and callable tests cover the distinct G coordinate on all three charts, group isolation, and authoritative projections. |
 | 490 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 491 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 492 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

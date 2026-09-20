@@ -5404,6 +5404,13 @@
       "language": "The production cycle transition resolves system I from the locked organiser chart and suppresses the cycle pursuit rise only when every vessel in that canonical fleet group is present there; other groups continue to rise and the transaction republishes only protected facilitator and group-local pursuit projections. This navigation-only exception does not erase or replace the Ion Nebula mission contract: the server-owned I definition independently retains its group-local maintenance-damage hazard on 3+, and focused tests assert the pursuit exception and environmental hazard together.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/missionCards.ts; functions/src/missionCards.test.ts",
       "type": "evidence / production-path / server-authority / chart-selection / group-isolation / environmental-hazard / regression"
+    },
+    {
+      "direction": "489 -> selected-chart Level 5 Planet threat exception",
+      "id": "E-489-LEVEL5-THREAT-EXCEPTION",
+      "language": "The production movement authority resolves the arrived coordinate against the session’s locked organiser chart and applies zero pursuit reduction when that printed site is Level 5 Survivable Planet G. Pure coverage proves the distinct G coordinate on charts A, B, and C, while callable coverage proves facilitator movement and shipboard jumps preserve only the moving group’s committed pursuit at G, reject client-supplied origin or distance as authority, and publish the unchanged value through the protected navigation revision consumed by Wolf attack pressure.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/starChartLookup.ts",
+      "type": "evidence / production-path / server-authority / chart-selection / exception / transaction / attack-pressure / regression"
     }
   ],
   "plan": {
@@ -17952,8 +17959,8 @@
         "acceptance": "entering G does not grant the normal pursuit reduction.",
         "title": "Verify the Level 5 Planet exception."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-489",
+      "description": "Verified across the production movement and attack-pressure authority chain: facilitator movement and shipboard jumps resolve the destination from the session’s locked organiser chart, and arriving at that chart’s Level 5 Survivable Planet G preserves the moving fleet group’s current pursuit instead of subtracting graph depth. The atomic protected navigation revision then supplies that unchanged group value to later Wolf attack calculation; client-reported origin or distance cannot create a reduction. Focused pure and callable tests cover the distinct G coordinate on all three charts, group isolation, and authoritative projections.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-489;E-489-LEVEL5-THREAT-EXCEPTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485;306",
@@ -17961,10 +17968,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.32"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
