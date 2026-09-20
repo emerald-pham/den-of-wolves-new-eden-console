@@ -146,6 +146,7 @@ import {
   navigationState,
   navigationStateDocumentPath,
   playerDiscoveryProjection,
+  pursuitGroups,
   writePlayerDiscoveryProjection,
   type NavigationState,
 } from './navigationProjection';
@@ -10776,6 +10777,82 @@ type WolfAttackDeclarationInputs = Readonly<{
   targetRing: WolfTargetRing;
 }>;
 
+type WolfAttackPursuitSnapshot = Readonly<{
+  navigationRevision: number;
+  groupValues: Readonly<Record<string, number>>;
+  fleetGroups: readonly Readonly<{
+    id: string;
+    vesselIds: readonly string[];
+    memberUids: readonly string[];
+  }>[];
+}>;
+
+function wolfAttackPursuitSnapshot(
+  session: DocumentSnapshot,
+  navigation: DocumentSnapshot,
+  fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
+  players: { readonly docs: readonly DocumentSnapshot[] },
+): WolfAttackPursuitSnapshot {
+  const raw = navigation.exists &&
+    typeof (navigation as unknown as { data?: unknown }).data === 'function'
+    ? navigation.data()
+    : undefined;
+  const rawGroups = isRecord(raw) ? raw.pursuitGroups : undefined;
+  const revision = navigation.get('revision');
+  if (!isValidPursuitAuthority(rawGroups) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 0) {
+    throw commandError(
+      'failed-precondition',
+      'Server-owned pursuit authority is unavailable or malformed; the Wolf attack cannot begin.',
+      'conflict',
+    );
+  }
+  const groupValues = Object.fromEntries(
+    Object.entries(pursuitGroups({ pursuitGroups: rawGroups }))
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+  const parsedGroups = fleetGroups.docs.map((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    return group?.id === snapshot.id ? group : undefined;
+  });
+  const groupIds = parsedGroups.map((group) => group?.id);
+  const valueIds = Object.keys(groupValues).sort();
+  if (groupIds.some((groupId) => groupId === undefined) ||
+      new Set(groupIds).size !== groupIds.length ||
+      JSON.stringify(groupIds.sort()) !== JSON.stringify(valueIds)) {
+    throw commandError(
+      'failed-precondition',
+      'Server-owned pursuit authority is unavailable or malformed; the Wolf attack cannot begin.',
+      'conflict',
+    );
+  }
+  const canonicalGroups = (parsedGroups as FleetGroupRecord[])
+    .map((group) => ({
+      id: group.id,
+      vesselIds: [...group.vesselIds].sort(),
+      memberUids: [...group.memberUids].sort(),
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  requireTurnPursuitMembership(
+    wolfAttackActiveVesselIds(session),
+    parsedGroups as FleetGroupRecord[],
+    players.docs,
+  );
+  return {
+    navigationRevision: revision as number,
+    groupValues,
+    fleetGroups: canonicalGroups,
+  };
+}
+
+function wolfAttackPursuitFingerprint(pursuit: WolfAttackPursuitSnapshot): string {
+  return JSON.stringify({
+    navigationRevision: pursuit.navigationRevision,
+    groupValues: Object.entries(pursuit.groupValues),
+    fleetGroups: pursuit.fleetGroups,
+  });
+}
+
 function wolfAttackActiveVesselIds(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeVesselIds');
   if (!Array.isArray(stored) || stored.length === 0 ||
@@ -10887,6 +10964,7 @@ function wolfTargetingStageReceipt(
   preparation: WolfAttackPreparation,
   declaredAt: string,
   targetRing: WolfTargetRing,
+  pursuit: WolfAttackPursuitSnapshot,
 ): Record<string, unknown> {
   const composition = scheduledWolfAttackComposition(turn, preparation.shipIds);
   // P427's modifier vocabulary intentionally does not contain final roster
@@ -10904,6 +10982,10 @@ function wolfTargetingStageReceipt(
     turn,
     step: WOLF_ATTACK_DECLARATION_STEP,
     generatedAt: declaredAt,
+    pursuitPressure: {
+      navigationRevision: pursuit.navigationRevision,
+      groupValues: { ...pursuit.groupValues },
+    },
     composition: {
       shipIds: [...composition.shipIds],
       counts: { ...composition.counts },
@@ -10934,6 +11016,9 @@ export const declareWolfAttack = onCall<{
   const instanceRef = db.doc(`sessions/${declaration.sessionId}/gmInstances/${declaration.instanceId}`);
   const preparationRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackPreparation/current`);
   const windowRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackWindow/current`);
+  const navigationRef = navigationStateRef(declaration.sessionId);
+  const fleetGroupsRef = db.collection(`sessions/${declaration.sessionId}/fleetGroups`);
+  const playersRef = db.collection(`sessions/${declaration.sessionId}/players`);
   const stateRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current`);
   const auditRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current/audit/${declaration.requestId}`);
   const receiptRef = commandReceiptRef(declaration.sessionId, declaration.requestId);
@@ -10949,9 +11034,11 @@ export const declareWolfAttack = onCall<{
   };
 
   const [preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
-    preflightWindow, preflightState, preflightReceipt, preflightAudit, preflightEvent] = await Promise.all([
+    preflightWindow, preflightNavigation, preflightState, preflightReceipt,
+    preflightAudit, preflightEvent, preflightFleetGroups, preflightPlayers] = await Promise.all([
     sessionRef.get(), playerRef.get(), instanceRef.get(), preparationRef.get(),
-    windowRef.get(), stateRef.get(), receiptRef.get(), auditRef.get(), eventRef.get(),
+    windowRef.get(), navigationRef.get(), stateRef.get(), receiptRef.get(), auditRef.get(), eventRef.get(),
+    fleetGroupsRef.get(), playersRef.get(),
   ]);
   if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
@@ -10969,9 +11056,12 @@ export const declareWolfAttack = onCall<{
     preflightWindow, preflightState, preflightEvent, preflightAudit, uid,
     declaration.expectedRevision,
   );
+  const preflightPursuit = wolfAttackPursuitSnapshot(
+    preflightSession, preflightNavigation, preflightFleetGroups, preflightPlayers,
+  );
   const declaredAt = new Date().toISOString();
   const calculationReceipt = wolfTargetingStageReceipt(
-    preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing,
+    preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
   );
   const announcementId = `wolf-attack-${declaration.requestId}`;
   const result: WolfAttackDeclarationResult = {
@@ -10989,9 +11079,11 @@ export const declareWolfAttack = onCall<{
   };
 
   return db.runTransaction(async tx => {
-    const [session, player, instance, preparation, window, state, receipt, audit, event] = await Promise.all([
+    const [session, player, instance, preparation, window, navigation,
+      state, receipt, audit, event, fleetGroups, players] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(preparationRef),
-      tx.get(windowRef), tx.get(stateRef), tx.get(receiptRef), tx.get(auditRef), tx.get(eventRef),
+      tx.get(windowRef), tx.get(navigationRef), tx.get(stateRef), tx.get(receiptRef),
+      tx.get(auditRef), tx.get(eventRef), tx.get(fleetGroupsRef), tx.get(playersRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
@@ -11005,14 +11097,16 @@ export const declareWolfAttack = onCall<{
       session, player, instance, preparation, window, state, event, audit, uid,
       declaration.expectedRevision,
     );
+    const pursuit = wolfAttackPursuitSnapshot(session, navigation, fleetGroups, players);
     if (inputs.phase.turn !== preflight.phase.turn ||
         inputs.phase.openAirspaceEndsAt !== preflight.phase.openAirspaceEndsAt ||
         inputs.window.revision !== preflight.window.revision ||
         inputs.preparation.revision !== preflight.preparation.revision ||
+        wolfAttackPursuitFingerprint(pursuit) !== wolfAttackPursuitFingerprint(preflightPursuit) ||
         JSON.stringify(inputs.targetRing) !== JSON.stringify(preflight.targetRing)) {
       throw commandError(
         'failed-precondition',
-        'The live attack preparation changed while the declaration was being committed.',
+        'The live attack authority or preparation changed while the declaration was being committed.',
         'stale-revision',
       );
     }

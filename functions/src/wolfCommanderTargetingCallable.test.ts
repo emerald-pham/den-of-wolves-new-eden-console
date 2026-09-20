@@ -18,12 +18,22 @@ const mock = vi.hoisted(() => {
       data: () => fields,
     };
   };
+  const querySnapshot = (path: string) => ({
+    docs: [...documents.keys()]
+      .filter((candidate) => candidate.startsWith(`${path}/`) &&
+        !candidate.slice(path.length + 1).includes('/'))
+      .map((candidate) => snapshot(candidate)),
+  });
   const ref = (path: string) => ({
     path,
     id: path.split('/').at(-1) ?? '',
     get: async () => snapshot(path),
   });
-  const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
+  const collection = (path: string) => ({ path, get: async () => querySnapshot(path) });
+  const get = vi.fn(async (target: { path: string }) =>
+    target.path.endsWith('/fleetGroups') || target.path.endsWith('/players')
+      ? querySnapshot(target.path)
+      : snapshot(target.path));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
@@ -32,7 +42,7 @@ const mock = vi.hoisted(() => {
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
     callback({ get, update, set }));
-  return { documents, get, update, set, runTransaction, db: { doc: ref, runTransaction } };
+  return { documents, get, update, set, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -91,7 +101,9 @@ function session(fields: Fields = {}): void {
 }
 
 function gm(): void {
-  put('sessions/s1/players/gm-1', { uid: 'gm-1', role: 'gm', connected: true });
+  put('sessions/s1/players/gm-1', {
+    uid: 'gm-1', role: 'gm', connected: true, fleetGroupId: 'fleet-1',
+  });
   put('sessions/s1/gmInstances/gm-1', { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
 }
 
@@ -121,6 +133,15 @@ function resetFixture(): void {
   mock.set.mockClear();
   cryptoMock.randomInt.mockImplementation(() => 0);
   session(); gm(); preparation(); dueWindow();
+  put('sessions/s1/serverState/navigation', {
+    revision: 2,
+    pursuitGroups: { 'fleet-1': 4 },
+  });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['gm-1'],
+  });
 }
 
 beforeEach(resetFixture);

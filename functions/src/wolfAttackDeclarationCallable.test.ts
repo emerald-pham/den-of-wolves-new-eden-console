@@ -18,12 +18,22 @@ const mock = vi.hoisted(() => {
       data: () => fields,
     };
   };
+  const querySnapshot = (path: string) => ({
+    docs: [...documents.keys()]
+      .filter((candidate) => candidate.startsWith(`${path}/`) &&
+        !candidate.slice(path.length + 1).includes('/'))
+      .map((candidate) => snapshot(candidate)),
+  });
   const ref = (path: string) => ({
     path,
     id: path.split('/').at(-1) ?? '',
     get: async () => snapshot(path),
   });
-  const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
+  const collection = (path: string) => ({ path, get: async () => querySnapshot(path) });
+  const get = vi.fn(async (target: { path: string }) =>
+    target.path.endsWith('/fleetGroups') || target.path.endsWith('/players')
+      ? querySnapshot(target.path)
+      : snapshot(target.path));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
@@ -32,7 +42,7 @@ const mock = vi.hoisted(() => {
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
     callback({ get, update, set }));
-  return { documents, get, update, set, runTransaction, db: { doc: ref, runTransaction } };
+  return { documents, get, update, set, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -93,7 +103,9 @@ function session(fields: Fields = {}): void {
 }
 
 function gm(uid = 'u1', instanceId = 'gm-1', fields: Fields = {}): void {
-  put(`sessions/s1/players/${uid}`, { uid, role: 'gm', connected: true, ...fields });
+  put(`sessions/s1/players/${uid}`, {
+    uid, role: 'gm', connected: true, fleetGroupId: 'fleet-1', ...fields,
+  });
   put(`sessions/s1/gmInstances/${instanceId}`, { uid, connected: true, lastSeenAt: new Date(), ...fields });
 }
 
@@ -114,17 +126,55 @@ function dueWindow(fields: Fields = {}): void {
   put('sessions/s1/wolfAttackWindow/current', { status: 'due', turn: 1, revision: 1, ...fields });
 }
 
-beforeEach(() => {
+function navigation(fields: Fields = {}): void {
+  put('sessions/s1/serverState/navigation', {
+    revision: 0,
+    pursuitGroups: { 'fleet-1': 4 },
+    ...fields,
+  });
+}
+
+function splitFleet(): void {
+  fleetGroup('fleet-1', {
+    vesselIds: ['aegis', 'dione', 'icebreaker'],
+    memberUids: ['u1'],
+  });
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, fleetGroupId: 'fleet-2',
+  });
+  fleetGroup('fleet-2', {
+    vesselIds: ['quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['u2'],
+  });
+}
+
+function fleetGroup(id = 'fleet-1', fields: Fields = {}): void {
+  put(`sessions/s1/fleetGroups/${id}`, {
+    id,
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['u1'],
+    ...fields,
+  });
+}
+
+function resetFixture(): void {
   mock.documents.clear();
   mock.get.mockClear();
   mock.update.mockClear();
   mock.set.mockClear();
+  mock.runTransaction.mockClear();
+  mock.runTransaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+    callback({ get: mock.get, update: mock.update, set: mock.set }));
   cryptoMock.randomInt.mockImplementation(() => 0);
   session();
   gm();
   preparation();
   dueWindow();
-});
+  navigation();
+  fleetGroup();
+}
+
+beforeEach(resetFixture);
 
 it('atomically locks airspace, snapshots parked craft, records a hidden stage receipt, and emits one safe announcement', async () => {
   const result = await declareWolfAttack.run(request());
@@ -141,7 +191,11 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
     type: 'wolf-attack-state', status: 'declared', currentStep: 'targeting',
     preparationRevision: 1, airspaceLocked: true,
     preparation: { notes: 'hidden GM note' },
-    calculationReceipt: { type: 'wolf-combat-calculation-stage', step: 'targeting' },
+    calculationReceipt: {
+      type: 'wolf-combat-calculation-stage',
+      step: 'targeting',
+      pursuitPressure: { navigationRevision: 0, groupValues: { 'fleet-1': 4 } },
+    },
   });
   const event = mock.documents.get('sessions/s1/events/wolf-attack-wolf-declare-1');
   expect(event).toMatchObject({
@@ -152,11 +206,129 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   expect(event).not.toHaveProperty('notes');
   expect(event).not.toHaveProperty('targeting');
   expect(event).not.toHaveProperty('calculationReceipt');
+  expect(event).not.toHaveProperty('pursuitPressure');
   expect(event).not.toHaveProperty('damage');
   expect(event).not.toHaveProperty('casualties');
   expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toEqual([
     'sessions/s1/events/wolf-attack-wolf-declare-1',
   ]);
+});
+
+it('uses only committed private pursuit authority and rejects malformed or changed snapshots', async () => {
+  session({ pursuitGroups: { fleet: 2 } });
+  navigation({ revision: 7, pursuitGroups: { 'fleet-1': 6, 'fleet-2': 8 } });
+  splitFleet();
+  await declareWolfAttack.run(request({ ...baseData, requestId: 'private-pursuit' }));
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    calculationReceipt: {
+      pursuitPressure: { navigationRevision: 7, groupValues: { 'fleet-1': 6, 'fleet-2': 8 } },
+    },
+  });
+
+  resetFixture();
+  session({ pursuitGroups: { fleet: 2 } });
+  navigation({ pursuitGroups: { 'fleet-1': 6, 'fleet-2': 'bad' } });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'malformed-pursuit' })))
+    .rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/pursuit authority is unavailable or malformed/i),
+    });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  resetFixture();
+  session({ pursuitGroups: { fleet: 2 } });
+  navigation({ revision: 8, pursuitGroups: { 'fleet-1': 6, 'fleet-2': 8 } });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'orphan-pursuit' })))
+    .rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/pursuit authority is unavailable or malformed/i),
+    });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  resetFixture();
+  session({ pursuitGroups: { fleet: 2 } });
+  navigation({ revision: 8, pursuitGroups: { 'fleet-1': 6, 'fleet-2': 8 } });
+  splitFleet();
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.runTransaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => {
+    navigation({ revision: 9, pursuitGroups: { 'fleet-1': 8, 'fleet-2': 8 } });
+    return callback({ get: mock.get, update: mock.update, set: mock.set });
+  });
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'changed-pursuit' })))
+    .rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/authority or preparation changed/i),
+  });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects noncanonical fleet membership before any declaration write', async () => {
+  const corruptions = [
+    () => {
+      navigation({ pursuitGroups: { 'fleet-1': 4, 'fleet-2': 4 } });
+    },
+    () => {
+      navigation({ pursuitGroups: { 'fleet-1': 4, 'fleet-2': 4 } });
+      splitFleet();
+      fleetGroup('fleet-2', {
+        vesselIds: ['icebreaker', 'shepherd', 'refinery-124'],
+        memberUids: ['u2'],
+      });
+    },
+    () => {
+      fleetGroup('fleet-1', { memberUids: ['missing-player'] });
+    },
+    () => {
+      gm('u1', 'gm-1', { fleetGroupId: 'fleet-2' });
+    },
+  ];
+  for (const [index, corrupt] of corruptions.entries()) {
+    resetFixture();
+    corrupt();
+    mock.update.mockClear();
+    mock.set.mockClear();
+    await expect(declareWolfAttack.run(request({
+      ...baseData, requestId: `noncanonical-${index}`,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  }
+});
+
+it('rejects a canonical group partition changed during declaration', async () => {
+  navigation({ revision: 5, pursuitGroups: { 'fleet-1': 4, 'fleet-2': 4 } });
+  splitFleet();
+  mock.runTransaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => {
+    fleetGroup('fleet-1', {
+      vesselIds: ['aegis', 'dione', 'quellon'],
+      memberUids: ['u1'],
+    });
+    fleetGroup('fleet-2', {
+      vesselIds: ['icebreaker', 'shepherd', 'refinery-124'],
+      memberUids: ['u2'],
+    });
+    return callback({ get: mock.get, update: mock.update, set: mock.set });
+  });
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'changed-groups' })))
+    .rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/authority or preparation changed/i),
+    });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('replays an exact request without a second transaction write', async () => {
@@ -216,6 +388,9 @@ it('rejects a departed shuttle visit as in transit even when the docking project
 
 it('uses the configured expansion target ring when full Capybara is active', async () => {
   session({ activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'] });
+  fleetGroup('fleet-1', {
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'],
+  });
   const result = await declareWolfAttack.run(request({ ...baseData, requestId: 'capybara' }));
 
   expect(result).toEqual(expect.objectContaining({ status: 'committed', requestId: 'capybara' }));
@@ -246,6 +421,9 @@ it('records declaration-time base mapping, expansion rerolls, and excludes the s
   mock.documents.delete('sessions/s1/events/wolf-attack-base-mapping');
   mock.documents.delete('sessions/s1/commandReceipts/base-mapping');
   session({ activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'] });
+  fleetGroup('fleet-1', {
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'],
+  });
   preparation();
   dueWindow();
   const expansionSamples = [6, 7, 0, ...Array<number>(12).fill(0)];

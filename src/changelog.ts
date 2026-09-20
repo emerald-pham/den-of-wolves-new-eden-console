@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [486],
+    implementationProgress: {
+      completed: 309, total: 751, percentage: '41.15%',
+      done: 309, partial: 24, active: 0, missing: 418,
+    },
+    changes: [
+      'Wolf attack calculations now snapshot the committed server-owned pursuit values and reject missing, malformed, orphaned, or concurrently changed authority.',
+      '309 of 751 planned items are complete (41.15%).',
+    ],
+  },
+  {
+    version: '0.4.29',
     implementationPrompts: [305],
     implementationProgress: {
       completed: 308, total: 751, percentage: '41.01%',

@@ -2628,7 +2628,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 484
 - [x] Prompt 485
 - [ ] Prompt 485a
-- [ ] Prompt 486
+- [x] Prompt 486
 - [ ] Prompt 487
 - [ ] Prompt 488
 - [ ] Prompt 489
@@ -3395,7 +3395,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 #### Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)
 - **Prompt 485 — [REPAIR] Make pursuit authoritative from Turn 1.** Acceptance: repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.
 - **Prompt 485a — [REPAIR] Restore alert-scoped Pursuit Track color.** Acceptance: restore the normal ship/faction presentation from `0215488` whenever authoritative Red Alert is inactive, and use hostile danger red only while that shared alert is active; `0d64e25` documents the always-danger departure to repair. Stand-down, reconnect, late join, stale revision, split-fleet scope, reduced motion, and terminal text converge on authority without changing countdown placement, pursuit math, or claiming P485's broader server-value repair complete. Prove non-color alert/terminal meaning, CIC contrast, and 320×844, 390×844, 1440×900, and 844×390 containment.
-- **Prompt 486 — [PROVE] Verify the per-turn pursuit rise.** Acceptance: every active group adds two once and attack calculations use the committed score.
+- **Prompt 486 — [PROVE] Verify the per-cycle pursuit rise.** Acceptance: every active group adds two once and attack calculations use the committed score.
 - **Prompt 487 — [PROVE] Verify jump-based pursuit reduction.** Acceptance: attack pressure uses each group's selected-chart depth and never client-reported distance.
 - **Prompt 488 — [PROVE] Verify Ion Nebula threat suppression.** Acceptance: system I prevents the specified rise for that group while preserving environmental damage.
 - **Prompt 489 — [PROVE] Verify the Level 5 Planet exception.** Acceptance: entering G does not grant the normal pursuit reduction.

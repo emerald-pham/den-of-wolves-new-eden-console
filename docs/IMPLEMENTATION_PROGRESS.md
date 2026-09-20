@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**308 / 751 prompts complete (41.01%)**
+**309 / 751 prompts complete (41.15%)**
 
-Status breakdown: **308 done · 24 partial · 419 missing**.
+Status breakdown: **309 done · 24 partial · 418 missing**.
 
 Active prompt: **none**
 
@@ -945,7 +945,7 @@ release classification and evidence.
 | 484 | missing | non-feature | — | Planned [EXTEND] crew/GM/broadcast aftermath and one-GM recovery-work projection prompt. |
 | 485 | done | non-feature | 0.4.28 | Cycle 1 now writes pursuit 2 under the canonical initial fleet group, and pursuit trackers read only that bounded server-owned value. Browser cycle and map-depth presentation no longer derives attack pressure; absent, malformed, or stale telemetry remains pending and cannot declare the fleet surrounded. Legacy `fleet` snapshots migrate to `fleet-1`, while unrelated or out-of-range fields fail closed. This establishes the shared authority consumed by later rise, jump-exception, split-group, attack-scheduling, and failure prompts without implementing their mutations early. |
 | 485a | missing | non-feature | — | Future pursuit-color repair: restore `0215488`'s normal ship/faction treatment outside authoritative Red Alert and use danger red only while the shared alert is active; `0d64e25` records the always-danger departure. Preserve countdown, values, split-fleet scope, terminal text, reconnect/stand-down/reduced-motion truth, and do not claim P485's broader server-owned pursuit acceptance. |
-| 486 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 486 | done | non-feature | 0.4.30 | The Wolf-attack declaration now reads the protected navigation document and canonical fleet-group documents alongside its other server authority, then records every active group’s committed pursuit value and navigation revision in the hidden calculation receipt. Missing, malformed, orphaned, or concurrently changed pursuit authority rejects the declaration before any attack state, audit, event, receipt, airspace lock, or ticker mutation. The member-safe attack announcement exposes none of the private pressure map, while the existing cycle-transition tests prove each active group rises by two only once. |
 | 487 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 488 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 489 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

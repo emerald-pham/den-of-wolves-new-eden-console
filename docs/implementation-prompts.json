@@ -3231,7 +3231,7 @@
     {
       "direction": "486 -> 485;305",
       "id": "E-AUDIT-486",
-      "language": "Per-turn pursuit rise consumes authority and transition logic.",
+      "language": "Per-cycle pursuit rise consumes authority and transition logic.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -5361,6 +5361,13 @@
       "id": "E-305-CYCLE-PURSUIT",
       "language": "The authoritative cycle transition reads protected navigation state, canonical fleet-group documents, the locked chart, and current player entitlements before any write. It validates the raw pursuit map and requires active vessels and players to form an exact, non-overlapping group partition whose player pointers match membership. Every represented active group rises by two once, capped at the terminal value, while the server resolves the chart-specific four-digit coordinate for Ion Nebula I and leaves only a group whose vessels are present there unchanged. The private navigation document, full facilitator discovery projection, and group-local player projections receive one shared navigation revision in the same transaction as the cycle change; any legacy member-readable pursuit header is deleted atomically, including during final-debrief migration. Missing, malformed, orphaned, duplicated, or mismatched authority fails closed, and the final debrief does not advance pursuit. Focused unit and callable tests prove A/B/C chart resolution, multi-group isolation, Ion suppression, projection privacy, legacy cleanup, exact membership checks, revision alignment, and that two concurrent facilitator attempts commit only one pursuit write.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts",
+      "type": "evidence / production-path / server-authority / transaction / privacy / concurrency"
+    },
+    {
+      "direction": "486 -> committed attack pressure",
+      "id": "E-486-COMMITTED-PURSUIT",
+      "language": "Wolf-attack declaration reads the protected navigation document and canonical fleet-group documents in preflight and again inside the authoritative transaction. The hidden calculation receipt snapshots every canonical group pursuit value with the navigation revision; member-visible events omit the map. Invalid raw values, missing or orphaned groups, and any authority change between preflight and commit fail closed before attack state, audit, receipt, event, airspace, or ticker writes. The production cycle-transition coverage separately proves each active group rises by two once, caps at 10, honors Ion Nebula suppression, and serializes competing facilitator attempts.",
+      "source": "functions/src/index.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/maintenanceCallable.test.ts",
       "type": "evidence / production-path / server-authority / transaction / privacy / concurrency"
     }
   ],
@@ -17822,10 +17829,10 @@
       "decisionOwner": "none",
       "definition": {
         "acceptance": "every active group adds two once and attack calculations use the committed score.",
-        "title": "Verify the per-turn pursuit rise."
+        "title": "Verify the per-cycle pursuit rise."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-486",
+      "description": "The Wolf-attack declaration now reads the protected navigation document and canonical fleet-group documents alongside its other server authority, then records every active group’s committed pursuit value and navigation revision in the hidden calculation receipt. Missing, malformed, orphaned, or concurrently changed pursuit authority rejects the declaration before any attack state, audit, event, receipt, airspace lock, or ticker mutation. The member-safe attack announcement exposes none of the private pressure map, while the existing cycle-transition tests prove each active group rises by two only once.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-486;E-486-COMMITTED-PURSUIT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485;305",
@@ -17833,10 +17840,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.30"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
