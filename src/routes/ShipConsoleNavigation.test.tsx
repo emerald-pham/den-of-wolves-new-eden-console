@@ -32,7 +32,8 @@ beforeEach(() => {
     shipUnrest: { aegis: 2 }, shipSurvivors: { aegis: 2500 },
     shipConsoleLocks: { aegis: false }, shipNavigationLogs: { aegis: [] },
   }, {
-    uid: 'u1', sessionId: 's1', displayName: 'Admiral', role: 'player', seatId: null,
+    uid: 'u1', sessionId: 's1', displayName: 'Admiral', role: 'player',
+    seatId: 'admiral', assignedRoleId: 'admiral',
     activeConsoleRoleId: 'admiral', joinedAt: '2026-09-07T00:00:00.000Z',
   });
   useSessionStore.getState().setMode('console');
