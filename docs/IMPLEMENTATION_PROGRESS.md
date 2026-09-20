@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**302 / 751 prompts complete (40.21%)**
+**303 / 751 prompts complete (40.35%)**
 
-Status breakdown: **302 done · 25 partial · 424 missing**.
+Status breakdown: **303 done · 25 partial · 423 missing**.
 
 Active prompt: **none**
 
@@ -1039,7 +1039,7 @@ release classification and evidence.
 | 567 | done | non-feature | — | Reverified the shipped none, base-capybara, and expansion-capybara configuration boundary. Canonical setup selects one mode, rejects unsupported roster substitutions and incomplete expansion pairs, and locks mode changes from casting onward. Retired legacy toggles cannot bypass setup. Distinct vessel definitions, active-vessel filtering, and direct-route guards keep the base extra and crewed expansion separate; supported 19/20-player expansion sessions retain their full ship. Current production code and existing setup, catalog, selector, and route regressions passed in the 0.3.86 validation and deployed workflow. This is evidence closeout only; no new gameplay or rendered UI is claimed, and lower-count expansion substitutions remain governed by Prompt 252. |
 | 568 | done | non-feature | — | Completed as a server-authority repair: Scrap remains defined only on the enabled Capybara ship ledger, while Macaw and Boa cargo accepts Scrap only when both Capybara expansion roles are active. Join/resume projections, maintenance writes, and rollback restoration strip unauthorized or unsafe Scrap; existing Capybara production and active-ship counter authority remain bounded to the typed Capybara inventory. Focused unit and callable authority regressions pass, and Terra found no actionable findings on exact candidate 1148712209601ff6ae22286154ad20c5db829ff8. No version, release, or player-facing copy change is claimed. |
 | 569 | done | non-feature | — | The authoritative supported roster includes the Captain and Recycler exactly once as an atomic pair at 19/20 players and rejects incomplete, duplicated, mixed-mode, or unsupported lower-count expansion rosters. Production start writes one recipient-only brief per assigned player with distinct Macaw/Boa ownership; optional Press and extra GM instances do not consume either core role. This records existing runtime behavior with explicit production-path regressions, not a new feature release. |
-| 570 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 570 | done | non-feature | — | The production Wolf-attack declaration derives its target ring from the server-owned active full-vessel fleet. Base sessions retain the six-vessel d6 ring; a full expansion Capybara adds the seventh target, switches every server-owned targeting roll to d8, maps 7 to Capybara, and rerolls each 8 before target resolution. The base small Capybara identity does not activate or enter the ring, and malformed active-fleet state fails closed before mutation. Existing combat-math, declaration-callable, receipt-parser, and Commander-reroll regressions cover initial and selected rerolls while keeping outcomes server-generated. This closes the stale roadmap row from existing production behavior and adds no runtime change or release. |
 | 571 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 572 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 573 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |

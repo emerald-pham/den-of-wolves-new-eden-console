@@ -5320,6 +5320,13 @@
       "language": "An authenticated joined player with current GM access can claim a distinct GM instance even when a legacy registration-lock field is true and another GM remains live. Role Select does not subscribe to or disable on that field, and the GM instances panel presents authorized additional access without a lock control. The callable retains GM-access, membership, core-seat, exact-instance ownership, stale-replacement, secret-audience, and safe same-instance replay behavior.",
       "source": "functions/src/index.ts; functions/src/gmSessionCallable.test.ts; src/routes/RoleSelect.tsx; src/routes/RoleSelect.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; focused Functions and UI tests",
       "type": "evidence / production-path / authorization / replay / UI"
+    },
+    {
+      "direction": "570 -> PRODUCTION-D8-TARGETING",
+      "id": "E-570-D8-TARGETING",
+      "language": "Verified against the production Wolf-attack declaration and combat calculation path: server-owned activeVesselIds selects the immutable six-target base ring or seven-target full-Capybara ring; base rolls are bounded d6 samples, expansion rolls are bounded d8 samples, 7 maps to Capybara, every sampled 8 is recorded and rerolled, and capybara-small cannot enter the active full-vessel ring. Focused declaration coverage proves exact base mapping, expansion 7/8 behavior, no committed state for the small identity, and client requests cannot supply outcomes; combat-math and Commander receipt tests preserve the same ring and reroll contract. No runtime code or player release changed for this evidence closure.",
+      "source": "functions/src/index.ts; functions/src/wolfCombatMath.ts; functions/src/wolfCommanderRerolls.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/wolfCombatMath.test.ts; functions/src/wolfCommanderRerolls.test.ts",
+      "type": "evidence / production-path / server-authority / regression"
     }
   ],
   "plan": {
@@ -19963,8 +19970,8 @@
         "acceptance": "7 selects the full ship, 8 rerolls, and base d6 sessions never target the hybrid.",
         "title": "Apply d8 Capybara targeting."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-570",
+      "description": "The production Wolf-attack declaration derives its target ring from the server-owned active full-vessel fleet. Base sessions retain the six-vessel d6 ring; a full expansion Capybara adds the seventh target, switches every server-owned targeting roll to d8, maps 7 to Capybara, and rerolls each 8 before target resolution. The base small Capybara identity does not activate or enter the ring, and malformed active-fleet state fails closed before mutation. Existing combat-math, declaration-callable, receipt-parser, and Commander-reroll regressions cover initial and selected rerolls while keeping outcomes server-generated. This closes the stale roadmap row from existing production behavior and adds no runtime change or release.",
+      "evidenceIds": "E-AUDIT-570;E-570-D8-TARGETING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "569",
@@ -19975,7 +19982,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
