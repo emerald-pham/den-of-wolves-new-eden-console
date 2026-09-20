@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import {
+  adjustPursuitForMovement,
   advancePursuitForCycle,
   isValidPursuitAuthority,
   navigationState,
@@ -178,6 +179,56 @@ it('rejects an orphan pursuit score instead of guessing its group membership', (
     { id: 'fleet-1', vesselIds: ['dione'] },
     { id: 'fleet-2', vesselIds: ['shepherd'] },
   ], 'A')).toThrow(/no pursuit authority/i);
+});
+
+it('reduces only the moving fleet group by the destination printed depth from 0000', () => {
+  const current = navigationState({
+    shipGalacticCoordinates: { dione: '0000', shepherd: '5143' },
+    pursuitGroups: { 'fleet-1': 8, 'fleet-2': 9 },
+  }, ['dione', 'shepherd']);
+  const groups = [
+    { id: 'fleet-1', vesselIds: ['dione'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'] },
+  ];
+
+  const outbound = adjustPursuitForMovement(current, groups, 'dione', '8378');
+  expect(outbound.pursuitGroups).toEqual({ 'fleet-1': 2, 'fleet-2': 9 });
+
+  const oneStepHome = adjustPursuitForMovement(
+    { ...outbound, shipGalacticCoordinates: { dione: '8378', shepherd: '5143' } },
+    groups,
+    'dione',
+    '3068',
+  );
+  expect(oneStepHome.pursuitGroups).toEqual({ 'fleet-1': 0, 'fleet-2': 9 });
+
+  expect(adjustPursuitForMovement(current, groups, 'dione', '4888').pursuitGroups)
+    .toEqual({ 'fleet-1': 1, 'fleet-2': 9 });
+});
+
+it('rejects ambiguous or unprinted movement pursuit authority', () => {
+  const current = navigationState({
+    shipGalacticCoordinates: { dione: '0000' },
+    pursuitGroups: { 'fleet-1': 8 },
+  }, ['dione']);
+  expect(() => adjustPursuitForMovement(current, [], 'dione', '5143'))
+    .toThrow(/exactly one fleet group/i);
+  expect(() => adjustPursuitForMovement(current, [
+    { id: 'fleet-1', vesselIds: ['dione'] },
+    { id: 'fleet-2', vesselIds: ['dione'] },
+  ], 'dione', '5143')).toThrow(/exactly one fleet group/i);
+  expect(() => adjustPursuitForMovement(
+    { ...current, pursuitGroups: {} },
+    [{ id: 'fleet-1', vesselIds: ['dione'] }],
+    'dione',
+    '5143',
+  )).toThrow(/no pursuit authority/i);
+  expect(() => adjustPursuitForMovement(
+    current,
+    [{ id: 'fleet-1', vesselIds: ['dione'] }],
+    'dione',
+    '9999',
+  )).toThrow(/unprinted/i);
 });
 
 it('replaces a player projection so valid pursuit becomes pending when authority disappears', () => {

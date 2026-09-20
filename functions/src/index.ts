@@ -141,6 +141,7 @@ import {
   type NavigationLogs,
 } from './navigation';
 import {
+  adjustPursuitForMovement,
   advancePursuitForCycle,
   isValidPursuitAuthority,
   navigationState,
@@ -1089,6 +1090,67 @@ function requireTurnPursuitMembership(
     throw commandError(
       'failed-precondition',
       'The stored fleet-group authority is incomplete or mismatched; pursuit cannot advance.',
+      'malformed-input',
+    );
+  }
+}
+
+function movementPursuitFleetGroups(
+  activeVesselIds: readonly string[],
+  groupSnapshots: { readonly docs?: readonly DocumentSnapshot[] },
+  playerSnapshots: { readonly docs?: readonly DocumentSnapshot[] },
+): readonly FleetGroupRecord[] {
+  const groups = (groupSnapshots.docs ?? []).map((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    if (!group || group.id !== snapshot.id) {
+      throw commandError(
+        'failed-precondition',
+        'The stored fleet-group authority is malformed; movement cannot adjust pursuit.',
+        'malformed-input',
+      );
+    }
+    return group;
+  });
+  requireTurnPursuitMembership(activeVesselIds, groups, playerSnapshots.docs ?? []);
+  return groups;
+}
+
+function requireMovementPursuitAuthority(
+  storedNavigation: DocumentSnapshot,
+  session: Pick<DocumentSnapshot, 'get'>,
+): void {
+  const rawNavigation = storedNavigation.exists &&
+    typeof (storedNavigation as unknown as { data?: unknown }).data === 'function'
+    ? storedNavigation.data()
+    : undefined;
+  const privatePursuitPresent = isRecord(rawNavigation) &&
+    Object.prototype.hasOwnProperty.call(rawNavigation, 'pursuitGroups');
+  const legacyPursuitPresent = session.get('pursuitGroups') !== undefined;
+  const rawPursuitAuthority = privatePursuitPresent
+    ? (rawNavigation as Record<string, unknown>).pursuitGroups
+    : session.get('pursuitGroups');
+  if ((!privatePursuitPresent && !legacyPursuitPresent) ||
+      !isValidPursuitAuthority(rawPursuitAuthority)) {
+    throw commandError(
+      'failed-precondition',
+      'Pursuit authority is missing or malformed; movement cannot adjust pursuit.',
+      'malformed-input',
+    );
+  }
+}
+
+function movementPursuitNavigation(
+  navigation: NavigationState,
+  fleetGroups: readonly FleetGroupRecord[],
+  shipId: string,
+  destination: string,
+): NavigationState {
+  try {
+    return adjustPursuitForMovement(navigation, fleetGroups, shipId, destination);
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Movement could not adjust pursuit.',
       'malformed-input',
     );
   }
@@ -9574,6 +9636,7 @@ export const moveShipToLocation = onCall<{
   const change = requireShipNavigationMoveRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const fleetGroupsRef = db.collection(`sessions/${change.sessionId}/fleetGroups`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'move-ship', change.sessionId, identity.requestId, uid, change.instanceId,
@@ -9590,6 +9653,7 @@ export const moveShipToLocation = onCall<{
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
     const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
+    const fleetGroups = await tx.get(fleetGroupsRef);
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
     if (replay) return replay;
@@ -9638,12 +9702,17 @@ export const moveShipToLocation = onCall<{
         'conflict',
       );
     }
-    const nextNavigation = navigationState({
+    requireMovementPursuitAuthority(storedNavigation, session);
+    const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+    const movedNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
       systemHistory: currentNavigation.systemHistory,
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
+    const nextNavigation = movementPursuitNavigation(
+      movedNavigation, pursuitFleetGroups, change.shipId, move.destination,
+    );
     const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision: nextRevision,
@@ -9664,6 +9733,7 @@ export const moveShipToLocation = onCall<{
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
       shipNavigationLogs: removeLegacyNavigationField(),
+      pursuitGroups: removeLegacyNavigationField(),
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -9693,6 +9763,7 @@ export const jumpShip = onCall<{
   const change = requireShipJumpRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const fleetGroupsRef = db.collection(`sessions/${change.sessionId}/fleetGroups`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'jump-ship', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
@@ -9713,6 +9784,7 @@ export const jumpShip = onCall<{
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
     const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
+    const fleetGroups = await tx.get(fleetGroupsRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
@@ -9739,7 +9811,6 @@ export const jumpShip = onCall<{
     }
     const activeVesselIds = activeVesselIdsForSession(session);
     const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
-
     const currentTurn = sessionTurn(session.get('currentTurn'));
     const currentCoordinate = currentNavigation.shipGalacticCoordinates[change.shipId] ?? '0000';
     const currentCycles = typeof session.get('maintenanceCycles') === 'object' && session.get('maintenanceCycles') !== null
@@ -9846,6 +9917,8 @@ export const jumpShip = onCall<{
       logs: currentNavigation.shipNavigationLogs,
       shipNames: FLEET_SHIP_NAMES,
     });
+    requireMovementPursuitAuthority(storedNavigation, session);
+    const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
     const nextCycle = {
       ...currentCycle,
       charges: charges.filter((charge) => charge !== 'jump-drive'),
@@ -9857,12 +9930,15 @@ export const jumpShip = onCall<{
       },
     };
     const revision = currentRevision + 1;
-    const nextNavigation = navigationState({
+    const movedNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
       systemHistory: currentNavigation.systemHistory,
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
+    const nextNavigation = movementPursuitNavigation(
+      movedNavigation, pursuitFleetGroups, change.shipId, move.destination,
+    );
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision,
       updatedAt: FieldValue.serverTimestamp(),
@@ -9886,6 +9962,7 @@ export const jumpShip = onCall<{
       [`shipJumpStates.${change.shipId}`]: result.state,
       [`shipJumpTransitions.${change.shipId}`]: result.transition,
       shipNavigationLogs: removeLegacyNavigationField(),
+      pursuitGroups: removeLegacyNavigationField(),
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });

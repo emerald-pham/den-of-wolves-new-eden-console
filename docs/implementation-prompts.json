@@ -5369,6 +5369,13 @@
       "language": "Wolf-attack declaration reads the protected navigation document and canonical fleet-group documents in preflight and again inside the authoritative transaction. The hidden calculation receipt snapshots every canonical group pursuit value with the navigation revision; member-visible events omit the map. Invalid raw values, missing or orphaned groups, and any authority change between preflight and commit fail closed before attack state, audit, receipt, event, airspace, or ticker writes. The production cycle-transition coverage separately proves each active group rises by two once, caps at 10, honors Ion Nebula suppression, and serializes competing facilitator attempts.",
       "source": "functions/src/index.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/maintenanceCallable.test.ts",
       "type": "evidence / production-path / server-authority / transaction / privacy / concurrency"
+    },
+    {
+      "direction": "306 -> movement pursuit reduction",
+      "id": "E-306-CHART-DEPTH-PURSUIT",
+      "language": "Both authoritative movement callables derive the destination depth from the immutable server graph after a legal move succeeds, never from client-reported distance. They validate the raw protected pursuit map and the complete canonical fleet-group vessel and player partition before any movement write, subtract the full printed shortest-path depth from 0000 only from the moving ship group, clamp at zero, and atomically publish the resulting private facilitator and group-local player projections with the navigation revision. Failed or integrity-locked jumps do not change pursuit, another group remains unchanged, and malformed or mismatched authority fails closed without writes.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts",
+      "type": "evidence / production-path / server-authority / transaction / privacy / regression"
     }
   ],
   "plan": {
@@ -13294,8 +13301,8 @@
         "acceptance": "each group uses the printed shortest-path distance from 0000 after movement.",
         "title": "Reduce pursuit by chart depth."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-306",
+      "description": "Facilitator movement and successful shipboard jumps now reduce only the moving ship fleet group’s private server-owned pursuit by the destination’s printed shortest-path depth from 0000. The transaction validates the raw pursuit map plus the exact canonical vessel and player group partition before any movement write, resolves depth from the immutable server graph, clamps at zero, republishes the full map only to the facilitator projection, and replaces each player projection with that player’s group-local value. Invalid, missing, duplicated, orphaned, or mismatched authority fails closed; failed and integrity-locked jump attempts do not apply pursuit changes. The Level 5 Planet exception remains Prompt 309.",
+      "evidenceIds": "E-AUDIT-306;E-306-CHART-DEPTH-PURSUIT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;285;305",
@@ -13303,10 +13310,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.31"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -15,6 +15,14 @@ const mock = vi.hoisted(() => ({
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
   pursuitGroups: { 'fleet-1': 2 } as Record<string, number>,
+  fleetGroups: [{
+    id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    memberUids: ['u1'],
+  }] as Array<{ id: string; vesselIds: string[]; memberUids: string[] }>,
+  players: [{ id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } }] as Array<{
+    id: string; fields: Record<string, unknown>;
+  }>,
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
   transactionRetries: 0,
@@ -47,7 +55,7 @@ vi.mock('firebase-admin/firestore', () => ({
       return result;
     },
   }),
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
@@ -74,6 +82,12 @@ beforeEach(() => {
   mock.jumpStates = {};
   mock.systemHistory = {};
   mock.pursuitGroups = { 'fleet-1': 2 };
+  mock.fleetGroups = [{
+    id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    memberUids: ['u1'],
+  }];
+  mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } }];
   mock.upgrades = {};
   mock.damage = {};
   mock.transactionRetries = 0;
@@ -85,8 +99,21 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path === 'sessions/s1/fleetGroups') {
+      return { docs: mock.fleetGroups.map((group) => ({
+        exists: true, id: group.id, data: () => group, get: (key: string) => group[key as keyof typeof group],
+      })) };
+    }
+    if (path === 'sessions/s1/players') {
+      return { docs: mock.players.map((entry) => ({
+        exists: true, id: entry.id, data: () => entry.fields, get: (key: string) => entry.fields[key],
+      })) };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
-      ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
+      ? {
+        role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined,
+        fleetGroupId: 'fleet-1',
+      }
       : path.includes('/private/shipConsoleWriteGrant')
         ? {
           type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: mock.owner,
@@ -164,24 +191,85 @@ it('denies destroyed ships before movement or jump can change navigation state',
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('retains protected pursuit authority through facilitator movement and ship jumps', async () => {
+it('adjusts protected pursuit from the server chart depth through facilitator movement and ship jumps', async () => {
   await expect(moveShipToLocation.run(request({
     ...data, requestId: 'pursuit-move', destination: '5143',
   }))).resolves.toMatchObject({ destination: '5143' });
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/serverState/navigation',
-    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2 } }),
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 1 } }),
   );
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    pursuitGroups: 'delete-field',
+  }));
 
   mock.coordinate = '0000';
   mock.set.mockClear();
+  mock.update.mockClear();
   await expect(jumpShip.run(request({
     ...data, requestId: 'pursuit-jump', destination: '5143',
   }))).resolves.toMatchObject({ status: 'jumped', destination: '5143' });
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/serverState/navigation',
-    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2 } }),
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 1 } }),
   );
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    pursuitGroups: 'delete-field',
+  }));
+});
+
+it('changes only the moving ship fleet group and uses the full printed destination depth', async () => {
+  mock.pursuitGroups = { 'fleet-1': 8, 'fleet-2': 9 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    {
+      id: 'fleet-2',
+      vesselIds: ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      memberUids: ['u2'],
+    },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
+  ];
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'deep-pursuit-move', destination: '8378',
+  }))).resolves.toMatchObject({ destination: '8378' });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2, 'fleet-2': 9 } }),
+  );
+});
+
+it('fails closed without writes when successful movement has malformed fleet-group authority', async () => {
+  mock.fleetGroups = [{
+    id: 'fleet-1',
+    vesselIds: ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    memberUids: ['u1'],
+  }];
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'malformed-pursuit-move', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: { commandError: 'malformed-input' },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('fails closed without writes when the raw pursuit map contains invalid authority', async () => {
+  mock.pursuitGroups = { 'fleet-1': 2, intruder: 3 };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'malformed-pursuit-map', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: { commandError: 'malformed-input' },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects an unprinted locked coordinate with a server-owned one-hour integrity lockout', async () => {
@@ -227,8 +315,9 @@ it('validates reachability from stored position even when the client supplies a 
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.aegis.fuel': expect.any(Number),
-    shipGalacticCoordinates: null,
-    shipNavigationLogs: null,
+    shipGalacticCoordinates: 'delete-field',
+    shipNavigationLogs: 'delete-field',
+    pursuitGroups: 'delete-field',
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '0000' }),
@@ -263,8 +352,9 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
     'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-test-jump' }),
-    shipGalacticCoordinates: null,
-    shipNavigationLogs: null,
+    shipGalacticCoordinates: 'delete-field',
+    shipNavigationLogs: 'delete-field',
+    pursuitGroups: 'delete-field',
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
@@ -323,8 +413,9 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
     'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-test-jump' }),
-    shipGalacticCoordinates: null,
-    shipNavigationLogs: null,
+    shipGalacticCoordinates: 'delete-field',
+    shipNavigationLogs: 'delete-field',
+    pursuitGroups: 'delete-field',
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),

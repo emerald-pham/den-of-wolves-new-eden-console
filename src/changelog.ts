@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [306],
+    implementationProgress: {
+      completed: 310, total: 751, percentage: '41.28%',
+      done: 310, partial: 24, active: 0, missing: 417,
+    },
+    changes: [
+      'Movement and successful jumps now reduce only the moving fleet group’s pursuit by the destination’s printed shortest-path depth from 0000.',
+      '310 of 751 planned items are complete (41.28%).',
+    ],
+  },
+  {
+    version: '0.4.30',
     implementationPrompts: [486],
     implementationProgress: {
       completed: 309, total: 751, percentage: '41.15%',

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**309 / 751 prompts complete (41.15%)**
+**310 / 751 prompts complete (41.28%)**
 
-Status breakdown: **309 done · 24 partial · 418 missing**.
+Status breakdown: **310 done · 24 partial · 417 missing**.
 
 Active prompt: **none**
 
@@ -748,7 +748,7 @@ release classification and evidence.
 | 303 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 304 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 305 | done | non-feature | 0.4.29 | Each active fleet group now advances its private server-owned pursuit score by two, capped at 10, in the same transaction that commits the next shared cycle. The transition republishes the full map only to the facilitator projection and replaces each player projection with that player’s group-local value. The server resolves Ion Nebula I through the locked A, B, or C chart and leaves only a group whose vessels are present there unchanged. Raw map validation and exact vessel, member, and player-pointer checks block malformed or mismatched authority instead of guessing. Any legacy member-readable pursuit header is migrated and deleted atomically, the final debrief adds nothing, and competing facilitator attempts serialize behind the cycle revision so only one committed transition can apply the rise. |
-| 306 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 306 | done | non-feature | 0.4.31 | Facilitator movement and successful shipboard jumps now reduce only the moving ship fleet group’s private server-owned pursuit by the destination’s printed shortest-path depth from 0000. The transaction validates the raw pursuit map plus the exact canonical vessel and player group partition before any movement write, resolves depth from the immutable server graph, clamps at zero, republishes the full map only to the facilitator projection, and replaces each player projection with that player’s group-local value. Invalid, missing, duplicated, orphaned, or mismatched authority fails closed; failed and integrity-locked jump attempts do not apply pursuit changes. The Level 5 Planet exception remains Prompt 309. |
 | 307 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 308 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 309 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

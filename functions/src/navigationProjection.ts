@@ -2,6 +2,7 @@ import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
 import { isStarSystemCoordinate, type NavigationLogEntry, type NavigationLogs } from './navigation';
+import { jumpDistanceBetween } from './starChartGraph';
 import { discoverySystemsForCoordinates, pursuitDistanceForCoordinate } from './starChartProjection';
 import { organiserSitesForChart, type ChartId } from './starChartLookup';
 import {
@@ -148,6 +149,47 @@ export function advancePursuitForCycle(
       ionNebulaCoordinates.has(navigation.shipGalacticCoordinates[shipId] ?? ''));
     pursuitGroups[groupId] = inIonNebula ? value : Math.min(10, value + 2);
   }
+  return { ...navigation, pursuitGroups };
+}
+
+/**
+ * Reduce the moving ship's group by the destination's server-owned printed
+ * shortest-path depth from 0000. The existing bounded score carries prior
+ * cycle rises and modifiers; movement never increases it and cannot change a
+ * different fleet group's authority.
+ */
+export function adjustPursuitForMovement(
+  navigation: NavigationState,
+  fleetGroups: readonly PursuitFleetGroup[],
+  shipId: string,
+  destination: string,
+): NavigationState {
+  const destinationDepth = jumpDistanceBetween('0000', destination);
+  if (destinationDepth === null) {
+    throw new Error('Movement pursuit destination contains an unprinted coordinate.');
+  }
+  const matches = fleetGroups.filter((group) => group.vesselIds.includes(shipId));
+  if (matches.length !== 1) {
+    throw new Error(`Ship ${shipId} must belong to exactly one fleet group.`);
+  }
+  const groupsById = new Map<string, PursuitFleetGroup>();
+  for (const group of fleetGroups) {
+    if (groupsById.has(group.id)) throw new Error(`Fleet group ${group.id} is duplicated.`);
+    groupsById.set(group.id, group);
+    if (navigation.pursuitGroups[group.id] === undefined) {
+      throw new Error(`Fleet group ${group.id} has no pursuit authority.`);
+    }
+  }
+  for (const groupId of Object.keys(navigation.pursuitGroups)) {
+    if (!groupsById.has(groupId)) throw new Error(`Pursuit group ${groupId} has no fleet-group authority.`);
+  }
+  const groupId = matches[0]!.id;
+  const current = navigation.pursuitGroups[groupId];
+  if (current === undefined) throw new Error(`Fleet group ${groupId} has no pursuit authority.`);
+  const pursuitGroups = {
+    ...navigation.pursuitGroups,
+    [groupId]: Math.max(0, Math.min(10, current - destinationDepth)),
+  };
   return { ...navigation, pursuitGroups };
 }
 
