@@ -21,7 +21,7 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers());
 
-it('opens the Turn 1 briefing with iris authentication confirmation', () => {
+it('opens the Cycle 1 briefing with fleet-link authorization', () => {
   vi.useFakeTimers();
   render(<TurnStartAnnouncement />);
 
@@ -31,7 +31,7 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
     turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
   }));
 
-  expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
+  expect(screen.getByText('FLEET LINK AUTHORIZED')).toBeInTheDocument();
   expect(screen.getByText('CYCLE 0 → CYCLE 1')).toBeInTheDocument();
   expect(screen.getByText('TRANSMISSION 01 / 07')).toBeInTheDocument();
   expect(screen.queryByText('CYCLE 1')).not.toBeInTheDocument();
@@ -40,7 +40,7 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('CYCLE 1')).toBeInTheDocument();
   expect(screen.getByText('TRANSMISSION 02 / 07')).toBeInTheDocument();
-  expect(screen.queryByText('Iris Authentication Confirmed')).not.toBeInTheDocument();
+  expect(screen.queryByText('FLEET LINK AUTHORIZED')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
@@ -202,7 +202,7 @@ it('replays a server revision of the current transmission without advancing the 
     turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500, revision: 1 },
   }));
 
-  expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
+  expect(screen.getByText('FLEET LINK AUTHORIZED')).toBeInTheDocument();
   expect(screen.getByText('CYCLE 0 → CYCLE 1')).toBeInTheDocument();
 });
 
@@ -222,7 +222,7 @@ it('replays a GM-only local transmission and clears the local trigger when it co
     token: 1,
   }));
 
-  expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
+  expect(screen.getByText('FLEET LINK AUTHORIZED')).toBeInTheDocument();
   expect(screen.getByText('CYCLE 0 → CYCLE 1')).toBeInTheDocument();
   for (const duration of [
     TURN_START_SLIDE_MS,

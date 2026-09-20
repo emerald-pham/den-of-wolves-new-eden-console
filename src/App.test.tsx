@@ -1098,8 +1098,8 @@ describe('App', () => {
 
     expect(useSessionStore.getState().session).toMatchObject({ name: 'Cached table' });
     expect(useSessionStore.getState().connection).toBe('offline');
-    expect(screen.getByRole('status', { name: 'No connection to Firebase' })).toHaveAttribute('data-status', 'red');
-    expect(screen.getByRole('status', { name: 'No connection to Firebase' })).toHaveTextContent('Offline');
+    expect(screen.getByRole('status', { name: 'Fleet link offline' })).toHaveAttribute('data-status', 'red');
+    expect(screen.getByRole('status', { name: 'Fleet link offline' })).toHaveTextContent('Offline');
 
     act(() => {
       onSession?.({ ...session, name: 'Server table' });
@@ -1108,7 +1108,7 @@ describe('App', () => {
 
     expect(useSessionStore.getState().session).toMatchObject({ name: 'Server table' });
     expect(useSessionStore.getState().connection).toBe('live');
-    expect(screen.getByRole('status', { name: 'Connected to Firebase and in a session' })).toHaveAttribute('data-status', 'green');
+    expect(screen.getByRole('status', { name: 'Fleet link connected // session active' })).toHaveAttribute('data-status', 'green');
   });
 
   it('returns a kicked browser to the launcher', async () => {

@@ -140,7 +140,7 @@ describe('Landing', () => {
     expect(indicator).toHaveAttribute('data-status', 'yellow');
 
     act(() => vi.advanceTimersByTime(1));
-    expect(screen.getByRole('status', { name: 'No connection to Firebase' }))
+    expect(screen.getByRole('status', { name: 'Fleet link offline' }))
       .toHaveAttribute('data-status', 'red');
   });
 
@@ -148,7 +148,7 @@ describe('Landing', () => {
     useSessionStore.getState().setConnection('live');
     renderLanding();
     await waitFor(() => {
-      expect(screen.getByRole('status', { name: 'Connected to Firebase, not in a session' }))
+      expect(screen.getByRole('status', { name: 'Fleet link connected // no active session' }))
         .toHaveAttribute('data-status', 'yellow');
     });
   });

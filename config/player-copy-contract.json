@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "sourceRoots": ["src"],
+  "staticFiles": ["index.html", "public/manifest.webmanifest"],
+  "developerOnlyFiles": [
+    "src/lib/firebase.ts",
+    "src/lib/firebaseConfig.ts"
+  ],
+  "approvedLexicon": [
+    {
+      "concept": "numbered game clock",
+      "preferred": "cycle"
+    },
+    {
+      "concept": "play station or device surface",
+      "preferred": "console"
+    },
+    {
+      "concept": "joined table and its server-owned state",
+      "preferred": "session"
+    },
+    {
+      "concept": "connection state before the player projection is ready",
+      "preferred": "session authorization pending"
+    },
+    {
+      "concept": "connection provider",
+      "preferred": "fleet link"
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "numbered-clock-turn",
+      "pattern": "\\bturn\\b",
+      "flags": "i",
+      "guidance": "Use cycle for the numbered game clock; use enable or disable for controls."
+    },
+    {
+      "id": "retired-iris-brand",
+      "pattern": "\\biris\\b",
+      "flags": "i",
+      "guidance": "Name the real fleet link or session authorization state."
+    },
+    {
+      "id": "connection-vendor",
+      "pattern": "\\bFirebase\\b",
+      "flags": "i",
+      "guidance": "Player connection copy names the fleet link and session state, not its vendor."
+    },
+    {
+      "id": "inactive-motion-announcement",
+      "pattern": "System reduced motion is off\\.",
+      "flags": "i",
+      "guidance": "Do not announce an inactive device preference; retain the effective Reduce motion control."
+    }
+  ],
+  "reviewedExceptions": [
+    {
+      "scope": "internal identifiers and protocol values",
+      "reason": "Wire fields such as currentTurn, callable names, document IDs, CSS selectors, event names, and source-compatible persisted values are not rendered copy."
+    },
+    {
+      "scope": "developer-only integration diagnostics",
+      "files": ["src/lib/firebase.ts", "src/lib/firebaseConfig.ts"],
+      "reason": "These configuration failures are developer diagnostics. Reachable command failures are normalized by src/lib/commandErrors.ts before display."
+    },
+    {
+      "scope": "ordinary non-clock verb usage",
+      "reason": "The guard still rejects the standalone word turn in rendered copy. Rephrase controls with enable or disable so the exception never weakens the player-facing rule."
+    }
+  ]
+}

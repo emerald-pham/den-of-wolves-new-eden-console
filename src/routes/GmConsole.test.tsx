@@ -1570,12 +1570,12 @@ it('keeps Capybara convoy setup under a GM Console Setup subsection', async () =
 
   const setup = await screen.findByRole('button', { name: /^setup$/i });
   expect(setup).toHaveAttribute('aria-expanded', 'false');
-  expect(screen.queryByRole('button', { name: /turn capybara off/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /disable capybara/i })).not.toBeInTheDocument();
 
   await user.click(setup);
 
   expect(setup).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /disable capybara/i })).toBeInTheDocument();
 });
 
 it('gives an authorized GM a deliberate Press availability control', async () => {
@@ -1586,7 +1586,7 @@ it('gives an authorized GM a deliberate Press availability control', async () =>
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /disable press/i }));
   expect(screen.getByRole('alertdialog')).toHaveTextContent(/disable.*press/i);
   const confirm = screen.getByRole('button', { name: /are you sure.*disable press/i });
   expect(confirm).toHaveClass('cic-action-button--confirm');
@@ -1615,13 +1615,13 @@ it('shows server-committed Press state and accepts a second GM update independen
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const pressToggle = screen.getByRole('button', { name: /turn press off/i });
+  const pressToggle = screen.getByRole('button', { name: /disable press/i });
   await user.click(pressToggle);
   await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
 
   expect(await screen.findByRole('status', { name: /press availability status/i }))
     .toHaveAttribute('data-state', 'committed');
-  expect(screen.getByRole('button', { name: /turn press on/i })).toHaveTextContent(/offline/i);
+  expect(screen.getByRole('button', { name: /enable press/i })).toHaveTextContent(/offline/i);
 
   act(() => {
     const activeSession = useSessionStore.getState().session;
@@ -1631,7 +1631,7 @@ it('shows server-committed Press state and accepts a second GM update independen
       pressAvailabilityRevision: (activeSession.pressAvailabilityRevision ?? 0) + 1,
     });
   });
-  expect(screen.getByRole('button', { name: /turn press off/i })).toHaveTextContent(/available/i);
+  expect(screen.getByRole('button', { name: /disable press/i })).toHaveTextContent(/available/i);
 });
 
 it('announces Press availability while pending and after a stale CAS rejection', async () => {
@@ -1645,7 +1645,7 @@ it('announces Press availability while pending and after a stale CAS rejection',
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /disable press/i }));
   await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
   expect(screen.getByRole('status', { name: /press availability status/i }))
     .toHaveAttribute('data-state', 'pending');
@@ -1658,7 +1658,7 @@ it('announces Press availability while pending and after a stale CAS rejection',
     message: 'Press availability changed. Wait for the live update and try again.',
     details: { commandError: 'stale-revision' },
   });
-  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /disable press/i }));
   await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
   expect(await screen.findByRole('status', { name: /press availability status/i }))
     .toHaveAttribute('data-state', 'stale');
@@ -1675,7 +1675,7 @@ it('announces a non-CAS Press rejection as rejected', async () => {
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /disable press/i }));
   await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
 
   expect(await screen.findByRole('status', { name: /press availability status/i }))
@@ -1689,7 +1689,7 @@ it('traps Press confirmation focus, cancels on Escape, and restores the trigger 
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const trigger = screen.getByRole('button', { name: /turn press off/i });
+  const trigger = screen.getByRole('button', { name: /disable press/i });
   await user.click(trigger);
   const dialog = screen.getByRole('alertdialog', { name: /change press availability/i });
   const cancel = within(dialog).getByRole('button', { name: /cancel press change/i });
@@ -1816,8 +1816,8 @@ it('stages one explicit optional loyalty mode and blocks Wolf Cult below two-Wol
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
   await user.selectOptions(playerCount, '14');
-  const arbour = screen.getByRole('button', { name: /turn universal arbour on/i });
-  const cult = screen.getByRole('button', { name: /turn wolf cult on/i });
+  const arbour = screen.getByRole('button', { name: /enable universal arbour/i });
+  const cult = screen.getByRole('button', { name: /enable wolf cult/i });
   await user.click(arbour);
   expect(arbour).toHaveAttribute('aria-pressed', 'true');
   await user.click(cult);
@@ -1830,7 +1830,7 @@ it('stages one explicit optional loyalty mode and blocks Wolf Cult below two-Wol
   }));
 
   await user.selectOptions(playerCount, '13');
-  expect(screen.getByRole('button', { name: /turn wolf cult on/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /enable wolf cult/i })).toBeDisabled();
 });
 
 it('lets the facilitator clear Wolf Cult after a custom roster drops below two-Wolf rows', async () => {
@@ -1843,13 +1843,13 @@ it('lets the facilitator clear Wolf Cult after a custom roster drops below two-W
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
   await user.selectOptions(playerCount, '14');
-  const cult = screen.getByRole('button', { name: /turn wolf cult on/i });
+  const cult = screen.getByRole('button', { name: /enable wolf cult/i });
   await user.click(cult);
   const firstRoleSwitch = screen.getAllByRole('switch', { name: /role availability/i })[0];
   if (!firstRoleSwitch) throw new Error('Expected an active role switch.');
   await user.click(firstRoleSwitch);
 
-  const stagedCult = screen.getByRole('button', { name: /turn wolf cult off/i });
+  const stagedCult = screen.getByRole('button', { name: /disable wolf cult/i });
   expect(stagedCult).toBeEnabled();
   await user.click(stagedCult);
   expect(stagedCult).toHaveAttribute('aria-pressed', 'false');
@@ -2098,13 +2098,13 @@ it('toggles Capybara off for the session and removes its perspective', async () 
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /disable capybara/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /view dradis from capybara/i })).toBeInTheDocument();
 
-  await user.click(screen.getByRole('button', { name: /turn capybara off/i }));
+  await user.click(screen.getByRole('button', { name: /disable capybara/i }));
 
   expect(setCapybaraEnabled).not.toHaveBeenCalled();
-  const trigger = screen.getByRole('button', { name: /turn capybara off/i });
+  const trigger = screen.getByRole('button', { name: /disable capybara/i });
   const dialog = screen.getByRole('alertdialog', { name: /change convoy manifest/i });
   expect(dialog).toHaveTextContent(/remove capybara/i);
   const cancel = within(dialog).getByRole('button', { name: /cancel convoy change/i });
@@ -2125,7 +2125,7 @@ it('toggles Capybara off for the session and removes its perspective', async () 
 
   expect(setCapybaraEnabled).not.toHaveBeenCalled();
   expect(confirmSetup).not.toHaveBeenCalled();
-  expect(await screen.findByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: /enable capybara/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from capybara/i }))
     .not.toBeInTheDocument();
 });
@@ -2137,10 +2137,10 @@ it('toggles Dione off for the session and removes its perspective', async () => 
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  expect(screen.getByRole('button', { name: /turn dione off/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /disable dione/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /view dradis from dione/i })).toBeInTheDocument();
 
-  await user.click(screen.getByRole('button', { name: /turn dione off/i }));
+  await user.click(screen.getByRole('button', { name: /disable dione/i }));
 
   expect(setDioneEnabled).not.toHaveBeenCalled();
   expect(screen.getByRole('alertdialog', { name: /change convoy manifest/i }))
@@ -2149,7 +2149,7 @@ it('toggles Dione off for the session and removes its perspective', async () => 
 
   expect(setDioneEnabled).not.toHaveBeenCalled();
   expect(confirmSetup).not.toHaveBeenCalled();
-  expect(await screen.findByRole('button', { name: /turn dione on/i })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: /enable dione/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from dione/i }))
     .not.toBeInTheDocument();
 });
@@ -2164,14 +2164,14 @@ it('can cancel adding Capybara back to the convoy', async () => {
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  await user.click(screen.getByRole('button', { name: /turn capybara on/i }));
+  await user.click(screen.getByRole('button', { name: /enable capybara/i }));
   expect(screen.getByRole('alertdialog', { name: /change convoy manifest/i }))
     .toHaveTextContent(/add capybara/i);
   await user.click(screen.getByRole('button', { name: /cancel convoy change/i }));
 
   expect(setCapybaraEnabled).not.toHaveBeenCalled();
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /enable capybara/i })).toBeInTheDocument();
 });
 
 it('locks and unlocks subsequent GM registration without locking Setup', async () => {
@@ -2223,7 +2223,7 @@ it('shows endgame evaluation and removes GM advance controls after the final tur
   expect(advanceTurn).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: /lock gm registration/i })).toBeDisabled();
   await userEvent.setup().click(screen.getByRole('button', { name: /^setup$/i }));
-  expect(screen.getByRole('button', { name: /turn press off/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /disable press/i })).toBeDisabled();
   expect(screen.getByRole('status', { name: /press availability status/i })).toHaveTextContent(
     /endgame evaluation.*press availability controls are frozen/i,
   );
@@ -2238,13 +2238,13 @@ it('closes the Press availability dialog if endgame evaluation starts', async ()
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /disable press/i }));
   expect(screen.getByRole('alertdialog', { name: /change press availability/i })).toBeInTheDocument();
 
   useSessionStore.getState().setSession({ ...activeSession, phase: 'debrief' });
 
   await waitFor(() => expect(screen.queryByRole('alertdialog', { name: /change press availability/i })).not.toBeInTheDocument());
-  expect(screen.getByRole('button', { name: /turn press off/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /disable press/i })).toBeDisabled();
   expect(setPressEnabled).not.toHaveBeenCalled();
 });
 
@@ -2483,7 +2483,7 @@ it('activates the GM declaration control with Enter after the due window and dra
   expect(declarationStatus).toHaveAttribute('aria-live', 'polite');
 });
 
-it('requires three deliberate clicks to pause and resume the emergency timer', async () => {
+it('requires three deliberate confirmations to pause and resume the emergency timer', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
@@ -2526,11 +2526,11 @@ it('requires three deliberate clicks to pause and resume the emergency timer', a
   const region = await screen.findByRole('region', { name: /emergency timer control/i });
   await user.click(within(region).getByRole('button', { name: /disarm interlock \/\/ pause timer/i }));
   expect(setEmergencyTimerPaused).not.toHaveBeenCalled();
-  expect(within(region).getByRole('button', { name: /2 clicks remaining/i })).toBeVisible();
-  await user.click(within(region).getByRole('button', { name: /2 clicks remaining/i }));
+  expect(within(region).getByRole('button', { name: /2 confirmations remaining/i })).toBeVisible();
+  await user.click(within(region).getByRole('button', { name: /2 confirmations remaining/i }));
   expect(setEmergencyTimerPaused).not.toHaveBeenCalled();
-  expect(within(region).getByRole('button', { name: /1 click remaining/i })).toBeVisible();
-  await user.click(within(region).getByRole('button', { name: /1 click remaining/i }));
+  expect(within(region).getByRole('button', { name: /1 confirmation remaining/i })).toBeVisible();
+  await user.click(within(region).getByRole('button', { name: /1 confirmation remaining/i }));
   await waitFor(() => expect(setEmergencyTimerPaused).toHaveBeenCalledWith(true));
   expect(await within(region).findByText(/emergency timer paused/i)).toBeVisible();
   expect(useSessionStore.getState().session?.turnPhase).toHaveProperty('timerPause');
@@ -2538,8 +2538,8 @@ it('requires three deliberate clicks to pause and resume the emergency timer', a
   expect(screen.getByRole('button', { name: /add 5 minutes \/\/ airspace open/i })).toBeDisabled();
 
   await user.click(within(region).getByRole('button', { name: /re-arm interlock \/\/ resume timer/i }));
-  await user.click(within(region).getByRole('button', { name: /2 clicks remaining/i }));
-  await user.click(within(region).getByRole('button', { name: /1 click remaining/i }));
+  await user.click(within(region).getByRole('button', { name: /2 confirmations remaining/i }));
+  await user.click(within(region).getByRole('button', { name: /1 confirmation remaining/i }));
   await waitFor(() => expect(setEmergencyTimerPaused).toHaveBeenLastCalledWith(false));
   expect(setEmergencyTimerPaused).toHaveBeenCalledTimes(2);
 });

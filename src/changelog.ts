@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [659],
+    implementationProgress: {
+      completed: 301, total: 751, percentage: '40.08%',
+      done: 301, partial: 25, active: 0, missing: 425,
+    },
+    changes: [
+      'Console, connection, setup, accessibility, motion, update, and changelog copy now follow one checked-in fleet vocabulary: the numbered clock is always a cycle, connection labels name the fleet link and session state, and retired middleware and vendor wording is removed.',
+      '301 of 751 planned items are complete (40.08%).',
+    ],
+  },
+  {
+    version: '0.4.22',
     implementationProgress: {
       completed: 295, total: 751, percentage: '39.28%',
       done: 295, partial: 24, active: 0, missing: 432,
@@ -463,8 +475,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 489,
     },
     changes: [
-      'Ship controls no longer wait for fleet-wide Iris authentication; each action still follows its own permissions and game rules.',
-      'Connected crews awaiting Iris authentication now see an accurate connection label, and obsolete console-lock notices disappear.',
+      'Ship controls no longer wait for fleet-wide session authorization; each action still follows its own permissions and game rules.',
+      'Connected crews awaiting session authorization now see an accurate connection label, and obsolete console-lock notices disappear.',
       '241 of 751 planned items are complete (32.09%).',
     ],
   },
@@ -1755,7 +1767,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     implementationPrompts: ['275a', 598, 605],
     changes: [
       'SNN Press is default-enabled as an optional, authoritatively toggleable Independent Station: its distinct twenty-first player console stays outside the counted core roster, and its roster-derived starting host is AEGIS at 8–11 players or Dione at 12+ (the 19-player matrix remains open).',
-      'Connection indicators now say exactly CONNECTED before a session and NOT CONNECTED — AWAITING IRIS AUTHENTICATION only for a joined session before its first Cycle 1 snapshot.',
+      'Connection indicators now say exactly CONNECTED before a session and NOT CONNECTED — SESSION AUTHORIZATION PENDING only for a joined session before its first Cycle 1 snapshot.',
       'DRADIS now keeps every complete contact name inside the plot at the top, right, bottom, and left edges across compact, expanded, and reduced-motion views; broader group-local transit and parked-craft projection remains open.',
     ],
   },
@@ -1819,7 +1831,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.3.4',
     changes: [
-      'Cycle 0 status messages now say Awaiting Iris Authentication so players see the actual authentication gate.',
+      'Cycle 0 status messages now say Session Authorization Pending so players see the actual authentication gate.',
     ],
   },
   {
@@ -1999,7 +2011,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.75',
     changes: [
       'GM registration now requires the facilitator access password before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',
-      'During Cycle 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Cycle 1 begins.',
+      'During Cycle 0, the fleet ticker now warns that consoles remain locked out until session authorization is complete, then drops that bulletin when Cycle 1 begins.',
     ],
   },
   {
@@ -2177,7 +2189,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.46',
     changes: [
-      'The Cycle 0 connection light now reads “Connected, Awaiting Iris Authentication,” and the live Cycle 1 briefing opens with “Iris Authentication Confirmed.”',
+      'The Cycle 0 connection light now reads “Connected, Session Authorization Pending,” and the live Cycle 1 briefing opens with “Fleet Link Authorized.”',
     ],
   },
   {

@@ -129,7 +129,7 @@ export default function PrivateLoyaltyPanel() {
           </section>
         )}
         <p className="private-loyalty-panel__note">
-          This card belongs to this browser identity only. Do not read it aloud on an open channel.
+          This card belongs to this device identity only. Do not read it aloud on an open channel.
         </p>
       </section>
     </div>

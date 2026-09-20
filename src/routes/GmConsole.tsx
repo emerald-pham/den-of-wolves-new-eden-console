@@ -2710,7 +2710,7 @@ export default function GmConsole() {
           <section className="gm-console__module gm-session-access cic-frame" aria-label="Session access controls">
             <h2 className="gm-console__section-title">Session access</h2>
             <p className="gm-console__status">
-              Code of Conduct acknowledgement // Browser-local for this device
+              Code of Conduct acknowledgement // stored on this device
             </p>
             <p>
               Reset the local checklist to reopen the full Code of Conduct review instrument.
@@ -2921,7 +2921,7 @@ export default function GmConsole() {
                 <button
                   className="gm-dradis__availability cic-action-button"
                   type="button"
-                  aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
+                  aria-label={`${capybaraEnabled ? 'Disable' : 'Enable'} Capybara`}
                   aria-pressed={capybaraEnabled}
                   ref={capybaraTriggerRef}
                   disabled={changingCapybara || capybaraQueued}
@@ -2932,7 +2932,7 @@ export default function GmConsole() {
                 <button
                   className="gm-dradis__availability cic-action-button"
                   type="button"
-                  aria-label={`Turn Dione ${dioneEnabled ? 'off' : 'on'}`}
+                  aria-label={`${dioneEnabled ? 'Disable' : 'Enable'} Dione`}
                   aria-pressed={dioneEnabled}
                   ref={dioneTriggerRef}
                   disabled={changingDione || dioneQueued}
@@ -2943,7 +2943,7 @@ export default function GmConsole() {
                 <button
                   className="gm-dradis__availability cic-action-button"
                   type="button"
-                  aria-label={`Turn Universal Arbour ${universalArbourEnabled ? 'off' : 'on'}`}
+                  aria-label={`${universalArbourEnabled ? 'Disable' : 'Enable'} Universal Arbour`}
                   aria-pressed={universalArbourEnabled}
                   disabled={confirmingRoster || rosterQueued}
                   onClick={() => changeUniversalArbour(!universalArbourEnabled)}
@@ -2953,7 +2953,7 @@ export default function GmConsole() {
                 <button
                   className="gm-dradis__availability cic-action-button"
                   type="button"
-                  aria-label={`Turn Wolf Cult ${wolfCultEnabled ? 'off' : 'on'}`}
+                  aria-label={`${wolfCultEnabled ? 'Disable' : 'Enable'} Wolf Cult`}
                   aria-pressed={wolfCultEnabled}
                   disabled={confirmingRoster || rosterQueued || (draftPlayerCount < 14 && !wolfCultEnabled)}
                   onClick={() => changeWolfCult(!wolfCultEnabled)}
@@ -2969,7 +2969,7 @@ export default function GmConsole() {
                 <button
                   className="gm-dradis__availability cic-action-button"
                   type="button"
-                  aria-label={`Turn Press ${pressEnabled ? 'off' : 'on'}`}
+                  aria-label={`${pressEnabled ? 'Disable' : 'Enable'} Press`}
                   aria-pressed={pressEnabled}
                   ref={pressTriggerRef}
                   disabled={endgameEvaluation || changingPress || pressQueued}
@@ -3234,7 +3234,7 @@ export default function GmConsole() {
               Live manifest // {connectedPlayers.length} connected
             </p>
             <p className="gm-player-roster__hint">
-              Kick removes one browser from this session only; it does not block that network or other sessions.
+              Kick removes one device connection from this session only; it does not block that network or other sessions.
             </p>
             {currentTurn === 0 && (session.phase === 'lobby' || session.phase === 'casting') && (
               <section className="gm-casting-board" aria-label="Facilitator casting">

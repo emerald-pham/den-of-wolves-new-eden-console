@@ -463,7 +463,7 @@ export default function AppHeader() {
               ? reloadAfterServiceWorkerUpdate
               : applyServiceWorkerUpdate}
           >
-            {serviceWorkerUpdate.activated ? 'Reload app' : 'Apply update'}
+            {serviceWorkerUpdate.activated ? 'Reload console' : 'Apply update'}
           </button>
         </aside>
       )}
@@ -555,8 +555,7 @@ export default function AppHeader() {
               {gmAccessAuthenticated ? (
                 <>
                   <p className="settings-dialog__gm-access-status">
-                    🔓 GM access login is remembered in this browser and automatically logs out
-                    after 24 hours.
+                    🔓 GM access remains authorized on this device for 24 hours.
                   </p>
                   <button
                     className="settings-dialog__gm-access-button cic-action-button"
@@ -564,7 +563,7 @@ export default function AppHeader() {
                     disabled={gmAccessBusy}
                     onClick={() => void logoutGm()}
                   >
-                    {gmAccessBusy ? 'Logging out…' : 'Log out GM access'}
+                    {gmAccessBusy ? 'Revoking access…' : 'Revoke GM access'}
                   </button>
                 </>
               ) : (
@@ -587,14 +586,14 @@ export default function AppHeader() {
                     type="submit"
                     disabled={gmAccessBusy || gmAccessPassword.trim().length === 0}
                   >
-                    {gmAccessBusy ? 'Logging in…' : 'Log in'}
+                    {gmAccessBusy ? 'Authorizing…' : 'Authorize GM access'}
                   </button>
                 </form>
               )}
             </section>
             <section className="settings-dialog__motion" aria-labelledby="motion-settings-title">
               <h3 id="motion-settings-title">Motion</h3>
-              <p>System reduced motion is {systemReducedMotion ? 'on' : 'off'}.</p>
+              {systemReducedMotion && <p>Device motion reduction is active.</p>}
               <label>
                 <input
                   type="checkbox"

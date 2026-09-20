@@ -42,6 +42,7 @@ and `NEXT` is an advisory ready-work hint rather than a serial lock.
 | Document | Owns |
 | --- | --- |
 | [AESTHETICS.md](AESTHETICS.md) | Shared CIC visual language, responsive behavior, accessibility, and motion profiles |
+| [PLAYER_COPY_LEXICON.md](PLAYER_COPY_LEXICON.md) | Approved player-facing vocabulary, inventory boundary, forbidden jargon, and reviewed exclusions |
 | [CONSOLE_ARCHITECTURE.md](CONSOLE_ARCHITECTURE.md) | Shared vessel composition, ownership seams, and server-authority boundaries |
 | [SHIP_TEMPLATE.md](SHIP_TEMPLATE.md) | Capybara reference ship-console specification |
 | [SHUTTLE_TEMPLATE.md](SHUTTLE_TEMPLATE.md) | SNN reference shuttle-console specification |

@@ -79,7 +79,7 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
-it('shows a blue iris-authentication status while Turn 0 systems are still booting', async () => {
+it('shows pending session authorization while Cycle 0 systems are still booting', async () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
   useSessionStore.getState().setMe(connectedPlayer('u1'));
@@ -90,19 +90,19 @@ it('shows a blue iris-authentication status while Turn 0 systems are still booti
   await screen.findByText('2 connected to CIC');
 
   const indicator = screen.getByRole('status', {
-    name: 'CONNECTED — AWAITING IRIS AUTHENTICATION',
+    name: 'Fleet link connected // session authorization pending',
   });
-  expect(indicator).toHaveTextContent(/^CONNECTED — AWAITING IRIS AUTHENTICATION$/);
+  expect(indicator).toHaveTextContent('CONNECTED // SESSION AUTHORIZATION PENDING');
   expect(indicator).toHaveAttribute('data-status', 'blue');
   expect(indicator).toHaveAttribute(
     'title',
-    'CONNECTED — AWAITING IRIS AUTHENTICATION',
+    'Fleet link connected // session authorization pending',
   );
 
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));
   expect(indicator).toHaveTextContent('In session');
   expect(indicator).toHaveAttribute('data-status', 'green');
-  expect(indicator).toHaveAttribute('title', 'Connected to Firebase and in a session');
+  expect(indicator).toHaveAttribute('title', 'Fleet link connected // session active');
 });
 
 it('defaults to a connected light for five seconds before revealing offline reality', async () => {
@@ -111,7 +111,7 @@ it('defaults to a connected light for five seconds before revealing offline real
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
-  const indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  const indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'yellow');
   expect(indicator).toHaveTextContent('CONNECTED');
 
@@ -129,20 +129,20 @@ it('keeps pre-session live and explicit offline states truthful in the composed 
   useSessionStore.getState().setConnection('live');
   const { unmount } = render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
-  let indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  let indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'yellow');
   expect(indicator).toHaveTextContent('CONNECTED');
-  expect(indicator).toHaveAttribute('title', 'Connected to Firebase, not in a session');
+  expect(indicator).toHaveAttribute('title', 'Fleet link connected // no active session');
 
   unmount();
   useSessionStore.getState().reset();
   useSessionStore.getState().setConnection('offline');
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
-  indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'red');
   expect(indicator).toHaveTextContent('Offline');
-  expect(indicator).toHaveAttribute('title', 'No connection to Firebase');
+  expect(indicator).toHaveAttribute('title', 'Fleet link offline');
 });
 
 it('keeps Turn 0 offline truthfully red after the reconnect grace expires', async () => {
@@ -168,8 +168,8 @@ it('keeps Turn 0 offline truthfully red after the reconnect grace expires', asyn
   if (!indicator) throw new Error('Expected the connection indicator.');
   expect(indicator).toHaveAttribute('data-status', 'red');
   expect(indicator).toHaveTextContent('Offline');
-  expect(indicator).toHaveAttribute('title', 'No connection to Firebase');
-  expect(indicator).not.toHaveAccessibleName(/connected to firebase/i);
+  expect(indicator).toHaveAttribute('title', 'Fleet link offline');
+  expect(indicator).not.toHaveAccessibleName(/connected/i);
 });
 
 it('does not replace an already connected status with the startup default', async () => {
@@ -180,7 +180,7 @@ it('does not replace an already connected status with the startup default', asyn
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
-  const indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  const indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(5_000));
   expect(indicator).toHaveAttribute('data-status', 'green');
@@ -193,7 +193,7 @@ it('keeps a cached session light green when a refreshed browser has not been act
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
-  const indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  const indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'green');
 
   act(() => vi.advanceTimersByTime(29_999));
@@ -210,7 +210,7 @@ it('shows a cache-derived snapshot as Offline without changing ordinary reconnec
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
-  const indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  const indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'red');
   expect(indicator).toHaveTextContent('Offline');
 
@@ -233,7 +233,7 @@ it('marks a persisted snapshot stale without changing the connection grace light
   await screen.findByText('2 connected to CIC');
 
   const indicator = screen.getByRole('status', {
-    name: /^(connected|disconnected|offline|reconnecting|no connection)/i,
+    name: /^(fleet link|reconnecting)/i,
   });
   expect(indicator).toHaveAttribute('data-status', 'green');
   expect(screen.getByRole('status', { name: 'Stale session snapshot' }))
@@ -258,9 +258,9 @@ it('does not let a page return after an outage make disconnected eligible', asyn
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   act(() => useSessionStore.getState().setConnection('offline'));
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(30_001));
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
 
   act(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
@@ -269,9 +269,9 @@ it('does not let a page return after an outage make disconnected eligible', asyn
     document.dispatchEvent(new Event('visibilitychange'));
   });
 
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(30_001));
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
   Reflect.deleteProperty(document, 'visibilityState');
 });
 
@@ -285,7 +285,7 @@ it('holds the last session light during a passive connection loss', async () => 
 
   act(() => useSessionStore.getState().setConnection('offline'));
 
-  const indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  const indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(30_001));
   expect(indicator).toHaveAttribute('data-status', 'green');
@@ -308,13 +308,13 @@ it('waits thirty seconds after sustained pre-outage interaction before showing d
   fireEvent.pointerDown(document.body);
 
   act(() => useSessionStore.getState().setConnection('offline'));
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
 
   act(() => vi.advanceTimersByTime(29_999));
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(1));
 
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'red');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'red');
 });
 
 it('does not show disconnected when sustained activity ended before the outage', async () => {
@@ -331,7 +331,7 @@ it('does not show disconnected when sustained activity ended before the outage',
   act(() => vi.advanceTimersByTime(30_001));
   act(() => useSessionStore.getState().setConnection('offline'));
 
-  const indicator = screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i });
+  const indicator = screen.getByRole('status', { name: /^(fleet link|reconnecting)/i });
   expect(indicator).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(30_001));
   expect(indicator).toHaveAttribute('data-status', 'green');
@@ -345,10 +345,10 @@ it('does not show disconnected when interaction begins after the outage', async 
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   act(() => useSessionStore.getState().setConnection('offline'));
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(30_001));
   fireEvent.pointerDown(document.body);
-  expect(screen.getByRole('status', { name: /^(connected|disconnected|offline|reconnecting|no connection)/i })).toHaveAttribute('data-status', 'green');
+  expect(screen.getByRole('status', { name: /^(fleet link|reconnecting)/i })).toHaveAttribute('data-status', 'green');
 });
 
 it('keeps fleet broadcasts in the same measured header row as the session code', async () => {
@@ -481,7 +481,7 @@ it('shows the GM access request instructions inside settings', async () => {
   expect(contact).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
   expect(screen.getByText(/proof.*original den of wolves: new eden product/i)).toBeVisible();
   expect(screen.getByText('🔐')).toBeVisible();
-  expect(screen.getByRole('button', { name: /log in/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /authorize gm access/i })).toBeDisabled();
 });
 
 it('logs in to GM access from settings and shows the active login', async () => {
@@ -494,12 +494,12 @@ it('logs in to GM access from settings and shows the active login', async () => 
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
   await user.type(screen.getByLabelText(/gm access password/i), 'bananasplit');
-  await user.click(screen.getByRole('button', { name: /log in/i }));
+  await user.click(screen.getByRole('button', { name: /authorize gm access/i }));
 
   expect(loginGmAccess).toHaveBeenCalledWith('bananasplit');
   expect(screen.getByText('🔓')).toBeVisible();
-  expect(screen.getByText(/login is remembered in this browser/i)).toBeVisible();
-  expect(screen.getByRole('button', { name: /log out gm access/i })).toBeVisible();
+  expect(screen.getByText(/access remains authorized on this device/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: /revoke gm access/i })).toBeVisible();
 });
 
 it('logs out of GM access from settings', async () => {
@@ -512,11 +512,11 @@ it('logs out of GM access from settings', async () => {
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
-  await user.click(screen.getByRole('button', { name: /log out gm access/i }));
+  await user.click(screen.getByRole('button', { name: /revoke gm access/i }));
 
   expect(logoutGmAccess).toHaveBeenCalledOnce();
   expect(screen.getByText('🔐')).toBeVisible();
-  expect(screen.getByRole('button', { name: /log in/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /authorize gm access/i })).toBeDisabled();
 });
 
 it('keeps the code of conduct reset out of global settings', async () => {
@@ -537,7 +537,7 @@ it('offers reduce motion as a simple on-off setting', async () => {
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
 
-  expect(screen.getByText(/system reduced motion is off/i)).toBeInTheDocument();
+  expect(screen.queryByText(/system reduced motion is off/i)).not.toBeInTheDocument();
   const reduceMotion = screen.getByRole('checkbox', { name: /reduce motion/i });
   await user.click(reduceMotion);
   expect(reduceMotion).toBeChecked();
@@ -545,6 +545,26 @@ it('offers reduce motion as a simple on-off setting', async () => {
   expect(screen.queryByRole('button', { name: /use system setting/i })).not.toBeInTheDocument();
   await user.click(reduceMotion);
   expect(reduceMotion).not.toBeChecked();
+});
+
+it('reports an active device motion preference without announcing an inactive one', async () => {
+  const user = userEvent.setup();
+  vi.spyOn(window, 'matchMedia').mockReturnValue({
+    matches: true,
+    media: '(prefers-reduced-motion: reduce)',
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  });
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+
+  expect(screen.getByText('Device motion reduction is active.')).toBeVisible();
+  expect(screen.queryByText(/system reduced motion is off/i)).not.toBeInTheDocument();
 });
 
 it('opens a readable changelog in a bounded scroll region from settings', async () => {

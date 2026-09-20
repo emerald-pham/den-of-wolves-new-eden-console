@@ -176,7 +176,7 @@ export default function RoleSelect() {
       <div className="role-select__intro">
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title">Connect this device</h1>
-        <p className="role-select__lede">Choose how this screen will be used.</p>
+        <p className="role-select__lede">Choose how this console will be used.</p>
       </div>
 
       {coreSeats.length > 0 && (
@@ -336,7 +336,7 @@ export default function RoleSelect() {
           />
           {!isGm && !gmAccessAuthenticated && (
             <span className="role-card__description">
-              🔐 Log in through Settings to unlock GM access.
+              🔐 Authorize GM access through Settings.
             </span>
           )}
           {registrationLocked && <span className="role-card__description">GM registration locked.</span>}

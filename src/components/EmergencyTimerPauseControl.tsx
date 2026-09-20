@@ -75,7 +75,7 @@ export default function EmergencyTimerPauseControl({
   const buttonLabel = automatic ? 'Awaiting reconnect' : changing
     ? `${paused ? 'Resuming' : 'Activating'} emergency timer…`
     : clickCount > 0
-      ? `${sequenceLabel} // ${clicksRemaining} ${clicksRemaining === 1 ? 'click' : 'clicks'} remaining`
+      ? `${sequenceLabel} // ${clicksRemaining} ${clicksRemaining === 1 ? 'confirmation' : 'confirmations'} remaining`
       : actionLabel;
   const status = automatic ? 'Session timer paused // resumes on reconnect' : paused
     ? 'Emergency timer paused // GM resume required'
@@ -95,7 +95,7 @@ export default function EmergencyTimerPauseControl({
       <p className="gm-emergency-pause__warning">
         {automatic
           ? 'The empty-session hold clears when a participant reconnects.'
-          : `For emergencies only // three deliberate clicks required to ${paused ? 'resume' : 'pause'} all fleet clocks.`}
+          : `For emergencies only // three deliberate confirmations required to ${paused ? 'resume' : 'pause'} all fleet clocks.`}
       </p>
       <button
         className={`cic-action-button${clickCount > 0 ? ' cic-action-button--confirm' : ''}`}

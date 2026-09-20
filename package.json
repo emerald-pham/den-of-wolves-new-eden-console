@@ -1,7 +1,7 @@
 {
   "name": "den-of-wolves-new-eden-console",
   "private": true,
-  "version": "0.4.22",
+  "version": "0.4.23",
   "type": "module",
   "description": "Den of Wolves: New Eden Unofficial Companion Console",
   "engines": {
@@ -52,7 +52,8 @@
     "emulators": "npm run build --prefix functions && node scripts/run-emulator-command.mjs start",
     "dev:emulators": "node scripts/run-emulator-command.mjs vite",
     "deploy": "npm run build && firebase deploy",
-    "deploy:hosting": "npm run build && firebase deploy --only hosting"
+    "deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "test:copy-consistency": "node scripts/player-copy-contract.mjs"
   },
   "dependencies": {
     "firebase": "^12.18.0",

@@ -81,7 +81,7 @@ export default function Landing() {
         <section className="landing__recovery cic-frame" aria-live="polite">
           {recoveryRoute ? (
             <>
-              <p role="status" aria-label="Session recovery">This browser is connected to a session.</p>
+              <p role="status" aria-label="Session recovery">This device is connected to a session.</p>
               <Link className="landing__recovery-link" to={recoveryRoute}>
                 Return to the current session
               </Link>

@@ -115,7 +115,7 @@ function FleetTransmission({
         ? <p className="turn-start-announcement__population">{survivorPopulation} SURVIVORS</p>
         : <p className="turn-start-announcement__survive">OBJECTIVE // SURVIVE.</p>
   ) : slide === 0 ? (
-    <p className="turn-start-announcement__message">Iris Authentication Confirmed</p>
+    <p className="turn-start-announcement__message">FLEET LINK AUTHORIZED</p>
   ) : slide === 1 ? (
     <p className="turn-start-announcement__turn">CYCLE {transmission.turn}</p>
   ) : slide === 2 ? (
