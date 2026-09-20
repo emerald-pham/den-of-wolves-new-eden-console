@@ -130,6 +130,7 @@ it('places the pursuit tracker beneath shipboard DRADIS and uses this ship posit
       knownSystems: { 'system-01': '0000', 'system-17': '8378' },
       pursuitDistance: 6, pursuitValue: 2, navigationLogs: [], revision: 1,
     },
+    fleetRedAlert: { active: true, revision: 1 },
   });
 
   render(
@@ -151,6 +152,8 @@ it('places the pursuit tracker beneath shipboard DRADIS and uses this ship posit
   expect(tracker).toHaveTextContent('Distance from Home Systems // -6 pursuit distance');
   expect(tracker).not.toHaveTextContent('Map depth is shared; position is ship-local.');
   expect(tracker).not.toHaveTextContent('Dione');
+  expect(tracker).toHaveAttribute('data-red-alert', 'true');
+  expect(tracker).toHaveTextContent('RED ALERT ACTIVE');
 });
 
 it.each([

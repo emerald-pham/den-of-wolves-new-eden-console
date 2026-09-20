@@ -2888,6 +2888,7 @@ export default function GmConsole() {
                       shipId={ship.id}
                       shipName={ship.name}
                       shipCoordinate={shipCoordinate}
+                      redAlertActive={session.fleetRedAlert?.active === true}
                       {...(session.shipFleetGroupIds?.[ship.id] &&
                         session.pursuitGroups?.[session.shipFleetGroupIds[ship.id]!] !== undefined
                         ? { pursuitValue: session.pursuitGroups[session.shipFleetGroupIds[ship.id]!] }

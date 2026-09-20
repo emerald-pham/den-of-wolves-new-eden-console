@@ -17858,7 +17858,7 @@
         "acceptance": "restore the normal ship/faction presentation from `0215488` whenever authoritative Red Alert is inactive, and use hostile danger red only while that shared alert is active; `0d64e25` documents the always-danger departure to repair. Stand-down, reconnect, late join, stale revision, split-fleet scope, reduced motion, and terminal text converge on authority without changing countdown placement, pursuit math, or claiming P485's broader server-value repair complete. Prove non-color alert/terminal meaning, CIC contrast, and 320×844, 390×844, 1440×900, and 844×390 containment.",
         "title": "Restore alert-scoped Pursuit Track color."
       },
-      "description": "Future pursuit-color repair: restore `0215488`'s normal ship/faction treatment outside authoritative Red Alert and use danger red only while the shared alert is active; `0d64e25` records the always-danger departure. Preserve countdown, values, split-fleet scope, terminal text, reconnect/stand-down/reduced-motion truth, and do not claim P485's broader server-owned pursuit acceptance.",
+      "description": "The Pursuit Track now consumes authoritative fleet Red Alert state on both ship and GM surfaces. Normal operation restores the ship/faction frame and cyan instrumentation from the earlier console treatment; hostile danger red, glow, and threat animation appear only while Red Alert is active. Stand-down and false, absent, or stale-safe projected alert state return immediately to the normal palette without changing server pursuit values, countdown placement, group scope, or terminal wording. Critical and surrounded states retain explicit text plus amber non-color emphasis, reduced motion disables alert pulsing, the console font gate passes, and rendered 320x844, 390x844, 1440x900, and 844x390 cases remain contained.",
       "evidenceIds": "E-PRESENTATION;E-AUDIT-485A",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -17867,10 +17867,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.36"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "PRESENTATION-INDEPENDENT",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

@@ -13,6 +13,7 @@ interface PursuitTrackerProps {
   readonly shipCoordinate: string;
   readonly pursuitDistance?: number;
   readonly pursuitValue?: number;
+  readonly redAlertActive?: boolean;
 }
 
 const TRACK_SEGMENTS = Array.from({ length: MAX_PURSUIT }, (_, index) => index);
@@ -33,6 +34,7 @@ export default function PursuitTracker({
   shipCoordinate,
   pursuitDistance = 0,
   pursuitValue,
+  redAlertActive = false,
 }: PursuitTrackerProps) {
   const coordinate = shipCoordinate || '0000';
   const entitledDistance = pursuitDistanceForCoordinate(coordinate, pursuitDistance);
@@ -61,9 +63,12 @@ export default function PursuitTracker({
       data-ship-id={shipId}
       data-status={status}
       data-threat-level={threatLevel}
+      data-red-alert={redAlertActive}
     >
       <header className="pursuit-tracker__header">
-        <p className="pursuit-tracker__eyebrow">PURSUIT // GROUP-LOCAL</p>
+        <p className="pursuit-tracker__eyebrow">
+          PURSUIT // GROUP-LOCAL{redAlertActive ? ' // RED ALERT ACTIVE' : ''}
+        </p>
         <h2>Pursuit</h2>
       </header>
 

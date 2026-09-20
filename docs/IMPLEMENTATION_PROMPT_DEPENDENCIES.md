@@ -629,7 +629,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 483 | NEW | missing | 178;469;396 | none | none | none | none | none | none | none | E-AUDIT-483 | M9 | Rebuild fighters after combat. |
 | 484 | EXTEND | missing | 474;477;482 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-484 | M9 | Publish the complete aftermath. |
 | 485 | REPAIR | done | 077 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-485;E-485-AUTHORITATIVE-PURSUIT | M10 | Make pursuit authoritative from Turn 1. |
-| 485a | REPAIR | missing | 485 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-485A | M10 | Restore alert-scoped Pursuit Track color. |
+| 485a | REPAIR | done | 485 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-485A | M10 | Restore alert-scoped Pursuit Track color. |
 | 486 | PROVE | done | 485;305 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-486;E-486-COMMITTED-PURSUIT | M10 | Verify the per-cycle pursuit rise. |
 | 487 | PROVE | done | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-487;E-487-JUMP-ATTACK-PURSUIT | M10 | Verify jump-based pursuit reduction. |
 | 488 | PROVE | done | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-488;E-488-ION-THREAT-SUPPRESSION | M10 | Verify Ion Nebula threat suppression. |

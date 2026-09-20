@@ -182,3 +182,49 @@ it('announces threshold severity changes once while keeping hydrated state quiet
   expect(status).toHaveTextContent('SURROUNDED // GAME OVER');
   expect(status).toHaveAttribute('aria-live', 'polite');
 });
+
+it('uses explicit authoritative Red Alert state without changing pursuit severity', () => {
+  const { rerender } = render(
+    <PursuitTracker
+      currentTurn={4}
+      shipId="shepherd"
+      shipName="Shepherd"
+      shipCoordinate="0000"
+      pursuitValue={8}
+      redAlertActive={false}
+    />,
+  );
+
+  const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
+  expect(tracker).toHaveAttribute('data-red-alert', 'false');
+  expect(tracker).toHaveAttribute('data-threat-level', 'critical');
+  expect(tracker).toHaveTextContent('PURSUIT // GROUP-LOCAL');
+  expect(tracker).not.toHaveTextContent('RED ALERT ACTIVE');
+
+  rerender(
+    <PursuitTracker
+      currentTurn={4}
+      shipId="shepherd"
+      shipName="Shepherd"
+      shipCoordinate="0000"
+      pursuitValue={8}
+      redAlertActive
+    />,
+  );
+  expect(tracker).toHaveAttribute('data-red-alert', 'true');
+  expect(tracker).toHaveAttribute('data-threat-level', 'critical');
+  expect(tracker).toHaveTextContent('PURSUIT // GROUP-LOCAL // RED ALERT ACTIVE');
+
+  rerender(
+    <PursuitTracker
+      currentTurn={4}
+      shipId="shepherd"
+      shipName="Shepherd"
+      shipCoordinate="0000"
+      pursuitValue={8}
+      redAlertActive={false}
+    />,
+  );
+  expect(tracker).toHaveAttribute('data-red-alert', 'false');
+  expect(tracker).not.toHaveTextContent('RED ALERT ACTIVE');
+});

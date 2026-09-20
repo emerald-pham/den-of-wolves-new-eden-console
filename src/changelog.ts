@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['485a'],
+    implementationProgress: {
+      completed: 317, total: 751, percentage: '42.21%',
+      done: 317, partial: 23, active: 0, missing: 411,
+    },
+    changes: [
+      'Pursuit Track panels now use each ship or faction treatment during normal operations and switch to hostile danger red only while authoritative Red Alert is active.',
+      'Critical and terminal pursuit meaning remains visible in text and amber emphasis when Red Alert is inactive, including reduced-motion and compact layouts.',
+      '317 of 751 planned items are complete (42.21%).',
+    ],
+  },
+  {
+    version: '0.4.35',
     implementationProgress: {
       completed: 316, total: 751, percentage: '42.08%',
       done: 316, partial: 23, active: 0, missing: 412,

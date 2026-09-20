@@ -1322,6 +1322,7 @@ it('shows the authoritative group pursuit beneath every grouped ship resource co
       aegis: 0, dione: 1, icebreaker: 2, capybara: 6,
       shepherd: 0, quellon: 4, 'refinery-124': 7,
     },
+    fleetRedAlert: { active: true, revision: 1 },
   });
   renderConsole();
 
@@ -1343,6 +1344,8 @@ it('shows the authoritative group pursuit beneath every grouped ship resource co
     expect(tracker).toHaveTextContent(`Distance from Home Systems // ${distance}`);
     expect(tracker).toHaveTextContent(`Current track // ${track}`);
     expect(tracker).not.toHaveTextContent('Map depth is shared; position is ship-local.');
+    expect(tracker).toHaveAttribute('data-red-alert', 'true');
+    expect(tracker).toHaveTextContent('RED ALERT ACTIVE');
     expect(ship.lastElementChild).toBe(tracker);
   }
 });

@@ -534,19 +534,19 @@ describe('ship console instrument layout', () => {
     );
   });
 
-  it('keeps pursuit panels in the danger palette and escalates their countdown without unsafe motion', () => {
+  it('scopes pursuit danger treatment and animated escalation to authoritative Red Alert', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const tracker = index.match(/\n\.pursuit-tracker \{([^}]*)\}/)?.[1] ?? '';
 
-    expect(tracker).toContain('border-color: var(--cic-danger)');
-    expect(index).toMatch(/\.pursuit-tracker::before\s*\{[^}]*var\(--cic-danger\)/);
-    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='tracked'\]/);
-    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='closing'\]/);
-    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='critical'\]/);
-    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='terminal'\]/);
+    expect(tracker).toContain('border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule))');
+    expect(index).toMatch(/\.pursuit-tracker::before\s*\{[^}]*var\(--pursuit-bracket\)/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-red-alert='true'\]\s*\{[^}]*border-color: var\(--cic-danger\)/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-red-alert='true'\]\[data-threat-level='closing'\]/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-red-alert='true'\]\[data-threat-level='critical'\]/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-red-alert='true'\]\[data-threat-level='terminal'\]/);
     expect(index).toMatch(/@keyframes pursuit-threat-pulse/);
     expect(index).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.pursuit-tracker[^}]*animation:\s*none/,
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.pursuit-tracker\[data-red-alert='true'\][^}]*animation:\s*none/,
     );
   });
 
@@ -561,14 +561,16 @@ describe('ship console instrument layout', () => {
     );
   });
 
-  it('lets the pursuit frame override the shared amber frame in computed styles', () => {
+  it('lets normal and Red Alert pursuit frames override the shared amber frame', () => {
     const cic = readFileSync('src/styles/cic.css', 'utf8');
     const index = readFileSync('src/index.css', 'utf8').replace(/@import[^;]+;/g, '');
     const sharedBorder = cic.match(/\.cic-frame\s*\{[^}]*border:\s*([^;]+);/)?.[1] ?? '';
     const pursuitBody = index.match(/\n\.pursuit-tracker \{([^}]*)\}/)?.[1] ?? '';
     const pursuitBorder = pursuitBody.match(/border-color:\s*([^;]+);/)?.[1] ?? '';
+    const alertBody = index.match(/\.pursuit-tracker\[data-red-alert='true'\] \{([^}]*)\}/)?.[1] ?? '';
+    const alertBorder = alertBody.match(/border-color:\s*([^;]+);/)?.[1] ?? '';
     const style = document.createElement('style');
-    style.textContent = `.cic-frame { border: ${sharedBorder}; } .pursuit-tracker { border-color: ${pursuitBorder}; }`;
+    style.textContent = `.cic-frame { border: ${sharedBorder}; } .pursuit-tracker { border-color: ${pursuitBorder}; } .pursuit-tracker[data-red-alert='true'] { border-color: ${alertBorder}; }`;
     document.head.append(style);
     const tracker = document.createElement('section');
     tracker.className = 'pursuit-tracker cic-frame';
@@ -576,6 +578,8 @@ describe('ship console instrument layout', () => {
     document.body.append(tracker);
 
     try {
+      expect(getComputedStyle(tracker).borderColor).toBe('color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule))');
+      tracker.dataset.redAlert = 'true';
       expect(getComputedStyle(tracker).borderColor).toBe('var(--cic-danger)');
     } finally {
       tracker.remove();

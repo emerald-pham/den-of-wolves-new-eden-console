@@ -567,6 +567,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           shipId={ship.id}
           shipName={ship.name}
           shipCoordinate={shipCoordinate}
+          redAlertActive={session.fleetRedAlert?.active === true}
           {...(fleetGroupId && session.playerDiscovery?.groupId === fleetGroupId &&
             session.playerDiscovery.pursuitValue !== undefined
             ? { pursuitValue: session.playerDiscovery.pursuitValue }
