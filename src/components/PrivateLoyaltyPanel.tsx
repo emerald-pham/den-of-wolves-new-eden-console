@@ -39,12 +39,18 @@ function partnerLabel(loyalty: PrivateLoyalty): string | undefined {
   return loyalty.kind === 'friend' ? undefined : loyalty.partnerUid;
 }
 
+function isEndgameEvaluationPhase(phase: unknown): boolean {
+  return phase === 'success' || phase === 'failure' || phase === 'debrief' || phase === 'closed';
+}
+
 /** The current browser's private setup card; never accepts another player's id. */
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
   const wolfCultIntelligence = useSessionStore((state) => state.wolfCultIntelligence);
   const setPrivateLoyalty = useSessionStore((state) => state.setPrivateLoyalty);
   const sessionId = useSessionStore((state) => state.session?.id);
+  const endgameEvaluation = useSessionStore((state) =>
+    isEndgameEvaluationPhase(state.session?.phase));
   const me = useSessionStore((state) => state.me);
   const identity = JSON.stringify([sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId]);
   const [feedback, setFeedback] = useState<{
@@ -57,8 +63,9 @@ export default function PrivateLoyaltyPanel() {
   if (!loyalty) return null;
 
   const discloseAndroidProof = async () => {
-    if (pending || loyalty.kind !== 'android' || loyalty.proofRevealed) return;
+    if (endgameEvaluation || pending || loyalty.kind !== 'android' || loyalty.proofRevealed) return;
     const state = useSessionStore.getState();
+    if (isEndgameEvaluationPhase(state.session?.phase)) return;
     const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
     const dispatchedCard = loyalty;
     if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
@@ -110,11 +117,16 @@ export default function PrivateLoyaltyPanel() {
             <button
               className="cic-action-button"
               type="button"
-              disabled={pending}
+              disabled={endgameEvaluation || pending}
               onClick={() => void discloseAndroidProof()}
             >
               {pending ? 'Disclosing…' : 'Disclose Android proof'}
             </button>
+            {endgameEvaluation && (
+              <p className="private-loyalty-panel__proof-status" role="status">
+                Endgame evaluation active // Android proof disclosure is frozen.
+              </p>
+            )}
             {error && <p role="alert">{error}</p>}
           </div>
         ))}

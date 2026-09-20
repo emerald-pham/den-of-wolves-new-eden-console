@@ -123,6 +123,24 @@ it('rejects a stale revision, unknown target, and non-GM before any write', asyn
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each(['failure', 'debrief', 'success'] as const)(
+  'freezes facilitator census notes during %s endgame evaluation',
+  async (phase) => {
+    put('sessions/s1', { phase, currentTurn: 3 });
+    const before = new Map(mock.documents);
+
+    await expect(setFacilitatorCensusNote.run(request({
+      ...baseData, requestId: `note-${phase}`,
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/endgame evaluation/i),
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents).toEqual(before);
+  },
+);
+
 it('clears a note without changing another identity and rejects oversized input', async () => {
   await expect(setFacilitatorCensusNote.run(request({ ...baseData, note: '' }))).resolves.toEqual({
     sessionId: 's1', targetUid: 'u2', revision: 4, note: '',

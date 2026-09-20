@@ -763,6 +763,27 @@ it('allows only the Android holder to disclose proof and makes the disclosure au
   );
 });
 
+it('freezes Android proof disclosure after pursuit failure', async () => {
+  mock.session = { ...mock.session, phase: 'failure' };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot({ connected: true, role: 'player' }, ref.path);
+    if (ref.path === 'sessions/s1/secrets/loyalty-u2') {
+      return snapshot({ visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'android', suspicion: null } }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: 'android-after-failure',
+  }, 'u2'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/endgame evaluation/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects stale Android holders before replay or mutation', async () => {
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);

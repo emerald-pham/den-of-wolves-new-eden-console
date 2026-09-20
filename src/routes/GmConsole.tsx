@@ -1923,7 +1923,7 @@ export default function GmConsole() {
   }
 
   async function saveCensusNote(targetUid: string): Promise<void> {
-    if (!loyaltyCensus || censusNoteMutationUid !== null) return;
+    if (endgameEvaluation || !loyaltyCensus || censusNoteMutationUid !== null) return;
     setCensusNoteMutationUid(targetUid);
     try {
       await setFacilitatorCensusNote(targetUid, censusNotes[targetUid] ?? '');
@@ -1935,7 +1935,7 @@ export default function GmConsole() {
   }
 
   async function deliverWolfCultIntel(): Promise<void> {
-    if (wolfCultIntelMutation || wolfCultRecipients.length !== 1 || wolfAgentRecipients.length !== 1 ||
+    if (endgameEvaluation || wolfCultIntelMutation || wolfCultRecipients.length !== 1 || wolfAgentRecipients.length !== 1 ||
         !wolfCultFortressCoordinate.trim() || !wolfCultSuppliesCoordinate.trim() ||
         !wolfCultAgentUid || !wolfCultCodeWord.trim()) return;
     setWolfCultIntelMutation(true);
@@ -1963,7 +1963,7 @@ export default function GmConsole() {
   }
 
   async function saveArbourVision(): Promise<void> {
-    if (!arbourVisionTargetUid || !arbourVisionText.trim() || arbourVisionMutation) return;
+    if (endgameEvaluation || !arbourVisionTargetUid || !arbourVisionText.trim() || arbourVisionMutation) return;
     setArbourVisionMutation(true);
     setArbourVisionMessage(null);
     try {
@@ -1990,6 +1990,7 @@ export default function GmConsole() {
   async function saveFacilitatorRuleCall(): Promise<void> {
     if (
       ruleCallMutation ||
+      endgameEvaluation ||
       !ruleCallAmbiguity.trim() ||
       !ruleCallSource.trim() ||
       !ruleCallDecision.trim() ||
@@ -3569,6 +3570,7 @@ export default function GmConsole() {
                               maxLength={240}
                               rows={2}
                               value={censusNotes[entry.uid] ?? ''}
+                              disabled={endgameEvaluation}
                               onChange={(event) => setCensusNotes((current) => ({
                                 ...current,
                                 [entry.uid]: event.target.value,
@@ -3577,7 +3579,7 @@ export default function GmConsole() {
                             <button
                               className="gm-census-note__save cic-action-button"
                               type="button"
-                              disabled={censusNoteMutationUid !== null}
+                              disabled={endgameEvaluation || censusNoteMutationUid !== null}
                               onClick={() => void saveCensusNote(entry.uid)}
                             >
                               {censusNoteMutationUid === entry.uid ? 'Saving…' : 'Save note'}
@@ -3610,7 +3612,7 @@ export default function GmConsole() {
                     pattern="[0-9]{4}"
                     maxLength={4}
                     value={wolfCultFortressCoordinate}
-                    disabled={wolfCultIntelMutation}
+                    disabled={endgameEvaluation || wolfCultIntelMutation}
                     onChange={(event) => setWolfCultFortressCoordinate(event.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
                   />
                   <label htmlFor="wolf-cult-supplies">Abandoned supplies coordinate</label>
@@ -3620,14 +3622,14 @@ export default function GmConsole() {
                     pattern="[0-9]{4}"
                     maxLength={4}
                     value={wolfCultSuppliesCoordinate}
-                    disabled={wolfCultIntelMutation}
+                    disabled={endgameEvaluation || wolfCultIntelMutation}
                     onChange={(event) => setWolfCultSuppliesCoordinate(event.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
                   />
                   <label htmlFor="wolf-cult-agent">Other Wolf agent</label>
                   <select
                     id="wolf-cult-agent"
                     value={wolfCultAgentUid}
-                    disabled={wolfCultIntelMutation}
+                    disabled={endgameEvaluation || wolfCultIntelMutation}
                     onChange={(event) => setWolfCultAgentUid(event.target.value)}
                   >
                     {wolfAgentRecipients.map((entry) => <option key={entry.uid} value={entry.uid}>{entry.uid}</option>)}
@@ -3637,13 +3639,13 @@ export default function GmConsole() {
                     id="wolf-cult-code-word"
                     maxLength={80}
                     value={wolfCultCodeWord}
-                    disabled={wolfCultIntelMutation}
+                    disabled={endgameEvaluation || wolfCultIntelMutation}
                     onChange={(event) => setWolfCultCodeWord(event.target.value)}
                   />
                   <button
                     className="gm-census-note__save cic-action-button"
                     type="button"
-                    disabled={wolfCultIntelMutation || !wolfCultFortressCoordinate || !wolfCultSuppliesCoordinate || !wolfCultAgentUid || !wolfCultCodeWord.trim()}
+                    disabled={endgameEvaluation || wolfCultIntelMutation || !wolfCultFortressCoordinate || !wolfCultSuppliesCoordinate || !wolfCultAgentUid || !wolfCultCodeWord.trim()}
                     onClick={() => void deliverWolfCultIntel()}
                   >
                     {wolfCultIntelMutation ? 'Delivering…' : 'Deliver private Wolf intel'}
@@ -3672,7 +3674,7 @@ export default function GmConsole() {
                   <select
                     id="arbour-vision-recipient"
                     value={arbourVisionTargetUid}
-                    disabled={arbourVisionMutation}
+                    disabled={endgameEvaluation || arbourVisionMutation}
                     onChange={(event) => setArbourVisionTargetUid(event.target.value)}
                   >
                     {arbourVisionRecipients.map((entry) => (
@@ -3683,7 +3685,7 @@ export default function GmConsole() {
                   <select
                     id="arbour-vision-kind"
                     value={arbourVisionKind}
-                    disabled={arbourVisionMutation}
+                    disabled={endgameEvaluation || arbourVisionMutation}
                     onChange={(event) => setArbourVisionKind(event.target.value as ArbourVision['kind'])}
                   >
                     <option value="location">Location</option>
@@ -3696,13 +3698,13 @@ export default function GmConsole() {
                     value={arbourVisionText}
                     maxLength={240}
                     rows={3}
-                    disabled={arbourVisionMutation}
+                    disabled={endgameEvaluation || arbourVisionMutation}
                     onChange={(event) => setArbourVisionText(event.target.value)}
                   />
                   <button
                     className="gm-census-note__save cic-action-button"
                     type="button"
-                    disabled={arbourVisionMutation || !arbourVisionText.trim()}
+                    disabled={endgameEvaluation || arbourVisionMutation || !arbourVisionText.trim()}
                     onClick={() => void saveArbourVision()}
                   >
                     {arbourVisionMutation ? 'Publishing…' : 'Publish private call'}
@@ -3730,7 +3732,7 @@ export default function GmConsole() {
                   value={ruleCallAmbiguity}
                   maxLength={240}
                   rows={2}
-                  disabled={ruleCallMutation}
+                  disabled={endgameEvaluation || ruleCallMutation}
                   onChange={(event) => setRuleCallAmbiguity(event.target.value)}
                 />
                 <label htmlFor="rule-call-source">Source or reference</label>
@@ -3739,7 +3741,7 @@ export default function GmConsole() {
                   value={ruleCallSource}
                   maxLength={240}
                   rows={2}
-                  disabled={ruleCallMutation}
+                  disabled={endgameEvaluation || ruleCallMutation}
                   onChange={(event) => setRuleCallSource(event.target.value)}
                 />
                 <label htmlFor="rule-call-decision">Decision</label>
@@ -3748,14 +3750,14 @@ export default function GmConsole() {
                   value={ruleCallDecision}
                   maxLength={500}
                   rows={3}
-                  disabled={ruleCallMutation}
+                  disabled={endgameEvaluation || ruleCallMutation}
                   onChange={(event) => setRuleCallDecision(event.target.value)}
                 />
                 <label htmlFor="rule-call-audience">Audience</label>
                 <select
                   id="rule-call-audience"
                   value={ruleCallAudience}
-                  disabled={ruleCallMutation}
+                  disabled={endgameEvaluation || ruleCallMutation}
                   onChange={(event) => setRuleCallAudience(event.target.value as FacilitatorRuleCall['audience'])}
                 >
                   <option value="gm-only">Facilitator only</option>
@@ -3767,7 +3769,7 @@ export default function GmConsole() {
                     <select
                       id="rule-call-recipient"
                       value={ruleCallRecipientUid}
-                      disabled={ruleCallMutation}
+                      disabled={endgameEvaluation || ruleCallMutation}
                       onChange={(event) => setRuleCallRecipientUid(event.target.value)}
                     >
                       <option value="">Choose a player</option>
@@ -3786,13 +3788,13 @@ export default function GmConsole() {
                   id="rule-call-supersedes"
                   value={ruleCallSupersedesCallId}
                   maxLength={120}
-                  disabled={ruleCallMutation}
+                  disabled={endgameEvaluation || ruleCallMutation}
                   onChange={(event) => setRuleCallSupersedesCallId(event.target.value)}
                 />
                 <button
                   className="gm-census-note__save cic-action-button"
                   type="button"
-                  disabled={ruleCallMutation || !ruleCallAmbiguity.trim() || !ruleCallSource.trim() || !ruleCallDecision.trim() || (ruleCallAudience === 'selected-player' && !ruleCallRecipientUid)}
+                  disabled={endgameEvaluation || ruleCallMutation || !ruleCallAmbiguity.trim() || !ruleCallSource.trim() || !ruleCallDecision.trim() || (ruleCallAudience === 'selected-player' && !ruleCallRecipientUid)}
                   onClick={() => void saveFacilitatorRuleCall()}
                 >
                   {ruleCallMutation ? 'Recording…' : 'Record rule call'}

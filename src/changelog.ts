@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [560],
+    implementationProgress: {
+      completed: 319, total: 751, percentage: '42.48%',
+      done: 319, partial: 23, active: 0, missing: 409,
+    },
+    changes: [
+      'Pursuit failure now freezes every classified gameplay callable, including facilitator notes, private calls, Android disclosure, cycle transmissions, and airspace or clock changes.',
+      'A risk-based regression gate requires each new callable to use the terminal-phase guard or document why it must remain available for setup, lifecycle, read-only, or debrief work.',
+      '319 of 751 planned items are complete (42.48%).',
+    ],
+  },
+  {
+    version: '0.4.37',
     implementationPrompts: ['140g'],
     implementationProgress: {
       completed: 318, total: 751, percentage: '42.34%',

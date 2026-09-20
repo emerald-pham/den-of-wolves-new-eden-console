@@ -2328,6 +2328,14 @@ it('shows the pursuit failure outcome and freezes cycle and setup mutations', as
     },
   });
   useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 7,
+    entries: [
+      { uid: 'u2', kind: 'universal-arbour', suspicion: 10, note: 'Hold position' },
+      { uid: 'u3', kind: 'wolf-cult', suspicion: 15 },
+      { uid: 'u4', kind: 'wolf-agent', suspicion: 0 },
+    ],
+  });
   streamInstances([local]);
   renderConsole();
 
@@ -2342,8 +2350,24 @@ it('shows the pursuit failure outcome and freezes cycle and setup mutations', as
   expect(screen.getByRole('button', { name: /confirm setup.*confirm roster/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /disable capybara/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /disable dione/i })).toBeDisabled();
+  const census = screen.getByRole('region', { name: /private loyalty census/i });
+  expect(within(census).getByLabelText(/facilitator note for u2/i)).toBeDisabled();
+  expect(within(census).getAllByRole('button', { name: /save note/i })[0]).toBeDisabled();
+  const cultIntel = screen.getByRole('region', { name: /wolf cult intelligence delivery/i });
+  expect(within(cultIntel).getByLabelText(/active wolf fortress coordinate/i)).toBeDisabled();
+  expect(within(cultIntel).getByRole('button', { name: /deliver private wolf intel/i })).toBeDisabled();
+  const arbour = screen.getByRole('region', { name: /universal arbour facilitator call/i });
+  expect(within(arbour).getByLabelText(/facilitator call/i)).toBeDisabled();
+  expect(within(arbour).getByRole('button', { name: /publish private call/i })).toBeDisabled();
+  const ruleCall = screen.getByRole('region', { name: /facilitator rule call/i });
+  expect(within(ruleCall).getByLabelText(/question or ambiguity/i)).toBeDisabled();
+  expect(within(ruleCall).getByRole('button', { name: /record rule call/i })).toBeDisabled();
   expect(confirmSetup).not.toHaveBeenCalled();
   expect(advanceTurn).not.toHaveBeenCalled();
+  expect(setFacilitatorCensusNote).not.toHaveBeenCalled();
+  expect(deliverWolfCultIntelligence).not.toHaveBeenCalled();
+  expect(authorUniversalArbourVision).not.toHaveBeenCalled();
+  expect(authorFacilitatorRuleCall).not.toHaveBeenCalled();
 });
 
 it('closes the Press availability dialog if endgame evaluation starts', async () => {

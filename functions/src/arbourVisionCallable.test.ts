@@ -129,3 +129,21 @@ it('rejects malformed text, unknown recipients, and closed sessions', async () =
   await expect(authorArbourVision.run(request({ ...baseData, requestId: 'closed' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+it.each(['failure', 'debrief', 'success'] as const)(
+  'freezes facilitator calls during %s endgame evaluation',
+  async (phase) => {
+    put('sessions/s1', { phase, activeRoleIds: ['admiral'] });
+    const before = new Map(mock.documents);
+
+    await expect(authorArbourVision.run(request({
+      ...baseData, requestId: `vision-${phase}`,
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/endgame evaluation/i),
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.delete).not.toHaveBeenCalled();
+    expect(mock.documents).toEqual(before);
+  },
+);

@@ -63,6 +63,26 @@ it('lets the Android holder voluntarily disclose proof and records the committed
   expect(screen.queryByRole('button', { name: /disclose Android proof/i })).not.toBeInTheDocument();
 });
 
+it.each(['failure', 'success', 'debrief'] as const)(
+  'freezes Android proof disclosure during %s endgame evaluation',
+  async (phase) => {
+    const user = userEvent.setup();
+    prepareLivePlayer();
+    useSessionStore.getState().setSession({ id: 's1', phase } as never);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'android', suspicion: null });
+
+    render(<PrivateLoyaltyPanel />);
+
+    const button = screen.getByRole('button', { name: /disclose Android proof/i });
+    expect(button).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /endgame evaluation active.*android proof disclosure is frozen/i,
+    );
+    await user.click(button);
+    expect(revealAndroidProof).not.toHaveBeenCalled();
+  },
+);
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;

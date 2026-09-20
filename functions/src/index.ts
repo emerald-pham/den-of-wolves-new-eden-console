@@ -2204,7 +2204,7 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
  */
 function requireActiveGameplayPhase(session: DocumentSnapshot): void {
   const lifecyclePhase = session.get('phase');
-  if (lifecyclePhase === 'closed') {
+  if (lifecyclePhase === 'closed' || lifecyclePhase === 'retained-empty') {
     throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
   }
   if (lifecyclePhase === 'debrief' || lifecyclePhase === 'success' || lifecyclePhase === 'failure') {
@@ -6254,9 +6254,7 @@ export const setFacilitatorCensusNote = onCall<{
     );
     if (replay) return replay;
     if (audit.exists) rejectLegacyEventReplay('facilitator census note');
-    if (authority.session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(authority.session);
     const currentRevision = census.exists && Number.isSafeInteger(census.get('revision')) &&
       (census.get('revision') as number) >= 0
       ? census.get('revision') as number
@@ -7624,9 +7622,7 @@ export const authorArbourVision = onCall<{
     );
     if (replay) return replay;
     if (audit.exists) rejectLegacyEventReplay('Arbour vision');
-    if (authority.session.get('phase') === 'closed' || authority.session.get('phase') === 'retained-empty') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(authority.session);
     const activeRoleIds = sessionActiveRoleIds(authority.session);
     const censusEntries = storedLoyaltyCensusEntries(census);
     const targetRoleId = target.get('assignedRoleId');
@@ -7852,9 +7848,7 @@ export const authorFacilitatorRuleCall = onCall<{
     );
     if (replay) return replay;
     if (audit.exists) rejectLegacyEventReplay('facilitator rule call');
-    if (authority.session.get('phase') === 'closed' || authority.session.get('phase') === 'retained-empty') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(authority.session);
     const currentRevision = current.exists ? current.get('revision') as number : 0;
     if (currentRevision !== call.expectedRevision) {
       throw commandError(
@@ -8343,6 +8337,7 @@ export const revealAndroidProof = onCall<{
     if (!session.exists || !isActivePlayer(player) || player.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only the active Android holder may disclose Android proof.');
     }
+    requireActiveGameplayPhase(session);
     if (!secret.exists) throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
     const visibleToUids = secret.get('visibleToUids');
     if (!Array.isArray(visibleToUids) || visibleToUids.length !== 1 || visibleToUids[0] !== uid) {
@@ -9725,9 +9720,6 @@ export const moveShipToLocation = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
     if (replay) return replay;
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
     requireActionPhase(session, 'movement', 'facilitator');
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -9861,10 +9853,6 @@ export const jumpShip = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
-
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -10083,9 +10071,6 @@ export const setShipConsoleLock = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'console lock');
     if (replay) return replay;
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
     requireActiveGameplayPhase(session);
 
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -10247,9 +10232,7 @@ export const advanceTurn = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'cycle advance');
     if (replay) return replay;
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(session);
     if (session.get('phase') !== undefined && session.get('phase') !== 'active') {
       throw commandError(
         'failed-precondition',
@@ -10375,9 +10358,7 @@ export const replayTurnStartAnnouncement = onCall<{
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(session);
     const currentTurn = sessionTurn(session.get('currentTurn'));
     const current = turnStartAnnouncement(session.get('turnStartAnnouncement'));
     if (!current || current.turn !== currentTurn || currentTurn < 1) {
@@ -10413,9 +10394,7 @@ export const beginOpenAirspacePhase = onCall<{
     const [session, player] = await Promise.all([tx.get(sessionRef), tx.get(playerRef)]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(session);
     if (sessionTurn(session.get('currentTurn')) !== requestData.expectedTurn) {
       throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
     }
@@ -10480,9 +10459,7 @@ export const extendAirspaceWindow = onCall<{
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(session);
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== requestData.expectedTurn) {
       throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
@@ -10529,9 +10506,7 @@ export const setEmergencyTimerPaused = onCall<{
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-    }
+    requireActiveGameplayPhase(session);
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn < 1) {
       throw commandError('failed-precondition', 'The emergency timer is unavailable during Cycle 0.', 'invalid-phase');
@@ -11616,12 +11591,9 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
     await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral', requestData.instanceId);
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireActiveGameplayPhase(session);
     if (session.get('pressEnabled') === false) {
       throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
-    }
-
-    if (session.get('phase') === 'closed') {
-      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {

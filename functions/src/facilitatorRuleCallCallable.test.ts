@@ -149,6 +149,25 @@ it('rejects a closed session and an inactive selected recipient before writes', 
   expect([...mock.documents.keys()].filter((path) => path.includes('facilitatorRuleCalls'))).toHaveLength(0);
 });
 
+it.each(['failure', 'debrief', 'success'] as const)(
+  'freezes facilitator rule calls during %s endgame evaluation',
+  async (phase) => {
+    put('sessions/s1', { phase });
+    const before = new Map(mock.documents);
+
+    await expect(authorFacilitatorRuleCall.run(request({
+      ...baseData, requestId: `call-${phase}`,
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/endgame evaluation/i),
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.delete).not.toHaveBeenCalled();
+    expect(mock.documents).toEqual(before);
+  },
+);
+
 it.each([
   {
     name: 'an invalid revision',
