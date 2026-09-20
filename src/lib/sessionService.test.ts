@@ -755,7 +755,8 @@ it('sends replacement eligibility and assignment with both CAS cursors', async (
   const callable = callableReturning({
     data: {
       status: 'committed', sessionId: 's1', targetUid: 'u2', revision: 1,
-      setupRevision: 5, replacementRoleId: 'wolf-commander',
+      setupRevision: 5, replacementRoleId: 'wolf-commander', actorUid: 'u1',
+      recordedAt: '2026-09-20T17:00:00.000Z',
     },
   });
   vi.mocked(httpsCallable).mockReturnValue(callable);

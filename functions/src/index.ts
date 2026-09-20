@@ -5635,8 +5635,7 @@ export const releaseRole = onCall<{
   });
 });
 
-type ReplacementMutationResult = {
-  readonly status: 'committed' | 'stale';
+type ReplacementMutationResultBase = {
   readonly sessionId: string;
   readonly targetUid: string;
   readonly revision: number;
@@ -5644,7 +5643,27 @@ type ReplacementMutationResult = {
   readonly replacementRoleId?: string;
 };
 
-function isReplacementMutationResult(value: unknown, sessionId: string): value is ReplacementMutationResult {
+type ReplacementMutationResult = ReplacementMutationResultBase & (
+  | {
+    readonly status: 'committed';
+    readonly actorUid: string;
+    readonly recordedAt: string;
+  }
+  | {
+    readonly status: 'stale';
+  }
+);
+
+type ReplayableReplacementMutationResult = ReplacementMutationResultBase & {
+  readonly status: 'committed' | 'stale';
+  readonly actorUid?: unknown;
+  readonly recordedAt?: unknown;
+};
+
+function isReplayableReplacementMutationResult(
+  value: unknown,
+  sessionId: string,
+): value is ReplayableReplacementMutationResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   return result.sessionId === sessionId &&
@@ -5653,6 +5672,44 @@ function isReplacementMutationResult(value: unknown, sessionId: string): value i
     Number.isSafeInteger(result.revision) && (result.revision as number) >= 0 &&
     Number.isSafeInteger(result.setupRevision) && (result.setupRevision as number) >= 0 &&
     (result.replacementRoleId === undefined || typeof result.replacementRoleId === 'string');
+}
+
+function receiptRecordedAt(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null || !('toDate' in value) ||
+      typeof value.toDate !== 'function') return undefined;
+  const date = value.toDate();
+  return date instanceof Date && Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+}
+
+function replayReplacementMutation(
+  receipt: DocumentSnapshot,
+  fingerprint: CommandFingerprint,
+  sessionId: string,
+  label: string,
+): ReplacementMutationResult | null {
+  const replay = replayBoundCommand(
+    receipt,
+    fingerprint,
+    (value): value is ReplayableReplacementMutationResult =>
+      isReplayableReplacementMutationResult(value, sessionId),
+    label,
+  );
+  if (!replay) return null;
+  if (replay.status === 'stale') return {
+    status: 'stale',
+    sessionId: replay.sessionId,
+    targetUid: replay.targetUid,
+    revision: replay.revision,
+    setupRevision: replay.setupRevision,
+    ...(replay.replacementRoleId ? { replacementRoleId: replay.replacementRoleId } : {}),
+  };
+  const recordedAt = typeof replay.recordedAt === 'string' && Number.isFinite(Date.parse(replay.recordedAt))
+    ? replay.recordedAt
+    : receiptRecordedAt(receipt.get('createdAt'));
+  if (!recordedAt) {
+    throw commandError('failed-precondition', `This ${label} request has no replayable decision time.`, 'conflict');
+  }
+  return { ...replay, actorUid: fingerprint.actorUid, recordedAt };
 }
 
 function replacementRevision(snapshot: DocumentSnapshot): number {
@@ -5716,10 +5773,8 @@ export const setReplacementEligibility = onCall<{
       requireFacilitatorInstance(tx, decision.sessionId, uid, decision.instanceId),
       tx.get(targetRef), tx.get(eligibilityRef), tx.get(receiptRef),
     ]);
-    const replay = replayBoundCommand(
-      receipt, fingerprint,
-      (value): value is ReplacementMutationResult => isReplacementMutationResult(value, decision.sessionId),
-      'replacement eligibility',
+    const replay = replayReplacementMutation(
+      receipt, fingerprint, decision.sessionId, 'replacement eligibility',
     );
     if (replay) return replay;
     requireActiveGameplayPhase(authority.session);
@@ -5749,18 +5804,21 @@ export const setReplacementEligibility = onCall<{
       status: 'committed' as const, sessionId: decision.sessionId,
       targetUid: decision.targetUid, revision: currentRevision + 1,
       setupRevision: setupRevision(authority.session) + 1,
+      actorUid: uid, recordedAt: new Date().toISOString(),
     } satisfies ReplacementMutationResult;
     tx.set(eligibilityRef, {
       sessionId: decision.sessionId, targetUid: decision.targetUid,
       reason: decision.reason, eligible: true, revision: result.revision,
       actorUid: uid, requestId: decision.requestId,
+      recordedAt: result.recordedAt,
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
     tx.set(db.doc(`sessions/${decision.sessionId}/replacementEligibility/${decision.targetUid}/audit/${decision.requestId}`), {
       sessionId: decision.sessionId, targetUid: decision.targetUid,
       reason: decision.reason, revision: result.revision, actorUid: uid,
-      requestId: decision.requestId, createdAt: FieldValue.serverTimestamp(),
+      requestId: decision.requestId, recordedAt: result.recordedAt,
+      createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
@@ -5801,10 +5859,8 @@ export const assignReplacementRole = onCall<{
       tx.get(db.collection(`sessions/${assignment.sessionId}/players`)), tx.get(receiptRef),
       tx.get(targetSecretRef),
     ]);
-    const replay = replayBoundCommand(
-      receipt, fingerprint,
-      (value): value is ReplacementMutationResult => isReplacementMutationResult(value, assignment.sessionId),
-      'replacement assignment',
+    const replay = replayReplacementMutation(
+      receipt, fingerprint, assignment.sessionId, 'replacement assignment',
     );
     if (replay) return replay;
     requireActiveGameplayPhase(authority.session);
@@ -5876,6 +5932,7 @@ export const assignReplacementRole = onCall<{
       targetUid: assignment.targetUid, revision: currentRevision + 1,
       setupRevision: setupRevision(authority.session) + 1,
       replacementRoleId: assignment.replacementRoleId,
+      actorUid: uid, recordedAt: new Date().toISOString(),
     } satisfies ReplacementMutationResult;
     const privateBrief = serializedRoleBrief(
       assignment.sessionId, assignment.targetUid, assignment.replacementRoleId,
@@ -5918,12 +5975,14 @@ export const assignReplacementRole = onCall<{
       previousSeatId: storedSeatId ?? null, seatReleased: targetSeatRef !== undefined,
       loyaltyPreserved: true, actorUid: uid, requestId: assignment.requestId,
       revision: result.revision, setupRevision: result.setupRevision,
+      recordedAt: result.recordedAt,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${assignment.sessionId}/replacementAssignments/${assignment.requestId}/audit/${assignment.requestId}`), {
       sessionId: assignment.sessionId, targetUid: assignment.targetUid,
       replacementRoleId: assignment.replacementRoleId, actorUid: uid,
       requestId: assignment.requestId, revision: result.revision,
+      recordedAt: result.recordedAt,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });

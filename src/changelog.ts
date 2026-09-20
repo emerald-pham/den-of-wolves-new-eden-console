@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [594],
+    implementationProgress: {
+      completed: 330, total: 751, percentage: '43.94%',
+      done: 330, partial: 20, active: 0, missing: 401,
+    },
+    changes: [
+      'Facilitator decisions now visibly identify their source, the authorized facilitator, and the server-recorded time wherever the decision result appears.',
+      'Replacement eligibility and role assignment keep the same actor and time through safe retries without exposing facilitator identity to player projections.',
+      '330 of 751 planned items are complete (43.94%).',
+    ],
+  },
+  {
+    version: '0.4.40',
     implementationPrompts: [591],
     implementationProgress: {
       completed: 329, total: 751, percentage: '43.81%',

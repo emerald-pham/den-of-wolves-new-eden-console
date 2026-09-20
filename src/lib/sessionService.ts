@@ -1972,14 +1972,24 @@ export async function releaseRole(targetUid: string): Promise<CommandDisposition
   });
 }
 
-export interface ReplacementMutationResult {
-  readonly status: 'committed' | 'stale';
+interface ReplacementMutationResultBase {
   readonly sessionId: string;
   readonly targetUid: string;
   readonly revision: number;
   readonly setupRevision: number;
   readonly replacementRoleId?: string;
 }
+
+export type ReplacementMutationResult = ReplacementMutationResultBase & (
+  | {
+    readonly status: 'committed';
+    readonly actorUid: string;
+    readonly recordedAt: string;
+  }
+  | {
+    readonly status: 'stale';
+  }
+);
 
 /** Persist the live GM's adjudication; connectivity never creates eligibility. */
 export async function setReplacementEligibility(

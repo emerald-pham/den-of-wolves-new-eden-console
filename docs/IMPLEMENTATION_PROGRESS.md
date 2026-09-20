@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**329 / 751 prompts complete (43.81%)**
+**330 / 751 prompts complete (43.94%)**
 
-Status breakdown: **329 done · 21 partial · 401 missing**.
+Status breakdown: **330 done · 20 partial · 401 missing**.
 
 Active prompt: **none**
 
@@ -1065,7 +1065,7 @@ release classification and evidence.
 | 591 | done | non-feature | 0.4.40 | Every active full-ship maintenance console now presents a vessel-specific reference assembled from the same registered schedule that drives its controls: the exact numbered sequence, printed food and water rations, unrest and damage rolls, live reactor capacity, unused-charge expiry, and shuttle-fuel expiry. The compact reference uses the established display and monospace console typography, stacks safely on phone widths, and remains alongside the existing actionable maintenance sequence. |
 | 592 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 593 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 594 | partial | non-feature | 0.4.5 | Partial production-path implementation: existing GM Religious Zealotry, Civil Unrest, and durable facilitator rule-call results now show their source, actor, and recorded time when the authorized projection supplies them. Selected-player rule calls keep actor identity withheld and accurately show time unavailable when the private projection omits the server timestamp; replacement eligibility and assignment statuses identify their facilitator source but retain unavailable actor/time wording because those callable results do not expose that metadata. No player or GM surface invents names or timestamps, so acceptance remains partial for adjudications whose authoritative projection lacks metadata. |
+| 594 | done | non-feature | 0.4.5, 0.4.41 | All production facilitator adjudication surfaces now visibly identify their decision source, authoritative actor, and server-recorded time. Existing Religious Zealotry, Civil Unrest, durable facilitator rule-call, and selected-player private-call projections retain their established privacy boundaries. Replacement eligibility and assignment callables now return and persist the authenticated facilitator UID with one server-generated ISO timestamp in the committed idempotent result; the GM console renders that metadata, while stale outcomes remain non-decisions and show no attribution. No player projection receives the facilitator UID. |
 | 595 | done | non-feature | — | Settings renders APP_VERSION from the shared version module, which imports package metadata. Existing version and Settings tests verify the displayed release reference without handwritten version constants. Documentation verification only; no runtime change. |
 | 596 | done | non-feature | — | Settings exposes changelog entries in a named, keyboard-focusable region with bounded viewport-relative height, independent vertical scrolling and contained overscroll. Existing Settings tests verify opening, accessible region and scroll styles. All 148 entries were verified strictly newest-first at version 0.3.57. Documentation verification only; no runtime change. |
 | 597 | done | non-feature | — | Verified the existing danger-red two-step ARE YOU SURE? Settings action. Confirmation invokes the shared disconnect service and replaces the route with landing; the service captures session and GM-instance cleanup before clearing local identity, mode and private state, retaining cleanup commands for offline acknowledgement. Existing cancellation, offline queue and delayed acknowledgement tests pass; the Settings test now also proves landing navigation. No runtime change. |

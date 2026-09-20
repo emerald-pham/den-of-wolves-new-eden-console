@@ -319,7 +319,10 @@ export default function GmConsole() {
   const [replacementRevision, setReplacementRevision] = useState(0);
   const [replacementSetupRevision, setReplacementSetupRevision] = useState(0);
   const [replacementMessage, setReplacementMessage] = useState<string | null>(null);
-  const [replacementDecisionRecorded, setReplacementDecisionRecorded] = useState(false);
+  const [replacementDecisionAttribution, setReplacementDecisionAttribution] = useState<{
+    readonly actorUid: string;
+    readonly recordedAt: string;
+  } | null>(null);
   const [replacementBusy, setReplacementBusy] = useState(false);
   const [castingDraftRoles, setCastingDraftRoles] = useState<Readonly<Record<string, string>>>({});
   const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
@@ -1278,11 +1281,12 @@ export default function GmConsole() {
       if (result.status === 'stale') {
         setReplacementRevision(result.revision);
         setReplacementSetupRevision(result.setupRevision);
+        setReplacementDecisionAttribution(null);
         setReplacementMessage('ELIGIBILITY STALE // refresh the GM roster and retry');
       } else {
         setReplacementRevision(result.revision);
         setReplacementSetupRevision(result.setupRevision);
-        setReplacementDecisionRecorded(true);
+        setReplacementDecisionAttribution({ actorUid: result.actorUid, recordedAt: result.recordedAt });
         setReplacementMessage(`ELIGIBILITY RECORDED // ${replacementReason.toUpperCase()} // revision ${result.revision}`);
       }
     } catch {
@@ -1303,11 +1307,12 @@ export default function GmConsole() {
       if (result.status === 'stale') {
         setReplacementRevision(result.revision);
         setReplacementSetupRevision(result.setupRevision);
+        setReplacementDecisionAttribution(null);
         setReplacementMessage('ASSIGNMENT STALE // the eligibility record changed');
       } else {
         setReplacementRevision(result.revision);
         setReplacementSetupRevision(result.setupRevision);
-        setReplacementDecisionRecorded(true);
+        setReplacementDecisionAttribution({ actorUid: result.actorUid, recordedAt: result.recordedAt });
         setReplacementMessage(`REPLACEMENT COMMITTED // ${replacementRoleId} // revision ${result.revision}`);
       }
     } catch {
@@ -3438,7 +3443,7 @@ export default function GmConsole() {
                       setReplacementTargetUid(event.target.value);
                       setReplacementRevision(0);
                       setReplacementSetupRevision(session.setupRevision ?? 0);
-                      setReplacementDecisionRecorded(false);
+                      setReplacementDecisionAttribution(null);
                       setReplacementMessage(null);
                     }}
                   >
@@ -3495,10 +3500,11 @@ export default function GmConsole() {
                 <p className="gm-player-roster__note" role="status" aria-live="polite">
                   {replacementMessage ?? 'No eligibility decision recorded for the selected player.'}
                 </p>
-                {replacementDecisionRecorded && (
+                {replacementDecisionAttribution && (
                   <DecisionAttribution
                     source="Facilitator replacement decision"
-                    actorVisibility="unavailable"
+                    actorUid={replacementDecisionAttribution.actorUid}
+                    recordedAt={replacementDecisionAttribution.recordedAt}
                   />
                 )}
               </section>

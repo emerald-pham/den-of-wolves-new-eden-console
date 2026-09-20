@@ -5205,8 +5205,8 @@
     {
       "direction": "594 -> DECISION-ATTRIBUTION",
       "id": "E-594-DECISION-ATTRIBUTION",
-      "language": "Existing GM Religious Zealotry, Civil Unrest, replacement, and durable facilitator rule-call result surfaces now include explicit decision source, actor, and time labels. The GM projections use only their existing actorUid and server updatedAt/createdAt fields. Selected-player facilitator rule calls retain the server privacy projection: actor identity is shown as withheld and absent createdAt is shown as unavailable. Replacement callable results provide only revision data, so the UI labels their facilitator source while truthfully showing actor and time unavailable. Focused tests pass 194/194 across firestore parser/listener, DecisionAttribution, RoleBrief, and GmConsole; typecheck, build, and targeted lint pass. Real Chrome rendering checks cover the RoleBrief private projection and GM attribution block at 320x844, 390x844, 844x390, and 1440x900 under normal and reduced motion with no horizontal overflow. The browser fixture uses local simulated projections and makes no Firebase or deployment claim; metadata-missing adjudications remain a documented partial boundary.",
-      "source": "src/components/DecisionAttribution.tsx; src/components/DecisionAttribution.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/lib/firestore.ts; src/types/game.ts; src/index.css; focused tests 194/194; npm run typecheck; npm run build; targeted eslint; /tmp/p594-decision-render-evidence.json; /tmp/p594-role-brief-320x844.png; /tmp/p594-gm-attribution-1440x900.png",
+      "language": "Every production facilitator adjudication surface explicitly labels decision source, actor, and recorded time using authoritative projection data. Religious Zealotry, Civil Unrest, and durable facilitator rule calls retain their existing metadata and privacy rules; selected-player private calls continue to withhold actor identity where required. Replacement eligibility and assignment callables now bind the authenticated facilitator UID and one server-generated ISO timestamp into the committed idempotent result, authoritative records, and audit records. Valid pre-release committed receipts are enriched on replay from their actor-bound fingerprint and persisted server timestamp, preserving idempotent retries across rollout. The GM-only replacement panel renders that returned metadata; stale CAS results clear attribution because they are not decisions, and no player projection receives the facilitator UID. Focused function, service, component, and GM-console tests pass 253/253 with TypeScript checking. Existing real-Chrome attribution geometry evidence remains applicable because this closure changes only authoritative values supplied to the same DecisionAttribution component and adds no layout or CSS; the risk-based font consistency gate verifies the console type system.",
+      "source": "functions/src/index.ts; functions/src/replacementCallable.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/components/DecisionAttribution.tsx; src/components/DecisionAttribution.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; focused tests 253/253; npm run typecheck; npm run test:font-consistency; prior /tmp/p594-decision-render-evidence.json, /tmp/p594-role-brief-320x844.png, and /tmp/p594-gm-attribution-1440x900 geometry evidence",
       "type": "evidence / attribution / privacy / rendered"
     },
     {
@@ -20719,7 +20719,7 @@
         "acceptance": "every adjudicated result visibly names the decision source, actor, and time rather than posing as rules automation.",
         "title": "Label facilitator decisions."
       },
-      "description": "Partial production-path implementation: existing GM Religious Zealotry, Civil Unrest, and durable facilitator rule-call results now show their source, actor, and recorded time when the authorized projection supplies them. Selected-player rule calls keep actor identity withheld and accurately show time unavailable when the private projection omits the server timestamp; replacement eligibility and assignment statuses identify their facilitator source but retain unavailable actor/time wording because those callable results do not expose that metadata. No player or GM surface invents names or timestamps, so acceptance remains partial for adjudications whose authoritative projection lacks metadata.",
+      "description": "All production facilitator adjudication surfaces now visibly identify their decision source, authoritative actor, and server-recorded time. Existing Religious Zealotry, Civil Unrest, durable facilitator rule-call, and selected-player private-call projections retain their established privacy boundaries. Replacement eligibility and assignment callables now return and persist the authenticated facilitator UID with one server-generated ISO timestamp in the committed idempotent result; the GM console renders that metadata, while stale outcomes remain non-decisions and show no attribution. No player projection receives the facilitator UID.",
       "evidenceIds": "E-AUDIT-594;E-594-DECISION-ATTRIBUTION",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -20729,11 +20729,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.4.5"
+        "0.4.5",
+        "0.4.41"
       ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

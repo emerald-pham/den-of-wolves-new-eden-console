@@ -865,10 +865,12 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   });
   vi.mocked(setReplacementEligibility).mockResolvedValue({
     status: 'committed', sessionId: 's1', targetUid: 'u2', revision: 1, setupRevision: 5,
+    actorUid: 'u1', recordedAt: '2026-09-20T17:00:00.000Z',
   });
   vi.mocked(assignReplacementRole).mockResolvedValue({
     status: 'committed', sessionId: 's1', targetUid: 'u2', revision: 2,
     setupRevision: 6, replacementRoleId: 'wolf-commander',
+    actorUid: 'u1', recordedAt: '2026-09-20T17:01:00.000Z',
   });
   renderConsole();
 
@@ -880,13 +882,19 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
   await user.keyboard('{Enter}');
   await waitFor(() => expect(setReplacementEligibility).toHaveBeenCalledWith('u2', 'dead', 0, 0));
   expect(within(panel).getByRole('region', { name: 'Decision attribution' })).toHaveTextContent(
-    'Decision actor // unavailable in this projection',
+    'Decision actor // facilitator // u1',
   );
   expect(within(panel).getByRole('region', { name: 'Decision attribution' })).toHaveTextContent(
-    'Decision time // unavailable in this projection',
+    'Decision time // 9/20/2026',
+  );
+  expect(within(panel).getByRole('region', { name: 'Decision attribution' }).querySelector('time')).toHaveAttribute(
+    'datetime', '2026-09-20T17:00:00.000Z',
   );
   await user.click(within(panel).getByRole('button', { name: 'Assign replacement role' }));
   await waitFor(() => expect(assignReplacementRole).toHaveBeenCalledWith('u2', 'wolf-commander', 1, 5));
+  expect(within(panel).getByRole('region', { name: 'Decision attribution' }).querySelector('time')).toHaveAttribute(
+    'datetime', '2026-09-20T17:01:00.000Z',
+  );
 });
 
 it('renders charged base Capybara production controls in the live GM console', () => {

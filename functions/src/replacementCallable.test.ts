@@ -94,21 +94,32 @@ beforeEach(() => {
 });
 
 it('records explicit eligibility and assigns a replacement atomically', async () => {
-  await expect(setReplacementEligibility.run(request({
+  const eligibilityResult = await setReplacementEligibility.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'eligibility-1',
     targetUid: 'player-1', reason: 'dead', expectedRevision: 0, expectedSetupRevision: 4,
-  }))).resolves.toMatchObject({ status: 'committed', revision: 1 });
+  }));
+  expect(eligibilityResult).toMatchObject({
+    status: 'committed', revision: 1, actorUid: 'gm-1',
+    recordedAt: expect.any(String),
+  });
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/replacementEligibility/player-1/audit/eligibility-1' }),
-    expect.objectContaining({ reason: 'dead', targetUid: 'player-1' }),
+    expect.objectContaining({
+      reason: 'dead', targetUid: 'player-1', actorUid: 'gm-1',
+      recordedAt: eligibilityResult.status === 'committed' ? eligibilityResult.recordedAt : undefined,
+    }),
   );
 
   mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
-  await expect(assignReplacementRole.run(request({
+  const assignmentResult = await assignReplacementRole.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'replacement-1',
     targetUid: 'player-1', replacementRoleId: 'wolf-commander', expectedRevision: 1,
     expectedSetupRevision: 4,
-  }))).resolves.toMatchObject({ status: 'committed', replacementRoleId: 'wolf-commander' });
+  }));
+  expect(assignmentResult).toMatchObject({
+    status: 'committed', replacementRoleId: 'wolf-commander', actorUid: 'gm-1',
+    recordedAt: expect.any(String),
+  });
 
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
@@ -120,7 +131,10 @@ it('records explicit eligibility and assigns a replacement atomically', async ()
   );
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/replacementAssignments/replacement-1/audit/replacement-1' }),
-    expect.objectContaining({ replacementRoleId: 'wolf-commander', targetUid: 'player-1' }),
+    expect.objectContaining({
+      replacementRoleId: 'wolf-commander', targetUid: 'player-1', actorUid: 'gm-1',
+      recordedAt: assignmentResult.status === 'committed' ? assignmentResult.recordedAt : undefined,
+    }),
   );
   expect(mock.set).not.toHaveBeenCalledWith(
     expect.objectContaining({ path: expect.stringContaining('/secrets/loyalty-') }),
@@ -254,6 +268,33 @@ it('replays the same request and rejects a consumed or occupied replacement', as
   await expect(assignReplacementRole.run(request({
     ...payload, requestId: 'replacement-occupied', replacementRoleId: 'comms-officer',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('enriches a committed baseline-format receipt during a retry after rollout', async () => {
+  const payload = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'legacy-eligibility-replay',
+    targetUid: 'player-1', reason: 'dead', expectedRevision: 0, expectedSetupRevision: 4,
+  };
+  mock.receipts.set('sessions/s1/commandReceipts/legacy-eligibility-replay', {
+    fingerprint: {
+      action: 'set-replacement-eligibility', sessionId: 's1',
+      requestId: 'legacy-eligibility-replay', actorUid: 'gm-1', instanceId: 'bridge',
+      expectedRevision: 0,
+      payload: { targetUid: 'player-1', reason: 'dead', expectedSetupRevision: 4 },
+    },
+    result: {
+      status: 'committed', sessionId: 's1', targetUid: 'player-1',
+      revision: 1, setupRevision: 5,
+    },
+    createdAt: { toDate: () => new Date('2026-09-19T23:59:00.000Z') },
+  });
+
+  await expect(setReplacementEligibility.run(request(payload))).resolves.toEqual({
+    status: 'committed', sessionId: 's1', targetUid: 'player-1',
+    revision: 1, setupRevision: 5, actorUid: 'gm-1',
+    recordedAt: '2026-09-19T23:59:00.000Z',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects a stale eligibility cursor before writing a role', async () => {
