@@ -279,7 +279,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 168 | DECISION | done | none | none | none | none | none | none | none | none | E-523-IMPLEMENTED;E-523-RELEASED | M3;M5 | Record vessel rule calls. |
 | 169 | EXTEND | missing | 161;162;165 | none | none | none | none | none | none | none | E-AUDIT-169 | M3;M5 | Build shared vessel fixtures. |
 | 170 | EXTEND | done | 048;049 | none | none | none | none | none | none | none | E-AUDIT-170;E-170-OBSERVER-PROJECTION | M3;M5 | Project observer-safe vessel data. |
-| 171 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-171 | M3;M5 | Complete AEGIS identity and maintenance lane. |
+| 171 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-171 | M3;M5 | Complete AEGIS identity and maintenance lane. |
 | 172 | PRESERVE | done | 130;161;162 | none | none | none | none | none | none | none | E-AUDIT-172;E-172-VERIFIED | M3;M5 | Resolve AEGIS Armoured Hull I and II. |
 | 173 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-173;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve AEGIS Storage. |
 | 174 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-174;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the AEGIS Reactor. |
@@ -304,7 +304,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 193 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-193 | M3;M5 | Complete the Dione Captain workspace. |
 | 193a | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193A | M3;M5 | Complete the Dione Engineer workspace. |
 | 193b | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193B | M3;M5 | Complete the President workspace. |
-| 194 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-194 | M3;M5 | Complete Icebreaker identity and maintenance lane. |
+| 194 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-194 | M3;M5 | Complete Icebreaker identity and maintenance lane. |
 | 195 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-195;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Icebreaker Storage. |
 | 196 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-196;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Icebreaker Reactor. |
 | 197 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-197 | M3;M5 | Resolve the Icebreaker Shuttle Bay. |
@@ -316,7 +316,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 203 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-203 | M3;M5 | Complete the Icebreaker Captain workspace. |
 | 203a | NEW | missing | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203A | M3;M5 | Complete the Icebreaker Engineer workspace. |
 | 203b | NEW | missing | 166;194;265;388 | none | none | none | none | none | none | none | E-AUDIT-203B | M3;M5 | Complete the Miner workspace. |
-| 204 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-204 | M3;M5 | Complete Shepherd identity and maintenance lane. |
+| 204 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-204 | M3;M5 | Complete Shepherd identity and maintenance lane. |
 | 205 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-205;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Shepherd Storage. |
 | 206 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-206;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Shepherd Reactor. |
 | 207 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-207 | M3;M5 | Resolve the Shepherd Shuttle Bay. |
@@ -330,7 +330,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 215 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-215 | M3;M5 | Complete the Shepherd Captain workspace. |
 | 215a | NEW | missing | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215A | M3;M5 | Complete the Shepherd Engineer workspace. |
 | 215b | NEW | missing | 166;204;211;321 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |
-| 216 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-216 | M3;M5 | Complete Quellon identity and maintenance lane. |
+| 216 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-216 | M3;M5 | Complete Quellon identity and maintenance lane. |
 | 217 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-217;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Quellon Storage. |
 | 218 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-218;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Quellon Reactor. |
 | 219 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-219 | M3;M5 | Resolve the Quellon Shuttle Bay. |
@@ -340,7 +340,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 223 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-223 | M3;M5 | Complete the Quellon Captain workspace. |
 | 223a | NEW | missing | 166;216;361 | none | none | none | none | none | none | none | E-AUDIT-223A | M3;M5 | Complete the Quellon Engineer workspace. |
 | 223b | NEW | missing | 166;216;269;321 | none | none | none | none | none | none | none | E-AUDIT-223B | M3;M5 | Complete the Explorer workspace. |
-| 224 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-224 | M3;M5 | Complete Refinery 124 identity and maintenance lane. |
+| 224 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-224 | M3;M5 | Complete Refinery 124 identity and maintenance lane. |
 | 225 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-225;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Refinery 124 Storage. |
 | 226 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-226;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Refinery 124 Reactor. |
 | 227 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-227 | M3;M5 | Resolve the Refinery 124 Shuttle Bay. |
@@ -993,7 +993,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-166 | hard_prompt | 166 -> 161;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role action binding consumes vessel and console metadata. |
 | E-AUDIT-169 | hard_prompt | 169 -> 161;162;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shared fixtures exercise the common vessel and console contracts. |
 | E-AUDIT-170 | hard_prompt | 170 -> 048;049 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Observer-safe projections extend the existing observer entry and reset contracts. |
-| E-AUDIT-171 | hard_prompt | 171 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
+| E-AUDIT-171 | hard_prompt | 171 -> 114;161;162 | src/data/vessels/aegis.ts; src/data/aegisConsoles.ts; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; src/components/FleetSystemsWorkspace.test.tsx; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts | AEGIS's canonical vessel and Admiral-console definitions agree with the server registries on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority. |
 | E-AUDIT-172 | hard_prompt | 172 -> 130;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Armoured Hull behavior consumes common damage draws and vessel data. |
 | E-AUDIT-173 | hard_prompt | 173 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-174 | hard_prompt | 174 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
@@ -1018,7 +1018,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-193 | hard_prompt | 193 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
 | E-AUDIT-193A | hard_prompt | 193a -> 166;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Dione Engineer actions consume role binding and Dione identity. |
 | E-AUDIT-193B | hard_prompt | 193b -> 166;183 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | President actions consume role binding and Dione identity. |
-| E-AUDIT-194 | hard_prompt | 194 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
+| E-AUDIT-194 | hard_prompt | 194 -> 114;161;162 | src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts | Icebreaker's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority. |
 | E-AUDIT-195 | hard_prompt | 195 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-196 | hard_prompt | 196 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
 | E-AUDIT-197 | hard_prompt | 197 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
@@ -1030,7 +1030,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-203 | hard_prompt | 203 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
 | E-AUDIT-203A | hard_prompt | 203a -> 166;194;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Icebreaker Engineer actions consume role, vessel, and craft contracts. |
 | E-AUDIT-203B | hard_prompt | 203b -> 166;194;265;388 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Miner workspace consumes role, vessel, Highwall, and mining contracts. |
-| E-AUDIT-204 | hard_prompt | 204 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
+| E-AUDIT-204 | hard_prompt | 204 -> 114;161;162 | src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts | Shepherd's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority. |
 | E-AUDIT-205 | hard_prompt | 205 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-206 | hard_prompt | 206 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
 | E-AUDIT-207 | hard_prompt | 207 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
@@ -1044,7 +1044,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-215 | hard_prompt | 215 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
 | E-AUDIT-215A | hard_prompt | 215a -> 166;204;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shepherd Engineer actions consume role, vessel, and craft contracts. |
 | E-AUDIT-215B | hard_prompt | 215b -> 166;204;211;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Scientist workspace consumes role, vessel, research, and scout-entitlement contracts. |
-| E-AUDIT-216 | hard_prompt | 216 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
+| E-AUDIT-216 | hard_prompt | 216 -> 114;161;162 | src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts | Quellon's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority. |
 | E-AUDIT-217 | hard_prompt | 217 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-218 | hard_prompt | 218 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
 | E-AUDIT-219 | hard_prompt | 219 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
@@ -1054,7 +1054,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-223 | hard_prompt | 223 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
 | E-AUDIT-223A | hard_prompt | 223a -> 166;216;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Quellon Engineer actions consume role, vessel, and craft contracts. |
 | E-AUDIT-223B | hard_prompt | 223b -> 166;216;269;321 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Explorer workspace consumes role, vessel, Hummingbird, and scout-entitlement contracts. |
-| E-AUDIT-224 | hard_prompt | 224 -> 114;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics. |
+| E-AUDIT-224 | hard_prompt | 224 -> 114;161;162 | src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts | Refinery 124's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority. |
 | E-AUDIT-225 | hard_prompt | 225 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-226 | hard_prompt | 226 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
 | E-AUDIT-227 | hard_prompt | 227 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |

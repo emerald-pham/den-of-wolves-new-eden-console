@@ -886,8 +886,8 @@
     {
       "direction": "171 -> 114;161;162",
       "id": "E-AUDIT-171",
-      "language": "Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "AEGIS's canonical vessel and Admiral-console definitions agree with the server registries on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
+      "source": "src/data/vessels/aegis.ts; src/data/aegisConsoles.ts; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; src/components/FleetSystemsWorkspace.test.tsx; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts",
       "type": "hard_prompt"
     },
     {
@@ -1061,8 +1061,8 @@
     {
       "direction": "194 -> 114;161;162",
       "id": "E-AUDIT-194",
-      "language": "Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Icebreaker's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
+      "source": "src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts",
       "type": "hard_prompt"
     },
     {
@@ -1145,8 +1145,8 @@
     {
       "direction": "204 -> 114;161;162",
       "id": "E-AUDIT-204",
-      "language": "Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Shepherd's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
+      "source": "src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts",
       "type": "hard_prompt"
     },
     {
@@ -1243,8 +1243,8 @@
     {
       "direction": "216 -> 114;161;162",
       "id": "E-AUDIT-216",
-      "language": "Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Quellon's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
+      "source": "src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts",
       "type": "hard_prompt"
     },
     {
@@ -1313,8 +1313,8 @@
     {
       "direction": "224 -> 114;161;162",
       "id": "E-AUDIT-224",
-      "language": "Each full-ship maintenance lane consumes ordered maintenance, vessel registration, and printed statistics.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Refinery 124's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
+      "source": "src/data/vessels; src/data/fullShipIdentityMaintenance.test.ts; src/data/vesselTemplates.test.ts; src/data/printedPopulation.test.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/maintenance.test.ts",
       "type": "hard_prompt"
     },
     {
@@ -9804,7 +9804,7 @@
         "acceptance": "2,500 survivors, printed rations, starting stores, and steps 1–7 render and resolve from its definition.",
         "title": "Complete AEGIS identity and maintenance lane."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "AEGIS now derives its 2,500-survivor identity, printed rations, starting stores, population track, and seven-step maintenance presentation from its canonical vessel and Admiral-console definitions. The server resource, population, and maintenance-order registries match those definitions exactly, including the distinct Zeta and Omega bay steps; one cross-layer contract test prevents client/server drift.",
       "evidenceIds": "E-AUDIT-171",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9816,7 +9816,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -10385,7 +10385,7 @@
         "acceptance": "40,000 survivors, exact thresholds, rations, stores, and steps derive from its sheet.",
         "title": "Complete Icebreaker identity and maintenance lane."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Icebreaker now derives its 40,000-survivor identity, exact 34,000/25,000/15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift.",
       "evidenceIds": "E-AUDIT-194",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -10397,7 +10397,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -10661,7 +10661,7 @@
         "acceptance": "30,000 survivors, exact 24,000/15,000/5,000 thresholds, rations, stores, and steps are authoritative.",
         "title": "Complete Shepherd identity and maintenance lane."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Shepherd now derives its 30,000-survivor identity, exact 24,000/15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift.",
       "evidenceIds": "E-AUDIT-204",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -10673,7 +10673,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -10983,7 +10983,7 @@
         "acceptance": "30,000 survivors, exact thresholds, rations, stores, and steps derive from Quellon data.",
         "title": "Complete Quellon identity and maintenance lane."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Quellon now derives its 30,000-survivor identity, exact 24,000/15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift.",
       "evidenceIds": "E-AUDIT-216",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -10995,7 +10995,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11213,7 +11213,7 @@
         "acceptance": "20,000 survivors, exact 15,000/5,000 thresholds, rations, stores, and steps are authoritative.",
         "title": "Complete Refinery 124 identity and maintenance lane."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Refinery 124 now derives its 20,000-survivor identity, exact 15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift.",
       "evidenceIds": "E-AUDIT-224",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11225,7 +11225,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
