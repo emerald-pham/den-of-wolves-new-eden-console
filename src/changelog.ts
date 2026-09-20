@@ -27,7 +27,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 320, partial: 23, active: 0, missing: 408,
     },
     changes: [
-      'Destroying the last active full fleet ship now creates a distinct total-fleet-loss outcome and freezes active play in the same server transaction.',
+      'Destroying the last active full fleet ship now creates a distinct total fleet loss outcome and freezes active play in the same server transaction.',
       'Survivors, escape pods, shuttles, and small craft remain readable for endgame evaluation after the full fleet is lost.',
       '320 of 751 planned items are complete (42.61%).',
     ],

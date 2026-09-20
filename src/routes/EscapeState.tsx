@@ -18,6 +18,8 @@ export default function EscapeState() {
   }
 
   const { escapeState } = me;
+  const totalFleetLoss = session.phase === 'failure' &&
+    session.gameOutcome?.cause === 'total-fleet-loss';
   async function flee(): Promise<void> {
     setBusy(true);
     setMessage(null);
@@ -43,14 +45,22 @@ export default function EscapeState() {
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title" id="escape-state-title">Escape state // ship destroyed</h1>
         <p className="role-select__lede">
-          Your printed identity remains retained. Ship consoles and station claims are suspended while you leave the destroyed ship.
+          {totalFleetLoss
+            ? 'Your printed identity, survivor record, escape pods, and assigned craft remain available for endgame evaluation.'
+            : 'Your printed identity remains retained. Ship consoles and station claims are suspended while you leave the destroyed ship.'}
         </p>
         <dl className="session-mode__readouts">
           <div><dt>Destroyed ship</dt><dd>{escapeState.shipId.toUpperCase()}</dd></div>
-          <div><dt>Escape status</dt><dd>{escapeState.status === 'pending' ? 'READY TO FLEE' : 'FLED // AWAITING GM'}</dd></div>
+          <div><dt>Escape status</dt><dd>{totalFleetLoss
+            ? 'PRESERVED FOR ENDGAME'
+            : escapeState.status === 'pending' ? 'READY TO FLEE' : 'FLED // AWAITING GM'}</dd></div>
           <div><dt>Identity</dt><dd>{me.replacementRoleId ?? me.assignedRoleId ?? 'Printed role retained'}</dd></div>
         </dl>
-        {escapeState.status === 'pending' ? (
+        {totalFleetLoss ? (
+          <p className="gm-player-roster__note" role="status">
+            Total fleet loss // Active escape actions are frozen. A live facilitator can review the retained records.
+          </p>
+        ) : escapeState.status === 'pending' ? (
           <button className="cic-action-button" type="button" disabled={busy} onClick={() => void flee()}>
             {busy ? 'Recording escape…' : 'Flee destroyed ship'}
           </button>

@@ -105,6 +105,18 @@ vi.mock('firebase-admin/firestore', () => ({
                 const fields = state.undo[path] ?? { entries: [] };
                 return { exists: true, get: (key: string) => fields[key] };
               }
+              if (path === 'sessions/s1/players') {
+                return {
+                  exists: true,
+                  docs: mock.discoveryPlayers.map(({ id, fields }) => ({
+                    id,
+                    ref: `sessions/s1/players/${id}`,
+                    exists: true,
+                    data: () => fields,
+                    get: (key: string) => fields[key],
+                  })),
+                };
+              }
               if (path.includes('/players/')) {
                 return { exists: true, get: (key: string) => ({
                   role: mock.role, connected: mock.connected,
@@ -629,6 +641,13 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
     receipts: {}, undo: {}, events: {}, damageDraws: {},
   };
   mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  mock.discoveryPlayers = [{
+    id: 'player-1',
+    fields: {
+      role: 'player', connected: true, assignedRoleId: 'admiral',
+      activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    },
+  }];
   mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
 
   await expect(runMaintenance.run(request({
@@ -658,6 +677,12 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
     shuttleCargo: {},
     shuttleFuelled: {},
     smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/players/player-1', {
+    escapeState: {
+      status: 'pending', shipId: 'aegis', destructionEventId: 'damage-destroyed-aegis', revision: 5,
+    },
+    activeConsoleRoleId: null,
   });
 });
 

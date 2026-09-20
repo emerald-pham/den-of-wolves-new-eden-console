@@ -73,6 +73,26 @@ it('gives the affected player a flee action and retains identity copy', async ()
   expect(screen.queryByRole('button', { name: /flee destroyed ship/i })).not.toBeInTheDocument();
 });
 
+it('renders the forced total-loss escape route as readable endgame state without a rejected action', () => {
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'failure',
+    currentTurn: 2,
+    gameOutcome: {
+      type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 2,
+      occurredAt: '2026-09-20T14:30:00.000Z',
+    },
+  });
+  renderRoute();
+
+  expect(screen.getByRole('heading', { name: /escape state/i })).toBeVisible();
+  expect(screen.getByText(/printed identity, survivor record, escape pods, and assigned craft remain available/i)).toBeVisible();
+  expect(screen.getByText(/preserved for endgame/i)).toBeVisible();
+  expect(screen.getByText(/total fleet loss.*active escape actions are frozen/i)).toBeVisible();
+  expect(screen.queryByRole('button', { name: /flee destroyed ship/i })).not.toBeInTheDocument();
+  expect(fleeDestroyedShip).not.toHaveBeenCalled();
+});
+
 
 it('keeps a replacement-role holder on the authoritative flee route', async () => {
   const user = userEvent.setup();

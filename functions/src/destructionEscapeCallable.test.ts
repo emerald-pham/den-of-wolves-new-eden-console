@@ -42,6 +42,7 @@ vi.mock('firebase-admin/firestore', () => ({
           shipSurvivors: { aegis: 1000 },
           shipUnrest: { aegis: 0 },
           phase: 'active',
+          currentTurn: 0,
         }, ref);
       },
       update: (ref: string, fields: Record<string, unknown>) => mock.update(ref, fields),
@@ -51,7 +52,7 @@ vi.mock('firebase-admin/firestore', () => ({
       },
     }),
   }),
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
@@ -122,4 +123,8 @@ it('marks authoritative holders of the destroyed ship and revokes their console 
     },
     activeConsoleRoleId: null,
   });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    phase: 'failure',
+    gameOutcome: expect.objectContaining({ cause: 'total-fleet-loss', cycle: 0 }),
+  }));
 });
