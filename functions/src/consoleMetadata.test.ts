@@ -27,15 +27,15 @@ describe('server-only console metadata', () => {
     );
   });
 
-  it('links implemented maintenance and jump paths while naming deferred action owners', () => {
+  it('links implemented paths and fail-closes unavailable actions under an owning prompt', () => {
     expect(consoleMetadataFor('dione', 'storage')?.resolver)
       .toEqual({ status: 'implemented', id: 'maintenance.storage' });
     expect(consoleMetadataFor('dione', 'hydroponics')?.resolver).toEqual({
       status: 'implemented', id: 'maintenance.production',
     });
     expect(consoleMetadataFor('aegis', 'missile-launchers')?.resolver).toEqual({
-      status: 'deferred', followOnPrompts: ['182'],
-      reason: 'Missile Launchers await the AEGIS attack resolver.',
+      status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['182'],
+      reason: 'Missile Launchers are unavailable until the AEGIS attack resolver lands.',
     });
     expect(consoleMetadataFor('icebreaker', 'jump-drive')?.resolver)
       .toEqual({ status: 'implemented', id: 'jump.resolve' });
@@ -53,6 +53,24 @@ describe('server-only console metadata', () => {
       ownerRoleId: 'wing-commander',
       resolver: { status: 'implemented', id: 'fighter.build' },
     });
+  });
+
+  it('gives every registered console one complete authoritative resolver disposition', () => {
+    const unavailableOwners = new Set<string>();
+    for (const metadata of Object.values(CONSOLE_METADATA)) {
+      if (metadata.resolver.status === 'implemented') {
+        expect(metadata.resolver.id).not.toBe('fail-closed.unavailable');
+        continue;
+      }
+      expect(metadata.resolver).toMatchObject({
+        status: 'unavailable', id: 'fail-closed.unavailable',
+        reason: expect.stringMatching(/unavailable until/i),
+      });
+      expect(metadata.resolver.followOnPrompts).toHaveLength(1);
+      expect(metadata.resolver.followOnPrompts[0]).toMatch(/^\d+[a-z]?$/);
+      unavailableOwners.add(metadata.resolver.followOnPrompts[0]);
+    }
+    expect([...unavailableOwners].sort()).toEqual(['182', '192', '202', '231']);
   });
 
   it('records identity-only vessel console gaps instead of inventing systems', () => {

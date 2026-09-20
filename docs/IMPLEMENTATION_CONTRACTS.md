@@ -216,6 +216,22 @@ client write. Exact retries return the original private result without another
 message, suspicion increase, random draw, history entry, or audit write, and a
 foreign actor cannot use the receipt to recover the result.
 
+### Prompt 165 — Complete console metadata
+
+Every configured damage-deck console has one server-only metadata record that
+names its card, phase, maintenance step, charge rule, damage rule, upgrade
+rule, printed effect, and authoritative resolver disposition. Client catalogs
+retain only opaque console lookup keys and never receive the hidden card
+identity through this registry.
+
+An available action names its implemented resolver. A printed action whose
+gameplay resolver has not landed names the single owning follow-on prompt and
+uses the explicit `fail-closed.unavailable` disposition. Consumers may execute
+only `implemented` resolver IDs; an unavailable console exposes no action and
+cannot silently fall through to a generic mutation. This complete metadata
+boundary is the prerequisite for later role-to-action binding, while the
+owning prompts remain responsible for adding their real server behavior.
+
 ### Prompt 503 — Wolf action receipt audiences
 
 A committed Wolf action produces separate allowlisted outputs in the same

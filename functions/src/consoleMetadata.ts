@@ -24,7 +24,9 @@ export type ImplementedConsoleResolverId =
 export type ConsoleResolver =
   | { readonly status: 'implemented'; readonly id: ImplementedConsoleResolverId }
   | {
-    readonly status: 'deferred';
+    /** Authoritative fail-closed disposition until the owning prompt supplies an action resolver. */
+    readonly status: 'unavailable';
+    readonly id: 'fail-closed.unavailable';
     readonly followOnPrompts: readonly string[];
     readonly reason: string;
   };
@@ -63,8 +65,8 @@ const unresolved = (reason: string, followOnPrompts: readonly string[] = []): Co
   status: 'unresolved', reason, followOnPrompts,
 });
 const implemented = (id: ImplementedConsoleResolverId): ConsoleResolver => ({ status: 'implemented', id });
-const deferred = (reason: string, followOnPrompts: readonly string[]): ConsoleResolver => ({
-  status: 'deferred', reason, followOnPrompts,
+const unavailable = (reason: string, followOnPrompts: readonly string[]): ConsoleResolver => ({
+  status: 'unavailable', id: 'fail-closed.unavailable', reason, followOnPrompts,
 });
 
 const noCharge = printed('No reactor charge is required.');
@@ -141,31 +143,31 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
     phase: 'Wolf attack', step: null, charge: reactorCharge,
     damage: printed('Cannot launch fighters when damaged.'), upgrade: noUpgrade,
     effect: 'A charged, undamaged bay permits this fighter wing to launch during a Wolf Attack.',
-    resolver: deferred('Fighter Bay launch remains a combat registration until the attack resolver lands.', ['182']),
+    resolver: unavailable('Fighter Bay launch remains unavailable until the attack resolver lands.', ['182']),
   },
   'aegis:fighter-bay-bravo': {
     phase: 'Wolf attack', step: null, charge: reactorCharge,
     damage: printed('Cannot launch fighters when damaged.'), upgrade: noUpgrade,
     effect: 'A charged, undamaged bay permits this fighter wing to launch during a Wolf Attack.',
-    resolver: deferred('Fighter Bay launch remains a combat registration until the attack resolver lands.', ['182']),
+    resolver: unavailable('Fighter Bay launch remains unavailable until the attack resolver lands.', ['182']),
   },
   'aegis:command-and-control': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be used when damaged.'),
     upgrade: printed('At the end of the attack, choose up to one ship to take 1 less damage.'),
     effect: 'After targeting, redirect one Wolf ship to AEGIS.',
-    resolver: deferred('Command and Control awaits the AEGIS attack resolver.', ['182']),
+    resolver: unavailable('Command and Control is unavailable until the AEGIS attack resolver lands.', ['182']),
   },
   'aegis:missile-launchers': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Unusable when damaged.'),
     upgrade: printed('+1 long-range damage and +1 medium-range die.'),
     effect: 'Charged: long range deals 2 damage to one target; medium range rolls 4 dice, each 5+ deals 1 damage to a different target.',
-    resolver: deferred('Missile Launchers await the AEGIS attack resolver.', ['182']),
+    resolver: unavailable('Missile Launchers are unavailable until the AEGIS attack resolver lands.', ['182']),
   },
   'aegis:point-defence-lasers': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Unusable when damaged.'),
     upgrade: printed('Add one target.'),
     effect: 'Charged: roll 2 dice at medium range, each 4+ deals 1 damage to a different target; short range rolls 2 dice, each 2+ deals 1 damage to a different target.',
-    resolver: deferred('Point Defence Lasers await the AEGIS attack resolver.', ['182']),
+    resolver: unavailable('Point Defence Lasers are unavailable until the AEGIS attack resolver lands.', ['182']),
   },
 
   'dione:storage': commonStorage(implemented('maintenance.storage')),
@@ -180,7 +182,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'dione:fighter-bay': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot launch the Maliades when damaged.'), upgrade: noUpgrade,
     effect: 'While charged, the Maliades can be launched during a Wolf Attack.',
-    resolver: deferred('Dione Fighter Bay launch remains a craft-gating action.', ['192']),
+    resolver: unavailable('Dione Fighter Bay launch is unavailable until its craft-gating resolver lands.', ['192']),
   },
   'dione:jump-drive': commonJumpDrive('2 / 4 / 8'),
 
@@ -196,7 +198,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'icebreaker:jump-drive': commonJumpDrive('3 / 6 / 12'),
   'icebreaker:ram-scoop': {
     phase: 'Coordination', step: 5, charge: reactorCharge, damage: printed('Cannot gather ore when damaged.'), upgrade: printed('Gain +5 ore after every jump.'),
-    effect: 'When you FTL jump, if charged, gain 10 / 15 / 20 ore after a short / medium / long jump.', resolver: deferred('Ram Scoop awaits the authoritative post-jump production resolver.', ['202']),
+    effect: 'When you FTL jump, if charged, gain 10 / 15 / 20 ore after a short / medium / long jump.', resolver: unavailable('Ram Scoop is unavailable until the authoritative post-jump production resolver lands.', ['202']),
   },
 
   'shepherd:storage': commonStorage(implemented('maintenance.storage')),
@@ -242,7 +244,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   },
   'refinery-124:fighter-bay': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be charged or used when damaged.'), upgrade: noUpgrade,
-    effect: 'While charged, a Fighter Wing can be launched during a Wolf Attack.', resolver: deferred('Refinery Fighter Bay launch remains a role-gated combat action.', ['231']),
+    effect: 'While charged, a Fighter Wing can be launched during a Wolf Attack.', resolver: unavailable('Refinery Fighter Bay launch is unavailable until its role-gated combat resolver lands.', ['231']),
   },
   'refinery-124:jump-drive': commonJumpDrive('2 / 4 / 8'),
 
