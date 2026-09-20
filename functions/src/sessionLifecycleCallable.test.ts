@@ -512,6 +512,17 @@ describe('presence lease', () => {
       message: expect.stringMatching(/core role|assigned|Press/i),
     });
 
+    player({ assignedRoleId: null, seatId: 'admiral' });
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'press-officer',
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/core role|Press/i),
+    });
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      seatId: 'admiral', activeConsoleRoleId: null,
+    });
+
     player({ role: 'gm', assignedRoleId: 'admiral' });
     await expect(refreshPresence.run(request({
       sessionId: 's1', activeConsoleRoleId: 'press-officer',
@@ -534,6 +545,19 @@ describe('presence lease', () => {
       sessionId: 's1', activeConsoleRoleId: 'press-officer',
     }, 'u2'))).resolves.toEqual({ sessionId: 's1' });
     expect(read('sessions/s1/players/u2')).toMatchObject({ activeConsoleRoleId: 'press-officer' });
+  });
+
+  it('revokes stale Press authority while preserving a claimed core seat', async () => {
+    session({ pressEnabled: true, activeRoleIds: ['admiral'] });
+    player({ assignedRoleId: null, seatId: 'admiral', activeConsoleRoleId: 'press-officer' });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' })))
+      .resolves.toEqual({ sessionId: 's1' });
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      seatId: 'admiral', activeConsoleRoleId: null,
+    });
+    expect(read('sessions/s1')?.pressHolderUid).toBeNull();
   });
 
   it('keeps an unassigned GM as a Press observer instead of granting station authority', async () => {

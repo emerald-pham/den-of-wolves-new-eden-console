@@ -2106,13 +2106,17 @@ function hasCoreSeat(player: DocumentSnapshot): boolean {
   return typeof seatId === 'string' && seatId.trim().length > 0 && seatId !== 'press-officer';
 }
 
+function hasCoreStation(player: DocumentSnapshot): boolean {
+  return hasCoreAssignment(player) || hasCoreSeat(player);
+}
+
 function hasPressSeat(player: DocumentSnapshot): boolean {
   return player.get('seatId') === 'press-officer';
 }
 
 function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
   return isActivePlayer(player) && player.get('role') === 'player' &&
-    player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreAssignment(player);
+    player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreStation(player);
 }
 
 function hasPressState(player: DocumentSnapshot): boolean {
@@ -2153,8 +2157,8 @@ function clearPressPrivateState(
   wolfSecret: DocumentSnapshot,
   removeWolfRole: boolean,
 ): boolean {
-  const removedLoyalty = !hasCoreAssignment(player);
-  if (!hasCoreAssignment(player)) {
+  const removedLoyalty = !hasCoreStation(player);
+  if (!hasCoreStation(player)) {
     tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${player.id}`));
   }
   if (removeWolfRole) removePressWolfRole(tx, wolfSecretRef, wolfSecret);
@@ -8730,7 +8734,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         const storedPressHolderUid = sessionDoc.get('pressHolderUid');
         const releasePress = hasPressState(player) && (
           !currentPressAuthority || sessionDoc.get('pressEnabled') === false ||
-          player.get('role') !== 'player' || hasCoreAssignment(player) ||
+          player.get('role') !== 'player' || hasCoreStation(player) ||
           (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
         );
         tx.update(playerRef, {
@@ -9038,7 +9042,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     const storedPressHolderUid = currentSession.get('pressHolderUid');
     const releasePress = hasPressState(currentPlayer) && (
       !currentPressAuthority || currentSession.get('pressEnabled') === false ||
-      currentPlayer.get('role') !== 'player' || hasCoreAssignment(currentPlayer) ||
+      currentPlayer.get('role') !== 'player' || hasCoreStation(currentPlayer) ||
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
     ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
@@ -9385,7 +9389,7 @@ export const claimGmInstance = onCall<{
       ...(hasPressState(player) ? releasedPressFields(player) : {}),
     });
     if (hasPressState(player)) {
-      if (!hasCoreAssignment(player)) {
+      if (!hasCoreStation(player)) {
         tx.delete(db.doc(`sessions/${claim.sessionId}/secrets/loyalty-${uid}`));
         setLoyaltyCensusFromSecrets(
           tx,
@@ -9871,7 +9875,7 @@ export const setPressEnabled = onCall<{
         .filter(hasPressState)
         .forEach((candidate) => {
           tx.update(candidate.ref, releasedPressFields(candidate));
-          if (!hasCoreAssignment(candidate)) {
+          if (!hasCoreStation(candidate)) {
             tx.delete(db.doc(`sessions/${setting.sessionId}/secrets/loyalty-${candidate.id}`));
             removedLoyaltyUids.add(candidate.id);
           }
@@ -12560,7 +12564,7 @@ export const popShipConfetti = onCall<{
         !['player', 'gm'].includes(String(player.get('role'))) ||
         player.get('connected') !== true ||
         player.get('activeConsoleRoleId') !== 'press-officer' ||
-        hasCoreAssignment(player) ||
+        hasCoreStation(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
           session.get('pressHolderUid') !== uid) ||
         connectedPlayers.docs.some((candidate) =>
@@ -12904,7 +12908,7 @@ export const refreshPresence = onCall<{
     const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
     const invalidCurrentPressAuthority = currentPressAuthority && (
       session.get('pressEnabled') === false || player.get('role') !== 'player' ||
-      hasCoreAssignment(player) || otherActivePressHolders.length > 0
+      hasCoreStation(player) || otherActivePressHolders.length > 0
     );
     const explicitRelease = activeConsoleRoleId === null;
     const orphanedPressAssignment = player.get('assignedRoleId') === 'press-officer' &&
@@ -12953,13 +12957,7 @@ export const refreshPresence = onCall<{
       if (isPressRequest && player.get('role') !== 'player') {
         throw new HttpsError('permission-denied', 'Press is a player station.');
       }
-      const assignedRoleId = player.get('assignedRoleId');
-      if (
-        isPressRequest &&
-        assignedRoleId !== null &&
-        assignedRoleId !== undefined &&
-        assignedRoleId !== ''
-      ) {
+      if (isPressRequest && hasCoreStation(player)) {
         throw commandError(
           'failed-precondition',
           'Release your core role before selecting Press.',
@@ -17460,7 +17458,7 @@ export const publishPressDispatch = onCall<{
       tx.get(ref),
     ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
+        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreStation(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
           session.get('pressHolderUid') !== uid)) {
       throw new HttpsError(
@@ -17541,7 +17539,7 @@ export const dismissPressDispatch = onCall<{
       tx.get(ref),
     ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
+        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreStation(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
           session.get('pressHolderUid') !== uid)) {
       throw new HttpsError(

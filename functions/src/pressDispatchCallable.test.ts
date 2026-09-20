@@ -4,6 +4,8 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), receipts: new Map<string, Record<string, unknown>>(),
   role: 'player', post: 'press-officer', connected: true,
+  assignedRoleId: null as string | null,
+  seatId: null as string | null,
   exists: true, phase: 'active', currentTurn: 1, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
   turnPhase: undefined as unknown,
@@ -54,6 +56,7 @@ function expectAuthoritativeTicker(update: Record<string, unknown>, sourceId: st
 beforeEach(() => {
   Object.assign(mock, {
     role: 'player', post: 'press-officer', connected: true, exists: true,
+    assignedRoleId: null, seatId: null,
     phase: 'active', currentTurn: 1, pressDispatch: undefined, fleetTicker: undefined, turnPhase: undefined,
     activeRoleIds: undefined,
     pressEnabled: true,
@@ -74,7 +77,13 @@ beforeEach(() => {
       return { exists: value !== undefined, get: (key: string) => value?.[key] };
     }
     const fields: Record<string, unknown> = path.includes('/players/')
-      ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
+      ? {
+        role: mock.role,
+        activeConsoleRoleId: mock.post,
+        assignedRoleId: mock.assignedRoleId,
+        seatId: mock.seatId,
+        connected: mock.connected,
+      }
       : {
         phase: mock.phase,
         currentTurn: mock.currentTurn,
@@ -477,6 +486,22 @@ it('denies every Press action while the authoritative toggle is disabled, includ
   mock.role = 'gm';
   await expect(publishPressDispatch.run(request())).rejects
     .toMatchObject({ code: 'permission-denied' });
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
+  };
+  await expect(dismissPressDispatch.run(request({
+    sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies publish and dismissal while the Press actor still holds a core seat', async () => {
+  mock.seatId = 'admiral';
+  mock.pressHolderUid = 'u1';
+
+  await expect(publishPressDispatch.run(request())).rejects
+    .toMatchObject({ code: 'permission-denied' });
+
   mock.pressDispatch = {
     dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
   };

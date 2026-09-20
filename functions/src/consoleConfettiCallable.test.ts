@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => {
     get: vi.fn(), set: vi.fn(), update: vi.fn(), post: 'dione-engineer', full: true, currentTurn: 1,
     phase: 'active',
     activeRoleIds: undefined as readonly string[] | undefined,
+    seatId: null as string | null,
     pressEnabled: true,
     usedShipIds: [] as readonly string[],
     Timestamp: MockTimestamp,
@@ -28,6 +29,7 @@ const data = { sessionId: 's1', shipId: 'dione', roleId: 'dione-captain' };
 beforeEach(() => {
   mock.post = 'dione-engineer'; mock.full = true; mock.currentTurn = 1; mock.activeRoleIds = undefined;
   mock.phase = 'active';
+  mock.seatId = null;
   mock.pressEnabled = true;
   mock.usedShipIds = [];
   mock.set.mockReset(); mock.update.mockReset();
@@ -35,7 +37,10 @@ beforeEach(() => {
     const path = typeof ref === 'string' ? ref : ref.path;
     if (path.endsWith('/players')) return { docs: (mock.full ? ['dione-engineer', 'dione-captain', 'dione-president'] : [mock.post]).map((post, id) => ({ id: String(id), exists: true, get: (key: string) => ({ role: 'player', connected: true, activeConsoleRoleId: post, lastSeenAt: new mock.Timestamp() } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/') ?
-      { role: 'player', connected: true, activeConsoleRoleId: mock.post, lastSeenAt: new mock.Timestamp() } :
+      {
+        role: 'player', connected: true, activeConsoleRoleId: mock.post,
+        assignedRoleId: null, seatId: mock.seatId, lastSeenAt: new mock.Timestamp(),
+      } :
       { phase: mock.phase, currentTurn: mock.currentTurn, activeRoleIds: mock.activeRoleIds, pressEnabled: mock.pressEnabled, confettiUsedShipIds: mock.usedShipIds };
     return { exists: !path.includes('/shipConfetti/'), get: (key: string) => fields[key] };
   });
@@ -235,6 +240,21 @@ it('does not let an enabled Press dispenser be forged by a connected non-Press m
     data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer', requestId: 'press-1' },
     auth: { uid: 'u1' },
   } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not let a Press console fire while its actor still holds a core seat', async () => {
+  mock.full = false;
+  mock.post = 'press-officer';
+  mock.seatId = 'admiral';
+
+  await expect(popShipConfetti.run({
+    data: {
+      sessionId: 's1', shipId: 'snn-press-shuttle',
+      roleId: 'press-officer', requestId: 'press-core-seat',
+    },
+    auth: { uid: 'u1' },
+  } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set).not.toHaveBeenCalled();
 });
 
