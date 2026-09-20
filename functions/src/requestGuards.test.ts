@@ -20,7 +20,7 @@ import {
   requireShipDamageRequest,
   requireShipStoreScavengeRequest,
   requireWolfAssignmentRequest,
-  requireWolfActionRequest,
+  requireWolfSupplySabotageRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
   requireRoleConfigurationRequest,
@@ -60,17 +60,21 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
-  it('accepts only one canonical Wolf action for a positive expected cycle', () => {
-    expect(requireWolfActionRequest({
-      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2, action: 'provide-intel',
+  it('accepts only a canonical Wolf supply-sabotage request for a positive expected cycle', () => {
+    expect(requireWolfSupplySabotageRequest({
+      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2,
+      shuttleId: 'philia', resourceId: 'food',
     })).toEqual({
-      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2, action: 'provide-intel',
+      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2,
+      shuttleId: 'philia', resourceId: 'food',
     });
-    expectHttpsError(() => requireWolfActionRequest({
-      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 0, action: 'provide-intel',
+    expectHttpsError(() => requireWolfSupplySabotageRequest({
+      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 0,
+      shuttleId: 'philia', resourceId: 'food',
     }), 'invalid-argument');
-    expectHttpsError(() => requireWolfActionRequest({
-      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2, action: 'investigate',
+    expectHttpsError(() => requireWolfSupplySabotageRequest({
+      sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2,
+      shuttleId: 'philia', resourceId: 'medicine',
     }), 'invalid-argument');
   });
 

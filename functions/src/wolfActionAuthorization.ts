@@ -1,3 +1,5 @@
+import { ROLE_IDS } from './roleConfiguration';
+
 export const WOLF_ACTION_KINDS = [
   'sabotage-console',
   'sabotage-supplies',
@@ -12,6 +14,7 @@ export interface WolfActionAuthorizationInput {
   readonly active: boolean;
   readonly connectedRole: unknown;
   readonly assignedRoleId: unknown;
+  readonly activeConsoleRoleId: unknown;
   readonly replacementRoleId: unknown;
   readonly escapeState: unknown;
   readonly loyaltyAudience: unknown;
@@ -38,13 +41,22 @@ export function wolfActionAuthorization(
 ): WolfActionAuthorizationDecision {
   if (!input.active) return { allowed: false, reason: 'inactive' };
   if (input.connectedRole !== 'player') return { allowed: false, reason: 'not-player' };
-  if (typeof input.replacementRoleId === 'string' && input.replacementRoleId.length > 0) {
+  if (input.replacementRoleId !== undefined && input.replacementRoleId !== null) {
     return { allowed: false, reason: 'replaced' };
   }
   if (input.escapeState !== undefined && input.escapeState !== null) {
     return { allowed: false, reason: 'displaced' };
   }
-  if (typeof input.assignedRoleId !== 'string' || input.assignedRoleId.length === 0) {
+  const coverRoleId = input.assignedRoleId === null || input.assignedRoleId === undefined
+    ? input.activeConsoleRoleId === 'press-officer' ? 'press-officer' : undefined
+    : typeof input.assignedRoleId === 'string' && input.assignedRoleId !== 'press-officer' &&
+      (ROLE_IDS as readonly string[]).includes(input.assignedRoleId)
+      ? input.assignedRoleId
+      : undefined;
+  const coreConsoleMismatch = coverRoleId !== undefined && coverRoleId !== 'press-officer' &&
+    input.activeConsoleRoleId !== undefined && input.activeConsoleRoleId !== null &&
+    input.activeConsoleRoleId !== coverRoleId;
+  if (!coverRoleId || coreConsoleMismatch) {
     return { allowed: false, reason: 'cover-mismatch' };
   }
   if (!Array.isArray(input.loyaltyAudience) || input.loyaltyAudience.length !== 1 ||
@@ -58,12 +70,13 @@ export function wolfActionAuthorization(
   if (!isRecord(input.wolfAssignmentPayload) || input.wolfAssignmentPayload.type !== 'wolf-assignment' ||
       !Array.isArray(input.wolfAssignmentPayload.roleIds) ||
       input.wolfAssignmentPayload.roleIds.length < 1 || input.wolfAssignmentPayload.roleIds.length > 2 ||
-      input.wolfAssignmentPayload.roleIds.some((roleId) => typeof roleId !== 'string') ||
+      input.wolfAssignmentPayload.roleIds.some((roleId) =>
+        typeof roleId !== 'string' || !(ROLE_IDS as readonly string[]).includes(roleId)) ||
       new Set(input.wolfAssignmentPayload.roleIds).size !== input.wolfAssignmentPayload.roleIds.length ||
-      !input.wolfAssignmentPayload.roleIds.includes(input.assignedRoleId)) {
+      !input.wolfAssignmentPayload.roleIds.includes(coverRoleId)) {
     return { allowed: false, reason: 'cover-mismatch' };
   }
-  return { allowed: true, coverRoleId: input.assignedRoleId };
+  return { allowed: true, coverRoleId };
 }
 
 export function isWolfActionKind(value: unknown): value is WolfActionKind {

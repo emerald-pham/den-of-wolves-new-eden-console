@@ -779,8 +779,8 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
-      // A reserved Wolf action identifies a hidden agent and its intended
-      // action. The callable returns only the actor's receipt; no client may
+      // A committed Wolf action identifies a hidden agent and its private
+      // consequence. The callable returns only the actor's receipt; no client may
       // read, list, forge, or erase this server-owned state or its audit.
       match /wolfActionState/{playerUid} {
         allow read, write: if false;

@@ -64,7 +64,7 @@ import {
   requireWolfAttackPreparationRequest,
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
-  requireWolfActionRequest,
+  requireWolfSupplySabotageRequest,
   requireFacilitatorCensusNoteRequest,
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
@@ -166,6 +166,7 @@ import {
   DEFAULT_ACTIVE_ROLE_IDS,
   isJointEngineeringRoleAvailable,
   isJointEngineeringRoleId,
+  isValidRoleConfiguration,
   jointEngineeringShipsForRole,
   ROLE_IDS,
   recommendedRoleIds,
@@ -187,6 +188,7 @@ import {
   vesselModeForConfiguration,
   type LoyaltyKind,
 } from './gameSetup';
+import { liveLoyaltySuspicionDecision } from './loyaltySuspicion';
 import { serializedRoleBrief } from './roleBriefs';
 import {
   arrivalActivationForAdmission,
@@ -196,6 +198,7 @@ import {
 } from './voyageArrival';
 import {
   INITIAL_SHIP_RESOURCES,
+  RESOURCE_IDS,
   canAdjustShipCounter,
   isResourceShipId,
   nextResourceAmount,
@@ -354,7 +357,8 @@ import {
   parseWolfTargetingReceipt,
   type WolfCommanderTargetingView,
 } from './wolfCommanderRerolls';
-import { isWolfActionKind, wolfActionAuthorization, type WolfActionKind } from './wolfActionAuthorization';
+import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
+import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -6202,12 +6206,12 @@ function loyaltyCensusEntryFromSecret(
   const suspicion = record.suspicion === null
     ? null
     : typeof record.suspicion === 'number' ? record.suspicion : Number.NaN;
-  const decision = loyaltyAssignmentDecision(record.kind, suspicion);
+  const decision = liveLoyaltySuspicionDecision(record.kind, suspicion);
   if (!decision.allowed) return null;
   if (record.kind !== 'friend' && record.partnerUid !== undefined && record.partnerUid !== null) return null;
   if (record.kind === 'friend' &&
       (typeof record.partnerUid !== 'string' || record.partnerUid === uid)) return null;
-  return { uid, kind: record.kind as LoyaltyKind, suspicion: decision.suspicion };
+  return { uid, kind: decision.kind, suspicion: decision.suspicion };
 }
 
 
@@ -8159,12 +8163,12 @@ function canonicalLoyaltySecret(
   const suspicion = record.suspicion === null
     ? null
     : typeof record.suspicion === 'number' ? record.suspicion : Number.NaN;
-  const decision = loyaltyAssignmentDecision(record.kind, suspicion);
+  const decision = liveLoyaltySuspicionDecision(record.kind, suspicion);
   if (!decision.allowed) return null;
   if (record.kind !== 'friend' && record.partnerUid !== undefined && record.partnerUid !== null) return null;
   if (record.kind === 'friend' &&
       (typeof record.partnerUid !== 'string' || record.partnerUid === uid)) return null;
-  return { uid, kind: record.kind as LoyaltyKind };
+  return { uid, kind: decision.kind };
 }
 
 /**
@@ -11805,73 +11809,87 @@ export const applyWolfCommanderTargetRerolls = onCall<{
   });
 });
 
-type WolfActionReservationResult = Readonly<{
+type WolfSupplySabotageResult = Readonly<{
   status: 'committed';
-  type: 'wolf-action-reservation';
+  type: 'wolf-supply-sabotage';
   sessionId: string;
   requestId: string;
   cycle: number;
   revision: number;
-  action: WolfActionKind;
   coverRoleId: string;
+  shuttleId: string;
+  resourceId: string;
+  destroyedAmount: number;
+  remainingAmount: number;
+  suspicion: number;
 }>;
 
-function isWolfActionReservationResult(
+function isWolfSupplySabotageResult(
   value: unknown,
   sessionId: string,
-): value is WolfActionReservationResult {
+  requestId: string,
+): value is WolfSupplySabotageResult {
   return isRecord(value) && value.status === 'committed' &&
-    value.type === 'wolf-action-reservation' && value.sessionId === sessionId &&
-    typeof value.requestId === 'string' && Number.isSafeInteger(value.cycle) &&
+    value.type === 'wolf-supply-sabotage' && value.sessionId === sessionId &&
+    value.requestId === requestId && Number.isSafeInteger(value.cycle) &&
     (value.cycle as number) >= 1 && Number.isSafeInteger(value.revision) &&
-    (value.revision as number) >= 1 && isWolfActionKind(value.action) &&
-    typeof value.coverRoleId === 'string';
+    (value.revision as number) >= 1 && typeof value.coverRoleId === 'string' &&
+    (ROLE_IDS as readonly string[]).includes(value.coverRoleId) &&
+    typeof value.shuttleId === 'string' && ROLE_OWNED_CRAFT_CATALOG.some((craft) =>
+      craft.id === value.shuttleId && craft.kind === 'shuttle' && craft.ownerRoleId === value.coverRoleId) &&
+    typeof value.resourceId === 'string' &&
+    (RESOURCE_IDS as readonly string[]).includes(value.resourceId) &&
+    Number.isSafeInteger(value.destroyedAmount) && (value.destroyedAmount as number) >= 0 &&
+    Number.isSafeInteger(value.remainingAmount) && (value.remainingAmount as number) >= 0 &&
+    Number.isSafeInteger(value.suspicion) && (value.suspicion as number) >= 0;
 }
 
 /**
- * Reserve the caller's single Wolf action for the current cycle. Later action
- * prompts resolve targets and consequences against this private reservation.
+ * Resolve supply sabotage and consume the caller's Wolf-action slot in the
+ * same transaction, after every action-specific eligibility check succeeds.
  */
-export const submitWolfAction = onCall<{
+export const submitWolfSupplySabotage = onCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
-  action?: unknown;
+  shuttleId?: unknown;
+  resourceId?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
-  const submission = requireWolfActionRequest(request.data ?? {});
+  const submission = requireWolfSupplySabotageRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
   const playerRef = db.doc(`sessions/${submission.sessionId}/players/${uid}`);
   const loyaltyRef = db.doc(`sessions/${submission.sessionId}/secrets/loyalty-${uid}`);
   const assignmentRef = db.doc(`sessions/${submission.sessionId}/secrets/wolf-assignment`);
+  const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
   const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
   const auditRef = db.doc(
     `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
   );
   const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
   const fingerprint: CommandFingerprint = {
-    action: 'submit-wolf-action',
+    action: 'submit-wolf-supply-sabotage',
     sessionId: submission.sessionId,
     requestId: submission.requestId,
     actorUid: uid,
     instanceId: null,
     expectedRevision: submission.expectedCycle,
-    payload: { action: submission.action },
+    payload: { shuttleId: submission.shuttleId, resourceId: submission.resourceId },
   };
-  return db.runTransaction(async (tx): Promise<WolfActionReservationResult> => {
-    const [session, player, loyalty, assignment, currentAction, receipt] = await Promise.all([
+  return db.runTransaction(async (tx): Promise<WolfSupplySabotageResult> => {
+    const [session, player, loyalty, assignment, census, currentAction, receipt] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(loyaltyRef), tx.get(assignmentRef),
-      tx.get(actionRef), tx.get(receiptRef),
+      tx.get(censusRef), tx.get(actionRef), tx.get(receiptRef),
     ]);
     await rejectForeignLegacyM1Command(
-      tx, submission.sessionId, submission.requestId, 'Wolf action', [],
+      tx, submission.sessionId, submission.requestId, 'Wolf supply sabotage', [],
     );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
-      (value): value is WolfActionReservationResult =>
-        isWolfActionReservationResult(value, submission.sessionId),
-      'Wolf action',
+      (value): value is WolfSupplySabotageResult =>
+        isWolfSupplySabotageResult(value, submission.sessionId, submission.requestId),
+      'Wolf supply sabotage',
     );
     if (replay) return replay;
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -11889,6 +11907,7 @@ export const submitWolfAction = onCall<{
       active: isActivePlayer(player),
       connectedRole: player.get('role'),
       assignedRoleId: player.get('assignedRoleId'),
+      activeConsoleRoleId: player.get('activeConsoleRoleId'),
       replacementRoleId: player.get('replacementRoleId'),
       escapeState: player.get('escapeState'),
       loyaltyAudience: loyalty.get('visibleToUids'),
@@ -11902,14 +11921,39 @@ export const submitWolfAction = onCall<{
         'unauthorized',
       );
     }
+    const pressHolderUid = session.get('pressHolderUid');
+    if (authorization.coverRoleId === 'press-officer' && (
+      session.get('pressEnabled') !== true ||
+      (pressHolderUid !== undefined && pressHolderUid !== null && pressHolderUid !== uid)
+    )) {
+      throw commandError(
+        'permission-denied',
+        'The Press station is not active for this session.',
+        'unauthorized',
+      );
+    }
+    const activeRoleIds = sessionActiveRoleIds(session);
+    if (!isValidRoleConfiguration(activeRoleIds)) {
+      throw commandError(
+        'failed-precondition',
+        'The active role roster is malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
     let revision = 0;
     if (currentAction.exists) {
       const storedCycle = currentAction.get('cycle');
       const storedRevision = currentAction.get('revision');
-      if (currentAction.get('type') !== 'wolf-action-reservation' ||
-          currentAction.get('actorUid') !== uid || !Number.isSafeInteger(storedCycle) ||
+      if (currentAction.get('type') !== 'wolf-action-commitment' ||
+          currentAction.get('actorUid') !== uid || currentAction.get('state') !== 'committed' ||
+          !isWolfActionKind(currentAction.get('action')) ||
+          typeof currentAction.get('requestId') !== 'string' ||
+          typeof currentAction.get('coverRoleId') !== 'string' ||
+          !(ROLE_IDS as readonly string[]).includes(currentAction.get('coverRoleId') as string) ||
+          !Number.isSafeInteger(storedCycle) ||
           (storedCycle as number) < 1 || !Number.isSafeInteger(storedRevision) ||
-          (storedRevision as number) < 1) {
+          (storedRevision as number) < 1 ||
+          (storedRevision as number) >= Number.MAX_SAFE_INTEGER) {
         throw commandError(
           'failed-precondition',
           'The private Wolf action state is malformed. Ask the facilitator to repair it.',
@@ -11925,22 +11969,82 @@ export const submitWolfAction = onCall<{
       }
       revision = storedRevision as number;
     }
-    const result: WolfActionReservationResult = {
+    const loyaltyPayload = loyalty.get('payload');
+    const suspicion = isRecord(loyaltyPayload) ? loyaltyPayload.suspicion : undefined;
+    if (!Number.isSafeInteger(suspicion) || (suspicion as number) < 0 ||
+        (suspicion as number) > Number.MAX_SAFE_INTEGER - 2) {
+      throw commandError(
+        'failed-precondition',
+        'The private Wolf loyalty state is malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    const censusEntries = storedLoyaltyCensusEntries(census);
+    const censusRevision = census.get('revision');
+    const loyaltyKind = isRecord(loyaltyPayload) ? loyaltyPayload.kind : undefined;
+    const censusEntry = censusEntries?.find((entry) => entry.uid === uid);
+    const censusEntriesCanonical = censusEntries?.every((entry) =>
+      liveLoyaltySuspicionDecision(entry.kind, entry.suspicion).allowed) === true;
+    if (!census.exists || !Number.isSafeInteger(censusRevision) || (censusRevision as number) < 0 ||
+        (censusRevision as number) >= Number.MAX_SAFE_INTEGER ||
+        !censusEntriesCanonical || !censusEntry ||
+        censusEntry.kind !== loyaltyKind || censusEntry.suspicion !== suspicion) {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator loyalty census is stale or malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    let consequence;
+    try {
+      consequence = resolveWolfSupplySabotage({
+        coverRoleId: authorization.coverRoleId,
+        activeRoleIds,
+        shuttleCargo: session.get('shuttleCargo'),
+        shuttleId: submission.shuttleId,
+        resourceId: submission.resourceId,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'The supply sabotage is not eligible.',
+        'conflict',
+      );
+    }
+    const nextSuspicion = (suspicion as number) + 2;
+    const result: WolfSupplySabotageResult = {
       status: 'committed',
-      type: 'wolf-action-reservation',
+      type: 'wolf-supply-sabotage',
       sessionId: submission.sessionId,
       requestId: submission.requestId,
       cycle,
       revision: revision + 1,
-      action: submission.action,
       coverRoleId: authorization.coverRoleId,
+      shuttleId: submission.shuttleId,
+      resourceId: submission.resourceId,
+      destroyedAmount: consequence.destroyedAmount,
+      remainingAmount: consequence.remainingAmount,
+      suspicion: nextSuspicion,
     };
     const record = {
       ...result,
+      type: 'wolf-action-commitment',
       actorUid: uid,
-      state: 'reserved',
+      action: 'sabotage-supplies',
+      state: 'committed',
       updatedAt: FieldValue.serverTimestamp(),
     };
+    tx.update(sessionRef, { shuttleCargo: consequence.cargo });
+    tx.update(loyaltyRef, {
+      payload: { ...loyaltyPayload, suspicion: nextSuspicion },
+    });
+    tx.set(censusRef, {
+      type: 'loyalty-census',
+      revision: (censusRevision as number) + 1,
+      entries: censusEntries!.map((entry) => entry.uid === uid
+        ? { ...entry, suspicion: nextSuspicion }
+        : entry),
+    });
     tx.set(actionRef, record);
     tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

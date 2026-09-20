@@ -2641,7 +2641,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 496
 - [x] Prompt 497
 - [ ] Prompt 498
-- [ ] Prompt 499
+- [x] Prompt 499
 - [ ] Prompt 500
 - [ ] Prompt 501
 - [ ] Prompt 502
@@ -3406,7 +3406,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 494 — [NEW] Resolve the Wolf Commander attack dial.** Acceptance: only the assigned Commander can marshal ten capacity plus current pursuit once per turn.
 - **Prompt 495 — [NEW] Assign hidden loyalties authoritatively.** Acceptance: every configured player receives one valid private card and starting suspicion.
 - **Prompt 496 — [REPAIR] Enforce the server-derived Wolf count.** Acceptance: the locked core roster deterministically produces one or two agents, including two for the owner-set 19/20 Capybara rows; optional Press remains eligible for random assignment when claimed but cannot change that count or create a third Wolf. Any exceptional override is reasoned, revision-guarded, audited, and visible in the setup receipt.
-- **Prompt 497 — [NEW] Authorize one Wolf action per turn.** Acceptance: only a living active Wolf with the correct cover role can submit one eligible action.
+- **Prompt 497 — [NEW] Authorize one Wolf action per cycle.** Acceptance: only a living active Wolf with the correct cover role can submit one eligible action.
 - **Prompt 498 — [NEW] Resolve console sabotage.** Acceptance: recent-visit rules, random or chosen target mode, damage, and +2/+4 suspicion remain server-owned.
 - **Prompt 499 — [NEW] Resolve supply sabotage.** Acceptance: half of one valid resource on the Wolf-controlled shuttle is destroyed with correct rounding and +2 suspicion.
 - **Prompt 500 — [NEW] Resolve a homing beacon.** Acceptance: the current system schedules next-turn pressure, never an immediate turn-start attack, and adds the printed suspicion.

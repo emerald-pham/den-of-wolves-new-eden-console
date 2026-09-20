@@ -1392,17 +1392,17 @@ describe('seats', () => {
   });
 });
 
-describe('private Wolf action reservations', () => {
+describe('private Wolf action commitments', () => {
   it('deny the actor, other players, observers, and GMs all direct access', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
       await setDoc(doc(db, `${SESSION}/wolfActionState/alice`), {
-        type: 'wolf-action-reservation', actorUid: 'alice', cycle: 2,
-        action: 'sabotage-console', state: 'reserved', revision: 1,
+        type: 'wolf-action-commitment', actorUid: 'alice', cycle: 2,
+        action: 'sabotage-supplies', state: 'committed', revision: 1,
       });
       await setDoc(doc(db, `${SESSION}/wolfActionState/alice/audit/wolf-action-1`), {
-        type: 'wolf-action-reservation', actorUid: 'alice', cycle: 2,
-        action: 'sabotage-console', state: 'reserved', revision: 1,
+        type: 'wolf-action-commitment', actorUid: 'alice', cycle: 2,
+        action: 'sabotage-supplies', state: 'committed', revision: 1,
       });
     });
 

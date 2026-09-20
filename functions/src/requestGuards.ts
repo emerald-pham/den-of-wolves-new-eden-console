@@ -21,7 +21,6 @@ import { isReplacementEligibilityReason } from './replacementRoles';
 import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 import { parseZealotryResponseInput, type ZealotryResponseAction } from './zealotryResponse';
 import { parseCivilUnrestResolutionInput } from './civilUnrestResolution';
-import { isWolfActionKind, type WolfActionKind } from './wolfActionAuthorization';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1173,29 +1172,32 @@ export function requireWolfCommanderRerollRequest(data: {
   };
 }
 
-/** A Wolf actor may reserve only one source-defined action for a numbered cycle. */
-export function requireWolfActionRequest(data: {
+/** Validate one supply-sabotage attempt before its authority transaction. */
+export function requireWolfSupplySabotageRequest(data: {
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
-  action?: unknown;
+  shuttleId?: unknown;
+  resourceId?: unknown;
 }): {
   sessionId: string;
   requestId: string;
   expectedCycle: number;
-  action: WolfActionKind;
+  shuttleId: string;
+  resourceId: ResourceId;
 } {
   if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
     throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
   }
-  if (!isWolfActionKind(data.action)) {
-    throw new HttpsError('invalid-argument', 'action must be a supported Wolf action.');
+  if (!RESOURCE_IDS.includes(data.resourceId as ResourceId)) {
+    throw new HttpsError('invalid-argument', 'resourceId must be a supported resource.');
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     requestId: requiredId(data.requestId, 'requestId'),
     expectedCycle: data.expectedCycle as number,
-    action: data.action,
+    shuttleId: requiredId(data.shuttleId, 'shuttleId'),
+    resourceId: data.resourceId as ResourceId,
   };
 }
 

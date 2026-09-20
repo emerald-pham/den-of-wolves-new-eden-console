@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**347 / 751 prompts complete (46.21%)**
+**348 / 751 prompts complete (46.34%)**
 
-Status breakdown: **347 done · 19 partial · 385 missing**.
+Status breakdown: **348 done · 19 partial · 384 missing**.
 
 Active prompt: **none**
 
@@ -956,9 +956,9 @@ release classification and evidence.
 | 494 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 495 | done | non-feature | — | The existing authoritative start transaction gives each occupied configured player, including a uniquely claimed optional Press station, a private validated loyalty and starting suspicion. Automatic assignments use the server random source; complete explicit setups are validated and preserved, while partial, conflicting or public-audience records block start. GM devices are excluded from the player assignment pool. Verified against the existing start and setup tests; no new runtime change. |
 | 496 | done | non-feature | — | Start derives one Wolf at 8–13 core players and two at 14–20, including the owner-approved Capybara rows. A claimed optional Press holder is eligible without increasing that count; GM instances are excluded. Conflicting explicit assignments are rejected before any start write, and the setup receipt records the derived rule, count, eligible pool, and selected roles. No exceptional count override is exposed. This is verified existing behavior, not a new runtime release. |
-| 497 | done | non-feature | 0.4.46 | The new submitWolfAction callable atomically reserves one of the four source-defined Wolf actions for the current cycle. It requires an active connected player, an exact recipient-only Wolf Agent or Wolf Cult loyalty, the unchanged setup-selected cover role, and no replacement-role or destroyed-ship escape state. A private per-player reservation and audit enforce one action per cycle with canonical request replay and collision protection; all clients, including the actor and GM, are denied direct Firestore access. Console sabotage, supply sabotage, homing-beacon, and intelligence consequences remain owned by Prompts 498–501. |
+| 497 | done | non-feature | 0.4.46 | The submitWolfSupplySabotage callable composes the shared Wolf authorization policy with complete supply-sabotage eligibility and consequence checks, then consumes the actor’s private one-action-per-cycle slot in the same transaction. It requires a live active Wolf Agent or Wolf Cult in the unchanged canonical core or claimed Press cover role, rejects every non-nullish replacement or escape state and malformed role assignment, and writes no commitment when the target, cargo, roster, loyalty, or facilitator census is invalid. Exact retries are idempotent, collisions and second same-cycle actions fail closed, and every client is denied direct access to the private commitment and audit. Prompts 498, 500, and 501 must compose their own action-specific validation before consuming this same boundary. |
 | 498 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 499 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 499 | done | non-feature | 0.4.46 | The server-owned submitWolfSupplySabotage callable validates the Wolf’s exact cover-owned shuttle, canonical active roster, strict cargo ledger, selected stored resource, private loyalty, and matching facilitator census before any write. One transaction destroys the printed floor half of the selected cargo amount, adds exactly two suspicion to both the private loyalty and facilitator census, records the private cycle commitment and audit, and binds an idempotent command receipt. A rejected target leaves the same-cycle action slot available; a focused regression follows the rejection with a valid action in that cycle. No public event reveals the actor or target. Shared live-loyalty parsing preserves the raised Wolf suspicion through later census and Press-state reconciliation. |
 | 500 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 501 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 502 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

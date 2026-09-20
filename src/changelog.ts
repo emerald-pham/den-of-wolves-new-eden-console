@@ -21,15 +21,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: [497],
+    implementationPrompts: [497, 499],
     implementationProgress: {
-      completed: 347, total: 751, percentage: '46.21%',
-      done: 347, partial: 19, active: 0, missing: 385,
+      completed: 348, total: 751, percentage: '46.34%',
+      done: 348, partial: 19, active: 0, missing: 384,
     },
     changes: [
-      'A live Wolf Agent can now reserve exactly one private action per cycle through a server-owned authorization check tied to their hidden loyalty and original cover role.',
-      'Replacement and displaced players cannot use the Wolf action boundary, and no player or facilitator client can read or forge its private reservation or audit.',
-      '347 of 751 planned items are complete (46.21%).',
+      'A live Wolf can now sabotage one resource stored on a shuttle controlled by their cover role; the server destroys half with losses rounded down and adds two suspicion.',
+      'Invalid targets leave the cycle action available, while a committed action, its audit, and hidden identity remain private and cannot be forged by any client.',
+      '348 of 751 planned items are complete (46.34%).',
     ],
   },
   {
