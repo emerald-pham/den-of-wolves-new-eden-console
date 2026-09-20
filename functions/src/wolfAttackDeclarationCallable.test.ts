@@ -190,6 +190,12 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   expect(state).toMatchObject({
     type: 'wolf-attack-state', status: 'declared', currentStep: 'targeting',
     preparationRevision: 1, airspaceLocked: true,
+    battleTableCraftActions: [
+      { craftId: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
+      { craftId: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
+      { craftId: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer' },
+      { craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
+    ],
     preparation: { notes: 'hidden GM note' },
     calculationReceipt: {
       type: 'wolf-combat-calculation-stage',
@@ -197,6 +203,13 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
       pursuitPressure: { navigationRevision: 0, groupValues: { 'fleet-1': 4 } },
     },
   });
+  expect(state.parkedCraftIds).toEqual(expect.arrayContaining([
+    'snn-press-shuttle', 'starlight', 'philia', 'hummingbird', 'endeavour', 'chacau',
+  ]));
+  expect(state.battleTableCraftActions.map((action: { craftId: string }) => action.craftId))
+    .not.toEqual(expect.arrayContaining([
+      'snn-press-shuttle', 'starlight', 'philia', 'hummingbird', 'endeavour',
+    ]));
   const event = mock.documents.get('sessions/s1/events/wolf-attack-wolf-declare-1');
   expect(event).toMatchObject({
     type: 'wolf-attack-declared', status: 'declared', currentStep: 'targeting', airspace: 'locked',

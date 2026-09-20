@@ -42,6 +42,11 @@ export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
   ally,
 ];
 
+/** Printed shuttles that receive range actions on the Wolf battle table. */
+export const BATTLE_TABLE_SHUTTLE_IDS: readonly string[] = SHUTTLECRAFT
+  .filter((shuttle) => shuttle.wolfAttackRole === 'battle-table')
+  .map((shuttle) => shuttle.id);
+
 /** The standard core fleet; optional Union craft stay GM-controlled. */
 export const DEFAULT_ENABLED_SHUTTLECRAFT = SHUTTLECRAFT.filter((shuttle) =>
   shuttle.id === 'snn-press-shuttle' ||

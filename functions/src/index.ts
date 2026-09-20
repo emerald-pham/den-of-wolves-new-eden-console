@@ -213,6 +213,8 @@ import {
 } from './fleetGroups';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
+  battleTableCraftActionsForParkedCraft,
+  type BattleTableCraftActionRegistration,
   craftStartingManifestForSetup,
   craftStartingManifestHasUnresolvedHosts,
   craftStartingManifestMatches,
@@ -1734,6 +1736,7 @@ function publicShuttleDockings(
 
 type WolfAttackParkingSnapshot = Readonly<{
   parkedCraftIds: readonly string[];
+  battleTableCraftActions: readonly BattleTableCraftActionRegistration[];
   parkedShuttleDockings: readonly PublicShuttleDocking[];
 }>;
 
@@ -1864,8 +1867,10 @@ function requireWolfAttackParking(
     }
   }
 
+  const parkedCraftIds = ownedCraft.map((craft) => craft.id);
   return {
-    parkedCraftIds: ownedCraft.map((craft) => craft.id),
+    parkedCraftIds,
+    battleTableCraftActions: battleTableCraftActionsForParkedCraft(parkedCraftIds),
     parkedShuttleDockings,
   };
 }
@@ -11059,6 +11064,7 @@ type WolfAttackDeclarationInputs = Readonly<{
   preparation: WolfAttackPreparation;
   window: WolfAttackWindow;
   parkedCraftIds: readonly string[];
+  battleTableCraftActions: readonly BattleTableCraftActionRegistration[];
   parkedShuttleDockings: readonly PublicShuttleDocking[];
   targetRing: WolfTargetRing;
 }>;
@@ -11421,6 +11427,7 @@ export const declareWolfAttack = onCall<{
       deadlineAt: inputs.phase.openAirspaceEndsAt,
       airspaceLocked: true,
       parkedCraftIds: [...inputs.parkedCraftIds],
+      battleTableCraftActions: inputs.battleTableCraftActions.map((action) => ({ ...action })),
       parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       calculationReceipt,
       commanderRerollIndexes: [],

@@ -15,6 +15,12 @@ export interface WolfAttackStageState {
   readonly deadlineAt: string;
   readonly airspaceLocked: true;
   readonly parkedCraftIds: readonly string[];
+  /** Only these printed range-combat craft receive battle-table actions. */
+  readonly battleTableCraftActions: readonly {
+    readonly craftId: string;
+    readonly kind: 'shuttle' | 'fighter-wing';
+    readonly ownerRoleId: string;
+  }[];
   readonly parkedShuttleDockings: readonly {
     readonly shuttleId: string;
     readonly shipId: string;

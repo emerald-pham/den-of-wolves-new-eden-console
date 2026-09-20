@@ -5,12 +5,14 @@
  */
 export type RoleOwnedCraftKind = 'shuttle' | 'fighter-wing';
 export type CraftEnabledMode = 'standard' | 'gm-controlled';
+export type WolfAttackCraftRole = 'battle-table' | 'park-only';
 
 export interface RoleOwnedCraft {
   readonly id: string;
   readonly kind: RoleOwnedCraftKind;
   readonly ownerRoleId: string;
   readonly enabledMode: CraftEnabledMode;
+  readonly wolfAttackRole: WolfAttackCraftRole;
 }
 
 /**
@@ -19,27 +21,54 @@ export interface RoleOwnedCraft {
  * belong to their vessel-specific prompts.
  */
 export const ROLE_OWNED_CRAFT_CATALOG: readonly RoleOwnedCraft[] = [
-  { id: 'snn-press-shuttle', kind: 'shuttle', ownerRoleId: 'press-officer', enabledMode: 'standard' },
-  { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard' },
-  { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard' },
-  { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard' },
-  { id: 'pallas', kind: 'shuttle', ownerRoleId: 'executive-officer', enabledMode: 'standard' },
-  { id: 'philia', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard' },
-  { id: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard' },
-  { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner', enabledMode: 'standard' },
-  { id: 'blacksmith', kind: 'shuttle', ownerRoleId: 'icebreaker-engineer', enabledMode: 'standard' },
-  { id: 'macaw', kind: 'shuttle', ownerRoleId: 'capybara-captain', enabledMode: 'standard' },
-  { id: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler', enabledMode: 'standard' },
-  { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist', enabledMode: 'standard' },
-  { id: 'black-sheep', kind: 'shuttle', ownerRoleId: 'shepherd-engineer', enabledMode: 'standard' },
-  { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer', enabledMode: 'standard' },
-  { id: 'condor', kind: 'shuttle', ownerRoleId: 'quellon-engineer', enabledMode: 'standard' },
-  { id: 'chacau', kind: 'shuttle', ownerRoleId: 'refinery-124-engineer', enabledMode: 'standard' },
-  { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard' },
-  { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard' },
-  { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled' },
-  { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled' },
+  { id: 'snn-press-shuttle', kind: 'shuttle', ownerRoleId: 'press-officer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
+  { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
+  { id: 'pallas', kind: 'shuttle', ownerRoleId: 'executive-officer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'philia', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
+  { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
+  { id: 'blacksmith', kind: 'shuttle', ownerRoleId: 'icebreaker-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'macaw', kind: 'shuttle', ownerRoleId: 'capybara-captain', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
+  { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'black-sheep', kind: 'shuttle', ownerRoleId: 'shepherd-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'condor', kind: 'shuttle', ownerRoleId: 'quellon-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'chacau', kind: 'shuttle', ownerRoleId: 'refinery-124-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
+  { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only' },
+  { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only' },
 ];
+
+export interface BattleTableCraftActionRegistration {
+  readonly craftId: string;
+  readonly kind: RoleOwnedCraftKind;
+  readonly ownerRoleId: string;
+}
+
+/** Register only printed range-combat craft for later battle-table actions. */
+export function battleTableCraftActionsForParkedCraft(
+  parkedCraftIds: readonly string[],
+): readonly BattleTableCraftActionRegistration[] {
+  if (new Set(parkedCraftIds).size !== parkedCraftIds.length) {
+    throw new Error('Parked craft IDs must be unique.');
+  }
+  const catalog = new Map(ROLE_OWNED_CRAFT_CATALOG.map((craft) => [craft.id, craft]));
+  const parked = parkedCraftIds.map((craftId) => {
+    const craft = catalog.get(craftId);
+    if (!craft) throw new Error('Parked craft contains an unknown craft ID.');
+    return craft;
+  });
+  return parked.filter((craft) => craft.wolfAttackRole === 'battle-table')
+    .map((craft) => ({
+      craftId: craft.id,
+      kind: craft.kind,
+      ownerRoleId: craft.ownerRoleId,
+    }));
+}
 
 /** Derive the immutable starting allowlist from the locked role roster. */
 export function roleOwnedCraftForRoles(
@@ -201,6 +230,8 @@ export function craftStartingManifestMatches(
         record.id === expectedEntry.id && record.kind === expectedEntry.kind &&
         record.ownerRoleId === expectedEntry.ownerRoleId &&
         record.enabledMode === expectedEntry.enabledMode &&
+        (record.wolfAttackRole === undefined ||
+          record.wolfAttackRole === expectedEntry.wolfAttackRole) &&
         record.startingHostId === expectedEntry.startingHostId;
     });
 }
@@ -235,7 +266,9 @@ export function craftStartingManifestHasUnresolvedHosts(
         .find((craft) => craft.id === record.id);
       if (expectedCraft === undefined || record.kind !== expectedCraft.kind ||
           record.ownerRoleId !== expectedCraft.ownerRoleId ||
-          record.enabledMode !== expectedCraft.enabledMode) return false;
+          record.enabledMode !== expectedCraft.enabledMode ||
+          (record.wolfAttackRole !== undefined &&
+            record.wolfAttackRole !== expectedCraft.wolfAttackRole)) return false;
       if (record.startingHostId === null && expectedCraft.enabledMode === 'gm-controlled') {
         unresolved = true;
         return true;
@@ -262,7 +295,8 @@ export function roleOwnedCraftManifestForSetup(
 
 function sameRecord(left: RoleOwnedCraft, right: RoleOwnedCraft): boolean {
   return left.id === right.id && left.kind === right.kind &&
-    left.ownerRoleId === right.ownerRoleId && left.enabledMode === right.enabledMode;
+    left.ownerRoleId === right.ownerRoleId && left.enabledMode === right.enabledMode &&
+    (left.wolfAttackRole === undefined || left.wolfAttackRole === right.wolfAttackRole);
 }
 
 /** Validate persisted server state before it is used as ownership authority. */

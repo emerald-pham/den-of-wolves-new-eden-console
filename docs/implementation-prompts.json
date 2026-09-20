@@ -5460,6 +5460,13 @@
       "language": "The server-owned maintenance resolver selects Capybara ration costs from authoritative survivor state at the exact printed replacement boundaries: 15,001–20,000 uses food 0/3/7/11 and water 0/2/5/8; 5,001–15,000 uses 0/3/6/10 and 0/2/4/7; 1–5,000 uses 0/3/5/8 and 0/2/3/6. The ship console renders the same active band. Reaching zero from 250 survivors adds two unrest once through maintenance riot casualties and both GM population-counter callables; later inputs at zero cannot repeat the increase. Off-track survivor state fails closed before ration spending while the console remains rendered with ration inputs locked. Focused engine, callable, data, MaintenanceSystems, and FleetSystemsWorkspace tests pass 263/263.",
       "source": "functions/src/shipPopulation.ts; functions/src/shipPopulation.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/shipPopulationCallables.test.ts; functions/src/shipCounterBatchCallables.test.ts; src/data/shipPopulation.ts; src/data/shipPopulation.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/FleetSystemsWorkspace.test.tsx; authorized routed Capybara ship sheet, facilitator guide, and ration replacement cards via the private source index",
       "type": "evidence / production-path / server-authority / exact-thresholds / resource-conservation / regression"
+    },
+    {
+      "direction": "147 -> 432; printed Wolf attack craft capabilities",
+      "id": "E-147-BATTLE-TABLE-CRAFT",
+      "language": "The server-owned craft catalog marks only Maliades, Highwall, Boa, AEGIS Fighter Wings Alpha and Bravo, and the PDF Escort Fighter Wing as battle-table craft. Declaration still requires every represented craft to be parked, records that complete parked set, and derives typed battle-table action registrations from the immutable catalog. Boarding-support and other non-range craft never enter those action registrations. The matching client shuttle catalog explicitly marks only Maliades, Highwall, and Boa; fighter wings remain in their typed ship-console catalogs. Legacy manifests may omit the new derived field and are safely normalized, while changed explicit values fail validation. Focused catalog, setup/start, session-composition, shuttle, and declaration tests pass 122/122.",
+      "source": "functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; src/data/vessels/templates.ts; src/data/vessels/maliades.ts; src/data/vessels/highwall.ts; src/data/vessels/boa.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; authorized routed Wolf attack reference and audited full specification",
+      "type": "evidence / production-path / server-authority / typed-catalog / battle-action-filter / legacy-compatibility / regression"
     }
   ],
   "plan": {
@@ -9269,8 +9276,8 @@
         "acceptance": "extend current typed craft/docking catalogs so only printed combat-capable shuttles and fighter wings appear in attack actions; all others remain parked.",
         "title": "Restrict battle-table craft."
       },
-      "description": "Partial production boundary: the P432 declaration now validates and snapshots all represented parked craft, including fighter-wing bay state, and the restricted phase blocks ordinary movement. The current typed craft catalog has no printed combat-capability field, battle-table attack action, or audience-safe attack projection, so P147 cannot close until the P433-related combat surface consumes that catalog. Do not infer battle eligibility from parked status or craft kind, and do not add combat resolution or nearest-host tie policy here.",
-      "evidenceIds": "E-147-RELATED",
+      "description": "The typed client and server craft catalogs now explicitly distinguish printed range-combat craft from park-only craft. An authoritative Wolf attack declaration snapshots every represented craft as parked, then registers battle-table actions only for Maliades, Highwall, Boa, AEGIS Fighter Wings Alpha and Bravo, and the PDF Escort Fighter Wing. Boarding-support, repair, scouting, cargo, and service shuttles remain parked for their later printed steps. Legacy ownership manifests remain valid because battle eligibility is re-derived from the server catalog rather than trusted from persisted client-shaped state. Focused catalog, composition, start, and declaration regressions pass 122/122.",
+      "evidenceIds": "E-147-RELATED;E-147-BATTLE-TABLE-CRAFT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -9278,10 +9285,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "432;433",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.44"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

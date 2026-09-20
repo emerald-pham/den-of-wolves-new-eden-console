@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BATTLE_TABLE_SHUTTLE_IDS,
   DEFAULT_ENABLED_SHUTTLECRAFT,
   INITIAL_SHUTTLE_DOCKINGS,
   INITIAL_SHUTTLE_VISITS,
@@ -14,6 +15,14 @@ import { recommendedRoleIds } from './rolePresets';
 import { SHIPS } from './ships';
 
 describe('fleet shuttlebays', () => {
+  it('keeps only printed range-combat shuttles on the Wolf battle table', () => {
+    expect(BATTLE_TABLE_SHUTTLE_IDS).toEqual(['maliades', 'highwall', 'boa']);
+    expect(SHUTTLECRAFT.filter((shuttle) => shuttle.wolfAttackRole === 'park-only')
+      .map((shuttle) => shuttle.id)).toEqual(expect.arrayContaining([
+      'starlight', 'pallas', 'philia', 'blacksmith', 'macaw', 'chepu',
+    ]));
+  });
+
   it('keeps Maliades launch, durability, repair, and attack registration linked to Dione', () => {
     const maliades = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'maliades');
     const dione = SHIPS.find((ship) => ship.id === 'dione');

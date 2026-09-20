@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Mining shuttle',
   description: 'Conducts mining operations and supports engineering missions for the Icebreaker Miner.',
   captainRoleId: 'icebreaker-miner',
+  wolfAttackRole: 'battle-table',
   cargoTransferTypes: ['ore', 'materials'],
   cargoTransfer: 'Strytium ore and materials only',
   initialDocking: { shipId: 'icebreaker', dockedAt: 'SESSION START' },

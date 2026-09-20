@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [147],
+    implementationProgress: {
+      completed: 343, total: 751, percentage: '45.67%',
+      done: 343, partial: 19, active: 0, missing: 389,
+    },
+    changes: [
+      'Wolf attack preparation now keeps every shuttle parked while giving battle-table actions only to Maliades, Highwall, Boa, and the three printed fighter wings.',
+      'Boarding-support, repair, scouting, cargo, and service shuttles remain available for their printed later steps without appearing as range-combat craft.',
+      '343 of 751 planned items are complete (45.67%).',
+    ],
+  },
+  {
+    version: '0.4.43',
     implementationPrompts: [572],
     implementationProgress: {
       completed: 342, total: 751, percentage: '45.54%',

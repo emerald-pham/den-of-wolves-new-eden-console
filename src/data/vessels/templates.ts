@@ -140,6 +140,7 @@ export type ShuttleCapability = 'newspaper-confetti' | 'press-dispatches';
 export type ShuttleAvailability = 'standard' | 'gm-controlled';
 
 export type ShuttleOperationPhase = 'Team' | 'Coordination' | 'Away mission' | 'Wolf attack';
+export type WolfAttackCraftRole = 'battle-table' | 'park-only';
 
 /** Printed operational rule shown in the shared shuttle role workspace. */
 export interface ShuttleOperation {
@@ -159,6 +160,8 @@ export interface Shuttlecraft {
   readonly description: string;
   readonly captainRoleId: RoleId;
   readonly availability: ShuttleAvailability;
+  /** Printed range-combat eligibility; boarding support remains park-only. */
+  readonly wolfAttackRole: WolfAttackCraftRole;
   readonly consoleClass?: string;
   readonly mark?: string;
   /** The ship-system id that controls launch eligibility, when applicable. */
@@ -176,8 +179,8 @@ export interface Shuttlecraft {
 }
 
 export function defineShuttle(
-  definition: Omit<Shuttlecraft, 'availability' | 'capabilities' | 'operations' | 'initialVisit'> &
-    Partial<Pick<Shuttlecraft, 'availability' | 'capabilities' | 'operations' | 'initialVisit'>>,
+  definition: Omit<Shuttlecraft, 'availability' | 'wolfAttackRole' | 'capabilities' | 'operations' | 'initialVisit'> &
+    Partial<Pick<Shuttlecraft, 'availability' | 'wolfAttackRole' | 'capabilities' | 'operations' | 'initialVisit'>>,
 ): Shuttlecraft {
   const initialVisit = definition.initialVisit ?? (definition.initialDocking
     ? {
@@ -189,6 +192,7 @@ export function defineShuttle(
     : undefined);
   return {
     availability: 'standard',
+    wolfAttackRole: 'park-only',
     capabilities: [],
     operations: [],
     ...definition,

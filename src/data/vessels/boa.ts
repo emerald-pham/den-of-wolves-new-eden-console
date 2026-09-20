@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Reclamation shuttle',
   description: 'Converts resources into scrap and reshapes away missions for the Capybara Recycler.',
   captainRoleId: 'capybara-recycler',
+  wolfAttackRole: 'battle-table',
   cargoTransferTypes: ['scrap'],
   cargoTransfer: 'Scrap only',
   initialDocking: { shipId: 'capybara', dockedAt: 'SESSION START' },

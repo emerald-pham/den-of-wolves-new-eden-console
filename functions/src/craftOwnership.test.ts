@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ROLE_OWNED_CRAFT_CATALOG,
+  battleTableCraftActionsForParkedCraft,
   craftStartingManifestForSetup,
   craftStartingManifestHasUnresolvedHosts,
   craftStartingManifestMatches,
@@ -12,6 +14,26 @@ import {
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
 describe('role-owned craft composition', () => {
+  it('marks only printed range-combat craft for Wolf battle-table actions', () => {
+    expect(ROLE_OWNED_CRAFT_CATALOG
+      .filter((craft) => craft.wolfAttackRole === 'battle-table')
+      .map((craft) => craft.id)).toEqual([
+      'fighter-wing-alpha', 'fighter-wing-bravo', 'maliades', 'highwall', 'boa',
+      'pdf-escort-fighter-wing',
+    ]);
+    expect(battleTableCraftActionsForParkedCraft([
+      'starlight', 'fighter-wing-alpha', 'pallas', 'maliades', 'highwall', 'blacksmith',
+    ])).toEqual([
+      { craftId: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
+      { craftId: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer' },
+      { craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
+    ]);
+    expect(() => battleTableCraftActionsForParkedCraft(['maliades', 'maliades']))
+      .toThrow(/unique/i);
+    expect(() => battleTableCraftActionsForParkedCraft(['invented-craft']))
+      .toThrow(/unknown/i);
+  });
+
   it('derives every represented shuttle and fighter wing from the active printed roles', () => {
     const craft = roleOwnedCraftForRoles([
       'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
@@ -100,6 +122,11 @@ describe('role-owned craft composition', () => {
         index === 1 ? { ...craft, enabledMode: 'gm-controlled' } : craft),
     }, expected)).toBe(false);
     expect(roleOwnedCraftManifestMatches({ ...expected, vesselMode: 'expansion-capybara' }, expected)).toBe(false);
+    expect(roleOwnedCraftManifestMatches({
+      ...expected,
+      roleOwnedCraft: expected.roleOwnedCraft.map((craft, index) =>
+        index === 1 ? { ...craft, wolfAttackRole: 'battle-table' } : craft),
+    }, expected)).toBe(false);
   });
 
   it('composes exact starting hosts, owner, kind, and enabled mode', () => {

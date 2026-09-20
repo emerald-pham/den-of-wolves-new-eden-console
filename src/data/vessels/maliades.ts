@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Escort fighter',
   description: 'A three-damage escort fighter launched by the Dione Engineer.',
   captainRoleId: 'dione-engineer',
+  wolfAttackRole: 'battle-table',
   launchSystemId: 'fighter-bay',
   initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
   operations: [
