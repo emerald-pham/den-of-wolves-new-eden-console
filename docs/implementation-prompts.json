@@ -5376,6 +5376,13 @@
       "language": "Both authoritative movement callables derive the destination depth from the immutable server graph after a legal move succeeds, never from client-reported distance. They validate the raw protected pursuit map and the complete canonical fleet-group vessel and player partition before any movement write, subtract the full printed shortest-path depth from 0000 only from the moving ship group, clamp at zero, and atomically publish the resulting private facilitator and group-local player projections with the navigation revision. Failed or integrity-locked jumps do not change pursuit, another group remains unchanged, and malformed or mismatched authority fails closed without writes.",
       "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts",
       "type": "evidence / production-path / server-authority / transaction / privacy / regression"
+    },
+    {
+      "direction": "308 -> Ion Nebula pursuit suppression",
+      "id": "E-308-ION-PURSUIT",
+      "language": "The production cycle transition resolves system I through the locked organiser chart and leaves only a fleet group whose complete vessel set is at that coordinate unchanged. Other groups rise by two in the same transition, capped at 10. Focused graph-level coverage proves the A, B, and C coordinates; callable coverage proves mixed-group isolation, one atomic protected navigation revision, the complete facilitator map, and player projections containing only each recipient’s own group value.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts",
+      "type": "evidence / production-path / server-authority / chart-selection / privacy / regression"
     }
   ],
   "plan": {
@@ -13349,8 +13356,8 @@
         "acceptance": "the system I group suppresses the applicable rise while other groups remain unaffected.",
         "title": "Apply Ion Nebula pursuit behavior."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-308",
+      "description": "The authoritative cycle transition resolves Ion Nebula I from the session’s locked A, B, or C chart and suppresses only a fleet group whose complete vessel set is present there. Every other represented group still rises by two, capped at 10. The same transaction writes the protected navigation map and facilitator projection, while each player receives only the value for that player’s exact canonical group. Focused pure and callable tests prove all three chart coordinates, mixed-group isolation, shared navigation revision, and group-local privacy.",
+      "evidenceIds": "E-AUDIT-308;E-308-ION-PURSUIT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "306",
@@ -13358,10 +13365,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.29"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
