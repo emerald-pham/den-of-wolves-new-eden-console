@@ -423,7 +423,11 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     const frame = windowRef.current?.getBoundingClientRect();
     const bounds = element?.getBoundingClientRect();
     if (!frame || !bounds || (bounds.width === 0 && bounds.height === 0)) return true;
-    return bounds.right > frame.left && bounds.left < frame.right;
+    // A group staged exactly at the right edge has not appeared yet, but it is
+    // already the committed next pass. Keep that boundary group when a higher
+    // priority source arrives so its copy can finish before the replacement is
+    // appended. Later repetitions remain beyond the edge and are discarded.
+    return bounds.right > frame.left && bounds.left <= frame.right;
   }, []);
 
   const reconcilePaintedGeometry = useCallback(() => {

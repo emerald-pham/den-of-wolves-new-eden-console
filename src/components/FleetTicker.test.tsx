@@ -46,6 +46,45 @@ it('lets the old broadcast leave naturally while its replacement follows on the 
   )).not.toBeInTheDocument();
   expect(cancellationStatus).toBeVisible();
 });
+it('keeps the next lower-priority pass at the mobile right edge before appending Red Alert', () => {
+  const press = {
+    id: 'mobile-press-current', source: 'press' as const,
+    text: 'SNN // CURRENT DISPATCH', tone: 'normal' as const,
+  };
+  const redAlert = {
+    id: 'mobile-red-alert', source: 'admiral' as const,
+    text: 'AEGIS // RED ALERT', tone: 'danger' as const,
+  };
+  const view = render(<FleetTicker message={press} />);
+  const frame = view.container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 390, top: 0, bottom: 28, width: 390, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  const pressGroups = [...view.container.querySelectorAll<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${press.id}"]`,
+  )];
+  pressGroups.forEach((group, index) => {
+    const left = index === 0 ? 390 : 900;
+    group.getBoundingClientRect = () => ({
+      left, right: left + 510, top: 0, bottom: 28, width: 510, height: 28,
+      x: left, y: 0, toJSON: () => undefined,
+    });
+  });
+
+  view.rerender(<FleetTicker message={redAlert} />);
+
+  const retainedPress = view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${press.id}"]`,
+  );
+  const appendedAlert = view.container.querySelector<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${redAlert.id}"]`,
+  );
+  expect(retainedPress).toHaveLength(1);
+  expect(appendedAlert).toBeInTheDocument();
+  expect(Number.parseFloat(appendedAlert!.style.getPropertyValue('--fleet-ticker-start-x')))
+    .toBeGreaterThanOrEqual(900);
+});
 it('keeps queued identities singular while rapid updates append new tracks', () => {
   const firstQueued = {
     id: 'queued-press-1', text: 'SNN // FIRST REPORT', tone: 'normal' as const,

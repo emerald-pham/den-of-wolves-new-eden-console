@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 316, total: 751, percentage: '42.08%',
+      done: 316, partial: 23, active: 0, missing: 412,
+    },
+    changes: [
+      'AEGIS Red Alert now waits for the lower-priority ticker copy already staged at the right edge to finish, then enters immediately behind it without replaying the lower-priority pool.',
+      'Settings buttons and fields now keep the fleet console typeface instead of falling back to browser Arial.',
+      '316 of 751 planned items are complete (42.08%).',
+    ],
+  },
+  {
+    version: '0.4.33',
     implementationPrompts: [105],
     implementationProgress: {
       completed: 314, total: 751, percentage: '41.81%',

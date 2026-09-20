@@ -111,6 +111,13 @@ describe('the CIC type system', () => {
       return officeFaces.map((face) => `${name}: ${face}`);
     })).toEqual([]);
   });
+
+  it('makes browser-native controls inherit the console family', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const controls = index.match(/button,\s*input,\s*select,\s*textarea\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(controls).toContain('font-family: inherit');
+  });
 });
 
 describe('the CIC frame', () => {
