@@ -42,10 +42,11 @@ const mock = vi.hoisted(() => {
     }
     documents.set(target.path, current);
   });
+  const remove = vi.fn((target: { path: string }) => documents.delete(target.path));
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback({ get, set, update }));
+    callback({ get, set, update, delete: remove }));
   return {
-    documents, get, set, update, runTransaction,
+    documents, get, set, update, remove, runTransaction,
     db: { doc: ref, collection: ref, runTransaction },
   };
 });
@@ -53,7 +54,7 @@ const mock = vi.hoisted(() => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
   Timestamp: class MockTimestamp {
     constructor(private readonly value: Date) {}
     static now() { return new MockTimestamp(new Date()); }
@@ -96,6 +97,7 @@ beforeEach(() => {
   mock.get.mockClear();
   mock.set.mockClear();
   mock.update.mockClear();
+  mock.remove.mockClear();
   mock.runTransaction.mockClear();
   put('sessions/s1', {
     phase: 'active',
@@ -134,6 +136,9 @@ beforeEach(() => {
 });
 
 it('commits one owner handoff, writes an audit, and replays without another mutation', async () => {
+  put('sessions/s1/shuttleDepartures/starlight', {
+    status: 'requested', shuttleId: 'starlight', requestId: 'departure-1',
+  });
   const first = await transferShuttleControlCommand.run(request(command));
   expect(first).toEqual({
     status: 'committed',
@@ -151,6 +156,7 @@ it('commits one owner handoff, writes an audit, and replays without another muta
   expect(mock.documents.get('sessions/s1')?.shuttleDockings).toEqual(expect.arrayContaining([
     expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker' }),
   ]));
+  expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(false);
   expect(mock.documents.get('sessions/s1/shuttleControlAudit/handoff-1')).toMatchObject({
     actorUid: 'wing', actorRole: 'printed-owner',
     previousHolderUid: 'wing', holderUid: 'crew', previousRevision: 0, revision: 1,

@@ -31,6 +31,7 @@ const {
   sessionSnapshotAuthorityFor,
   subscribeGmInstances,
   subscribeConnectedPlayers,
+  subscribeShuttleDeparture,
   subscribeIntelligenceInvestigation,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
@@ -93,6 +94,31 @@ it('hydrates only canonical shuttle-control entries from the member session proj
       holderUid: 'holder', revision: 2,
     },
   });
+});
+
+it('hydrates only a canonical group-audienced shuttle departure document', () => {
+  const valid = {
+    status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',
+    holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', cycle: 2, controlRevision: 4,
+    requestedAt: '2026-01-01T00:10:00.000Z',
+  } as const;
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onDeparture = vi.fn();
+  subscribeShuttleDeparture('s1', 'starlight', onDeparture);
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true, data: () => valid,
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({ ...valid, unexpected: true }),
+  });
+
+  expect(onDeparture.mock.calls).toEqual([[valid], [null]]);
 });
 
 it.each([

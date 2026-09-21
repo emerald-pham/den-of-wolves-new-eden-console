@@ -37,6 +37,7 @@ import type {
   SmallShipId,
   SmallShipState,
   ShuttleDocking,
+  ShuttleDepartureRequestState,
   ShuttleVisit,
   ShipNavigationLogEntry,
   PlayerDiscoveryProjection,
@@ -1597,6 +1598,31 @@ function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl
       revision: raw.revision as number,
     }]];
   }));
+}
+
+function shuttleDeparture(value: unknown, shuttleId: string): ShuttleDepartureRequestState | null {
+  const raw = recordValue(value);
+  const parsedShuttleId = parseEntityId('shuttle', shuttleId);
+  const holderUid = raw ? parseEntityId('player', raw.holderUid) : undefined;
+  const fleetGroupId = raw ? parseEntityId('group', raw.fleetGroupId) : undefined;
+  const originShipId = raw ? parseEntityId('vessel', raw.originShipId) : undefined;
+  const destinationShipId = raw ? parseEntityId('vessel', raw.destinationShipId) : undefined;
+  if (!raw || !SHUTTLECRAFT.some((shuttle) => shuttle.id === shuttleId) ||
+      parsedShuttleId !== shuttleId || raw.status !== 'requested' || raw.shuttleId !== shuttleId ||
+      typeof raw.requestId !== 'string' || raw.requestId.length === 0 || !holderUid ||
+      !fleetGroupId || !originShipId || !destinationShipId ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.controlRevision) || (raw.controlRevision as number) < 0 ||
+      typeof raw.requestedAt !== 'string' || !Number.isFinite(Date.parse(raw.requestedAt)) ||
+      Object.keys(raw).some((key) => ![
+        'status', 'requestId', 'shuttleId', 'holderUid', 'fleetGroupId', 'originShipId',
+        'destinationShipId', 'cycle', 'controlRevision', 'requestedAt',
+      ].includes(key))) return null;
+  return {
+    status: 'requested', requestId: raw.requestId, shuttleId: parsedShuttleId, holderUid,
+    fleetGroupId, originShipId, destinationShipId, cycle: raw.cycle as number,
+    controlRevision: raw.controlRevision as number, requestedAt: raw.requestedAt,
+  };
 }
 
 function shipUpgrades(value: unknown): NonNullable<GameSession['shipUpgrades']> {
@@ -3184,6 +3210,33 @@ export function subscribeConnectedPlayers(
       // listener. Clear the prior projection before reporting the failure so
       // a stale callback cannot leave old-group data on screen.
       onPlayers([]);
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
+}
+
+/** Subscribe to one server-owned flight plan while the caller retains group read authority. */
+export function subscribeShuttleDeparture(
+  sessionId: string,
+  shuttleId: string,
+  onDeparture: (departure: ShuttleDepartureRequestState | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/shuttleDepartures/${shuttleId}`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onDeparture(snapshot.exists() ? shuttleDeparture(snapshot.data(), shuttleId) : null);
+    },
+    () => {
+      if (!subscribed) return;
+      onDeparture(null);
       onError();
     },
   );

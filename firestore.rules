@@ -371,6 +371,24 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Pending shuttle routes contain group-local origin and destination data.
+      // The server is the only writer; connected members may read one exact
+      // route only while their live group pointer matches its audience.
+      match /shuttleDepartures/{shuttleId} {
+        allow get: if isGm(sessionId)
+          || (isMember(sessionId)
+            && resource.data.status == 'requested'
+            && resource.data.shuttleId == shuttleId
+            && resource.data.fleetGroupId is string
+            && get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.fleetGroupId is string
+            && resource.data.fleetGroupId == get(
+              /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+            ).data.fleetGroupId);
+        allow list, write: if false;
+      }
+
       // Commissar consent and purge state is server-only. The per-UID
       // projection exposes only the current captain's own consent or the
       // active Commissar's sanitized ship map; the role check is evaluated

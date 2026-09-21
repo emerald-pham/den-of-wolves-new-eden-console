@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**368 / 751 prompts complete (49.00%)**
+**369 / 751 prompts complete (49.13%)**
 
-Status breakdown: **368 done · 17 partial · 366 missing**.
+Status breakdown: **369 done · 17 partial · 365 missing**.
 
 Active prompt: **none**
 
@@ -807,7 +807,7 @@ release classification and evidence.
 | 362 | done | non-feature | 0.4.61 | The server initializes revisioned shuttle-control custody from the authoritative craft manifest and current printed-role holders at session start. A connected printed owner may hand the shuttle to another connected player in the same server-owned fleet group or reclaim it; a live facilitator instance may adjudicate either transition. Recipients cannot forward control, malformed state and missing group authority fail closed, stale revisions and reused request IDs cannot mutate twice, and every accepted transition writes a private replay receipt plus a facilitator-readable server audit. The member UI shows the current holder, lets authorized operators hand off or reclaim, gives the recipient a shuttle-console link without claiming the printed owner role, and preserves the owner console path. Focused callable, start, projection, route, service, font, and Firestore-rules tests cover the authority boundary. |
 | 363 | done | non-feature | 0.4.62 | Shuttle control transfer now completes custody and docking as one server transaction. The server validates the full parked manifest, resolves the recipient’s physical ship from their current replacement role, printed role, or the authoritative host of the Press or Joint Engineering craft, and rejects locationless, escaping, inactive, duplicate, unknown, or craft-restricted destinations before any write. Accepted handoffs and reclaims update the control revision and the shuttle’s dock together, while the audit records both previous and resolved hosts. The shared pure resolver preserves unrelated dockings and is ready for the later departure and arrival transactions without claiming their transit, visit-log, event, or DRADIS scope. |
 | 364 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 365 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 365 | done | non-feature | 0.4.63 | The current holder can submit a revision-checked departure request from the shuttle console during live open airspace. The callable binds the request to the authenticated holder, current custody revision, exact active session cycle and phase clock, the server-owned fleet group, one authoritative origin docking, a different local destination, craft-specific host limits, the active movement deadline, and the absence of a Wolf movement lock. Malformed manifests, stale lifecycle or cycle state, pending requests, stale custody, closed or paused airspace, expired windows, cross-group ships, and replay conflicts fail before mutation. Accepted requests persist one server-written, group-audienced flight-plan document and an exact command receipt while deliberately leaving docking, visit history, events, DRADIS, and transit unchanged for Prompts 366 and 367. Foreign groups cannot get the route, no client can enumerate or write departure plans, and custody changes delete any obsolete pending document atomically. Focused pure, callable, service, projection, holder-interface, and Firestore emulator tests cover the authority and privacy boundaries. |
 | 366 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 367 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 368 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

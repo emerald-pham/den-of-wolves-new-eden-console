@@ -1744,6 +1744,34 @@ describe('players', () => {
   });
 });
 
+describe('shuttle departure privacy', () => {
+  it('scopes an exact pending route to its fleet group and denies enumeration or client writes', async () => {
+    const path = `${SESSION}/shuttleDepartures/starlight`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/players/foreign`), {
+        uid: 'foreign', role: 'player', displayName: 'Foreign Group', seatId: null,
+        fleetGroupId: 'fleet-2', connected: true,
+      });
+      await setDoc(doc(db, path), {
+        status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',
+        holderUid: 'alice', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+        destinationShipId: 'icebreaker', cycle: 2, controlRevision: 1,
+        requestedAt: '2026-09-21T05:00:00.000Z',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'), path)));
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    await assertFails(getDoc(doc(as('foreign'), path)));
+    await assertFails(getDoc(doc(as('stranger'), path)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/shuttleDepartures`)));
+    await assertFails(setDoc(doc(as('alice'), path), { destinationShipId: 'dione' }));
+    await assertFails(updateDoc(doc(as('gm1'), path), { destinationShipId: 'dione' }));
+    await assertFails(deleteDoc(doc(as('gm1'), path)));
+  });
+});
+
 describe('player authority', () => {
   it('allows only a display-name change on the caller own connected player record', async () => {
     const ownPlayer = doc(as('alice'), SESSION + '/players/alice');

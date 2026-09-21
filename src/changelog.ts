@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [365],
+    implementationProgress: {
+      completed: 369, total: 751, percentage: '49.13%',
+      done: 369, partial: 17, active: 0, missing: 365,
+    },
+    changes: [
+      'Current shuttle holders can now request departure to a legal local ship while airspace is open.',
+      'The server verifies live custody, fleet-group membership, the current cycle, the movement window, and craft-specific host limits before accepting a group-private flight plan.',
+      'An accepted request remains visibly docked and awaiting transit clearance until the separate transit step begins.',
+      '369 of 751 planned items are complete (49.13%).',
+    ],
+  },
+  {
+    version: '0.4.62',
     implementationPrompts: [363],
     implementationProgress: {
       completed: 368, total: 751, percentage: '49.00%',

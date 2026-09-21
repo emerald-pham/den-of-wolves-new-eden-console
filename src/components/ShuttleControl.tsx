@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { subscribeConnectedPlayers } from '@/lib/firestore';
+import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/firestore';
 import { transferShuttleControl } from '@/lib/shuttleControlService';
+import { requestShuttleDeparture } from '@/lib/shuttleDepartureService';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { Player, ShuttleControlEntry } from '@/types/game';
+import type { Player, ShuttleControlEntry, ShuttleDepartureRequestState } from '@/types/game';
+import { findShip } from '@/data/ships';
+import { dockingForShuttle, shuttleDestinationIsAllowed } from '@/data/shuttles';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -15,9 +18,24 @@ export default function ShuttleControl({ control }: Props) {
   const [targetUid, setTargetUid] = useState('');
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState('');
+  const [destinationShipId, setDestinationShipId] = useState('');
+  const [departure, setDeparture] = useState<ShuttleDepartureRequestState | null>(null);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
+  const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
+  const docking = dockingForShuttle(session, control.shuttleId);
+  const destinations = (session.activeVesselIds ?? [])
+    .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
+      shuttleDestinationIsAllowed(control.shuttleId, shipId));
+  const departureWindowOpen = session.phase === 'active' &&
+    session.turnPhase?.airspace.state === 'lifted' && !session.turnPhase.timerPause &&
+    Date.now() < Date.parse(session.turnPhase.openAirspaceEndsAt);
 
   useEffect(() => subscribeConnectedPlayers(session.id, setPlayers), [session.id, me.fleetGroupId]);
+  useEffect(() => subscribeShuttleDeparture(
+    session.id,
+    control.shuttleId,
+    setDeparture,
+  ), [control.shuttleId, me.fleetGroupId, session.id]);
   const holder = players.find((player) => player.uid === control.holderUid);
   const targets = useMemo(() => players.filter((player) =>
     player.role === 'player' && player.uid !== control.holderUid), [control.holderUid, players]);
@@ -42,6 +60,25 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
+  async function submitDeparture(): Promise<void> {
+    if (pending || !destinationShipId || !session.turnPhase) return;
+    setPending(true);
+    setStatus('');
+    try {
+      await requestShuttleDeparture(
+        control.shuttleId,
+        destinationShipId,
+        control.revision,
+        session.turnPhase.turn,
+      );
+      setStatus(`Departure requested to ${findShip(destinationShipId)?.name ?? destinationShipId}.`);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Shuttle departure request failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
   return <section className="console-workspace__section shuttle-control" aria-label="Shuttle control">
     <p className="console-workspace__eyebrow">Custody // server authorised</p>
     <h3>Shuttle control</h3>
@@ -60,6 +97,29 @@ export default function ShuttleControl({ control }: Props) {
           onClick={() => void submit('reclaim')}>Reclaim control</button>}
       </div>
     </>}
+    {canRequestDeparture && <section aria-label="Shuttle departure">
+      <p className="console-workspace__eyebrow">Flight plan // server authorised</p>
+      <h4>Request departure</h4>
+      {departure ? <p>
+        Departure requested to {findShip(departure.destinationShipId)?.name ?? departure.destinationShipId};
+        awaiting transit clearance.
+      </p> : <>
+        <label htmlFor={`shuttle-destination-${control.shuttleId}`}>Destination ship</label>
+        <select id={`shuttle-destination-${control.shuttleId}`} value={destinationShipId}
+          disabled={pending || !departureWindowOpen}
+          onChange={(event) => setDestinationShipId(event.target.value)}>
+          <option value="">Choose local ship</option>
+          {destinations.map((shipId) => <option value={shipId} key={shipId}>
+            {findShip(shipId)?.name ?? shipId}
+          </option>)}
+        </select>
+        <div className="console-workspace__actions">
+          <button type="button" disabled={pending || !departureWindowOpen || !destinationShipId}
+            onClick={() => void submitDeparture()}>Request departure</button>
+        </div>
+        {!departureWindowOpen && <p>Departure requests open when airspace is open.</p>}
+      </>}
+    </section>}
     {status && <p role="status">{status}</p>}
   </section>;
 }

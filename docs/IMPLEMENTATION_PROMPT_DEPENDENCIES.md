@@ -492,7 +492,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 362 | NEW | done | 361 | none | none | none | none | none | none | none | E-AUDIT-362 | M7 | Transfer shuttle control. |
 | 363 | NEW | done | 361;362 | none | none | none | none | none | none | none | E-AUDIT-363 | M7 | Resolve holder-based docking. |
 | 364 | NEW | missing | 142;361 | none | none | none | none | none | none | none | E-AUDIT-364 | M7 | Validate Team-start docking. |
-| 365 | NEW | missing | 141;363 | none | none | none | none | none | none | none | E-AUDIT-365 | M7 | Request shuttle departure. |
+| 365 | NEW | done | 141;363 | none | none | none | none | none | none | none | E-AUDIT-365 | M7 | Request shuttle departure. |
 | 366 | NEW | missing | 365 | none | none | none | none | none | none | none | E-AUDIT-366 | M7 | Enter authoritative shuttle transit. |
 | 367 | NEW | missing | 366;313 | none | none | none | none | none | none | none | E-AUDIT-367 | M7 | Complete shuttle arrival. |
 | 368 | NEW | missing | 366 | none | none | none | none | none | none | none | E-AUDIT-368 | M7 | Retarget in flight. |

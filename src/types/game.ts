@@ -556,6 +556,20 @@ export interface ShuttleControlEntry {
   readonly revision: number;
 }
 
+/** A server-authorized departure awaiting the physical transit transition. */
+export interface ShuttleDepartureRequestState {
+  readonly status: 'requested';
+  readonly requestId: string;
+  readonly shuttleId: ShuttleId;
+  readonly holderUid: PlayerId;
+  readonly fleetGroupId: GroupId;
+  readonly originShipId: VesselId;
+  readonly destinationShipId: VesselId;
+  readonly cycle: number;
+  readonly controlRevision: number;
+  readonly requestedAt: Timestamp;
+}
+
 /** Public terminal population result calculated from authoritative ledgers. */
 export interface SurvivorOutcome {
   readonly type: 'survivor-outcome';

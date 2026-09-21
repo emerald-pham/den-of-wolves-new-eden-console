@@ -14946,7 +14946,7 @@
         "acceptance": "an entitled holder can depart to a legal local ship only in an open movement window.",
         "title": "Request shuttle departure."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The current holder can submit a revision-checked departure request from the shuttle console during live open airspace. The callable binds the request to the authenticated holder, current custody revision, exact active session cycle and phase clock, the server-owned fleet group, one authoritative origin docking, a different local destination, craft-specific host limits, the active movement deadline, and the absence of a Wolf movement lock. Malformed manifests, stale lifecycle or cycle state, pending requests, stale custody, closed or paused airspace, expired windows, cross-group ships, and replay conflicts fail before mutation. Accepted requests persist one server-written, group-audienced flight-plan document and an exact command receipt while deliberately leaving docking, visit history, events, DRADIS, and transit unchanged for Prompts 366 and 367. Foreign groups cannot get the route, no client can enumerate or write departure plans, and custody changes delete any obsolete pending document atomically. Focused pure, callable, service, projection, holder-interface, and Firestore emulator tests cover the authority and privacy boundaries.",
       "evidenceIds": "E-AUDIT-365",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -14955,10 +14955,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.63"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -64,6 +64,13 @@ export function isShuttleEnabled(
   return activeRoleIds.includes(shuttle.captainRoleId);
 }
 
+/** Union craft are physically limited to the two ships on their printed role. */
+export function shuttleDestinationIsAllowed(shuttleId: string, shipId: string): boolean {
+  if (shuttleId === 'wobbly') return shipId === 'quellon' || shipId === 'refinery-124';
+  if (shuttleId === 'ally') return shipId === 'shepherd' || shipId === 'icebreaker';
+  return true;
+}
+
 export const INITIAL_SHUTTLE_DOCKINGS: readonly ShuttleDocking[] = DEFAULT_ENABLED_SHUTTLECRAFT.flatMap(
   (shuttle) => shuttle.initialDocking ? [{ ...shuttle.initialDocking, shuttleId: shuttle.id }] : [],
 );
