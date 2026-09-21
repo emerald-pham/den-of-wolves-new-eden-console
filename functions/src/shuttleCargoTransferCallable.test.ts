@@ -84,12 +84,23 @@ it('moves cargo across both ledgers once and replays without another write', asy
 it.each([
   ['foreign holder', 'owner', command],
   ['forbidden type', 'holder', { ...command, requestId: 'ore', resourceId: 'ore' }],
+  ['negative amount', 'holder', { ...command, requestId: 'negative', amount: -1 }],
   ['stale custody', 'holder', { ...command, requestId: 'stale', expectedControlRevision: 2 }],
 ] as const)('rejects %s without mutation', async (_label, uid, data) => {
   await expect(transferShuttleCargoCommand.run(request(data, uid))).rejects.toMatchObject({
-    code: expect.stringMatching(/permission-denied|failed-precondition/),
+    code: expect.stringMatching(/invalid-argument|permission-denied|failed-precondition/),
   });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects cargo movement outside the live Coordination phase without mutation', async () => {
+  mock.documents.get('sessions/s1')!.phase = 'debrief';
+
+  await expect(transferShuttleCargoCommand.run(request({
+    ...command, requestId: 'wrong-phase',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects transit, cross-group host, and insufficient inventory without mutation', async () => {

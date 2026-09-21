@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**402 / 751 prompts complete (53.53%)**
+**404 / 751 prompts complete (53.79%)**
 
-Status breakdown: **402 done · 16 partial · 333 missing**.
+Status breakdown: **404 done · 16 partial · 331 missing**.
 
 Active prompt: **none**
 
@@ -811,7 +811,7 @@ release classification and evidence.
 | 366 | done | non-feature | 0.4.64 | The current shuttle holder can turn an exact server-authorized flight plan into authoritative transit during the same live open-airspace window. The idempotent callable revalidates authenticated custody, the control revision, departure request, active lifecycle and exact cycle, unpaused and unexpired airspace, fleet-group membership and endpoints, the current origin dock, craft host limits, and the absence of a Wolf movement lock. Its transaction removes only that shuttle from the docking ledger and replaces the group-private request with a 60-second transit record containing authoritative origin, current and destination positions, velocity, and server departure and arrival timestamps. Other parked shuttles remain usable, the client projects the craft as in transit, and arrival, host, holder, visit log, event, and DRADIS mutations remain reserved for Prompt 367. Focused pure, callable, service, projection, holder-interface, concurrent-movement, and Firestore emulator tests cover authority, privacy, replay, and neither-endpoint behavior. |
 | 367 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 368 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 369 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 369 | done | non-feature | — | Verified the existing production fuelling boundary. During Team Phase, the authoritative maintenance transaction combines ship-console authority, the exact host bay and maintenance step, the complete role-owned docking manifest, host fuel, bay damage, one-use state, and current revision. Valid choices spend and mark fuel once; invalid, stale, repeated, or replayed requests cannot spend twice, and the next numbered cycle clears the fuelled ledger. Focused server and shared UI suites passed. This is evidence reconciliation with no runtime change. |
 | 370 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 371 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 372 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -821,7 +821,7 @@ release classification and evidence.
 | 376 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 377 | done | non-feature | — | The production shuttle cargo callable already implements this acceptance through the released Prompt 113 path. It derives the current holder, unique live dock, active manifest, group-local host, exact printed allowlist and both current inventories from server state, then updates only the host and shuttle ledgers in one transaction. Transit, duplicate or missing docks, stale custody, unsupported cargo, cross-group hosts, malformed ledgers, insufficient stock and request collisions fail before mutation; exact retries return the stored result without moving cargo twice. |
 | 378 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 379 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 379 | done | non-feature | — | Verified the production cargo-transfer denial matrix. Unsupported types, negative or fractional amounts, overdraw, absent or duplicate docking, cross-group hosts, foreign holders, wrong phase, stale custody, and missing or malformed inventories all fail before either ledger changes. Exact accepted retries replay without another write. Focused pure and callable suites passed, including new negative-amount and wrong-phase regressions. This is evidence reconciliation with no runtime change. |
 | 380 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 381 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 382 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

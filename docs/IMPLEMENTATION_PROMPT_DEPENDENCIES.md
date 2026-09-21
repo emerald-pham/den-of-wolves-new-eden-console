@@ -496,7 +496,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 366 | NEW | done | 365 | none | none | none | none | none | none | none | E-AUDIT-366 | M7 | Enter authoritative shuttle transit. |
 | 367 | NEW | missing | 366;313 | none | none | none | none | none | none | none | E-AUDIT-367 | M7 | Complete shuttle arrival. |
 | 368 | NEW | missing | 366 | none | none | none | none | none | none | none | E-AUDIT-368 | M7 | Retarget in flight. |
-| 369 | NEW | missing | 361;363 | none | none | none | none | none | none | none | E-AUDIT-369 | M7 | Fuel only eligible docked craft. |
+| 369 | NEW | done | 361;363 | none | none | none | none | none | none | none | E-AUDIT-369;E-369-ELIGIBLE-DOCKED-FUELLING-VERIFIED | M7 | Fuel only eligible docked craft. |
 | 370 | NEW | missing | 369;128 | none | none | none | none | none | none | none | E-AUDIT-370 | M7 | Expire unused shuttle fuel. |
 | 371 | NEW | missing | 145;146;366 | none | none | none | none | none | none | none | E-AUDIT-371 | M7 | Park craft when airspace closes. |
 | 372 | NEW | missing | 145;275a | none | none | none | none | none | none | none | E-AUDIT-372 | M7 | Apply the SNN/AEGIS movement exception. |
@@ -506,7 +506,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 376 | NEW | missing | 126;369 | none | none | none | none | none | none | none | E-AUDIT-376 | M7 | Enforce AEGIS dual-bay capacity. |
 | 377 | NEW | done | 361;363 | none | none | none | none | none | none | 164 | E-AUDIT-377;E-164-377-CARGO-AUTHORITY;E-164-TRANSFER-RELATED | M7 | Transfer permitted shuttle cargo. |
 | 378 | NEW | missing | 377 | none | none | none | none | none | none | none | E-AUDIT-378 | M7 | Preserve security-team semantics. |
-| 379 | NEW | missing | 377 | none | none | none | none | none | none | none | E-AUDIT-379 | M7 | Deny invalid cargo moves. |
+| 379 | NEW | done | 377 | none | none | none | none | none | none | none | E-AUDIT-379;E-379-INVALID-CARGO-MOVES-DENIED | M7 | Deny invalid cargo moves. |
 | 380 | NEW | missing | 365;366;367 | none | none | none | none | none | none | none | E-AUDIT-380 | M7 | Reconcile movement conflicts. |
 | 381 | NEW | missing | 263;361 | none | none | none | none | none | none | none | E-AUDIT-381 | M7 | Resolve Philia repairs. |
 | 382 | NEW | missing | 266;361 | none | none | none | none | none | none | none | E-AUDIT-382 | M7 | Resolve Blacksmith repairs. |
@@ -1212,6 +1212,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-367 | hard_prompt | 367 -> 366;313 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Arrival consumes transit state and persisted visit history. |
 | E-AUDIT-368 | hard_prompt | 368 -> 366 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Retargeting consumes authoritative transit state. |
 | E-AUDIT-369 | hard_prompt | 369 -> 361;363 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shuttle fuelling consumes manifest and host/dock authority. |
+| E-369-ELIGIBLE-DOCKED-FUELLING-VERIFIED | evidence / production-path / server-authoritative / Team-phase / docking-manifest / host-fuel / per-bay / replay / stale-cas / regression | 369 -> 361;363;364 | functions/src/index.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/shuttlecraft.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/lib/maintenanceService.ts | The server-authoritative maintenance transaction permits Shuttle Bay refuelling only during the live Team phase, through current ship-console authority, at the bay's exact maintenance step, from the complete role-owned docking manifest, with an undamaged host bay and sufficient host fuel. It spends once, marks only the chosen docked craft fuelled, binds replay to the current revision, rejects stale, duplicate, undocked, damaged, already-fuelled, and out-of-order choices before another mutation, and expires shuttle fuel at the next numbered cycle. |
 | E-AUDIT-370 | hard_prompt | 370 -> 369;128 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shuttle-fuel expiry consumes fuelling state and rollover expiry. |
 | E-AUDIT-371 | hard_prompt | 371 -> 145;146;366 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Restriction parking consumes attack lock, tie policy, and transit state. |
 | E-AUDIT-372 | hard_prompt | 372 -> 145;275a | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The SNN exception consumes the airspace restriction and optional Press station. |
@@ -1222,6 +1223,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-377 | hard_prompt | 377 -> 164;361;363 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Cargo transfer consumes permissions, manifest, and dock authority. |
 | E-AUDIT-378 | hard_prompt | 378 -> 377 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Security semantics and invalid-move denial extend cargo transfer. |
 | E-AUDIT-379 | hard_prompt | 379 -> 377 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Security semantics and invalid-move denial extend cargo transfer. |
+| E-379-INVALID-CARGO-MOVES-DENIED | evidence / production-path / server-authoritative / cargo-transfer / deny-invalid / atomic-ledgers / replay / stale-cas / regression | 379 -> 362;363;377 | functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/index.ts; src/lib/shuttleCargoService.ts; src/components/ShuttleControl.tsx | The cargo-transfer callable and pure resolver reject unsupported resource types, nonpositive or fractional amounts, source overdraw, absent or duplicate docking, cross-group hosts, a foreign holder, stale custody revision, missing or malformed inventories, and movement outside Coordination before either inventory changes. Exact committed retries replay without another write, and the server derives both ledgers from the current authoritative session rather than accepting client balances. |
 | E-AUDIT-380 | hard_prompt | 380 -> 365;366;367 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Movement conflict recovery consumes departure, transit, and arrival states. |
 | E-AUDIT-381 | hard_prompt | 381 -> 263;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Philia repair consumes craft registration and manifest authority. |
 | E-AUDIT-382 | hard_prompt | 382 -> 266;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Blacksmith repair consumes craft registration and manifest authority. |

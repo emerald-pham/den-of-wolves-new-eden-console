@@ -2417,6 +2417,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "369 -> 361;363;364",
+      "id": "E-369-ELIGIBLE-DOCKED-FUELLING-VERIFIED",
+      "language": "The server-authoritative maintenance transaction permits Shuttle Bay refuelling only during the live Team phase, through current ship-console authority, at the bay's exact maintenance step, from the complete role-owned docking manifest, with an undamaged host bay and sufficient host fuel. It spends once, marks only the chosen docked craft fuelled, binds replay to the current revision, rejects stale, duplicate, undocked, damaged, already-fuelled, and out-of-order choices before another mutation, and expires shuttle fuel at the next numbered cycle.",
+      "source": "functions/src/index.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/shuttlecraft.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/lib/maintenanceService.ts",
+      "type": "evidence / production-path / server-authoritative / Team-phase / docking-manifest / host-fuel / per-bay / replay / stale-cas / regression"
+    },
+    {
       "direction": "370 -> 369;128",
       "id": "E-AUDIT-370",
       "language": "Shuttle-fuel expiry consumes fuelling state and rollover expiry.",
@@ -2485,6 +2492,13 @@
       "language": "Security semantics and invalid-move denial extend cargo transfer.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "379 -> 362;363;377",
+      "id": "E-379-INVALID-CARGO-MOVES-DENIED",
+      "language": "The cargo-transfer callable and pure resolver reject unsupported resource types, nonpositive or fractional amounts, source overdraw, absent or duplicate docking, cross-group hosts, a foreign holder, stale custody revision, missing or malformed inventories, and movement outside Coordination before either inventory changes. Exact committed retries replay without another write, and the server derives both ledgers from the current authoritative session rather than accepting client balances.",
+      "source": "functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/index.ts; src/lib/shuttleCargoService.ts; src/components/ShuttleControl.tsx",
+      "type": "evidence / production-path / server-authoritative / cargo-transfer / deny-invalid / atomic-ledgers / replay / stale-cas / regression"
     },
     {
       "direction": "380 -> 365;366;367",
@@ -15144,8 +15158,8 @@
         "acceptance": "Team Phase, host bay, dock, owner, fuel balance, and per-bay use are validated together.",
         "title": "Fuel only eligible docked craft."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-369",
+      "description": "Verified the existing production fuelling boundary. During Team Phase, the authoritative maintenance transaction combines ship-console authority, the exact host bay and maintenance step, the complete role-owned docking manifest, host fuel, bay damage, one-use state, and current revision. Valid choices spend and mark fuel once; invalid, stale, repeated, or replayed requests cannot spend twice, and the next numbered cycle clears the fuelled ledger. Focused server and shared UI suites passed. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-369;E-369-ELIGIBLE-DOCKED-FUELLING-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;363",
@@ -15156,7 +15170,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15374,8 +15388,8 @@
         "acceptance": "unsupported type, negative amount, overdraw, wrong dock, wrong role, wrong phase, and stale revision leave all inventories unchanged.",
         "title": "Deny invalid cargo moves."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-379",
+      "description": "Verified the production cargo-transfer denial matrix. Unsupported types, negative or fractional amounts, overdraw, absent or duplicate docking, cross-group hosts, foreign holders, wrong phase, stale custody, and missing or malformed inventories all fail before either ledger changes. Exact accepted retries replay without another write. Focused pure and callable suites passed, including new negative-amount and wrong-phase regressions. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-379;E-379-INVALID-CARGO-MOVES-DENIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "377",
@@ -15386,7 +15400,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
