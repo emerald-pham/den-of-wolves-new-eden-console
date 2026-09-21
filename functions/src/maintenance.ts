@@ -352,7 +352,9 @@ export function advanceMaintenance(input: MaintenanceInput) {
     const refuels = input.refuels ?? {};
     const chosen = Object.values(refuels).filter(Boolean);
     if (new Set(chosen).size !== chosen.length) throw new Error('Refuel each shuttle only once per cycle.');
-    if (chosen.some(shuttle => cycleInput.refuelled.includes(shuttle))) throw new Error('Refuel each shuttle only once per cycle.');
+    if (chosen.some(shuttle => cycleInput.refuelled.includes(shuttle) || fuelled[shuttle] === true)) {
+      throw new Error('Refuel each shuttle only once per cycle.');
+    }
     if (chosen.length > resources.fuel) throw new Error('Insufficient fuel to refuel these shuttles.');
     const bays = SHIP_DAMAGE_DECKS[shipId]!.filter(c => c.systemId.startsWith('shuttle-bay')).map(c => c.systemId);
     const currentBays = shipId === 'aegis'

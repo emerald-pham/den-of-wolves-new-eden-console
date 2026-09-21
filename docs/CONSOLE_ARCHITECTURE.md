@@ -78,12 +78,23 @@ Research and charged-console production/combat outcomes remain table-resolved.
 The current ration choices use the initial printed schedules; replacement
 schedules at population thresholds still require facilitator adjudication.
 
+Ordinary fleet ships have one maintenance shuttle bay. During the final
+refuelling step, that bay can refuel at most one eligible shuttle currently
+docked at the acting ship, spending exactly one unit of that host ship's fuel.
+A damaged bay cannot refuel a shuttle. The server validates the complete
+authoritative docking row, active ship roster, active craft ownership, current
+maintenance revision, host stores, and prior fuel state in the same transaction;
+unknown, duplicate, malformed, in-transit, wrong-host, already-fuelled, or stale
+choices fail before any state changes. AEGIS and Capybara keep their separately
+encoded bay contracts.
+
 Each ship has one shared docking manifest: an immutable history whose rows name
 the shuttlecraft and the shuttleport where it docked. Current occupancy,
 maintenance rules and departure events stay out of this panel. The Press
 shuttle declares the civilian access hatch as its port and remains excluded
-from mechanical dock occupancy. Maintenance refuelling uses the authoritative docking list. No new shuttle
-craft or travel controls are added by the maintenance workflow.
+from mechanical dock occupancy. Maintenance refuelling uses the authoritative
+docking list. No new shuttle craft or travel controls are added by the
+maintenance workflow.
 
 A new workspace kind belongs in the template's typed workspace selection and
 the central renderer. Keep workspace availability checks in sync. Never copy

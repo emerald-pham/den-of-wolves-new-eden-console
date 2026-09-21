@@ -574,7 +574,7 @@ it('rejects oversized canonical maintenance collections before authority preflig
 it('accepts the maintenance form’s explicit do-not-refuel sentinel', async () => {
   const maintenance = {
     session: {
-      phase: 'active', currentTurn: 1,
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
       maintenanceCycles: { aegis: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] } },
       shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
       shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
@@ -1002,6 +1002,7 @@ it('resolves the Capybara single-bay shuttle choice through atomic replay and st
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
+      activeRoleIds: ['capybara-captain', 'capybara-recycler'],
       maintenanceCycles: {
         capybara: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: [], refuelled: [] },
       },
@@ -1009,8 +1010,8 @@ it('resolves the Capybara single-bay shuttle choice through atomic replay and st
       shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
       shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 20_000 },
       shuttleDockings: [
-        { shipId: 'capybara', shuttleId: 'macaw' },
-        { shipId: 'capybara', shuttleId: 'boa' },
+        { shipId: 'capybara', shuttleId: 'macaw', dockedAt: 'SESSION START' },
+        { shipId: 'capybara', shuttleId: 'boa', dockedAt: 'SESSION START' },
       ],
       shuttleCargo: {}, shuttleFuelled: { macaw: false, boa: false },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
@@ -1041,6 +1042,71 @@ it('resolves the Capybara single-bay shuttle choice through atomic replay and st
     refuels: { 'shuttle-bay': 'boa' },
   }))).resolves.toMatchObject({ status: 'stale', currentRevision: 1 });
   expect(maintenance.session.shipResources).toMatchObject({ capybara: { fuel: 2 } });
+});
+
+it('resolves ordinary single-bay fuelling from the authoritative docking manifest exactly once', async () => {
+  mock.grantShip = 'dione';
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['dione'],
+      activeRoleIds: ['dione-engineer'],
+      maintenanceCycles: {
+        dione: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+      },
+      shipResources: { dione: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+      shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { dione: 0 }, shipSurvivors: { dione: 2_500 },
+      shuttleDockings: [{ shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' }],
+      shuttleCargo: {}, shuttleFuelled: { philia: false },
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  const requestData = {
+    ...data, shipId: 'dione', action: 'bays', expectedRevision: 0,
+    requestId: 'dione-bay-philia', refuels: { 'shuttle-bay': 'philia' },
+  };
+
+  await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
+    status: 'committed', action: 'bays', committedRevision: 1,
+    cycle: { step: 7, refuelled: ['philia'] },
+    result: { resources: { fuel: 3 }, fuelled: { philia: true } },
+  });
+  const updateCount = mock.update.mock.calls.length;
+  await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
+    status: 'replayed', requestId: 'dione-bay-philia',
+  });
+  expect(mock.update.mock.calls.length).toBe(updateCount);
+
+  maintenance.session.maintenanceCycles = {
+    dione: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+  };
+  maintenance.session.shipResources = {
+    dione: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+  };
+  maintenance.session.shuttleFuelled = { philia: false };
+  maintenance.session.shuttleDockings = [
+    { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
+    { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
+  ];
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(runMaintenance.run(request({
+    ...requestData, requestId: 'dione-bay-duplicate-manifest',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/docking manifest/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  maintenance.session.shuttleDockings = [
+    { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
+  ];
+  maintenance.session.shuttleFuelled = { philia: true };
+  await expect(runMaintenance.run(request({
+    ...requestData, requestId: 'dione-bay-already-fuelled',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/once per cycle/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -1181,11 +1247,12 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
   mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
   const maintenance = {
     session: {
-      phase: 'active', currentTurn: 1, maintenanceCycles: {},
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+      activeRoleIds: ['wing-commander'], maintenanceCycles: {},
       shipResources: { aegis: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
       shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
       shipUnrest: { aegis: 0 }, shipSurvivors: { aegis: 2_500 },
-      shuttleDockings: [{ shipId: 'aegis', shuttleId: 'starlight' }],
+      shuttleDockings: [{ shipId: 'aegis', shuttleId: 'starlight', dockedAt: 'SESSION START' }],
       shuttleCargo: {
         starlight: { ore: 5, food: 4, water: 3, materials: 1, securityTeams: 2 },
         pallas: { food: 5, water: 3 },

@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [127],
+    implementationProgress: {
+      completed: 372, total: 751, percentage: '49.53%',
+      done: 372, partial: 17, active: 0, missing: 362,
+    },
+    changes: [
+      'Each ordinary fleet ship can now spend one host fuel to refuel one eligible shuttle docked at its single maintenance bay.',
+      'Damaged bays cannot refuel, and the server rejects unknown, duplicate, malformed, in-transit, wrong-host, already-fuelled, stale, or unaffordable choices before changing state.',
+      'Exact retries return the original result without spending fuel again.',
+      '372 of 751 planned items are complete (49.53%).',
+    ],
+  },
+  {
+    version: '0.4.65',
     implementationPrompts: [113],
     implementationProgress: {
       completed: 371, total: 751, percentage: '49.40%',

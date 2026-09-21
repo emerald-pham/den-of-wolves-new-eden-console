@@ -623,6 +623,48 @@ it('refuels only docked shuttles, spends fuel, prevents double refuelling, and e
   expect(advanceMaintenance({ ...base, action: 'end', cycle: omega.cycle, expectedRevision: 2 }).cycle.step).toBe(0);
 });
 
+it.each([
+  ['dione', 'philia'],
+  ['icebreaker', 'highwall'],
+  ['shepherd', 'endeavour'],
+  ['quellon', 'hummingbird'],
+  ['refinery-124', 'chacau'],
+] as const)('resolves %s ordinary single-bay fuelling for exactly one docked craft', (shipId, shuttleId) => {
+  const base = input({
+    shipId,
+    action: 'bays',
+    cycle: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+    resources: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+    dockings: [
+      { shipId, shuttleId },
+      { shipId, shuttleId: `${shuttleId}-other` },
+    ],
+    fuelled: { [shuttleId]: false },
+    refuels: { 'shuttle-bay': shuttleId },
+  });
+
+  const result = advanceMaintenance(base);
+  expect(result.resources.fuel).toBe(3);
+  expect(result.fuelled[shuttleId]).toBe(true);
+  expect(result.cycle).toMatchObject({
+    step: 7,
+    refuelled: [shuttleId],
+    results: { '6': expect.stringMatching(/spent 1 fuel/i) },
+  });
+  expect(() => advanceMaintenance({
+    ...base,
+    damage: { damagedSystemIds: ['shuttle-bay'], destroyed: false },
+  })).toThrow(/damaged shuttle bay cannot refuel/i);
+  expect(() => advanceMaintenance({
+    ...base,
+    fuelled: { [shuttleId]: true },
+  })).toThrow(/only once per cycle/i);
+  expect(() => advanceMaintenance({
+    ...base,
+    dockings: [{ shipId: 'aegis', shuttleId }],
+  })).toThrow(/must be docked at this ship/i);
+});
+
 it.each(['macaw', 'boa'] as const)('applies Capybara\'s single 6♠ bay to one %s and no second choice that turn', (shuttleId) => {
   const result = advanceMaintenance(input({
     shipId: 'capybara', action: 'bays',

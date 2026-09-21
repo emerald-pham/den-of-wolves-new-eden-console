@@ -18721,13 +18721,28 @@ export const runMaintenance = onCall<{
     }
     const serverTime = stableOccurredAt;
     const activeRoleIds = sessionActiveRoleIds(snapshot);
+    const rawDockings = snapshot.get('shuttleDockings');
+    if (data.action === 'bays') {
+      const activeVesselIds = snapshot.get('activeVesselIds');
+      if (!Array.isArray(activeVesselIds) || activeVesselIds.length === 0 ||
+          activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+          new Set(activeVesselIds).size !== activeVesselIds.length ||
+          !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+          !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings)) {
+        throw commandError(
+          'failed-precondition',
+          'The authoritative shuttle docking manifest is unavailable.',
+          'conflict',
+        );
+      }
+    }
     let result: ReturnType<typeof advanceMaintenance>;
     try {
       result = advanceMaintenance({
         ...data, cycle: currentCycle, currentTurn,
         resources: shipResources(snapshot.get('shipResources'))[data.shipId]!,
         damage: currentDamage,
-        unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
+        unrest, population, dockings: rawDockings ?? [],
         cargo: sanitizeShuttleCargo(snapshot.get('shuttleCargo'), activeRoleIds),
         fuelled: snapshot.get('shuttleFuelled') ?? {},
         upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: stableRolls,

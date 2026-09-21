@@ -8771,7 +8771,7 @@
         "acceptance": "one eligible docked shuttle costs one host fuel and a damaged bay cannot fuel it.",
         "title": "Resolve ordinary single-bay fuelling."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Ordinary single-bay maintenance now refuels at most one eligible shuttle currently docked at the acting ship and spends exactly one unit of that host ship's fuel. A damaged bay cannot refuel. The callable validates the active vessel roster and complete parked docking subset against active role-owned craft before resolving the existing server-authoritative maintenance transaction, so unknown, duplicate, malformed, in-transit, wrong-host, already-fuelled, stale, or unaffordable choices fail before mutation. Focused pure tests cover Dione, Icebreaker, Shepherd, Quellon, and Refinery 124; callable tests prove successful Dione fuelling, exact replay, and zero-write rejection of a duplicate manifest. This preserves the routed base-rule derivative; the private source inventory contains no base-game primary visual for a separate visual verification claim.",
       "evidenceIds": "E-AUDIT-127",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8780,10 +8780,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.66"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

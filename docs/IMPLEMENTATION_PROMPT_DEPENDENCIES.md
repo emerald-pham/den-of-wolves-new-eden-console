@@ -227,7 +227,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 124 | EXTEND | done | 122 | none | none | none | none | none | none | none | E-AUDIT-124 | M2 | Apply Reactor upgrades. |
 | 125 | PRESERVE | done | 122;138 | none | none | none | none | none | none | none | E-AUDIT-125 | M2 | Enforce console charge eligibility. |
 | 126 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-126 | M2 | Resolve both AEGIS shuttle bays. |
-| 127 | PRESERVE | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-127 | M2 | Resolve ordinary single-bay fuelling. |
+| 127 | PRESERVE | done | 361 | none | none | none | none | none | none | none | E-AUDIT-127 | M2 | Resolve ordinary single-bay fuelling. |
 | 128 | PRESERVE | done | 103 | none | none | none | none | none | none | none | E-AUDIT-128;E-128-VERIFIED | M2 | Expire unused charges and shuttle fuel. |
 | 129 | PRESERVE | missing | 127 | none | none | none | none | none | none | none | E-AUDIT-129 | M2 | Surface damaged-bay denial. |
 | 130 | PRESERVE | done | none | none | none | none | none | none | none | none | E-130-VERIFIED | M2 | Draw damage cards authoritatively. |
