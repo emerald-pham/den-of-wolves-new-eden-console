@@ -2375,6 +2375,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "364 -> 142;361;363",
+      "id": "E-364-TEAM-START-DOCKING-VERIFIED",
+      "language": "The authoritative cycle transition validates the complete role-owned shuttle manifest before the next Team Phase. Missing, duplicated, in-transit, unknown-host, and otherwise unparked required craft reject the transition before session, receipt, or event writes; admitted small ships must also have an active legal host. Accepted holder transfers preserve one legal docking through the same manifest contract. Callable failures enter the shared command-error path, whose visible alert gives the facilitator bounded recovery guidance without exposing private server detail.",
+      "source": "functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/shuttlecraft.ts; functions/src/shuttlecraft.test.ts; functions/src/shuttleControl.ts; functions/src/shuttleControlCallable.test.ts; src/lib/sessionService.ts; src/components/CommunicationError.tsx; src/components/CommunicationError.test.tsx; src/App.tsx",
+      "type": "evidence / production-path / server-authoritative / cycle-transition / docking-manifest / fail-closed / facilitator-visible / regression"
+    },
+    {
       "direction": "365 -> 141;363",
       "id": "E-AUDIT-365",
       "language": "Departure consumes open airspace and holder-based docking.",
@@ -15018,8 +15025,8 @@
         "acceptance": "every required craft has one legal host or produces a facilitator-visible exception.",
         "title": "Validate Team-start docking."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-364",
+      "description": "Verified the existing Team-start docking boundary. Before advancing to the next Team Phase, the server requires every enabled role-owned shuttle to appear exactly once at a legal active host and rejects missing, duplicated, in-transit, unknown-host, or otherwise unparked craft before any mutation. Admitted small ships must likewise be docked. These failures flow to the shared visible facilitator alert. Focused transition, manifest, custody, and alert regressions cover the contract. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-364;E-364-TEAM-START-DOCKING-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "142;361",
@@ -15030,7 +15037,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

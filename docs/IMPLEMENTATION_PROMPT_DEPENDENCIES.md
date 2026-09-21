@@ -491,7 +491,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 361 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-361 | M7 | Build the authoritative shuttle manifest. |
 | 362 | NEW | done | 361 | none | none | none | none | none | none | none | E-AUDIT-362 | M7 | Transfer shuttle control. |
 | 363 | NEW | done | 361;362 | none | none | none | none | none | none | none | E-AUDIT-363 | M7 | Resolve holder-based docking. |
-| 364 | NEW | missing | 142;361 | none | none | none | none | none | none | none | E-AUDIT-364 | M7 | Validate Team-start docking. |
+| 364 | NEW | done | 142;361 | none | none | none | none | none | none | none | E-AUDIT-364;E-364-TEAM-START-DOCKING-VERIFIED | M7 | Validate Team-start docking. |
 | 365 | NEW | done | 141;363 | none | none | none | none | none | none | none | E-AUDIT-365 | M7 | Request shuttle departure. |
 | 366 | NEW | done | 365 | none | none | none | none | none | none | none | E-AUDIT-366 | M7 | Enter authoritative shuttle transit. |
 | 367 | NEW | missing | 366;313 | none | none | none | none | none | none | none | E-AUDIT-367 | M7 | Complete shuttle arrival. |
@@ -1206,6 +1206,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-362 | hard_prompt | 362 -> 361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Control transfer consumes the craft manifest. |
 | E-AUDIT-363 | hard_prompt | 363 -> 361;362 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Holder-based docking consumes manifest and current-holder authority. |
 | E-AUDIT-364 | hard_prompt | 364 -> 142;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Team-start docking consumes Team docking and manifest authority. |
+| E-364-TEAM-START-DOCKING-VERIFIED | evidence / production-path / server-authoritative / cycle-transition / docking-manifest / fail-closed / facilitator-visible / regression | 364 -> 142;361;363 | functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/shuttlecraft.ts; functions/src/shuttlecraft.test.ts; functions/src/shuttleControl.ts; functions/src/shuttleControlCallable.test.ts; src/lib/sessionService.ts; src/components/CommunicationError.tsx; src/components/CommunicationError.test.tsx; src/App.tsx | The authoritative cycle transition validates the complete role-owned shuttle manifest before the next Team Phase. Missing, duplicated, in-transit, unknown-host, and otherwise unparked required craft reject the transition before session, receipt, or event writes; admitted small ships must also have an active legal host. Accepted holder transfers preserve one legal docking through the same manifest contract. Callable failures enter the shared command-error path, whose visible alert gives the facilitator bounded recovery guidance without exposing private server detail. |
 | E-AUDIT-365 | hard_prompt | 365 -> 141;363 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Departure consumes open airspace and holder-based docking. |
 | E-AUDIT-366 | hard_prompt | 366 -> 365 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Transit begins from an authorized departure. |
 | E-AUDIT-367 | hard_prompt | 367 -> 366;313 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Arrival consumes transit state and persisted visit history. |
