@@ -188,6 +188,9 @@ export default function PrivateLoyaltyPanel() {
       if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
           dispatchedCard.kind === 'intelligence-agent') {
         setInvestigation(result);
+        if (typeof result.suspicion === 'number') {
+          setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
+        }
       }
     } catch (cause) {
       const current = useSessionStore.getState();

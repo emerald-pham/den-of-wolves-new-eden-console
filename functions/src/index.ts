@@ -12428,6 +12428,7 @@ type IntelligenceInvestigationResult = Readonly<{
   targetUid: string;
   targetDisplayName: string;
   reportedWolf: boolean;
+  suspicion?: number;
 }>;
 
 function isIntelligenceInvestigationResult(
@@ -12443,7 +12444,10 @@ function isIntelligenceInvestigationResult(
     typeof value.investigatorUid === 'string' && value.investigatorUid.length > 0 &&
     typeof value.targetUid === 'string' && value.targetUid.length > 0 &&
     typeof value.targetDisplayName === 'string' && value.targetDisplayName.length > 0 &&
-    value.targetDisplayName.length <= 40 && typeof value.reportedWolf === 'boolean';
+    value.targetDisplayName.length <= 40 && typeof value.reportedWolf === 'boolean' &&
+    (value.suspicion === undefined ||
+      (Number.isSafeInteger(value.suspicion) && (value.suspicion as number) >= 6 &&
+        ((value.suspicion as number) - 6) % 2 === 0));
 }
 
 function privateLoyaltyPayload(
@@ -12478,6 +12482,7 @@ export const investigateAsIntelligenceAgent = onCall<{
   const targetLoyaltyRef = db.doc(
     `sessions/${submission.sessionId}/secrets/loyalty-${submission.targetUid}`,
   );
+  const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
   const stateRef = db.doc(`sessions/${submission.sessionId}/intelligenceInvestigations/${uid}`);
   const auditRef = db.doc(
     `sessions/${submission.sessionId}/intelligenceInvestigationAudits/${submission.requestId}`,
@@ -12490,10 +12495,10 @@ export const investigateAsIntelligenceAgent = onCall<{
   };
   let accuracyRoll: number | undefined;
   return db.runTransaction(async (tx): Promise<IntelligenceInvestigationResult> => {
-    const [session, actor, actorLoyalty, target, targetLoyalty, current, receipt] =
+    const [session, actor, actorLoyalty, target, targetLoyalty, census, current, receipt] =
       await Promise.all([
         tx.get(sessionRef), tx.get(actorRef), tx.get(actorLoyaltyRef), tx.get(targetRef),
-        tx.get(targetLoyaltyRef), tx.get(stateRef), tx.get(receiptRef),
+        tx.get(targetLoyaltyRef), tx.get(censusRef), tx.get(stateRef), tx.get(receiptRef),
       ]);
     await rejectForeignLegacyM1Command(
       tx, submission.sessionId, submission.requestId, 'Intelligence Agent investigation', [],
@@ -12520,6 +12525,23 @@ export const investigateAsIntelligenceAgent = onCall<{
     // already sanitized, so revalidating the target would make transport
     // retries unreliable without protecting any additional private truth.
     if (replay) return replay;
+    const oldSuspicion = actorCard.suspicion;
+    const censusEntries = storedLoyaltyCensusEntries(census);
+    const censusRevision = census.get('revision');
+    const censusEntry = censusEntries?.find((entry) => entry.uid === uid);
+    if (!Number.isSafeInteger(oldSuspicion) || (oldSuspicion as number) < 6 ||
+        (oldSuspicion as number) > Number.MAX_SAFE_INTEGER - 2 ||
+        !census.exists || !Number.isSafeInteger(censusRevision) ||
+        (censusRevision as number) < 0 || (censusRevision as number) >= Number.MAX_SAFE_INTEGER ||
+        !censusEntries || !censusEntry || censusEntry.kind !== 'intelligence-agent' ||
+        censusEntry.suspicion !== oldSuspicion) {
+      throw commandError(
+        'failed-precondition',
+        'The Intelligence Agent suspicion record is stale or malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    const newSuspicion = (oldSuspicion as number) + 2;
     requireActiveGameplayPhase(session);
     const cycle = sessionTurn(session.get('currentTurn'));
     if (session.get('phase') !== 'active' || cycle < 1 || cycle !== submission.expectedCycle) {
@@ -12577,7 +12599,17 @@ export const investigateAsIntelligenceAgent = onCall<{
       revision: revision + 1, investigatorUid: uid, targetUid: submission.targetUid,
       targetDisplayName: targetDisplayName.trim(),
       reportedWolf: accurate ? actualWolf : !actualWolf,
+      suspicion: newSuspicion,
     };
+    tx.update(actorLoyaltyRef, {
+      payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: newSuspicion },
+    });
+    tx.set(censusRef, {
+      type: 'loyalty-census', revision: (censusRevision as number) + 1,
+      entries: censusEntries.map((entry) => entry.uid === uid
+        ? { ...entry, suspicion: newSuspicion }
+        : entry),
+    });
     tx.set(stateRef, {
       ...result, visibleToUids: [uid], updatedAt: FieldValue.serverTimestamp(),
     });
@@ -12586,6 +12618,7 @@ export const investigateAsIntelligenceAgent = onCall<{
       requestId: submission.requestId, cycle, revision: revision + 1,
       investigatorUid: uid, targetUid: submission.targetUid, targetLoyaltyKind: targetCard.kind,
       actualWolf, reportedWolf: result.reportedWolf, accurate, accuracyRoll,
+      oldSuspicion, suspicionIncrement: 2, newSuspicion,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

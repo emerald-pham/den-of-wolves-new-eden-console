@@ -24,7 +24,8 @@ const mock = vi.hoisted(() => {
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) =>
     documents.set(target.path, { ...fields }));
-  const update = vi.fn();
+  const update = vi.fn((target: { path: string }, fields: Fields) =>
+    documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields }));
   const del = vi.fn();
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
     callback({ get, set, update, delete: del }));
@@ -91,6 +92,13 @@ beforeEach(() => {
   });
   loyalty('u2', 'intelligence-agent', 6);
   loyalty('u3', 'wolf-agent', 0);
+  put('sessions/s1/loyaltyCensus/current', {
+    type: 'loyalty-census', revision: 4,
+    entries: [
+      { uid: 'u2', kind: 'intelligence-agent', suspicion: 6 },
+      { uid: 'u3', kind: 'wolf-agent', suspicion: 0 },
+    ],
+  });
 });
 
 it('returns an accurate private Wolf result without exposing truth or the roll', async () => {
@@ -100,7 +108,7 @@ it('returns an accurate private Wolf result without exposing truth or the roll',
     status: 'committed', type: 'intelligence-investigation', sessionId: 's1',
     requestId: 'investigate-1', cycle: 2, revision: 1,
     investigatorUid: 'u2', targetUid: 'u3', targetDisplayName: 'Target',
-    reportedWolf: true,
+    reportedWolf: true, suspicion: 8,
   });
 
   const projection = mock.documents.get('sessions/s1/intelligenceInvestigations/u2');
@@ -110,8 +118,24 @@ it('returns an accurate private Wolf result without exposing truth or the roll',
   expect(projection).not.toHaveProperty('actualWolf');
   expect(projection).not.toHaveProperty('accuracyRoll');
   expect(mock.documents.get('sessions/s1/intelligenceInvestigationAudits/investigate-1'))
-    .toMatchObject({ actualWolf: true, reportedWolf: true, accurate: true, accuracyRoll: 4 });
+    .toMatchObject({
+      actualWolf: true, reportedWolf: true, accurate: true, accuracyRoll: 4,
+      oldSuspicion: 6, suspicionIncrement: 2, newSuspicion: 8,
+    });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    { payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 8 } },
+  );
+  expect(mock.documents.get('sessions/s1/loyaltyCensus/current')).toMatchObject({
+    revision: 5,
+    entries: expect.arrayContaining([
+      { uid: 'u2', kind: 'intelligence-agent', suspicion: 8 },
+    ]),
+  });
+  expect([...mock.documents.keys()]).not.toContain('sessions/s1/wolfClueDisclosure/current');
+  expect([...mock.documents.keys()].some((path) => path.includes('/wolfSuspicionHistory/'))).toBe(false);
   expect(cryptoMock.randomInt).toHaveBeenCalledWith(1, 6);
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
 });
 
 it('inverts the private answer on the fifth accuracy outcome', async () => {
@@ -138,10 +162,36 @@ it('allows only one committed investigation in a cycle', async () => {
     role: 'player', connected: true, displayName: 'Other target', fleetGroupId: 'fleet-1',
   });
   loyalty('u4', 'fleet-loyalist', 0);
+  mock.set.mockClear(); mock.update.mockClear(); cryptoMock.randomInt.mockClear();
 
   await expect(investigateAsIntelligenceAgent.run(request({
     ...data, requestId: 'investigate-2', targetUid: 'u4',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('adds exactly two suspicion again on a later-cycle investigation', async () => {
+  await investigateAsIntelligenceAgent.run(request());
+  put('sessions/s1', { phase: 'active', currentTurn: 3 });
+  put('sessions/s1/players/u4', {
+    role: 'player', connected: true, displayName: 'Later target', fleetGroupId: 'fleet-1',
+  });
+  loyalty('u4', 'fleet-loyalist', 0);
+
+  await expect(investigateAsIntelligenceAgent.run(request({
+    ...data, requestId: 'investigate-2', expectedCycle: 3, targetUid: 'u4',
+  }))).resolves.toMatchObject({ cycle: 3, revision: 2, suspicion: 10 });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({
+    payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 10 },
+  });
+  expect(mock.documents.get('sessions/s1/loyaltyCensus/current')).toMatchObject({
+    revision: 6,
+    entries: expect.arrayContaining([
+      { uid: 'u2', kind: 'intelligence-agent', suspicion: 10 },
+    ]),
+  });
 });
 
 it('replays the exact request without another roll or write', async () => {
@@ -151,10 +201,32 @@ it('replays the exact request without another roll or write', async () => {
     role: 'player', connected: false, displayName: 'Target', fleetGroupId: 'fleet-2',
   });
   loyalty('u3', 'fleet-loyalist', 5);
-  mock.set.mockClear(); cryptoMock.randomInt.mockClear();
+  mock.set.mockClear(); mock.update.mockClear(); cryptoMock.randomInt.mockClear();
 
   await expect(investigateAsIntelligenceAgent.run(request())).resolves.toEqual(first);
   expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('replays a pre-suspicion receipt without retroactively applying the increment', async () => {
+  const legacyResult = {
+    status: 'committed', type: 'intelligence-investigation', sessionId: 's1',
+    requestId: 'investigate-1', cycle: 2, revision: 1, investigatorUid: 'u2',
+    targetUid: 'u3', targetDisplayName: 'Target', reportedWolf: true,
+  };
+  put('sessions/s1/commandReceipts/investigate-1', {
+    fingerprint: {
+      action: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
+      actorUid: 'u2', instanceId: null, expectedRevision: 2, payload: { targetUid: 'u3' },
+    },
+    result: legacyResult,
+  });
+  put('sessions/s1', { phase: 'debrief', currentTurn: 3 });
+
+  await expect(investigateAsIntelligenceAgent.run(request())).resolves.toEqual(legacyResult);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 

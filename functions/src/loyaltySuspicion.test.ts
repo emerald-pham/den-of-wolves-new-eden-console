@@ -21,6 +21,20 @@ describe('live loyalty suspicion', () => {
     expect(liveLoyaltySuspicionDecision('android', 0)).toEqual({ allowed: false });
   });
 
+  it.each([6, 8, 10, 24])(
+    'accepts investigation-raised Intelligence Agent suspicion %s', (suspicion) => {
+      expect(liveLoyaltySuspicionDecision('intelligence-agent', suspicion)).toEqual({
+        allowed: true, kind: 'intelligence-agent', suspicion,
+      });
+    },
+  );
+
+  it.each([5, 7, 9, 6.5, Number.NaN, null])(
+    'rejects malformed Intelligence Agent suspicion %s', (suspicion) => {
+      expect(liveLoyaltySuspicionDecision('intelligence-agent', suspicion)).toEqual({ allowed: false });
+    },
+  );
+
   it.each([-1, 2.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, null, '2'])(
     'rejects malformed Wolf suspicion %s', (suspicion) => {
       expect(liveLoyaltySuspicionDecision('wolf-agent', suspicion)).toEqual({ allowed: false });

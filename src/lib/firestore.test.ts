@@ -1623,14 +1623,24 @@ it('hydrates only a canonical private Intelligence Agent investigation', () => {
     data: () => ({
       type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
       cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
-      targetDisplayName: 'Target', reportedWolf: true, visibleToUids: ['u1'],
+      targetDisplayName: 'Target', reportedWolf: true, suspicion: 8, visibleToUids: ['u1'],
     }),
   });
   expect(onInvestigation).toHaveBeenLastCalledWith({
     type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
     cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
-    targetDisplayName: 'Target', reportedWolf: true,
+    targetDisplayName: 'Target', reportedWolf: true, suspicion: 8,
   });
+
+  callbacks[0]?.({
+    exists: () => true,
+    data: () => ({
+      type: 'intelligence-investigation', sessionId: 's1', requestId: 'malformed-suspicion',
+      cycle: 3, revision: 3, investigatorUid: 'u1', targetUid: 'u2',
+      targetDisplayName: 'Target', reportedWolf: true, suspicion: 9, visibleToUids: ['u1'],
+    }),
+  });
+  expect(onInvestigation).toHaveBeenLastCalledWith(null);
 
   callbacks[0]?.({
     exists: () => true,

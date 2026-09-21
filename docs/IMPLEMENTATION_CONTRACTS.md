@@ -238,8 +238,25 @@ changed loyalty; a foreign actor or altered payload cannot replay it.
 
 Loyalty reassignment and Press or facilitator identity cleanup remove stale
 investigation projections so a later Intelligence Agent holder cannot inherit
-an earlier holder's answer. The two-point suspicion change and any related
-Wolf clue behavior remain owned by Prompt 507.
+an earlier holder's answer.
+
+### Prompt 507 — Intelligence Agent suspicion
+
+Every newly committed investigation adds exactly two to the Intelligence
+Agent's private suspicion in the same transaction as the result, audit, and
+facilitator census update. The server requires the private card and census to
+agree before mutation, accepts only the printed starting value and later exact
+two-point increments, and rejects malformed or stale state without writing.
+The holder receives the new suspicion in the private response and projection;
+the loyalty listener remains the durable authority.
+
+The general suspicion clue table applies only to Wolf-aligned loyalty. An
+Intelligence Agent investigation therefore makes no clue draw and writes no
+Wolf clue projection or Wolf suspicion-history record. The only random draw is
+the investigation's server-owned accuracy outcome. Exact replay returns before
+the suspicion mutation, so it cannot add two again or draw again. Receipts
+committed before this increment shipped remain replayable without applying a
+retroactive suspicion change.
 
 ### Prompt 165 — Complete console metadata
 

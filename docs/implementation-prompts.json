@@ -5558,6 +5558,13 @@
       "language": "The callable accepts only target identity and expected cycle from the current canonical Intelligence Agent. It restricts fresh targets to connected members of the same server-owned fleet group, enforces one investigation per cycle, and draws one server-owned d5-equivalent outcome with four accurate faces. The holder projection and reply expose only the reported alignment; actual loyalty, accuracy and roll remain in a server-only audit denied to every client. Exact retry returns the sanitized committed result without another draw or write, reassignment cleanup removes stale projections, and the client preserves authority and cycle checkpoints.",
       "source": "functions/src/index.ts investigateAsIntelligenceAgent; functions/src/requestGuards.ts; functions/src/intelligenceInvestigationCallable.test.ts; src/lib/intelligenceInvestigationService.ts; src/lib/intelligenceInvestigationService.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; firestore.rules; tests/rules/firestore.rules.test.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 505; docs/CONSOLE_ARCHITECTURE.md",
       "type": "evidence / server-authority / private-result / one-per-cycle / randomness / idempotency / fleet-group / rules / regression"
+    },
+    {
+      "direction": "507 -> 505;502",
+      "id": "E-507-INVESTIGATION-SUSPICION",
+      "language": "Each fresh investigation transaction requires the Intelligence Agent private card and facilitator census to agree, advances suspicion by exactly two, writes the updated holder secret and census with the private reported result, and records the old, increment and new values only in the server audit. The live loyalty validator accepts only the printed starting value and later exact two-point increments. The non-Wolf Intelligence Agent path performs only the accuracy draw and creates no Wolf clue projection or history record. Exact replay returns before mutation or randomness, including backward-compatible receipts committed before suspicion mutation shipped.",
+      "source": "functions/src/index.ts investigateAsIntelligenceAgent; functions/src/intelligenceInvestigationCallable.test.ts; functions/src/loyaltySuspicion.ts; functions/src/loyaltySuspicion.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; docs/IMPLEMENTATION_CONTRACTS.md Prompt 507",
+      "type": "evidence / server-authority / atomic-suspicion / exact-increment / wolf-only-clue / no-extra-randomness / replay / compatibility / regression"
     }
   ],
   "plan": {
@@ -18591,8 +18598,8 @@
         "acceptance": "each investigation adds two and only a Wolf-aligned investigator triggers Wolf clue behavior.",
         "title": "Apply Intelligence Agent suspicion."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-507",
+      "description": "Every newly committed Intelligence Agent investigation atomically adds exactly two to the holder-only loyalty suspicion and matching facilitator census entry. The server rejects stale or malformed suspicion state, returns the new private value, and preserves pre-increment receipt replay without retroactive mutation. Because the Intelligence Agent is not Wolf aligned, the action performs no Wolf clue draw and writes no clue projection or Wolf suspicion history; exact replay cannot add suspicion or resample accuracy.",
+      "evidenceIds": "E-AUDIT-507;E-507-INVESTIGATION-SUSPICION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "505;502",
@@ -18600,10 +18607,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.54"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

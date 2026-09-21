@@ -290,6 +290,7 @@ function intelligenceInvestigation(
   const raw = value as Record<string, unknown>;
   const investigatorUid = parseEntityId('player', raw.investigatorUid);
   const targetUid = parseEntityId('player', raw.targetUid);
+  const suspicion = raw.suspicion;
   if (
     raw.type !== 'intelligence-investigation' || raw.sessionId !== sessionId ||
     investigatorUid !== uid || !targetUid || targetUid === uid ||
@@ -299,13 +300,16 @@ function intelligenceInvestigation(
     (raw.cycle as number) < 1 || !Number.isSafeInteger(raw.revision) ||
     (raw.revision as number) < 1 || typeof raw.targetDisplayName !== 'string' ||
     raw.targetDisplayName.trim().length === 0 || raw.targetDisplayName.length > 40 ||
-    typeof raw.reportedWolf !== 'boolean'
+    typeof raw.reportedWolf !== 'boolean' ||
+    (suspicion !== undefined && (!Number.isSafeInteger(suspicion) ||
+      (suspicion as number) < 6 || ((suspicion as number) - 6) % 2 !== 0))
   ) return null;
   return {
     type: 'intelligence-investigation', sessionId: entityId('session', sessionId),
     requestId: raw.requestId, cycle: raw.cycle as number, revision: raw.revision as number,
     investigatorUid, targetUid, targetDisplayName: raw.targetDisplayName,
     reportedWolf: raw.reportedWolf,
+    ...(suspicion === undefined ? {} : { suspicion: suspicion as number }),
   };
 }
 

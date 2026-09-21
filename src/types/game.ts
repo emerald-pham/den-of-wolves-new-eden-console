@@ -744,6 +744,8 @@ export interface IntelligenceInvestigation {
   readonly targetUid: PlayerId;
   readonly targetDisplayName: string;
   readonly reportedWolf: boolean;
+  /** Present for investigations committed after suspicion mutation shipped. */
+  readonly suspicion?: number;
 }
 
 /** Facilitator-authored Wolf Cult intelligence, private to the current Cult holder. */

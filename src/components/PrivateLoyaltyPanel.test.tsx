@@ -141,7 +141,7 @@ it('privately investigates one selected player and locks the action for that cyc
   vi.mocked(investigatePlayer).mockResolvedValue({
     status: 'committed', type: 'intelligence-investigation', sessionId: 's1',
     requestId: 'investigate-1', cycle: 2, revision: 1, investigatorUid: 'u2',
-    targetUid: 'u3', targetDisplayName: 'Morgan', reportedWolf: true,
+    targetUid: 'u3', targetDisplayName: 'Morgan', reportedWolf: true, suspicion: 8,
   });
 
   render(<PrivateLoyaltyPanel />);
@@ -151,6 +151,9 @@ it('privately investigates one selected player and locks the action for that cyc
   await waitFor(() => expect(investigatePlayer).toHaveBeenCalledWith('u3'));
   expect(screen.getByRole('status')).toHaveTextContent('Cycle 2 // Morgan // WOLF AGENT');
   expect(screen.getByRole('button', { name: 'Run private investigation' })).toBeDisabled();
+  expect(useSessionStore.getState().privateLoyalty).toEqual({
+    kind: 'intelligence-agent', suspicion: 8,
+  });
 });
 
 it('hydrates a prior private investigation without exposing a new action outside active cycles', () => {

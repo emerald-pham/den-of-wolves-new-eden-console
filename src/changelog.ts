@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [507],
+    implementationProgress: {
+      completed: 357, total: 751, percentage: '47.54%',
+      done: 357, partial: 18, active: 0, missing: 376,
+    },
+    changes: [
+      'Each committed Intelligence Agent investigation now raises that agent’s private suspicion by exactly two and updates the facilitator’s loyalty record in the same server transaction.',
+      'Intelligence Agent suspicion does not create a Wolf clue roll or disclosure; those clues remain exclusive to Wolf-aligned loyalty.',
+      '357 of 751 planned items are complete (47.54%).',
+    ],
+  },
+  {
+    version: '0.4.53',
     implementationPrompts: [505],
     implementationProgress: {
       completed: 356, total: 751, percentage: '47.40%',
