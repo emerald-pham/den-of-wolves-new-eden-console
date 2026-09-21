@@ -27,6 +27,7 @@ import { projectShipState } from '@/lib/shipStateProjection';
 import type { Player, DamageDraw } from '@/types/game';
 import DioneVipCards from '@/components/DioneVipCards';
 import CommissarPurgePanel from '@/components/CommissarPurgePanel';
+import DioneMaliadesLaunch from '@/components/DioneMaliadesLaunch';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -487,6 +488,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             consoleLocked={consoleLocked}
             shipState={shipState}
           />
+          {ship.id === 'dione' && effectiveRoleId === 'dione-engineer' &&
+            me.activeConsoleRoleId === 'dione-engineer' && (
+            <DioneMaliadesLaunch writable={effectiveWritable} />
+          )}
           {(replacementCommissar || (me.replacementRoleId == null &&
             me.activeConsoleRoleId === (ship.id === 'aegis' ? 'admiral' : `${ship.id}-captain`))) && (
             <CommissarPurgePanel shipId={ship.id} />

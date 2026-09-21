@@ -1064,13 +1064,19 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
   const parkedCraftIds = Array.isArray(state.parkedCraftIds)
     ? state.parkedCraftIds.filter((id): id is string => typeof id === 'string')
     : [];
+  const rawLaunchedCraftIds = state.launchedCraftIds === undefined ? [] : state.launchedCraftIds;
+  const launchedCraftIds = Array.isArray(rawLaunchedCraftIds)
+    ? rawLaunchedCraftIds.filter((id): id is string => typeof id === 'string')
+    : [];
   if (
     state.status !== 'declared' || state.currentStep !== 'targeting' || state.airspaceLocked !== true ||
     !Number.isSafeInteger(state.turn) || (state.turn as number) < 1 ||
     !Number.isSafeInteger(state.revision) || (state.revision as number) < 1 ||
     !Number.isSafeInteger(state.preparationRevision) || (state.preparationRevision as number) < 1 ||
     typeof state.deadlineAt !== 'string' || !state.deadlineAt ||
-    !Array.isArray(state.parkedCraftIds) || parkedCraftIds.length !== state.parkedCraftIds.length
+    !Array.isArray(state.parkedCraftIds) || parkedCraftIds.length !== state.parkedCraftIds.length ||
+    !Array.isArray(rawLaunchedCraftIds) || launchedCraftIds.length !== rawLaunchedCraftIds.length ||
+    new Set(launchedCraftIds).size !== launchedCraftIds.length
   ) return null;
   return {
     status: 'declared',
@@ -1081,6 +1087,7 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     deadlineAt: state.deadlineAt,
     airspaceLocked: true,
     parkedCraftIds,
+    launchedCraftIds,
   };
 }
 

@@ -62,7 +62,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { declareWolfAttack } from './index';
+import { declareWolfAttack, getDioneMaliadesLaunch, launchDioneMaliades } from './index';
 import { initialFighterWingCounts } from './fighterWings';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
@@ -87,6 +87,10 @@ function request(data: Record<string, unknown> = baseData, uid = 'u1') {
 
 function put(path: string, fields: Fields): void {
   mock.documents.set(path, { ...fields });
+}
+
+function patchSession(fields: Fields): void {
+  put('sessions/s1', { ...mock.documents.get('sessions/s1'), ...fields });
 }
 
 function session(fields: Fields = {}): void {
@@ -202,6 +206,7 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
       { craftId: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer' },
       { craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
     ],
+    launchedCraftIds: [],
     preparation: { notes: 'hidden GM note' },
     calculationReceipt: {
       type: 'wolf-combat-calculation-stage',
@@ -231,6 +236,112 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toEqual([
     'sessions/s1/events/wolf-attack-wolf-declare-1',
   ]);
+});
+
+async function declareThenSeatDioneEngineer(fields: Fields = {}): Promise<void> {
+  await declareWolfAttack.run(request());
+  put('sessions/s1', {
+    ...mock.documents.get('sessions/s1'),
+    maintenanceCycles: {
+      dione: { turn: 1, step: 7, revision: 4, results: {}, charges: ['fighter-bay'], refuelled: [] },
+    },
+    shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+    ...fields,
+  });
+  put('sessions/s1/players/u1', {
+    uid: 'u1', role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+    activeConsoleRoleId: 'dione-engineer',
+  });
+}
+
+it('lets only the active Dione Engineer launch Maliades from a charged operational 10♦ bay', async () => {
+  await declareThenSeatDioneEngineer();
+  await expect(getDioneMaliadesLaunch.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    type: 'dione-maliades-launch-view', turn: 1, revision: 1,
+    launched: false, eligible: true,
+  });
+
+  const launchRequest = {
+    sessionId: 's1', requestId: 'launch-maliades-1', expectedTurn: 1, expectedRevision: 1,
+  };
+  await expect(launchDioneMaliades.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'committed', turn: 1, revision: 2, launched: true,
+    eligible: false, reason: 'already-launched',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    revision: 2, launchedCraftIds: ['maliades'],
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/launch-maliades-1'))
+    .toMatchObject({ craftId: 'maliades', actorRoleId: 'dione-engineer', revision: 2 });
+  expect(mock.documents.get('sessions/s1/events/maliades-launch-launch-maliades-1'))
+    .toMatchObject({ type: 'maliades-launched', actorRoleId: 'dione-engineer', revision: 2 });
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchDioneMaliades.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'replayed', revision: 2, launched: true,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies stale, uncharged, damaged, malformed, and non-Engineer Maliades launches without writes', async () => {
+  const cases: Array<{
+    name: string;
+    mutate: () => void;
+    expected: RegExp;
+    data?: Record<string, unknown>;
+  }> = [
+    {
+      name: 'stale', mutate: () => {}, expected: /stale/i,
+      data: { sessionId: 's1', requestId: 'launch-stale', expectedTurn: 1, expectedRevision: 99 },
+    },
+    {
+      name: 'uncharged', mutate: () => patchSession({
+        maintenanceCycles: { dione: { turn: 1, step: 7, revision: 4, results: {}, charges: [], refuelled: [] } },
+        shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+      }), expected: /charge.*Fighter Bay/i,
+    },
+    {
+      name: 'damaged', mutate: () => patchSession({
+        maintenanceCycles: { dione: { turn: 1, step: 7, revision: 4, results: {}, charges: ['fighter-bay'], refuelled: [] } },
+        shipDamage: { dione: { damagedSystemIds: ['fighter-bay'], destroyed: false } },
+      }), expected: /damaged/i,
+    },
+    {
+      name: 'malformed damage', mutate: () => patchSession({
+        maintenanceCycles: { dione: { turn: 1, step: 7, revision: 4, results: {}, charges: ['fighter-bay'], refuelled: [] } },
+        shipDamage: { dione: { damagedSystemIds: 'clear', destroyed: false } },
+      }), expected: /damage authority.*malformed/i,
+    },
+    {
+      name: 'malformed launch ledger', mutate: () => put('sessions/s1/wolfAttackState/current', {
+        ...mock.documents.get('sessions/s1/wolfAttackState/current'),
+        launchedCraftIds: ['not-a-declared-action'],
+      }), expected: /cannot authorize/i,
+    },
+    {
+      name: 'wrong role', mutate: () => put('sessions/s1/players/u1', {
+        uid: 'u1', role: 'player', connected: true, activeConsoleRoleId: 'dione-captain',
+      }), expected: /Dione Engineer/i,
+    },
+  ];
+  for (const [index, testCase] of cases.entries()) {
+    resetFixture();
+    await declareThenSeatDioneEngineer();
+    testCase.mutate();
+    const stateBefore = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+    mock.update.mockClear();
+    mock.set.mockClear();
+    const data = testCase.data ?? {
+      sessionId: 's1', requestId: `launch-denied-${index}`, expectedTurn: 1, expectedRevision: 1,
+    };
+    await expect(launchDioneMaliades.run(request(data))).rejects.toThrow(testCase.expected);
+    expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  }
 });
 
 it('retains each authoritative shuttle host until normal movement reopens', async () => {

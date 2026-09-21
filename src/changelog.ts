@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [192],
+    implementationProgress: {
+      completed: 391, total: 751, percentage: '52.06%',
+      done: 391, partial: 16, active: 0, missing: 344,
+    },
+    changes: [
+      'The Dione Engineer can launch Maliades during a Wolf attack when Fighter Bay 10♦ is charged and operational.',
+      'The launch is committed once against the live attack state; damaged, uncharged, stale, repeated, and cross-role attempts are blocked.',
+      '391 of 751 planned items are complete (52.06%).',
+    ],
+  },
+  {
+    version: '0.4.73',
     implementationPrompts: [179],
     implementationProgress: {
       completed: 389, total: 751, percentage: '51.80%',

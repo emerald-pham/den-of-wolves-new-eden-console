@@ -2043,7 +2043,7 @@ it('hydrates only the safe GM declaration summary and keeps its revision monoton
   expect(onState).toHaveBeenLastCalledWith({
     status: 'declared', turn: 1, revision: 2, preparationRevision: 2,
     currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z',
-    airspaceLocked: true, parkedCraftIds: ['starlight'],
+    airspaceLocked: true, parkedCraftIds: ['starlight'], launchedCraftIds: [],
   });
   unsubscribe();
   expect(onState).toHaveBeenLastCalledWith(null);

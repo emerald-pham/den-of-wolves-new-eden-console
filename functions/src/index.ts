@@ -12855,6 +12855,7 @@ export const declareWolfAttack = onCall<{
       parkedCraftIds: [...inputs.parkedCraftIds],
       parkingReleaseCondition: WOLF_ATTACK_PARKING_RELEASE,
       battleTableCraftActions: inputs.battleTableCraftActions.map((action) => ({ ...action })),
+      launchedCraftIds: [],
       parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       calculationReceipt,
       commanderRerollIndexes: [],
@@ -13166,6 +13167,259 @@ export const applyWolfCommanderTargetRerolls = onCall<{
       requestId: change.requestId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type DioneMaliadesLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'already-launched';
+
+type DioneMaliadesLaunchView = Readonly<{
+  type: 'dione-maliades-launch-view';
+  sessionId: string;
+  turn: number;
+  revision: number;
+  launched: boolean;
+  eligible: boolean;
+  reason?: DioneMaliadesLaunchReason;
+}>;
+
+type DioneMaliadesLaunchResult = DioneMaliadesLaunchView & Readonly<{
+  status: 'committed' | 'replayed';
+  requestId: string;
+}>;
+
+function isDioneMaliadesLaunchResult(value: unknown): value is DioneMaliadesLaunchResult {
+  if (!isRecord(value)) return false;
+  return (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'dione-maliades-launch-view' && typeof value.sessionId === 'string' &&
+    typeof value.requestId === 'string' && value.requestId.length > 0 &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    value.launched === true && value.eligible === false && value.reason === 'already-launched';
+}
+
+function requireDioneEngineer(player: DocumentSnapshot): void {
+  if (!player.exists || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('activeConsoleRoleId') !== 'dione-engineer') {
+    throw new HttpsError('permission-denied', 'The active Dione Engineer console is required.');
+  }
+  requirePlayerShipActionAuthority(player);
+}
+
+function dioneMaliadesLaunchView(
+  sessionId: string,
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+): DioneMaliadesLaunchView {
+  requireActiveGameplayPhase(session);
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!sessionActiveRoleIds(session).includes('dione-engineer') ||
+      !wolfAttackActiveVesselIds(session).includes('dione')) {
+    throw commandError('failed-precondition', 'Dione Engineer is not active in this session.', 'conflict');
+  }
+  if (!state.exists) {
+    return {
+      type: 'dione-maliades-launch-view', sessionId, turn: currentTurn,
+      revision: 0, launched: false, eligible: false, reason: 'waiting',
+    };
+  }
+  if (!phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted') {
+    throw commandError(
+      'failed-precondition',
+      'The live Wolf attack airspace lock is missing or malformed.',
+      'conflict',
+    );
+  }
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const actions = state.get('battleTableCraftActions');
+  const rawLaunched = state.get('launchedCraftIds');
+  const launchedCraftIds = rawLaunched === undefined ? [] : rawLaunched;
+  const actionIds = Array.isArray(actions)
+    ? actions.flatMap((action) => isRecord(action) && typeof action.craftId === 'string' &&
+      (action.kind === 'shuttle' || action.kind === 'fighter-wing') &&
+      typeof action.ownerRoleId === 'string'
+      ? [action.craftId] : [])
+    : [];
+  if (state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
+      state.get('currentStep') !== 'targeting' || state.get('airspaceLocked') !== true ||
+      !Number.isSafeInteger(turn) || turn !== currentTurn ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      !Array.isArray(actions) || actionIds.length !== actions.length ||
+      new Set(actionIds).size !== actionIds.length ||
+      !actions.some((action) => isRecord(action) &&
+        action.craftId === 'maliades' && action.kind === 'shuttle' &&
+        action.ownerRoleId === 'dione-engineer') ||
+      !Array.isArray(launchedCraftIds) ||
+      launchedCraftIds.some((craftId) => typeof craftId !== 'string') ||
+      new Set(launchedCraftIds).size !== launchedCraftIds.length ||
+      launchedCraftIds.some((craftId) => !actionIds.includes(craftId))) {
+    throw commandError(
+      'failed-precondition',
+      'The active Wolf attack cannot authorize the Maliades launch.',
+      'conflict',
+    );
+  }
+  if (launchedCraftIds.includes('maliades')) {
+    return {
+      type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: true, eligible: false,
+      reason: 'already-launched',
+    };
+  }
+  const cycles = session.get('maintenanceCycles');
+  const rawCycle = isRecord(cycles) ? cycles.dione : undefined;
+  const cycle = parseMaintenanceCycle(rawCycle);
+  if (!cycle || cycle.turn !== currentTurn) {
+    throw commandError(
+      'failed-precondition',
+      'The current Dione maintenance authority is missing or malformed.',
+      'conflict',
+    );
+  }
+  const damageRoot = session.get('shipDamage');
+  const rawDamage = isRecord(damageRoot) ? damageRoot.dione : undefined;
+  const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.dione ?? []).map(({ systemId }) => systemId));
+  if (!isRecord(rawDamage) || !Array.isArray(rawDamage.damagedSystemIds) ||
+      rawDamage.damagedSystemIds.some((systemId) => typeof systemId !== 'string' || !knownDamageIds.has(systemId)) ||
+      new Set(rawDamage.damagedSystemIds).size !== rawDamage.damagedSystemIds.length ||
+      typeof rawDamage.destroyed !== 'boolean') {
+    throw commandError(
+      'failed-precondition',
+      'The current Dione damage authority is missing or malformed.',
+      'conflict',
+    );
+  }
+  const damaged = rawDamage.destroyed || rawDamage.damagedSystemIds.includes('fighter-bay');
+  if (damaged) {
+    return {
+      type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: false, eligible: false, reason: 'damaged',
+    };
+  }
+  if (!cycle.charges.includes('fighter-bay')) {
+    return {
+      type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: false, eligible: false, reason: 'uncharged',
+    };
+  }
+  return {
+    type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+    revision: revision as number, launched: false, eligible: true,
+  };
+}
+
+/** Return only Dione Engineer launch eligibility; hidden attack composition stays server-side. */
+export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'A valid sessionId is required.');
+  }
+  const sessionId = requireSessionRequest(raw).sessionId;
+  const [session, player, state] = await Promise.all([
+    db.doc(`sessions/${sessionId}`).get(),
+    db.doc(`sessions/${sessionId}/players/${uid}`).get(),
+    db.doc(`sessions/${sessionId}/wolfAttackState/current`).get(),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  requireDioneEngineer(player);
+  requireActiveGameplayPhase(session);
+  return dioneMaliadesLaunchView(sessionId, session, state);
+});
+
+/** Admit Maliades to the battle table exactly once under live Dione Engineer authority. */
+export const launchDioneMaliades = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedTurn) || (raw.expectedTurn as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'Invalid Maliades launch request.');
+  }
+  const sessionId = raw.sessionId;
+  const requestId = raw.requestId;
+  const expectedTurn = raw.expectedTurn as number;
+  const expectedRevision = raw.expectedRevision as number;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const eventRef = db.doc(`sessions/${sessionId}/events/maliades-launch-${requestId}`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'launch-dione-maliades', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision,
+    payload: { expectedTurn },
+  };
+  const occurredAt = new Date().toISOString();
+  return db.runTransaction(async (tx: Transaction): Promise<DioneMaliadesLaunchResult> => {
+    const [session, player, state, receipt, audit, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
+      tx.get(auditRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireDioneEngineer(player);
+    const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');
+    requireActiveGameplayPhase(session);
+    const view = dioneMaliadesLaunchView(sessionId, session, state);
+    if (view.turn !== expectedTurn || view.revision !== expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The Maliades launch view is stale. Refresh the current Wolf attack.',
+        'stale-revision',
+      );
+    }
+    if (!view.eligible) {
+      const message = view.reason === 'already-launched'
+        ? 'Maliades is already launched for this Wolf attack.'
+        : view.reason === 'damaged'
+          ? 'The Dione Fighter Bay is damaged and cannot launch Maliades.'
+          : view.reason === 'uncharged'
+            ? 'Charge the Dione Fighter Bay before launching Maliades.'
+            : 'No active Wolf attack is accepting the Maliades launch.';
+      throw commandError('failed-precondition', message, 'invalid-phase');
+    }
+    const revision = view.revision + 1;
+    const launchedCraftIds = state.get('launchedCraftIds');
+    const result: DioneMaliadesLaunchResult = {
+      status: 'committed', type: 'dione-maliades-launch-view', sessionId, requestId,
+      turn: view.turn, revision, launched: true, eligible: false, reason: 'already-launched',
+    };
+    tx.update(stateRef, {
+      revision,
+      launchedCraftIds: [
+        ...(Array.isArray(launchedCraftIds) ? launchedCraftIds : []),
+        'maliades',
+      ],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'dione-maliades-launch', turn: view.turn, revision,
+      craftId: 'maliades', actorUid: uid, actorRoleId: 'dione-engineer', requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'maliades-launched',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId, actorUid: uid, actorRoleId: 'dione-engineer', turn: view.turn,
+        phase: 'active', type: 'maliades-launched', requestId, revision,
+        serverTime: occurredAt, visibility: EventVisibility.Member,
+      }),
+      payload: { craftId: 'maliades', status: 'launched' },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

@@ -11,6 +11,8 @@ vi.mock('@/lib/sessionService', () => ({
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
   buildFighter: vi.fn(),
+  getDioneMaliadesLaunch: vi.fn(),
+  launchDioneMaliades: vi.fn(),
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn(),
   setGmShipConsoleWriteGrant: vi.fn(),
@@ -31,6 +33,7 @@ const { selectConsoleRole } = await import('@/lib/sessionService');
 const { setGmShipConsoleWriteGrant } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
 const { buildFighter } = await import('@/lib/sessionService');
+const { getDioneMaliadesLaunch, launchDioneMaliades } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 const { subscribeDamageDraws } = await import('@/lib/firestore');
 const { subscribeVipCards } = await import('@/lib/firestore');
@@ -44,6 +47,12 @@ beforeEach(() => {
   vi.mocked(adjustShipUnrest).mockResolvedValue(undefined);
   vi.mocked(buildFighter).mockReset();
   vi.mocked(buildFighter).mockResolvedValue(null);
+  vi.mocked(getDioneMaliadesLaunch).mockReset();
+  vi.mocked(getDioneMaliadesLaunch).mockResolvedValue({
+    type: 'dione-maliades-launch-view', sessionId: 's1', turn: 1, revision: 0,
+    launched: false, eligible: false, reason: 'waiting',
+  });
+  vi.mocked(launchDioneMaliades).mockReset();
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockImplementation(async (roleId) => {
     const current = useSessionStore.getState().me;
@@ -1113,6 +1122,62 @@ it('labels shared system outcomes as conditional damage and Shepherd upgrades', 
   expect(reactor.getByText('+1 console.', { selector: 'dd' })).toBeVisible();
   expect(reactor.getByText('If Damaged', { selector: 'dt' })).toBeVisible();
   expect(reactor.getByText('−3 consoles.', { selector: 'dd' })).toBeVisible();
+});
+
+it('shows the Dione Engineer live Maliades gate and launches against its exact attack revision', async () => {
+  const activeSession = useSessionStore.getState().session;
+  const activeMe = useSessionStore.getState().me;
+  if (!activeSession || !activeMe) throw new Error('Expected active session state.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer'], activeVesselIds: ['dione'],
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...activeMe, assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+    activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setConnection('live');
+  vi.mocked(getDioneMaliadesLaunch).mockResolvedValue({
+    type: 'dione-maliades-launch-view', sessionId: 's1', turn: 2, revision: 6,
+    launched: false, eligible: true,
+  });
+  vi.mocked(launchDioneMaliades).mockResolvedValue({
+    status: 'committed', requestId: 'launch-1', type: 'dione-maliades-launch-view',
+    sessionId: 's1', turn: 2, revision: 7, launched: true, eligible: false,
+    reason: 'already-launched',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-engineer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const control = await screen.findByRole('region', { name: 'Maliades launch control' });
+  expect(within(control).getByText(/10♦.*charged.*operational.*authorized/i)).toBeVisible();
+  const launch = within(control).getByRole('button', { name: 'Launch Maliades' });
+  expect(launch).toBeEnabled();
+  await userEvent.click(launch);
+  expect(launchDioneMaliades).toHaveBeenCalledWith(2, 6);
+  expect(await within(control).findByText(/Maliades launched.*Cycle 2/i)).toBeVisible();
+  expect(within(control).getByRole('button', { name: 'Maliades launched' })).toBeDisabled();
+});
+
+it('does not expose the Maliades launch control outside the Dione Engineer console', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('region', { name: 'Maliades launch control' })).not.toBeInTheDocument();
+  expect(getDioneMaliadesLaunch).not.toHaveBeenCalled();
 });
 
 it('applies the capital-ship identity and survivor instruments to AEGIS', () => {

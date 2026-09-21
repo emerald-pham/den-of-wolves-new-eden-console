@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**390 / 751 prompts complete (51.93%)**
+**391 / 751 prompts complete (52.06%)**
 
-Status breakdown: **390 done · 16 partial · 345 missing**.
+Status breakdown: **391 done · 16 partial · 344 missing**.
 
 Active prompt: **none**
 
@@ -615,7 +615,7 @@ release classification and evidence.
 | 189 | done | feature | 0.3.59 | The Dione maintenance console now exposes Water Reclamation as an authoritative post-Reactor choice: charged Q♣ produces two water, or four with its upgrade. The callable owns charge/resource mutation, damage and disabled-session guards, revision-safe replay receipts, and the printed order boundary so an unresolved affordable Hydroponics charge cannot be bypassed; explicit skip and water-zero paths remain terminal and recoverable. The real Dione console renders live resources and charge state with run/skip controls, and focused pure, callable, UI, typecheck, and rendered accessibility checks passed. |
 | 190 | done | feature | — | The charged Dione VIP Lounge now draws one of the nine printed named cards through a server transaction. The deck is server-private and random-selected only after authority and charge checks; the Lounge charge is consumed atomically with the maintenance revision. Each owner receives only their own private hand projection, and Coordination transfers require the current unspent owner plus a fresh deck revision. Request receipts replay safely and reject changed actors, stale revisions, damaged/depleted Lounge state, duplicate draws, and former-owner actions. The durable spent-card state machine is present for Prompt 191, while the printed unrest reroll remains owned by Prompt 191 and is not exposed as a usable action here. Focused deck, authority, privacy-rule, replay/CAS, UI accessibility, and responsive render evidence is recorded in E-AUDIT-190. |
 | 191 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 192 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 192 | done | feature | 0.4.74 | The Dione Engineer console now reads a server-filtered Maliades launch view and commits one launch against the exact active Wolf-attack revision. The callable requires the active Dione Engineer role, a declared targeting step with restricted airspace, the current cycle's charged Fighter Bay, an operational 10♦ system, and the declared Maliades battle-table action; stale, duplicate, malformed, uncharged, damaged, and cross-role attempts fail before mutation. The transaction preserves other launched craft, records an audit and privacy-safe event, and supports exact replay. Later Maliades durability and range actions remain owned by Prompts 397 and 453. |
 | 193 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 193a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 193b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

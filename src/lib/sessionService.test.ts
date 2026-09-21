@@ -46,6 +46,8 @@ const {
   extendAirspaceWindow,
   setEmergencyTimerPaused,
   setWolfAttackWindow,
+  getDioneMaliadesLaunch,
+  launchDioneMaliades,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
   selectConsoleRole,
@@ -1803,6 +1805,38 @@ describe('GM instance commands', () => {
       requestId: expect.any(String), status: 'due',
     }));
     expect(useSessionStore.getState().session).not.toHaveProperty('wolfAttackWindow');
+  });
+
+  it('reads and commits the Dione Engineer Maliades launch against the displayed attack revision', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+        activeConsoleRoleId: 'dione-engineer',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const view = {
+      type: 'dione-maliades-launch-view', sessionId: 's1', turn: 2, revision: 5,
+      launched: false, eligible: true,
+    } as const;
+    const committed = {
+      ...view, status: 'committed', requestId: 'launch-1', revision: 6,
+      launched: true, eligible: false, reason: 'already-launched',
+    } as const;
+    const read = callableReturning({ data: view });
+    const launch = callableReturning({ data: committed });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) =>
+      name === 'getDioneMaliadesLaunch' ? read : launch);
+
+    await expect(getDioneMaliadesLaunch()).resolves.toEqual(view);
+    await expect(launchDioneMaliades(2, 5)).resolves.toEqual(committed);
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+    expect(launch).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', expectedTurn: 2, expectedRevision: 5,
+      requestId: expect.any(String),
+    }));
   });
 
   it('does not queue an emergency timer command while offline', async () => {

@@ -24,6 +24,8 @@ export interface WolfAttackStageState {
     readonly kind: 'shuttle' | 'fighter-wing';
     readonly ownerRoleId: string;
   }[];
+  /** Craft admitted to the battle table by their own authoritative launch action. */
+  readonly launchedCraftIds: readonly string[];
   readonly parkedShuttleDockings: readonly {
     readonly shuttleId: string;
     readonly shipId: string;

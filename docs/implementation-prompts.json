@@ -5656,6 +5656,13 @@
       "language": "The current holder of a printed Cargo Transfer shuttle may move survivors only from its one authoritative active dock to another active ship in the same fleet group. A server transaction requires one matching active-session, current-cycle and Coordination Phase clock tuple plus exact custody and evacuation revisions; keeps both counters on their printed tracks; caps each craft at 5,000 survivors per cycle; rejects destination overflow and pending population alerts before writes; and atomically commits both populations, durable craft use, one privacy-safe event and an exact-retry receipt. Preexisting event collisions fail closed without overwriting history. The member-private discovery projection supplies the authoritative fleet-group vessel tuple, so the shuttle console excludes cross-group and alert-blocked destinations and closes outside the valid transfer phase while offering only amounts that satisfy both printed tracks and the remaining cycle allowance.",
       "source": "functions/src/shuttleEvacuation.ts; functions/src/shuttleEvacuation.test.ts; functions/src/shuttleEvacuationCallable.test.ts; functions/src/index.ts evacuateShuttleSurvivorsCommand; functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/eventRedaction.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/shuttleEvacuationService.ts; src/lib/shuttleEvacuationService.test.ts; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.test.tsx",
       "type": "evidence / production-path / server-authority / exact-phase-clock / private-fleet-projection / printed-tracks / capacity / per-cycle-ledger / atomic-transfer / event-collision / idempotency / privacy / regression"
+    },
+    {
+      "direction": "192 -> 182;264",
+      "id": "E-192-MALIADES-LAUNCH",
+      "language": "Dione Fighter Bay launch is a server-owned, Engineer-only Wolf-attack action. It consumes the current cycle charge, exact 10♦ damage authority, declared battle-table registration, attack revision, and shared command-receipt namespace before admitting Maliades exactly once.",
+      "source": "functions/src/index.ts getDioneMaliadesLaunch and launchDioneMaliades; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/consoleMetadata.ts; src/components/DioneMaliadesLaunch.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/lib/sessionService.ts; src/lib/firestore.ts",
+      "type": "evidence / production-path / server-authority / role-bound / exact-revision / idempotency / malformed-state / responsive-ui / regression"
     }
   ],
   "plan": {
@@ -10532,15 +10539,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the craft launches only from charged, undamaged 10♦ under the Engineer's role.",
         "title": "Gate Dione's Fighter Bay and Maliades."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-192",
+      "description": "The Dione Engineer console now reads a server-filtered Maliades launch view and commits one launch against the exact active Wolf-attack revision. The callable requires the active Dione Engineer role, a declared targeting step with restricted airspace, the current cycle's charged Fighter Bay, an operational 10♦ system, and the declared Maliades battle-table action; stale, duplicate, malformed, uncharged, damaged, and cross-role attempts fail before mutation. The transaction preserves other launched craft, records an audit and privacy-safe event, and supports exact replay. Later Maliades durability and range actions remain owned by Prompts 397 and 453.",
+      "evidenceIds": "E-AUDIT-192;E-192-MALIADES-LAUNCH",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "182;264",
@@ -10548,10 +10555,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.74"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

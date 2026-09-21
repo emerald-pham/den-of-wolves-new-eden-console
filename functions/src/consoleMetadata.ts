@@ -18,6 +18,7 @@ export type ImplementedConsoleResolverId =
   | 'maintenance.bays'
   | 'maintenance.production'
   | 'fighter.build'
+  | 'wolf-attack.maliades-launch'
   | 'vip-card.draw'
   | 'jump.resolve';
 
@@ -193,7 +194,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
   'dione:fighter-bay': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot launch the Maliades when damaged.'), upgrade: noUpgrade,
     effect: 'While charged, the Maliades can be launched during a Wolf Attack.',
-    resolver: unavailable('Dione Fighter Bay launch is unavailable until its craft-gating resolver lands.', ['192']),
+    resolver: implemented('wolf-attack.maliades-launch'),
   },
   'dione:jump-drive': commonJumpDrive('2 / 4 / 8'),
 

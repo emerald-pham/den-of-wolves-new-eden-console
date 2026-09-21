@@ -434,6 +434,28 @@ export interface WolfAttackDeclarationState {
   readonly deadlineAt: string;
   readonly airspaceLocked: true;
   readonly parkedCraftIds: readonly string[];
+  readonly launchedCraftIds: readonly string[];
+}
+
+export type DioneMaliadesLaunchReason =
+  | 'waiting'
+  | 'uncharged'
+  | 'damaged'
+  | 'already-launched';
+
+export interface DioneMaliadesLaunchView {
+  readonly type: 'dione-maliades-launch-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly launched: boolean;
+  readonly eligible: boolean;
+  readonly reason?: DioneMaliadesLaunchReason;
+}
+
+export interface DioneMaliadesLaunchResult extends DioneMaliadesLaunchView {
+  readonly status: 'committed' | 'replayed';
+  readonly requestId: string;
 }
 
 /** Public callable receipt for the GM declaration control. */

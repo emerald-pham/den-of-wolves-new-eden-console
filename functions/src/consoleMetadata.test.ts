@@ -108,7 +108,7 @@ describe('server-only console metadata', () => {
       expect(metadata.resolver.followOnPrompts[0]).toMatch(/^\d+[a-z]?$/);
       unavailableOwners.add(metadata.resolver.followOnPrompts[0]);
     }
-    expect([...unavailableOwners].sort()).toEqual(['182', '192', '202', '231']);
+    expect([...unavailableOwners].sort()).toEqual(['182', '202', '231']);
   });
 
   it('records identity-only vessel console gaps instead of inventing systems', () => {

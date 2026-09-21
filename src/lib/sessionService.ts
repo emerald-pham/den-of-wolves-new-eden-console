@@ -16,6 +16,8 @@ import type {
   WolfAttackPreparationModifierId,
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationResult,
+  DioneMaliadesLaunchResult,
+  DioneMaliadesLaunchView,
   WolfCommanderTargetingView,
   WolfAttackTargetMode,
   WolfAttackWindow,
@@ -3439,6 +3441,38 @@ function wolfAttackDeclarationReply(value: unknown): WolfAttackDeclarationResult
   };
 }
 
+function dioneMaliadesLaunchViewReply(value: unknown): DioneMaliadesLaunchView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
+    reply.reason === 'uncharged' || reply.reason === 'damaged' ||
+    reply.reason === 'already-launched';
+  if (reply.type !== 'dione-maliades-launch-view' || typeof reply.sessionId !== 'string' ||
+      !reply.sessionId || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
+      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason ||
+      (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
+      (reply.launched && reply.reason !== 'already-launched') ||
+      (!reply.eligible && !reply.reason)) return null;
+  const reason = reply.reason as DioneMaliadesLaunchView['reason'];
+  return {
+    type: 'dione-maliades-launch-view', sessionId: reply.sessionId,
+    turn: reply.turn as number, revision: reply.revision as number,
+    launched: reply.launched, eligible: reply.eligible,
+    ...(reason === undefined ? {} : { reason }),
+  };
+}
+
+function dioneMaliadesLaunchResultReply(value: unknown): DioneMaliadesLaunchResult | null {
+  const view = dioneMaliadesLaunchViewReply(value);
+  if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  return (reply.status === 'committed' || reply.status === 'replayed') &&
+    typeof reply.requestId === 'string' && reply.requestId.length > 0
+    ? { ...view, status: reply.status, requestId: reply.requestId }
+    : null;
+}
+
 export type WolfCommanderTargetingReadResult =
   | WolfCommanderTargetingView
   | Readonly<{
@@ -3702,6 +3736,54 @@ export async function declareWolfAttack(expectedRevision: number): Promise<WolfA
   try {
     const reply = wolfAttackDeclarationReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf-attack declaration.');
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the active Dione Engineer's server-filtered Maliades launch state. */
+export async function getDioneMaliadesLaunch(): Promise<DioneMaliadesLaunchView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.activeConsoleRoleId !== 'dione-engineer') {
+    throw new Error('Only the active Dione Engineer may read Maliades launch authority.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading Maliades launch authority.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getDioneMaliadesLaunch');
+  try {
+    const reply = dioneMaliadesLaunchViewReply((await call({ sessionId })).data);
+    if (!reply) throw new Error('The server returned an invalid Maliades launch view.');
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit one Maliades launch against the exact Wolf-attack revision shown to the Engineer. */
+export async function launchDioneMaliades(
+  expectedTurn: number,
+  expectedRevision: number,
+): Promise<DioneMaliadesLaunchResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.activeConsoleRoleId !== 'dione-engineer') {
+    throw new Error('Only the active Dione Engineer may launch Maliades.');
+  }
+  requireFreshSessionAuthority('Reconnect before launching Maliades.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedTurn, expectedRevision };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'launchDioneMaliades');
+  try {
+    const reply = dioneMaliadesLaunchResultReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Maliades launch result.');
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
   } catch (cause) {
