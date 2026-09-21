@@ -63,4 +63,12 @@ describe('GM clock scheduling', () => {
   it('does not wake when neither the turn control nor maintenance alert can change', () => {
     expect(nextGmClockUpdate({}, Date.parse('2026-01-01T00:00:00.000Z'))).toBeUndefined();
   });
+
+  it('wakes for the next additional interaction boundary', () => {
+    const now = Date.parse('2026-01-01T00:00:00.000Z');
+    expect(nextGmClockUpdate({}, now, [now - 1, Number.NaN, now + 60_001, now + 10_000]))
+      .toBe(now + 10_000);
+    expect(nextGmClockUpdate({}, now + 10_000, [now + 10_000, now + 60_001]))
+      .toBe(now + 60_001);
+  });
 });

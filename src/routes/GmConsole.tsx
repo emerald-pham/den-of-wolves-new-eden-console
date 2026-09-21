@@ -617,7 +617,12 @@ export default function GmConsole() {
   const viewerCoordinate = session?.shipGalacticCoordinates?.[viewer?.id ?? 'aegis'] ??
     ORIGIN_GALACTIC_COORDINATE;
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
-  const nextClockUpdate = nextGmClockUpdate(session, clock);
+  const wolfConsoleEligibleAt = Date.parse(wolfConsoleVisit?.eligibleAt ?? '');
+  const wolfConsoleExpiresAt = Date.parse(wolfConsoleVisit?.expiresAt ?? '');
+  const nextClockUpdate = nextGmClockUpdate(session, clock, [
+    wolfConsoleEligibleAt,
+    Number.isFinite(wolfConsoleExpiresAt) ? wolfConsoleExpiresAt + 1 : Number.NaN,
+  ]);
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
     const startedAt = cycle.startedAt ? Date.parse(cycle.startedAt) : Number.NaN;
     const elapsed = clock - startedAt;

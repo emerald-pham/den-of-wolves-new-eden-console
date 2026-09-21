@@ -18,6 +18,7 @@ function earlier(left: number | undefined, right: number): number {
 export function nextGmClockUpdate(
   session: GmClockSession | null | undefined,
   now = Date.now(),
+  additionalUpdates: readonly number[] = [],
 ): number | undefined {
   let next: number | undefined;
   const phase = phaseForSession(session);
@@ -37,6 +38,10 @@ export function nextGmClockUpdate(
       ? overdueAt
       : startedAt + (Math.floor((now - startedAt) / MINUTE_MS) + 1) * MINUTE_MS;
     next = earlier(next, nextMaintenanceMinute);
+  }
+
+  for (const updateAt of additionalUpdates) {
+    if (Number.isFinite(updateAt) && updateAt > now) next = earlier(next, updateAt);
   }
 
   return next;

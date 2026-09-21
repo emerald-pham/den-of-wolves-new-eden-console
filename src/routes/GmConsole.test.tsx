@@ -311,6 +311,52 @@ it('runs the server-timed facilitator flow for random or chosen console sabotage
   expect(panel).toHaveTextContent('COMMITTED // Reactor damaged // +4 suspicion');
 });
 
+it('wakes the console sabotage controls at eligibility and expiry boundaries', async () => {
+  vi.useFakeTimers();
+  try {
+    const now = Date.parse('2026-01-01T00:00:00.000Z');
+    vi.setSystemTime(now);
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      phase: 'active', currentTurn: 2, activeVesselIds: ['aegis', 'dione'],
+      shipDamage: { dione: { damagedSystemIds: ['storage'], destroyed: false } },
+    });
+    useSessionStore.getState().setGmInstance(local);
+    useSessionStore.getState().setGmLoyaltyCensus({
+      revision: 4,
+      entries: [{ uid: 'wolf-player', kind: 'wolf-agent', suspicion: 1 }],
+    });
+    vi.mocked(startWolfConsoleVisit).mockResolvedValue({
+      status: 'observing', type: 'wolf-console-visit', sessionId: 's1', visitId: 'visit-timed',
+      cycle: 2, actorUid: 'wolf-player', coverRoleId: 'dione-engineer', targetShipId: 'dione',
+      startedAt: new Date(now).toISOString(),
+      eligibleAt: new Date(now + 10_000).toISOString(),
+      expiresAt: new Date(now + 60_000).toISOString(),
+    });
+    streamInstances([local]);
+    renderConsole();
+
+    const panel = screen.getByRole('region', { name: 'Wolf console sabotage observation' });
+    fireEvent.change(within(panel).getByLabelText('Visited ship'), { target: { value: 'dione' } });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Start 10-second observation' }));
+    await act(async () => { await Promise.resolve(); });
+
+    const confirm = within(panel).getByRole('button', { name: 'Confirm console sabotage' });
+    expect(panel).toHaveTextContent('OBSERVING // 10 seconds remain');
+    expect(confirm).toBeDisabled();
+
+    await act(async () => { vi.advanceTimersByTime(10_000); });
+    expect(panel).toHaveTextContent('ELIGIBLE');
+    expect(confirm).toBeEnabled();
+
+    await act(async () => { vi.advanceTimersByTime(50_001); });
+    expect(panel).toHaveTextContent('EXPIRED');
+    expect(confirm).toBeDisabled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('shows the latest Wolf clue only in the facilitator console', async () => {
   useSessionStore.getState().setGmInstance(local);
   vi.mocked(subscribeGmWolfClueDisclosure).mockImplementation((_sessionId, onDisclosure) => {
