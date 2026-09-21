@@ -13,6 +13,7 @@ import {
 import { DEFAULT_ACTIVE_ROLE_IDS } from './roles';
 import { recommendedRoleIds } from './rolePresets';
 import { SHIPS } from './ships';
+import { SHUTTLE_CARGO_TYPES as SERVER_SHUTTLE_CARGO_TYPES } from '../../functions/src/shuttleCargoTransfer';
 
 describe('fleet shuttlebays', () => {
   it('keeps only printed range-combat shuttles on the Wolf battle table', () => {
@@ -103,6 +104,7 @@ describe('fleet shuttlebays', () => {
       wobbly: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
       ally: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
     });
+    expect(cargoTypesByShuttle).toEqual(SERVER_SHUTTLE_CARGO_TYPES);
     expect(SHUTTLECRAFT.filter((shuttle) => shuttle.cargoTransfer)
       .every((shuttle) => shuttle.cargoTransferTypes?.length)).toBe(true);
     expect(SHUTTLECRAFT.filter((shuttle) => !shuttle.cargoTransfer).map((shuttle) => shuttle.id))

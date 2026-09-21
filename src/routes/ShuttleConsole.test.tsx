@@ -33,12 +33,16 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
   beginShuttleTransit: vi.fn().mockResolvedValue(undefined),
   requestShuttleDeparture: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/lib/shuttleCargoService', () => ({
+  transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
+}));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
 const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionService');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
+const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
 
 beforeEach(() => {
   vi.mocked(selectConsoleRole).mockReset();
@@ -62,6 +66,8 @@ beforeEach(() => {
   vi.mocked(requestShuttleDeparture).mockResolvedValue(undefined);
   vi.mocked(beginShuttleTransit).mockReset();
   vi.mocked(beginShuttleTransit).mockResolvedValue(undefined);
+  vi.mocked(transferShuttleCargo).mockReset();
+  vi.mocked(transferShuttleCargo).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -408,6 +414,38 @@ it('opens a printed shipboard shuttle for its owning role and returns by keyboar
   expect(back).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(screen.getByText('Quellon Explorer parent')).toBeInTheDocument();
+});
+
+it('lets the current holder transfer only Hummingbird printed cargo while docked', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  expect(cargo).toHaveTextContent('Docked at Quellon');
+  expect(screen.getByRole('option', { name: 'Food' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Water' })).toBeInTheDocument();
+  expect(screen.queryByRole('option', { name: 'Strytium Ore' })).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText('Resource'), 'food');
+  expect(cargo).toHaveTextContent('Host // 10 // Shuttle // 1');
+  await user.clear(screen.getByLabelText('Amount'));
+  await user.type(screen.getByLabelText('Amount'), '2');
+  await user.click(screen.getByRole('button', { name: 'Load shuttle' }));
+  expect(transferShuttleCargo).toHaveBeenCalledWith('hummingbird', 'food', 'load', 2, 3);
+  expect(screen.getByText('Loaded 2 Food.')).toHaveAttribute('role', 'status');
 });
 
 it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {

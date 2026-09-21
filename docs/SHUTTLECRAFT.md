@@ -36,6 +36,21 @@ projection. Arrival, retargeting, docking, and visit-log entries are determined
 from server timestamps and transactions. Until the arrival transaction completes,
 the craft is neither docked at its origin nor docked at its destination.
 
+## Cargo transfer contract
+
+Only the current shuttle holder may move cargo, and only while the craft has
+exactly one authoritative docking. A transfer moves a positive whole amount
+between that shuttle's cargo ledger and the docked host ship's resource ledger
+in one server transaction. The acting shuttle's printed Cargo Transfer rule is
+an exact allowlist: craft without a printed rule cannot transfer cargo, and a
+host must already expose the selected resource in its authoritative inventory.
+
+The server rechecks custody, its revision, the active fleet group, the docking
+manifest, both inventories, and source quantity before either ledger changes.
+Transit, duplicate docking, cross-group hosts, stale custody, unsupported cargo,
+malformed state, and insufficient stock fail without a partial move. Exact
+request retries replay the original result without moving cargo twice.
+
 ## Planned airspace enforcement
 
 Each numbered cycle starts with closed airspace. The server prevents a shuttle

@@ -8420,7 +8420,7 @@
         "acceptance": "only a docked craft moves its printed cargo types between permitted inventories.",
         "title": "Resolve shuttle-mediated transfers."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The current shuttle holder can now move a positive whole amount between a shuttle and its one authoritative docked host through an idempotent server transaction. The callable rechecks connected player authority, active gameplay, exact custody revision, fleet-group membership, the legal parked manifest, one docking, both stored inventories, source quantity, and the craft’s exact printed cargo allowlist before atomically updating both ledgers. Transit, duplicate docking, cross-group hosts, unsupported cargo, missing or malformed inventories, stale custody, insufficient stock, and conflicting retries fail before mutation. The holder interface exposes only printed cargo types and observed host/shuttle balances. Focused pure, callable, service, route, and client/server catalog-drift tests cover successful load/unload, authorization, fail-closed state, and exact replay.",
       "evidenceIds": "E-AUDIT-113;E-164-TRANSFER-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8429,10 +8429,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "164",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -9818,7 +9820,7 @@
         "acceptance": "each transfer accepts only the resource and security-team types printed for the acting craft.",
         "title": "Encode cargo permissions."
       },
-      "description": "Registered shuttle definitions now carry source-aligned cargo type IDs beside their printed cargo strings, and `src/data/shuttles.test.ts` asserts the exact allowlist for every craft with a printed Cargo Transfer rule. The production server still has no cargo-transfer callable or resource-transfer resolver: `functions/src/actionMetadata.ts` only phase-gates a future Coordination action, and `shuttleCargo` is maintenance state. P164 is therefore partial; authoritative transfer enforcement remains deferred to Prompts 113 and 377, which also own dock, manifest, inventory, role, and revision checks. No gameplay release is claimed.",
+      "description": "Registered shuttle definitions carry source-aligned cargo type IDs beside their printed cargo strings, and a cross-boundary test requires the client and server allowlists to remain identical. Prompt 113 now enforces those permissions for docked holder transfers with authoritative custody, manifest, fleet-group, inventory, quantity, and revision checks. P164 remains partial until Prompt 377 applies the same printed permissions to its separate transfer path.",
       "evidenceIds": "E-AUDIT-164;E-164-ALLOWLIST-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",

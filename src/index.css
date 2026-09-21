@@ -5147,6 +5147,48 @@ body {
   border-top: 1px solid var(--cic-rule);
 }
 
+.shuttle-control label {
+  display: block;
+  margin-top: 0.75rem;
+  color: var(--cic-amber);
+  font: 0.65rem/1.5 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shuttle-control select,
+.shuttle-control input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--cic-cyan-dim);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 1rem/1.4 var(--cic-mono);
+}
+
+.shuttle-control select:focus-visible,
+.shuttle-control input[type='number']:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.shuttle-control .console-workspace__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.shuttle-control .cic-action-button {
+  min-height: 44px;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  white-space: normal;
+}
+
 .console-workspace__section > h3 {
   margin: 0;
   color: var(--cic-amber);

@@ -212,7 +212,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 110 | PROVE | done | 103 | none | none | none | none | none | none | none | E-AUDIT-110 | M2 | Run the lobby-to-two-turn scenario. |
 | 111 | PRESERVE | done | none | none | none | none | none | none | none | none | E-AUDIT-111 | M2 | Define authoritative resource ledgers. |
 | 112 | NEW | missing | 111 | none | none | OWNER-SAME-TABLE-TRADE-INVENTORIES-CONSENT | none | none | none | none | E-AUDIT-112 | M2 | Resolve same-table trades. |
-| 113 | NEW | missing | 111;361 | none | none | none | none | none | none | 164 | E-AUDIT-113;E-164-TRANSFER-RELATED | M2 | Resolve shuttle-mediated transfers. |
+| 113 | NEW | done | 111;361 | none | none | none | none | none | none | 164 | E-AUDIT-113;E-164-TRANSFER-RELATED | M2 | Resolve shuttle-mediated transfers. |
 | 114 | PRESERVE | done | 161;162;234;249 | none | none | none | none | none | none | 121;235;241;242;246;250;571;591 | E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED | M2 | Register vessel-specific maintenance order. |
 | 115 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Resolve damaged Storage. |
 | 116 | PRESERVE | missing | 117;162 | none | none | none | none | none | none | none | E-AUDIT-116 | M2 | Select food and water rations independently. |

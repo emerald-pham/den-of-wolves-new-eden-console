@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [113],
+    implementationProgress: {
+      completed: 371, total: 751, percentage: '49.40%',
+      done: 371, partial: 17, active: 0, missing: 363,
+    },
+    changes: [
+      'Current shuttle holders can now load or unload only the cargo types printed for their craft while it is docked.',
+      'Each transfer moves cargo atomically between the shuttle and its one authoritative host, with custody, fleet group, inventory, and quantity rechecked by the server.',
+      'Stale custody, transit, duplicate docking, unsupported cargo, malformed ledgers, and exact retries cannot duplicate or partially move stock.',
+      '371 of 751 planned items are complete (49.40%).',
+    ],
+  },
+  {
+    version: '0.4.64',
     implementationPrompts: [366],
     implementationProgress: {
       completed: 370, total: 751, percentage: '49.27%',

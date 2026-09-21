@@ -215,6 +215,7 @@ import {
   shipResources,
   shipUnrest,
   unrestChange,
+  type ResourceId,
 } from './resources';
 import { planShipStoreScavenge, requireScavengeInventories } from './shipStoreScavenge';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
@@ -250,6 +251,10 @@ import {
   parseShuttleTransit,
   type ShuttleTransitState,
 } from './shuttleTransit';
+import {
+  SHUTTLE_CARGO_TYPES,
+  transferShuttleCargo,
+} from './shuttleCargoTransfer';
 import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
@@ -5032,6 +5037,139 @@ export const transferShuttleControlCommand = onCall<{
       reply,
       createdAt: FieldValue.serverTimestamp(),
     });
+    return reply;
+  });
+});
+
+type ShuttleCargoTransferReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shuttleId: string;
+  hostShipId: string;
+  resourceId: ResourceId;
+  direction: 'load' | 'unload';
+  amount: number;
+  shipAmount: number;
+  shuttleAmount: number;
+}>;
+
+function isShuttleCargoTransferReply(value: unknown, sessionId: string): value is ShuttleCargoTransferReply {
+  return isRecord(value) && value.sessionId === sessionId &&
+    (value.status === 'committed' || value.status === 'replayed') &&
+    typeof value.requestId === 'string' && typeof value.shuttleId === 'string' &&
+    typeof value.hostShipId === 'string' && RESOURCE_IDS.includes(value.resourceId as ResourceId) &&
+    (value.direction === 'load' || value.direction === 'unload') &&
+    Number.isSafeInteger(value.amount) && (value.amount as number) > 0 &&
+    Number.isSafeInteger(value.shipAmount) && (value.shipAmount as number) >= 0 &&
+    Number.isSafeInteger(value.shuttleAmount) && (value.shuttleAmount as number) >= 0;
+}
+
+/** Move printed cargo only between a shuttle and its one authoritative docked host. */
+export const transferShuttleCargoCommand = onCall<{
+  sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; resourceId?: unknown;
+  direction?: unknown; amount?: unknown; expectedControlRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'shuttleId', 'resourceId', 'direction', 'amount',
+    'expectedControlRevision',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.shuttleId !== 'string' || !SHUTTLE_CARGO_TYPES[raw.shuttleId] ||
+      typeof raw.resourceId !== 'string' || !RESOURCE_IDS.includes(raw.resourceId as ResourceId) ||
+      raw.direction !== 'load' && raw.direction !== 'unload' ||
+      !Number.isSafeInteger(raw.amount) || (raw.amount as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid shuttle cargo transfer request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; shuttleId: string; resourceId: ResourceId;
+    direction: 'load' | 'unload'; amount: number; expectedControlRevision: number;
+  };
+  const fingerprint: CommandFingerprint = {
+    action: 'transfer-shuttle-cargo', sessionId: data.sessionId, requestId: data.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: data.expectedControlRevision,
+    payload: {
+      shuttleId: data.shuttleId, resourceId: data.resourceId,
+      direction: data.direction, amount: data.amount,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected shuttle holder may transfer cargo.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ShuttleCargoTransferReply => isShuttleCargoTransferReply(value, data.sessionId),
+      'shuttle cargo transfer',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    requireActiveGameplayPhase(session);
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const activeRoleIds = configuredRoleIds(session);
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) || !control) {
+      throw commandError('failed-precondition', 'The authoritative shuttle cargo state is unavailable.', 'conflict');
+    }
+    let result: ReturnType<typeof transferShuttleCargo>;
+    try {
+      result = transferShuttleCargo({
+        actorUid: uid,
+        shuttleId: data.shuttleId,
+        resourceId: data.resourceId,
+        direction: data.direction,
+        amount: data.amount,
+        expectedControlRevision: data.expectedControlRevision,
+        control: control[data.shuttleId]!,
+        dockings: rawDockings,
+        shipResources: session.get('shipResources'),
+        shuttleCargo: session.get('shuttleCargo') ?? {},
+      });
+      if (!group.vesselIds.includes(result.hostShipId)) {
+        throw new Error('The docked host is outside the holder’s current fleet group.');
+      }
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Shuttle cargo transfer was rejected.',
+        'conflict',
+      );
+    }
+    const reply: ShuttleCargoTransferReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: data.shuttleId, hostShipId: result.hostShipId,
+      resourceId: result.resourceId, direction: result.direction, amount: result.amount,
+      shipAmount: result.shipAmount, shuttleAmount: result.shuttleAmount,
+    };
+    tx.update(sessionRef, {
+      [`shipResources.${result.hostShipId}`]: result.shipInventory,
+      [`shuttleCargo.${data.shuttleId}`]: result.shuttleInventory,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });
