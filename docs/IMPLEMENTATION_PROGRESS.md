@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**419 / 751 prompts complete (55.79%)**
+**420 / 751 prompts complete (55.93%)**
 
-Status breakdown: **419 done · 16 partial · 316 missing**.
+Status breakdown: **420 done · 16 partial · 315 missing**.
 
 Active prompt: **none**
 
@@ -763,7 +763,7 @@ release classification and evidence.
 | 318 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 319 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 320 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 321 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 321 | done | non-feature | — | The server authority layer defines exactly four scout request identities: Starlight for the active Wing Commander, Hummingbird for the active Quellon Explorer, Endeavour for the active Shepherd Scientist, and the short-range scan for the player currently assigned the Comms Officer replacement role. Resolution requires a connected player, a valid printed role configuration and matching vessel roster, canonical assignment-and-seat binding for core craft, exact replacement-role authority for Comms, and the canonical craft/replacement catalogs; stale or mismatched core authority, cross-entitlement requests, inactive anchors, unknown identities, and malformed or duplicate rosters fail closed. This identity contract deliberately leaves range, cadence, fuel, chart lookup, result privacy, persistence, and UI to downstream prompts. |
 | 322 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 323 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 324 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
