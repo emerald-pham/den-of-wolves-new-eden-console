@@ -2200,6 +2200,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "323 -> 321;322;327",
+      "id": "E-323-STARLIGHT-FUELLED-SECOND-SCAN",
+      "language": "The additional Starlight resolver requires exactly one canonical same-cycle first-scan receipt, rechecks the exact current Wing Commander entitlement and current AEGIS graph position, and accepts only a different printed target within two jumps. Fuel must be corroborated by the known-shuttle boolean ledger and the current-cycle AEGIS shuttle-bay receipt at step 7 with a unique string-only refuelled list containing Starlight. No first scan, a prior second attempt, forged/stale history, false or malformed fuel state, stale or pre-bay maintenance, malformed/duplicate refuel rows, repeated/far targets, and stale role or position authority fail closed. The output is an immutable attempt-two receipt; persistence, transaction binding, chart results, privacy projection, and UI remain downstream.",
+      "source": "functions/src/starlightScout.ts; functions/src/starlightSecondScout.test.ts; functions/src/starlightScout.test.ts; functions/src/scoutEntitlements.ts; functions/src/maintenance.ts; functions/src/turnTransition.ts; authorized routed Starlight and maintenance references; focused 129-test scout/entitlement/chart/maintenance/expiry suite; Functions TypeScript build",
+      "type": "evidence / server-policy / current-cycle-fuel / distinct-target / bounded-cadence / fail-closed / non-feature contract"
+    },
+    {
       "direction": "324 -> 321;216",
       "id": "E-AUDIT-324",
       "language": "Hummingbird scan consumes entitlement and Quellon identity.",
@@ -14202,8 +14209,8 @@
         "acceptance": "only authoritative current-turn fuel permits one additional distinct eligible system.",
         "title": "Resolve Starlight's fuelled second scan."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-323",
+      "description": "The pure server policy now resolves Starlight’s one fuelled additional scan from an exact same-cycle first-scan history, the current P321 Wing Commander entitlement, current AEGIS position, canonical chart range, and two corroborating fuel authorities: `shuttleFuelled.starlight === true` plus a current-cycle AEGIS shuttle-bay receipt at step 7 whose unique refuelled list names Starlight. The second target must be distinct from the first and independently remain within two jumps of current AEGIS. Missing or multiple prior scans, forged or stale first receipts, false/malformed/unknown fuel rows, stale or pre-bay maintenance, duplicate/malformed refuel receipts, far or repeated targets, and stale role/position authority fail closed. Persistence and transactional race protection remain with the later current-authority integration prompt; no chart result or UI is introduced.",
+      "evidenceIds": "E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;322",
@@ -14214,7 +14221,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
