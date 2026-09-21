@@ -20,6 +20,8 @@ import {
   requireShipDamageRequest,
   requireShipStoreScavengeRequest,
   requireWolfAssignmentRequest,
+  requireStartWolfConsoleVisitRequest,
+  requireResolveWolfConsoleSabotageRequest,
   requireWolfSupplySabotageRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
@@ -60,6 +62,35 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
+  it('accepts only canonical console-observation and sabotage requests', () => {
+    expect(requireStartWolfConsoleVisitRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-1', expectedCycle: 2,
+      targetUid: 'wolf-1', targetShipId: 'dione',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-1', expectedCycle: 2,
+      targetUid: 'wolf-1', targetShipId: 'dione',
+    });
+    expect(requireResolveWolfConsoleSabotageRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'resolve-1',
+      visitId: 'visit-1', expectedCycle: 2, mode: 'chosen', chosenSystemId: 'reactor',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'resolve-1',
+      visitId: 'visit-1', expectedCycle: 2, mode: 'chosen', chosenSystemId: 'reactor',
+    });
+    expectHttpsError(() => requireStartWolfConsoleVisitRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-1', expectedCycle: 2,
+      targetUid: 'wolf-1', targetShipId: 'dione', result: 'client-selected',
+    }), 'invalid-argument');
+    expectHttpsError(() => requireResolveWolfConsoleSabotageRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'resolve-1',
+      visitId: 'visit-1', expectedCycle: 2, mode: 'chosen',
+    }), 'invalid-argument');
+    expectHttpsError(() => requireResolveWolfConsoleSabotageRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'resolve-1',
+      visitId: 'visit-1', expectedCycle: 2, mode: 'random', chosenSystemId: 'reactor',
+    }), 'invalid-argument');
+  });
+
   it('accepts only a canonical Wolf supply-sabotage request for a positive expected cycle', () => {
     expect(requireWolfSupplySabotageRequest({
       sessionId: 's1', requestId: 'wolf-1', expectedCycle: 2,

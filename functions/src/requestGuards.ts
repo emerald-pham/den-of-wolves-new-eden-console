@@ -1201,6 +1201,86 @@ export function requireWolfSupplySabotageRequest(data: {
   };
 }
 
+export function requireStartWolfConsoleVisitRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  targetUid?: unknown;
+  targetShipId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedCycle: number;
+  targetUid: string;
+  targetShipId: string;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'expectedCycle', 'targetUid', 'targetShipId',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Console visit requests contain unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedCycle: data.expectedCycle as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    targetShipId: requiredId(data.targetShipId, 'targetShipId'),
+  };
+}
+
+export function requireResolveWolfConsoleSabotageRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  visitId?: unknown;
+  expectedCycle?: unknown;
+  mode?: unknown;
+  chosenSystemId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  visitId: string;
+  expectedCycle: number;
+  mode: 'random' | 'chosen';
+  chosenSystemId?: string;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'visitId', 'expectedCycle', 'mode', 'chosenSystemId',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Console sabotage requests contain unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
+  }
+  if (data.mode !== 'random' && data.mode !== 'chosen') {
+    throw new HttpsError('invalid-argument', 'mode must be random or chosen.');
+  }
+  const chosenSystemId = data.chosenSystemId === undefined
+    ? undefined : requiredId(data.chosenSystemId, 'chosenSystemId');
+  if (data.mode === 'chosen' && chosenSystemId === undefined) {
+    throw new HttpsError('invalid-argument', 'chosenSystemId is required for chosen mode.');
+  }
+  if (data.mode === 'random' && chosenSystemId !== undefined) {
+    throw new HttpsError('invalid-argument', 'chosenSystemId is not accepted for random mode.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    visitId: requiredId(data.visitId, 'visitId'),
+    expectedCycle: data.expectedCycle as number,
+    mode: data.mode,
+    ...(chosenSystemId === undefined ? {} : { chosenSystemId }),
+  };
+}
+
 /** Validate one private Wolf intelligence message before its authority transaction. */
 export function requireWolfIntelligenceRequest(data: {
   sessionId?: unknown;

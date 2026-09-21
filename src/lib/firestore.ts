@@ -81,6 +81,7 @@ import { replacementRoleFor } from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
+import { consoleSabotageTargetsForShip } from '@/data/consoleSabotageTargets';
 import {
   normalizeShuttleManifest,
   SHUTTLECRAFT,
@@ -90,6 +91,7 @@ import {
   INITIAL_SHIP_GALACTIC_COORDINATES,
   INITIAL_SHIP_JUMP_STATES,
   INITIAL_SHIP_JUMP_TRANSITIONS,
+  SHIPS,
   SMALL_SHIPS,
 } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
@@ -714,14 +716,20 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
   const craft = vesselId ? SHUTTLECRAFT.find((candidate) => candidate.id === vesselId) : undefined;
   const canonicalCoordinates = new Set(STAR_CHART_SYSTEMS.map((system) => system.coordinate));
   const supplyAction = raw.action === 'sabotage-supplies';
+  const consoleAction = raw.action === 'sabotage-console';
   const beaconAction = raw.action === 'homing-beacon';
   const intelligenceAction = raw.action === 'provide-intel';
-  const expectedIncrement = supplyAction ? 2 : beaconAction ? 5 : intelligenceAction ? 3 : 0;
-  const expectedAuditId = supplyAction
+  const consoleMode = raw.mode === 'random' || raw.mode === 'chosen' ? raw.mode : undefined;
+  const expectedIncrement = consoleAction && consoleMode === 'chosen' ? 4
+    : consoleAction && consoleMode === 'random' ? 2
+      : supplyAction ? 2 : beaconAction ? 5 : intelligenceAction ? 3 : 0;
+  const expectedAuditId = consoleAction
+    ? `wolf-console-sabotage-${requestId}`
+    : supplyAction
     ? `wolf-supply-sabotage-${requestId}`
     : beaconAction ? `wolf-homing-beacon-${requestId}` : `wolf-intelligence-${requestId}`;
   if (raw.type !== 'wolf-action-receipt' || raw.status !== 'committed' ||
-      (!supplyAction && !beaconAction && !intelligenceAction) ||
+      (!consoleAction && !supplyAction && !beaconAction && !intelligenceAction) ||
       parsedSessionId !== parseEntityId('session', sessionId) ||
       !actorUid || !actorRoleId || !findConsoleRole(actorRoleId) ||
       !isCanonicalRequestId(requestId) || raw.idempotencyKey !== requestId ||
@@ -740,6 +748,15 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
       typeof raw.resourceId !== 'string' || !resourceIds.has(raw.resourceId) ||
       !Number.isSafeInteger(raw.destroyedAmount) || (raw.destroyedAmount as number) < 0 ||
       !Number.isSafeInteger(raw.remainingAmount) || (raw.remainingAmount as number) < 0)) return null;
+  const consoleShip = consoleAction && typeof raw.targetShipId === 'string'
+    ? SHIPS.find((ship) => ship.id === raw.targetShipId) : undefined;
+  const consoleSystemId = typeof raw.targetSystemId === 'string' ? raw.targetSystemId : undefined;
+  const consoleSystem = consoleShip && consoleSystemId
+    ? consoleSabotageTargetsForShip(consoleShip.id).find((system) => system.id === consoleSystemId)
+    : undefined;
+  if (consoleAction && (!consoleMode || !isCanonicalRequestId(raw.visitId) ||
+      !consoleShip || !consoleSystem || consoleSystem.name !== raw.targetSystemName ||
+      consoleSystemId?.startsWith('armoured-hull'))) return null;
   if (intelligenceAction && (typeof raw.message !== 'string' || !raw.message.trim() ||
       raw.message.length > 240)) return null;
   if (beaconAction && (typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) ||
@@ -774,7 +791,13 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
     revision: raw.revision as number,
     idempotencyKey: requestId,
     auditId: raw.auditId as string,
-    ...(supplyAction ? {
+    ...(consoleAction && consoleMode && consoleShip && consoleSystem ? {
+      visitId: raw.visitId as string,
+      targetShipId: consoleShip.id,
+      targetSystemId: consoleSystem.id,
+      targetSystemName: consoleSystem.name,
+      mode: consoleMode,
+    } : supplyAction ? {
       resourceId: raw.resourceId as string,
       destroyedAmount: raw.destroyedAmount as number,
       remainingAmount: raw.remainingAmount as number,
@@ -807,14 +830,20 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
   ];
   const createdAt = optionalIso(raw.createdAt);
   const supplyAction = raw.action === 'sabotage-supplies' && raw.source === 'wolf-supply-sabotage';
+  const consoleAction = raw.action === 'sabotage-console' && raw.source === 'wolf-console-sabotage';
   const beaconAction = raw.action === 'homing-beacon' && raw.source === 'wolf-homing-beacon';
   const intelligenceAction = raw.action === 'provide-intel' && raw.source === 'wolf-intelligence';
-  const expectedIncrement = supplyAction ? 2 : beaconAction ? 5 : intelligenceAction ? 3 : 0;
-  const expectedAuditId = supplyAction
+  const consoleMode = raw.mode === 'random' || raw.mode === 'chosen' ? raw.mode : undefined;
+  const expectedIncrement = consoleAction && consoleMode === 'chosen' ? 4
+    : consoleAction && consoleMode === 'random' ? 2
+      : supplyAction ? 2 : beaconAction ? 5 : intelligenceAction ? 3 : 0;
+  const expectedAuditId = consoleAction
+    ? `wolf-console-sabotage-${requestId}`
+    : supplyAction
     ? `wolf-supply-sabotage-${requestId}`
     : beaconAction ? `wolf-homing-beacon-${requestId}` : `wolf-intelligence-${requestId}`;
   if (raw.type !== 'wolf-suspicion-history' || raw.status !== 'committed' ||
-      (!supplyAction && !beaconAction && !intelligenceAction) ||
+      (!consoleAction && !supplyAction && !beaconAction && !intelligenceAction) ||
       parsedSessionId !== parseEntityId('session', sessionId) || !actorUid ||
       !actorRoleId || !findConsoleRole(actorRoleId) || !createdAt ||
       !isCanonicalRequestId(requestId) ||
@@ -828,6 +857,15 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
       (raw.total as number) !== (raw.newSuspicion as number) + (raw.roll as number) ||
       !tiers.includes(raw.clueTier as WolfSuspicionHistoryEntry['clueTier']) ||
       typeof raw.disclosure !== 'string') return null;
+  const historyShip = consoleAction && typeof raw.targetShipId === 'string'
+    ? SHIPS.find((ship) => ship.id === raw.targetShipId) : undefined;
+  const historySystemId = typeof raw.targetSystemId === 'string' ? raw.targetSystemId : undefined;
+  const historySystem = historyShip && historySystemId
+    ? consoleSabotageTargetsForShip(historyShip.id).find((system) => system.id === historySystemId)
+    : undefined;
+  if (consoleAction && (!consoleMode || !isCanonicalRequestId(raw.visitId) ||
+      !historyShip || !historySystem || historySystem.name !== raw.targetSystemName ||
+      historySystemId?.startsWith('armoured-hull'))) return null;
   const expected = (raw.total as number) <= 6
     ? ['none', 'Nothing.']
     : (raw.total as number) <= 11
@@ -846,6 +884,13 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
     source: raw.source as WolfSuspicionHistoryEntry['source'],
     sessionId: parsedSessionId!, requestId,
     cycle: raw.cycle as number, actorUid, actorRoleId,
+    ...(consoleAction && consoleMode && historyShip && historySystem ? {
+      visitId: raw.visitId as string,
+      targetShipId: historyShip.id,
+      targetSystemId: historySystem.id,
+      targetSystemName: historySystem.name,
+      mode: consoleMode,
+    } : {}),
     oldSuspicion: raw.oldSuspicion as number, increment: expectedIncrement,
     newSuspicion: raw.newSuspicion as number, roll: raw.roll as number,
     total: raw.total as number, clueTier: raw.clueTier as WolfSuspicionHistoryEntry['clueTier'],

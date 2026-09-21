@@ -16,6 +16,7 @@ import { normalizeDisplayName } from '@/lib/displayName';
 import { nextGmClockUpdate } from '@/lib/gmClock';
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
+import { consoleSabotageTargetsForShip } from '@/data/consoleSabotageTargets';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { activeFleetShipIds, CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -57,10 +58,13 @@ import {
   setWolfAttackWindow,
   stageWolfAttackPreparation,
   declareWolfAttack as declareWolfAttackCommand,
+  startWolfConsoleVisit,
+  resolveWolfConsoleSabotage,
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
   type TurnStartReplayAudience,
   type CommandDisposition,
+  type WolfConsoleVisitReply,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -353,6 +357,13 @@ export default function GmConsole() {
   const [wolfActionReceipt, setWolfActionReceipt] = useState<WolfActionReceipt | null>(null);
   const [wolfSuspicionHistory, setWolfSuspicionHistory] = useState<readonly WolfSuspicionHistoryEntry[]>([]);
   const [wolfClueDisclosure, setWolfClueDisclosure] = useState<WolfClueDisclosure | null>(null);
+  const [wolfConsoleActorUid, setWolfConsoleActorUid] = useState('');
+  const [wolfConsoleShipId, setWolfConsoleShipId] = useState('');
+  const [wolfConsoleMode, setWolfConsoleMode] = useState<'random' | 'chosen'>('random');
+  const [wolfConsoleSystemId, setWolfConsoleSystemId] = useState('');
+  const [wolfConsoleVisit, setWolfConsoleVisit] = useState<WolfConsoleVisitReply | null>(null);
+  const [wolfConsoleMutation, setWolfConsoleMutation] = useState(false);
+  const [wolfConsoleMessage, setWolfConsoleMessage] = useState<string | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [wolfCultFortressCoordinate, setWolfCultFortressCoordinate] = useState('');
@@ -1091,12 +1102,45 @@ export default function GmConsole() {
     () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'wolf-agent') ?? [],
     [loyaltyCensus?.entries],
   );
+  const wolfConsoleRecipients = useMemo(
+    () => loyaltyCensus?.entries.filter((entry) =>
+      entry.kind === 'wolf-agent' || entry.kind === 'wolf-cult') ?? [],
+    [loyaltyCensus?.entries],
+  );
+  const wolfConsoleShips = useMemo(() => {
+    const active = new Set(session?.activeVesselIds ?? []);
+    return SHIPS.filter((ship) => active.has(ship.id) &&
+      session?.shipDamage?.[ship.id]?.destroyed !== true);
+  }, [session?.activeVesselIds, session?.shipDamage]);
+  const wolfConsoleSystems = useMemo(() => {
+    const damaged = new Set(session?.shipDamage?.[wolfConsoleShipId]?.damagedSystemIds ?? []);
+    return consoleSabotageTargetsForShip(wolfConsoleShipId).filter((system) =>
+      !damaged.has(system.id));
+  }, [session?.shipDamage, wolfConsoleShipId]);
 
   useEffect(() => {
     const currentAgent = wolfAgentRecipients[0]?.uid ?? '';
     setWolfCultAgentUid((current) =>
       wolfAgentRecipients.some((entry) => entry.uid === current) ? current : currentAgent);
   }, [wolfAgentRecipients]);
+
+  useEffect(() => {
+    setWolfConsoleActorUid((current) =>
+      wolfConsoleRecipients.some((entry) => entry.uid === current)
+        ? current : wolfConsoleRecipients[0]?.uid ?? '');
+  }, [wolfConsoleRecipients]);
+
+  useEffect(() => {
+    setWolfConsoleShipId((current) =>
+      wolfConsoleShips.some((ship) => ship.id === current)
+        ? current : wolfConsoleShips[0]?.id ?? '');
+  }, [wolfConsoleShips]);
+
+  useEffect(() => {
+    setWolfConsoleSystemId((current) =>
+      wolfConsoleSystems.some((system) => system.id === current)
+        ? current : wolfConsoleSystems[0]?.id ?? '');
+  }, [wolfConsoleSystems]);
 
   const arbourVisionRecipients = useMemo(
     () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'universal-arbour') ?? [],
@@ -1978,6 +2022,45 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setCensusNoteMutationUid(null);
+    }
+  }
+
+  async function beginWolfConsoleObservation(): Promise<void> {
+    if (endgameEvaluation || wolfConsoleMutation || wolfConsoleVisit ||
+        !wolfConsoleActorUid || !wolfConsoleShipId) return;
+    setWolfConsoleMutation(true);
+    setWolfConsoleMessage(null);
+    try {
+      const visit = await startWolfConsoleVisit(wolfConsoleActorUid, wolfConsoleShipId);
+      setWolfConsoleVisit(visit);
+      setWolfConsoleMessage('Observation started // keep the player adjacent for 10 seconds.');
+    } catch (cause) {
+      setWolfConsoleMessage(normalizeCommandError(cause).message);
+    } finally {
+      setWolfConsoleMutation(false);
+    }
+  }
+
+  async function commitWolfConsoleSabotage(): Promise<void> {
+    if (endgameEvaluation || wolfConsoleMutation || !wolfConsoleVisit ||
+        (wolfConsoleMode === 'chosen' && !wolfConsoleSystemId)) return;
+    setWolfConsoleMutation(true);
+    setWolfConsoleMessage(null);
+    try {
+      const result = await resolveWolfConsoleSabotage(
+        wolfConsoleVisit.visitId,
+        wolfConsoleMode,
+        wolfConsoleMode === 'chosen' ? wolfConsoleSystemId : undefined,
+      );
+      setWolfConsoleVisit(null);
+      setWolfConsoleMessage(
+        `COMMITTED // ${result.targetSystemName} damaged // ` +
+        `${result.mode === 'chosen' ? '+4' : '+2'} suspicion`,
+      );
+    } catch (cause) {
+      setWolfConsoleMessage(normalizeCommandError(cause).message);
+    } finally {
+      setWolfConsoleMutation(false);
     }
   }
 
@@ -3644,6 +3727,114 @@ export default function GmConsole() {
             </section>
           )}
 
+          {isGm && loyaltyCensus && session?.phase === 'active' && (
+            <section
+              className="gm-console__module cic-frame gm-wolf-console-sabotage"
+              aria-label="Wolf console sabotage observation"
+            >
+              <h2 className="gm-console__section-title">Wolf action // console sabotage</h2>
+              <p className="gm-player-roster__hint">
+                Start when the player reaches the ship table. The server requires 10 seconds
+                adjacent and facilitator confirmation within 1 minute.
+              </p>
+              <div className="gm-setup__grid">
+                <label htmlFor="wolf-console-actor">Observed Wolf</label>
+                <select
+                  id="wolf-console-actor"
+                  value={wolfConsoleActorUid}
+                  disabled={wolfConsoleMutation || wolfConsoleVisit !== null}
+                  onChange={(event) => setWolfConsoleActorUid(event.target.value)}
+                >
+                  {wolfConsoleRecipients.map((entry) => (
+                    <option key={entry.uid} value={entry.uid}>{entry.uid} // {entry.kind}</option>
+                  ))}
+                </select>
+                <label htmlFor="wolf-console-ship">Visited ship</label>
+                <select
+                  id="wolf-console-ship"
+                  value={wolfConsoleShipId}
+                  disabled={wolfConsoleMutation || wolfConsoleVisit !== null}
+                  onChange={(event) => setWolfConsoleShipId(event.target.value)}
+                >
+                  {wolfConsoleShips.map((ship) => (
+                    <option key={ship.id} value={ship.id}>{ship.name}</option>
+                  ))}
+                </select>
+                <label htmlFor="wolf-console-mode">Target mode</label>
+                <select
+                  id="wolf-console-mode"
+                  value={wolfConsoleMode}
+                  disabled={wolfConsoleMutation}
+                  onChange={(event) => setWolfConsoleMode(event.target.value as 'random' | 'chosen')}
+                >
+                  <option value="random">Random console // +2 suspicion</option>
+                  <option value="chosen">Chosen console // +4 suspicion</option>
+                </select>
+                {wolfConsoleMode === 'chosen' && (
+                  <>
+                    <label htmlFor="wolf-console-system">Chosen console</label>
+                    <select
+                      id="wolf-console-system"
+                      value={wolfConsoleSystemId}
+                      disabled={wolfConsoleMutation}
+                      onChange={(event) => setWolfConsoleSystemId(event.target.value)}
+                    >
+                      {wolfConsoleSystems.map((system) => (
+                        <option key={system.id} value={system.id}>{system.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+              {!wolfConsoleVisit ? (
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={
+                    endgameEvaluation || wolfConsoleMutation || !wolfConsoleActorUid ||
+                    !wolfConsoleShipId || wolfConsoleSystems.length === 0
+                  }
+                  onClick={() => void beginWolfConsoleObservation()}
+                >
+                  {wolfConsoleMutation ? 'Starting observation…' : 'Start 10-second observation'}
+                </button>
+              ) : (
+                <div className="gm-console__actions">
+                  <p className="gm-console__status" role="status">
+                    {clock < Date.parse(wolfConsoleVisit.eligibleAt)
+                      ? `OBSERVING // ${Math.ceil((Date.parse(wolfConsoleVisit.eligibleAt) - clock) / 1000)} seconds remain`
+                      : clock <= Date.parse(wolfConsoleVisit.expiresAt)
+                        ? 'ELIGIBLE // confirm before the 1-minute window closes'
+                        : 'EXPIRED // start a new observation'}
+                  </p>
+                  <button
+                    className="cic-action-button"
+                    type="button"
+                    disabled={
+                      wolfConsoleMutation || clock < Date.parse(wolfConsoleVisit.eligibleAt) ||
+                      clock > Date.parse(wolfConsoleVisit.expiresAt) ||
+                      (wolfConsoleMode === 'chosen' && !wolfConsoleSystemId)
+                    }
+                    onClick={() => void commitWolfConsoleSabotage()}
+                  >
+                    {wolfConsoleMutation ? 'Committing…' : 'Confirm console sabotage'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={wolfConsoleMutation}
+                    onClick={() => {
+                      setWolfConsoleVisit(null);
+                      setWolfConsoleMessage('Observation discarded // no Wolf action was consumed.');
+                    }}
+                  >
+                    Discard observation
+                  </button>
+                </div>
+              )}
+              {wolfConsoleMessage && <p className="gm-console__status" role="status">{wolfConsoleMessage}</p>}
+            </section>
+          )}
+
           {isGm && wolfActionReceipt && (
             <section
               className="gm-console__module cic-frame gm-wolf-action-receipt"
@@ -3674,6 +3865,15 @@ export default function GmConsole() {
                     <dd>
                       {wolfActionReceipt.coordinate} // {wolfActionReceipt.groupId} // eligible after
                       {' '}cycle {wolfActionReceipt.dueCycle} starts
+                    </dd>
+                  </div>
+                )}
+                {wolfActionReceipt.action === 'sabotage-console' && (
+                  <div>
+                    <dt>Damaged console</dt>
+                    <dd>
+                      {wolfActionReceipt.targetSystemName} // {wolfActionReceipt.targetShipId}
+                      {' '}// {wolfActionReceipt.mode}
                     </dd>
                   </div>
                 )}

@@ -69,6 +69,8 @@ import {
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
   requireWolfSupplySabotageRequest,
+  requireStartWolfConsoleVisitRequest,
+  requireResolveWolfConsoleSabotageRequest,
   requireWolfHomingBeaconRequest,
   requireWolfIntelligenceRequest,
   requireIntelligenceInvestigationRequest,
@@ -367,6 +369,11 @@ import {
 } from './wolfCommanderRerolls';
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
+import {
+  remainingConsoleSabotageTargets,
+  requireWolfConsoleVisitWindow,
+  resolveWolfConsoleSabotage as resolveWolfConsoleSabotageTarget,
+} from './wolfConsoleSabotage';
 import { resolveWolfSuspicionClue } from './wolfSuspicionClue';
 import {
   HOMING_BEACON_SUSPICION_INCREMENT,
@@ -11864,6 +11871,531 @@ export const applyWolfCommanderTargetRerolls = onCall<{
       actorUid: uid,
       requestId: change.requestId,
       createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfConsoleVisitResult = Readonly<{
+  status: 'observing';
+  type: 'wolf-console-visit';
+  sessionId: string;
+  visitId: string;
+  cycle: number;
+  actorUid: string;
+  coverRoleId: string;
+  targetShipId: string;
+  startedAt: string;
+  eligibleAt: string;
+  expiresAt: string;
+}>;
+
+function isWolfConsoleVisitResult(
+  value: unknown,
+  sessionId: string,
+  visitId: string,
+): value is WolfConsoleVisitResult {
+  return isRecord(value) && value.status === 'observing' &&
+    value.type === 'wolf-console-visit' && value.sessionId === sessionId &&
+    value.visitId === visitId && Number.isSafeInteger(value.cycle) &&
+    (value.cycle as number) >= 1 && typeof value.actorUid === 'string' &&
+    typeof value.coverRoleId === 'string' &&
+    (ROLE_IDS as readonly string[]).includes(value.coverRoleId) &&
+    typeof value.targetShipId === 'string' && Boolean(SHIP_DAMAGE_DECKS[value.targetShipId]) &&
+    typeof value.startedAt === 'string' && !Number.isNaN(Date.parse(value.startedAt)) &&
+    typeof value.eligibleAt === 'string' && !Number.isNaN(Date.parse(value.eligibleAt)) &&
+    typeof value.expiresAt === 'string' && !Number.isNaN(Date.parse(value.expiresAt));
+}
+
+/** Begin the physical ten-second adjacency observation under live GM authority. */
+export const startWolfConsoleVisit = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  targetUid?: unknown;
+  targetShipId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const observation = requireStartWolfConsoleVisitRequest(request.data ?? {});
+  if (!SHIP_DAMAGE_DECKS[observation.targetShipId]) {
+    throw new HttpsError('invalid-argument', 'The target ship has no implemented console damage deck.');
+  }
+  const targetPlayerRef = db.doc(`sessions/${observation.sessionId}/players/${observation.targetUid}`);
+  const loyaltyRef = db.doc(`sessions/${observation.sessionId}/secrets/loyalty-${observation.targetUid}`);
+  const assignmentRef = db.doc(`sessions/${observation.sessionId}/secrets/wolf-assignment`);
+  const actionRef = db.doc(`sessions/${observation.sessionId}/wolfActionState/${observation.targetUid}`);
+  const visitRef = db.doc(`sessions/${observation.sessionId}/wolfConsoleVisits/${observation.requestId}`);
+  const receiptRef = commandReceiptRef(observation.sessionId, observation.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'start-wolf-console-visit',
+    sessionId: observation.sessionId,
+    requestId: observation.requestId,
+    actorUid: uid,
+    instanceId: observation.instanceId,
+    expectedRevision: observation.expectedCycle,
+    payload: { targetUid: observation.targetUid, targetShipId: observation.targetShipId },
+  };
+  const startedAtMillis = Date.now();
+  return db.runTransaction(async (tx): Promise<WolfConsoleVisitResult> => {
+    const [{ session }, targetPlayer, loyalty, assignment, currentAction, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, observation.sessionId, uid, observation.instanceId),
+      tx.get(targetPlayerRef), tx.get(loyaltyRef), tx.get(assignmentRef),
+      tx.get(actionRef), tx.get(receiptRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, observation.sessionId, observation.requestId, 'Wolf console visit', [],
+    );
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is WolfConsoleVisitResult =>
+        isWolfConsoleVisitResult(value, observation.sessionId, observation.requestId),
+      'Wolf console visit',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (cycle < 1 || cycle !== observation.expectedCycle) {
+      throw commandError(
+        'failed-precondition', 'The cycle changed. Refresh before starting the observation.',
+        'stale-revision',
+      );
+    }
+    const authorization = wolfActionAuthorization({
+      actorUid: observation.targetUid,
+      active: isActivePlayer(targetPlayer),
+      connectedRole: targetPlayer.get('role'),
+      assignedRoleId: targetPlayer.get('assignedRoleId'),
+      activeConsoleRoleId: targetPlayer.get('activeConsoleRoleId'),
+      replacementRoleId: targetPlayer.get('replacementRoleId'),
+      escapeState: targetPlayer.get('escapeState'),
+      loyaltyAudience: loyalty.get('visibleToUids'),
+      loyaltyPayload: loyalty.get('payload'),
+      wolfAssignmentPayload: assignment.get('payload'),
+    });
+    if (!authorization.allowed) {
+      throw commandError(
+        'permission-denied', 'The selected player is not a live active Wolf in its assigned cover role.',
+        'unauthorized',
+      );
+    }
+    const pressHolderUid = session.get('pressHolderUid');
+    if (authorization.coverRoleId === 'press-officer' && (
+      session.get('pressEnabled') !== true ||
+      (pressHolderUid !== undefined && pressHolderUid !== null &&
+        pressHolderUid !== observation.targetUid)
+    )) {
+      throw commandError(
+        'permission-denied', 'The selected Press station is not active for this session.',
+        'unauthorized',
+      );
+    }
+    if (!activeVesselIdsForSession(session).includes(observation.targetShipId)) {
+      throw commandError('failed-precondition', 'The target ship is not active.', 'conflict');
+    }
+    const currentDamage = shipDamage(session.get('shipDamage'))[observation.targetShipId] ?? {
+      damagedSystemIds: [], destroyed: false,
+    };
+    if (currentDamage.destroyed) {
+      throw commandError('failed-precondition', 'A destroyed ship cannot receive console sabotage.', 'conflict');
+    }
+    try {
+      if (remainingConsoleSabotageTargets(observation.targetShipId, currentDamage).length === 0) {
+        throw new Error('This ship has no undamaged console available.');
+      }
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Console sabotage is not eligible.',
+        'conflict',
+      );
+    }
+    if (currentAction.exists) {
+      const storedCycle = currentAction.get('cycle');
+      if (!Number.isSafeInteger(storedCycle) || (storedCycle as number) < 1) {
+        throw commandError(
+          'failed-precondition', 'The private Wolf action state is malformed. Ask the facilitator to repair it.',
+          'malformed-input',
+        );
+      }
+      if ((storedCycle as number) >= cycle) {
+        throw commandError(
+          'failed-precondition', 'This Wolf has already submitted its action for the current cycle.',
+          'conflict',
+        );
+      }
+    }
+    const result: WolfConsoleVisitResult = {
+      status: 'observing',
+      type: 'wolf-console-visit',
+      sessionId: observation.sessionId,
+      visitId: observation.requestId,
+      cycle,
+      actorUid: observation.targetUid,
+      coverRoleId: authorization.coverRoleId,
+      targetShipId: observation.targetShipId,
+      startedAt: new Date(startedAtMillis).toISOString(),
+      eligibleAt: new Date(startedAtMillis + 10_000).toISOString(),
+      expiresAt: new Date(startedAtMillis + 60_000).toISOString(),
+    };
+    tx.set(visitRef, {
+      ...result,
+      startedAtMillis,
+      facilitatorUid: uid,
+      facilitatorInstanceId: observation.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfConsoleSabotageResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-console-sabotage';
+  sessionId: string;
+  requestId: string;
+  visitId: string;
+  cycle: number;
+  revision: number;
+  actorUid: string;
+  coverRoleId: string;
+  targetShipId: string;
+  targetSystemId: string;
+  targetSystemName: string;
+  mode: 'random' | 'chosen';
+  suspicion: number;
+  auditId: string;
+}>;
+
+function isWolfConsoleSabotageResult(
+  value: unknown,
+  sessionId: string,
+  requestId: string,
+): value is WolfConsoleSabotageResult {
+  return isRecord(value) && value.status === 'committed' &&
+    value.type === 'wolf-console-sabotage' && value.sessionId === sessionId &&
+    value.requestId === requestId && typeof value.visitId === 'string' &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    typeof value.actorUid === 'string' && typeof value.coverRoleId === 'string' &&
+    (ROLE_IDS as readonly string[]).includes(value.coverRoleId) &&
+    typeof value.targetShipId === 'string' && typeof value.targetSystemId === 'string' &&
+    typeof value.targetSystemName === 'string' &&
+    (value.mode === 'random' || value.mode === 'chosen') &&
+    Number.isSafeInteger(value.suspicion) && (value.suspicion as number) >= 0 &&
+    value.auditId === `wolf-console-sabotage-${requestId}`;
+}
+
+/** Resolve one observed console sabotage atomically under facilitator authority. */
+export const resolveWolfConsoleSabotage = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  visitId?: unknown;
+  expectedCycle?: unknown;
+  mode?: unknown;
+  chosenSystemId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const submission = requireResolveWolfConsoleSabotageRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${submission.sessionId}`);
+  const visitRef = db.doc(`sessions/${submission.sessionId}/wolfConsoleVisits/${submission.visitId}`);
+  const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
+  const clueRef = db.doc(`sessions/${submission.sessionId}/wolfClueDisclosure/current`);
+  const actionReceiptRef = db.doc(`sessions/${submission.sessionId}/wolfActionReceipts/current`);
+  const suspicionHistoryRef = db.doc(
+    `sessions/${submission.sessionId}/wolfSuspicionHistory/${submission.requestId}`,
+  );
+  const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'resolve-wolf-console-sabotage',
+    sessionId: submission.sessionId,
+    requestId: submission.requestId,
+    actorUid: uid,
+    instanceId: submission.instanceId,
+    expectedRevision: submission.expectedCycle,
+    payload: {
+      visitId: submission.visitId,
+      mode: submission.mode,
+      chosenSystemId: submission.chosenSystemId ?? null,
+    },
+  };
+  const resolvedAtMillis = Date.now();
+  let damageIndex: number | undefined;
+  let clueRoll: number | undefined;
+  return db.runTransaction(async (tx): Promise<WolfConsoleSabotageResult> => {
+    const [{ session }, visit, census, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, submission.sessionId, uid, submission.instanceId),
+      tx.get(visitRef), tx.get(censusRef), tx.get(receiptRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, submission.sessionId, submission.requestId, 'Wolf console sabotage', [],
+    );
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is WolfConsoleSabotageResult =>
+        isWolfConsoleSabotageResult(value, submission.sessionId, submission.requestId),
+      'Wolf console sabotage',
+    );
+    if (replay) return replay;
+    if (!visit.exists || visit.get('type') !== 'wolf-console-visit' ||
+        visit.get('status') !== 'observing' || visit.get('visitId') !== submission.visitId) {
+      throw commandError('failed-precondition', 'The console visit is unavailable.', 'conflict');
+    }
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (cycle < 1 || cycle !== submission.expectedCycle || visit.get('cycle') !== cycle) {
+      throw commandError(
+        'failed-precondition', 'The cycle changed. Start a new console visit observation.',
+        'stale-revision',
+      );
+    }
+    try {
+      requireWolfConsoleVisitWindow(visit.get('startedAtMillis'), resolvedAtMillis);
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'The console visit timing is invalid.',
+        'conflict',
+      );
+    }
+    const actorUid = visit.get('actorUid');
+    const targetShipId = visit.get('targetShipId');
+    if (typeof actorUid !== 'string' || typeof targetShipId !== 'string' ||
+        !SHIP_DAMAGE_DECKS[targetShipId]) {
+      throw commandError('failed-precondition', 'The console visit record is malformed.', 'malformed-input');
+    }
+    const targetPlayerRef = db.doc(`sessions/${submission.sessionId}/players/${actorUid}`);
+    const loyaltyRef = db.doc(`sessions/${submission.sessionId}/secrets/loyalty-${actorUid}`);
+    const assignmentRef = db.doc(`sessions/${submission.sessionId}/secrets/wolf-assignment`);
+    const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${actorUid}`);
+    const auditRef = db.doc(
+      `sessions/${submission.sessionId}/wolfActionState/${actorUid}/audit/${submission.requestId}`,
+    );
+    const [targetPlayer, loyalty, assignment, currentAction] = await Promise.all([
+      tx.get(targetPlayerRef), tx.get(loyaltyRef), tx.get(assignmentRef), tx.get(actionRef),
+    ]);
+    const authorization = wolfActionAuthorization({
+      actorUid,
+      active: isActivePlayer(targetPlayer),
+      connectedRole: targetPlayer.get('role'),
+      assignedRoleId: targetPlayer.get('assignedRoleId'),
+      activeConsoleRoleId: targetPlayer.get('activeConsoleRoleId'),
+      replacementRoleId: targetPlayer.get('replacementRoleId'),
+      escapeState: targetPlayer.get('escapeState'),
+      loyaltyAudience: loyalty.get('visibleToUids'),
+      loyaltyPayload: loyalty.get('payload'),
+      wolfAssignmentPayload: assignment.get('payload'),
+    });
+    if (!authorization.allowed || authorization.coverRoleId !== visit.get('coverRoleId')) {
+      throw commandError(
+        'permission-denied', 'The observed player no longer has live Wolf authority.', 'unauthorized',
+      );
+    }
+    const pressHolderUid = session.get('pressHolderUid');
+    if (authorization.coverRoleId === 'press-officer' && (
+      session.get('pressEnabled') !== true ||
+      (pressHolderUid !== undefined && pressHolderUid !== null && pressHolderUid !== actorUid)
+    )) {
+      throw commandError(
+        'permission-denied', 'The observed Press station is no longer active.', 'unauthorized',
+      );
+    }
+    let revision = 0;
+    if (currentAction.exists) {
+      const storedCycle = currentAction.get('cycle');
+      const storedRevision = currentAction.get('revision');
+      if (currentAction.get('type') !== 'wolf-action-commitment' ||
+          currentAction.get('actorUid') !== actorUid || currentAction.get('state') !== 'committed' ||
+          !isWolfActionKind(currentAction.get('action')) ||
+          typeof currentAction.get('requestId') !== 'string' ||
+          typeof currentAction.get('coverRoleId') !== 'string' ||
+          !Number.isSafeInteger(storedCycle) || (storedCycle as number) < 1 ||
+          !Number.isSafeInteger(storedRevision) || (storedRevision as number) < 1 ||
+          (storedRevision as number) >= Number.MAX_SAFE_INTEGER) {
+        throw commandError(
+          'failed-precondition', 'The private Wolf action state is malformed. Ask the facilitator to repair it.',
+          'malformed-input',
+        );
+      }
+      if ((storedCycle as number) >= cycle) {
+        throw commandError(
+          'failed-precondition', 'This Wolf has already submitted its action for the current cycle.',
+          'conflict',
+        );
+      }
+      revision = storedRevision as number;
+    }
+    const loyaltyPayload = loyalty.get('payload');
+    const suspicion = isRecord(loyaltyPayload) ? loyaltyPayload.suspicion : undefined;
+    if (!Number.isSafeInteger(suspicion) || (suspicion as number) < 0 ||
+        (suspicion as number) > Number.MAX_SAFE_INTEGER - 4) {
+      throw commandError(
+        'failed-precondition', 'The private Wolf loyalty state is malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    const censusEntries = storedLoyaltyCensusEntries(census);
+    const censusRevision = census.get('revision');
+    const loyaltyKind = isRecord(loyaltyPayload) ? loyaltyPayload.kind : undefined;
+    const censusEntry = censusEntries?.find((entry) => entry.uid === actorUid);
+    const censusEntriesCanonical = censusEntries?.every((entry) =>
+      liveLoyaltySuspicionDecision(entry.kind, entry.suspicion).allowed) === true;
+    if (!census.exists || !Number.isSafeInteger(censusRevision) || (censusRevision as number) < 0 ||
+        (censusRevision as number) >= Number.MAX_SAFE_INTEGER ||
+        !censusEntriesCanonical || !censusEntry ||
+        censusEntry.kind !== loyaltyKind || censusEntry.suspicion !== suspicion) {
+      throw commandError(
+        'failed-precondition', 'The facilitator loyalty census is stale or malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    if (!activeVesselIdsForSession(session).includes(targetShipId)) {
+      throw commandError('failed-precondition', 'The observed ship is no longer active.', 'conflict');
+    }
+    const currentDamage = shipDamage(session.get('shipDamage'))[targetShipId] ?? {
+      damagedSystemIds: [], destroyed: false,
+    };
+    let consequence;
+    try {
+      consequence = resolveWolfConsoleSabotageTarget({
+        shipId: targetShipId,
+        damage: currentDamage,
+        mode: submission.mode,
+        ...(submission.chosenSystemId === undefined
+          ? {} : { chosenSystemId: submission.chosenSystemId }),
+      }, (upperBound) => {
+        damageIndex ??= randomInt(upperBound);
+        return damageIndex;
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Console sabotage is not eligible.',
+        'conflict',
+      );
+    }
+    clueRoll ??= randomInt(1, 7);
+    const clue = resolveWolfSuspicionClue(
+      suspicion as number, consequence.suspicionIncrement, clueRoll,
+    );
+    const actionRevision = revision + 1;
+    const auditId = `wolf-console-sabotage-${submission.requestId}`;
+    const result: WolfConsoleSabotageResult = {
+      status: 'committed',
+      type: 'wolf-console-sabotage',
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      visitId: submission.visitId,
+      cycle,
+      revision: actionRevision,
+      actorUid,
+      coverRoleId: authorization.coverRoleId,
+      targetShipId,
+      targetSystemId: consequence.card.systemId,
+      targetSystemName: consequence.card.systemName,
+      mode: consequence.mode,
+      suspicion: clue.newSuspicion,
+      auditId,
+    };
+    const record = {
+      type: 'wolf-action-commitment',
+      actorUid,
+      coverRoleId: authorization.coverRoleId,
+      state: 'committed',
+      action: 'sabotage-console',
+      requestId: submission.requestId,
+      visitId: submission.visitId,
+      cycle,
+      revision: actionRevision,
+      targetShipId,
+      targetSystemId: consequence.card.systemId,
+      targetSystemName: consequence.card.systemName,
+      mode: consequence.mode,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.update(sessionRef, { [`shipDamage.${targetShipId}`]: consequence.state });
+    tx.update(loyaltyRef, { payload: { ...loyaltyPayload, suspicion: clue.newSuspicion } });
+    tx.set(censusRef, {
+      type: 'loyalty-census',
+      revision: (censusRevision as number) + 1,
+      entries: censusEntries!.map((entry) => entry.uid === actorUid
+        ? { ...entry, suspicion: clue.newSuspicion } : entry),
+    });
+    tx.set(clueRef, {
+      type: 'wolf-clue-disclosure',
+      revision: (censusRevision as number) + 1,
+      actorUid,
+      action: 'sabotage-console',
+      cycle,
+      requestId: submission.requestId,
+      ...clue,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(actionReceiptRef, {
+      type: 'wolf-action-receipt',
+      status: 'committed',
+      action: 'sabotage-console',
+      projectionRevision: (censusRevision as number) + 1,
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      cycle,
+      actorUid,
+      actorRoleId: authorization.coverRoleId,
+      phase: 'active',
+      revision: actionRevision,
+      idempotencyKey: submission.requestId,
+      auditId,
+      visitId: submission.visitId,
+      targetShipId,
+      targetSystemId: consequence.card.systemId,
+      targetSystemName: consequence.card.systemName,
+      mode: consequence.mode,
+      oldSuspicion: clue.oldSuspicion,
+      suspicionIncrement: clue.increment,
+      newSuspicion: clue.newSuspicion,
+      roll: clue.roll,
+      total: clue.total,
+      clueTier: clue.clueTier,
+      facilitatorInstruction: clue.facilitatorInstruction,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(suspicionHistoryRef, {
+      type: 'wolf-suspicion-history',
+      status: 'committed',
+      action: 'sabotage-console',
+      source: 'wolf-console-sabotage',
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      cycle,
+      actorUid,
+      actorRoleId: authorization.coverRoleId,
+      visitId: submission.visitId,
+      targetShipId,
+      targetSystemId: consequence.card.systemId,
+      targetSystemName: consequence.card.systemName,
+      mode: consequence.mode,
+      oldSuspicion: clue.oldSuspicion,
+      increment: clue.increment,
+      newSuspicion: clue.newSuspicion,
+      roll: clue.roll,
+      total: clue.total,
+      clueTier: clue.clueTier,
+      disclosure: clue.facilitatorInstruction,
+      auditId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(actionRef, record);
+    tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
+    tx.update(visitRef, {
+      status: 'resolved',
+      resolveRequestId: submission.requestId,
+      mode: consequence.mode,
+      targetSystemId: consequence.card.systemId,
+      resolvedAtMillis,
+      resolvedAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;

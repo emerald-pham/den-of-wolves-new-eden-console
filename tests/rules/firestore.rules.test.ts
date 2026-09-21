@@ -1479,6 +1479,24 @@ describe('private Wolf action commitments', () => {
   });
 });
 
+describe('private Wolf console visits', () => {
+  it('deny players, observers, and GMs every direct read, list, and write', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfConsoleVisits/visit-1`), {
+        type: 'wolf-console-visit', status: 'observing', actorUid: 'alice',
+        targetShipId: 'dione', cycle: 2, startedAtMillis: 1_000,
+      });
+    });
+    for (const uid of ['alice', 'press', 'observer', 'gm1']) {
+      const visit = doc(as(uid), `${SESSION}/wolfConsoleVisits/visit-1`);
+      await assertFails(getDoc(visit));
+      await assertFails(setDoc(visit, { status: 'resolved' }));
+      await assertFails(deleteDoc(visit));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/wolfConsoleVisits`)));
+    }
+  });
+});
+
 describe('facilitator Wolf clue disclosure', () => {
   it('allows only a GM to read the fixed projection and denies every client write or list', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

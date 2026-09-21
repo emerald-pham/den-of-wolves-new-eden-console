@@ -1335,6 +1335,44 @@ it('hydrates only canonical complete facilitator Wolf action receipts', () => {
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-console',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-console-1', cycle: 3, revision: 2,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
+      idempotencyKey: 'wolf-console-1', auditId: 'wolf-console-sabotage-wolf-console-1',
+      visitId: 'visit-1', targetShipId: 'aegis', targetSystemId: 'command-and-control',
+      targetSystemName: 'Command and Control', mode: 'chosen',
+      oldSuspicion: 10, suspicionIncrement: 4, newSuspicion: 14,
+      roll: 1, total: 15, clueTier: 'wolf-activity',
+      facilitatorInstruction: 'Point out the wolf activity to someone.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(expect.objectContaining({
+    action: 'sabotage-console', visitId: 'visit-1', targetShipId: 'aegis',
+    targetSystemId: 'command-and-control', targetSystemName: 'Command and Control',
+    mode: 'chosen', suspicionIncrement: 4,
+  }));
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-console',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-console-armour', cycle: 3, revision: 2,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
+      idempotencyKey: 'wolf-console-armour', auditId: 'wolf-console-sabotage-wolf-console-armour',
+      visitId: 'visit-armour', targetShipId: 'aegis', targetSystemId: 'armoured-hull-i',
+      targetSystemName: 'Armoured Hull I', mode: 'random',
+      oldSuspicion: 10, suspicionIncrement: 2, newSuspicion: 12,
+      roll: 1, total: 13, clueTier: 'wolf-activity',
+      facilitatorInstruction: 'Point out the wolf activity to someone.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(null);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
       type: 'wolf-action-receipt', status: 'committed', action: 'provide-intel',
       projectionRevision: 6, sessionId: 's1', requestId: 'wolf-intel-1', cycle: 4, revision: 2,
       actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
@@ -1486,11 +1524,27 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
     disclosure: 'Point out the wolf activity, and give a hint.',
     auditId: 'wolf-homing-beacon-wolf-beacon-1',
   };
+  const consoleSabotage = {
+    ...valid,
+    action: 'sabotage-console', source: 'wolf-console-sabotage', requestId: 'wolf-console-1',
+    visitId: 'visit-1', targetShipId: 'dione', targetSystemId: 'reactor',
+    targetSystemName: 'Reactor', mode: 'random', oldSuspicion: 1, increment: 2,
+    newSuspicion: 3, roll: 1, total: 4, clueTier: 'none', disclosure: 'Nothing.',
+    auditId: 'wolf-console-sabotage-wolf-console-1',
+  };
   callbacks[0]?.({
     metadata: { fromCache: true },
     docs: [{ data: () => valid }],
   });
   expect(onHistory).not.toHaveBeenCalled();
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ data: () => consoleSabotage }],
+  });
+  expect(onHistory).toHaveBeenLastCalledWith([expect.objectContaining({
+    action: 'sabotage-console', source: 'wolf-console-sabotage',
+    targetShipId: 'dione', targetSystemId: 'reactor', mode: 'random', increment: 2,
+  })]);
   callbacks[0]?.({
     metadata: { fromCache: false },
     docs: [

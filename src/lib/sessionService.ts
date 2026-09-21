@@ -3499,6 +3499,88 @@ function wolfCommanderTargetRerollReply(value: unknown): WolfCommanderTargetRero
   };
 }
 
+export interface WolfConsoleVisitReply {
+  readonly status: 'observing';
+  readonly type: 'wolf-console-visit';
+  readonly sessionId: string;
+  readonly visitId: string;
+  readonly cycle: number;
+  readonly actorUid: string;
+  readonly coverRoleId: string;
+  readonly targetShipId: string;
+  readonly startedAt: string;
+  readonly eligibleAt: string;
+  readonly expiresAt: string;
+}
+
+export interface WolfConsoleSabotageReply {
+  readonly status: 'committed';
+  readonly type: 'wolf-console-sabotage';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly visitId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly actorUid: string;
+  readonly coverRoleId: string;
+  readonly targetShipId: string;
+  readonly targetSystemId: string;
+  readonly targetSystemName: string;
+  readonly mode: 'random' | 'chosen';
+  readonly suspicion: number;
+  readonly auditId: string;
+}
+
+/** Start the server-owned physical observation window for console sabotage. */
+export async function startWolfConsoleVisit(
+  targetUid: string,
+  targetShipId: string,
+): Promise<WolfConsoleVisitReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.session.phase !== 'active') {
+    throw new Error('An active GM session is required before observing a console visit.');
+  }
+  requireFreshSessionAuthority('Reconnect before observing a console visit.');
+  await ensureSignedIn();
+  const payload = {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedCycle: store.session.currentTurn,
+    targetUid,
+    targetShipId,
+  };
+  const call = httpsCallable<typeof payload, WolfConsoleVisitReply>(functions(), 'startWolfConsoleVisit');
+  return (await call(payload)).data;
+}
+
+/** Resolve the observed visit; target damage and suspicion remain server-owned. */
+export async function resolveWolfConsoleSabotage(
+  visitId: string,
+  mode: 'random' | 'chosen',
+  chosenSystemId?: string,
+): Promise<WolfConsoleSabotageReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.session.phase !== 'active') {
+    throw new Error('An active GM session is required before resolving console sabotage.');
+  }
+  requireFreshSessionAuthority('Reconnect before resolving console sabotage.');
+  await ensureSignedIn();
+  const payload = {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    visitId,
+    expectedCycle: store.session.currentTurn,
+    mode,
+    ...(mode === 'chosen' && chosenSystemId ? { chosenSystemId } : {}),
+  };
+  const call = httpsCallable<typeof payload, WolfConsoleSabotageReply>(
+    functions(), 'resolveWolfConsoleSabotage',
+  );
+  return (await call(payload)).data;
+}
+
 /** Mark the approximate first Wolf-attack window from an active GM console. */
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,

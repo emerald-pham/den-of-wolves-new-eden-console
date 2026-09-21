@@ -5518,6 +5518,13 @@
       "type": "evidence / authority / atomic-consumption"
     },
     {
+      "direction": "498 -> 497;502;503;504",
+      "id": "E-498-CONSOLE-SABOTAGE",
+      "language": "The facilitator starts a private server-timed observation only for an active Wolf in its exact live cover role and an active ship with a remaining undamaged console. Resolution requires at least ten seconds and expires after one minute, then revalidates facilitator, Wolf, cover, cycle, ship, private loyalty census, and shared action authority before writing. Random mode chooses one remaining console through server randomness and adds two suspicion; chosen mode validates the selected remaining console and adds four. One transaction applies damage, private loyalty and census changes, the Wolf clue roll, shared action commitment, facilitator receipt, durable history, visit closure, audit, and replay receipt. Failed or expired observations consume no action, exact replay cannot reroll or reapply effects, armour is excluded from console targets, and rules deny every client direct access to observation records.",
+      "source": "functions/src/wolfConsoleSabotage.ts; functions/src/wolfConsoleSabotage.test.ts; functions/src/index.ts startWolfConsoleVisit and resolveWolfConsoleSabotage; functions/src/requestGuards.ts; functions/src/requestGuards.test.ts; functions/src/wolfConsoleSabotageCallable.test.ts; src/data/consoleSabotageTargets.ts; src/lib/sessionService.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed Wolf console sabotage summary",
+      "type": "evidence / production-path / server-authority / timed-observation / random-or-chosen / atomic-damage / suspicion / privacy / replay / regression"
+    },
+    {
       "direction": "499 -> 497;111",
       "id": "E-499-SUPPLY-SABOTAGE",
       "language": "The supply-sabotage callable strictly validates a canonical cover-owned shuttle and stored resource, then atomically applies floor-half cargo loss, plus two private and facilitator-census suspicion, the one-action-per-cycle commitment, audit, and replay receipt. A failed target writes nothing and a valid alternate target remains available in the same cycle; no public event discloses the action. Live-loyalty parsing preserves action-raised Wolf suspicion through later census and Press-state reconciliation.",
@@ -18377,8 +18384,8 @@
         "acceptance": "recent-visit rules, random or chosen target mode, damage, and +2/+4 suspicion remain server-owned.",
         "title": "Resolve console sabotage."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-498",
+      "description": "The facilitator can begin a private, server-timed console observation only for a live Wolf in its exact active cover role and an active, undestroyed ship with an undamaged console. Resolution remains unavailable until ten seconds have elapsed and expires after one minute; the server revalidates facilitator, Wolf, cover, cycle, ship, private loyalty census, and one-action authority before any write. Random mode draws from the remaining server-owned console deck and adds exactly two suspicion, while chosen mode accepts only a remaining console and adds exactly four. One transaction applies the damage, private loyalty and census update, clue roll, action commitment, facilitator receipt, durable history, visit closure, audit, and replay receipt. Exact retries cannot reroll or reapply effects, failed and expired observations consume no action, AEGIS armour cannot be selected as a console, and every client is denied direct access to the private observation records.",
+      "evidenceIds": "E-AUDIT-498;E-498-CONSOLE-SABOTAGE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497",
@@ -18386,10 +18393,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.56"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

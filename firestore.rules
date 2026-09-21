@@ -832,6 +832,12 @@ service cloud.firestore {
         }
       }
 
+      // Physical console visits contain the hidden Wolf identity, target, and
+      // server timing used by the facilitator-confirmed sabotage resolver.
+      match /wolfConsoleVisits/{visitId} {
+        allow read, write: if false;
+      }
+
       // The latest complete Wolf action record contains the hidden actor,
       // private suspicion, roll, and audit identity. Only a facilitator may
       // read the fixed projection; crews receive consequences through their

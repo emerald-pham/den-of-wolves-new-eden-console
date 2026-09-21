@@ -872,7 +872,7 @@ export interface WolfClueDisclosure {
 export interface WolfActionReceipt {
   readonly type: 'wolf-action-receipt';
   readonly status: 'committed';
-  readonly action: 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
+  readonly action: 'sabotage-console' | 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
   readonly projectionRevision: number;
   readonly sessionId: SessionId;
   readonly requestId: string;
@@ -892,6 +892,11 @@ export interface WolfActionReceipt {
   readonly coordinate?: string;
   readonly dueCycle?: number;
   readonly arrivalTiming?: 'after-cycle-start';
+  readonly visitId?: string;
+  readonly targetShipId?: VesselId;
+  readonly targetSystemId?: string;
+  readonly targetSystemName?: string;
+  readonly mode?: 'random' | 'chosen';
   readonly oldSuspicion: number;
   readonly suspicionIncrement: number;
   readonly newSuspicion: number;
@@ -906,13 +911,18 @@ export interface WolfActionReceipt {
 export interface WolfSuspicionHistoryEntry {
   readonly type: 'wolf-suspicion-history';
   readonly status: 'committed';
-  readonly action: 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
-  readonly source: 'wolf-supply-sabotage' | 'wolf-homing-beacon' | 'wolf-intelligence';
+  readonly action: 'sabotage-console' | 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
+  readonly source: 'wolf-console-sabotage' | 'wolf-supply-sabotage' | 'wolf-homing-beacon' | 'wolf-intelligence';
   readonly sessionId: SessionId;
   readonly requestId: string;
   readonly cycle: number;
   readonly actorUid: PlayerId;
   readonly actorRoleId: RoleId;
+  readonly visitId?: string;
+  readonly targetShipId?: VesselId;
+  readonly targetSystemId?: string;
+  readonly targetSystemName?: string;
+  readonly mode?: 'random' | 'chosen';
   readonly oldSuspicion: number;
   readonly increment: number;
   readonly newSuspicion: number;

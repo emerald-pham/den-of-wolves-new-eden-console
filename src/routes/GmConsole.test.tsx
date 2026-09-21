@@ -43,6 +43,8 @@ vi.mock('@/lib/sessionService', () => ({
   setWolfAttackWindow: vi.fn(),
   stageWolfAttackPreparation: vi.fn(),
   declareWolfAttack: vi.fn(),
+  startWolfConsoleVisit: vi.fn(),
+  resolveWolfConsoleSabotage: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
@@ -86,7 +88,7 @@ vi.mock('@/lib/smallShipService', () => ({
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, setEmergencyTimerPaused,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
@@ -263,6 +265,50 @@ it('shows the facilitator-only loyalty census without exposing private card extr
   expect(census).toHaveTextContent('wolf-agent');
   expect(census).toHaveTextContent('10');
   expect(census).not.toHaveTextContent(/brief|notes|link|proof/i);
+});
+
+it('runs the server-timed facilitator flow for random or chosen console sabotage', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 2, activeVesselIds: ['aegis', 'dione'],
+    shipDamage: { dione: { damagedSystemIds: ['storage'], destroyed: false } },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 4,
+    entries: [{ uid: 'wolf-player', kind: 'wolf-agent', suspicion: 1 }],
+  });
+  const now = Date.now();
+  vi.mocked(startWolfConsoleVisit).mockResolvedValue({
+    status: 'observing', type: 'wolf-console-visit', sessionId: 's1', visitId: 'visit-1',
+    cycle: 2, actorUid: 'wolf-player', coverRoleId: 'dione-engineer', targetShipId: 'dione',
+    startedAt: new Date(now - 20_000).toISOString(),
+    eligibleAt: new Date(now - 10_000).toISOString(),
+    expiresAt: new Date(now + 40_000).toISOString(),
+  });
+  vi.mocked(resolveWolfConsoleSabotage).mockResolvedValue({
+    status: 'committed', type: 'wolf-console-sabotage', sessionId: 's1',
+    requestId: 'resolve-1', visitId: 'visit-1', cycle: 2, revision: 1,
+    actorUid: 'wolf-player', coverRoleId: 'dione-engineer', targetShipId: 'dione',
+    targetSystemId: 'reactor', targetSystemName: 'Reactor', mode: 'chosen',
+    suspicion: 5, auditId: 'wolf-console-sabotage-resolve-1',
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Wolf console sabotage observation' });
+  await user.selectOptions(within(panel).getByLabelText('Visited ship'), 'dione');
+  await user.click(within(panel).getByRole('button', { name: 'Start 10-second observation' }));
+  await waitFor(() => expect(startWolfConsoleVisit).toHaveBeenCalledWith('wolf-player', 'dione'));
+  expect(panel).toHaveTextContent('ELIGIBLE');
+  await user.selectOptions(within(panel).getByLabelText('Target mode'), 'chosen');
+  await user.selectOptions(within(panel).getByLabelText('Chosen console'), 'reactor');
+  await user.click(within(panel).getByRole('button', { name: 'Confirm console sabotage' }));
+  await waitFor(() => expect(resolveWolfConsoleSabotage).toHaveBeenCalledWith(
+    'visit-1', 'chosen', 'reactor',
+  ));
+  expect(panel).toHaveTextContent('COMMITTED // Reactor damaged // +4 suspicion');
 });
 
 it('shows the latest Wolf clue only in the facilitator console', async () => {

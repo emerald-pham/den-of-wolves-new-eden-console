@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [498],
+    implementationProgress: {
+      completed: 361, total: 751, percentage: '48.07%',
+      done: 361, partial: 18, active: 0, missing: 372,
+    },
+    changes: [
+      'Facilitators can now record a Wolf console visit and resolve sabotage only after the required ten-second observation, within the one-minute confirmation window.',
+      'The server chooses a remaining console for random sabotage with two suspicion, or validates a chosen remaining console with four suspicion, then commits damage and the private audit together.',
+      'Failed, expired, or repeated requests cannot consume the cycle action, reroll the outcome, or expose private observation records to player clients.',
+      '361 of 751 planned items are complete (48.07%).',
+    ],
+  },
+  {
+    version: '0.4.55',
     implementationPrompts: [500],
     implementationProgress: {
       completed: 360, total: 751, percentage: '47.94%',
