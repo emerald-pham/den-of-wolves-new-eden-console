@@ -1097,66 +1097,76 @@ it('resolves the Capybara single-bay shuttle choice through atomic replay and st
   expect(maintenance.session.shipResources).toMatchObject({ capybara: { fuel: 2 } });
 });
 
-it('resolves ordinary single-bay fuelling from the authoritative docking manifest exactly once', async () => {
-  mock.grantShip = 'dione';
+it.each([
+  ['dione', 'philia', 'dione-engineer'],
+  ['icebreaker', 'blacksmith', 'icebreaker-engineer'],
+  ['shepherd', 'black-sheep', 'shepherd-engineer'],
+  ['quellon', 'condor', 'quellon-engineer'],
+  ['refinery-124', 'chacau', 'refinery-124-engineer'],
+] as const)('resolves %s single-bay fuelling from its authoritative docking manifest exactly once', async (
+  shipId,
+  shuttleId,
+  engineerRoleId,
+) => {
+  mock.grantShip = shipId;
   const maintenance = {
     session: {
-      phase: 'active', currentTurn: 1, activeVesselIds: ['dione'],
-      activeRoleIds: ['dione-engineer'],
+      phase: 'active', currentTurn: 1, activeVesselIds: [shipId],
+      activeRoleIds: [engineerRoleId],
       maintenanceCycles: {
-        dione: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+        [shipId]: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
       },
-      shipResources: { dione: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
-      shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
-      shipUnrest: { dione: 0 }, shipSurvivors: { dione: 2_500 },
-      shuttleDockings: [{ shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' }],
-      shuttleCargo: {}, shuttleFuelled: { philia: false },
+      shipResources: { [shipId]: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+      shipDamage: { [shipId]: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { [shipId]: 0 }, shipSurvivors: { [shipId]: 2_500 },
+      shuttleDockings: [{ shipId, shuttleId, dockedAt: 'SESSION START' }],
+      shuttleCargo: {}, shuttleFuelled: { [shuttleId]: false },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
     receipts: {}, undo: {}, events: {}, damageDraws: {},
   };
   mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
   const requestData = {
-    ...data, shipId: 'dione', action: 'bays', expectedRevision: 0,
-    requestId: 'dione-bay-philia', refuels: { 'shuttle-bay': 'philia' },
+    ...data, shipId, action: 'bays', expectedRevision: 0,
+    requestId: `${shipId}-bay-${shuttleId}`, refuels: { 'shuttle-bay': shuttleId },
   };
 
   await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
     status: 'committed', action: 'bays', committedRevision: 1,
-    cycle: { step: 7, refuelled: ['philia'] },
-    result: { resources: { fuel: 3 }, fuelled: { philia: true } },
+    cycle: { step: 7, refuelled: [shuttleId] },
+    result: { resources: { fuel: 3 }, fuelled: { [shuttleId]: true } },
   });
   const updateCount = mock.update.mock.calls.length;
   await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
-    status: 'replayed', requestId: 'dione-bay-philia',
+    status: 'replayed', requestId: `${shipId}-bay-${shuttleId}`,
   });
   expect(mock.update.mock.calls.length).toBe(updateCount);
 
   maintenance.session.maintenanceCycles = {
-    dione: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+    [shipId]: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
   };
   maintenance.session.shipResources = {
-    dione: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+    [shipId]: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
   };
-  maintenance.session.shuttleFuelled = { philia: false };
+  maintenance.session.shuttleFuelled = { [shuttleId]: false };
   maintenance.session.shuttleDockings = [
-    { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
-    { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
+    { shipId, shuttleId, dockedAt: 'SESSION START' },
+    { shipId, shuttleId, dockedAt: 'SESSION START' },
   ];
   mock.update.mockClear();
   mock.set.mockClear();
   await expect(runMaintenance.run(request({
-    ...requestData, requestId: 'dione-bay-duplicate-manifest',
+    ...requestData, requestId: `${shipId}-bay-duplicate-manifest`,
   }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/docking manifest/i) });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 
   maintenance.session.shuttleDockings = [
-    { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
+    { shipId, shuttleId, dockedAt: 'SESSION START' },
   ];
-  maintenance.session.shuttleFuelled = { philia: true };
+  maintenance.session.shuttleFuelled = { [shuttleId]: true };
   await expect(runMaintenance.run(request({
-    ...requestData, requestId: 'dione-bay-already-fuelled',
+    ...requestData, requestId: `${shipId}-bay-already-fuelled`,
   }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/once per cycle/i) });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();

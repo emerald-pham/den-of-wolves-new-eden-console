@@ -307,7 +307,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 194 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-194 | M3;M5 | Complete Icebreaker identity and maintenance lane. |
 | 195 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-195;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Icebreaker Storage. |
 | 196 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-196;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Icebreaker Reactor. |
-| 197 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-197 | M3;M5 | Resolve the Icebreaker Shuttle Bay. |
+| 197 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-197;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED | M3;M5 | Resolve the Icebreaker Shuttle Bay. |
 | 198 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-198;E-198-230-PRODUCTION | M3;M5 | Resolve Icebreaker Hydroponics. |
 | 199 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-199;E-198-230-PRODUCTION | M3;M5 | Resolve Icebreaker Water Reclamation. |
 | 200 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-200;E-198-230-PRODUCTION | M3;M5 | Resolve Mining Drone Control. |
@@ -319,7 +319,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 204 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-204 | M3;M5 | Complete Shepherd identity and maintenance lane. |
 | 205 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-205;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Shepherd Storage. |
 | 206 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-206;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Shepherd Reactor. |
-| 207 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-207 | M3;M5 | Resolve the Shepherd Shuttle Bay. |
+| 207 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-207;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED | M3;M5 | Resolve the Shepherd Shuttle Bay. |
 | 208 | NEW | done | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-208;E-198-230-PRODUCTION | M3;M5 | Resolve Shepherd Water Reclamation. |
 | 209 | NEW | done | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-209;E-198-230-PRODUCTION | M3;M5 | Resolve both Shepherd Advanced Hydroponics consoles. |
 | 210 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-210 | M3;M5 | Audit the Shepherd Jump Drive. |
@@ -333,7 +333,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 216 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-216 | M3;M5 | Complete Quellon identity and maintenance lane. |
 | 217 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-217;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Quellon Storage. |
 | 218 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-218;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Quellon Reactor. |
-| 219 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-219 | M3;M5 | Resolve the Quellon Shuttle Bay. |
+| 219 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-219;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED | M3;M5 | Resolve the Quellon Shuttle Bay. |
 | 220 | NEW | done | 122;125;216 | none | none | none | none | none | none | none | E-AUDIT-220;E-198-230-PRODUCTION | M3;M5 | Resolve Quellon Hydroponics. |
 | 221 | NEW | done | 122;125;216 | none | none | none | none | none | none | none | E-AUDIT-221;E-198-230-PRODUCTION | M3;M5 | Resolve both Water Production consoles. |
 | 222 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-222 | M3;M5 | Audit the Quellon Jump Drive. |
@@ -343,7 +343,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 224 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-224 | M3;M5 | Complete Refinery 124 identity and maintenance lane. |
 | 225 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-225;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Refinery 124 Storage. |
 | 226 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-226;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Refinery 124 Reactor. |
-| 227 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-227 | M3;M5 | Resolve the Refinery 124 Shuttle Bay. |
+| 227 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-227;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED | M3;M5 | Resolve the Refinery 124 Shuttle Bay. |
 | 228 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-228;E-198-230-PRODUCTION | M3;M5 | Resolve Refinery 124 Hydroponics. |
 | 229 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-229;E-198-230-PRODUCTION | M3;M5 | Resolve Refinery 124 Water Reclamation. |
 | 230 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-230;E-198-230-PRODUCTION | M3;M5 | Resolve both Fuel Refinery consoles. |
@@ -1028,6 +1028,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-195 | hard_prompt | 195 -> 115 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Storage lane extends the existing damaged-Storage contract. |
 | E-AUDIT-196 | hard_prompt | 196 -> 122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each Reactor lane consumes capacity and charge eligibility. |
 | E-AUDIT-197 | hard_prompt | 197 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Each shuttle-bay lane consumes single-bay eligibility and the craft manifest. |
+| E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED | evidence / production-path / server-authoritative / shuttle-bay / manifest / replay / stale-cas / cycle-expiry / regression | 197;207;219;227 -> 127;361 | functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/index.ts; functions/src/shuttlecraft.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/lib/maintenanceService.ts | Icebreaker, Shepherd, Quellon, and Refinery 124 each resolve their printed single Shuttle Bay through the shared server transaction and the current authoritative docking manifest. The transaction spends one host fuel, marks only the selected docked craft fuelled, advances the maintenance lane, replays an exact request without another write, returns stale state without another spend, rejects duplicate docking records and already-fuelled craft, and clears shuttle fuel at the next numbered cycle. The shared maintenance UI submits the selected craft with the current revision and keeps a damaged bay skippable without granting refuelling. |
 | E-AUDIT-198 | hard_prompt | 198 -> 114;122;125;194 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Icebreaker production consumes ordered maintenance, Reactor eligibility, and Icebreaker identity. |
 | E-AUDIT-199 | hard_prompt | 199 -> 114;122;125;194 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Icebreaker production consumes ordered maintenance, Reactor eligibility, and Icebreaker identity. |
 | E-AUDIT-200 | hard_prompt | 200 -> 114;122;125;194 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Icebreaker production consumes ordered maintenance, Reactor eligibility, and Icebreaker identity. |

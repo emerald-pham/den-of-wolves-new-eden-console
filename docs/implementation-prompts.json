@@ -1129,6 +1129,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "197;207;219;227 -> 127;361",
+      "id": "E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED",
+      "language": "Icebreaker, Shepherd, Quellon, and Refinery 124 each resolve their printed single Shuttle Bay through the shared server transaction and the current authoritative docking manifest. The transaction spends one host fuel, marks only the selected docked craft fuelled, advances the maintenance lane, replays an exact request without another write, returns stale state without another spend, rejects duplicate docking records and already-fuelled craft, and clears shuttle fuel at the next numbered cycle. The shared maintenance UI submits the selected craft with the current revision and keeps a damaged bay skippable without granting refuelling.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/index.ts; functions/src/shuttlecraft.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/lib/maintenanceService.ts",
+      "type": "evidence / production-path / server-authoritative / shuttle-bay / manifest / replay / stale-cas / cycle-expiry / regression"
+    },
+    {
       "direction": "198 -> 114;122;125;194",
       "id": "E-AUDIT-198",
       "language": "Icebreaker production consumes ordered maintenance, Reactor eligibility, and Icebreaker identity.",
@@ -10723,8 +10730,8 @@
         "acceptance": "one valid craft is fuelled once and stale/retry requests cannot spend twice.",
         "title": "Resolve the Icebreaker Shuttle Bay."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-197",
+      "description": "Verified Icebreaker's existing production Shuttle Bay path. The authoritative maintenance transaction validates the current docking manifest, spends one ship fuel, marks only the selected docked craft fuelled, advances the lane, replays exact retries without another write, and rejects stale, duplicate-manifest, damaged-bay, undocked, and already-fuelled requests. Focused server and shared maintenance UI suites passed. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-197;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -10735,7 +10742,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11005,8 +11012,8 @@
         "acceptance": "one eligible docked craft is fuelled once during the printed step.",
         "title": "Resolve the Shepherd Shuttle Bay."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-207",
+      "description": "Verified Shepherd's existing production Shuttle Bay path. The authoritative maintenance transaction accepts one eligible docked craft at the printed step, spends one ship fuel, advances once, and preserves exact replay and stale-revision safety. Duplicate manifests, damaged bays, undocked selections, and already-fuelled craft fail without another spend. Focused server and shared maintenance UI suites passed. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-207;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -11017,7 +11024,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11331,8 +11338,8 @@
         "acceptance": "one eligible docked craft is fuelled once with correct expiry.",
         "title": "Resolve the Quellon Shuttle Bay."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-219",
+      "description": "Verified Quellon's existing production Shuttle Bay path. One eligible docked craft is fuelled through the current revision-bound server transaction; exact retries do not spend twice, stale or invalid choices do not mutate, and the numbered-cycle transition clears the fuelled ledger at the correct expiry boundary. Focused server and shared maintenance UI suites passed. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-219;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -11343,7 +11350,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11565,8 +11572,8 @@
         "acceptance": "one valid docked craft receives one fuel once.",
         "title": "Resolve the Refinery 124 Shuttle Bay."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-227",
+      "description": "Verified Refinery 124's existing production Shuttle Bay path. The server resolves one valid docked craft from the authoritative manifest, spends one host fuel once, advances the maintenance lane, replays exact retries, and denies stale, duplicate-manifest, damaged-bay, undocked, and already-fuelled requests without another mutation. Focused server and shared maintenance UI suites passed. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-227;E-FLEET-SINGLE-SHUTTLE-BAYS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -11577,7 +11584,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
