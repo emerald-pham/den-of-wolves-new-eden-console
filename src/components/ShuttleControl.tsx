@@ -40,6 +40,12 @@ export default function ShuttleControl({ control }: Props) {
   const destinations = (session.activeVesselIds ?? [])
     .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
       shuttleDestinationIsAllowed(control.shuttleId, shipId));
+  const projectedFleetVesselIds = session.playerDiscovery &&
+    session.playerDiscovery.groupId === me.fleetGroupId
+    ? session.playerDiscovery.fleetGroupVesselIds ?? [] : [];
+  const evacuationDestinations = projectedFleetVesselIds
+    .filter((shipId) => shipId !== docking?.shipId && destinations.includes(shipId) &&
+      !session.populationAlerts?.[shipId]);
   const departureWindowOpen = session.phase === 'active' &&
     session.turnPhase?.airspace.state === 'lifted' && !session.turnPhase.timerPause &&
     Date.now() < Date.parse(session.turnPhase.openAirspaceEndsAt);
@@ -47,6 +53,11 @@ export default function ShuttleControl({ control }: Props) {
   const evacuatedThisCycle = evacuationLedger && evacuationLedger.cycle === session.currentTurn
     ? evacuationLedger.moved : 0;
   const evacuationRemaining = Math.max(0, MAX_SHUTTLE_EVACUATION_PER_CYCLE - evacuatedThisCycle);
+  const evacuationWindowOpen = session.phase === 'active' &&
+    session.turnPhase?.turn === session.currentTurn &&
+    session.turnPhase?.airspace.state === 'lifted';
+  const sourcePopulationAlertPending = Boolean(docking && session.populationAlerts?.[docking.shipId]);
+  const evacuationAvailable = evacuationWindowOpen && !sourcePopulationAlertPending;
   const sourcePopulation = docking ? session.shipSurvivors?.[docking.shipId] : undefined;
   const destinationPopulation = evacuationDestinationShipId
     ? session.shipSurvivors?.[evacuationDestinationShipId] : undefined;
@@ -146,7 +157,9 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitEvacuation(): Promise<void> {
-    if (pending || !evacuationDestinationShipId || !evacuationAmounts.includes(evacuationAmount)) return;
+    if (pending || !evacuationAvailable ||
+        !evacuationDestinations.includes(evacuationDestinationShipId) ||
+        !evacuationAmounts.includes(evacuationAmount)) return;
     setPending(true);
     setStatus('');
     try {
@@ -246,21 +259,25 @@ export default function ShuttleControl({ control }: Props) {
       <p>
         {evacuationRemaining.toLocaleString()} of 5,000 survivors remain available for this shuttle this cycle.
       </p>
+      {!evacuationWindowOpen && <p>Survivor transfers open during Coordination Phase.</p>}
+      {sourcePopulationAlertPending && <p>Resolve this ship&apos;s survivor alert before another transfer.</p>}
       <label htmlFor={`shuttle-evacuation-destination-${control.shuttleId}`}>Receiving ship</label>
       <select id={`shuttle-evacuation-destination-${control.shuttleId}`}
-        value={evacuationDestinationShipId} disabled={pending || evacuationRemaining === 0}
+        value={evacuationDestinationShipId}
+        disabled={pending || !evacuationAvailable || evacuationRemaining === 0}
         onChange={(event) => {
           setEvacuationDestinationShipId(event.target.value);
           setEvacuationAmount(0);
         }}>
         <option value="">Choose fleet ship</option>
-        {destinations.map((shipId) => <option value={shipId} key={shipId}>
+        {evacuationDestinations.map((shipId) => <option value={shipId} key={shipId}>
           {findShip(shipId)?.name ?? shipId}
         </option>)}
       </select>
       <label htmlFor={`shuttle-evacuation-amount-${control.shuttleId}`}>Survivors</label>
       <select id={`shuttle-evacuation-amount-${control.shuttleId}`}
-        value={evacuationAmount || ''} disabled={pending || evacuationAmounts.length === 0}
+        value={evacuationAmount || ''}
+        disabled={pending || !evacuationAvailable || evacuationAmounts.length === 0}
         onChange={(event) => setEvacuationAmount(Number(event.target.value))}>
         <option value="">Choose a printed-track transfer</option>
         {evacuationAmounts.map((amount) => <option value={amount} key={amount}>
@@ -272,7 +289,9 @@ export default function ShuttleControl({ control }: Props) {
       </p>}
       <div className="console-workspace__actions">
         <button className="cic-action-button" type="button"
-          disabled={pending || !evacuationAmounts.includes(evacuationAmount)}
+          disabled={pending || !evacuationAvailable ||
+            !evacuationDestinations.includes(evacuationDestinationShipId) ||
+            !evacuationAmounts.includes(evacuationAmount)}
           onClick={() => void submitEvacuation()}>Move survivors</button>
       </div>
     </section>}

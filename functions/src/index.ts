@@ -1583,12 +1583,14 @@ function publishDiscoveryProjections(
     const projectionPlayer = {
       get: (field: string) => field === 'fleetGroupId' ? effectiveGroupId : player.get(field),
     };
+    const fleetGroupVesselIds = fleetGroups.find((group) => group.id === effectiveGroupId)?.vesselIds ?? [];
     writePlayerDiscoveryProjection(
       tx,
       playerDiscoveryProjectionRef(sessionId, player.id),
       projectionPlayer,
       navigation,
       revision,
+      fleetGroupVesselIds,
     );
   }
 }
@@ -3824,7 +3826,7 @@ export const confirmSetup = onCall<{
       );
     }
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
-    ensureInitialFleetGroup(
+    const nextGroup = ensureInitialFleetGroup(
       tx,
       command.sessionId,
       setup.activeVesselIds,
@@ -3963,7 +3965,7 @@ export const confirmSetup = onCall<{
     });
     publishDiscoveryProjections(
       tx, command.sessionId, playerDocs, nextNavigation, reply.setupRevision,
-      command.configuration.chartId,
+      command.configuration.chartId, [nextGroup],
     );
     tx.set(db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`), {
       ...nextCraftManifest,
@@ -4627,6 +4629,7 @@ export const startGame = onCall<{
       if (!player.exists || isKickedPlayer(player)) continue;
       tx.set(playerDiscoveryProjectionRef(start.sessionId, player.id), {
         groupId: initialGroup.id,
+        fleetGroupVesselIds: [...initialGroup.vesselIds],
         pursuitValue: 2,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
@@ -5390,8 +5393,8 @@ export const evacuateShuttleSurvivorsCommand = onCall<{
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/shuttle-evacuation-${data.requestId}`);
   return db.runTransaction(async tx => {
-    const [session, actor, receipt] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef),
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -5404,8 +5407,20 @@ export const evacuateShuttleSurvivorsCommand = onCall<{
       'shuttle survivor evacuation',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('shuttle survivor evacuation');
     requireActionPhase(session, 'transfer', 'player');
-    const cycle = sessionTurn(session.get('currentTurn'));
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const currentCycle = session.get('currentTurn');
+    if (!phase || session.get('phase') !== 'active' ||
+        !Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        phase.turn !== currentCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative shuttle evacuation clock is unavailable.',
+        'conflict',
+      );
+    }
+    const cycle = currentCycle as number;
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
       throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');
@@ -10029,7 +10044,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           get: (field: string) => field === 'fleetGroupId' ? group.id : player.get(field),
         };
         tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-          ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision),
+          ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision, group.vesselIds),
           groupId: group.id,
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -10066,6 +10081,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         });
         tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
           groupId: group.id,
+          fleetGroupVesselIds: [...group.vesselIds],
           knownCoordinates: ['0000'], knownSystems: discoverySystemsForCoordinates(['0000']),
           pursuitDistance: 0, navigationLogs: [], revision: navigationRevision,
           ...(navigation.pursuitGroups[group.id] !== undefined
@@ -10345,7 +10361,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       get: (field: string) => field === 'fleetGroupId' ? group.id : currentPlayer.get(field),
     };
     tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-      ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision),
+      ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision, group.vesselIds),
       groupId: group.id,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -11326,6 +11342,7 @@ export const moveShipToLocation = onCall<{
       nextNavigation,
       nextRevision,
       session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      pursuitFleetGroups,
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -11554,6 +11571,7 @@ export const jumpShip = onCall<{
       nextNavigation,
       revision,
       session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      pursuitFleetGroups,
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),

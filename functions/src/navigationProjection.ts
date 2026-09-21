@@ -26,6 +26,8 @@ export interface PursuitFleetGroup {
 
 export interface PlayerDiscoveryProjection {
   readonly groupId: string;
+  /** Server-owned vessel membership for this player's current fleet group. */
+  readonly fleetGroupVesselIds: readonly string[];
   readonly shipId?: string;
   readonly currentCoordinate?: string;
   readonly knownCoordinates: readonly string[];
@@ -219,12 +221,14 @@ export function playerDiscoveryProjection(
   player: Pick<DocumentSnapshot, 'get'>,
   navigation: NavigationState,
   revision: number,
+  fleetGroupVesselIds: readonly string[] = [],
 ): PlayerDiscoveryProjection {
   const groupId = typeof player.get('fleetGroupId') === 'string' ? player.get('fleetGroupId') as string : '';
   const shipId = playerShipId(player);
   if (!shipId || !groupId) {
     return {
       groupId,
+      fleetGroupVesselIds: [...fleetGroupVesselIds],
       knownCoordinates: [INITIAL_COORDINATE],
       knownSystems: discoverySystemsForCoordinates([INITIAL_COORDINATE]),
       pursuitDistance: 0,
@@ -242,6 +246,7 @@ export function playerDiscoveryProjection(
   const ownHistory = systemHistoryForShip(navigation.systemHistory, shipId);
   return {
     groupId,
+    fleetGroupVesselIds: [...fleetGroupVesselIds],
     shipId,
     currentCoordinate,
     knownCoordinates: knownCoordinates(currentCoordinate, entries),
@@ -262,6 +267,7 @@ export function writePlayerDiscoveryProjection(
   player: Pick<DocumentSnapshot, 'get'>,
   navigation: NavigationState,
   revision: number,
+  fleetGroupVesselIds: readonly string[] = [],
 ): void {
-  tx.set(ref, playerDiscoveryProjection(player, navigation, revision));
+  tx.set(ref, playerDiscoveryProjection(player, navigation, revision, fleetGroupVesselIds));
 }

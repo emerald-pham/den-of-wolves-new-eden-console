@@ -111,6 +111,30 @@ it('hydrates only canonical per-shuttle evacuation accounting', () => {
   });
 });
 
+it('hydrates only a canonical private fleet-group vessel tuple', () => {
+  const callbacks: Array<(snapshot: ReturnType<typeof sessionSnapshot>) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation((...args: unknown[]) => {
+    callbacks.push(args[1] as (snapshot: ReturnType<typeof sessionSnapshot>) => void);
+    return vi.fn();
+  });
+  const onPlayerDiscovery = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onPlayerDiscovery,
+  });
+  callbacks[2]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({
+      groupId: 'fleet-1', shipId: 'quellon', fleetGroupVesselIds: ['quellon', 'capybara'],
+      currentCoordinate: '0000', knownCoordinates: ['0000'],
+      knownSystems: { 'system-01': '0000' }, pursuitDistance: 0, navigationLogs: [], revision: 1,
+    }),
+  } as never);
+  expect(onPlayerDiscovery).toHaveBeenCalledWith(expect.objectContaining({
+    groupId: 'fleet-1', fleetGroupVesselIds: ['quellon', 'capybara'],
+  }));
+});
+
 it('hydrates retained shuttle custody without resurrecting its destroyed-host docking', () => {
   const session = sessionFrom('retained-shuttle', {
     ...sessionData(20),

@@ -83,6 +83,7 @@ describe('server discovery projections', () => {
     const groupedNavigation = { ...navigation, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 } };
     const dione = playerDiscoveryProjection(
       player({ fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' }), groupedNavigation, 4,
+      ['dione'],
     );
     const shepherd = playerDiscoveryProjection(
       player({ fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' }), groupedNavigation, 4,
@@ -90,7 +91,7 @@ describe('server discovery projections', () => {
 
     expect(dione).toMatchObject({
       groupId: 'fleet-1', shipId: 'dione', currentCoordinate: '5143', pursuitDistance: 1,
-      pursuitValue: 2,
+      pursuitValue: 2, fleetGroupVesselIds: ['dione'],
     });
     expect(dione.knownCoordinates).toEqual(['0000', '5143']);
     expect(dione.navigationLogs).toHaveLength(1);
@@ -111,6 +112,7 @@ describe('server discovery projections', () => {
       player({ fleetGroupId: 'fleet-2', assignedRoleId: null }), navigation, 4,
     )).toEqual({
       groupId: 'fleet-2',
+      fleetGroupVesselIds: [],
       knownCoordinates: ['0000'],
       knownSystems: { 'system-01': '0000' },
       pursuitDistance: 0,

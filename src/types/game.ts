@@ -139,6 +139,8 @@ export type SystemHistory = Readonly<Record<string, SystemHistoryForShip>>;
 /** Server-owned navigation knowledge for one entitled player/ship view. */
 export interface PlayerDiscoveryProjection {
   readonly groupId: GroupId;
+  /** Server-owned vessel membership for this player's current fleet group. */
+  readonly fleetGroupVesselIds?: readonly VesselId[];
   readonly shipId?: VesselId;
   readonly currentCoordinate?: GalacticCoordinate;
   readonly knownCoordinates: readonly GalacticCoordinate[];

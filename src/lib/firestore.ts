@@ -1184,6 +1184,9 @@ function systemHistory(value: unknown): SystemHistory | undefined {
 function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | undefined {
   const raw = recordValue(value);
   const groupId = parseEntityId('group', raw?.groupId);
+  const fleetGroupVesselIds = Array.isArray(raw?.fleetGroupVesselIds)
+    ? raw.fleetGroupVesselIds.map((shipId) => parseEntityId('vessel', shipId))
+    : [];
   const shipId = raw?.shipId === undefined ? undefined : parseEntityId('vessel', raw.shipId);
   const revision = nonNegativeInteger(raw?.revision);
   const currentCoordinate = typeof raw?.currentCoordinate === 'string' ? raw.currentCoordinate : undefined;
@@ -1193,7 +1196,9 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
   const knownSystemsRaw = recordValue(raw?.knownSystems);
   const knownSystems = Object.fromEntries(Object.entries(knownSystemsRaw ?? {}).flatMap(([systemId, coordinate]) =>
     typeof coordinate === 'string' ? [[systemId, coordinate]] : []));
-  if (!groupId || revision === undefined || (raw?.shipId !== undefined && !shipId)) return undefined;
+  if (!groupId || revision === undefined || (raw?.shipId !== undefined && !shipId) ||
+      fleetGroupVesselIds.some((vesselId) => vesselId === undefined) ||
+      new Set(fleetGroupVesselIds).size !== fleetGroupVesselIds.length) return undefined;
   const logs = shipNavigationLogs(raw?.navigationLogs === undefined
     ? {}
     : { [shipId ?? 'unknown']: raw.navigationLogs });
@@ -1201,6 +1206,7 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
   const projectedPursuitValue = nonNegativeInteger(raw?.pursuitValue);
   return {
     groupId,
+    fleetGroupVesselIds: fleetGroupVesselIds as string[],
     ...(shipId ? { shipId } : {}),
     ...(currentCoordinate ? { currentCoordinate } : {}),
     knownCoordinates,

@@ -52,6 +52,11 @@ beforeEach(() => {
   put('sessions/s1', {
     phase: 'active', currentTurn: 3, activeRoleIds: ['quellon-explorer'],
     activeVesselIds: ['quellon', 'capybara'], populationAlerts: {},
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'now' }],
     shuttleControl: { hummingbird: {
       shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'owner',
@@ -107,6 +112,25 @@ it.each([
   await expect(evacuateShuttleSurvivorsCommand.run(request(data, uid))).rejects.toMatchObject({
     code: expect.stringMatching(/permission-denied|failed-precondition/),
   });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['stale phase clock', () => { (mock.documents.get('sessions/s1')!.turnPhase as Fields).turn = 2; }],
+  ['missing current cycle', () => { delete mock.documents.get('sessions/s1')!.currentTurn; }],
+] as const)('rejects a %s without mutation', async (_label, mutate) => {
+  mutate();
+  await expect(evacuateShuttleSurvivorsCommand.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects a preexisting event without a replay receipt and preserves it', async () => {
+  const eventPath = 'sessions/s1/events/shuttle-evacuation-evac-1';
+  put(eventPath, { type: 'legacy-event', sentinel: true });
+  await expect(evacuateShuttleSurvivorsCommand.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get(eventPath)).toEqual({ type: 'legacy-event', sentinel: true });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
 

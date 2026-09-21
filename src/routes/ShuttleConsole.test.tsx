@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
@@ -462,6 +462,17 @@ it('offers only printed-track survivor transfers within the shuttle cycle allowa
   state.setSession({
     ...state.session!, phase: 'active', currentTurn: 3,
     activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon', 'capybara'],
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['quellon', 'capybara'], shipId: 'quellon',
+      currentCoordinate: '0000', knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+      pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
     shipSurvivors: { quellon: 30_000, capybara: 13_000 },
     shuttleEvacuations: { hummingbird: { cycle: 3, moved: 2_000, revision: 4 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -484,6 +495,47 @@ it('offers only printed-track survivor transfers within the shuttle cycle allowa
   await user.click(screen.getByRole('button', { name: 'Move survivors' }));
   expect(evacuateShuttleSurvivors).toHaveBeenCalledWith('hummingbird', 'capybara', 2_000, 3, 4);
   expect(screen.getByText('Moved 2,000 survivors to Capybara.')).toHaveAttribute('role', 'status');
+});
+
+it('keeps survivor destinations inside the projected fleet group and closes invalid transfer windows', async () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 3,
+    activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon', 'capybara', 'dione'],
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['quellon', 'capybara'], shipId: 'quellon',
+      currentCoordinate: '0000', knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+      pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
+    shipSurvivors: { quellon: 30_000, capybara: 13_000, dione: 12_000 },
+    populationAlerts: { quellon: {
+      shipId: 'quellon', shipName: 'Quellon', population: 30_000,
+      targetGmInstanceIds: ['gm-1'], createdAt: '2026-09-21T12:00:00.000Z',
+    } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const evacuation = screen.getByRole('region', { name: 'Survivor evacuation' });
+  expect(within(evacuation).queryByRole('option', { name: 'Dione' })).not.toBeInTheDocument();
+  expect(within(evacuation).getByRole('option', { name: 'Capybara' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Receiving ship')).toBeDisabled();
+  expect(screen.getByText('Survivor transfers open during Coordination Phase.')).toBeVisible();
+  expect(screen.getByText("Resolve this ship's survivor alert before another transfer.")).toBeVisible();
+  expect(evacuateShuttleSurvivors).not.toHaveBeenCalled();
 });
 
 it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {
