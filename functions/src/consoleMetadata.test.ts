@@ -55,6 +55,38 @@ describe('server-only console metadata', () => {
     });
   });
 
+  it('registers every AEGIS combat console as unavailable until its attack resolver lands', () => {
+    const combatConsoles = [
+      { consoleId: 'aegis:command-and-control', name: 'Command and Control' },
+      { consoleId: 'aegis:fighter-bay-alpha', name: 'Fighter Bay Alpha' },
+      { consoleId: 'aegis:fighter-bay-bravo', name: 'Fighter Bay Bravo' },
+      { consoleId: 'aegis:missile-launchers', name: 'Missile Launchers' },
+      { consoleId: 'aegis:point-defence-lasers', name: 'Point Defence Lasers' },
+    ] as const;
+
+    const promptOwned = Object.values(CONSOLE_METADATA)
+      .filter((metadata) => metadata.shipId === 'aegis' && metadata.phase === 'Wolf attack' &&
+        metadata.resolver.status === 'unavailable' && metadata.resolver.followOnPrompts.includes('182'))
+      .map(({ consoleId, name }) => ({ consoleId, name }))
+      .sort((left, right) => left.consoleId.localeCompare(right.consoleId));
+    expect(promptOwned).toEqual(
+      [...combatConsoles].sort((left, right) => left.consoleId.localeCompare(right.consoleId)),
+    );
+
+    expect(combatConsoles.map(({ consoleId }) => consoleMetadataFor('aegis', consoleId.split(':')[1]!)))
+      .toEqual(combatConsoles.map(({ consoleId }) => expect.objectContaining({
+        consoleId,
+        shipId: 'aegis',
+        phase: 'Wolf attack',
+        resolver: {
+          status: 'unavailable',
+          id: 'fail-closed.unavailable',
+          followOnPrompts: ['182'],
+          reason: expect.stringMatching(/unavailable until/i),
+        },
+      })));
+  });
+
   it('gives every registered console one complete authoritative resolver disposition', () => {
     const unavailableOwners = new Set<string>();
     for (const metadata of Object.values(CONSOLE_METADATA)) {

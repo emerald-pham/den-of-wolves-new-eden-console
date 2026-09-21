@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**358 / 751 prompts complete (47.67%)**
+**359 / 751 prompts complete (47.80%)**
 
-Status breakdown: **358 done · 18 partial · 375 missing**.
+Status breakdown: **359 done · 18 partial · 374 missing**.
 
 Active prompt: **none**
 
@@ -605,7 +605,7 @@ release classification and evidence.
 | 179 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 180 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 181 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 182 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 182 | done | non-feature | — | The shared AEGIS combat-console catalog registers Command and Control, Fighter Bay Alpha, Fighter Bay Bravo, Missile Launchers, and Point Defence Lasers with their printed phase and server-only metadata. Every entry has an explicit fail-closed resolver owned by Prompt 182, and the Executive Officer console renders all five as non-interactive operational references with no button, link, input, select, or textarea. Focused client/server regressions pass 98/98 and prevent a premature combat action from appearing before its attack resolver exists. |
 | 183 | done | non-feature | — | Existing setup validation rejects Dione below 12 players, and the recommended roster/active-vessel matrix includes Dione from 12 through 20. Production composition creates only active-vessel stores and population, while disabled ship and role routes return to the fleet roster. Verified 14 setup/roster cases and both disabled-Dione route checks, alongside the already-passing production composition and resource suites. No runtime change or new deployment is claimed. |
 | 184 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 185 | done | non-feature | — | Existing Dione Storage uses the shared authoritative maintenance storage branch and registered damage identity. Losses round down and affect only Dione stores and its docked craft, with stores/cargo persisted in one callable transaction. Verified the shared damaged-storage unit check and reused the passing 40-test maintenance callable suite; Dione roster gating is separately verified by Prompt 183. Evidence reconciliation only, with no runtime change. |

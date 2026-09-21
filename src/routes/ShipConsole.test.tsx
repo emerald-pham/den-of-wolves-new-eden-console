@@ -1012,15 +1012,33 @@ it('gives the Wing Commander Starlight and fighter-wing operations without XO sy
   expect(screen.getByText('Starlight shuttle destination')).toBeInTheDocument();
 });
 
-it('adds the Executive Officer battle reference workspace', () => {
+it('keeps every registered AEGIS combat console reference-only until attack resolvers land', () => {
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('region', { name: /AEGIS Executive Officer console/i })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Command and Control' })).toBeInTheDocument();
+  const workspace = screen.getByRole('region', { name: /AEGIS Executive Officer console/i });
+  const combatSystemNames = [
+    'Command and Control',
+    'Fighter Bay Alpha',
+    'Fighter Bay Bravo',
+    'Missile Launchers',
+    'Point Defence Lasers',
+  ];
+  const systemCards = within(workspace).getAllByRole('article')
+    .filter((article) => article.getAttribute('aria-label')?.endsWith('system // operational'));
+  expect(systemCards.map((article) => article.getAttribute('aria-label'))).toEqual(
+    combatSystemNames.map((name) => `${name} system // operational`),
+  );
+  for (const name of combatSystemNames) {
+    const system = within(workspace).getByRole('article', {
+      name: `${name} system // operational`,
+    });
+    expect(system).toBeVisible();
+    expect(system.querySelector('button, a, input, select, textarea')).toBeNull();
+  }
 });
 
 it('shows AEGIS battle-sheet damage through the shared fleet systems workspace', () => {

@@ -982,6 +982,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "182 -> 165;180",
+      "id": "E-182-FAIL-CLOSED-COMBAT-CONSOLES",
+      "language": "The server-only console catalog contains the exact five AEGIS combat systems: Command and Control, Fighter Bay Alpha, Fighter Bay Bravo, Missile Launchers, and Point Defence Lasers. Each is registered for the Wolf attack phase with an explicit unavailable resolver assigned to Prompt 182. The Executive Officer workspace renders the same five systems as operational references, and a discriminating route regression proves none contains a button, link, input, select, or textarea before the corresponding attack resolver exists.",
+      "source": "functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; src/data/roleProcedures.ts; src/components/FleetSystemsWorkspace.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx",
+      "type": "evidence / exact-registration / client-server-parity / fail-closed / no-premature-action / regression"
+    },
+    {
       "direction": "183 -> 161;162",
       "id": "E-AUDIT-183",
       "language": "Dione roster gating consumes vessel registration and printed capacity/population data.",
@@ -10198,8 +10205,8 @@
         "acceptance": "extend the existing console shell/data so Command and Control, both Fighter Bays, Missile Launchers, and Point Defence expose no action before their attack resolvers exist.",
         "title": "Complete AEGIS combat-console registration."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-182",
+      "description": "The shared AEGIS combat-console catalog registers Command and Control, Fighter Bay Alpha, Fighter Bay Bravo, Missile Launchers, and Point Defence Lasers with their printed phase and server-only metadata. Every entry has an explicit fail-closed resolver owned by Prompt 182, and the Executive Officer console renders all five as non-interactive operational references with no button, link, input, select, or textarea. Focused client/server regressions pass 98/98 and prevent a premature combat action from appearing before its attack resolver exists.",
+      "evidenceIds": "E-AUDIT-182;E-182-FAIL-CLOSED-COMBAT-CONSOLES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "165",
@@ -10210,7 +10217,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
