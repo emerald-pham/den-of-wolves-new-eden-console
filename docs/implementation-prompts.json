@@ -1031,6 +1031,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "187 -> 127;361",
+      "id": "E-187-VERIFIED",
+      "language": "Dione registers one step-6 Shuttle Bay and the shared server transaction derives its eligible choice from the unique authoritative docking manifest. The Dione-specific callable regression spends one host fuel, marks Philia fuelled, advances the lane, replays without another update, and preserves state on duplicate-docking or already-fuelled denial. The generic maintenance engine rejects wrong order, damage, insufficient fuel, and repeat selection, while the numbered-cycle transition clears every vessel refuel ledger and every shuttle fuel flag. The shared component renders the docked choice and a damaged-bay continuation path.",
+      "source": "src/data/vessels/dione.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/turnTransition.ts; functions/src/turnTransition.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/data/shuttles.test.ts",
+      "type": "evidence / production-path / server-authority / manifest / one-fuel-one-craft / replay / expiry / regression"
+    },
+    {
       "direction": "188 -> 122;125;183",
       "id": "E-AUDIT-188",
       "language": "Dione Hydroponics is now an authoritative post-Reactor production choice with charge, water, upgrade, damage, replay, and order evidence.",
@@ -10413,8 +10420,8 @@
         "acceptance": "one eligible docked craft receives fuel for one host fuel and the action expires correctly.",
         "title": "Resolve the Dione Shuttle Bay."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-187",
+      "description": "The existing server-owned Dione maintenance lane resolves its single step-6 Shuttle Bay from the authoritative docking manifest. One uniquely docked, not-yet-fuelled craft spends exactly one Dione fuel and gains one cycle-scoped fuel flag; exact replay adds no write, while duplicate docking, repeat fuelling, wrong order, damage, insufficient fuel, and ineligible craft fail before mutation. The shared cycle transition clears every bay refuel ledger and shuttle fuel flag. Focused engine, callable, manifest, component, and expiry checks passed on 2026-09-21. This is evidence reconciliation only; no runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-187;E-187-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -10425,7 +10432,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
