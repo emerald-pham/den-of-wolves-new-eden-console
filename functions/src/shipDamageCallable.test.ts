@@ -30,6 +30,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { addShipDamage } from './index';
+import { ROLE_OWNED_CRAFT_CATALOG } from './craftOwnership';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
@@ -223,6 +224,18 @@ it('denies another GM instance and ships without a damage deck', async () => {
   await expect(addShipDamage.run(request({ ...data, shipId: 'unknown' })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
 });
+
+it.each(ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map((craft) => craft.id))(
+  'rejects the registered shuttle %s before randomness or a transaction write',
+  async (shuttleId) => {
+    await expect(addShipDamage.run(request({ ...data, shipId: shuttleId })))
+      .rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.delete).not.toHaveBeenCalled();
+  },
+);
 
 it.each([
   ['aegis', 3100], ['dione', 16000], ['icebreaker', 10100],

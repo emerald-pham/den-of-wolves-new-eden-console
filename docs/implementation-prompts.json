@@ -2571,6 +2571,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "374 -> 130;373",
+      "id": "E-374-SHUTTLE-DAMAGE-IMMUNITY",
+      "language": "The server-owned craft catalog drives a complete shuttle matrix through both ship-damage entry points. Every registered shuttle is rejected by the shared damage-deck resolver before its random callback, and the GM/environmental damage callable rejects the same identities before opening a transaction or performing any write. The Wolf fleet-damage resolver delegates to that same deck boundary and likewise fails before sampling. Full ships keep their canonical decks; no shuttle durability state or fighter-wing rule is invented.",
+      "source": "functions/src/shuttleDamageImmunity.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/shipDamage.ts; functions/src/wolfCombatMath.ts; functions/src/craftOwnership.ts; focused 127-test craft/damage/callable/Wolf suite; Functions TypeScript build; focused ESLint",
+      "type": "evidence / catalog-complete / server-authority / environmental-damage / wolf-damage / pre-random-denial / zero-write / non-feature contract"
+    },
+    {
       "direction": "375 -> 361;369",
       "id": "E-AUDIT-375",
       "language": "Ordinary bay capacity consumes manifest and fuelling eligibility.",
@@ -15438,8 +15445,8 @@
         "acceptance": "environmental or Wolf ship-damage calls cannot draw a ship card for a shuttle.",
         "title": "Preserve shuttle damage immunity."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-374",
+      "description": "The authoritative ship-damage boundary has no damage deck for any registered shuttle. A complete catalog-driven regression proves all seventeen shuttle identities are rejected both by the GM/environmental damage callable and by the Wolf fleet-damage resolver before any random sample, Firestore transaction, write, or deletion. Full fleet ships retain their printed decks, while fighter-wing combat state remains separately owned. This closes the immunity contract without adding shuttle hit points, damage cards, or a runtime release.",
+      "evidenceIds": "E-AUDIT-374;E-374-SHUTTLE-DAMAGE-IMMUNITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "130;373",
@@ -15450,7 +15457,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

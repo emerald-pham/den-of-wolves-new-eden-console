@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**428 / 751 prompts complete (56.99%)**
+**429 / 751 prompts complete (57.12%)**
 
-Status breakdown: **428 done · 16 partial · 307 missing**.
+Status breakdown: **429 done · 16 partial · 306 missing**.
 
 Active prompt: **none**
 
@@ -816,7 +816,7 @@ release classification and evidence.
 | 371 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 372 | done | feature | 0.4.75 | AEGIS Press access now authorizes only the enabled SNN Press shuttle to request departure and enter transit while general airspace remains restricted. Server and routed UI checks reject disabled-Press stale custody, preserve ordinary craft restrictions, and retain all existing timing, routing, custody, replay, and attack locks. |
 | 373 | done | non-feature | 0.4.79 | Release 0.4.79 makes declaration atomically park every represented shuttle at its nearest legal active host before combat. In-flight positions derive from immutable server route timing; candidates remain inside the shuttle's canonical fleet group and printed host restrictions; distances equal within floating-point precision use P146's fixed vessel order. The private attack state records every selected host, squared distance, and ordered tie set, while the session receives the complete docking and visit snapshot and consumed transit records are removed. Existing capability filtering admits only printed combat craft to battle actions. |
-| 374 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 374 | done | non-feature | — | The authoritative ship-damage boundary has no damage deck for any registered shuttle. A complete catalog-driven regression proves all seventeen shuttle identities are rejected both by the GM/environmental damage callable and by the Wolf fleet-damage resolver before any random sample, Firestore transaction, write, or deletion. Full fleet ships retain their printed decks, while fighter-wing combat state remains separately owned. This closes the immunity contract without adding shuttle hit points, damage cards, or a runtime release. |
 | 375 | done | non-feature | — | Verified the existing production single-bay boundary. Each non-AEGIS ship has one authoritative bay step that can fuel at most one eligible docked craft per numbered cycle, spends once, then advances; damaged, duplicate, repeated, stale, and out-of-order choices cannot exceed capacity. This is evidence reconciliation with no runtime change. |
 | 376 | done | non-feature | — | Verified the existing production AEGIS dual-bay boundary. Zeta and Omega are independent ordered one-craft maintenance steps with separate damage eligibility, result and receipt/event records, fuel spending, and cleared UI selection; replay and stale requests cannot duplicate either use. This is evidence reconciliation with no runtime change. |
 | 377 | done | non-feature | — | The production shuttle cargo callable already implements this acceptance through the released Prompt 113 path. It derives the current holder, unique live dock, active manifest, group-local host, exact printed allowlist and both current inventories from server state, then updates only the host and shuttle ledgers in one transaction. Transit, duplicate or missing docks, stale custody, unsupported cargo, cross-group hosts, malformed ledgers, insufficient stock and request collisions fail before mutation; exact retries return the stored result without moving cargo twice. |
