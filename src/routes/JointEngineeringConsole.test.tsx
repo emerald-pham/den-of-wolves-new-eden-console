@@ -182,3 +182,18 @@ it('switches between the assigned ships’ engineering reference systems', async
   await userEvent.click(screen.getByRole('button', { name: 'Quellon' }));
   expect(screen.getByRole('heading', { name: 'Water Production' })).toBeInTheDocument();
 });
+
+it('gives the alternate Union engineer only Shepherd, Icebreaker, and Ally', async () => {
+  render(<MemoryRouter initialEntries={['/union/roles/joint-engineering-shepherd-icebreaker']}>
+    <Routes><Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} /></Routes>
+  </MemoryRouter>);
+
+  expect(screen.getByRole('link', { name: /open ally shuttle console/i }))
+    .toHaveAttribute('href', '/shuttles/ally');
+  expect(screen.queryByRole('link', { name: /open wobbly shuttle console/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Shepherd' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('heading', { name: 'Advanced Hydroponics' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Icebreaker' }));
+  expect(screen.getByRole('heading', { name: 'Mining Drone Control' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /quellon|refinery 124/i })).not.toBeInTheDocument();
+});

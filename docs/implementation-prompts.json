@@ -1864,11 +1864,25 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "276 -> 053;166",
+      "id": "E-276-QUELLON-REFINERY-UNION-PAIR-VERIFIED",
+      "language": "The active Quellon/Refinery Union Engineer receives exactly the Quellon and Refinery 124 maintenance workspaces and Wobbly. Client routing exposes only those two ship lanes and that one assigned craft. Server maintenance authority accepts only Quellon or Refinery 124 for the active Union role, while shuttle custody and destination validation keep Wobbly within the same two-ship pair during open-airspace movement.",
+      "source": "src/data/roles.ts; src/data/rolePresets.ts; src/components/JointEngineeringWorkspace.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/JointEngineeringConsole.tsx; src/routes/JointEngineeringConsole.test.tsx; src/data/shuttles.ts; functions/src/roleConfiguration.ts; functions/src/roleConfiguration.test.ts; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/shuttleDeparture.ts; functions/src/shuttleDeparture.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts",
+      "type": "evidence / production-path / Joint-Engineering-Union / Quellon / Refinery-124 / Wobbly / exact-pair / maintenance-authority / movement-boundary"
+    },
+    {
       "direction": "277 -> 053;166",
       "id": "E-AUDIT-277",
       "language": "Union assignment consumes the configured Union substitution and role binding.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "277 -> 053;166",
+      "id": "E-277-SHEPHERD-ICEBREAKER-UNION-PAIR-VERIFIED",
+      "language": "The active Shepherd/Icebreaker Union Engineer receives exactly the Shepherd and Icebreaker maintenance workspaces and Ally. Client routing exposes only those two ship lanes and that one assigned craft. Server maintenance authority accepts only Shepherd or Icebreaker for the active Union role, while shuttle custody and destination validation keep Ally within the same two-ship pair during open-airspace movement.",
+      "source": "src/data/roles.ts; src/data/rolePresets.ts; src/components/JointEngineeringWorkspace.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/JointEngineeringConsole.tsx; src/routes/JointEngineeringConsole.test.tsx; src/data/shuttles.ts; functions/src/roleConfiguration.ts; functions/src/roleConfiguration.test.ts; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/shuttleDeparture.ts; functions/src/shuttleDeparture.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts",
+      "type": "evidence / production-path / Joint-Engineering-Union / Shepherd / Icebreaker / Ally / exact-pair / maintenance-authority / movement-boundary"
     },
     {
       "direction": "278 -> 166;234",
@@ -13025,8 +13039,8 @@
         "acceptance": "the engineer runs only those two maintenance lanes and their configured craft during allowed movement.",
         "title": "Assign the Quellon/Refinery Union pair."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-276",
+      "description": "Verified the existing Quellon/Refinery Union assignment. Its active engineer sees and can operate only those two maintenance lanes and Wobbly; server authority and shuttle destination checks preserve the pair during allowed movement. This is evidence reconciliation with no runtime behavior change.",
+      "evidenceIds": "E-AUDIT-276;E-276-QUELLON-REFINERY-UNION-PAIR-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "053;166",
@@ -13037,7 +13051,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -13048,8 +13062,8 @@
         "acceptance": "the alternate engineer receives only those two lanes and corresponding craft.",
         "title": "Assign the Shepherd/Icebreaker Union pair."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-277",
+      "description": "Verified the existing Shepherd/Icebreaker Union assignment. Its active engineer sees and can operate only those two maintenance lanes and Ally; server authority and shuttle destination checks preserve the pair during allowed movement. This is evidence reconciliation with no runtime behavior change.",
+      "evidenceIds": "E-AUDIT-277;E-277-SHEPHERD-ICEBREAKER-UNION-PAIR-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "053;166",
@@ -13060,7 +13074,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

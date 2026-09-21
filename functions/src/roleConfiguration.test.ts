@@ -3,6 +3,7 @@ import {
   DEFAULT_ACTIVE_ROLE_IDS,
   isJointEngineeringRoleAvailable,
   isValidRoleConfiguration,
+  jointEngineeringShipsForRole,
   ROLE_IDS,
   recommendedRoleIds,
 } from './roleConfiguration';
@@ -147,6 +148,14 @@ describe('role configuration', () => {
       expect(isJointEngineeringRoleAvailable(recommendedRoleIds(playerCount), shepherdIcebreaker)).toBe(true);
     }
     expect(isJointEngineeringRoleAvailable(recommendedRoleIds(9), shepherdIcebreaker)).toBe(false);
+  });
+
+  it('binds each Union station to only its printed pair of maintenance lanes', () => {
+    expect(jointEngineeringShipsForRole('joint-engineering-quellon-refinery'))
+      .toEqual(['quellon', 'refinery-124']);
+    expect(jointEngineeringShipsForRole('joint-engineering-shepherd-icebreaker'))
+      .toEqual(['shepherd', 'icebreaker']);
+    expect(jointEngineeringShipsForRole('quellon-engineer')).toEqual([]);
   });
 
   it('allows Union replacement coverage only below the full roster and without its paired engineers', () => {
