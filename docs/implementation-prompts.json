@@ -884,6 +884,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "169 -> 161;162;165",
+      "id": "E-169-SHARED-VESSEL-FIXTURES",
+      "language": "A single typed fixture matrix is imported by independent client and Functions tests. It samples AEGIS as the reference full ship, Dione as a materially different full ship, and Gorgoneion as a small ship. Both catalogs must agree on stable identity, population, Reactor capacity, maintenance-step count, and class boundary; full ships also match their server-owned starting resource and survivor maps, while Gorgoneion is explicitly absent from those full-ship maps.",
+      "source": "tests/fixtures/vesselContracts.ts; src/data/vesselContractFixtures.test.ts; functions/src/vesselContractFixtures.test.ts; src/data/ships.ts; functions/src/resources.ts; functions/src/shipPopulation.ts; functions/src/maintenanceOrder.ts; functions/src/smallShip.ts",
+      "type": "evidence / shared-fixture / client-server-parity / full-vessel / small-vessel / regression"
+    },
+    {
       "direction": "170 -> 048;049",
       "id": "E-AUDIT-170",
       "language": "Observer-safe projections extend the existing observer entry and reset contracts.",
@@ -9890,8 +9897,8 @@
         "acceptance": "one reference ship, one materially different full ship, and one small ship exercise the same server/client contracts.",
         "title": "Build shared vessel fixtures."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-169",
+      "description": "One shared fixture matrix now drives both client and Functions contract tests for AEGIS as the reference full ship, materially different Dione, and the Gorgoneion small ship. Both layers must agree on stable identity, population, Reactor capacity, maintenance-step count, and class boundaries; full ships additionally prove their starting resource ledgers, while the small ship proves it remains outside full-ship resource and survivor maps. The focused cross-layer suite passes 8/8 without changing runtime behavior.",
+      "evidenceIds": "E-AUDIT-169;E-169-SHARED-VESSEL-FIXTURES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162;165",
@@ -9902,7 +9909,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
