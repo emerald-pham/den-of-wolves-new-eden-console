@@ -526,6 +526,43 @@ body {
   display: none;
 }
 
+.fleet-directives {
+  position: relative;
+  flex: 0 0 auto;
+  font-family: var(--cic-mono);
+}
+
+.fleet-directives > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+  color: var(--cic-cyan);
+  cursor: pointer;
+  font: 0.68rem/1.2 var(--cic-mono);
+  letter-spacing: 0.1em;
+  list-style: none;
+  text-transform: uppercase;
+}
+
+.fleet-directives > summary::-webkit-details-marker { display: none; }
+.fleet-directives > summary:focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 2px; }
+
+.fleet-directives__panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: min(30rem, calc(100vw - 1.5rem));
+  max-height: min(60vh, 34rem);
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-void) 96%, var(--cic-cyan));
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--cic-void) 75%, transparent);
+}
+
 .app-update-notice {
   display: flex;
   flex: 0 1 auto;
@@ -4183,6 +4220,68 @@ body {
   font-size: 0.52rem;
   line-height: 1.45;
   text-transform: uppercase;
+}
+
+.admiral-directives {
+  display: grid;
+  gap: 1rem;
+  font-family: var(--cic-mono);
+}
+
+.admiral-directives > header { display: grid; gap: 0.35rem; }
+.admiral-directives > header p,
+.admiral-directives > header h3 { margin: 0; }
+.admiral-directives > header > p:first-child,
+.admiral-directives form > label {
+  color: var(--cic-cyan);
+  font: 0.7rem/1.35 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admiral-directives__composers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.admiral-directives form {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 92%, var(--cic-cyan));
+}
+
+.admiral-directives textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  padding: 0.65rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: 0;
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 0.82rem/1.5 var(--cic-mono);
+}
+
+.admiral-directives textarea:focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 2px; }
+.admiral-directives__form-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.admiral-directives__form-footer > span { color: var(--cic-muted); font-size: 0.68rem; }
+.admiral-directives__availability { margin: 0; color: var(--cic-amber); }
+.admiral-directives__status { min-height: 1.4em; margin: 0; color: var(--cic-cyan); }
+.admiral-directives__empty { margin: 0; color: var(--cic-muted); }
+.admiral-directives__list { display: grid; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+.admiral-directives__list li { padding: 0.65rem; border-left: 2px solid var(--cic-cyan); background: color-mix(in srgb, var(--cic-void) 90%, var(--cic-cyan)); }
+.admiral-directives__list li[data-kind='defence-coordination'] { border-left-color: var(--cic-amber); }
+.admiral-directives__list p { margin: 0 0 0.3rem; color: var(--cic-muted); font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.admiral-directives__list strong { display: block; overflow-wrap: anywhere; color: var(--cic-ink); font: 0.78rem/1.45 var(--cic-mono); }
+
+@media (max-width: 48rem) {
+  .admiral-directives__composers { grid-template-columns: 1fr; }
+  .fleet-directives__panel { position: fixed; top: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem); right: max(0.75rem, env(safe-area-inset-right)); }
 }
 
 @media (max-width: 30rem) {

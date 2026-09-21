@@ -30,6 +30,12 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
+import {
+  ADMIRAL_DIRECTIVE_KINDS,
+  admiralDirectiveState,
+  publishAdmiralDirective,
+  type AdmiralDirectiveKind,
+} from './admiralDirectives';
 import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import {
@@ -907,6 +913,15 @@ function isFleetAlertResult(value: unknown): value is { active: boolean; revisio
   return typeof result.active === 'boolean' &&
     typeof result.revision === 'number' && Number.isSafeInteger(result.revision) &&
     result.revision >= 0;
+}
+
+function isAdmiralDirectiveStateResult(value: unknown): value is {
+  revision: number; entries: readonly unknown[];
+} {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return Array.isArray(result.entries) && Number.isSafeInteger(result.revision) &&
+    Number(result.revision) >= 0;
 }
 
 function isPressDispatchResult(value: unknown): value is { dispatches: readonly unknown[]; revision: number } {
@@ -19793,6 +19808,109 @@ function toTimestampMillis(value: unknown): number | undefined {
   const time = typeof value === 'string' ? Date.parse(value) : NaN;
   return Number.isNaN(time) ? undefined : time;
 }
+
+/** Publish one bounded, public Admiral directive without granting GM authority. */
+export const publishAdmiralDirectiveCommand = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  kind?: unknown;
+  text?: unknown;
+  expectedRevision?: unknown;
+  instanceId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'requestId', 'kind', 'text', 'expectedRevision', 'instanceId'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      !ADMIRAL_DIRECTIVE_KINDS.includes(raw.kind as AdmiralDirectiveKind) ||
+      typeof raw.text !== 'string' || !raw.text.trim() || raw.text.length > 500 ||
+      !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0 ||
+      (raw.instanceId !== undefined &&
+        (typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId)))) {
+    throw new HttpsError('invalid-argument', 'Invalid Admiral directive request.');
+  }
+  const data = {
+    sessionId: raw.sessionId,
+    requestId: raw.requestId,
+    kind: raw.kind as AdmiralDirectiveKind,
+    text: raw.text.trim(),
+    expectedRevision: Number(raw.expectedRevision),
+    instanceId: raw.instanceId as string | undefined,
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'publish-admiral-directive', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId ?? null,
+    expectedRevision: data.expectedRevision,
+    payload: { kind: data.kind, text: data.text },
+  };
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+      throw new HttpsError('permission-denied', 'Only the active AEGIS Admiral may publish fleet directives.');
+    }
+    await requireConsoleAuthority(tx, data.sessionId, player, 'admiral', data.instanceId);
+    const [session, receipt] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const replay = replayBoundCommand(
+      receipt, fingerprint, isAdmiralDirectiveStateResult, 'Admiral directive',
+    );
+    if (replay) return replay;
+    if (session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    requireActiveGameplayPhase(session);
+    const current = admiralDirectiveState(session.get('admiralDirectives'));
+    if (current.revision !== data.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'Admiral directives changed. Wait for the live update and try again.',
+        'stale-revision',
+      );
+    }
+    const next = publishAdmiralDirective({
+      current,
+      expectedRevision: data.expectedRevision,
+      id: `admiral-directive:${data.requestId}`,
+      kind: data.kind,
+      text: data.text,
+      cycle: sessionTurn(session.get('currentTurn')),
+      publishedAt: serverTime,
+    });
+    tx.update(sessionRef, {
+      admiralDirectives: next,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    txSetIfSupported(
+      tx,
+      db.doc(`sessions/${data.sessionId}/events/admiral-directive-${next.revision}`),
+      buildPrivacySafeEventRecord({
+        type: 'admiral-directive',
+        payload: {
+          kind: data.kind,
+          revision: next.revision,
+          cycle: sessionTurn(session.get('currentTurn')),
+          serverTime,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      }),
+    );
+    tx.set(receiptRef, {
+      fingerprint,
+      result: next,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return next;
+  });
+});
 
 export const setFleetRedAlert = onCall<{
   sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown; requestId?: unknown;

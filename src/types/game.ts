@@ -507,6 +507,21 @@ export interface TurnStartAnnouncement {
   readonly revision?: number;
 }
 
+export type AdmiralDirectiveKind = 'fleet-policy' | 'defence-coordination';
+
+export interface AdmiralDirective {
+  readonly id: string;
+  readonly kind: AdmiralDirectiveKind;
+  readonly text: string;
+  readonly cycle: number;
+  readonly publishedAt: string;
+}
+
+export interface AdmiralDirectiveState {
+  readonly revision: number;
+  readonly entries: readonly AdmiralDirective[];
+}
+
 /** A browser-local GM replay; it is intentionally never persisted or shared. */
 export interface TurnStartReplay {
   readonly sessionId: SessionId;
@@ -664,6 +679,8 @@ export interface GameSession {
     /** ISO-8601 instant for the last raised alert, used to enforce cooldown policy. */
     readonly raisedAt?: string;
   };
+  /** Public, role-authored policy and defence coordination from AEGIS. */
+  readonly admiralDirectives?: AdmiralDirectiveState;
   /** GM-controlled presentation state for the shared end-of-session finale. */
   readonly debriefMode?: {
     readonly active: boolean;

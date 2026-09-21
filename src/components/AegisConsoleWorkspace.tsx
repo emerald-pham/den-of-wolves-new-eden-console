@@ -20,6 +20,7 @@ import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { useConsoleAccess } from '@/lib/consoleAccess';
 import { phaseForSession } from '@/lib/turnPhase';
 import { buildFighter as buildFighterAction } from '@/lib/sessionService';
+import AdmiralDirectiveWorkspace from './AdmiralDirectives';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -256,19 +257,23 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
   const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.aegis;
-  const [page, setPage] = useState<'systems' | 'navigation'>('systems');
+  const [page, setPage] = useState<'systems' | 'navigation' | 'directives'>('systems');
 
   return (
     <FleetRoleConsoleTemplate
       shipName="AEGIS"
       roleName="Admiral"
-      title={page === 'systems' ? 'Ship systems' : 'Navigation'}
+      title={page === 'systems' ? 'Ship systems' : page === 'navigation' ? 'Navigation' : 'Fleet directives'}
       galacticCoordinate={galacticCoordinate}
       fuel={fuel}
       reactorCapacity={printedStatistics.reactorCapacity}
       jumpCosts={[printedStatistics.jumpCosts.short, printedStatistics.jumpCosts.medium, printedStatistics.jumpCosts.long]}
       damage={damage}
-      pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'navigation', label: 'Navigation' }]}
+      pages={[
+        { id: 'systems', label: 'Ship systems' },
+        { id: 'navigation', label: 'Navigation' },
+        { id: 'directives', label: 'Fleet directives' },
+      ]}
       activePage={page} onPageChange={setPage}
     >
       {page === 'navigation' ? <ShipNavigationWorkspace
@@ -279,7 +284,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
           knownCoordinates={knownCoordinates}
         knownSystems={knownSystems}
         consoleLocked={consoleLocked}
-      /> : <>
+      /> : page === 'directives' ? <AdmiralDirectiveWorkspace consoleLocked={consoleLocked ?? false} /> : <>
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
         damageDraws={damageDraws}
         shipState={shipState}

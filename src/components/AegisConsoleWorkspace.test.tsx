@@ -26,6 +26,19 @@ beforeEach(() => {
     activeConsoleRoleId: 'admiral', joinedAt: '2026-09-06T12:00:00.000Z',
   });
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+});
+
+it('routes the Admiral to the bounded fleet policy and defence coordination workspace', async () => {
+  const user = userEvent.setup();
+  render(<AegisConsoleWorkspace roleId="admiral" galacticCoordinate="0000" fuel={3} />);
+
+  await user.click(screen.getByRole('button', { name: 'Fleet directives' }));
+  const workspace = screen.getByRole('region', { name: 'Admiral policy and defence coordination' });
+  expect(workspace).toHaveTextContent('This channel does not grant facilitator controls.');
+  expect(screen.getByLabelText('Fleet policy')).toBeEnabled();
+  expect(screen.getByLabelText('Defence coordination')).toBeEnabled();
+  expect(screen.queryByRole('button', { name: /gm|facilitator/i })).not.toBeInTheDocument();
 });
 
 it('keeps the Press airspace exception under AEGIS systems control and makes timer authority read-only', async () => {

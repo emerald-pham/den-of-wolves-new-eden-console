@@ -21,6 +21,7 @@ import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
+import { FleetDirectives } from './AdmiralDirectives';
 import {
   applyServiceWorkerUpdate,
   getServiceWorkerUpdateState,
@@ -444,6 +445,7 @@ export default function AppHeader() {
         />
       )}
       <FleetBroadcast />
+      <FleetDirectives />
       {serviceWorkerUpdate.available && (
         <aside
           className="app-update-notice"

@@ -101,6 +101,7 @@ import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resource
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { fleetTickerState } from './fleetTickerState';
+import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState, turnStateForPhaseContext } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
@@ -2189,6 +2190,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipJumpStates: shipJumpStates(data.shipJumpStates),
     shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
     fleetRedAlert: fleetRedAlert(data.fleetRedAlert),
+    admiralDirectives: normalizeAdmiralDirectives(data.admiralDirectives),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),

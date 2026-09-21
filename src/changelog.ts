@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [179],
+    implementationProgress: {
+      completed: 389, total: 751, percentage: '51.80%',
+      done: 389, partial: 16, active: 0, missing: 346,
+    },
+    changes: [
+      'The AEGIS Admiral can publish fleet policy and defence coordination to a shared fleet board.',
+      'Published directives remain available across joined screens, while server authority keeps the channel limited to AEGIS command and established relief access.',
+      '389 of 751 planned items are complete (51.80%).',
+    ],
+  },
+  {
+    version: '0.4.72',
     implementationPrompts: ['140a', '140b', '140c'],
     implementationProgress: {
       completed: 386, total: 751, percentage: '51.40%',

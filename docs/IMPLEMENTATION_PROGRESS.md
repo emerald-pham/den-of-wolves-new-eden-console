@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**388 / 751 prompts complete (51.66%)**
+**389 / 751 prompts complete (51.80%)**
 
-Status breakdown: **388 done · 16 partial · 347 missing**.
+Status breakdown: **389 done · 16 partial · 346 missing**.
 
 Active prompt: **none**
 
@@ -602,7 +602,7 @@ release classification and evidence.
 | 176 | done | non-feature | — | The existing server-authoritative AEGIS maintenance lane resolves Shuttle Bay Omega independently at step 7 after Zeta. It accepts at most one currently docked shuttle, spends its own unit of ship fuel, rejects a damaged or out-of-order bay and any craft already fuelled that cycle, and preserves the mandatory Omega boundary before maintenance ends. The component keeps Zeta and Omega visibly ordered while enabling only the current bay and clearing the prior selection. The printed badge and 1-7 flow make Omega step 7; its body-text reference to step 6 remains documented as errata. Focused engine, callable, metadata, and component checks passed on 2026-09-21. This is evidence reconciliation only; no runtime change or new release is claimed. |
 | 177 | done | feature | 0.3.17 | Focused domain/callable evidence preserves AEGIS's printed 2/3/6 costs, upgrade discount, damaged-drive roll thresholds, charge/fuel bounds, route lockout, once-per-turn denial, retry-stable server roll, atomic transition, and navigation audit; emergency jumps and broader concurrency remain out of scope. |
 | 178 | done | non-feature | — | The server-owned AEGIS Construction Bay action now builds one replacement fighter per material for the Wing Commander during Team Phase when the Construction Bay is charged and undamaged. It rejects missing server fighter strength, depleted materials, stale vessel revisions, wrong role authority, wrong phase, damage, and standard/upgraded capacity overflow; the transaction increments the wing revision, debits AEGIS materials, advances the shared vessel action revision, and persists a replayable command receipt. The existing Wing Commander AEGIS console renders live strength, capacity, materials, charge/damage state, and a touch-sized Build 1 fighter control. Focused callable, metadata, client, typecheck, and responsive accessibility checks pass; release metadata remains with the root batch. |
-| 179 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 179 | done | feature | 0.4.73 | The AEGIS Admiral can publish bounded Fleet policy and Defence coordination entries to a shared fleet board. A server transaction enforces active Admiral console authority or established AEGIS relief access, exact revision and retry semantics, active gameplay, strict content limits, privacy-safe events, and a twelve-entry history; direct client mutation remains denied and a facilitator needs an explicit live AEGIS write grant. |
 | 180 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 181 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 182 | done | non-feature | — | The shared AEGIS combat-console catalog registers Command and Control, Fighter Bay Alpha, Fighter Bay Bravo, Missile Launchers, and Point Defence Lasers with their printed phase and server-only metadata. Every entry has an explicit fail-closed resolver owned by Prompt 182, and the Executive Officer console renders all five as non-interactive operational references with no button, link, input, select, or textarea. Focused client/server regressions pass 98/98 and prevent a premature combat action from appearing before its attack resolver exists. |
