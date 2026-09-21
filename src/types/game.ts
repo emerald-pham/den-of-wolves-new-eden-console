@@ -728,6 +728,7 @@ export interface GameSession {
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
   readonly shuttleEvacuations?: Readonly<Record<string, ShuttleEvacuationLedgerEntry>>;
   readonly serviceShuttleRecharges?: Readonly<Record<string, ServiceShuttleRechargeEntry>>;
+  readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
@@ -822,6 +823,19 @@ export interface GameSession {
   readonly ownerUid?: PlayerId;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
+}
+
+export interface HighwallMiningOperation {
+  readonly requestId: string;
+  readonly resource: 'materials' | 'ore';
+  readonly rolls: readonly number[];
+  readonly amount: number;
+}
+
+export interface HighwallMiningState {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly operations: readonly HighwallMiningOperation[];
 }
 
 /** GM-private receipt returned by the authoritative ordinary start transaction. */

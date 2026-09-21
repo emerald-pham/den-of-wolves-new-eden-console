@@ -3,6 +3,20 @@ import { EventVisibility } from './eventEnvelope';
 import { buildPrivacySafeEventRecord, memberEventFieldsFor } from './eventRedaction';
 
 describe('buildPrivacySafeEventRecord', () => {
+  it('publishes only the Highwall mining outcome', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'highwall-mining',
+      payload: {
+        shuttleId: 'highwall', resource: 'ore', rolls: [2, 3, 5], amount: 10,
+        operation: 2, fingerprint: 'secret', expectedRevision: 1,
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'highwall-mining', shuttleId: 'highwall', resource: 'ore',
+      rolls: [2, 3, 5], amount: 10, operation: 2, createdAt: 'server-time',
+    });
+  });
+
   it('publishes only the service-shuttle result coordinates', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'service-shuttle-recharge',

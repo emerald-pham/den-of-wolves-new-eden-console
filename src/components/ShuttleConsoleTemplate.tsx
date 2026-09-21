@@ -5,6 +5,7 @@ import PressDispatch from './PressDispatch';
 import RoleAssignment from './RoleAssignment';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import HummingbirdHarvest from './HummingbirdHarvest';
+import HighwallMining from './HighwallMining';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
@@ -108,6 +109,7 @@ export default function ShuttleConsoleTemplate({
           </section>}
           {workspaceCapabilities.map(renderCapability)}
           {control && <ShuttleControl control={control} />}
+          {shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>
       </section>

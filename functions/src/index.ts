@@ -469,6 +469,12 @@ import {
   resolvedHarvestValues,
   type HummingbirdHarvestState,
 } from './hummingbirdHarvest';
+import {
+  parseHighwallMiningState,
+  resolveHighwallMining,
+  type HighwallMiningResource,
+  type HighwallMiningState,
+} from './highwallMining';
 
 /**
  * Server-side authority for the companion console.
@@ -1816,6 +1822,11 @@ function publicShuttleFuelled(value: unknown): Record<string, boolean> {
   const stored = isRecord(value) ? value : {};
   return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, fuelled]) =>
     AUTHORIZED_SHUTTLE_IDS.has(shuttleId) && typeof fuelled === 'boolean' ? [[shuttleId, fuelled]] : []));
+}
+
+function publicHighwallMining(value: unknown): HighwallMiningState | undefined {
+  if (value === undefined) return undefined;
+  return parseHighwallMiningState(value) ?? undefined;
 }
 
 function publicRetainedShuttles(value: unknown) {
@@ -10397,6 +10408,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
         serviceShuttleRecharges:
           parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
+        ...(publicHighwallMining(sessionSnap.get('highwallMining'))
+          ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
         retainedShuttles,
         ...(quarantineDocking ? { quarantineDocking } : {}),
@@ -10686,6 +10699,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
       serviceShuttleRecharges:
         parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
+      ...(publicHighwallMining(sessionSnap.get('highwallMining'))
+        ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
       retainedShuttles,
       ...(quarantineDocking ? { quarantineDocking } : {}),
@@ -18320,6 +18335,307 @@ export const dismissPopulationAlert = onCall<{
 function smallShipId(value: string): SmallShipId | undefined {
   return (SMALL_SHIP_IDS as readonly string[]).includes(value) ? value as SmallShipId : undefined;
 }
+
+type HighwallMiningFingerprint = Readonly<{
+  kind: 'highwall-mining';
+  sessionId: string;
+  actorUid: string;
+  requestId: string;
+  resource: HighwallMiningResource;
+  expectedRevision: number;
+  expectedControlRevision: number;
+  hostShipId: string;
+  cycle: number;
+}>;
+
+function sameHighwallMiningFingerprint(value: unknown, expected: HighwallMiningFingerprint): boolean {
+  if (!isRecord(value)) return false;
+  const entries = Object.entries(expected);
+  return Object.keys(value).length === entries.length &&
+    entries.every(([key, expectedValue]) => value[key] === expectedValue);
+}
+
+type HighwallMiningReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  cycle: number;
+  operation: HighwallMiningState['operations'][number];
+  cargo: Readonly<{ ore: number; materials: number }>;
+}> & VesselActionEnvelope;
+
+function isHighwallMiningReply(value: unknown, fingerprint: HighwallMiningFingerprint): value is HighwallMiningReply {
+  const exactKeys = [
+    'status', 'sessionId', 'requestId', 'cycle', 'operation', 'cargo',
+    'actorUid', 'actorRoleId', 'vesselId', 'hostShipId', 'turn', 'phase',
+    'revision', 'idempotencyKey', 'auditId',
+  ];
+  if (!isRecord(value) || Object.keys(value).length !== exactKeys.length ||
+      exactKeys.some((key) => !(key in value)) || !isVesselActionResult(value) ||
+      value.sessionId !== fingerprint.sessionId || value.requestId !== fingerprint.requestId ||
+      (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.cycle !== fingerprint.cycle || value.turn !== fingerprint.cycle ||
+      value.revision !== fingerprint.expectedRevision + 1 || value.actorUid !== fingerprint.actorUid ||
+      value.vesselId !== 'highwall' || value.hostShipId !== fingerprint.hostShipId ||
+      value.phase !== 'active' || value.idempotencyKey !== fingerprint.requestId ||
+      value.auditId !== `highwall-mining-${fingerprint.requestId}` ||
+      !isRecord(value.operation) || !isRecord(value.cargo)) return false;
+  const operation = value.operation;
+  const cargo = value.cargo;
+  if (Object.keys(operation).length !== 4 || operation.requestId !== fingerprint.requestId ||
+      operation.resource !== fingerprint.resource ||
+      !Array.isArray(operation.rolls) ||
+      operation.rolls.length !== (operation.resource === 'materials' ? 1 : 3) ||
+      operation.rolls.some((roll) => !Number.isSafeInteger(roll) || (roll as number) < 1 || (roll as number) > 6) ||
+      !Number.isSafeInteger(operation.amount) ||
+      operation.amount !== operation.rolls.reduce((sum, roll) => sum + (roll as number), 0)) return false;
+  return Object.keys(cargo).length === 2 && Number.isSafeInteger(cargo.ore) && (cargo.ore as number) >= 0 &&
+    Number.isSafeInteger(cargo.materials) && (cargo.materials as number) >= 0;
+}
+
+function highwallMiningReplay(
+  prior: DocumentSnapshot,
+  fingerprint: HighwallMiningFingerprint,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (!sameHighwallMiningFingerprint(prior.get('fingerprint'), fingerprint)) {
+    throw commandError('failed-precondition', 'This request id was already used for a different Highwall operation.', 'conflict');
+  }
+  const result = prior.get('result');
+  if (!isHighwallMiningReply(result, fingerprint)) {
+    throw commandError('failed-precondition', 'This Highwall request has no replayable result.', 'conflict');
+  }
+  return { ...result, status: 'replayed' };
+}
+
+function requireLiveHighwallMiningWindow(session: DocumentSnapshot, expectedCycle: number): number {
+  const currentCycle = session.get('currentTurn');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (session.get('phase') !== 'active') {
+    throw commandError('failed-precondition', 'Highwall mining is available only during active gameplay.', 'invalid-phase');
+  }
+  if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
+      currentCycle !== expectedCycle || !phase || phase.turn !== currentCycle) {
+    throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before mining.', 'stale-revision');
+  }
+  if (phase.airspace.state !== 'lifted' || phase.timerPause ||
+      Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+    throw commandError('failed-precondition', 'Highwall mining requires the live Coordination Phase.', 'invalid-phase');
+  }
+  return currentCycle as number;
+}
+
+function highwallCargo(session: DocumentSnapshot): { readonly ore: number; readonly materials: number } {
+  const stored = session.get('shuttleCargo');
+  if (stored === undefined) return { ore: 0, materials: 0 };
+  if (!isRecord(stored)) throw commandError('failed-precondition', 'The Highwall cargo ledger is malformed.', 'malformed-input');
+  const raw = stored.highwall;
+  if (raw === undefined) return { ore: 0, materials: 0 };
+  if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'ore' && key !== 'materials')) {
+    throw commandError('failed-precondition', 'The Highwall cargo ledger is malformed.', 'malformed-input');
+  }
+  const ore = raw.ore ?? 0;
+  const materials = raw.materials ?? 0;
+  if (!Number.isSafeInteger(ore) || (ore as number) < 0 ||
+      !Number.isSafeInteger(materials) || (materials as number) < 0) {
+    throw commandError('failed-precondition', 'The Highwall cargo ledger is malformed.', 'malformed-input');
+  }
+  return { ore: ore as number, materials: materials as number };
+}
+
+async function requireHighwallMiningAuthority(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  expectedControlRevision: number,
+): Promise<{
+  readonly session: DocumentSnapshot;
+  readonly player: DocumentSnapshot;
+  readonly hostShipId: string;
+  readonly fuelled: boolean;
+  readonly state: HighwallMiningState;
+}> {
+  const [session, player] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}`)),
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isActivePlayer(player) || player.get('role') !== 'player') {
+    throw new HttpsError('permission-denied', 'Only the connected Highwall holder may mine.');
+  }
+  requirePlayerShipActionAuthority(player);
+  if (!configuredRoleIds(session).includes('icebreaker-miner') ||
+      !activeVesselIdsForSession(session).includes('icebreaker')) {
+    throw commandError('failed-precondition', 'Highwall is unavailable in this session.', 'conflict');
+  }
+  const control = parseShuttleControl(session.get('shuttleControl'))?.highwall;
+  if (!control || control.ownerRoleId !== 'icebreaker-miner' || control.holderUid !== uid) {
+    throw new HttpsError('permission-denied', 'Only the current Highwall holder may mine.');
+  }
+  if (control.revision !== expectedControlRevision) {
+    throw commandError('failed-precondition', 'Highwall control changed; refresh before mining.', 'stale-revision');
+  }
+  const activeVesselIds = activeVesselIdsForSession(session);
+  const rawDockings = session.get('shuttleDockings');
+  if (!Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds)) {
+    throw commandError('failed-precondition', 'The authoritative shuttle docking manifest is unavailable.', 'conflict');
+  }
+  const dockings = rawDockings.filter((entry) => isRecord(entry) && entry.shuttleId === 'highwall');
+  if (dockings.length !== 1 || typeof dockings[0]?.shipId !== 'string' ||
+      !activeVesselIds.includes(dockings[0].shipId)) {
+    throw commandError('failed-precondition', 'Highwall must be docked with an active fleet ship.', 'conflict');
+  }
+  const groupId = player.get('fleetGroupId');
+  if (typeof groupId !== 'string' || groupId.length === 0) {
+    throw new HttpsError('permission-denied', 'The Highwall holder has no fleet-group authority.');
+  }
+  const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+      !group.vesselIds.includes(dockings[0].shipId)) {
+    throw commandError(
+      'failed-precondition',
+      'Highwall is docked outside the holder\u2019s current fleet group.',
+      'conflict',
+    );
+  }
+  const fuelledState = session.get('shuttleFuelled');
+  if (!isRecord(fuelledState) ||
+      (fuelledState.highwall !== undefined && typeof fuelledState.highwall !== 'boolean')) {
+    throw commandError('failed-precondition', 'Highwall fuel state is unavailable.', 'conflict');
+  }
+  const state = parseHighwallMiningState(session.get('highwallMining'));
+  if (!state) throw commandError('failed-precondition', 'Highwall mining state is malformed.', 'malformed-input');
+  return {
+    session, player,
+    hostShipId: dockings[0].shipId, fuelled: fuelledState.highwall === true, state,
+  };
+}
+
+/** Resolve one of Highwall's two standard operations, or its fuelled third operation. */
+export const runHighwallMining = onCall<{
+  sessionId?: unknown; requestId?: unknown; resource?: unknown;
+  expectedRevision?: unknown; expectedControlRevision?: unknown; expectedCycle?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => ![
+    'sessionId', 'requestId', 'resource', 'expectedRevision', 'expectedControlRevision', 'expectedCycle',
+  ].includes(key)) || typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      (raw.resource !== 'materials' && raw.resource !== 'ore') ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'Invalid Highwall mining request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; resource: HighwallMiningResource;
+    expectedRevision: number; expectedControlRevision: number; expectedCycle: number;
+  };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/highwall-mining-${data.requestId}`);
+  const preflight = await db.runTransaction(async tx => {
+    const authority = await requireHighwallMiningAuthority(
+      tx, data.sessionId, uid, data.expectedControlRevision,
+    );
+    const fingerprint: HighwallMiningFingerprint = {
+      kind: 'highwall-mining', sessionId: data.sessionId, actorUid: uid,
+      requestId: data.requestId, resource: data.resource,
+      expectedRevision: data.expectedRevision,
+      expectedControlRevision: data.expectedControlRevision,
+      hostShipId: authority.hostShipId,
+      cycle: data.expectedCycle,
+    };
+    const [prior, event] = await Promise.all([tx.get(receiptRef), tx.get(eventRef)]);
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
+    const replay = highwallMiningReplay(prior, fingerprint);
+    if (replay) return { replay, fingerprint, authority };
+    if (event.exists) rejectLegacyEventReplay('Highwall mining');
+    const cycle = requireLiveHighwallMiningWindow(authority.session, data.expectedCycle);
+    try {
+      resolveHighwallMining({
+        state: authority.state, currentCycle: cycle,
+        expectedRevision: data.expectedRevision, fuelled: authority.fuelled,
+        resource: data.resource, requestId: data.requestId,
+        rolls: data.resource === 'materials' ? [1] : [1, 1, 1],
+        cargo: highwallCargo(authority.session),
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition',
+        cause instanceof Error ? cause.message : 'Highwall mining was rejected.', 'conflict');
+    }
+    return { replay: undefined, fingerprint, authority };
+  });
+  if (preflight.replay) return preflight.replay;
+  const rolls = data.resource === 'materials'
+    ? [randomInt(1, 7)]
+    : [randomInt(1, 7), randomInt(1, 7), randomInt(1, 7)];
+  return db.runTransaction(async tx => {
+    const authority = await requireHighwallMiningAuthority(
+      tx, data.sessionId, uid, data.expectedControlRevision,
+    );
+    const fingerprint: HighwallMiningFingerprint = {
+      kind: 'highwall-mining', sessionId: data.sessionId, actorUid: uid,
+      requestId: data.requestId, resource: data.resource,
+      expectedRevision: data.expectedRevision,
+      expectedControlRevision: data.expectedControlRevision,
+      hostShipId: authority.hostShipId,
+      cycle: data.expectedCycle,
+    };
+    const [prior, event] = await Promise.all([tx.get(receiptRef), tx.get(eventRef)]);
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
+    const replay = highwallMiningReplay(prior, fingerprint);
+    if (replay) return replay;
+    if (event.exists) rejectLegacyEventReplay('Highwall mining');
+    const cycle = requireLiveHighwallMiningWindow(authority.session, data.expectedCycle);
+    let result: ReturnType<typeof resolveHighwallMining>;
+    try {
+      result = resolveHighwallMining({
+        state: authority.state, currentCycle: cycle,
+        expectedRevision: data.expectedRevision, fuelled: authority.fuelled,
+        resource: data.resource, requestId: data.requestId, rolls,
+        cargo: highwallCargo(authority.session),
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition',
+        cause instanceof Error ? cause.message : 'Highwall mining was rejected.', 'conflict');
+    }
+    const reply = {
+      status: 'committed' as const, sessionId: data.sessionId, requestId: data.requestId,
+      cycle,
+      operation: result.operation, cargo: result.cargo,
+      ...vesselActionEnvelope(authority.session, authority.player, uid, 'highwall',
+        result.state.revision, data.requestId, 'highwall-mining', authority.hostShipId),
+    };
+    tx.update(db.doc(`sessions/${data.sessionId}`), {
+      highwallMining: result.state,
+      'shuttleCargo.highwall': result.cargo,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef,
+      buildPrivacySafeEventRecord({
+        type: 'highwall-mining',
+        envelope: buildAuthoritativeEventEnvelope({
+          sessionId: data.sessionId, actorUid: uid,
+          actorRoleId: authority.player.get('activeConsoleRoleId'),
+          turn: cycle, phase: 'active', type: 'highwall-mining',
+          requestId: data.requestId, revision: result.state.revision,
+          serverTime: new Date(), visibility: EventVisibility.Member,
+        }),
+        payload: {
+          shuttleId: 'highwall', resource: result.operation.resource,
+          rolls: result.operation.rolls, amount: result.operation.amount,
+          operation: result.state.operations.length,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+    tx.set(receiptRef, {
+      fingerprint, result: reply, serverRolls: rolls, createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
+  });
+});
 
 function hummingbirdHarvestRef(sessionId: string, uid: string): DocumentReference {
   return db.doc(`sessions/${sessionId}/hummingbirdHarvests/${uid}`);

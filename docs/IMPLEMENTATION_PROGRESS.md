@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**416 / 751 prompts complete (55.39%)**
+**417 / 751 prompts complete (55.53%)**
 
-Status breakdown: **416 done · 16 partial · 319 missing**.
+Status breakdown: **417 done · 16 partial · 318 missing**.
 
 Active prompt: **none**
 
@@ -830,7 +830,7 @@ release classification and evidence.
 | 385 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 386 | done | feature | 0.4.76 | Release 0.4.76 established the server-authoritative service-shuttle recharge command and routed console selection for one eligible host-console charge per service craft per cycle. Prompt 387 subsequently added immediate production resolution. |
 | 387 | done | non-feature | 0.4.77 | A service-shuttle recharge now strictly validates the selected host resource and installed-upgrade state, then resolves production consoles immediately through the shared maintenance rules in the same authoritative transaction. The command preserves the completed maintenance lifecycle, consumes the new production charge, commits the resource result once, binds Fuel Refinery and Capybara choices into exact retry, and leaves deferred consoles charged for their later procedure. Missing or malformed mutation state fails without writes, and the routed holder control explains immediate resolution and collects required choices. |
-| 388 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 388 | done | feature | 0.4.78 | Release 0.4.78 established Highwall mining during a live, unpaused Coordination window: the current holder chooses materials or strytium ore for two standard operations and a third only while fuelled. The callable verifies active lifecycle, matching cycle and phase clock, unexpired deadline, live custody, fleet-group docking, control and mining revisions, canonical history, cargo, fuel, collision-free request ownership, and exact typed replay before server dice atomically add the precise result to Highwall cargo. The routed console mirrors the live-window gate and shows remaining operations and authoritative results. |
 | 389 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 390 | done | non-feature | — | Production path implemented: the active Quellon Explorer player rolls Hummingbird's two server dice once per active turn, privately chooses which die becomes food, and credits the other as water to Hummingbird's current shuttleCargo record. Current docking, fuelled state, role authority, active phase, turn, and revision are rechecked in the transaction; exact retries replay without another sample, malformed or stale state fails closed, and the host ship resource ledger is unchanged. The owner-only projection and shared player workspace expose pending dice, the two allocation choices, and the resolved cargo result. Focused server/pure coverage (8 tests), the 29-test player/route suite, the 76-test Firestore rules suite, Functions build, app typecheck, and reduced-motion 320x844/1440x900/844x390 render checks passed. |
 | 391 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

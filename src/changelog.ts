@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [388],
+    implementationProgress: {
+      completed: 417, total: 751, percentage: '55.53%',
+      done: 417, partial: 16, active: 0, missing: 318,
+    },
+    changes: [
+      'The Highwall can now conduct two mining operations during Coordination, choosing either materials or strytium ore for each operation.',
+      'A fuelled Highwall gains a third operation, and every result is rolled and recorded by the fleet system before cargo changes.',
+      '417 of 751 planned items are complete (55.53%).',
+    ],
+  },
+  {
+    version: '0.4.77',
     implementationPrompts: [387],
     implementationProgress: {
       completed: 416, total: 751, percentage: '55.39%',

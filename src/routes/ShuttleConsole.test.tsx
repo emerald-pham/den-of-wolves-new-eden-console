@@ -42,6 +42,13 @@ vi.mock('@/lib/serviceShuttleRechargeService', () => ({
     immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   }),
 }));
+vi.mock('@/lib/highwallMiningService', () => ({
+  runHighwallMining: vi.fn().mockResolvedValue({
+    status: 'committed', cycle: 2, revision: 3,
+    operation: { requestId: 'mine-3', resource: 'ore', rolls: [4, 5, 6], amount: 15 },
+    cargo: { ore: 25, materials: 4 },
+  }),
+}));
 vi.mock('@/lib/shuttleEvacuationService', async (importOriginal) => ({
   ...(await importOriginal<typeof ShuttleEvacuationServiceModule>()),
   evacuateShuttleSurvivors: vi.fn().mockResolvedValue(undefined),
@@ -54,6 +61,7 @@ const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
 const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
 const { rechargeHostConsoleFromShuttle } = await import('@/lib/serviceShuttleRechargeService');
+const { runHighwallMining } = await import('@/lib/highwallMiningService');
 const { evacuateShuttleSurvivors } = await import('@/lib/shuttleEvacuationService');
 
 beforeEach(() => {
@@ -83,6 +91,12 @@ beforeEach(() => {
   vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
   vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue({
     immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
+  });
+  vi.mocked(runHighwallMining).mockReset();
+  vi.mocked(runHighwallMining).mockResolvedValue({
+    status: 'committed', cycle: 2, revision: 3,
+    operation: { requestId: 'mine-3', resource: 'ore', rolls: [4, 5, 6], amount: 15 },
+    cargo: { ore: 25, materials: 4 },
   });
   vi.mocked(evacuateShuttleSurvivors).mockReset();
   vi.mocked(evacuateShuttleSurvivors).mockResolvedValue(undefined);
@@ -432,6 +446,70 @@ it('opens a printed shipboard shuttle for its owning role and returns by keyboar
   expect(back).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(screen.getByText('Quellon Explorer parent')).toBeInTheDocument();
+});
+
+it('lets the current Highwall holder run its fuelled third mining operation', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['icebreaker-miner'], activeVesselIds: ['icebreaker'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [{ shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'now' }],
+    shuttleFuelled: { highwall: true },
+    shuttleControl: { highwall: {
+      shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'u1',
+      holderUid: 'u1', revision: 4,
+    } },
+    highwallMining: {
+      cycle: 2, revision: 2,
+      operations: [
+        { requestId: 'one', resource: 'materials', rolls: [4], amount: 4 },
+        { requestId: 'two', resource: 'ore', rolls: [2, 3, 5], amount: 10 },
+      ],
+    },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner' });
+  state.setConnection('live');
+
+  render(<MemoryRouter initialEntries={['/shuttles/highwall']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const panel = screen.getByRole('region', { name: 'Highwall mining operations' });
+  expect(within(panel).getByText(/operations remaining.*1 of 3/i)).toBeVisible();
+  expect(within(panel).getByRole('list', { name: 'Highwall mining results' })).toHaveTextContent(
+    /operation 2.*2 \+ 3 \+ 5 = 10 ore/i,
+  );
+  await user.click(within(panel).getByRole('button', { name: 'Roll 3d6 strytium ore' }));
+  expect(runHighwallMining).toHaveBeenCalledWith('ore', 2, 4, 2);
+  expect(within(panel).getByRole('status')).toHaveTextContent(/4 \+ 5 \+ 6 = 15 strytium ore/i);
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      ...useSessionStore.getState().session!.turnPhase!,
+      timerPause: {
+        window: 'open', remainingMs: 60_000,
+        pausedAt: '2099-09-21T12:01:00.000Z',
+      },
+    },
+  }));
+  expect(within(panel).getByRole('button', { name: 'Roll 1d6 materials' })).toBeDisabled();
+  expect(within(panel).getByText(/requires the Coordination Phase/i)).toBeVisible();
+  const unpausedPhase = { ...useSessionStore.getState().session!.turnPhase! };
+  delete unpausedPhase.timerPause;
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      ...unpausedPhase,
+      openAirspaceEndsAt: '2020-09-21T12:15:00.000Z',
+    },
+  }));
+  expect(within(panel).getByRole('button', { name: 'Roll 3d6 strytium ore' })).toBeDisabled();
 });
 
 it('lets the current holder transfer only Hummingbird printed cargo while docked', async () => {

@@ -1626,6 +1626,34 @@ function serviceShuttleRecharges(value: unknown): NonNullable<GameSession['servi
   }));
 }
 
+function highwallMining(value: unknown): GameSession['highwallMining'] {
+  const raw = recordValue(value);
+  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'operations'].includes(key)) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+      !Array.isArray(raw.operations)) return undefined;
+  const operations = raw.operations.flatMap((value) => {
+    const operation = recordValue(value);
+    if (!operation || Object.keys(operation).some((key) =>
+      !['requestId', 'resource', 'rolls', 'amount'].includes(key)) ||
+        typeof operation.requestId !== 'string' ||
+        (operation.resource !== 'materials' && operation.resource !== 'ore') ||
+        !Array.isArray(operation.rolls) ||
+        operation.rolls.length !== (operation.resource === 'materials' ? 1 : 3) ||
+        operation.rolls.some((roll) => !Number.isSafeInteger(roll) || roll < 1 || roll > 6) ||
+        !Number.isSafeInteger(operation.amount) ||
+        operation.amount !== operation.rolls.reduce((sum, roll) => sum + (roll as number), 0)) return [];
+    return [{
+      requestId: operation.requestId, resource: operation.resource as 'materials' | 'ore',
+      rolls: operation.rolls as number[], amount: operation.amount as number,
+    }];
+  });
+  if (operations.length !== raw.operations.length || operations.length > 3 ||
+      new Set(operations.map((operation) => operation.requestId)).size !== operations.length ||
+      (raw.revision as number) < operations.length) return undefined;
+  return { cycle: raw.cycle as number, revision: raw.revision as number, operations };
+}
+
 function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -2162,6 +2190,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     : [];
   const retained = retainedShuttles(data.retainedShuttles);
   const quarantine = quarantineDocking(data.quarantineDocking);
+  const currentHighwallMining = highwallMining(data.highwallMining);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2226,6 +2255,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleControl: shuttleControl(data.shuttleControl),
     shuttleEvacuations: shuttleEvacuations(data.shuttleEvacuations),
     serviceShuttleRecharges: serviceShuttleRecharges(data.serviceShuttleRecharges),
+    ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),

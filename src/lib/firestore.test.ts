@@ -128,6 +128,37 @@ it('hydrates only canonical service-shuttle recharge accounting', () => {
   });
 });
 
+it('hydrates only internally consistent Highwall mining results', () => {
+  const valid = sessionFrom('highwall', {
+    ...sessionData(8),
+    highwallMining: {
+      cycle: 2, revision: 2,
+      operations: [
+        { requestId: 'one', resource: 'materials', rolls: [4], amount: 4 },
+        { requestId: 'two', resource: 'ore', rolls: [2, 3, 5], amount: 10 },
+      ],
+    },
+  });
+  expect(valid.highwallMining).toMatchObject({ cycle: 2, revision: 2 });
+  expect(sessionFrom('bad-highwall', {
+    ...sessionData(8),
+    highwallMining: {
+      cycle: 2, revision: 1,
+      operations: [{ requestId: 'one', resource: 'ore', rolls: [2, 3, 5], amount: 11 }],
+    },
+  }).highwallMining).toBeUndefined();
+  expect(sessionFrom('duplicate-highwall', {
+    ...sessionData(8),
+    highwallMining: {
+      cycle: 2, revision: 2,
+      operations: [
+        { requestId: 'same', resource: 'materials', rolls: [2], amount: 2 },
+        { requestId: 'same', resource: 'materials', rolls: [3], amount: 3 },
+      ],
+    },
+  }).highwallMining).toBeUndefined();
+});
+
 it('hydrates only a canonical private fleet-group vessel tuple', () => {
   const callbacks: Array<(snapshot: ReturnType<typeof sessionSnapshot>) => void> = [];
   vi.mocked(onSnapshot).mockImplementation((...args: unknown[]) => {

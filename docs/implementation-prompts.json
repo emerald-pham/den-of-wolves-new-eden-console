@@ -2634,6 +2634,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "388 -> 265;111",
+      "id": "E-388-HIGHWALL-MINING",
+      "language": "Release 0.4.78 established server-authoritative Highwall mining during a live, unpaused Coordination window. The current holder chooses a 1d6 materials operation or 3d6 strytium-ore operation twice per cycle, with a third operation only while Highwall is fuelled. The callable verifies active lifecycle, matching cycle and phase clock, unexpired deadline, custody, current fleet-group docking, control and mining revisions, fuel, strict cargo and canonical mining history, collision-free request ownership, and exact typed replay before server dice atomically update Highwall cargo and a member-visible result. Exact retries do not draw or write again. The routed console mirrors the live-window gate, reports remaining operations and exact results, and responsive rendered proof covers phone, short landscape, and desktop console typography, geometry, and controls.",
+      "source": "functions/src/highwallMining.ts; functions/src/highwallMining.test.ts; functions/src/index.ts; functions/src/highwallMiningCallable.test.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/highwallMiningService.ts; src/lib/highwallMiningService.test.ts; src/components/HighwallMining.tsx; src/components/ShuttleConsoleTemplate.tsx; src/routes/ShuttleConsole.test.tsx; scripts/prompt-388-render.mjs",
+      "type": "evidence / production-path / server-authoritative / Highwall / Coordination / server-dice / fuelled-third-operation / exact-cargo / fleet-group-custody / replay-safe / routed-responsive-font-touch-proof"
+    },
+    {
       "direction": "389 -> 265;426",
       "id": "E-AUDIT-389",
       "language": "Highwall combat consumes craft identity and attack composition.",
@@ -15678,15 +15685,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "two server-random operations, plus one only when fuelled, create the exact ore/material results.",
         "title": "Resolve Highwall mining."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-388",
+      "description": "Release 0.4.78 established Highwall mining during a live, unpaused Coordination window: the current holder chooses materials or strytium ore for two standard operations and a third only while fuelled. The callable verifies active lifecycle, matching cycle and phase clock, unexpired deadline, live custody, fleet-group docking, control and mining revisions, canonical history, cargo, fuel, collision-free request ownership, and exact typed replay before server dice atomically add the precise result to Highwall cargo. The routed console mirrors the live-window gate and shows remaining operations and authoritative results.",
+      "evidenceIds": "E-AUDIT-388;E-388-HIGHWALL-MINING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "265;111",
@@ -15694,10 +15701,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.78"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
