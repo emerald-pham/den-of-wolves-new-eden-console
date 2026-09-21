@@ -2242,6 +2242,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "326 -> 321;280;177;327",
+      "id": "E-326-COMMS-SCAN",
+      "language": "The pure server resolver obtains Comms Officer authority only through the exact P321 replacement-role branch, requires empty current-cycle Comms history, derives origin from the exact active-fleet coordinate map at AEGIS, and measures the canonical printed graph. It records source, replacement owner, AEGIS anchor, first-attempt ordinal, cycle, origin, target, and distance without reading or returning chart content. Printed targets at distance 0 or 1 pass; distance 2, unknown coordinates, missing or extra fleet positions, used cadence, absent/different replacement authority, disconnected state, and malformed cycles fail closed. Historical core assignment/seat fields do not authorize or invalidate the exact replacement. Persistence, transactional current-state revalidation, chart results, privacy projection, and UI remain separately owned.",
+      "source": "functions/src/commsOfficerScout.ts; functions/src/commsOfficerScout.test.ts; functions/src/scoutEntitlements.ts; functions/src/replacementRoles.ts; functions/src/consoleRolePolicy.ts; functions/src/starChartGraph.ts; authorized routed AEGIS and Comms Officer references; focused 48-test replacement/entitlement/chart/scan suite; Functions TypeScript build",
+      "type": "evidence / server-policy / exact-replacement / current-position / canonical-range / bounded-cadence / fail-closed / non-feature contract"
+    },
+    {
       "direction": "327 -> 321;285",
       "id": "E-AUDIT-327",
       "language": "Scout range consumes entitlement and current authoritative position.",
@@ -14292,8 +14299,8 @@
         "acceptance": "the valid replacement scouts one system within one jump of current AEGIS position.",
         "title": "Resolve Comms Officer scouting."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-326",
+      "description": "The server-side Comms Officer scan policy requires the exact current Comms Officer replacement assignment, a connected player, a valid active role/vessel configuration, no prior Comms scan in the cycle, the complete authoritative per-ship coordinate map, and a positive cycle. It derives origin only from current AEGIS position and returns one immutable request for a printed target at canonical graph distance 0 or 1. A second jump, unknown target or position, incomplete or extra fleet coordinates, used cadence, absent or different replacement authority, disconnected state, and malformed cycles fail closed. Historical core assignment/seat fields neither grant nor block the exact replacement path. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream.",
+      "evidenceIds": "E-AUDIT-326;E-326-COMMS-SCAN",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;280;177",
@@ -14304,7 +14311,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
