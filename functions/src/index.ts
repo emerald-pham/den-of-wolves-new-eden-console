@@ -4836,7 +4836,9 @@ export const transferShuttleControlCommand = onCall<{
       throw new HttpsError('permission-denied', 'A connected player or facilitator is required.');
     }
     const playerDocs = players.docs.filter(isActivePlayer);
-    const roleHolders = playerDocs.flatMap((player) => {
+    const rosterPlayerDocs = players.docs.filter((player) =>
+      player.exists && player.get('role') === 'player' && !isKickedPlayer(player));
+    const roleHolders = rosterPlayerDocs.flatMap((player) => {
       const roleId = shuttleOwnerRoleForPlayer(player);
       return roleId ? [{ uid: player.id, roleId }] : [];
     });
@@ -4901,6 +4903,7 @@ export const transferShuttleControlCommand = onCall<{
       const activeRoleIds = configuredRoleIds(session);
       const rawDockings = session.get('shuttleDockings');
       if (!Array.isArray(rawDockings) ||
+          !shuttleDockingsAreParked(rawDockings, activeVesselIdsForSession(session)) ||
           !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings)) {
         throw commandError(
           'failed-precondition',

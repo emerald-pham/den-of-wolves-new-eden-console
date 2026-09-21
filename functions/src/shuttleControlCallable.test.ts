@@ -174,6 +174,7 @@ it('commits one owner handoff, writes an audit, and replays without another muta
 it('does not synthesize a Union shuttle omitted by the authoritative starting manifest', async () => {
   const session = mock.documents.get('sessions/s1')!;
   session.activeRoleIds = ['joint-engineering-quellon-refinery'];
+  session.activeVesselIds = ['aegis', 'quellon', 'refinery-124'];
   session.shuttleControl = {};
   session.shuttleDockings = [
     { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
@@ -184,6 +185,30 @@ it('does not synthesize a Union shuttle omitted by the authoritative starting ma
     ...command, requestId: 'absent-union', shuttleId: 'wobbly',
   }))).rejects.toMatchObject({
     code: 'failed-precondition', message: 'Shuttle control is unavailable.',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['unknown host', { shuttleId: 'starlight', shipId: 'unknown', dockedAt: 'SESSION START' }],
+  ['missing docking time', { shuttleId: 'starlight', shipId: 'aegis' }],
+  ['in-transit state', {
+    shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START', status: 'in-transit',
+  }],
+] as const)('does not synthesize control from a malformed %s row', async (_label, docking) => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeRoleIds = ['wing-commander'];
+  session.activeVesselIds = ['aegis'];
+  session.shuttleControl = {};
+  session.shuttleDockings = [
+    { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+    docking,
+  ];
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: `malformed-${_label.replaceAll(' ', '-')}`,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'The authoritative shuttle manifest is unavailable.',
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -238,5 +263,21 @@ it('lets only a live facilitator instance adjudicate a handoff', async () => {
   });
   expect(mock.documents.get('sessions/s1/shuttleControlAudit/gm-handoff')).toMatchObject({
     actorUid: 'gm', actorRole: 'facilitator',
+  });
+});
+
+it('lets a live facilitator hand off for a disconnected owner and reclaim after that owner reconnects', async () => {
+  mock.documents.get('sessions/s1/players/wing')!.connected = false;
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: 'gm-owner-away', instanceId: 'bridge',
+  }, 'gm'))).resolves.toMatchObject({
+    status: 'committed', ownerUid: 'wing', holderUid: 'crew', revision: 1,
+  });
+  mock.documents.get('sessions/s1/players/wing')!.connected = true;
+  await expect(transferShuttleControlCommand.run(request({
+    sessionId: 's1', requestId: 'gm-owner-returned', instanceId: 'bridge',
+    shuttleId: 'starlight', action: 'reclaim', expectedRevision: 1,
+  }, 'gm'))).resolves.toMatchObject({
+    status: 'committed', ownerUid: 'wing', holderUid: 'wing', revision: 2,
   });
 });
