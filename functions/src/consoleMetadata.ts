@@ -49,6 +49,17 @@ export interface ConsoleMetadata {
   readonly resolver: ConsoleResolver;
 }
 
+export interface SupplementalConsoleMetadata {
+  readonly consoleId: string;
+  readonly vesselId: string;
+  readonly name: string;
+  readonly phase: ConsolePhase;
+  readonly maintenanceStep: 4;
+  readonly charge: ConsoleRule;
+  readonly effect: string;
+  readonly resolver: ConsoleResolver;
+}
+
 interface ConsoleBlueprint {
   readonly phase: ConsolePhase;
   readonly ownerRoleId?: string;
@@ -289,9 +300,34 @@ export function consoleMetadataFor(shipId: string, systemId: string): ConsoleMet
   return CONSOLE_METADATA[`${shipId}:${systemId}`];
 }
 
+/** Server-side registration for optional-vessel systems without damage cards. */
+export const SUPPLEMENTAL_CONSOLE_METADATA: Readonly<Record<string, SupplementalConsoleMetadata>> =
+  Object.freeze({
+    'gorgoneion:missile-array': {
+      consoleId: 'gorgoneion:missile-array',
+      vesselId: 'gorgoneion',
+      name: 'Missile Array',
+      phase: 'Wolf attack',
+      maintenanceStep: 4,
+      charge: printed('Requires one console charge from the small-ship Reactor.'),
+      effect: 'Roll 3 dice at long, medium, and short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+      resolver: unavailable(
+        'Missile Array firing is unavailable until the authoritative range-phase resolver lands.',
+        ['455'],
+      ),
+    },
+  });
+
+export function supplementalConsoleMetadataFor(
+  vesselId: string,
+  systemId: string,
+): SupplementalConsoleMetadata | undefined {
+  return SUPPLEMENTAL_CONSOLE_METADATA[`${vesselId}:${systemId}`];
+}
+
 /** Identity-only vessels currently have no registered console set; later prompts own those definitions. */
 export const UNREGISTERED_VESSEL_CONSOLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  gorgoneion: ['235', '236', '239', '240'],
+  gorgoneion: ['235', '236', '240'],
   'capybara-small': ['241', '241a', '241d', '241e'],
   warrior: ['242', '243', '244', '245'],
   vulcan: ['246', '247', '248'],

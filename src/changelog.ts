@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [239],
+    implementationProgress: {
+      completed: 362, total: 751, percentage: '48.20%',
+      done: 362, partial: 18, active: 0, missing: 371,
+    },
+    changes: [
+      'The Gorgoneion small-ship workspace now shows its charged Missile Array rule, including three dice at each range, the exact hit thresholds, and its per-target limit.',
+      'Missile Array firing remains explicitly unavailable until its server-owned range-phase resolver lands; the workspace exposes no premature firing control.',
+      '362 of 751 planned items are complete (48.20%).',
+    ],
+  },
+  {
+    version: '0.4.56',
     implementationPrompts: [498],
     implementationProgress: {
       completed: 361, total: 751, percentage: '48.07%',

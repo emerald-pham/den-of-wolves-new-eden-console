@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CONSOLE_METADATA, UNREGISTERED_VESSEL_CONSOLES, consoleMetadataFor } from './consoleMetadata';
+import {
+  CONSOLE_METADATA,
+  SUPPLEMENTAL_CONSOLE_METADATA,
+  UNREGISTERED_VESSEL_CONSOLES,
+  consoleMetadataFor,
+  supplementalConsoleMetadataFor,
+} from './consoleMetadata';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 
 describe('server-only console metadata', () => {
@@ -109,6 +115,23 @@ describe('server-only console metadata', () => {
     expect(Object.keys(UNREGISTERED_VESSEL_CONSOLES)).toEqual([
       'gorgoneion', 'capybara-small', 'warrior', 'vulcan', 'voyage-33-0',
     ]);
-    expect(UNREGISTERED_VESSEL_CONSOLES['gorgoneion']).toEqual(['235', '236', '239', '240']);
+    expect(UNREGISTERED_VESSEL_CONSOLES['gorgoneion']).toEqual(['235', '236', '240']);
+  });
+
+  it('registers Gorgoneion Missile Array while keeping firing fail closed for Prompt 455', () => {
+    expect(Object.keys(SUPPLEMENTAL_CONSOLE_METADATA)).toEqual(['gorgoneion:missile-array']);
+    expect(supplementalConsoleMetadataFor('gorgoneion', 'missile-array')).toEqual({
+      consoleId: 'gorgoneion:missile-array',
+      vesselId: 'gorgoneion',
+      name: 'Missile Array',
+      phase: 'Wolf attack',
+      maintenanceStep: 4,
+      charge: { status: 'printed', text: 'Requires one console charge from the small-ship Reactor.' },
+      effect: 'Roll 3 dice at long, medium, and short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+      resolver: {
+        status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['455'],
+        reason: 'Missile Array firing is unavailable until the authoritative range-phase resolver lands.',
+      },
+    });
   });
 });

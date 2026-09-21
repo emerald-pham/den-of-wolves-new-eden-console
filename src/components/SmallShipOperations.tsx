@@ -97,6 +97,19 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
         <h3>{vessel.name}</h3>
         <p>{vessel.vesselType} // {vessel.printedStatistics.population.toLocaleString()} survivors // no ship damage deck</p>
       </header>
+      {vessel.systems && vessel.systems.length > 0 && (
+        <section aria-label={`${vessel.name} registered systems`}>
+          <h4>Registered systems</h4>
+          {vessel.systems.map((system) => (
+            <article key={system.id} aria-label={`${system.name} system // ${system.action.status}`}>
+              <h5>{system.name}</h5>
+              <p>{system.phase} // charged console</p>
+              <p>{system.effect}</p>
+              <p role="status">Action unavailable // {system.action.reason} // Prompt {system.action.followOnPrompt}</p>
+            </article>
+          ))}
+        </section>
+      )}
       <label>Host ship
         <select aria-label={`${vessel.name} host ship`} value={selectedHost} disabled={currentHost !== null || pending}
           onChange={(event) => setHostShipId(event.target.value)}>

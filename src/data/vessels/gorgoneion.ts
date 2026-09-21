@@ -21,4 +21,16 @@ export default defineSupplementalVessel({
     reactorCapacity: 2,
     maintenanceSteps: [1, 2, 3, 4],
   },
+  systems: [{
+    id: 'missile-array',
+    name: 'Missile Array',
+    phase: 'Wolf attack',
+    charge: 'reactor',
+    effect: 'Roll 3 dice at long, medium, and short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+    action: {
+      status: 'unavailable',
+      reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
+      followOnPrompt: '455',
+    },
+  }],
 });

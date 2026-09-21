@@ -116,6 +116,19 @@ export function defineShip(
 export type SupplementalVesselKind = 'small-ship' | 'voyage';
 export type SupplementalVesselAvailability = 'base-small' | 'approaching-vessel';
 
+export interface SupplementalVesselSystem {
+  readonly id: string;
+  readonly name: string;
+  readonly phase: ShuttleOperationPhase;
+  readonly charge: 'reactor';
+  readonly effect: string;
+  readonly action: {
+    readonly status: 'unavailable';
+    readonly reason: string;
+    readonly followOnPrompt: string;
+  };
+}
+
 /**
  * Identity-only registrations for optional vessels whose gameplay is owned by
  * later prompts. Keeping them separate from full fleet ships prevents an
@@ -126,6 +139,7 @@ export interface SupplementalVessel extends ShipIdentity {
   readonly kind: SupplementalVesselKind;
   readonly availability: SupplementalVesselAvailability;
   readonly printedStatistics: PrintedVesselStatistics;
+  readonly systems?: readonly SupplementalVesselSystem[];
 }
 
 export type RegisteredVessel = Ship | SupplementalVessel;
