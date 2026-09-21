@@ -4503,6 +4503,13 @@
       "type": "evidence"
     },
     {
+      "direction": "175;176 -> 126;127;361",
+      "id": "E-AEGIS-SHUTTLE-BAYS-VERIFIED",
+      "language": "The existing authoritative maintenance resolver admits only Zeta at step 6 and Omega at step 7, spends one host fuel for each selected docked shuttle, rejects damaged or out-of-order bays and repeat craft, and requires the Omega boundary before maintenance ends. Focused engine, callable, metadata, and component tests preserve the separate controls and state transition. A rendered v1.1 AEGIS ship-sheet review confirms the numbered 6/7 order, one-fuel/one-shuttle rule, damage denial, and Omega's conflicting body label as documented errata. Rechecked on 2026-09-21; this records existing behavior without a runtime or release change.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/data/aegisConsoles.ts; docs/CONSOLE_ARCHITECTURE.md",
+      "type": "evidence"
+    },
+    {
       "direction": "173;185;195;205;217;225 -> 115;183",
       "id": "E-VESSEL-STORAGE-VERIFIED",
       "language": "Registered vessel Storage identities route to the shared server branch, which rounds losses down and filters docked cargo by the acting ship. The callable transaction commits both stores and cargo. Existing unit evidence verifies rounding and unrelated cargo preservation; the 40-test callable suite verifies committed state, authority and replay/CAS. Rechecked on 2026-09-12; no new runtime behavior.",
@@ -10119,8 +10126,8 @@
         "acceptance": "the bay spends one fuel for one eligible docked craft during its step.",
         "title": "Resolve Shuttle Bay Zeta."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-175",
+      "description": "The existing server-authoritative AEGIS maintenance lane resolves Shuttle Bay Zeta only at step 6. It accepts at most one currently docked shuttle, spends exactly one unit of the ship's fuel, marks that craft fuelled for the cycle, and rejects a damaged bay, insufficient fuel, an out-of-order bay, or a repeated craft. The maintenance component exposes only authoritative dockings and enables Zeta only during its step. Focused engine, callable, metadata, and component checks passed on 2026-09-21. This is evidence reconciliation for existing behavior; no runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-175;E-AEGIS-SHUTTLE-BAYS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -10131,7 +10138,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -10142,8 +10149,8 @@
         "acceptance": "the second bay operates independently at step 7 and preserves the conflicting body label as errata.",
         "title": "Resolve Shuttle Bay Omega."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-176",
+      "description": "The existing server-authoritative AEGIS maintenance lane resolves Shuttle Bay Omega independently at step 7 after Zeta. It accepts at most one currently docked shuttle, spends its own unit of ship fuel, rejects a damaged or out-of-order bay and any craft already fuelled that cycle, and preserves the mandatory Omega boundary before maintenance ends. The component keeps Zeta and Omega visibly ordered while enabling only the current bay and clearing the prior selection. The printed badge and 1-7 flow make Omega step 7; its body-text reference to step 6 remains documented as errata. Focused engine, callable, metadata, and component checks passed on 2026-09-21. This is evidence reconciliation only; no runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-176;E-AEGIS-SHUTTLE-BAYS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "127;361",
@@ -10154,7 +10161,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
