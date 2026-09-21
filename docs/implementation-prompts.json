@@ -975,9 +975,9 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "181 -> 166;260;262",
+      "direction": "181 -> 166;178;260;262;321;322;323;328;392;396;422;449;450;451;452",
       "id": "E-AUDIT-181",
-      "language": "Wing Commander workspace consumes role binding and the registered scouting/fighter craft.",
+      "language": "The Wing Commander workspace consumes authoritative role binding, Starlight and both Fighter Wing registrations, the Construction Bay rebuild action, scout entitlement and both Starlight scans, private scout results, Starlight mission bonuses and the complete mission scenario, authoritative fighter state, Fighter Bay launch, target shifts, and both fighter range attacks. Static craft references cannot satisfy the workspace acceptance before those actions publish current authority and results.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -10275,11 +10275,11 @@
         "acceptance": "Starlight, both Fighter Bays, wings, scouting, missions, and fighter rebuilding show current authority and results.",
         "title": "Create the Wing Commander workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. The existing Wing Commander shell shows registered Starlight and Fighter Wing references plus the released Construction Bay rebuild action, while scouting, missions, fighter state, launches, targeting shifts, and range attacks remain deliberately non-executable. Workspace completion waits for those server-owned actions and their authoritative results; no production-path completion is claimed yet.",
       "evidenceIds": "E-AUDIT-181",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "166;260;262",
+      "hardPromptPrerequisites": "166;178;260;262;321;322;323;328;392;396;422;449;450;451;452",
       "id": "181",
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
