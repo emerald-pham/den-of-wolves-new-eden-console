@@ -5596,6 +5596,9 @@ export const requestShuttleDeparture = onCall<{
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may request departure.');
     }
     requirePlayerShipActionAuthority(actor);
+    if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
+    }
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -5750,6 +5753,9 @@ export const beginShuttleTransit = onCall<{
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may begin transit.');
     }
     requirePlayerShipActionAuthority(actor);
+    if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
+    }
     const replay = replayBoundCommand(
       receipt,
       fingerprint,

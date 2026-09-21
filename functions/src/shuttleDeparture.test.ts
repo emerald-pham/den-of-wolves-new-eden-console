@@ -27,6 +27,26 @@ it('authorizes an exact holder request to another ship in the local group', () =
   });
 });
 
+it('applies restricted-airspace Press access only to the SNN shuttle', () => {
+  const restricted = {
+    ...phase,
+    airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: true },
+  };
+  const press = {
+    ...base,
+    shuttleId: 'snn-press-shuttle',
+    control: { ...base.control, shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer' },
+    dockings: [{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'start' }],
+    phase: restricted,
+  };
+
+  expect(authorizeShuttleDeparture(press)).toMatchObject({ shuttleId: 'snn-press-shuttle' });
+  expect(() => authorizeShuttleDeparture({ ...press, phase: {
+    ...restricted, airspace: { ...restricted.airspace, pressAccess: false },
+  } })).toThrow(/airspace is open/i);
+  expect(() => authorizeShuttleDeparture({ ...base, phase: restricted })).toThrow(/airspace is open/i);
+});
+
 it.each([
   ['non-holder', { actorUid: 'owner' }],
   ['stale control', { expectedControlRevision: 2 }],

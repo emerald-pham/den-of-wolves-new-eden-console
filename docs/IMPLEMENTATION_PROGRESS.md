@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**404 / 751 prompts complete (53.79%)**
+**405 / 751 prompts complete (53.93%)**
 
-Status breakdown: **404 done · 16 partial · 331 missing**.
+Status breakdown: **405 done · 16 partial · 330 missing**.
 
 Active prompt: **none**
 
@@ -814,7 +814,7 @@ release classification and evidence.
 | 369 | done | non-feature | — | Verified the existing production fuelling boundary. During Team Phase, the authoritative maintenance transaction combines ship-console authority, the exact host bay and maintenance step, the complete role-owned docking manifest, host fuel, bay damage, one-use state, and current revision. Valid choices spend and mark fuel once; invalid, stale, repeated, or replayed requests cannot spend twice, and the next numbered cycle clears the fuelled ledger. Focused server and shared UI suites passed. This is evidence reconciliation with no runtime change. |
 | 370 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 371 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 372 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 372 | done | feature | 0.4.75 | AEGIS Press access now authorizes only the enabled SNN Press shuttle to request departure and enter transit while general airspace remains restricted. Server and routed UI checks reject disabled-Press stale custody, preserve ordinary craft restrictions, and retain all existing timing, routing, custody, replay, and attack locks. |
 | 373 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 374 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 375 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

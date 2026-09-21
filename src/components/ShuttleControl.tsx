@@ -46,9 +46,14 @@ export default function ShuttleControl({ control }: Props) {
   const evacuationDestinations = projectedFleetVesselIds
     .filter((shipId) => shipId !== docking?.shipId && destinations.includes(shipId) &&
       !session.populationAlerts?.[shipId]);
+  const pressMovementException = control.shuttleId === 'snn-press-shuttle' &&
+    session.pressEnabled !== false &&
+    session.turnPhase?.airspace.state === 'restricted' &&
+    session.turnPhase.airspace.pressAccess;
   const departureWindowOpen = session.phase === 'active' &&
-    session.turnPhase?.airspace.state === 'lifted' && !session.turnPhase.timerPause &&
-    Date.now() < Date.parse(session.turnPhase.openAirspaceEndsAt);
+    (session.turnPhase?.airspace.state === 'lifted' || pressMovementException) &&
+    !session.turnPhase?.timerPause &&
+    Date.now() < Date.parse(session.turnPhase?.openAirspaceEndsAt ?? '');
   const evacuationLedger = session.shuttleEvacuations?.[control.shuttleId];
   const evacuatedThisCycle = evacuationLedger && evacuationLedger.cycle === session.currentTurn
     ? evacuationLedger.moved : 0;
@@ -208,7 +213,9 @@ export default function ShuttleControl({ control }: Props) {
           <button className="cic-action-button" type="button" disabled={pending || !departureWindowOpen}
             onClick={() => void submitTransit()}>Begin transit</button>
         </div>
-        {!departureWindowOpen && <p>Transit may begin when airspace is open.</p>}
+        {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
+          ? 'Transit may begin when airspace is open or AEGIS grants Press access.'
+          : 'Transit may begin when airspace is open.'}</p>}
       </> : <>
         <label htmlFor={`shuttle-destination-${control.shuttleId}`}>Destination ship</label>
         <select id={`shuttle-destination-${control.shuttleId}`} value={destinationShipId}
@@ -223,7 +230,9 @@ export default function ShuttleControl({ control }: Props) {
           <button className="cic-action-button" type="button" disabled={pending || !departureWindowOpen || !destinationShipId}
             onClick={() => void submitDeparture()}>Request departure</button>
         </div>
-        {!departureWindowOpen && <p>Departure requests open when airspace is open.</p>}
+        {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
+          ? 'Departure requests open when airspace is open or AEGIS grants Press access.'
+          : 'Departure requests open when airspace is open.'}</p>}
       </>}
     </section>}
     {canRequestDeparture && docking && cargoTypes.length > 0 && <section aria-label="Shuttle cargo transfer">

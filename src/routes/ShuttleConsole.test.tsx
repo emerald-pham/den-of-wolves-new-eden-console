@@ -1127,6 +1127,46 @@ it('lets the current holder request a local departure during open airspace witho
   expect(screen.getByText('Shuttle location // Docked // AEGIS')).toBeVisible();
 });
 
+it('lets the SNN holder request departure during AEGIS-authorized restricted airspace', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2, pressEnabled: true,
+    activeRoleIds: ['dione-captain'], activeVesselIds: ['dione', 'icebreaker'],
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2099-01-01T00:10:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [
+      { shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: '2026-01-01T00:00:00.000Z' },
+    ],
+    shuttleVisitLog: [],
+    shuttleControl: {
+      'snn-press-shuttle': {
+        shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'u1',
+        holderUid: 'u1', revision: 4,
+      },
+    },
+  });
+  state.setMe({
+    ...state.me!, activeConsoleRoleId: 'press-officer', fleetGroupId: 'fleet-1',
+  });
+  render(<MemoryRouter initialEntries={['/press']}><Routes>
+    <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+  </Routes></MemoryRouter>);
+
+  const departure = screen.getByRole('region', { name: 'Shuttle departure' });
+  expect(within(departure).getByLabelText('Destination ship')).toBeEnabled();
+  await user.selectOptions(within(departure).getByLabelText('Destination ship'), 'icebreaker');
+  await user.click(within(departure).getByRole('button', { name: 'Request departure' }));
+
+  expect(requestShuttleDeparture).toHaveBeenCalledWith(
+    'snn-press-shuttle', 'icebreaker', 4, 2,
+  );
+});
+
 it('shows an authorized departure as awaiting transit and hides departure controls from a non-holder', () => {
   const state = useSessionStore.getState();
   state.setSession({

@@ -127,6 +127,65 @@ it('atomically enters transit, removes only the departing docking, and replays w
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('enters SNN transit during AEGIS-authorized restricted airspace', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.pressEnabled = true;
+  (session.turnPhase as Fields).airspace = {
+    state: 'restricted', tickerActive: true, pressAccess: true,
+  };
+  session.shuttleControl = {
+    ...(session.shuttleControl as Fields),
+    'snn-press-shuttle': {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 0,
+    },
+  };
+  put('sessions/s1/shuttleDepartures/snn-press-shuttle', {
+    status: 'requested', requestId: 'press-depart', shuttleId: 'snn-press-shuttle',
+    holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
+    requestedAt: new Date(Date.now() - 1_000).toISOString(),
+  });
+
+  await expect(beginShuttleTransit.run(request({
+    ...command, requestId: 'press-transit', shuttleId: 'snn-press-shuttle',
+    expectedDepartureRequestId: 'press-depart',
+  }))).resolves.toMatchObject({
+    status: 'in-transit', shuttleId: 'snn-press-shuttle', originShipId: 'aegis',
+    destinationShipId: 'icebreaker',
+  });
+});
+
+it('rejects SNN transit when the Press station is disabled without writes', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.pressEnabled = false;
+  (session.turnPhase as Fields).airspace = {
+    state: 'restricted', tickerActive: true, pressAccess: true,
+  };
+  session.shuttleControl = {
+    ...(session.shuttleControl as Fields),
+    'snn-press-shuttle': {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 0,
+    },
+  };
+  const pending = {
+    status: 'requested', requestId: 'press-depart', shuttleId: 'snn-press-shuttle',
+    holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
+    requestedAt: new Date(Date.now() - 1_000).toISOString(),
+  };
+  put('sessions/s1/shuttleDepartures/snn-press-shuttle', pending);
+
+  await expect(beginShuttleTransit.run(request({
+    ...command, requestId: 'disabled-press-transit', shuttleId: 'snn-press-shuttle',
+    expectedDepartureRequestId: 'press-depart',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/snn-press-shuttle')).toEqual(pending);
+});
+
 it.each([
   ['non-holder', 'owner', command],
   ['stale departure', 'holder', { ...command, requestId: 'stale-departure', expectedDepartureRequestId: 'wrong' }],

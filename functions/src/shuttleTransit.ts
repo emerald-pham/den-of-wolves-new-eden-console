@@ -1,7 +1,7 @@
 import { shuttleHostIsAllowed } from './craftOwnership';
 import type { FleetGroupRecord } from './fleetGroups';
 import type { ShuttleControlEntry } from './shuttleControl';
-import type { ShuttleDepartureRequestState } from './shuttleDeparture';
+import { shuttleMovementWindowOpen, type ShuttleDepartureRequestState } from './shuttleDeparture';
 import type { AuthoritativeShuttleDocking } from './shuttleDocking';
 import type { TurnPhase } from './turnZero';
 
@@ -98,8 +98,7 @@ export function enterShuttleTransit(input: Readonly<{
       departure.cycle !== input.expectedCycle || input.phase.turn !== input.expectedCycle) {
     throw new Error('Shuttle departure authority changed; refresh before entering transit.');
   }
-  if (input.phase.airspace.state !== 'lifted' || input.phase.timerPause ||
-      input.now >= Date.parse(input.phase.openAirspaceEndsAt)) {
+  if (!shuttleMovementWindowOpen(departure.shuttleId, input.phase, input.now)) {
     throw new Error('Shuttle transit may begin only while airspace is open.');
   }
   if (departure.fleetGroupId !== input.group.id ||

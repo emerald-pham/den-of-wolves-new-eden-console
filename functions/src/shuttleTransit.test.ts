@@ -41,6 +41,32 @@ it('enters a sixty-second authoritative leg and removes only the departing docki
   expect(parseShuttleTransit(result.transit, 'starlight')).toEqual(result.transit);
 });
 
+it('enters restricted-airspace transit only for the AEGIS-authorized SNN shuttle', () => {
+  const pressDeparture = {
+    ...departure,
+    shuttleId: 'snn-press-shuttle',
+  };
+  const restricted = {
+    ...base.phase,
+    airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: true },
+  };
+  const press = {
+    ...base,
+    departure: pressDeparture,
+    control: { ...base.control, shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer' },
+    dockings: [{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'start' }],
+    phase: restricted,
+  };
+
+  expect(enterShuttleTransit(press).transit).toMatchObject({
+    shuttleId: 'snn-press-shuttle', status: 'in-transit',
+  });
+  expect(() => enterShuttleTransit({ ...press, phase: {
+    ...restricted, airspace: { ...restricted.airspace, pressAccess: false },
+  } })).toThrow(/airspace is open/i);
+  expect(() => enterShuttleTransit({ ...base, phase: restricted })).toThrow(/airspace is open/i);
+});
+
 it.each([
   ['foreign actor', { actorUid: 'other' }],
   ['stale departure', { expectedDepartureRequestId: 'old' }],

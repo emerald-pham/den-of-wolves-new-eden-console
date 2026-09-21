@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [372],
+    implementationProgress: {
+      completed: 405, total: 751, percentage: '53.93%',
+      done: 405, partial: 16, active: 0, missing: 330,
+    },
+    changes: [
+      'AEGIS Press access now lets the enabled SNN Press shuttle request departure and begin transit while general airspace remains closed.',
+      'The exception applies only to SNN; other shuttles still wait for Airspace Open, and paused, expired, or attack-locked movement remains blocked.',
+      '405 of 751 planned items are complete (53.93%).',
+    ],
+  },
+  {
+    version: '0.4.74',
     implementationPrompts: [192],
     implementationProgress: {
       completed: 391, total: 751, percentage: '52.06%',

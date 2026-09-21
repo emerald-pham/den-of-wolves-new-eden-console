@@ -127,6 +127,53 @@ it('persists one holder departure request and replays without another write', as
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('persists the SNN departure during AEGIS-authorized restricted airspace without opening it to other craft', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.pressEnabled = true;
+  (session.turnPhase as Fields).airspace = {
+    state: 'restricted', tickerActive: true, pressAccess: true,
+  };
+  session.shuttleControl = {
+    ...(session.shuttleControl as Fields),
+    'snn-press-shuttle': {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 0,
+    },
+  };
+
+  await expect(requestShuttleDeparture.run(request({
+    ...command, requestId: 'press-restricted', shuttleId: 'snn-press-shuttle',
+  }))).resolves.toMatchObject({
+    status: 'requested', shuttleId: 'snn-press-shuttle', originShipId: 'aegis',
+    destinationShipId: 'icebreaker',
+  });
+  await expect(requestShuttleDeparture.run(request({
+    ...command, requestId: 'ordinary-restricted',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('rejects SNN departure when the Press station is disabled without writes', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.pressEnabled = false;
+  (session.turnPhase as Fields).airspace = {
+    state: 'restricted', tickerActive: true, pressAccess: true,
+  };
+  session.shuttleControl = {
+    ...(session.shuttleControl as Fields),
+    'snn-press-shuttle': {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 0,
+    },
+  };
+
+  await expect(requestShuttleDeparture.run(request({
+    ...command, requestId: 'disabled-press', shuttleId: 'snn-press-shuttle',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/shuttleDepartures/snn-press-shuttle')).toBe(false);
+});
+
 it('allows only one pending Coordination move for the current holder and cycle', async () => {
   await expect(requestShuttleDeparture.run(request(command))).resolves.toMatchObject({
     status: 'requested', holderUid: 'holder', originShipId: 'aegis',

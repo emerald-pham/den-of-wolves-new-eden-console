@@ -17,6 +17,17 @@ export interface ShuttleDepartureRequestState {
   readonly requestedAt: string;
 }
 
+/** AEGIS may open restricted airspace for the SNN Press shuttle only. */
+export function shuttleMovementWindowOpen(
+  shuttleId: string,
+  phase: TurnPhase,
+  now: number,
+): boolean {
+  if (phase.timerPause || now >= Date.parse(phase.openAirspaceEndsAt)) return false;
+  if (phase.airspace.state === 'lifted') return true;
+  return shuttleId === 'snn-press-shuttle' && phase.airspace.pressAccess;
+}
+
 export function parseShuttleDepartures(
   value: unknown,
 ): Readonly<Record<string, ShuttleDepartureRequestState>> | null {
@@ -67,8 +78,8 @@ export function authorizeShuttleDeparture(input: Readonly<{
     throw new Error('Shuttle control changed; refresh before requesting departure.');
   }
   if (input.existing) throw new Error('This shuttle already has a pending departure request.');
-  if (input.phase.turn !== input.expectedCycle || input.phase.airspace.state !== 'lifted' ||
-      input.phase.timerPause || input.now >= Date.parse(input.phase.openAirspaceEndsAt)) {
+  if (input.phase.turn !== input.expectedCycle ||
+      !shuttleMovementWindowOpen(input.shuttleId, input.phase, input.now)) {
     throw new Error('Shuttle departure is available only while airspace is open.');
   }
   if (!input.group.memberUids.includes(input.actorUid)) {
