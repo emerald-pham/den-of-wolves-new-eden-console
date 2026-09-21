@@ -2228,6 +2228,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "325 -> 321;267;327",
+      "id": "E-325-ENDEAVOUR-SCAN",
+      "language": "The pure server resolver obtains Endeavour authority only through P321, requires empty current-cycle Endeavour history, and accepts exactly one canonical printed system without a position or graph-distance input. The immutable receipt records source, owner, Shepherd anchor, first-attempt ordinal, cycle, target, and the explicit unlimited-range rule without reading or returning chart content. Near and far printed targets pass equally; unknown systems, used cadence, invalid role/vessel authority, stale assignment/seat binding, replacement state, and malformed cycles fail closed. Persistence, transactional current-state revalidation, chart results, privacy projection, and UI remain separately owned.",
+      "source": "functions/src/endeavourScout.ts; functions/src/endeavourScout.test.ts; functions/src/scoutEntitlements.ts; functions/src/starChartGraph.ts; functions/src/shuttlecraft.ts; authorized routed Shepherd and Endeavour references; focused 46-test entitlement/chart/registration/scan suite; Functions TypeScript build",
+      "type": "evidence / server-policy / unlimited-range / bounded-cadence / fail-closed / non-feature contract"
+    },
+    {
       "direction": "326 -> 321;280;177",
       "id": "E-AUDIT-326",
       "language": "Comms Officer scan consumes entitlement, replacement role, and AEGIS position.",
@@ -14262,8 +14269,8 @@
         "acceptance": "the Scientist scouts one system at any range once per allowed turn.",
         "title": "Resolve Endeavour scouting."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-325",
+      "description": "The server-side Endeavour long-range sensor policy requires the exact current Shepherd Scientist entitlement, a valid active role/vessel configuration, no prior Endeavour scan in the cycle, a positive cycle, and a target in the canonical printed system set. It returns one immutable request with an explicit unlimited-range marker and deliberately consumes no ship-position authority. Near, middle, and far printed systems are equally eligible; unknown targets, used cadence, inactive Shepherd authority, stale or mismatched role binding, replacement state, and malformed cycles fail closed. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream.",
+      "evidenceIds": "E-AUDIT-325;E-325-ENDEAVOUR-SCAN",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;267",
@@ -14274,7 +14281,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
