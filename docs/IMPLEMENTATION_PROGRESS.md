@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**408 / 751 prompts complete (54.33%)**
+**410 / 751 prompts complete (54.59%)**
 
-Status breakdown: **408 done · 16 partial · 327 missing**.
+Status breakdown: **410 done · 16 partial · 325 missing**.
 
 Active prompt: **none**
 
@@ -841,8 +841,8 @@ release classification and evidence.
 | 396 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 397 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 398 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 399 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 400 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 399 | done | non-feature | — | Verified the existing production Macaw boundary. The Capybara Captain moves it through the shared authoritative shuttle path, and its exact server/client cargo allowlist includes the full printed resource set plus Scrap without exposing Boa reclamation or combat actions. This is evidence reconciliation with no runtime change. |
+| 400 | done | non-feature | — | Verified the existing production Boa boundary. The Capybara Recycler moves it through the shared authoritative shuttle path, its cargo allowlist permits only Scrap, and its reclamation and three-range combat procedures remain distinct from Macaw. This is evidence reconciliation with no runtime change. |
 | 401 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 402 | done | non-feature | 0.3.61 | The authoritative startGame transaction now creates one typed 33-card away-mission deck from hearts, diamonds, and clubs, omitting 2s/3s, with A=10, numeric face value, and J/Q/K=-5. It shuffles with server-side cryptographic randomness, persists the immutable order in server-only session state, reuses it across transaction retries and replays, and excludes the order from public setup/session/event data. Focused deck/start/retry/replay tests and Firestore rules tests cover the production path and deny player and GM access; deployment evidence is reported separately. |
 | 403 | done | non-feature | — | Implemented the narrow facilitator-recorded away-mission foundation. dealPrivateInitialCards validates an explicit participant UID list against the current active roster and the source-defined capable craft roles, records an immutable mission participant snapshot in server-only state, deals the next cards from the P402 deck cursor in one transaction, and writes one private hand per participant. Hand reads are limited by current connected membership plus participant identity or current GM role; client writes, public card values, and public participant snapshots remain denied. Same-request replay is deterministic, mission identities cannot be redealt under a different request, and depletion fails before writes. The routed source and current product model do not supply a server-side destination/location or Mission Leader lifecycle, so those validations remain explicitly deferred to the mission-eligibility work rather than inferred here. |

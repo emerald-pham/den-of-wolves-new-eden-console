@@ -2676,11 +2676,25 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "399 -> 253;164",
+      "id": "E-399-MACAW-MOVEMENT-CARGO-VERIFIED",
+      "language": "Macaw uses the shared server-authoritative shuttle custody, legal local departure, and transit paths while retaining its Capybara Captain ownership and current unique dock. Its exact server and client cargo allowlists contain security teams, ore, fuel, food, water, materials, and Scrap. Atomic transfers read and update only the current host and Macaw ledgers; unsupported, stale, duplicate-dock, in-transit, malformed, insufficient, and replayed requests cannot borrow Boa procedures or duplicate cargo.",
+      "source": "functions/src/craftOwnership.ts; functions/src/shuttleDeparture.ts; functions/src/shuttleTransit.ts; functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; src/data/vessels/macaw.ts; src/data/shuttles.test.ts; src/routes/ShuttleConsole.test.tsx",
+      "type": "evidence / production-path / server-authoritative / Macaw / Capybara-Captain / movement / full-cargo / Scrap / exact-allowlist / atomic-transfer / replay"
+    },
+    {
       "direction": "400 -> 253;164",
       "id": "E-AUDIT-400",
       "language": "Capybara craft actions consume expansion identity and cargo permissions.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "400 -> 253;164",
+      "id": "E-400-BOA-MOVEMENT-CARGO-VERIFIED",
+      "language": "Boa uses the shared server-authoritative shuttle custody, legal local departure, and transit paths while retaining its Capybara Recycler ownership and current unique dock. Its exact server and client cargo allowlists contain Scrap only; attempts to move ordinary resources are rejected before mutation. Atomic transfers preserve current host and Boa inventories with custody, docking, revision, and replay checks, while its separate reclamation and three-range Scrap-strike procedures remain registered only on Boa.",
+      "source": "functions/src/craftOwnership.ts; functions/src/shuttleDeparture.ts; functions/src/shuttleTransit.ts; functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; src/data/vessels/boa.ts; src/data/shuttles.test.ts; src/routes/ShuttleConsole.test.tsx",
+      "type": "evidence / production-path / server-authoritative / Boa / Capybara-Recycler / movement / Scrap-only / exact-allowlist / atomic-transfer / distinct-actions / replay"
     },
     {
       "direction": "401 -> 315;361",
@@ -15878,8 +15892,8 @@
         "acceptance": "the Captain moves its full printed cargo including Scrap without borrowing Boa actions.",
         "title": "Resolve Macaw movement and cargo."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-399",
+      "description": "Verified the existing production Macaw boundary. The Capybara Captain moves it through the shared authoritative shuttle path, and its exact server/client cargo allowlist includes the full printed resource set plus Scrap without exposing Boa reclamation or combat actions. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-399;E-399-MACAW-MOVEMENT-CARGO-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;164",
@@ -15890,7 +15904,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15901,8 +15915,8 @@
         "acceptance": "the Recycler moves only printed Scrap cargo and retains separate reclamation/combat actions.",
         "title": "Resolve Boa movement and cargo."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-400",
+      "description": "Verified the existing production Boa boundary. The Capybara Recycler moves it through the shared authoritative shuttle path, its cargo allowlist permits only Scrap, and its reclamation and three-range combat procedures remain distinct from Macaw. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-400;E-400-BOA-MOVEMENT-CARGO-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;164",
@@ -15913,7 +15927,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
