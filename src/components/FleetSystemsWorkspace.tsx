@@ -14,6 +14,7 @@ import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/ga
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { capybaraRationSchedule, isPopulationOnPrintedTrack } from '@/data/shipPopulation';
+import PresidentWorkspace from './PresidentWorkspace';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -41,6 +42,7 @@ export default function FleetSystemsWorkspace({
   knownSystems,
   consoleLocked = false,
   includeAssignedShuttlecraft = true,
+  writable = false,
   shipState,
 }: {
   readonly ship: Ship;
@@ -54,9 +56,11 @@ export default function FleetSystemsWorkspace({
   readonly knownSystems?: Readonly<Record<string, string>> | undefined;
   readonly consoleLocked?: boolean | undefined;
   readonly includeAssignedShuttlecraft?: boolean;
+  readonly writable?: boolean;
   readonly shipState?: ShipConsoleProjection | undefined;
 }) {
   const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
   const maintenance = ship.maintenance;
   const population = shipState?.population ?? session?.shipSurvivors?.[ship.id] ?? ship.initialSurvivors;
@@ -135,6 +139,14 @@ export default function FleetSystemsWorkspace({
       </>} />
       : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>}
       {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId && <PdfEscortWingReference />}
+      {role.id === 'dione-president' && <PresidentWorkspace
+        writable={writable && (me?.role === 'gm' || (
+          me?.role === 'player' && me.activeConsoleRoleId === 'dione-president' &&
+          (me.assignedRoleId === 'dione-president' || me.seatId === 'dione-president') &&
+          (!me.assignedRoleId || !me.seatId || me.assignedRoleId === me.seatId)
+        ))}
+        consoleLocked={consoleLocked}
+      />}
       {procedures.length > 0 && <section className="console-workspace__section"
       aria-label={`${ship.name} ${role.name} role procedures`}>
       <h3>Role procedures</h3>

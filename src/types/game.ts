@@ -544,6 +544,22 @@ export interface AdmiralDirectiveState {
   readonly entries: readonly AdmiralDirective[];
 }
 
+export type PresidentActionKind =
+  | 'fleet-policy' | 'crisis' | 'political-capital' | 'address' | 'visit' | 'election';
+
+export interface PresidentActionRecord {
+  readonly id: string;
+  readonly kind: PresidentActionKind;
+  readonly text: string;
+  readonly cycle: number;
+  readonly recordedAt: string;
+}
+
+export interface PresidentWorkspaceState {
+  readonly revision: number;
+  readonly entries: readonly PresidentActionRecord[];
+}
+
 /** A browser-local GM replay; it is intentionally never persisted or shared. */
 export interface TurnStartReplay {
   readonly sessionId: SessionId;
@@ -711,6 +727,8 @@ export interface GameSession {
   };
   /** Public, role-authored policy and defence coordination from AEGIS. */
   readonly admiralDirectives?: AdmiralDirectiveState;
+  /** Public audit record authored through the bounded Dione President console. */
+  readonly presidentWorkspace?: PresidentWorkspaceState;
   /** GM-controlled presentation state for the shared end-of-session finale. */
   readonly debriefMode?: {
     readonly active: boolean;

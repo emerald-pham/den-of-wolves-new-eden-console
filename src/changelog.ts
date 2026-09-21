@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['193b'],
+    implementationProgress: {
+      completed: 431, total: 751, percentage: '57.39%',
+      done: 431, partial: 16, active: 0, missing: 304,
+    },
+    changes: [
+      'The Dione President now has one workspace for fleet policy, crisis decisions, political capital, addresses, visits, and election actions.',
+      'Each record is tied to the active President console, kept in a shared audit history, and cannot apply facilitator or ship effects by itself.',
+      '431 of 751 planned items are complete (57.39%).',
+    ],
+  },
+  {
+    version: '0.4.79',
     implementationPrompts: [373],
     implementationProgress: {
       completed: 419, total: 751, percentage: '55.79%',

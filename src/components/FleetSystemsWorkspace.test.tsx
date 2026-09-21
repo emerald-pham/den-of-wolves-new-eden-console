@@ -169,6 +169,18 @@ describe('fleet system reference workspaces', () => {
       .toHaveAttribute('href', '/shuttles/maliades');
   });
 
+  it('routes the Dione President to the bounded action workspace', () => {
+    const ship = SHIPS.find((candidate) => candidate.id === 'dione')!;
+    const role = ship.roles.find((candidate) => candidate.id === 'dione-president')!;
+    renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={3}
+      galacticCoordinate="0101" writable />);
+
+    expect(screen.getByRole('region', { name: 'President workspace' })).toBeVisible();
+    expect(screen.getByLabelText('Action family')).toHaveTextContent(
+      'Fleet policyCrisis decisionPolitical capitalPresidential addressPresidential visitElection action',
+    );
+  });
+
   it('renders the PDF wing registration separately from the Colonel’s shuttlecraft', () => {
     const ship = SHIPS.find((candidate) => candidate.id === 'refinery-124')!;
     const role = ship.roles.find((candidate) => candidate.id === 'refinery-124-pdf-colonel')!;

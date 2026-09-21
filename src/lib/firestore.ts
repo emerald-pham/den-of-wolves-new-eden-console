@@ -102,6 +102,7 @@ import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
+import { normalizePresidentWorkspace } from './presidentWorkspaceState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState, turnStateForPhaseContext } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
@@ -2245,6 +2246,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
     fleetRedAlert: fleetRedAlert(data.fleetRedAlert),
     admiralDirectives: normalizeAdmiralDirectives(data.admiralDirectives),
+    presidentWorkspace: normalizePresidentWorkspace(data.presidentWorkspace),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),

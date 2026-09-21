@@ -17,6 +17,7 @@ interface Props {
   readonly knownCoordinates?: readonly string[] | undefined;
   readonly knownSystems?: Readonly<Record<string, string>> | undefined;
   readonly consoleLocked?: boolean;
+  readonly writable?: boolean;
   /** Selected public vessel state; legacy props remain for standalone references. */
   readonly shipState?: ShipConsoleProjection | undefined;
 }
@@ -32,6 +33,7 @@ export default function FleetConsoleWorkspace({
   knownCoordinates,
   knownSystems,
   consoleLocked = false,
+  writable = false,
   shipState,
 }: Props) {
   if (!role || !ship.roles.some(candidate => candidate.id === role.id)) return null;
@@ -68,6 +70,7 @@ export default function FleetConsoleWorkspace({
     knownCoordinates={knownCoordinates}
     knownSystems={knownSystems}
     consoleLocked={projectedConsoleLock}
+    writable={writable}
     shipState={shipState}
   />;
 }

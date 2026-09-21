@@ -137,6 +137,21 @@ describe('buildPrivacySafeEventRecord', () => {
     });
   });
 
+  it('publishes President action metadata without duplicating authored copy or actor identity', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'president-action',
+      payload: {
+        kind: 'crisis', revision: 3, cycle: 2,
+        serverTime: '2026-09-21T12:00:00.000Z',
+        text: 'Private duplicate', actorUid: 'president-uid',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'president-action', kind: 'crisis', revision: 3, cycle: 2,
+      serverTime: '2026-09-21T12:00:00.000Z', createdAt: 'server-time',
+    });
+  });
+
   it('preserves stable actor attribution for existing audit payloads', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'timer-pause',

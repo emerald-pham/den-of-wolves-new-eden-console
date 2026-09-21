@@ -486,6 +486,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             knownCoordinates={session.playerDiscovery?.knownCoordinates}
             knownSystems={session.playerDiscovery?.knownSystems}
             consoleLocked={consoleLocked}
+            writable={effectiveWritable}
             shipState={shipState}
           />
           {ship.id === 'dione' && effectiveRoleId === 'dione-engineer' &&

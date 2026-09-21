@@ -419,6 +419,41 @@ it('keeps a player at a held command role if the GM disables it', () => {
   expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
 });
 
+it('keeps the President record form read only for short-staff Dione cover', async () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected test session state.');
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'active',
+    currentTurn: 2,
+    activeRoleIds: ['dione-president', 'dione-captain', 'dione-engineer'],
+    activeVesselIds: ['dione'],
+  });
+  useSessionStore.getState().setMe({
+    ...me,
+    assignedRoleId: 'dione-captain',
+    seatId: 'dione-captain',
+    activeConsoleRoleId: 'dione-captain',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const { subscribeConnectedPlayers } = await import('@/lib/firestore');
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{ ...useSessionStore.getState().me!, connected: true }]);
+    return vi.fn();
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-president']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByLabelText('Decision record')).toBeDisabled();
+  expect(screen.getByText(/Recording unavailable.*active President authority/i)).toBeInTheDocument();
+});
+
 it('keeps ship and role navigation available to the GM', () => {
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');

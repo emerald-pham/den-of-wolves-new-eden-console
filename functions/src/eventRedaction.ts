@@ -23,6 +23,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'turn-advanced': ['transition', 'fromTurn', 'toTurn', 'reason'],
   'fleet-ticker': ['action', 'messageId', 'revision', 'sequence', 'serverTime'],
   'admiral-directive': ['kind', 'revision', 'cycle', 'serverTime'],
+  'president-action': ['kind', 'revision', 'cycle', 'serverTime'],
   'timer-pause': ['action', 'turn', 'window', 'actorName', 'byUid', 'reason'],
   'wolf-attack-declared': ['status', 'currentStep', 'deadlineAt', 'airspace', 'parkedCraftCount'],
   'ship-confetti': ['shipId', 'shipName', 'actorUid', 'actorName', 'actorRoleName'],

@@ -36,6 +36,12 @@ import {
   publishAdmiralDirective,
   type AdmiralDirectiveKind,
 } from './admiralDirectives';
+import {
+  PRESIDENT_ACTION_KINDS,
+  presidentWorkspaceState,
+  recordPresidentAction,
+  type PresidentActionKind,
+} from './presidentWorkspace';
 import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import {
@@ -934,6 +940,15 @@ function isFleetAlertResult(value: unknown): value is { active: boolean; revisio
 }
 
 function isAdmiralDirectiveStateResult(value: unknown): value is {
+  revision: number; entries: readonly unknown[];
+} {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return Array.isArray(result.entries) && Number.isSafeInteger(result.revision) &&
+    Number(result.revision) >= 0;
+}
+
+function isPresidentWorkspaceStateResult(value: unknown): value is {
   revision: number; entries: readonly unknown[];
 } {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -16979,6 +16994,25 @@ async function requireConsoleAuthority(
   }
 }
 
+async function requirePresidentActionAuthority(
+  tx: Transaction,
+  sessionId: string,
+  player: DocumentSnapshot,
+  instanceId?: string,
+): Promise<void> {
+  if (player.get('role') !== 'gm' && (
+    player.get('role') !== 'player' ||
+    player.get('activeConsoleRoleId') !== 'dione-president' ||
+    boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'dione-president'
+  )) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only the active Dione President may record President actions.',
+    );
+  }
+  await requireConsoleAuthority(tx, sessionId, player, 'dione-president', instanceId);
+}
+
 type StoredUnrestAlert = {
   shipId: string;
   shipName: string;
@@ -20833,6 +20867,131 @@ export const publishAdmiralDirectiveCommand = onCall<{
       result: next,
       createdAt: FieldValue.serverTimestamp(),
     });
+    return next;
+  });
+});
+
+/** Record one bounded President action without applying later prompt mechanics. */
+export const recordPresidentActionCommand = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  kind?: unknown;
+  text?: unknown;
+  expectedRevision?: unknown;
+  instanceId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'requestId', 'kind', 'text', 'expectedRevision', 'instanceId'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      !PRESIDENT_ACTION_KINDS.includes(raw.kind as PresidentActionKind) ||
+      typeof raw.text !== 'string' || !raw.text.trim() || raw.text.length > 500 ||
+      !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0 ||
+      Number(raw.expectedRevision) >= Number.MAX_SAFE_INTEGER ||
+      (raw.instanceId !== undefined &&
+        (typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId)))) {
+    throw new HttpsError('invalid-argument', 'Invalid President action request.');
+  }
+  const data = {
+    sessionId: raw.sessionId,
+    requestId: raw.requestId,
+    kind: raw.kind as PresidentActionKind,
+    text: raw.text.trim(),
+    expectedRevision: Number(raw.expectedRevision),
+    instanceId: raw.instanceId as string | undefined,
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(
+    `sessions/${data.sessionId}/events/president-action-${data.expectedRevision + 1}`,
+  );
+  const fingerprint: CommandFingerprint = {
+    action: 'record-president-action', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId ?? null,
+    expectedRevision: data.expectedRevision,
+    payload: { kind: data.kind, text: data.text },
+  };
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+      throw new HttpsError('permission-denied', 'Only the active Dione President may record President actions.');
+    }
+    await requirePresidentActionAuthority(tx, data.sessionId, player, data.instanceId);
+    const [session, receipt, event] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(receiptRef),
+      tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    await rejectForeignLegacyM1Command(
+      tx, data.sessionId, data.requestId, 'President action', [],
+    );
+    const replay = replayBoundCommand(
+      receipt, fingerprint, isPresidentWorkspaceStateResult, 'President action',
+    );
+    if (replay) return replay;
+    if (session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    requireActiveGameplayPhase(session);
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'President actions are available after gameplay begins.',
+        'invalid-phase',
+      );
+    }
+    requireTurnOneForGameplay(session);
+    let current: ReturnType<typeof presidentWorkspaceState>;
+    try {
+      current = presidentWorkspaceState(session.get('presidentWorkspace'));
+    } catch {
+      throw commandError(
+        'failed-precondition',
+        'Stored President workspace state is invalid. Ask the facilitator to recover the session.',
+        'conflict',
+      );
+    }
+    if (current.revision !== data.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'President workspace changed. Wait for the live update and try again.',
+        'stale-revision',
+      );
+    }
+    if (event.exists) rejectLegacyEventReplay('President action');
+    const next = recordPresidentAction({
+      current,
+      expectedRevision: data.expectedRevision,
+      id: `president-action:${data.requestId}`,
+      kind: data.kind,
+      text: data.text,
+      cycle: sessionTurn(session.get('currentTurn')),
+      recordedAt: serverTime,
+    });
+    tx.update(sessionRef, {
+      presidentWorkspace: next,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    txSetIfSupported(
+      tx,
+      eventRef,
+      buildPrivacySafeEventRecord({
+        type: 'president-action',
+        payload: {
+          kind: data.kind,
+          revision: next.revision,
+          cycle: sessionTurn(session.get('currentTurn')),
+          serverTime,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      }),
+    );
+    tx.set(receiptRef, { fingerprint, result: next, createdAt: FieldValue.serverTimestamp() });
     return next;
   });
 });

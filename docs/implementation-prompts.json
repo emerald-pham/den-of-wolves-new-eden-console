@@ -1101,6 +1101,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "193b -> 166;183",
+      "id": "E-193B-PRESIDENT-WORKSPACE",
+      "language": "The Dione President console exposes one bounded workspace for fleet policy, crisis, political-capital, address, visit, and election records. A server transaction requires exact active President console authority or a live scoped Dione grant, active gameplay after Cycle 0, a fresh revision, a canonical request identity, and exact bounded copy. Successful writes append one of 24 public records, emit copy-free audit metadata, and replay exactly; foreign roles, unscoped facilitators, stale or malformed history, unsupported action kinds, and orphaned events fail before mutation. These records document table decisions and deliberately do not apply the later prompts' political-capital, address, visit, election, crisis, resource, or facilitator effects.",
+      "source": "functions/src/presidentWorkspace.ts; functions/src/presidentWorkspace.test.ts; functions/src/presidentWorkspaceCallable.test.ts; functions/src/index.ts; functions/src/eventRedaction.ts; src/components/PresidentWorkspace.tsx; src/components/PresidentWorkspace.test.tsx; src/components/FleetSystemsWorkspace.test.tsx; src/lib/presidentWorkspaceService.ts; src/lib/presidentWorkspaceState.ts; src/lib/firestore.ts; src/routes/ShipConsole.tsx; focused 291-test workspace/callable/hydration/ship-console/event suite; TypeScript builds; focused ESLint",
+      "type": "evidence / production-path / role-bound / public-audit / exact-replay / stale-cas / privacy-safe-event / bounded-history / no-mechanical-effects / regression"
+    },
+    {
       "direction": "194 -> 114;161;162",
       "id": "E-AUDIT-194",
       "language": "Icebreaker's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
@@ -10834,8 +10841,8 @@
         "acceptance": "fleet policy, crises, political capital, address, visits, and election actions are role-bound and auditable.",
         "title": "Complete the President workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-193B",
+      "description": "The Dione President now has a dedicated console workspace for six explicit action families: fleet policy, crises, political capital, addresses, visits, and elections. Each entry is authorized by the active President console, committed once against the current workspace revision, retained in a bounded shared history, and represented by copy-free event metadata. The workspace is an auditable decision record only; later prompts remain responsible for applying political-capital, address, visit, election, crisis, resource, and facilitator effects.",
+      "evidenceIds": "E-AUDIT-193B;E-193B-PRESIDENT-WORKSPACE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;183",
@@ -10843,10 +10850,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.80"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
