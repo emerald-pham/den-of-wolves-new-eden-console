@@ -13388,6 +13388,9 @@ export const launchDioneMaliades = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireDioneEngineer(player);
+    await rejectForeignLegacyM1Command(
+      tx, sessionId, requestId, 'Maliades launch', [],
+    );
     const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
     if (replay) return { ...replay, status: 'replayed' };
     if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');

@@ -398,6 +398,41 @@ it('denies stale, uncharged, damaged, malformed, and non-Engineer Maliades launc
   }
 });
 
+it('rejects every legacy M1 request namespace collision before a Maliades write', async () => {
+  const requestId = 'maliades-legacy-collision';
+  const legacyPaths = [
+    `sessions/s1/setupMutationRequests/${requestId}`,
+    `sessions/s1/gmResponsibilityRequests/${requestId}`,
+    `sessions/s1/seatMutationRequests/${requestId}`,
+    `sessions/s1/loyaltyAssignmentRequests/${requestId}`,
+    `sessionStartRequests/s1_${requestId}`,
+    `sessions/s1/events/setup-confirm-${requestId}`,
+    `sessions/s1/events/gm-responsibility-${requestId}`,
+    `sessions/s1/events/start-${requestId}`,
+    `sessions/s1/events/seat-claim-${requestId}`,
+    `sessions/s1/events/seat-release-${requestId}`,
+    `sessions/s1/events/${requestId}`,
+    `sessions/s1/events/press-availability-${requestId}`,
+  ];
+
+  for (const path of legacyPaths) {
+    resetFixture();
+    await declareThenSeatDioneEngineer();
+    put(path, { legacy: true });
+    const stateBefore = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+    mock.update.mockClear();
+    mock.set.mockClear();
+
+    await expect(launchDioneMaliades.run(request({
+      sessionId: 's1', requestId, expectedTurn: 1, expectedRevision: 1,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+  }
+});
+
 it('retains each authoritative shuttle host until normal movement reopens', async () => {
   const dockings = initialShuttleDockingsForRoles(activeRoleIds).map((docking) =>
     docking.shuttleId === 'starlight'
