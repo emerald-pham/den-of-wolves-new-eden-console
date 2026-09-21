@@ -152,10 +152,24 @@ it('commits one owner handoff, writes an audit, and replays without another muta
     revision: 1,
   });
   expect((mock.documents.get('sessions/s1')?.shuttleControl as Fields).starlight)
-    .toMatchObject({ holderUid: 'crew', revision: 1 });
+    .toMatchObject({
+      shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'wing',
+      holderUid: 'crew', revision: 1,
+    });
   expect(mock.documents.get('sessions/s1')?.shuttleDockings).toEqual(expect.arrayContaining([
     expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker' }),
   ]));
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({
+      'shuttleControl.starlight': expect.objectContaining({
+        ownerRoleId: 'wing-commander', ownerUid: 'wing', holderUid: 'crew', revision: 1,
+      }),
+      shuttleDockings: expect.arrayContaining([
+        expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker' }),
+      ]),
+    }),
+  );
   expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(false);
   expect(mock.documents.get('sessions/s1/shuttleControlAudit/handoff-1')).toMatchObject({
     actorUid: 'wing', actorRole: 'printed-owner',

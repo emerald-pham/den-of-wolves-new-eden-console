@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**374 / 751 prompts complete (49.80%)**
+**375 / 751 prompts complete (49.93%)**
 
-Status breakdown: **374 done · 17 partial · 360 missing**.
+Status breakdown: **375 done · 17 partial · 359 missing**.
 
 Active prompt: **none**
 
@@ -566,7 +566,7 @@ release classification and evidence.
 | 140g | done | non-feature | 0.4.37 | An active GM can now transfer every retained resource from a destroyed ship to one living recipient in the same authoritative fleet group. The callable validates typed resource support, requires exact full-ledger reconciliation, rejects cross-group, destroyed, inactive, stale, replay-conflicting, and repeated requests, and commits source zeroing, recipient credits, vessel revisions, a private completion record, and a private audit record in one Firestore transaction. The GM console fails closed when group authority or a legal recipient is unavailable, excludes recipients that cannot hold Scrap, and applies only server-confirmed ledgers. Firestore rules deny players and GMs direct access to the private reconciliation records. |
 | 141 | done | feature | 0.3.23 | The authoritative `beginOpenAirspacePhase` transition now rejects reopening restricted normal airspace after the server-owned Coordination deadline while preserving active-member authorization, expected-turn CAS, lifted retry idempotency, and the deterministic member-visible `airspace-opened` event; Prompts 142–144 remain separate shuttle behavior. |
 | 142 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 143 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 143 | done | non-feature | — | The existing transferShuttleControlCommand derives each shuttle's printed owner from the active role roster, limits handoff or reclaim to that owner or a live facilitator, requires a connected same-group recipient with an authoritative active ship location, and atomically writes the revisioned current holder with the matching holder-derived docking while clearing a stale departure request. Exact retries replay without mutation; stale, malformed, disconnected, cross-group, locationless, in-transit, duplicate, or conflicting commands fail before writes. Focused pure and callable regressions bind printed owner, current holder, and host in the same session update, while Firestore rules prove neither players nor GMs can directly rewrite shuttleControl or shuttleDockings. This slice records preservation evidence only and changes no runtime behavior. |
 | 144 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 145 | done | non-feature | — | Complete production boundary: `declareWolfAttack` fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts `turnPhase.airspace` and starts server-owned parking by recording the complete craft and shuttle-docking snapshot. `moveShipToLocation` and `jumpShip` reject that restricted phase, so no ordinary movement can follow the declaration. This prompt deliberately stops at the parking-start boundary: P373 owns nearest-host relocation and P146 owns only the unresolved equal-distance host policy. |
 | 146 | missing | non-feature | — | The printed nearest-host parking rule does not select among equally distant legal hosts. The owner is deciding between a recorded GM choice among tied hosts and an automatic fixed ship-order tie-break. No tie policy is selected or implemented until that decision arrives; ordinary nearest-host parking remains Prompt 373. |

@@ -125,11 +125,18 @@ missing server docking field uses that initial manifest for legacy sessions;
 an explicitly empty server list means no craft is docked. The server remains
 authoritative for docking and every future travel action.
 
-Airspace Control is a real shared airspace instrument, but shuttle travel is
-still future work. When travel is implemented, restricted airspace will prevent
-between-ship shuttle movement until airspace opens; AEGIS may
-authorize the unaffiliated Press vessel as a limited exception. Do not add a
-client-only travel control or describe that enforcement as implemented today.
+Shuttle custody keeps the printed owner separate from the current holder. An
+owner or live facilitator may hand a shuttle to a connected player in the
+owner's current fleet group, and the server resolves that holder's active ship.
+The holder revision and matching dock move in one transaction, while direct
+client writes to either field remain denied. Reclaim uses the same path and
+returns the shuttle to the printed owner's authoritative ship location.
+
+Airspace Control and shuttle travel are server-authoritative shared systems.
+Restricted airspace prevents ordinary between-ship departure until airspace
+opens; accepted departure, transit, and arrival commands bind the current
+holder, fleet group, cycle, route, custody revision, and live phase. Do not add
+a client-only travel or docking mutation.
 
 ## Validation and authority
 
