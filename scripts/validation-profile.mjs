@@ -156,6 +156,9 @@ export function deriveValidationProfile({
     ...(riskGates.font ? ['npm run test:font-consistency'] : []),
     ...(riskGates.ticker ? ['npm run test:ticker:browser'] : []),
   ];
+  const roadmapCommands = files.includes('docs/implementation-prompts.json')
+    ? ['npm run roadmap:check']
+    : [];
   if (files.length === 0) {
     return {
       kind: 'no-changes',
@@ -173,16 +176,19 @@ export function deriveValidationProfile({
     };
   }
 
+  const nonDocumentationFiles = files.filter((file) => !isDocumentationPath(file));
+  const hasFunctionsTests = nonDocumentationFiles.some((file) =>
+    /^functions\//i.test(file) && TEST_PATH_PATTERN_ANY.test(file));
   const requiresExactSecurityReview = files.some((file) => SECURITY_GOVERNANCE_PATH_PATTERN.test(file));
   const highRisk = forceFull || requiresExactSecurityReview ||
-    files.some((file) => HIGH_RISK_PATH_PATTERN.test(file));
+    files.some((file) => HIGH_RISK_PATH_PATTERN.test(file) && !TEST_PATH_PATTERN_ANY.test(file));
   if (highRisk) {
     return {
       kind: 'full',
       reason: forceFull
         ? 'cross-cutting workflow migration requires the full final gate'
         : 'server, rules, authority, deployment, or authentication paths changed',
-      commands: [...FULL_VALIDATION_COMMANDS, ...riskCommands],
+      commands: [...FULL_VALIDATION_COMMANDS, ...roadmapCommands, ...riskCommands],
       requiresReview: true,
       reviewReason: 'one independent risk review is required for high-risk changes',
       ...(requiresExactSecurityReview
@@ -191,7 +197,29 @@ export function deriveValidationProfile({
     };
   }
 
-  const nonDocumentationFiles = files.filter((file) => !isDocumentationPath(file));
+  // Tests exercise risky paths but do not change their runtime authority. Keep
+  // their validation focused on the edited suites and relevant type builds;
+  // an independent review remains reserved for production-path changes.
+  const testOnly = nonDocumentationFiles.length > 0 &&
+    nonDocumentationFiles.every((file) => TEST_PATH_PATTERN_ANY.test(file));
+  if (testOnly) {
+    const webTests = nonDocumentationFiles.some((file) => !/^functions\//i.test(file));
+    return {
+      kind: 'focused-tests',
+      reason: 'test-only changes use the edited suites and relevant type builds',
+      commands: [
+        'git diff --check',
+        ...testCommands(files, affectedTests, repositoryDirectory),
+        'npm run lint',
+        ...(webTests ? ['npm run build'] : []),
+        ...(hasFunctionsTests ? ['npm run build --prefix functions'] : []),
+        ...roadmapCommands,
+        ...riskCommands,
+      ],
+      requiresReview: false,
+    };
+  }
+
   const tooling = nonDocumentationFiles.some((file) => TOOLING_PATH_PATTERN.test(file)) &&
     nonDocumentationFiles.every((file) => TOOLING_PATH_PATTERN.test(file) || TEST_PATH_PATTERN_ANY.test(file));
   const uiOrData = nonDocumentationFiles.some((file) => UI_PATH_PATTERN.test(file) || DATA_HELPER_PATH_PATTERN.test(file)) &&
@@ -207,6 +235,8 @@ export function deriveValidationProfile({
         ...testCommands(files, discoveredTests, repositoryDirectory),
         'npm run lint',
         'npm run build',
+        ...(hasFunctionsTests ? ['npm run build --prefix functions'] : []),
+        ...roadmapCommands,
         ...riskCommands,
       ],
       requiresReview: false,
@@ -221,6 +251,8 @@ export function deriveValidationProfile({
         ...testCommands(files, discoveredTests, repositoryDirectory),
         'npm run lint',
         'npm run build',
+        ...(hasFunctionsTests ? ['npm run build --prefix functions'] : []),
+        ...roadmapCommands,
         ...riskCommands,
       ],
       requiresReview: false,
@@ -230,7 +262,7 @@ export function deriveValidationProfile({
   return {
     kind: 'full',
     reason: 'changed paths are not covered by a lower-risk profile',
-    commands: [...FULL_VALIDATION_COMMANDS, ...riskCommands],
+    commands: [...FULL_VALIDATION_COMMANDS, ...roadmapCommands, ...riskCommands],
     requiresReview: false,
   };
 }

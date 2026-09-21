@@ -438,5 +438,6 @@ export function executeValidationProcess(
   cwd: string,
   options?: { readonly signalSource?: NodeJS.Process; readonly signal?: AbortSignal; readonly timeoutMs?: number },
 ): Promise<{ readonly stdout: string; readonly stderr: string }>;
+export function validationCommandArguments(command: string): string[];
 export function runValidationCommand(command: string, cwd: string, options?: Readonly<Record<string, unknown>>): Promise<void>;
 export function normalizeFilePathForValidation(filePath: string): string;

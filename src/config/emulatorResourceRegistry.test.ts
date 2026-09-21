@@ -20,6 +20,7 @@ import {
   releaseConfiguredEmulatorSlot,
   reserveConfiguredEmulatorSlot,
   validationPlanForFiles,
+  validationCommandArguments,
   validateCoordinationEntry,
   validateReleaseCompletion,
 } from '../../scripts/emulator-resource-registry.mjs';
@@ -480,6 +481,11 @@ describe('simplified coordination registry', () => {
     expect(plan.profile.kind).toBe('tooling');
     expect(plan.requiresReview).toBe(false);
     expect(plan.commands).toContain('npm run lint');
+  });
+
+  it('maps generated-roadmap validation to the executable npm script', () => {
+    expect(validationCommandArguments('npm run roadmap:check')).toEqual(['run', 'roadmap:check']);
+    expect(() => validationCommandArguments('npm run unknown-check')).toThrow(/No executable validation mapping/);
   });
 
   it('uses current main for late registration and keeps the validated diff after landing', () => {

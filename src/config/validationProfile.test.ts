@@ -63,6 +63,70 @@ describe('validation profiles', () => {
     expect(profile.requiresReview).toBe(false);
   });
 
+  it('keeps test-only Functions and UI evidence focused without an independent review', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'functions/src/maintenance.test.ts',
+        'src/components/MaintenanceSystems.test.tsx',
+      ],
+    });
+    expect(profile.kind).toBe('focused-tests');
+    expect(profile.requiresReview).toBe(false);
+    expect(profile.commands).toContain('npm test -- --run functions/src/maintenance.test.ts');
+    expect(profile.commands).toContain('npm test -- --run src/components/MaintenanceSystems.test.tsx');
+    expect(profile.commands).toContain('npm run build');
+    expect(profile.commands).toContain('npm run build --prefix functions');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run test:font-consistency');
+    expect(profile.commands).not.toContain('npm run test:ticker:browser');
+  });
+
+  it('keeps production Functions changes on the independently reviewed full gate', () => {
+    const profile = deriveValidationProfile({ changedFiles: ['functions/src/maintenance.ts'] });
+    expect(profile.kind).toBe('full');
+    expect(profile.requiresReview).toBe(true);
+    expect(profile.commands).toContain('npm run test:all');
+  });
+
+  it('keeps roadmap evidence plus Functions tests focused and includes the Functions build', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'docs/implementation-prompts.json',
+        'functions/src/maintenance.test.ts',
+      ],
+    });
+    expect(profile.kind).toBe('tooling');
+    expect(profile.requiresReview).toBe(false);
+    expect(profile.commands).toContain('npm test -- --run functions/src/maintenance.test.ts');
+    expect(profile.commands).toContain('npm run build --prefix functions');
+    expect(profile.commands).toContain('npm run roadmap:check');
+    expect(profile.commands).not.toContain('npm run test:all');
+  });
+
+  it('checks generated roadmap views for a catalog-only change', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['docs/implementation-prompts.json'],
+    });
+    expect(profile.kind).toBe('tooling');
+    expect(profile.requiresReview).toBe(false);
+    expect(profile.commands).toContain('npm run roadmap:check');
+  });
+
+  it('keeps the Functions build when a focused UI change also updates a Functions test', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'src/components/MaintenanceSystems.tsx',
+        'functions/src/maintenance.test.ts',
+      ],
+    });
+    expect(profile.kind).toBe('focused');
+    expect(profile.requiresReview).toBe(false);
+    expect(profile.commands).toContain('npm run build');
+    expect(profile.commands).toContain('npm run build --prefix functions');
+    expect(profile.commands).toContain('npm run test:font-consistency');
+    expect(profile.commands).toContain('npm run test:ticker:browser');
+  });
+
   it('adds font and ticker gates only for affected UI paths', () => {
     const ui = deriveValidationProfile({ changedFiles: ['src/routes/ShipConsole.tsx'] });
     expect(ui.commands).toContain('npm run test:font-consistency');

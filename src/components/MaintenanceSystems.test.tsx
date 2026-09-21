@@ -324,6 +324,60 @@ it('renders Capybara\'s single bay with exactly the two docked shuttle choices',
   expect(run).toHaveBeenCalledWith('capybara', 'bays', 3, { refuels: { 'shuttle-bay': 'boa' } }, undefined);
 });
 
+it('offers AEGIS Shuttle Bay Zeta before Shuttle Bay Omega and clears the prior bay choice', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { aegis: {
+      step: 6, revision: 3, results: { '5': 'Reactor powered up.' }, charges: [], refuelled: [],
+    } },
+    shuttleDockings: [
+      { shipId: 'aegis', shuttleId: 'starlight', dockedAt: 'SESSION START' },
+      { shipId: 'aegis', shuttleId: 'pallas', dockedAt: 'SESSION START' },
+    ],
+  } });
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis"
+    systems={[
+      { id: 'shuttle-bay-zeta', name: 'Shuttle Bay Zeta', timing: 6 },
+      { id: 'shuttle-bay-omega', name: 'Shuttle Bay Omega', timing: 7 },
+    ]}
+    renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByText(/6 Shuttle Bay Zeta \/\/ 7 Shuttle Bay Omega/)).toBeVisible();
+  const zeta = screen.getByRole('combobox', { name: 'Shuttle Bay Zeta refuelling' });
+  const lockedOmega = screen.getByRole('combobox', { name: 'Shuttle Bay Omega refuelling' });
+  expect(zeta).toBeEnabled();
+  expect(lockedOmega).toBeDisabled();
+  await userEvent.selectOptions(zeta, 'starlight');
+  await userEvent.click(within(zeta.closest('fieldset')!).getByRole('button', { name: 'Proceed with refuelling' }));
+  expect(run).toHaveBeenCalledWith('aegis', 'bays', 3, {
+    refuels: { 'shuttle-bay-zeta': 'starlight' },
+  }, undefined);
+
+  run.mockClear();
+  act(() => useSessionStore.setState({ session: {
+    ...useSessionStore.getState().session!,
+    shipResources: { aegis: { ore: 0, fuel: 3, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+    maintenanceCycles: { aegis: {
+      step: 7, revision: 4, results: { '5': 'Reactor powered up.', '6': 'Shuttle Bay Zeta complete.' },
+      charges: [], refuelled: ['starlight'],
+    } },
+    shuttleFuelled: { starlight: true, pallas: false },
+  } }));
+  const lockedZeta = screen.getByRole('combobox', { name: 'Shuttle Bay Zeta refuelling' });
+  const omega = screen.getByRole('combobox', { name: 'Shuttle Bay Omega refuelling' });
+  expect(lockedZeta).toBeDisabled();
+  expect(lockedZeta).toHaveValue('');
+  expect(omega).toBeEnabled();
+  expect(omega).toHaveValue('');
+  await userEvent.selectOptions(omega, 'pallas');
+  await userEvent.click(within(omega.closest('fieldset')!).getByRole('button', { name: 'Proceed with refuelling' }));
+  expect(run).toHaveBeenCalledWith('aegis', 'bays', 4, {
+    refuels: { 'shuttle-bay-omega': 'pallas' },
+  }, undefined);
+});
+
 it('renders Scrap Refinery generate and conversion choices without conflating skip', async () => {
   useSessionStore.setState({ session: {
     ...session,

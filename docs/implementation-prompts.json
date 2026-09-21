@@ -8748,7 +8748,7 @@
         "acceptance": "Zeta and Omega each fuel at most one craft in their printed order, with the Omega text conflict preserved as errata.",
         "title": "Resolve both AEGIS shuttle bays."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The existing server-authoritative maintenance lane resolves AEGIS Shuttle Bay Zeta at numbered step 6 and Shuttle Bay Omega at numbered step 7. Each step accepts only its matching bay, refuels at most one uniquely docked eligible craft for exactly one host fuel, rejects damaged or out-of-order bays and repeat craft, and prevents maintenance from ending until Omega resolves or is explicitly skipped. A discriminating engine regression proves separate Zeta and Omega resolutions, two total fuel spent, ordering, damage denial, repeat denial, and the mandatory Omega boundary; the existing stateful callable cycle proves that those steps commit through runMaintenance. The component regression proves both controls remain visibly ordered while only the current bay is enabled and the prior local choice clears on step advance. The numbered sequence remains authoritative and the conflicting Omega body label remains documented as erratum AMB-04. This slice adds preservation evidence only; it changes no runtime behavior and claims no deployment or new product release.",
       "evidenceIds": "E-AUDIT-126",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8760,7 +8760,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

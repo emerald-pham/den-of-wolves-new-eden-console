@@ -951,9 +951,16 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run test:all', ['run', 'test:all']],
   ['npm run test:font-consistency', ['run', 'test:font-consistency']],
   ['npm run test:ticker:browser', ['run', 'test:ticker:browser']],
+  ['npm run roadmap:check', ['run', 'roadmap:check']],
   ['npm run build', ['run', 'build']],
   ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
 ]);
+
+export function validationCommandArguments(command) {
+  const args = VALIDATION_COMMANDS.get(command);
+  if (!args) throw new Error(`No executable validation mapping exists for ${command}.`);
+  return [...args];
+}
 
 function safeFocusedTestPath(value) {
   const path = normalizePath(value);
@@ -965,8 +972,7 @@ export async function runValidationCommand(command, cwd, options = {}) {
   if (command === 'git diff --check') { await runGit(['diff', '--check', 'main...HEAD'], cwd); return; }
   const prefix = 'npm test -- --run ';
   if (command.startsWith(prefix)) { await executeValidationProcess('npm', ['test', '--', '--run', safeFocusedTestPath(command.slice(prefix.length).trim())], cwd, options); return; }
-  const args = VALIDATION_COMMANDS.get(command);
-  if (!args) throw new Error(`No executable validation mapping exists for ${command}.`);
+  const args = validationCommandArguments(command);
   await executeValidationProcess('npm', args, cwd, options);
 }
 

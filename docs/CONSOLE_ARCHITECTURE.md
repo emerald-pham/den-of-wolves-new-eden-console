@@ -65,7 +65,12 @@ and per-GM acknowledgement flow. Do not interpolate missing population values.
 Maintenance and damage are server-authoritative across all seven fleet ships.
 `runMaintenance` advances a per-ship revision inside a transaction: storage,
 rations, unrest, riot damage and casualties, charge replacement, refuelling,
-and explicit completion. Both AEGIS bays resolve in the final refuelling step.
+and explicit completion. AEGIS resolves Shuttle Bay Zeta at numbered step 6,
+then Shuttle Bay Omega at numbered step 7. Each bay can refuel at most one
+eligible docked craft for one host fuel, and maintenance cannot end until Omega
+has resolved or been explicitly skipped. The numbered sequence is authoritative;
+the conflicting Omega body label remains recorded as erratum `AMB-04` in
+`IMPLEMENTATION_CONTRACTS.md`.
 Whenever a gameplay step or control applies ship damage, its crew-visible outcome
 must name the damage card that was drawn and the affected system at that point
 of resolution. It must also state when armour absorbed and recycled the card,

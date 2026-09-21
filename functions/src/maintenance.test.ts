@@ -610,17 +610,71 @@ it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId'
   }
 });
 
-it('refuels only docked shuttles, spends fuel, prevents double refuelling, and ends explicitly', () => {
-  const base = input({ action: 'bays', cycle: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] }, refuels: { 'shuttle-bay-zeta': 'starlight' }, dockings: [{ shipId: 'aegis', shuttleId: 'starlight' }] });
-  const result = advanceMaintenance(base);
-  expect(result.resources.fuel).toBe(3);
-  expect(result.fuelled.starlight).toBe(true);
-  expect(result.cycle.step).toBe(7);
-  expect(() => advanceMaintenance({ ...base, dockings: [] })).toThrow(/docked/);
-  expect(() => advanceMaintenance({ ...base, refuels: { 'shuttle-bay-zeta': 'starlight', 'shuttle-bay-omega': 'starlight' } })).toThrow(/once/);
-  const omega = advanceMaintenance({ ...base, action: 'bays', cycle: result.cycle, expectedRevision: 1, refuels: {} });
-  expect(omega.cycle).toMatchObject({ step: 7, revision: 2, results: { '7': expect.stringContaining('Shuttle Bay Omega') } });
-  expect(advanceMaintenance({ ...base, action: 'end', cycle: omega.cycle, expectedRevision: 2 }).cycle.step).toBe(0);
+it('resolves AEGIS Zeta then Omega as separate one-craft bays before maintenance can end', () => {
+  const base = input({
+    action: 'bays',
+    cycle: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+    refuels: { 'shuttle-bay-zeta': 'starlight' },
+    dockings: [
+      { shipId: 'aegis', shuttleId: 'starlight' },
+      { shipId: 'aegis', shuttleId: 'pallas' },
+    ],
+    fuelled: { starlight: false, pallas: false },
+  });
+
+  expect(() => advanceMaintenance({
+    ...base,
+    refuels: { 'shuttle-bay-omega': 'pallas' },
+  })).toThrow(/out-of-order shuttle bay/i);
+  expect(() => advanceMaintenance({
+    ...base,
+    damage: { damagedSystemIds: ['shuttle-bay-zeta'], destroyed: false },
+  })).toThrow(/damaged shuttle bay/i);
+  const zeta = advanceMaintenance(base);
+  expect(zeta).toMatchObject({
+    resources: { fuel: 3 },
+    fuelled: { starlight: true, pallas: false },
+    cycle: {
+      step: 7, revision: 1, refuelled: ['starlight'],
+      results: { '6': expect.stringContaining('Shuttle Bay Zeta') },
+    },
+  });
+  expect(() => advanceMaintenance({
+    ...base, action: 'end', cycle: zeta.cycle, expectedRevision: 1,
+  })).toThrow(/not available/i);
+
+  const omegaInput = {
+    ...base,
+    cycle: zeta.cycle,
+    expectedRevision: 1,
+    resources: zeta.resources,
+    fuelled: zeta.fuelled,
+    refuels: { 'shuttle-bay-omega': 'pallas' },
+  };
+  expect(() => advanceMaintenance({
+    ...omegaInput,
+    refuels: { 'shuttle-bay-zeta': 'pallas' },
+  })).toThrow(/out-of-order shuttle bay/i);
+  expect(() => advanceMaintenance({
+    ...omegaInput,
+    damage: { damagedSystemIds: ['shuttle-bay-omega'], destroyed: false },
+  })).toThrow(/damaged shuttle bay/i);
+  expect(() => advanceMaintenance({
+    ...omegaInput,
+    refuels: { 'shuttle-bay-omega': 'starlight' },
+  })).toThrow(/once per cycle/i);
+  const omega = advanceMaintenance(omegaInput);
+  expect(omega).toMatchObject({
+    resources: { fuel: 2 },
+    fuelled: { starlight: true, pallas: true },
+    cycle: {
+      step: 7, revision: 2, refuelled: ['starlight', 'pallas'],
+      results: { '7': expect.stringContaining('Shuttle Bay Omega') },
+    },
+  });
+  expect(advanceMaintenance({
+    ...omegaInput, action: 'end', cycle: omega.cycle, expectedRevision: 2,
+  }).cycle.step).toBe(0);
 });
 
 it.each([
