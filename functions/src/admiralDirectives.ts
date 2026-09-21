@@ -43,17 +43,18 @@ function directive(value: unknown): AdmiralDirective | undefined {
 }
 
 export function admiralDirectiveState(value: unknown): AdmiralDirectiveState {
+  if (value === undefined) return { revision: 0, entries: [] };
   const input = record(value);
-  const revision = Number.isSafeInteger(input?.revision) && Number(input?.revision) >= 0
-    ? Number(input?.revision)
-    : 0;
-  const entries = Array.isArray(input?.entries)
-    ? input.entries.flatMap((entry) => {
-      const parsed = directive(entry);
-      return parsed ? [parsed] : [];
-    }).slice(-MAX_DIRECTIVES)
-    : [];
-  return { revision, entries };
+  if (!input || !Number.isSafeInteger(input.revision) || Number(input.revision) < 0 ||
+      !Array.isArray(input.entries) || input.entries.length > MAX_DIRECTIVES) {
+    throw new Error('Invalid stored Admiral directive state.');
+  }
+  const entries = input.entries.map((entry) => {
+    const parsed = directive(entry);
+    if (!parsed) throw new Error('Invalid stored Admiral directive state.');
+    return parsed;
+  });
+  return { revision: Number(input.revision), entries };
 }
 
 export function publishAdmiralDirective(input: Readonly<{

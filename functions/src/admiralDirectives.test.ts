@@ -43,13 +43,19 @@ describe('Admiral directives', () => {
     expect(result.entries.at(-1)?.id).toBe('new-policy');
   });
 
-  it('fails closed when stored entries are malformed', () => {
-    expect(admiralDirectiveState({
+  it('accepts an absent legacy state but rejects every malformed stored state', () => {
+    expect(admiralDirectiveState(undefined)).toEqual({ revision: 0, entries: [] });
+    expect(() => admiralDirectiveState({
       revision: 2,
       entries: [
         { id: 'valid', kind: 'fleet-policy', text: 'Hold formation', cycle: 1, publishedAt: '2026-09-21T12:00:00.000Z' },
         { id: 'invalid', kind: 'gm-command', text: 'Override', cycle: 1, publishedAt: '2026-09-21T12:00:00.000Z' },
       ],
-    }).entries.map(({ id }) => id)).toEqual(['valid']);
+    })).toThrow(/stored Admiral directive state/i);
+    expect(() => admiralDirectiveState({ revision: 2 })).toThrow(/stored Admiral directive state/i);
+    expect(() => admiralDirectiveState({ revision: 2, entries: Array(13).fill({
+      id: 'duplicate', kind: 'fleet-policy', text: 'Hold formation', cycle: 1,
+      publishedAt: '2026-09-21T12:00:00.000Z',
+    }) })).toThrow(/stored Admiral directive state/i);
   });
 });

@@ -19842,6 +19842,9 @@ export const publishAdmiralDirectiveCommand = onCall<{
   };
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(
+    `sessions/${data.sessionId}/events/admiral-directive-${data.expectedRevision + 1}`,
+  );
   const fingerprint: CommandFingerprint = {
     action: 'publish-admiral-directive', sessionId: data.sessionId,
     requestId: data.requestId, actorUid: uid, instanceId: data.instanceId ?? null,
@@ -19855,9 +19858,10 @@ export const publishAdmiralDirectiveCommand = onCall<{
       throw new HttpsError('permission-denied', 'Only the active AEGIS Admiral may publish fleet directives.');
     }
     await requireConsoleAuthority(tx, data.sessionId, player, 'admiral', data.instanceId);
-    const [session, receipt] = await Promise.all([
+    const [session, receipt, event] = await Promise.all([
       tx.get(sessionRef),
       tx.get(receiptRef),
+      tx.get(eventRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const replay = replayBoundCommand(
@@ -19868,7 +19872,24 @@ export const publishAdmiralDirectiveCommand = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActiveGameplayPhase(session);
-    const current = admiralDirectiveState(session.get('admiralDirectives'));
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'Fleet directives are available after gameplay begins.',
+        'invalid-phase',
+      );
+    }
+    requireTurnOneForGameplay(session);
+    let current: ReturnType<typeof admiralDirectiveState>;
+    try {
+      current = admiralDirectiveState(session.get('admiralDirectives'));
+    } catch {
+      throw commandError(
+        'failed-precondition',
+        'Stored Admiral directive state is invalid. Ask the facilitator to recover the session.',
+        'conflict',
+      );
+    }
     if (current.revision !== data.expectedRevision) {
       throw commandError(
         'failed-precondition',
@@ -19876,6 +19897,7 @@ export const publishAdmiralDirectiveCommand = onCall<{
         'stale-revision',
       );
     }
+    if (event.exists) rejectLegacyEventReplay('Admiral directive');
     const next = publishAdmiralDirective({
       current,
       expectedRevision: data.expectedRevision,
@@ -19891,7 +19913,7 @@ export const publishAdmiralDirectiveCommand = onCall<{
     });
     txSetIfSupported(
       tx,
-      db.doc(`sessions/${data.sessionId}/events/admiral-directive-${next.revision}`),
+      eventRef,
       buildPrivacySafeEventRecord({
         type: 'admiral-directive',
         payload: {
