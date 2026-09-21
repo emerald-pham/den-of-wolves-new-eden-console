@@ -372,6 +372,31 @@ it('shows a private Wolf handler message and its suspicion receipt to the facili
   expect(receipt).not.toHaveTextContent(/destroyed|remain/i);
 });
 
+it('shows homing-beacon pressure as eligible only after the next cycle starts', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmWolfActionReceipt).mockImplementation((_sessionId, onReceipt) => {
+    onReceipt({
+      type: 'wolf-action-receipt', status: 'committed', action: 'homing-beacon',
+      projectionRevision: 7, sessionId: 's1', requestId: 'wolf-beacon-1', cycle: 4,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active', revision: 3,
+      idempotencyKey: 'wolf-beacon-1', auditId: 'wolf-homing-beacon-wolf-beacon-1',
+      groupId: 'fleet-1', coordinate: '5143', dueCycle: 5,
+      arrivalTiming: 'after-cycle-start', oldSuspicion: 11, suspicionIncrement: 5,
+      newSuspicion: 16, roll: 1, total: 17, clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+    });
+    return vi.fn();
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const receipt = await screen.findByRole('region', { name: 'Latest Wolf action receipt' });
+  expect(receipt).toHaveTextContent('Homing beacon');
+  expect(receipt).toHaveTextContent('5143 // fleet-1 // eligible after cycle 5 starts');
+  expect(receipt).toHaveTextContent('11 + 5 = 16');
+  expect(receipt).not.toHaveTextContent(/at cycle start/i);
+});
+
 it('shows durable Wolf suspicion history in the facilitator console', async () => {
   useSessionStore.getState().setGmInstance(local);
   vi.mocked(subscribeGmWolfSuspicionHistory).mockImplementation((_sessionId, onHistory) => {

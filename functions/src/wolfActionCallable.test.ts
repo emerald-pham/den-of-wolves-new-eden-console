@@ -58,7 +58,11 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { submitWolfIntelligence, submitWolfSupplySabotage } from './index';
+import {
+  submitWolfHomingBeacon,
+  submitWolfIntelligence,
+  submitWolfSupplySabotage,
+} from './index';
 
 const baseData = {
   sessionId: 's1', requestId: 'wolf-supply-1', expectedCycle: 2,
@@ -72,11 +76,18 @@ function put(path: string, fields: Fields): void { mock.documents.set(path, { ..
 function provision(): void {
   put('sessions/s1', {
     phase: 'active', currentTurn: 2, activeRoleIds: [...recommendedRoleIds(18)],
+    activeVesselIds: ['aegis', 'dione'],
     shuttleCargo: { philia: { food: 5 }, maliades: { water: 4 } },
   });
   put('sessions/s1/players/u2', {
     uid: 'u2', role: 'player', connected: true, assignedRoleId: 'dione-engineer',
-    replacementRoleId: null, escapeState: null,
+    replacementRoleId: null, escapeState: null, fleetGroupId: 'fleet-1',
+  });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['u2'],
+  });
+  put('sessions/s1/serverState/navigation', {
+    shipGalacticCoordinates: { aegis: '5143', dione: '5143' },
   });
   put('sessions/s1/secrets/loyalty-u2', {
     visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
@@ -92,9 +103,118 @@ function provision(): void {
 
 beforeEach(() => {
   mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear();
-  mock.update.mockClear(); mock.delete.mockClear();
+  mock.update.mockClear(); mock.delete.mockClear(); mock.runTransaction.mockClear();
   cryptoMock.randomInt.mockReset(); cryptoMock.randomInt.mockReturnValue(1);
   provision();
+});
+
+it('schedules homing-beacon pressure after next cycle start and adds five suspicion', async () => {
+  const reply = await submitWolfHomingBeacon.run(request({
+    sessionId: 's1', requestId: 'wolf-beacon-1', expectedCycle: 2,
+  }));
+  expect(reply).toEqual({
+    status: 'committed', type: 'wolf-homing-beacon', sessionId: 's1',
+    requestId: 'wolf-beacon-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', groupId: 'fleet-1', coordinate: '5143',
+    dueCycle: 3, arrivalTiming: 'after-cycle-start', suspicion: 5,
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackPressure/wolf-beacon-1')).toEqual({
+    type: 'wolf-homing-beacon-pressure', status: 'scheduled', sessionId: 's1',
+    requestId: 'wolf-beacon-1', actorUid: 'u2', actorRoleId: 'dione-engineer',
+    groupId: 'fleet-1', coordinate: '5143', sourceCycle: 2, dueCycle: 3,
+    arrivalTiming: 'after-cycle-start', createdAt: 'server-time',
+  });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({
+    payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 5 },
+  });
+  expect(mock.documents.get('sessions/s1/loyaltyCensus/current')).toEqual({
+    type: 'loyalty-census', revision: 5,
+    entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 5, note: 'Watch closely' }],
+  });
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    action: 'homing-beacon', oldSuspicion: 0, increment: 5, newSuspicion: 5,
+    roll: 1, total: 6, clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+  expect(mock.documents.get('sessions/s1/wolfActionReceipts/current')).toMatchObject({
+    type: 'wolf-action-receipt', action: 'homing-beacon', actorUid: 'u2',
+    actorRoleId: 'dione-engineer', groupId: 'fleet-1', coordinate: '5143',
+    dueCycle: 3, arrivalTiming: 'after-cycle-start', suspicionIncrement: 5,
+    auditId: 'wolf-homing-beacon-wolf-beacon-1',
+  });
+  expect(mock.documents.get('sessions/s1/wolfSuspicionHistory/wolf-beacon-1')).toMatchObject({
+    action: 'homing-beacon', source: 'wolf-homing-beacon', increment: 5,
+    auditId: 'wolf-homing-beacon-wolf-beacon-1',
+  });
+  expect(mock.documents.get('sessions/s1/wolfActionState/u2')).toMatchObject({
+    action: 'homing-beacon', cycle: 2, groupId: 'fleet-1', coordinate: '5143',
+    dueCycle: 3, arrivalTiming: 'after-cycle-start',
+  });
+  expect([...mock.documents.keys()].some((path) =>
+    path.includes('/wolfAttackWindow/') || path.includes('/wolfAttackState/') ||
+    path.includes('/events/'))).toBe(false);
+  expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
+});
+
+it('replays a committed homing beacon without a second pressure record, roll, or suspicion change', async () => {
+  const data = { sessionId: 's1', requestId: 'wolf-beacon-replay', expectedCycle: 2 };
+  const first = await submitWolfHomingBeacon.run(request(data));
+  cryptoMock.randomInt.mockClear();
+  mock.documents.set('sessions/s1', {
+    ...mock.documents.get('sessions/s1'), phase: 'debrief', currentTurn: 9,
+  });
+  await expect(submitWolfHomingBeacon.run(request(data))).resolves.toEqual(first);
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect([...mock.documents.keys()].filter((path) =>
+    path.startsWith('sessions/s1/wolfAttackPressure/'))).toEqual([
+    'sessions/s1/wolfAttackPressure/wolf-beacon-replay',
+  ]);
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({
+    payload: { suspicion: 5 },
+  });
+});
+
+it('preserves separate homing-beacon pressure records across cycles', async () => {
+  await submitWolfHomingBeacon.run(request({
+    sessionId: 's1', requestId: 'wolf-beacon-cycle-2', expectedCycle: 2,
+  }));
+  mock.documents.set('sessions/s1', {
+    ...mock.documents.get('sessions/s1'), currentTurn: 3,
+  });
+  await submitWolfHomingBeacon.run(request({
+    sessionId: 's1', requestId: 'wolf-beacon-cycle-3', expectedCycle: 3,
+  }));
+
+  expect(mock.documents.get('sessions/s1/wolfAttackPressure/wolf-beacon-cycle-2'))
+    .toMatchObject({ sourceCycle: 2, dueCycle: 3, arrivalTiming: 'after-cycle-start' });
+  expect(mock.documents.get('sessions/s1/wolfAttackPressure/wolf-beacon-cycle-3'))
+    .toMatchObject({ sourceCycle: 3, dueCycle: 4, arrivalTiming: 'after-cycle-start' });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({
+    payload: { suspicion: 10 },
+  });
+  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(2);
+});
+
+it('rejects client-selected beacon targets before any transaction', async () => {
+  await expect(submitWolfHomingBeacon.run(request({
+    sessionId: 's1', requestId: 'wolf-beacon-client-target', expectedCycle: 2,
+    coordinate: '0000',
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.runTransaction).not.toHaveBeenCalled();
+});
+
+it('rejects split or malformed group navigation without consuming the cycle action', async () => {
+  put('sessions/s1/serverState/navigation', {
+    shipGalacticCoordinates: { aegis: '5143', dione: '0000' },
+  });
+  await expect(submitWolfHomingBeacon.run(request({
+    sessionId: 's1', requestId: 'wolf-beacon-split', expectedCycle: 2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackPressure/wolf-beacon-split')).toBe(false);
+  expect(mock.documents.has('sessions/s1/wolfActionState/u2')).toBe(false);
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({
+    payload: { suspicion: 0 },
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 
 it('atomically resolves supply sabotage, suspicion, and the private cycle commitment', async () => {

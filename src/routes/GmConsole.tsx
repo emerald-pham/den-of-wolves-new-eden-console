@@ -3668,6 +3668,15 @@ export default function GmConsole() {
                 {wolfActionReceipt.action === 'provide-intel' && wolfActionReceipt.message && (
                   <div><dt>Handler message</dt><dd>{wolfActionReceipt.message}</dd></div>
                 )}
+                {wolfActionReceipt.action === 'homing-beacon' && (
+                  <div>
+                    <dt>Scheduled pressure</dt>
+                    <dd>
+                      {wolfActionReceipt.coordinate} // {wolfActionReceipt.groupId} // eligible after
+                      {' '}cycle {wolfActionReceipt.dueCycle} starts
+                    </dd>
+                  </div>
+                )}
                 <div><dt>Suspicion</dt><dd>{wolfActionReceipt.oldSuspicion} + {wolfActionReceipt.suspicionIncrement} = {wolfActionReceipt.newSuspicion}</dd></div>
                 <div><dt>Clue roll</dt><dd>d6 {wolfActionReceipt.roll}; total {wolfActionReceipt.total}</dd></div>
                 <div><dt>Clue band</dt><dd>{WOLF_CLUE_TIER_LABELS[wolfActionReceipt.clueTier]}</dd></div>

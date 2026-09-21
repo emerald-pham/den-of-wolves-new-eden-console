@@ -3,7 +3,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { IntelligenceInvestigation, Player, PrivateLoyalty } from '@/types/game';
 import { findConsoleRole } from '@/data/roles';
 import { revealAndroidProof } from '@/lib/androidProofService';
-import { submitWolfIntelligence } from '@/lib/wolfActionService';
+import { submitWolfHomingBeacon, submitWolfIntelligence } from '@/lib/wolfActionService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -173,6 +173,37 @@ export default function PrivateLoyaltyPanel() {
     }
   };
 
+  const deployHomingBeacon = async () => {
+    if (wolfPending || !wolfActionAvailable ||
+        (loyalty.kind !== 'wolf-agent' && loyalty.kind !== 'wolf-cult')) return;
+    const state = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
+    const dispatchedCard = loyalty;
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
+    setWolfPending(true);
+    setWolfResult(null);
+    setWolfError('');
+    try {
+      const result = await submitWolfHomingBeacon();
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
+          (dispatchedCard.kind === 'wolf-agent' || dispatchedCard.kind === 'wolf-cult')) {
+        setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
+        setWolfResult(
+          `Homing beacon scheduled at ${result.coordinate}. Pressure becomes eligible after ` +
+          `cycle ${result.dueCycle} starts. Suspicion // ${result.suspicion}.`,
+        );
+      }
+    } catch (cause) {
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard) {
+        setWolfError(normalizeCommandError(cause).message);
+      }
+    } finally {
+      if (isCurrentSessionAuthority(checkpoint)) setWolfPending(false);
+    }
+  };
+
   const runInvestigation = async () => {
     if (investigationPending || !wolfActionAvailable || loyalty.kind !== 'intelligence-agent' ||
         !investigationTargetUid || investigation?.cycle === currentCycle) return;
@@ -239,9 +270,19 @@ export default function PrivateLoyaltyPanel() {
           </div>
         ))}
         {(loyalty.kind === 'wolf-agent' || loyalty.kind === 'wolf-cult') && (
-          <section className="private-loyalty-panel__wolf-action" aria-labelledby="wolf-intelligence-title">
+          <section className="private-loyalty-panel__wolf-action" aria-label="Private Wolf action">
             <p className="eyebrow">Private Wolf action</p>
-            <h3 id="wolf-intelligence-title">Send intelligence</h3>
+            <h3>Deploy homing beacon</h3>
+            <p>Schedule Wolf pressure at your fleet’s current system for after the next cycle starts.</p>
+            <button
+              className="cic-action-button"
+              type="button"
+              disabled={wolfPending || !wolfActionAvailable}
+              onClick={() => void deployHomingBeacon()}
+            >
+              {wolfPending ? 'Committing…' : 'Deploy homing beacon'}
+            </button>
+            <h3>Send intelligence</h3>
             <label htmlFor="wolf-intelligence-message">Short handler message</label>
             <textarea
               id="wolf-intelligence-message"

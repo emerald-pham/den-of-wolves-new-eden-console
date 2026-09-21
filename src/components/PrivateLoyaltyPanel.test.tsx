@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { revealAndroidProof } from '@/lib/androidProofService';
-import { submitWolfIntelligence } from '@/lib/wolfActionService';
+import { submitWolfHomingBeacon, submitWolfIntelligence } from '@/lib/wolfActionService';
 import { investigatePlayer } from '@/lib/intelligenceInvestigationService';
 import {
   subscribeConnectedPlayers,
@@ -13,7 +13,10 @@ import {
 import PrivateLoyaltyPanel from './PrivateLoyaltyPanel';
 
 vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
-vi.mock('@/lib/wolfActionService', () => ({ submitWolfIntelligence: vi.fn() }));
+vi.mock('@/lib/wolfActionService', () => ({
+  submitWolfHomingBeacon: vi.fn(),
+  submitWolfIntelligence: vi.fn(),
+}));
 vi.mock('@/lib/intelligenceInvestigationService', () => ({ investigatePlayer: vi.fn() }));
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
@@ -31,11 +34,36 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   vi.mocked(revealAndroidProof).mockReset();
   vi.mocked(submitWolfIntelligence).mockReset();
+  vi.mocked(submitWolfHomingBeacon).mockReset();
   vi.mocked(investigatePlayer).mockReset();
   vi.mocked(subscribeConnectedPlayers).mockReset();
   vi.mocked(subscribeConnectedPlayers).mockReturnValue(vi.fn());
   vi.mocked(subscribeIntelligenceInvestigation).mockReset();
   vi.mocked(subscribeIntelligenceInvestigation).mockReturnValue(vi.fn());
+});
+
+it('deploys a homing beacon without a client target and explains after-cycle-start timing', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfHomingBeacon).mockResolvedValue({
+    status: 'committed', type: 'wolf-homing-beacon', sessionId: 's1',
+    requestId: 'wolf-beacon-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', groupId: 'fleet-1', coordinate: '5143',
+    dueCycle: 3, arrivalTiming: 'after-cycle-start', suspicion: 5,
+  });
+
+  render(<PrivateLoyaltyPanel />);
+  await user.click(screen.getByRole('button', { name: 'Deploy homing beacon' }));
+
+  await waitFor(() => expect(submitWolfHomingBeacon).toHaveBeenCalledWith());
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Homing beacon scheduled at 5143. Pressure becomes eligible after cycle 3 starts. Suspicion // 5.',
+  );
+  expect(useSessionStore.getState().privateLoyalty).toMatchObject({
+    kind: 'wolf-agent', suspicion: 5,
+  });
 });
 afterEach(() => {
   cleanup();

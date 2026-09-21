@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { httpsCallable } from 'firebase/functions';
 import { useSessionStore } from '@/store/useSessionStore';
-import { submitWolfIntelligence } from './wolfActionService';
+import { submitWolfHomingBeacon, submitWolfIntelligence } from './wolfActionService';
 
 const call = vi.fn();
 
@@ -39,4 +39,20 @@ it('rejects lower audiences and inactive cycles before calling the server', asyn
   useSessionStore.getState().setSession({ id: 's1', phase: 'briefing', currentTurn: 0 } as never);
   await expect(submitWolfIntelligence('Relay quiet.')).rejects.toThrow(/active cycle/i);
   expect(call).not.toHaveBeenCalled();
+});
+
+it('submits only current cycle authority for a server-targeted homing beacon', async () => {
+  const result = {
+    status: 'committed' as const, type: 'wolf-homing-beacon' as const,
+    sessionId: 's1', requestId: 'wolf-beacon-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', groupId: 'fleet-1', coordinate: '5143',
+    dueCycle: 3, arrivalTiming: 'after-cycle-start' as const, suspicion: 5,
+  };
+  call.mockResolvedValue({ data: result });
+
+  await expect(submitWolfHomingBeacon('wolf-beacon-1')).resolves.toEqual(result);
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'submitWolfHomingBeacon');
+  expect(call).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'wolf-beacon-1', expectedCycle: 2,
+  });
 });

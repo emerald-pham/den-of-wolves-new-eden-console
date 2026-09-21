@@ -69,6 +69,7 @@ import {
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
   requireWolfSupplySabotageRequest,
+  requireWolfHomingBeaconRequest,
   requireWolfIntelligenceRequest,
   requireIntelligenceInvestigationRequest,
   requireFacilitatorCensusNoteRequest,
@@ -145,6 +146,7 @@ import {
 } from './replacementRoles';
 import {
   applyShipNavigationMove,
+  isStarSystemCoordinate,
   type NavigationLogEntry,
   type NavigationLogs,
 } from './navigation';
@@ -366,6 +368,10 @@ import {
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
 import { resolveWolfSuspicionClue } from './wolfSuspicionClue';
+import {
+  HOMING_BEACON_SUSPICION_INCREMENT,
+  resolveWolfHomingBeaconTarget,
+} from './wolfHomingBeacon';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -12175,6 +12181,321 @@ export const submitWolfSupplySabotage = onCall<{
       clueTier: clue.clueTier,
       disclosure: clue.facilitatorInstruction,
       auditId: envelope.auditId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(actionRef, record);
+    tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfHomingBeaconResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-homing-beacon';
+  sessionId: string;
+  requestId: string;
+  cycle: number;
+  revision: number;
+  coverRoleId: string;
+  groupId: string;
+  coordinate: string;
+  dueCycle: number;
+  arrivalTiming: 'after-cycle-start';
+  suspicion: number;
+}>;
+
+function isWolfHomingBeaconResult(
+  value: unknown,
+  sessionId: string,
+  requestId: string,
+): value is WolfHomingBeaconResult {
+  return isRecord(value) && value.status === 'committed' &&
+    value.type === 'wolf-homing-beacon' && value.sessionId === sessionId &&
+    value.requestId === requestId && Number.isSafeInteger(value.cycle) &&
+    (value.cycle as number) >= 1 && Number.isSafeInteger(value.revision) &&
+    (value.revision as number) >= 1 && typeof value.coverRoleId === 'string' &&
+    (ROLE_IDS as readonly string[]).includes(value.coverRoleId) &&
+    typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.coordinate === 'string' && isStarSystemCoordinate(value.coordinate) &&
+    Number.isSafeInteger(value.dueCycle) && value.dueCycle === (value.cycle as number) + 1 &&
+    value.arrivalTiming === 'after-cycle-start' &&
+    Number.isSafeInteger(value.suspicion) && (value.suspicion as number) >= 0;
+}
+
+/**
+ * Schedule one immutable next-cycle Wolf pressure record at the actor's
+ * server-owned current system. This callable never declares or starts an
+ * attack; the schedule explicitly becomes eligible only after cycle start.
+ */
+export const submitWolfHomingBeacon = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const submission = requireWolfHomingBeaconRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${submission.sessionId}`);
+  const playerRef = db.doc(`sessions/${submission.sessionId}/players/${uid}`);
+  const loyaltyRef = db.doc(`sessions/${submission.sessionId}/secrets/loyalty-${uid}`);
+  const assignmentRef = db.doc(`sessions/${submission.sessionId}/secrets/wolf-assignment`);
+  const censusRef = db.doc(`sessions/${submission.sessionId}/loyaltyCensus/current`);
+  const navigationRef = navigationStateRef(submission.sessionId);
+  const scheduleRef = db.doc(
+    `sessions/${submission.sessionId}/wolfAttackPressure/${submission.requestId}`,
+  );
+  const clueRef = db.doc(`sessions/${submission.sessionId}/wolfClueDisclosure/current`);
+  const actionReceiptRef = db.doc(`sessions/${submission.sessionId}/wolfActionReceipts/current`);
+  const suspicionHistoryRef = db.doc(
+    `sessions/${submission.sessionId}/wolfSuspicionHistory/${submission.requestId}`,
+  );
+  const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
+  const auditRef = db.doc(
+    `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
+  );
+  const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'submit-wolf-homing-beacon',
+    sessionId: submission.sessionId,
+    requestId: submission.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: submission.expectedCycle,
+    payload: {},
+  };
+  let clueRoll: number | undefined;
+  return db.runTransaction(async (tx): Promise<WolfHomingBeaconResult> => {
+    const [session, player, loyalty, assignment, census, navigation, currentAction, schedule, receipt] =
+      await Promise.all([
+        tx.get(sessionRef), tx.get(playerRef), tx.get(loyaltyRef), tx.get(assignmentRef),
+        tx.get(censusRef), tx.get(navigationRef), tx.get(actionRef), tx.get(scheduleRef),
+        tx.get(receiptRef),
+      ]);
+    await rejectForeignLegacyM1Command(
+      tx, submission.sessionId, submission.requestId, 'Wolf homing beacon', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is WolfHomingBeaconResult =>
+        isWolfHomingBeaconResult(value, submission.sessionId, submission.requestId),
+      'Wolf homing beacon',
+    );
+    if (replay) return replay;
+    if (schedule.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This homing beacon request already has an incompatible pressure record.',
+        'conflict',
+      );
+    }
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (cycle < 1 || cycle !== submission.expectedCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The cycle changed. Refresh before choosing a Wolf action.',
+        'stale-revision',
+      );
+    }
+    const authorization = wolfActionAuthorization({
+      actorUid: uid,
+      active: isActivePlayer(player),
+      connectedRole: player.get('role'),
+      assignedRoleId: player.get('assignedRoleId'),
+      activeConsoleRoleId: player.get('activeConsoleRoleId'),
+      replacementRoleId: player.get('replacementRoleId'),
+      escapeState: player.get('escapeState'),
+      loyaltyAudience: loyalty.get('visibleToUids'),
+      loyaltyPayload: loyalty.get('payload'),
+      wolfAssignmentPayload: assignment.get('payload'),
+    });
+    if (!authorization.allowed) {
+      throw commandError(
+        'permission-denied',
+        'Only a live active Wolf in its assigned cover role may use this action.',
+        'unauthorized',
+      );
+    }
+    const pressHolderUid = session.get('pressHolderUid');
+    if (authorization.coverRoleId === 'press-officer' && (
+      session.get('pressEnabled') !== true ||
+      (pressHolderUid !== undefined && pressHolderUid !== null && pressHolderUid !== uid)
+    )) {
+      throw commandError(
+        'permission-denied',
+        'The Press station is not active for this session.',
+        'unauthorized',
+      );
+    }
+    const activeRoleIds = sessionActiveRoleIds(session);
+    if (!isValidRoleConfiguration(activeRoleIds)) {
+      throw commandError(
+        'failed-precondition',
+        'The active role roster is malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    let revision = 0;
+    if (currentAction.exists) {
+      const storedCycle = currentAction.get('cycle');
+      const storedRevision = currentAction.get('revision');
+      if (currentAction.get('type') !== 'wolf-action-commitment' ||
+          currentAction.get('actorUid') !== uid || currentAction.get('state') !== 'committed' ||
+          !isWolfActionKind(currentAction.get('action')) ||
+          typeof currentAction.get('requestId') !== 'string' ||
+          typeof currentAction.get('coverRoleId') !== 'string' ||
+          !(ROLE_IDS as readonly string[]).includes(currentAction.get('coverRoleId') as string) ||
+          !Number.isSafeInteger(storedCycle) || (storedCycle as number) < 1 ||
+          !Number.isSafeInteger(storedRevision) || (storedRevision as number) < 1 ||
+          (storedRevision as number) >= Number.MAX_SAFE_INTEGER) {
+        throw commandError(
+          'failed-precondition',
+          'The private Wolf action state is malformed. Ask the facilitator to repair it.',
+          'malformed-input',
+        );
+      }
+      if ((storedCycle as number) >= cycle) {
+        throw commandError(
+          'failed-precondition',
+          'This Wolf has already submitted its action for the current cycle.',
+          'conflict',
+        );
+      }
+      revision = storedRevision as number;
+    }
+    const loyaltyPayload = loyalty.get('payload');
+    const suspicion = isRecord(loyaltyPayload) ? loyaltyPayload.suspicion : undefined;
+    if (!Number.isSafeInteger(suspicion) || (suspicion as number) < 0 ||
+        (suspicion as number) > Number.MAX_SAFE_INTEGER - HOMING_BEACON_SUSPICION_INCREMENT) {
+      throw commandError(
+        'failed-precondition',
+        'The private Wolf loyalty state is malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    const censusEntries = storedLoyaltyCensusEntries(census);
+    const censusRevision = census.get('revision');
+    const loyaltyKind = isRecord(loyaltyPayload) ? loyaltyPayload.kind : undefined;
+    const censusEntry = censusEntries?.find((entry) => entry.uid === uid);
+    const censusEntriesCanonical = censusEntries?.every((entry) =>
+      liveLoyaltySuspicionDecision(entry.kind, entry.suspicion).allowed) === true;
+    if (!census.exists || !Number.isSafeInteger(censusRevision) ||
+        (censusRevision as number) < 0 || (censusRevision as number) >= Number.MAX_SAFE_INTEGER ||
+        !censusEntriesCanonical || !censusEntry || censusEntry.kind !== loyaltyKind ||
+        censusEntry.suspicion !== suspicion) {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator loyalty census is stale or malformed. Ask the facilitator to repair it.',
+        'malformed-input',
+      );
+    }
+    const activeVesselIds = session.get('activeVesselIds');
+    if (!Array.isArray(activeVesselIds) || activeVesselIds.length === 0 ||
+        activeVesselIds.some((value) => typeof value !== 'string' || !isResourceShipId(value)) ||
+        new Set(activeVesselIds).size !== activeVesselIds.length || !navigation.exists ||
+        typeof (navigation as unknown as { data?: unknown }).data !== 'function') {
+      throw commandError(
+        'failed-precondition',
+        'The protected fleet navigation authority is missing or malformed.',
+        'malformed-input',
+      );
+    }
+    const actorGroupId = player.get('fleetGroupId');
+    if (typeof actorGroupId !== 'string' || !actorGroupId) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf holder has no canonical fleet-group authority.',
+        'malformed-input',
+      );
+    }
+    const groupSnapshot = await tx.get(
+      db.doc(`sessions/${submission.sessionId}/fleetGroups/${actorGroupId}`),
+    );
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    let target;
+    try {
+      target = resolveWolfHomingBeaconTarget({
+        actorUid: uid,
+        actorGroupId,
+        group: group && group.id === groupSnapshot.id ? group : undefined,
+        activeVesselIds: activeVesselIds as string[],
+        navigation: navigation.data(),
+        sourceCycle: cycle,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'The homing beacon target is not eligible.',
+        'malformed-input',
+      );
+    }
+    clueRoll ??= randomInt(1, 7);
+    const clue = resolveWolfSuspicionClue(
+      suspicion as number,
+      HOMING_BEACON_SUSPICION_INCREMENT,
+      clueRoll,
+    );
+    const actionRevision = revision + 1;
+    const auditId = `wolf-homing-beacon-${submission.requestId}`;
+    const result: WolfHomingBeaconResult = {
+      status: 'committed', type: 'wolf-homing-beacon',
+      sessionId: submission.sessionId, requestId: submission.requestId,
+      cycle, revision: actionRevision, coverRoleId: authorization.coverRoleId,
+      groupId: target.groupId, coordinate: target.coordinate, dueCycle: target.dueCycle,
+      arrivalTiming: target.arrivalTiming, suspicion: clue.newSuspicion,
+    };
+    const record = {
+      ...result,
+      type: 'wolf-action-commitment', actorUid: uid, action: 'homing-beacon',
+      state: 'committed', updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(scheduleRef, {
+      type: 'wolf-homing-beacon-pressure', status: 'scheduled',
+      sessionId: submission.sessionId, requestId: submission.requestId,
+      actorUid: uid, actorRoleId: authorization.coverRoleId,
+      groupId: target.groupId, coordinate: target.coordinate,
+      sourceCycle: target.sourceCycle, dueCycle: target.dueCycle,
+      arrivalTiming: target.arrivalTiming,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(loyaltyRef, {
+      payload: { ...loyaltyPayload, suspicion: clue.newSuspicion },
+    });
+    tx.set(censusRef, {
+      type: 'loyalty-census', revision: (censusRevision as number) + 1,
+      entries: censusEntries!.map((entry) => entry.uid === uid
+        ? { ...entry, suspicion: clue.newSuspicion }
+        : entry),
+    });
+    tx.set(clueRef, {
+      type: 'wolf-clue-disclosure', revision: (censusRevision as number) + 1,
+      actorUid: uid, action: 'homing-beacon', cycle,
+      requestId: submission.requestId, ...clue,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(actionReceiptRef, {
+      type: 'wolf-action-receipt', status: 'committed', action: 'homing-beacon',
+      projectionRevision: (censusRevision as number) + 1,
+      sessionId: submission.sessionId, requestId: submission.requestId, cycle,
+      actorUid: uid, actorRoleId: authorization.coverRoleId, phase: 'active',
+      revision: actionRevision, idempotencyKey: submission.requestId, auditId,
+      groupId: target.groupId, coordinate: target.coordinate, dueCycle: target.dueCycle,
+      arrivalTiming: target.arrivalTiming,
+      oldSuspicion: clue.oldSuspicion, suspicionIncrement: clue.increment,
+      newSuspicion: clue.newSuspicion, roll: clue.roll, total: clue.total,
+      clueTier: clue.clueTier, facilitatorInstruction: clue.facilitatorInstruction,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(suspicionHistoryRef, {
+      type: 'wolf-suspicion-history', status: 'committed', action: 'homing-beacon',
+      source: 'wolf-homing-beacon', sessionId: submission.sessionId,
+      requestId: submission.requestId, cycle, actorUid: uid,
+      actorRoleId: authorization.coverRoleId, oldSuspicion: clue.oldSuspicion,
+      increment: clue.increment, newSuspicion: clue.newSuspicion,
+      roll: clue.roll, total: clue.total, clueTier: clue.clueTier,
+      disclosure: clue.facilitatorInstruction, auditId,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(actionRef, record);

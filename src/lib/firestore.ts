@@ -79,6 +79,7 @@ import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/iden
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
+import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
 import {
   normalizeShuttleManifest,
@@ -711,14 +712,17 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
   const requestId = typeof raw.requestId === 'string' ? raw.requestId : '';
   const resourceIds = new Set<string>(RESOURCE_DEFINITIONS.map((resource) => resource.id));
   const craft = vesselId ? SHUTTLECRAFT.find((candidate) => candidate.id === vesselId) : undefined;
+  const canonicalCoordinates = new Set(STAR_CHART_SYSTEMS.map((system) => system.coordinate));
   const supplyAction = raw.action === 'sabotage-supplies';
+  const beaconAction = raw.action === 'homing-beacon';
   const intelligenceAction = raw.action === 'provide-intel';
-  const expectedIncrement = supplyAction ? 2 : intelligenceAction ? 3 : 0;
+  const expectedIncrement = supplyAction ? 2 : beaconAction ? 5 : intelligenceAction ? 3 : 0;
   const expectedAuditId = supplyAction
     ? `wolf-supply-sabotage-${requestId}`
-    : `wolf-intelligence-${requestId}`;
+    : beaconAction ? `wolf-homing-beacon-${requestId}` : `wolf-intelligence-${requestId}`;
   if (raw.type !== 'wolf-action-receipt' || raw.status !== 'committed' ||
-      (!supplyAction && !intelligenceAction) || parsedSessionId !== parseEntityId('session', sessionId) ||
+      (!supplyAction && !beaconAction && !intelligenceAction) ||
+      parsedSessionId !== parseEntityId('session', sessionId) ||
       !actorUid || !actorRoleId || !findConsoleRole(actorRoleId) ||
       !isCanonicalRequestId(requestId) || raw.idempotencyKey !== requestId ||
       raw.auditId !== expectedAuditId || raw.phase !== 'active' ||
@@ -738,6 +742,10 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
       !Number.isSafeInteger(raw.remainingAmount) || (raw.remainingAmount as number) < 0)) return null;
   if (intelligenceAction && (typeof raw.message !== 'string' || !raw.message.trim() ||
       raw.message.length > 240)) return null;
+  if (beaconAction && (typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) ||
+      typeof raw.coordinate !== 'string' || !canonicalCoordinates.has(raw.coordinate) ||
+      !Number.isSafeInteger(raw.dueCycle) || raw.dueCycle !== (raw.cycle as number) + 1 ||
+      raw.arrivalTiming !== 'after-cycle-start')) return null;
   const expected = (raw.total as number) <= 6
     ? ['none', 'Nothing.']
     : (raw.total as number) <= 11
@@ -770,6 +778,11 @@ function wolfActionReceipt(value: unknown, sessionId: string): WolfActionReceipt
       resourceId: raw.resourceId as string,
       destroyedAmount: raw.destroyedAmount as number,
       remainingAmount: raw.remainingAmount as number,
+    } : beaconAction ? {
+      groupId: raw.groupId as string,
+      coordinate: raw.coordinate as string,
+      dueCycle: raw.dueCycle as number,
+      arrivalTiming: 'after-cycle-start' as const,
     } : { message: raw.message as string }),
     oldSuspicion: raw.oldSuspicion as number,
     suspicionIncrement: expectedIncrement,
@@ -794,13 +807,14 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
   ];
   const createdAt = optionalIso(raw.createdAt);
   const supplyAction = raw.action === 'sabotage-supplies' && raw.source === 'wolf-supply-sabotage';
+  const beaconAction = raw.action === 'homing-beacon' && raw.source === 'wolf-homing-beacon';
   const intelligenceAction = raw.action === 'provide-intel' && raw.source === 'wolf-intelligence';
-  const expectedIncrement = supplyAction ? 2 : intelligenceAction ? 3 : 0;
+  const expectedIncrement = supplyAction ? 2 : beaconAction ? 5 : intelligenceAction ? 3 : 0;
   const expectedAuditId = supplyAction
     ? `wolf-supply-sabotage-${requestId}`
-    : `wolf-intelligence-${requestId}`;
+    : beaconAction ? `wolf-homing-beacon-${requestId}` : `wolf-intelligence-${requestId}`;
   if (raw.type !== 'wolf-suspicion-history' || raw.status !== 'committed' ||
-      (!supplyAction && !intelligenceAction) ||
+      (!supplyAction && !beaconAction && !intelligenceAction) ||
       parsedSessionId !== parseEntityId('session', sessionId) || !actorUid ||
       !actorRoleId || !findConsoleRole(actorRoleId) || !createdAt ||
       !isCanonicalRequestId(requestId) ||

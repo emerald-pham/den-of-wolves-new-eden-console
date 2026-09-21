@@ -872,7 +872,7 @@ export interface WolfClueDisclosure {
 export interface WolfActionReceipt {
   readonly type: 'wolf-action-receipt';
   readonly status: 'committed';
-  readonly action: 'sabotage-supplies' | 'provide-intel';
+  readonly action: 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
   readonly projectionRevision: number;
   readonly sessionId: SessionId;
   readonly requestId: string;
@@ -888,6 +888,10 @@ export interface WolfActionReceipt {
   readonly destroyedAmount?: number;
   readonly remainingAmount?: number;
   readonly message?: string;
+  readonly groupId?: string;
+  readonly coordinate?: string;
+  readonly dueCycle?: number;
+  readonly arrivalTiming?: 'after-cycle-start';
   readonly oldSuspicion: number;
   readonly suspicionIncrement: number;
   readonly newSuspicion: number;
@@ -902,8 +906,8 @@ export interface WolfActionReceipt {
 export interface WolfSuspicionHistoryEntry {
   readonly type: 'wolf-suspicion-history';
   readonly status: 'committed';
-  readonly action: 'sabotage-supplies' | 'provide-intel';
-  readonly source: 'wolf-supply-sabotage' | 'wolf-intelligence';
+  readonly action: 'sabotage-supplies' | 'homing-beacon' | 'provide-intel';
+  readonly source: 'wolf-supply-sabotage' | 'wolf-homing-beacon' | 'wolf-intelligence';
   readonly sessionId: SessionId;
   readonly requestId: string;
   readonly cycle: number;

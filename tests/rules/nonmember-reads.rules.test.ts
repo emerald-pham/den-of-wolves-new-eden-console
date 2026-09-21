@@ -21,6 +21,7 @@ const records = [
   'wolfAttackWindow/current', 'wolfAttackWindow/current/audit/request',
   'wolfAttackPreparation/current', 'wolfAttackPreparation/current/audit/request',
   'wolfAttackState/current', 'wolfAttackState/current/audit/request',
+  'wolfAttackPressure/wolf-beacon-request',
   'crisisReports/current', 'civilUnrestGrievances/icebreaker',
   'civilUnrestGrievances/icebreaker/audit/request', 'civilUnrestPublic/current',
   'crisisState/current', 'crisisState/current/audit/request',

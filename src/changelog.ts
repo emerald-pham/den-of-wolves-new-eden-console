@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [500],
+    implementationProgress: {
+      completed: 360, total: 751, percentage: '47.94%',
+      done: 360, partial: 18, active: 0, missing: 373,
+    },
+    changes: [
+      'Wolf holders can now deploy a homing beacon at their fleet’s server-verified current system as their private action for the cycle.',
+      'A beacon adds exactly five suspicion and schedules pressure for after the next cycle starts; it cannot trigger an attack at cycle start.',
+      'Facilitators receive the target, timing, suspicion calculation, clue result, and durable audit while players cannot select or inspect the hidden pressure record.',
+      '360 of 751 planned items are complete (47.94%).',
+    ],
+  },
+  {
+    version: '0.4.54',
     implementationPrompts: [507],
     implementationProgress: {
       completed: 357, total: 751, percentage: '47.54%',

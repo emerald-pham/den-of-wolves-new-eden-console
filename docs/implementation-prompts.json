@@ -5525,6 +5525,13 @@
       "type": "evidence / production-path / server-authority / transaction / privacy / regression"
     },
     {
+      "direction": "500 -> 497;502;503;504",
+      "id": "E-500-HOMING-BEACON",
+      "language": "The production callable accepts no client-selected target and derives the Wolf holder current system from exact canonical fleet-group membership plus the protected navigation document. Every group vessel must be active, have one valid coordinate, and share that coordinate. One transaction preserves a request-keyed next-cycle pressure schedule with arrivalTiming fixed to after-cycle-start, adds exactly five suspicion, resolves one server-owned clue roll, and writes the shared private action commitment, facilitator receipt and durable history, audit, and replay receipt. It does not mutate the attack window, attack declaration state, or public event stream. Exact replay creates no second pressure record, roll, or suspicion change; Firestore permits facilitator audit while denying every lower audience and all client writes. The private loyalty panel exposes a targetless active-cycle control with stale-session protection and renders the committed coordinate, due cycle, after-cycle-start timing, and updated suspicion.",
+      "source": "functions/src/wolfHomingBeacon.ts; functions/src/wolfHomingBeacon.test.ts; functions/src/index.ts submitWolfHomingBeacon; functions/src/requestGuards.ts; functions/src/wolfActionCallable.test.ts; src/lib/wolfActionService.ts; src/lib/wolfActionService.test.ts; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md Wolf agents table",
+      "type": "evidence / production-path / server-authority / protected-navigation / next-cycle-pressure / no-cycle-start-attack / atomic-suspicion / privacy / replay / regression"
+    },
+    {
       "direction": "502 -> 497",
       "id": "E-502-SUSPICION-CLUE",
       "language": "The source-defined Wolf-only threshold resolver validates safe integer inputs, applies the action increment before one d6 roll, and maps every boundary from 0-6 through 24+ to the exact facilitator instruction. Supply sabotage samples cryptographic randomness only after authorization, cycle, target, cargo, loyalty, and census validation; a closure-stable roll survives transaction retries, while invalid requests and exact receipt replays draw nothing. The action consequence, private suspicion, facilitator census, current clue disclosure, cycle commitment, audit, and receipt commit atomically. The fixed clue projection is parsed through an allowlist, rendered in the facilitator console, cleared when Wolf identity changes, and denied to players, observers, collection listing, and all client writes.",
@@ -18415,11 +18422,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "the current system schedules next-turn pressure, never an immediate turn-start attack, and adds the printed suspicion.",
+        "acceptance": "the current system schedules next-cycle pressure, never an immediate cycle-start attack, and adds the printed suspicion.",
         "title": "Resolve a homing beacon."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-500",
+      "description": "The submitWolfHomingBeacon callable authorizes a live Wolf through the shared one-action-per-cycle boundary, derives the actor’s current system exclusively from canonical fleet-group membership and protected navigation, and fails closed when group vessels do not share one valid coordinate. One transaction preserves an immutable facilitator-visible pressure schedule for the next cycle with arrival explicitly eligible only after cycle start, adds exactly five suspicion to the private loyalty and facilitator census, resolves one server-owned clue roll, and records the private commitment, facilitator receipt, durable suspicion history, audit, and replay receipt. It never mutates the attack window, attack declaration state, or public event stream; exact retries cannot duplicate pressure, reroll, or reapply suspicion, and clients cannot choose the target or read, list, forge, or erase pressure schedules. The private loyalty panel exposes the action only to a current Wolf holder during an active positive cycle, submits no target fields, preserves stale-session authority, updates the private suspicion card from the committed reply, and tells the holder and facilitator that pressure becomes eligible only after the due cycle starts.",
+      "evidenceIds": "E-AUDIT-500;E-500-HOMING-BEACON",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497",
@@ -18427,10 +18434,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.55"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

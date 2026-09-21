@@ -19,6 +19,46 @@ export interface WolfIntelligenceReply {
   readonly suspicion: number;
 }
 
+export interface WolfHomingBeaconReply {
+  readonly status: 'committed';
+  readonly type: 'wolf-homing-beacon';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly coverRoleId: string;
+  readonly groupId: string;
+  readonly coordinate: string;
+  readonly dueCycle: number;
+  readonly arrivalTiming: 'after-cycle-start';
+  readonly suspicion: number;
+}
+
+/** Schedule next-cycle pressure at the current server-owned fleet system. */
+export async function submitWolfHomingBeacon(
+  requestId = commandId(),
+): Promise<WolfHomingBeaconReply> {
+  const { session, privateLoyalty } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before deploying a homing beacon.');
+  if (session.phase !== 'active' || !Number.isSafeInteger(session.currentTurn) ||
+      (session.currentTurn as number) < 1) {
+    throw new Error('Homing beacons are available only during an active cycle.');
+  }
+  if (privateLoyalty?.kind !== 'wolf-agent' && privateLoyalty?.kind !== 'wolf-cult') {
+    throw new Error('Only a Wolf holder can deploy a homing beacon.');
+  }
+  requireFreshSessionAuthority();
+  const call = httpsCallable<{
+    sessionId: string; requestId: string; expectedCycle: number;
+  }, WolfHomingBeaconReply>(functions(), 'submitWolfHomingBeacon');
+  const response = await call({
+    sessionId: session.id,
+    requestId,
+    expectedCycle: session.currentTurn as number,
+  });
+  return response.data;
+}
+
 /** Send the current Wolf holder's short message to its private handler channel. */
 export async function submitWolfIntelligence(
   message: string,

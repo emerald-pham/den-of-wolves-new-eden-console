@@ -1354,6 +1354,59 @@ it('hydrates only canonical complete facilitator Wolf action receipts', () => {
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'homing-beacon',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-beacon-1', cycle: 4, revision: 3,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
+      idempotencyKey: 'wolf-beacon-1', auditId: 'wolf-homing-beacon-wolf-beacon-1',
+      groupId: 'fleet-1', coordinate: '5143', dueCycle: 5,
+      arrivalTiming: 'after-cycle-start', oldSuspicion: 11, suspicionIncrement: 5,
+      newSuspicion: 16, roll: 1, total: 17, clueTier: 'wolf-activity-hint',
+      facilitatorInstruction: 'Point out the wolf activity, and give a hint.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(expect.objectContaining({
+    action: 'homing-beacon', groupId: 'fleet-1', coordinate: '5143',
+    dueCycle: 5, arrivalTiming: 'after-cycle-start', suspicionIncrement: 5,
+  }));
+  expect(onReceipt.mock.calls.at(-1)?.[0]).not.toHaveProperty('message');
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'homing-beacon',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-beacon-unprinted', cycle: 4, revision: 4,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
+      idempotencyKey: 'wolf-beacon-unprinted',
+      auditId: 'wolf-homing-beacon-wolf-beacon-unprinted',
+      groupId: 'fleet-1', coordinate: '1111', dueCycle: 5,
+      arrivalTiming: 'after-cycle-start', oldSuspicion: 16, suspicionIncrement: 5,
+      newSuspicion: 21, roll: 1, total: 22, clueTier: 'strong-hint',
+      facilitatorInstruction: 'Give someone a strong hint.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(null);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
+      type: 'wolf-action-receipt', status: 'committed', action: 'homing-beacon',
+      projectionRevision: 6, sessionId: 's1', requestId: 'wolf-beacon-early', cycle: 4, revision: 4,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', phase: 'active',
+      idempotencyKey: 'wolf-beacon-early', auditId: 'wolf-homing-beacon-wolf-beacon-early',
+      groupId: 'fleet-1', coordinate: '5143', dueCycle: 5,
+      arrivalTiming: 'at-cycle-start', oldSuspicion: 16, suspicionIncrement: 5,
+      newSuspicion: 21, roll: 1, total: 22, clueTier: 'strong-hint',
+      facilitatorInstruction: 'Give someone a strong hint.',
+    }),
+  });
+  expect(onReceipt).toHaveBeenLastCalledWith(null);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({
       type: 'wolf-action-receipt', status: 'committed', action: 'sabotage-supplies',
       projectionRevision: 6, sessionId: 's1', requestId: 'wolf-supply-tampered', cycle: 4, revision: 1,
       actorUid: 'u3', actorRoleId: 'admiral', vesselId: 'philia',
@@ -1425,6 +1478,14 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
     clueTier: 'wolf-activity', disclosure: 'Point out the wolf activity to someone.',
     auditId: 'wolf-intelligence-wolf-intel-1',
   };
+  const beacon = {
+    ...valid,
+    action: 'homing-beacon', source: 'wolf-homing-beacon', requestId: 'wolf-beacon-1',
+    oldSuspicion: 11, increment: 5, newSuspicion: 16, roll: 1, total: 17,
+    clueTier: 'wolf-activity-hint',
+    disclosure: 'Point out the wolf activity, and give a hint.',
+    auditId: 'wolf-homing-beacon-wolf-beacon-1',
+  };
   callbacks[0]?.({
     metadata: { fromCache: true },
     docs: [{ data: () => valid }],
@@ -1441,6 +1502,7 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
         auditId: `wolf-supply-sabotage-${longRequestId}`,
       }) },
       { data: () => intelligence },
+      { data: () => beacon },
     ],
   });
   expect(onHistory).toHaveBeenLastCalledWith([
@@ -1448,6 +1510,10 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
     expect.objectContaining({ requestId: longRequestId }),
     expect.objectContaining({
       requestId: 'wolf-intel-1', source: 'wolf-intelligence', increment: 3, newSuspicion: 11,
+    }),
+    expect.objectContaining({
+      requestId: 'wolf-beacon-1', source: 'wolf-homing-beacon', increment: 5,
+      newSuspicion: 16,
     }),
   ]);
   expect(onHistory.mock.calls.at(-1)?.[0]?.[0]).not.toHaveProperty('hiddenExtra');

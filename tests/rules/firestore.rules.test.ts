@@ -1536,6 +1536,33 @@ describe('Wolf action receipt audiences', () => {
   });
 });
 
+describe('Wolf homing beacon pressure schedules', () => {
+  it('allows facilitator audit and denies every lower audience and client write', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackPressure/wolf-beacon-1`), {
+        type: 'wolf-homing-beacon-pressure', status: 'scheduled', sessionId: 's1',
+        requestId: 'wolf-beacon-1', actorUid: 'alice', actorRoleId: 'admiral',
+        groupId: 'fleet-1', coordinate: '5143', sourceCycle: 2, dueCycle: 3,
+        arrivalTiming: 'after-cycle-start',
+      });
+    });
+
+    const path = `${SESSION}/wolfAttackPressure/wolf-beacon-1`;
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackPressure`)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), path)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/wolfAttackPressure`)));
+    }
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+    }
+  });
+});
+
 describe('private Wolf suspicion history', () => {
   it('allows facilitators to audit history and denies every lower audience and client write', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
