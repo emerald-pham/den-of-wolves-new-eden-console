@@ -2256,6 +2256,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "327 -> 321;322;324;326;285",
+      "id": "E-327-CURRENT-SCOUT-AUTHORITY",
+      "language": "Cross-policy proof replays targets that were eligible only from each range-limited scout anchor’s pre-jump coordinate, supplies that stale coordinate as untrusted client context, and confirms the server policies deny them after the authoritative AEGIS or Quellon coordinate changes. The complementary case records the new post-jump origin, while claimed former core or replacement owners remain unauthorized because only current entitlement fields are consumed. Endeavour is intentionally outside the coordinate matrix because its printed range is unlimited, but its current owner remains enforced by the shared entitlement policy.",
+      "source": "functions/src/scoutCurrentAuthority.test.ts; functions/src/starlightScout.ts; functions/src/hummingbirdScout.ts; functions/src/commsOfficerScout.ts; functions/src/scoutEntitlements.ts; functions/src/starChartGraph.ts; focused 7-test current-authority matrix; Functions TypeScript build",
+      "type": "evidence / cross-policy-proof / server-authority / post-jump-position / stale-client-denial / stale-owner-denial / non-feature contract"
+    },
+    {
       "direction": "328 -> 321;327;006",
       "id": "E-AUDIT-328",
       "language": "Private scout results consume entitlement/range and projection authority.",
@@ -14322,8 +14329,8 @@
         "acceptance": "a stale owner or client origin cannot expand range after a ship jumps.",
         "title": "Measure scout range from current authority."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-327",
+      "description": "Cross-policy server proof now demonstrates that every range-limited scout resolver rechecks the exact current owner or replacement assignment and derives range only from the complete authoritative post-jump fleet coordinate map. Starlight and Comms bind to current AEGIS, Hummingbird binds to current Quellon, and a client-supplied pre-jump origin or claimed former role cannot expand eligibility or alter the recorded origin. The proof covers both denial of targets that only the stale origin could reach and acceptance from the new authoritative position; persistence, transactional reads, result privacy, and UI remain downstream.",
+      "evidenceIds": "E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;285",
@@ -14334,7 +14341,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

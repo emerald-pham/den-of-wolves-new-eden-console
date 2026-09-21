@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**425 / 751 prompts complete (56.59%)**
+**426 / 751 prompts complete (56.72%)**
 
-Status breakdown: **425 done · 16 partial · 310 missing**.
+Status breakdown: **426 done · 16 partial · 309 missing**.
 
 Active prompt: **none**
 
@@ -769,7 +769,7 @@ release classification and evidence.
 | 324 | done | non-feature | — | The server-side Hummingbird scout policy requires the exact current Quellon Explorer entitlement, a valid active role/vessel configuration, no prior Hummingbird scan in the cycle, the complete authoritative per-ship coordinate map, and a positive cycle. It derives origin only from current Quellon position and returns one immutable request for a printed target at canonical graph distance 0 through 3. A fourth jump, unknown target or position, incomplete or extra fleet coordinates, used cadence, stale or mismatched role authority, replacement state, and malformed cycles fail closed. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream. |
 | 325 | done | non-feature | — | The server-side Endeavour long-range sensor policy requires the exact current Shepherd Scientist entitlement, a valid active role/vessel configuration, no prior Endeavour scan in the cycle, a positive cycle, and a target in the canonical printed system set. It returns one immutable request with an explicit unlimited-range marker and deliberately consumes no ship-position authority. Near, middle, and far printed systems are equally eligible; unknown targets, used cadence, inactive Shepherd authority, stale or mismatched role binding, replacement state, and malformed cycles fail closed. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream. |
 | 326 | done | non-feature | — | The server-side Comms Officer scan policy requires the exact current Comms Officer replacement assignment, a connected player, a valid active role/vessel configuration, no prior Comms scan in the cycle, the complete authoritative per-ship coordinate map, and a positive cycle. It derives origin only from current AEGIS position and returns one immutable request for a printed target at canonical graph distance 0 or 1. A second jump, unknown target or position, incomplete or extra fleet coordinates, used cadence, absent or different replacement authority, disconnected state, and malformed cycles fail closed. Historical core assignment/seat fields neither grant nor block the exact replacement path. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream. |
-| 327 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 327 | done | non-feature | — | Cross-policy server proof now demonstrates that every range-limited scout resolver rechecks the exact current owner or replacement assignment and derives range only from the complete authoritative post-jump fleet coordinate map. Starlight and Comms bind to current AEGIS, Hummingbird binds to current Quellon, and a client-supplied pre-jump origin or claimed former role cannot expand eligibility or alter the recorded origin. The proof covers both denial of targets that only the stale origin could reach and acceptance from the new authoritative position; persistence, transactional reads, result privacy, and UI remain downstream. |
 | 328 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 329 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 330 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
