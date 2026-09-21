@@ -2214,6 +2214,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "324 -> 321;216;327",
+      "id": "E-324-HUMMINGBIRD-SCAN",
+      "language": "The pure server resolver obtains Hummingbird authority only through P321, requires empty current-cycle Hummingbird history, derives its origin from the exact active-fleet coordinate map at Quellon, and measures the canonical printed graph. It records source, owner, anchor, first-attempt ordinal, cycle, origin, target, and distance without reading or returning chart content. Printed targets at distance 0 through 3 pass; distance 4, unknown coordinates, missing or extra active-fleet positions, used cadence, invalid role/vessel authority, stale assignment/seat binding, replacement state, and malformed cycles fail closed. Persistence, transactional current-state revalidation, chart results, privacy projection, and UI remain separately owned.",
+      "source": "functions/src/hummingbirdScout.ts; functions/src/hummingbirdScout.test.ts; functions/src/scoutEntitlements.ts; functions/src/starChartGraph.ts; authorized routed Quellon and Hummingbird references; focused 47-test entitlement/chart/navigation/scan/harvest suite; Functions TypeScript build",
+      "type": "evidence / server-policy / current-position / canonical-range / bounded-cadence / fail-closed / non-feature contract"
+    },
+    {
       "direction": "325 -> 321;267",
       "id": "E-AUDIT-325",
       "language": "Endeavour scan consumes entitlement and Endeavour identity.",
@@ -14232,8 +14239,8 @@
         "acceptance": "the Explorer scouts one system within three jumps of current Quellon position and no farther.",
         "title": "Resolve Hummingbird scouting."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-324",
+      "description": "The server-side Hummingbird scout policy requires the exact current Quellon Explorer entitlement, a valid active role/vessel configuration, no prior Hummingbird scan in the cycle, the complete authoritative per-ship coordinate map, and a positive cycle. It derives origin only from current Quellon position and returns one immutable request for a printed target at canonical graph distance 0 through 3. A fourth jump, unknown target or position, incomplete or extra fleet coordinates, used cadence, stale or mismatched role authority, replacement state, and malformed cycles fail closed. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream.",
+      "evidenceIds": "E-AUDIT-324;E-324-HUMMINGBIRD-SCAN",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;216",
@@ -14244,7 +14251,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
