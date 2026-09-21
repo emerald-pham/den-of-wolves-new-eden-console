@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**406 / 751 prompts complete (54.06%)**
+**408 / 751 prompts complete (54.33%)**
 
-Status breakdown: **406 done · 16 partial · 329 missing**.
+Status breakdown: **408 done · 16 partial · 327 missing**.
 
 Active prompt: **none**
 
@@ -817,8 +817,8 @@ release classification and evidence.
 | 372 | done | feature | 0.4.75 | AEGIS Press access now authorizes only the enabled SNN Press shuttle to request departure and enter transit while general airspace remains restricted. Server and routed UI checks reject disabled-Press stale custody, preserve ordinary craft restrictions, and retain all existing timing, routing, custody, replay, and attack locks. |
 | 373 | missing | non-feature | — | Blocked on Prompt 146's explicit owner decision for equally near legal hosts. Once that deterministic policy is selected, declaration must relocate every craft to its nearest legal host and derive battle participation from the printed capability catalog. |
 | 374 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 375 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 376 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 375 | done | non-feature | — | Verified the existing production single-bay boundary. Each non-AEGIS ship has one authoritative bay step that can fuel at most one eligible docked craft per numbered cycle, spends once, then advances; damaged, duplicate, repeated, stale, and out-of-order choices cannot exceed capacity. This is evidence reconciliation with no runtime change. |
+| 376 | done | non-feature | — | Verified the existing production AEGIS dual-bay boundary. Zeta and Omega are independent ordered one-craft maintenance steps with separate damage eligibility, result and receipt/event records, fuel spending, and cleared UI selection; replay and stale requests cannot duplicate either use. This is evidence reconciliation with no runtime change. |
 | 377 | done | non-feature | — | The production shuttle cargo callable already implements this acceptance through the released Prompt 113 path. It derives the current holder, unique live dock, active manifest, group-local host, exact printed allowlist and both current inventories from server state, then updates only the host and shuttle ledgers in one transaction. Transit, duplicate or missing docks, stale custody, unsupported cargo, cross-group hosts, malformed ledgers, insufficient stock and request collisions fail before mutation; exact retries return the stored result without moving cargo twice. |
 | 378 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 379 | done | non-feature | — | Verified the production cargo-transfer denial matrix. Unsupported types, negative or fractional amounts, overdraw, absent or duplicate docking, cross-group hosts, foreign holders, wrong phase, stale custody, and missing or malformed inventories all fail before either ledger changes. Exact accepted retries replay without another write. Focused pure and callable suites passed, including new negative-amount and wrong-phase regressions. This is evidence reconciliation with no runtime change. |

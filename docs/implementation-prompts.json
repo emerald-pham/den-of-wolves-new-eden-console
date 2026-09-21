@@ -2480,11 +2480,25 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "375 -> 361;369",
+      "id": "E-375-ORDINARY-BAY-CAPACITY-VERIFIED",
+      "language": "Every non-AEGIS maintenance deck exposes one printed Shuttle Bay step. The authoritative maintenance transaction accepts only that current bay key, permits at most one unique docked shuttle selection, spends one host fuel, records the craft in the cycle refuelled ledger, and advances beyond the bay so the same ship cannot fuel another craft in that numbered cycle. Duplicate manifests, damaged bays, already-fuelled craft, out-of-order requests, stale revisions, and exact retries fail or replay without another spend. Routed maintenance UI exposes the same single selection and supports an explicit no-refuel continuation.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/consoleMetadata.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx",
+      "type": "evidence / production-path / server-authoritative / ordinary-ships / single-bay / one-craft-capacity / host-fuel / damage / stale-cas / replay / responsive-ui"
+    },
+    {
       "direction": "376 -> 126;369",
       "id": "E-AUDIT-376",
       "language": "AEGIS bay capacity consumes dual-bay and fuelling contracts.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "376 -> 126;369",
+      "id": "E-376-AEGIS-DUAL-BAY-CAPACITY-VERIFIED",
+      "language": "AEGIS maintenance resolves Shuttle Bay Zeta and Shuttle Bay Omega as two ordered, independent one-craft steps. Each step accepts only its own bay key, checks its own damage card, writes its own numbered result and command receipt/event, spends one fuel only for its selected docked craft, and advances without carrying the prior UI choice into the next bay. A craft cannot be fuelled twice in the cycle, Omega cannot run before Zeta, maintenance cannot end between the bays, stale calls do not mutate, and exact retries return the original result.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/shipDamage.ts; functions/src/consoleMetadata.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx",
+      "type": "evidence / production-path / server-authoritative / AEGIS / Zeta / Omega / independent-bay-state / damage / event-receipt / ordered-steps / replay / responsive-ui"
     },
     {
       "direction": "377 -> 164;361;363",
@@ -15312,8 +15326,8 @@
         "acceptance": "each non-AEGIS bay fuels no more craft than its printed capacity per turn.",
         "title": "Enforce ordinary bay capacity."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-375",
+      "description": "Verified the existing production single-bay boundary. Each non-AEGIS ship has one authoritative bay step that can fuel at most one eligible docked craft per numbered cycle, spends once, then advances; damaged, duplicate, repeated, stale, and out-of-order choices cannot exceed capacity. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-375;E-375-ORDINARY-BAY-CAPACITY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;369",
@@ -15324,7 +15338,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15335,8 +15349,8 @@
         "acceptance": "Zeta and Omega retain independent use, damage, and event records.",
         "title": "Enforce AEGIS dual-bay capacity."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-376",
+      "description": "Verified the existing production AEGIS dual-bay boundary. Zeta and Omega are independent ordered one-craft maintenance steps with separate damage eligibility, result and receipt/event records, fuel spending, and cleared UI selection; replay and stale requests cannot duplicate either use. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-376;E-376-AEGIS-DUAL-BAY-CAPACITY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "126;369",
@@ -15347,7 +15361,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
