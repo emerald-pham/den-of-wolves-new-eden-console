@@ -2641,9 +2641,9 @@
       "type": "evidence / production-path / server-authoritative / Highwall / Coordination / server-dice / fuelled-third-operation / exact-cargo / fleet-group-custody / replay-safe / routed-responsive-font-touch-proof"
     },
     {
-      "direction": "389 -> 265;426",
+      "direction": "389 -> 265;426;433;439;440",
       "id": "E-AUDIT-389",
-      "language": "Highwall combat consumes craft identity and attack composition.",
+      "language": "Highwall combat consumes craft identity and attack composition, plus the member-safe attack projection and authoritative Medium and Short range stages needed to expose valid targets and prevent out-of-order firing.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -15717,11 +15717,11 @@
         "acceptance": "fuelled Medium and Short attacks deal three damage on a server roll of 5+.",
         "title": "Resolve Highwall combat."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. Production execution depends on the member-safe attack projection and the authoritative Medium and Short range stages; the prior dependency row exposed only craft identity and attack composition, which cannot safely authorize a target or range action.",
       "evidenceIds": "E-AUDIT-389",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "265;426",
+      "hardPromptPrerequisites": "265;426;433;439;440",
       "id": "389",
       "milestoneHints": "M7",
       "relatedConsumes": "none",
