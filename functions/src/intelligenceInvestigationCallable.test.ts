@@ -266,6 +266,23 @@ it('rejects disconnected and cross-group targets', async () => {
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 
+it('rejects a malformed unrelated census entry without writing or drawing', async () => {
+  put('sessions/s1/loyaltyCensus/current', {
+    type: 'loyalty-census', revision: 4,
+    entries: [
+      { uid: 'u2', kind: 'intelligence-agent', suspicion: 6 },
+      { uid: 'u3', kind: 'fleet-loyalist', suspicion: 7 },
+    ],
+  });
+
+  await expect(investigateAsIntelligenceAgent.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
 it('rejects a client-supplied answer or loyalty claim before reading state', async () => {
   await expect(investigateAsIntelligenceAgent.run(request({
     ...data, reportedWolf: true,

@@ -12529,11 +12529,14 @@ export const investigateAsIntelligenceAgent = onCall<{
     const censusEntries = storedLoyaltyCensusEntries(census);
     const censusRevision = census.get('revision');
     const censusEntry = censusEntries?.find((entry) => entry.uid === uid);
+    const censusEntriesCanonical = censusEntries?.every((entry) =>
+      liveLoyaltySuspicionDecision(entry.kind, entry.suspicion).allowed) === true;
     if (!Number.isSafeInteger(oldSuspicion) || (oldSuspicion as number) < 6 ||
         (oldSuspicion as number) > Number.MAX_SAFE_INTEGER - 2 ||
         !census.exists || !Number.isSafeInteger(censusRevision) ||
         (censusRevision as number) < 0 || (censusRevision as number) >= Number.MAX_SAFE_INTEGER ||
-        !censusEntries || !censusEntry || censusEntry.kind !== 'intelligence-agent' ||
+        !censusEntriesCanonical || !censusEntries || !censusEntry ||
+        censusEntry.kind !== 'intelligence-agent' ||
         censusEntry.suspicion !== oldSuspicion) {
       throw commandError(
         'failed-precondition',
