@@ -214,6 +214,24 @@ it.each([
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('does not accept a corrupt active-vessel tuple as docking authority', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeRoleIds = ['wing-commander'];
+  session.activeVesselIds = ['bogus'];
+  session.shuttleControl = {};
+  session.shuttleDockings = [
+    { shuttleId: 'snn-press-shuttle', shipId: 'bogus', dockedAt: 'SESSION START' },
+    { shuttleId: 'starlight', shipId: 'bogus', dockedAt: 'SESSION START' },
+  ];
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: 'corrupt-active-vessels',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'The authoritative shuttle manifest is unavailable.',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('lets the printed owner reclaim and denies the recipient from forwarding', async () => {
   await transferShuttleControlCommand.run(request(command));
   await expect(transferShuttleControlCommand.run(request({
@@ -264,6 +282,14 @@ it('lets only a live facilitator instance adjudicate a handoff', async () => {
   expect(mock.documents.get('sessions/s1/shuttleControlAudit/gm-handoff')).toMatchObject({
     actorUid: 'gm', actorRole: 'facilitator',
   });
+});
+
+it('denies a facilitator handoff across the printed owner fleet group', async () => {
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: 'gm-cross-group', instanceId: 'bridge', targetUid: 'other',
+  }, 'gm'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('lets a live facilitator hand off for a disconnected owner and reclaim after that owner reconnects', async () => {

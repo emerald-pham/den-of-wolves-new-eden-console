@@ -4855,6 +4855,7 @@ export const transferShuttleControlCommand = onCall<{
       );
     }
     const ownerUid = ownerUids[0]!;
+    const owner = rosterPlayerDocs.find((player) => player.id === ownerUid)!;
     if (!actorIsFacilitator && uid !== ownerUid) {
       throw new HttpsError(
         'permission-denied',
@@ -4902,8 +4903,13 @@ export const transferShuttleControlCommand = onCall<{
     if (!control?.[data.shuttleId]) {
       const activeRoleIds = configuredRoleIds(session);
       const rawDockings = session.get('shuttleDockings');
+      const rawActiveVesselIds = session.get('activeVesselIds');
       if (!Array.isArray(rawDockings) ||
-          !shuttleDockingsAreParked(rawDockings, activeVesselIdsForSession(session)) ||
+          !Array.isArray(rawActiveVesselIds) || rawActiveVesselIds.length === 0 ||
+          rawActiveVesselIds.some((shipId) =>
+            typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+          new Set(rawActiveVesselIds).size !== rawActiveVesselIds.length ||
+          !shuttleDockingsAreParked(rawDockings, rawActiveVesselIds) ||
           !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings)) {
         throw commandError(
           'failed-precondition',
@@ -4925,9 +4931,8 @@ export const transferShuttleControlCommand = onCall<{
     if (!target || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'Choose a connected player.', 'conflict');
     }
-    if (!actorIsFacilitator &&
-        (typeof actor.get('fleetGroupId') !== 'string' ||
-          target.get('fleetGroupId') !== actor.get('fleetGroupId'))) {
+    if (typeof owner.get('fleetGroupId') !== 'string' ||
+        target.get('fleetGroupId') !== owner.get('fleetGroupId')) {
       throw new HttpsError('permission-denied', 'Choose a player in your current fleet group.');
     }
     let next;
