@@ -134,3 +134,34 @@ it('charges the canonical Force Field Projector id and renders only authoritativ
   expect(forceField).toHaveTextContent('Wolf attack // charged');
   expect(within(forceField).queryByRole('button')).not.toBeInTheDocument();
 });
+
+it('registers and charges the Vulcan Laser Cannon without exposing a firing control', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    smallShipStates: {
+      ...session.smallShipStates,
+      vulcan: {
+        id: 'vulcan', hostShipId: 'aegis', dockingRevision: 1, population: 15_000, unrest: 0,
+        cycle: { step: 4, revision: 11, results: {}, charges: [], turn: 2 },
+      },
+    },
+  });
+  render(<SmallShipOperations />);
+
+  const vulcan = screen.getByRole('region', { name: 'Vulcan small-ship operations' });
+  const laser = within(vulcan).getByRole('article', { name: 'Laser Cannon system // unavailable' });
+  expect(laser).toHaveTextContent('Wolf attack // not charged');
+  expect(laser).toHaveTextContent('medium and short range');
+  expect(laser).toHaveTextContent('roll 2 dice');
+  expect(laser).toHaveTextContent('1 damage on a 4+');
+  expect(laser).toHaveTextContent(/action unavailable.*prompts 439 \/ 440/i);
+  expect(within(laser).queryByRole('button')).not.toBeInTheDocument();
+
+  await user.click(within(vulcan).getByRole('checkbox', { name: 'Laser Cannon' }));
+  await user.click(within(vulcan).getByRole('button', { name: 'Charge selected consoles' }));
+  expect(runSmallShipMaintenance).toHaveBeenCalledWith(
+    'vulcan', 'reactor', 11, { consoles: ['laser-cannon'] },
+  );
+});

@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [247],
+    implementationProgress: {
+      completed: 364, total: 751, percentage: '48.47%',
+      done: 364, partial: 18, active: 0, missing: 369,
+    },
+    changes: [
+      'The Vulcan small-ship workspace now shows the charged Laser Cannon contract: two dice at each of Medium and Short range, with each 4+ dealing one damage.',
+      'Reactor charging uses the canonical Laser Cannon identity and shows whether it is currently charged.',
+      'The Vulcan Captain brief withholds the combat contract until player-safe combat authority exists, and no premature firing control is exposed.',
+      '364 of 751 planned items are complete (48.47%).',
+    ],
+  },
+  {
+    version: '0.4.58',
     implementationPrompts: [240],
     implementationProgress: {
       completed: 363, total: 751, percentage: '48.34%',

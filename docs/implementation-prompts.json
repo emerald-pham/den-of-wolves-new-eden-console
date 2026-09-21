@@ -1556,6 +1556,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "247 -> 246;182;439;440",
+      "id": "E-247-LASER-CANNON-REGISTRATION",
+      "language": "The shared supplemental-vessel catalog and server-only console registry now register Vulcan's charged Laser Cannon with two dice at each of Medium and Short range, one damage per 4+ result, and canonical small-ship Reactor charging. The GM workspace renders the exact contract and authoritative charge state without a firing control. The Vulcan Captain brief continues to withhold the combat contract because no member-safe combat authority projection exists; the fail-closed resolver assigns Medium and Short execution to Prompts 439 and 440.",
+      "source": "src/data/vessels/templates.ts; src/data/vessels/vulcan.ts; src/data/vesselTemplates.test.ts; src/components/SmallShipOperations.tsx; src/components/SmallShipOperations.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; authorized routed Ships summary",
+      "type": "evidence / production-path / typed-registration / server-metadata / canonical-charging / role-authority-boundary / fail-closed-resolver / regression"
+    },
+    {
       "direction": "248 -> 246;122;125",
       "id": "E-AUDIT-248",
       "language": "Vulcan labour actions consume Vulcan identity and Reactor/charge eligibility.",
@@ -12126,8 +12133,8 @@
         "acceptance": "the role sees its medium/short two-die 4+ contract only when combat authority is available.",
         "title": "Register the Vulcan Laser Cannon."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-247",
+      "description": "Vulcan's shared supplemental-vessel definition and server-only console registry now register the charged Laser Cannon with two dice at each of Medium and Short range and one damage per 4+ result. Small-ship Reactor step 4 offers the canonical Laser Cannon id, and the GM workspace renders its authoritative charge state without a firing control. The Vulcan Captain brief withholds the contract while member-safe combat authority is unavailable; Medium and Short execution remains fail closed under Prompts 439 and 440.",
+      "evidenceIds": "E-AUDIT-247;E-247-LASER-CANNON-REGISTRATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "246;182",
@@ -12135,10 +12142,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.59"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

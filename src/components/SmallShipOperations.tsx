@@ -20,7 +20,7 @@ const BASE_CAPYBARA_PRODUCTION_CONSOLES = [
   { id: 'hydroponics', name: 'Hydroponics', effect: 'Spend 1 water → generate 4 food' },
   { id: 'fuel-processor', name: 'Fuel Processor', effect: 'Spend up to 5 ore → generate 1 fuel each' },
 ] as const;
-const VULCAN_REACTOR_CONSOLES = VULCAN_ADDITIONAL_LABOUR_CONSOLES.map((id, index) => ({
+const VULCAN_ADDITIONAL_LABOUR_REACTOR_CONSOLES = VULCAN_ADDITIONAL_LABOUR_CONSOLES.map((id, index) => ({
   id, name: `Additional Labour ${index + 1}`,
 }));
 
@@ -117,7 +117,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               <h5>{system.name}</h5>
               <p>{system.phase} // {cycle?.charges.includes(system.id) ? 'charged' : 'not charged'}</p>
               <p>{system.effect}</p>
-              <p role="status">Action unavailable // {system.action.reason} // Prompt {system.action.followOnPrompt}</p>
+              <p role="status">Action unavailable // {system.action.reason} // {system.action.followOnPrompts.length === 1 ? 'Prompt' : 'Prompts'} {system.action.followOnPrompts.join(' / ')}</p>
             </article>
           ))}
         </section>
@@ -148,7 +148,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
             {(id === 'capybara-small'
               ? BASE_CAPYBARA_PRODUCTION_CONSOLES
               : id === 'vulcan'
-                ? VULCAN_REACTOR_CONSOLES
+                ? [...registeredReactorConsoles, ...VULCAN_ADDITIONAL_LABOUR_REACTOR_CONSOLES]
                 : [...registeredReactorConsoles, ...genericReactorConsoles])
               .map((console) => {
                 const checked = consoles.includes(console.id);

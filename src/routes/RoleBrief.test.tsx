@@ -247,6 +247,7 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
   );
 
   expect(screen.getByRole('heading', { name: 'Additional Labour' })).toBeVisible();
+  expect(screen.queryByText(/at each of medium and short range, roll 2 dice/i)).not.toBeInTheDocument();
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target ship' }), 'dione');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target console' }), 'hydroponics');
   await user.click(screen.getByRole('button', { name: /use additional labour/i }));

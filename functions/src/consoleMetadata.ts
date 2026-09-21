@@ -329,6 +329,19 @@ export const SUPPLEMENTAL_CONSOLE_METADATA: Readonly<Record<string, Supplemental
         ['437'],
       ),
     },
+    'vulcan:laser-cannon': {
+      consoleId: 'vulcan:laser-cannon',
+      vesselId: 'vulcan',
+      name: 'Laser Cannon',
+      phase: 'Wolf attack',
+      maintenanceStep: 4,
+      charge: printed('Requires one console charge from the small-ship Reactor.'),
+      effect: 'At each of medium and short range, roll 2 dice. Each die deals 1 damage on a 4+.',
+      resolver: unavailable(
+        'Vulcan Laser Cannon resolution is unavailable until the authoritative Medium and Short range resolvers land.',
+        ['439', '440'],
+      ),
+    },
   });
 
 export function supplementalConsoleMetadataFor(
@@ -343,6 +356,6 @@ export const UNREGISTERED_VESSEL_CONSOLES: Readonly<Record<string, readonly stri
   gorgoneion: ['235', '236'],
   'capybara-small': ['241', '241a', '241d', '241e'],
   warrior: ['242', '243', '244', '245'],
-  vulcan: ['246', '247', '248'],
+  vulcan: ['246', '248'],
   'voyage-33-0': ['249', '250', '251'],
 });

@@ -21,4 +21,16 @@ export default defineSupplementalVessel({
     reactorCapacity: 2,
     maintenanceSteps: [1, 2, 3, 4],
   },
+  systems: [{
+    id: 'laser-cannon',
+    name: 'Laser Cannon',
+    phase: 'Wolf attack',
+    charge: 'reactor',
+    effect: 'At each of medium and short range, roll 2 dice. Each die deals 1 damage on a 4+.',
+    action: {
+      status: 'unavailable',
+      reason: 'The firing contract stays hidden from the Vulcan Captain until authoritative combat resolution is available.',
+      followOnPrompts: ['439', '440'],
+    },
+  }],
 });

@@ -125,7 +125,7 @@ export interface SupplementalVesselSystem {
   readonly action: {
     readonly status: 'unavailable';
     readonly reason: string;
-    readonly followOnPrompt: string;
+    readonly followOnPrompts: readonly string[];
   };
 }
 

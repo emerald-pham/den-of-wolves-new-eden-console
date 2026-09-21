@@ -116,11 +116,12 @@ describe('server-only console metadata', () => {
       'gorgoneion', 'capybara-small', 'warrior', 'vulcan', 'voyage-33-0',
     ]);
     expect(UNREGISTERED_VESSEL_CONSOLES['gorgoneion']).toEqual(['235', '236']);
+    expect(UNREGISTERED_VESSEL_CONSOLES.vulcan).toEqual(['246', '248']);
   });
 
   it('registers Gorgoneion Missile Array while keeping firing fail closed for Prompt 455', () => {
     expect(Object.keys(SUPPLEMENTAL_CONSOLE_METADATA)).toEqual([
-      'gorgoneion:missile-array', 'gorgoneion:force-field-projector',
+      'gorgoneion:missile-array', 'gorgoneion:force-field-projector', 'vulcan:laser-cannon',
     ]);
     expect(supplementalConsoleMetadataFor('gorgoneion', 'missile-array')).toEqual({
       consoleId: 'gorgoneion:missile-array',
@@ -146,6 +147,19 @@ describe('server-only console metadata', () => {
       resolver: {
         status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['437'],
         reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
+      },
+    });
+    expect(supplementalConsoleMetadataFor('vulcan', 'laser-cannon')).toEqual({
+      consoleId: 'vulcan:laser-cannon',
+      vesselId: 'vulcan',
+      name: 'Laser Cannon',
+      phase: 'Wolf attack',
+      maintenanceStep: 4,
+      charge: { status: 'printed', text: 'Requires one console charge from the small-ship Reactor.' },
+      effect: 'At each of medium and short range, roll 2 dice. Each die deals 1 damage on a 4+.',
+      resolver: {
+        status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['439', '440'],
+        reason: 'Vulcan Laser Cannon resolution is unavailable until the authoritative Medium and Short range resolvers land.',
       },
     });
   });

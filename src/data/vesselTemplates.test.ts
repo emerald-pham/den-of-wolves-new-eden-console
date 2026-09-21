@@ -125,7 +125,7 @@ describe('shared vessel templates', () => {
         action: {
           status: 'unavailable',
           reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
-          followOnPrompt: '455',
+          followOnPrompts: ['455'],
         },
       },
       {
@@ -134,10 +134,22 @@ describe('shared vessel templates', () => {
         action: {
           status: 'unavailable',
           reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
-          followOnPrompt: '437',
+          followOnPrompts: ['437'],
         },
       },
     ]);
+  });
+
+  it('registers the Vulcan Laser Cannon without exposing its deferred combat action', () => {
+    expect(findVessel('vulcan')?.systems).toEqual([{
+      id: 'laser-cannon', name: 'Laser Cannon', phase: 'Wolf attack', charge: 'reactor',
+      effect: 'At each of medium and short range, roll 2 dice. Each die deals 1 damage on a 4+.',
+      action: {
+        status: 'unavailable',
+        reason: 'The firing contract stays hidden from the Vulcan Captain until authoritative combat resolution is available.',
+        followOnPrompts: ['439', '440'],
+      },
+    }]);
   });
 
   it('registers every optional vessel as a distinct identity without adding it to core setup', () => {

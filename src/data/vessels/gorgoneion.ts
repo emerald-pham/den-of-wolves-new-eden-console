@@ -31,7 +31,7 @@ export default defineSupplementalVessel({
       action: {
         status: 'unavailable',
         reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
-        followOnPrompt: '455',
+        followOnPrompts: ['455'],
       },
     },
     {
@@ -43,7 +43,7 @@ export default defineSupplementalVessel({
       action: {
         status: 'unavailable',
         reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
-        followOnPrompt: '437',
+        followOnPrompts: ['437'],
       },
     },
   ],
