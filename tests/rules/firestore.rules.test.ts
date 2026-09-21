@@ -1769,6 +1769,15 @@ describe('shuttle departure privacy', () => {
     await assertFails(setDoc(doc(as('alice'), path), { destinationShipId: 'dione' }));
     await assertFails(updateDoc(doc(as('gm1'), path), { destinationShipId: 'dione' }));
     await assertFails(deleteDoc(doc(as('gm1'), path)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), {
+        status: 'in-transit', shuttleId: 'starlight', fleetGroupId: 'fleet-1',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), path)));
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    await assertFails(getDoc(doc(as('foreign'), path)));
   });
 });
 

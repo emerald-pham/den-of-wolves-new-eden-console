@@ -187,6 +187,29 @@ it('commits one owner handoff, writes an audit, and replays without another muta
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('transfers a parked shuttle while another enabled shuttle is in transit', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleDockings = (session.shuttleDockings as Fields[])
+    .filter((docking) => docking.shuttleId !== 'highwall');
+  await expect(transferShuttleControlCommand.run(request(command))).resolves.toMatchObject({
+    status: 'committed', shuttleId: 'starlight', holderUid: 'crew',
+  });
+  expect(mock.documents.get('sessions/s1')!.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker' }),
+  ]));
+});
+
+it('does not transfer the in-transit shuttle itself without a unique docking', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleDockings = (session.shuttleDockings as Fields[])
+    .filter((docking) => docking.shuttleId !== 'starlight');
+  await expect(transferShuttleControlCommand.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('does not synthesize a Union shuttle omitted by the authoritative starting manifest', async () => {
   const session = mock.documents.get('sessions/s1')!;
   session.activeRoleIds = ['joint-engineering-quellon-refinery'];

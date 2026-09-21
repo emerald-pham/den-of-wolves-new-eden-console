@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**369 / 751 prompts complete (49.13%)**
+**370 / 751 prompts complete (49.27%)**
 
-Status breakdown: **369 done · 17 partial · 365 missing**.
+Status breakdown: **370 done · 17 partial · 364 missing**.
 
 Active prompt: **none**
 
@@ -808,7 +808,7 @@ release classification and evidence.
 | 363 | done | non-feature | 0.4.62 | Shuttle control transfer now completes custody and docking as one server transaction. The server validates the full parked manifest, resolves the recipient’s physical ship from their current replacement role, printed role, or the authoritative host of the Press or Joint Engineering craft, and rejects locationless, escaping, inactive, duplicate, unknown, or craft-restricted destinations before any write. Accepted handoffs and reclaims update the control revision and the shuttle’s dock together, while the audit records both previous and resolved hosts. The shared pure resolver preserves unrelated dockings and is ready for the later departure and arrival transactions without claiming their transit, visit-log, event, or DRADIS scope. |
 | 364 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 365 | done | non-feature | 0.4.63 | The current holder can submit a revision-checked departure request from the shuttle console during live open airspace. The callable binds the request to the authenticated holder, current custody revision, exact active session cycle and phase clock, the server-owned fleet group, one authoritative origin docking, a different local destination, craft-specific host limits, the active movement deadline, and the absence of a Wolf movement lock. Malformed manifests, stale lifecycle or cycle state, pending requests, stale custody, closed or paused airspace, expired windows, cross-group ships, and replay conflicts fail before mutation. Accepted requests persist one server-written, group-audienced flight-plan document and an exact command receipt while deliberately leaving docking, visit history, events, DRADIS, and transit unchanged for Prompts 366 and 367. Foreign groups cannot get the route, no client can enumerate or write departure plans, and custody changes delete any obsolete pending document atomically. Focused pure, callable, service, projection, holder-interface, and Firestore emulator tests cover the authority and privacy boundaries. |
-| 366 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 366 | done | non-feature | 0.4.64 | The current shuttle holder can turn an exact server-authorized flight plan into authoritative transit during the same live open-airspace window. The idempotent callable revalidates authenticated custody, the control revision, departure request, active lifecycle and exact cycle, unpaused and unexpired airspace, fleet-group membership and endpoints, the current origin dock, craft host limits, and the absence of a Wolf movement lock. Its transaction removes only that shuttle from the docking ledger and replaces the group-private request with a 60-second transit record containing authoritative origin, current and destination positions, velocity, and server departure and arrival timestamps. Other parked shuttles remain usable, the client projects the craft as in transit, and arrival, host, holder, visit log, event, and DRADIS mutations remain reserved for Prompt 367. Focused pure, callable, service, projection, holder-interface, concurrent-movement, and Firestore emulator tests cover authority, privacy, replay, and neither-endpoint behavior. |
 | 367 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 368 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 369 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

@@ -30,6 +30,7 @@ vi.mock('@/lib/shuttleControlService', () => ({
   transferShuttleControl: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/shuttleDepartureService', () => ({
+  beginShuttleTransit: vi.fn().mockResolvedValue(undefined),
   requestShuttleDeparture: vi.fn().mockResolvedValue(undefined),
 }));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
@@ -37,7 +38,7 @@ const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionSer
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
-const { requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
+const { beginShuttleTransit, requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
 
 beforeEach(() => {
   vi.mocked(selectConsoleRole).mockReset();
@@ -59,6 +60,8 @@ beforeEach(() => {
   vi.mocked(transferShuttleControl).mockResolvedValue(undefined);
   vi.mocked(requestShuttleDeparture).mockReset();
   vi.mocked(requestShuttleDeparture).mockResolvedValue(undefined);
+  vi.mocked(beginShuttleTransit).mockReset();
+  vi.mocked(beginShuttleTransit).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -999,8 +1002,15 @@ it('lets the current holder request a local departure during open airspace witho
 it('shows an authorized departure as awaiting transit and hides departure controls from a non-holder', () => {
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['wing-commander', 'icebreaker-miner'],
     activeVesselIds: ['aegis', 'icebreaker'],
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
     shuttleControl: {
       starlight: {
         shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
@@ -1017,11 +1027,19 @@ it('shows an authorized departure as awaiting transit and hides departure contro
   expect(screen.queryByRole('button', { name: 'Request departure' })).not.toBeInTheDocument();
 });
 
-it('shows the holder an authorized departure without offering a duplicate request', () => {
+it('lets the holder enter transit from an authorized departure without a duplicate request', async () => {
+  const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['wing-commander', 'icebreaker-miner'],
     activeVesselIds: ['aegis', 'icebreaker'],
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
     shuttleControl: {
       starlight: {
         shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
@@ -1044,6 +1062,45 @@ it('shows the holder an authorized departure without offering a duplicate reques
   </Routes></MemoryRouter>);
 
   expect(screen.getByRole('region', { name: 'Shuttle departure' }))
-    .toHaveTextContent('Departure requested to Icebreaker; awaiting transit clearance.');
+    .toHaveTextContent('Departure requested to Icebreaker; ready to begin transit.');
   expect(screen.queryByRole('button', { name: 'Request departure' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Begin transit' }));
+  expect(beginShuttleTransit).toHaveBeenCalledWith('starlight', 'departure-1', 3, 2);
+  expect(screen.getByRole('status')).toHaveTextContent('Transit begun to Icebreaker.');
+});
+
+it('shows authoritative transit without a docking or another movement action', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    activeVesselIds: ['aegis', 'icebreaker'], shuttleDockings: [],
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+        holderUid: 'u1', revision: 3,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+  vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
+    onDeparture({
+      status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3,
+      requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
+      originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+      destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+      velocity: { x: 0.004, y: -0.002, z: 0.004 },
+      departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
+    });
+    return vi.fn();
+  });
+  render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(screen.getByText('Shuttle location // In transit')).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Shuttle departure' })).toHaveTextContent('In transit to Icebreaker.');
+  expect(screen.queryByRole('button', { name: /departure|transit/i })).not.toBeInTheDocument();
 });

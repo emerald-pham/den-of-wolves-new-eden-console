@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
-import { requestShuttleDeparture } from './shuttleDepartureService';
+import { beginShuttleTransit, requestShuttleDeparture } from './shuttleDepartureService';
 
 beforeEach(() => {
   mocks.call.mockReset();
@@ -37,4 +37,13 @@ it('rejects a cache-backed request before contacting the callable', async () => 
   await expect(requestShuttleDeparture('starlight', 'icebreaker', 3, 2))
     .rejects.toThrow(/live session state/i);
   expect(mocks.callable).not.toHaveBeenCalled();
+});
+
+it('begins transit from the exact observed departure, custody revision, and cycle', async () => {
+  await beginShuttleTransit('starlight', 'departure-1', 3, 2);
+  expect(mocks.callable).toHaveBeenCalledWith('functions', 'beginShuttleTransit');
+  expect(mocks.call).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: expect.any(String), shuttleId: 'starlight',
+    expectedDepartureRequestId: 'departure-1', expectedControlRevision: 3, expectedCycle: 2,
+  });
 });

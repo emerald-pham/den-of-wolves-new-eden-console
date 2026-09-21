@@ -19,17 +19,7 @@ const mock = vi.hoisted(() => {
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
-    const current = { ...(documents.get(target.path) ?? {}) };
-    for (const [key, value] of Object.entries(fields)) {
-      if (key.startsWith('shuttleDepartures.')) {
-        const shuttleId = key.slice('shuttleDepartures.'.length);
-        current.shuttleDepartures = {
-          ...((current.shuttleDepartures as Fields | undefined) ?? {}),
-          [shuttleId]: value,
-        };
-      } else current[key] = value;
-    }
-    documents.set(target.path, current);
+    documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
   return { documents, get, set, update, runTransaction, db: { doc: ref, collection: ref, runTransaction } };
@@ -57,11 +47,11 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { requestShuttleDeparture } from './index';
+import { beginShuttleTransit } from './index';
 
 const command = {
-  sessionId: 's1', requestId: 'depart-1', shuttleId: 'starlight',
-  destinationShipId: 'icebreaker', expectedControlRevision: 0, expectedCycle: 2,
+  sessionId: 's1', requestId: 'transit-1', shuttleId: 'starlight',
+  expectedDepartureRequestId: 'depart-1', expectedControlRevision: 0, expectedCycle: 2,
 };
 
 function request(data: Fields, uid = 'holder') {
@@ -109,82 +99,68 @@ beforeEach(() => {
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['holder', 'owner'],
   });
+  put('sessions/s1/shuttleDepartures/starlight', {
+    status: 'requested', requestId: 'depart-1', shuttleId: 'starlight', holderUid: 'holder',
+    fleetGroupId: 'fleet-1', originShipId: 'aegis', destinationShipId: 'icebreaker',
+    cycle: 2, controlRevision: 0, requestedAt: new Date(now - 1_000).toISOString(),
+  });
 });
 
-it('persists one holder departure request and replays without another write', async () => {
-  const first = await requestShuttleDeparture.run(request(command));
+it('atomically enters transit, removes only the departing docking, and replays without writes', async () => {
+  const first = await beginShuttleTransit.run(request(command));
   expect(first).toMatchObject({
-    status: 'requested', shuttleId: 'starlight', holderUid: 'holder',
-    originShipId: 'aegis', destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
+    status: 'in-transit', shuttleId: 'starlight', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', transitRequestId: 'transit-1', revision: 1,
   });
-  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight'))
-    .toMatchObject({ status: 'requested', requestId: 'depart-1' });
+  const session = mock.documents.get('sessions/s1')!;
+  expect(session.shuttleDockings).toEqual([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle' }),
+    expect.objectContaining({ shuttleId: 'highwall' }),
+  ]);
+  const transit = mock.documents.get('sessions/s1/shuttleDepartures/starlight')!;
+  expect(Date.parse(transit.arrivesAt as string) - Date.parse(transit.departedAt as string)).toBe(60_000);
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
-  mock.documents.get('sessions/s1')!.phase = 'debrief';
-  await expect(requestShuttleDeparture.run(request(command))).resolves.toMatchObject({
-    status: 'replayed', requestId: 'depart-1',
+  session.phase = 'debrief';
+  await expect(beginShuttleTransit.run(request(command))).resolves.toMatchObject({
+    status: 'replayed', transitRequestId: 'transit-1',
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
-it('accepts departure while another enabled shuttle is already off the docking ledger', async () => {
-  const session = mock.documents.get('sessions/s1')!;
-  session.shuttleDockings = (session.shuttleDockings as Fields[])
-    .filter((docking) => docking.shuttleId !== 'highwall');
-  await expect(requestShuttleDeparture.run(request(command))).resolves.toMatchObject({
-    status: 'requested', shuttleId: 'starlight',
-  });
-});
-
 it.each([
   ['non-holder', 'owner', command],
-  ['stale control', 'holder', { ...command, requestId: 'stale', expectedControlRevision: 4 }],
-  ['same ship', 'holder', { ...command, requestId: 'same', destinationShipId: 'aegis' }],
-] as const)('rejects %s without a pending departure', async (_label, uid, data) => {
-  await expect(requestShuttleDeparture.run(request(data, uid))).rejects.toMatchObject({
+  ['stale departure', 'holder', { ...command, requestId: 'stale-departure', expectedDepartureRequestId: 'wrong' }],
+  ['stale control', 'holder', { ...command, requestId: 'stale-control', expectedControlRevision: 4 }],
+  ['stale cycle', 'holder', { ...command, requestId: 'stale-cycle', expectedCycle: 3 }],
+] as const)('rejects %s without entering transit', async (_label, uid, data) => {
+  await expect(beginShuttleTransit.run(request(data, uid))).rejects.toMatchObject({
     code: expect.stringMatching(/permission-denied|failed-precondition/),
   });
-  expect(mock.documents.get('sessions/s1')?.shuttleDepartures).toBeUndefined();
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).toMatchObject({ status: 'requested' });
+  expect((mock.documents.get('sessions/s1')!.shuttleDockings as Fields[]))
+    .toEqual(expect.arrayContaining([expect.objectContaining({ shuttleId: 'starlight' })]));
 });
 
-it('rejects closed airspace, a cross-group destination, and unresolved Wolf movement', async () => {
+it('rejects closed airspace, changed fleet authority, and unresolved Wolf movement without writes', async () => {
   const session = mock.documents.get('sessions/s1')!;
   (session.turnPhase as Fields).airspace = { state: 'restricted', tickerActive: true, pressAccess: false };
-  await expect(requestShuttleDeparture.run(request({ ...command, requestId: 'closed' })))
+  await expect(beginShuttleTransit.run(request({ ...command, requestId: 'closed' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   (session.turnPhase as Fields).airspace = { state: 'lifted', tickerActive: true, pressAccess: true };
-  (mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds as string[]).splice(1, 1);
-  await expect(requestShuttleDeparture.run(request({ ...command, requestId: 'foreign' })))
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis'];
+  await expect(beginShuttleTransit.run(request({ ...command, requestId: 'foreign' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis', 'icebreaker'];
   put('sessions/s1/wolfAttackState/current', { status: 'declared', airspaceLocked: true });
-  await expect(requestShuttleDeparture.run(request({ ...command, requestId: 'wolf' })))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(session.shuttleDepartures).toBeUndefined();
-});
-
-it('rejects malformed stored departure state before mutation', async () => {
-  put('sessions/s1/shuttleDepartures/starlight', { status: 'requested' });
-  await expect(requestShuttleDeparture.run(request({ ...command, requestId: 'malformed' })))
+  await expect(beginShuttleTransit.run(request({ ...command, requestId: 'wolf' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it.each(['lobby', 'casting'] as const)(
-  'rejects a stale open phase while the session lifecycle is %s without writes',
-  async phase => {
-    mock.documents.get('sessions/s1')!.phase = phase;
-    await expect(requestShuttleDeparture.run(request({ ...command, requestId: phase })))
-      .rejects.toMatchObject({ code: 'failed-precondition' });
-    expect(mock.set).not.toHaveBeenCalled();
-    expect(mock.update).not.toHaveBeenCalled();
-  },
-);
-
-it('rejects a current-cycle and phase-cycle mismatch without writes', async () => {
-  mock.documents.get('sessions/s1')!.currentTurn = 3;
-  await expect(requestShuttleDeparture.run(request({ ...command, requestId: 'cycle-mismatch' })))
+it('rejects malformed or already-transiting route state without mutation', async () => {
+  put('sessions/s1/shuttleDepartures/starlight', { status: 'in-transit', shuttleId: 'starlight' });
+  await expect(beginShuttleTransit.run(request({ ...command, requestId: 'malformed' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();

@@ -377,7 +377,7 @@ service cloud.firestore {
       match /shuttleDepartures/{shuttleId} {
         allow get: if isGm(sessionId)
           || (isMember(sessionId)
-            && resource.data.status == 'requested'
+            && resource.data.status in ['requested', 'in-transit']
             && resource.data.shuttleId == shuttleId
             && resource.data.fleetGroupId is string
             && get(

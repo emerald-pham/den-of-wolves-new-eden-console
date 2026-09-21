@@ -26,3 +26,23 @@ export async function requestShuttleDeparture(
   };
   await httpsCallable<typeof payload, unknown>(functions(), 'requestShuttleDeparture')(payload);
 }
+
+export async function beginShuttleTransit(
+  shuttleId: string,
+  expectedDepartureRequestId: string,
+  expectedControlRevision: number,
+  expectedCycle: number,
+): Promise<void> {
+  const { session } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before beginning shuttle transit.');
+  requireFreshSessionAuthority();
+  const payload = {
+    sessionId: session.id,
+    requestId: requestId(),
+    shuttleId,
+    expectedDepartureRequestId,
+    expectedControlRevision,
+    expectedCycle,
+  };
+  await httpsCallable<typeof payload, unknown>(functions(), 'beginShuttleTransit')(payload);
+}

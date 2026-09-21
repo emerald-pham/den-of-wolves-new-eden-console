@@ -236,6 +236,7 @@ import {
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
   shuttleDockingsAreParked,
+  shuttleDockingsMatchActiveRoleOwnedSubset,
   shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
 import { resolveHolderBasedDocking } from './shuttleDocking';
@@ -244,6 +245,11 @@ import {
   parseShuttleDepartures,
   type ShuttleDepartureRequestState,
 } from './shuttleDeparture';
+import {
+  enterShuttleTransit,
+  parseShuttleTransit,
+  type ShuttleTransitState,
+} from './shuttleTransit';
 import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
@@ -4910,7 +4916,7 @@ export const transferShuttleControlCommand = onCall<{
           typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
         new Set(rawActiveVesselIds).size !== rawActiveVesselIds.length ||
         !shuttleDockingsAreParked(rawDockings, rawActiveVesselIds) ||
-        !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings)) {
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings)) {
       throw commandError(
         'failed-precondition',
         'The authoritative shuttle manifest is unavailable.',
@@ -5144,7 +5150,7 @@ export const requestShuttleDeparture = onCall<{
         new Set(activeVesselIds).size !== activeVesselIds.length ||
         group.vesselIds.some((shipId) => !activeVesselIds.includes(shipId)) ||
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
-        !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
         !control || !departures || !phase || session.get('phase') !== 'active' ||
         !Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
         phase.turn !== currentCycle) {
@@ -5184,6 +5190,156 @@ export const requestShuttleDeparture = onCall<{
     };
     tx.set(departureRef, result);
     tx.update(sessionRef, { updatedAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+type ShuttleTransitReply = Omit<ShuttleTransitState, 'status'> & Readonly<{
+  status: 'in-transit' | 'replayed';
+  sessionId: string;
+}>;
+
+function isShuttleTransitReply(value: unknown, sessionId: string): value is ShuttleTransitReply {
+  if (!isRecord(value)) return false;
+  const state = { ...value };
+  delete state.sessionId;
+  delete state.status;
+  const parsed = parseShuttleTransit({ ...state, status: 'in-transit' }, String(value.shuttleId ?? ''));
+  return value.sessionId === sessionId &&
+    (value.status === 'in-transit' || value.status === 'replayed') && parsed !== null;
+}
+
+/** Atomically remove one authorized shuttle from its dock and enter server transit. */
+export const beginShuttleTransit = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  shuttleId?: unknown;
+  expectedDepartureRequestId?: unknown;
+  expectedControlRevision?: unknown;
+  expectedCycle?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'shuttleId', 'expectedDepartureRequestId',
+    'expectedControlRevision', 'expectedCycle',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.shuttleId !== 'string' || !AUTHORIZED_SHUTTLE_IDS.has(raw.shuttleId) ||
+      typeof raw.expectedDepartureRequestId !== 'string' ||
+      !/^[\w-]{1,128}$/.test(raw.expectedDepartureRequestId) ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'Invalid shuttle transit request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; shuttleId: string;
+    expectedDepartureRequestId: string; expectedControlRevision: number; expectedCycle: number;
+  };
+  const fingerprint: CommandFingerprint = {
+    action: 'begin-shuttle-transit',
+    sessionId: data.sessionId,
+    requestId: data.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: data.expectedControlRevision,
+    payload: {
+      shuttleId: data.shuttleId,
+      expectedDepartureRequestId: data.expectedDepartureRequestId,
+      expectedCycle: data.expectedCycle,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
+  const transitRef = db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, attackState, transitSnapshot] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(attackStateRef), tx.get(transitRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected shuttle holder may begin transit.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is ShuttleTransitReply => isShuttleTransitReply(value, data.sessionId),
+      'shuttle transit',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    requireActiveGameplayPhase(session);
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Normal shuttle movement is blocked until the Wolf attack is resolved.',
+        'invalid-phase',
+      );
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const activeRoleIds = configuredRoleIds(session);
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const departures = parseShuttleDepartures(
+      transitSnapshot.exists ? { [data.shuttleId]: transitSnapshot.data() } : undefined,
+    );
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const currentCycle = session.get('currentTurn');
+    if (!group || group.id !== groupId ||
+        !Array.isArray(activeVesselIds) || activeVesselIds.length === 0 ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        new Set(activeVesselIds).size !== activeVesselIds.length ||
+        group.vesselIds.some((shipId) => !activeVesselIds.includes(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
+        !control || !departures || !departures[data.shuttleId] || !phase ||
+        session.get('phase') !== 'active' || !Number.isSafeInteger(currentCycle) ||
+        currentCycle !== data.expectedCycle || phase.turn !== currentCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative shuttle movement state is unavailable.',
+        'conflict',
+      );
+    }
+    let result: ReturnType<typeof enterShuttleTransit>;
+    try {
+      result = enterShuttleTransit({
+        transitRequestId: data.requestId,
+        actorUid: uid,
+        expectedDepartureRequestId: data.expectedDepartureRequestId,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedCycle: data.expectedCycle,
+        departure: departures[data.shuttleId]!,
+        control: control[data.shuttleId]!,
+        dockings: rawDockings,
+        group,
+        phase,
+        now: Date.now(),
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Shuttle transit was rejected.',
+        'conflict',
+      );
+    }
+    const reply: ShuttleTransitReply = { ...result.transit, sessionId: data.sessionId };
+    tx.update(sessionRef, {
+      shuttleDockings: result.dockings,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(transitRef, result.transit);
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });

@@ -121,6 +121,28 @@ it('hydrates only a canonical group-audienced shuttle departure document', () =>
   expect(onDeparture.mock.calls).toEqual([[valid], [null]]);
 });
 
+it('hydrates a canonical group-private shuttle transit document', () => {
+  const valid = {
+    status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+    shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
+    originShipId: 'aegis', destinationShipId: 'icebreaker', cycle: 2, controlRevision: 4,
+    requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
+    originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+    destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+    velocity: { x: 0.004, y: -0.002, z: 0.004 },
+    departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
+  } as const;
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onDeparture = vi.fn();
+  subscribeShuttleDeparture('s1', 'starlight', onDeparture);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => valid });
+  expect(onDeparture).toHaveBeenCalledWith(valid);
+});
+
 it.each([
   [8, 'aegis'],
   [11, 'aegis'],

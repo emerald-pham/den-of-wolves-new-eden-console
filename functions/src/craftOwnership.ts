@@ -213,6 +213,19 @@ export function shuttleDockingsMatchRoleOwnedCraft(
   return seen.size === expected.size && [...expected].every((craftId) => seen.has(craftId));
 }
 
+/** Validate the parked subset while other enabled shuttles may be in authoritative transit. */
+export function shuttleDockingsMatchActiveRoleOwnedSubset(
+  activeRoleIds: readonly string[],
+  shuttleDockings: readonly { shuttleId: string; shipId: string }[],
+): boolean {
+  if (!shuttleDockingsAreKnownAndUnique(shuttleDockings)) return false;
+  const enabled = new Set(roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => craft.kind === 'shuttle')
+    .map((craft) => craft.id));
+  return shuttleDockings.every((docking) =>
+    enabled.has(docking.shuttleId) && shuttleHostIsAllowed(docking.shuttleId, docking.shipId));
+}
+
 /** Validate the starting tuple before setup/start can perform any mutation. */
 export function craftStartingManifestMatches(
   value: unknown,

@@ -38,6 +38,8 @@ import type {
   SmallShipState,
   ShuttleDocking,
   ShuttleDepartureRequestState,
+  ShuttleMovementState,
+  ShuttleTransitState,
   ShuttleVisit,
   ShipNavigationLogEntry,
   PlayerDiscoveryProjection,
@@ -1600,7 +1602,16 @@ function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl
   }));
 }
 
-function shuttleDeparture(value: unknown, shuttleId: string): ShuttleDepartureRequestState | null {
+function shuttlePoint(value: unknown): ShuttleTransitState['originPosition'] | null {
+  const raw = recordValue(value);
+  if (!raw || Object.keys(raw).some((key) => !['x', 'y', 'z'].includes(key)) ||
+      ![raw.x, raw.y, raw.z].every((entry) => typeof entry === 'number' && Number.isFinite(entry))) {
+    return null;
+  }
+  return { x: raw.x as number, y: raw.y as number, z: raw.z as number };
+}
+
+function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementState | null {
   const raw = recordValue(value);
   const parsedShuttleId = parseEntityId('shuttle', shuttleId);
   const holderUid = raw ? parseEntityId('player', raw.holderUid) : undefined;
@@ -1608,7 +1619,8 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleDepartureRe
   const originShipId = raw ? parseEntityId('vessel', raw.originShipId) : undefined;
   const destinationShipId = raw ? parseEntityId('vessel', raw.destinationShipId) : undefined;
   if (!raw || !SHUTTLECRAFT.some((shuttle) => shuttle.id === shuttleId) ||
-      parsedShuttleId !== shuttleId || raw.status !== 'requested' || raw.shuttleId !== shuttleId ||
+      parsedShuttleId !== shuttleId || !['requested', 'in-transit'].includes(String(raw.status)) ||
+      raw.shuttleId !== shuttleId ||
       typeof raw.requestId !== 'string' || raw.requestId.length === 0 || !holderUid ||
       !fleetGroupId || !originShipId || !destinationShipId ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
@@ -1616,12 +1628,42 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleDepartureRe
       typeof raw.requestedAt !== 'string' || !Number.isFinite(Date.parse(raw.requestedAt)) ||
       Object.keys(raw).some((key) => ![
         'status', 'requestId', 'shuttleId', 'holderUid', 'fleetGroupId', 'originShipId',
-        'destinationShipId', 'cycle', 'controlRevision', 'requestedAt',
+        'destinationShipId', 'cycle', 'controlRevision', 'requestedAt', 'transitRequestId',
+        'revision', 'originPosition', 'currentPosition', 'destinationPosition', 'velocity',
+        'departedAt', 'arrivesAt',
       ].includes(key))) return null;
-  return {
+  const base: ShuttleDepartureRequestState = {
     status: 'requested', requestId: raw.requestId, shuttleId: parsedShuttleId, holderUid,
     fleetGroupId, originShipId, destinationShipId, cycle: raw.cycle as number,
     controlRevision: raw.controlRevision as number, requestedAt: raw.requestedAt,
+  };
+  if (raw.status === 'requested') {
+    if (Object.keys(raw).some((key) => [
+      'transitRequestId', 'revision', 'originPosition', 'currentPosition', 'destinationPosition',
+      'velocity', 'departedAt', 'arrivesAt',
+    ].includes(key))) return null;
+    return base;
+  }
+  const originPosition = shuttlePoint(raw.originPosition);
+  const currentPosition = shuttlePoint(raw.currentPosition);
+  const destinationPosition = shuttlePoint(raw.destinationPosition);
+  const velocity = shuttlePoint(raw.velocity);
+  if (typeof raw.transitRequestId !== 'string' || raw.transitRequestId.length === 0 ||
+      raw.revision !== 1 || !originPosition || !currentPosition || !destinationPosition || !velocity ||
+      typeof raw.departedAt !== 'string' || typeof raw.arrivesAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.departedAt)) || !Number.isFinite(Date.parse(raw.arrivesAt)) ||
+      Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000) return null;
+  return {
+    ...base,
+    status: 'in-transit',
+    transitRequestId: raw.transitRequestId,
+    revision: 1,
+    originPosition,
+    currentPosition,
+    destinationPosition,
+    velocity,
+    departedAt: raw.departedAt,
+    arrivesAt: raw.arrivesAt,
   };
 }
 
@@ -3223,7 +3265,7 @@ export function subscribeConnectedPlayers(
 export function subscribeShuttleDeparture(
   sessionId: string,
   shuttleId: string,
-  onDeparture: (departure: ShuttleDepartureRequestState | null) => void,
+  onDeparture: (departure: ShuttleMovementState | null) => void,
   onError: () => void = () => undefined,
 ): Unsubscribe {
   let subscribed = true;

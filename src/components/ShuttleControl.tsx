@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/firestore';
 import { transferShuttleControl } from '@/lib/shuttleControlService';
-import { requestShuttleDeparture } from '@/lib/shuttleDepartureService';
+import { beginShuttleTransit, requestShuttleDeparture } from '@/lib/shuttleDepartureService';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { Player, ShuttleControlEntry, ShuttleDepartureRequestState } from '@/types/game';
+import type { Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/game';
 import { findShip } from '@/data/ships';
 import { dockingForShuttle, shuttleDestinationIsAllowed } from '@/data/shuttles';
 
@@ -19,7 +19,7 @@ export default function ShuttleControl({ control }: Props) {
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState('');
   const [destinationShipId, setDestinationShipId] = useState('');
-  const [departure, setDeparture] = useState<ShuttleDepartureRequestState | null>(null);
+  const [departure, setDeparture] = useState<ShuttleMovementState | null>(null);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
   const docking = dockingForShuttle(session, control.shuttleId);
@@ -79,6 +79,25 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
+  async function submitTransit(): Promise<void> {
+    if (pending || !departure || departure.status !== 'requested') return;
+    setPending(true);
+    setStatus('');
+    try {
+      await beginShuttleTransit(
+        control.shuttleId,
+        departure.requestId,
+        control.revision,
+        departure.cycle,
+      );
+      setStatus(`Transit begun to ${findShip(departure.destinationShipId)?.name ?? departure.destinationShipId}.`);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Shuttle transit failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
   return <section className="console-workspace__section shuttle-control" aria-label="Shuttle control">
     <p className="console-workspace__eyebrow">Custody // server authorised</p>
     <h3>Shuttle control</h3>
@@ -100,10 +119,19 @@ export default function ShuttleControl({ control }: Props) {
     {canRequestDeparture && <section aria-label="Shuttle departure">
       <p className="console-workspace__eyebrow">Flight plan // server authorised</p>
       <h4>Request departure</h4>
-      {departure ? <p>
-        Departure requested to {findShip(departure.destinationShipId)?.name ?? departure.destinationShipId};
-        awaiting transit clearance.
-      </p> : <>
+      {departure?.status === 'in-transit' ? <p>
+        In transit to {findShip(departure.destinationShipId)?.name ?? departure.destinationShipId}.
+      </p> : departure ? <>
+        <p>
+          Departure requested to {findShip(departure.destinationShipId)?.name ?? departure.destinationShipId};
+          ready to begin transit.
+        </p>
+        <div className="console-workspace__actions">
+          <button type="button" disabled={pending || !departureWindowOpen}
+            onClick={() => void submitTransit()}>Begin transit</button>
+        </div>
+        {!departureWindowOpen && <p>Transit may begin when airspace is open.</p>}
+      </> : <>
         <label htmlFor={`shuttle-destination-${control.shuttleId}`}>Destination ship</label>
         <select id={`shuttle-destination-${control.shuttleId}`} value={destinationShipId}
           disabled={pending || !departureWindowOpen}

@@ -19,30 +19,30 @@ defines the shared worldspace and travel behavior behind that interface.
   It may fire repeatedly without generating GM activity-log entries; ordinary
   shuttlecraft do not inherit a dispenser by default.
 
-## Movement contract (planned)
+## Movement contract
 
-Shuttle movement is not implemented in the current console. When it is added,
-it will be an authoritative server operation. A transit will store its
+An authorized shuttle departure enters transit through an authoritative server
+operation. The transition removes that craft from the docking ledger and stores its
 current world position, current velocity vector, final destination ship,
 `departedAt`, and `arrivesAt`. A normal leg lasts 60 seconds. The server derives
-and persists the current position before every course change, so a new order
-can safely retarget a shuttle that is already in flight. Its new vector begins
+and persists the current position before every future course change, so a new
+order can safely retarget a shuttle that is already in flight. Its new vector begins
 at that exact resolved position and points toward the newest final destination;
 the shuttle never snaps back to the prior origin or jumps ahead to its old
 animation.
 
 The client may animate between authoritative samples, but animation is only a
 projection. Arrival, retargeting, docking, and visit-log entries are determined
-from server timestamps and transactions.
+from server timestamps and transactions. Until the arrival transaction completes,
+the craft is neither docked at its origin nor docked at its destination.
 
 ## Planned airspace enforcement
 
-Each numbered turn starts with closed airspace. When shuttle travel exists,
-the server will prevent a shuttle from moving between ships until airspace opens.
+Each numbered cycle starts with closed airspace. The server prevents a shuttle
+from beginning transit between ships until airspace opens.
 AEGIS may authorize the unaffiliated SNN Press
 vessel as an exception during the closed window. The current Airspace
-Control screen and airspace clocks only express that future rule: no shuttle
-movement control or movement enforcement has been implemented yet.
+Control screen and airspace clocks expose the same server-owned movement window.
 
 ## DRADIS sampling
 

@@ -9,6 +9,7 @@ import {
   roleOwnedCraftForRoles,
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
+  shuttleDockingsMatchActiveRoleOwnedSubset,
   shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
@@ -231,6 +232,24 @@ describe('role-owned craft composition', () => {
       ...allyInitial,
       { shuttleId: 'ally', shipId: 'icebreaker' },
     ])).toBe(true);
+  });
+
+  it('accepts a legal parked subset while another enabled shuttle is in transit', () => {
+    const activeRoleIds = [
+      'admiral', 'wing-commander', 'icebreaker-miner',
+      'joint-engineering-quellon-refinery',
+    ];
+    const dockings = initialShuttleDockingsForRoles(activeRoleIds);
+    const withoutStarlight = dockings.filter((docking) => docking.shuttleId !== 'starlight');
+    expect(shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, withoutStarlight)).toBe(true);
+    expect(shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, [
+      ...withoutStarlight,
+      { shuttleId: 'wobbly', shipId: 'aegis' },
+    ])).toBe(false);
+    expect(shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, [
+      ...withoutStarlight,
+      { shuttleId: 'unknown', shipId: 'aegis' },
+    ])).toBe(false);
   });
 
   it('accepts only a legacy null placeholder for an optional Union entry', () => {

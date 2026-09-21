@@ -570,6 +570,27 @@ export interface ShuttleDepartureRequestState {
   readonly requestedAt: Timestamp;
 }
 
+export interface ShuttleWorldPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+/** Group-private server transit state; clients only project it for display. */
+export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 'status'> {
+  readonly status: 'in-transit';
+  readonly transitRequestId: string;
+  readonly revision: number;
+  readonly originPosition: ShuttleWorldPoint;
+  readonly currentPosition: ShuttleWorldPoint;
+  readonly destinationPosition: ShuttleWorldPoint;
+  readonly velocity: ShuttleWorldPoint;
+  readonly departedAt: Timestamp;
+  readonly arrivesAt: Timestamp;
+}
+
+export type ShuttleMovementState = ShuttleDepartureRequestState | ShuttleTransitState;
+
 /** Public terminal population result calculated from authoritative ledgers. */
 export interface SurvivorOutcome {
   readonly type: 'survivor-outcome';
