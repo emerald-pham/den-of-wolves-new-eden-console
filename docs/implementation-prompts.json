@@ -4587,6 +4587,13 @@
       "type": "evidence / production-path / typed-registration / server-metadata / fail-closed-resolver / truthful-workspace / regression"
     },
     {
+      "direction": "240 -> 234;165;437",
+      "id": "E-240-FORCE-FIELD-REGISTRATION",
+      "language": "The shared supplemental-vessel catalog and server-only console registry now register Gorgoneion's charged Force Field Projector with its exact before-targeting choice and two-damage end-of-attack reduction. Small-ship Reactor step 4 offers the canonical Force Field Projector id and the workspace renders its authoritative charged or uncharged state. Ship selection remains fail closed under Prompt 437, the workspace states that selection cannot occur after targeting begins, and no target control or retroactive effect is exposed.",
+      "source": "src/data/vessels/gorgoneion.ts; src/data/vesselTemplates.test.ts; src/components/SmallShipOperations.tsx; src/components/SmallShipOperations.test.tsx; functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; authorized routed Ships and Wolf Attacks summaries",
+      "type": "evidence / production-path / typed-registration / server-metadata / fail-closed-resolver / timing-boundary / truthful-workspace / regression"
+    },
+    {
       "direction": "402",
       "id": "E-402-IMPLEMENTED",
       "language": "The authoritative startGame transaction creates one typed 33-card away-mission deck from hearts, diamonds, and clubs, omitting 2s/3s, with A=10, numeric face value, and J/Q/K=-5. Server-side cryptographic shuffle is persisted once in private session state, reused across transaction retries and replays, and excluded from public setup/session/event data. The focused mission-deck/start coverage has 46 passing tests and the Firestore rules suite has 67 passing cases; deployment evidence is reported separately.",
@@ -11841,8 +11848,8 @@
         "acceptance": "the workspace exposes the before-targeting timing and no retroactive selection.",
         "title": "Register the Gorgoneion Force Field Projector."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-240",
+      "description": "Gorgoneion's shared supplemental-vessel definition and server-only console registry now register the charged Force Field Projector with its exact before-targeting choice and two-damage end-of-attack reduction. Reactor step 4 offers the canonical console id and the live workspace renders its authoritative charged state. Selection remains unavailable under Prompt 437, and the workspace explicitly says that selection cannot occur after targeting begins while exposing no target control or retroactive effect.",
+      "evidenceIds": "E-AUDIT-240;E-240-FORCE-FIELD-REGISTRATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;165",
@@ -11850,10 +11857,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.58"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

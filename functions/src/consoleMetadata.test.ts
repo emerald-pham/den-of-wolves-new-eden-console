@@ -115,11 +115,13 @@ describe('server-only console metadata', () => {
     expect(Object.keys(UNREGISTERED_VESSEL_CONSOLES)).toEqual([
       'gorgoneion', 'capybara-small', 'warrior', 'vulcan', 'voyage-33-0',
     ]);
-    expect(UNREGISTERED_VESSEL_CONSOLES['gorgoneion']).toEqual(['235', '236', '240']);
+    expect(UNREGISTERED_VESSEL_CONSOLES['gorgoneion']).toEqual(['235', '236']);
   });
 
   it('registers Gorgoneion Missile Array while keeping firing fail closed for Prompt 455', () => {
-    expect(Object.keys(SUPPLEMENTAL_CONSOLE_METADATA)).toEqual(['gorgoneion:missile-array']);
+    expect(Object.keys(SUPPLEMENTAL_CONSOLE_METADATA)).toEqual([
+      'gorgoneion:missile-array', 'gorgoneion:force-field-projector',
+    ]);
     expect(supplementalConsoleMetadataFor('gorgoneion', 'missile-array')).toEqual({
       consoleId: 'gorgoneion:missile-array',
       vesselId: 'gorgoneion',
@@ -131,6 +133,19 @@ describe('server-only console metadata', () => {
       resolver: {
         status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['455'],
         reason: 'Missile Array firing is unavailable until the authoritative range-phase resolver lands.',
+      },
+    });
+    expect(supplementalConsoleMetadataFor('gorgoneion', 'force-field-projector')).toEqual({
+      consoleId: 'gorgoneion:force-field-projector',
+      vesselId: 'gorgoneion',
+      name: 'Force Field Projector',
+      phase: 'Wolf attack',
+      maintenanceStep: 4,
+      charge: { status: 'printed', text: 'Requires one console charge from the small-ship Reactor.' },
+      effect: 'Before targeting, choose 1 ship. At the end of the Wolf attack, reduce the damage that ship takes by 2.',
+      resolver: {
+        status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['437'],
+        reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
       },
     });
   });

@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [240],
+    implementationProgress: {
+      completed: 363, total: 751, percentage: '48.34%',
+      done: 363, partial: 18, active: 0, missing: 370,
+    },
+    changes: [
+      'The Gorgoneion small-ship workspace now shows the charged Force Field Projector rule and its before-targeting deadline.',
+      'Reactor charging uses the canonical Force Field Projector identity and shows whether it is currently charged.',
+      'Ship selection remains unavailable until its server-owned resolver lands, and the workspace exposes no control that could select a ship after targeting begins.',
+      '363 of 751 planned items are complete (48.34%).',
+    ],
+  },
+  {
+    version: '0.4.57',
     implementationPrompts: [239],
     implementationProgress: {
       completed: 362, total: 751, percentage: '48.20%',

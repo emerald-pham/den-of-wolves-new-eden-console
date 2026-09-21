@@ -117,16 +117,27 @@ describe('shared vessel templates', () => {
     expect(JSON.stringify(SHIPS)).not.toMatch(/[♥♦♣♠]|damageDeck|"card"/);
   });
 
-  it('registers the Gorgoneion Missile Array without exposing a firing action', () => {
-    expect(findVessel('gorgoneion')?.systems).toEqual([{
-      id: 'missile-array', name: 'Missile Array', phase: 'Wolf attack', charge: 'reactor',
-      effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
-      action: {
-        status: 'unavailable',
-        reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
-        followOnPrompt: '455',
+  it('registers the Gorgoneion combat systems without exposing their deferred actions', () => {
+    expect(findVessel('gorgoneion')?.systems).toEqual([
+      {
+        id: 'missile-array', name: 'Missile Array', phase: 'Wolf attack', charge: 'reactor',
+        effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+        action: {
+          status: 'unavailable',
+          reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
+          followOnPrompt: '455',
+        },
       },
-    }]);
+      {
+        id: 'force-field-projector', name: 'Force Field Projector', phase: 'Wolf attack', charge: 'reactor',
+        effect: 'Before targeting, choose 1 ship. At the end of the Wolf attack, reduce the damage that ship takes by 2.',
+        action: {
+          status: 'unavailable',
+          reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
+          followOnPrompt: '437',
+        },
+      },
+    ]);
   });
 
   it('registers every optional vessel as a distinct identity without adding it to core setup', () => {

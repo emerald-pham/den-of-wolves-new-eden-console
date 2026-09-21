@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**362 / 751 prompts complete (48.20%)**
+**363 / 751 prompts complete (48.34%)**
 
-Status breakdown: **362 done · 18 partial · 371 missing**.
+Status breakdown: **363 done · 18 partial · 370 missing**.
 
 Active prompt: **none**
 
@@ -674,7 +674,7 @@ release classification and evidence.
 | 237 | missing | non-feature | — | Blocked pending owner decisions that make this behavior reachable and authoritative: define how an optional Gorgoneion enters the canonical active-vessel setup and how its Captain is entitled, then define the pre-deal mission lifecycle/caller that binds one private support action to the mission before dealPrivateInitialCards consumes the server deck. Current replacement-role authority requires persisted Gorgoneion admission that canonical setup never creates, and the current facilitator-only deal callable creates the mission instance at deal time with no Captain projection or UI seam. Prompt 401 supplies the newly reached mission instance and Mission Leader lifecycle, so it is a hard prerequisite; Prompts 166 and 278 remain related role/action and workspace work. Do not implement until the owner decisions and private projection/CAS/deal integration are explicit. |
 | 238 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 239 | done | non-feature | 0.4.57 | Gorgoneion's shared supplemental-vessel definition now registers the charged Missile Array with its Wolf Attack phase, three dice total with one at each range, exact 6+ / 5+ / 4+ thresholds, and one-damage-per-target-per-phase limit. The server-only supplemental console registry mirrors that rule without inventing a damage card, identifies Reactor charging at small-ship maintenance step 4, and leaves firing fail closed under Prompt 455. The live small-ship workspace offers the canonical Missile Array during Reactor charging, renders its authoritative charged or uncharged state and complete rule, and exposes no firing control. |
-| 240 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 240 | done | non-feature | 0.4.58 | Gorgoneion's shared supplemental-vessel definition and server-only console registry now register the charged Force Field Projector with its exact before-targeting choice and two-damage end-of-attack reduction. Reactor step 4 offers the canonical console id and the live workspace renders its authoritative charged state. Selection remains unavailable under Prompt 437, and the workspace explicitly says that selection cannot occur after targeting begins while exposing no target control or retroactive effect. |
 | 241 | done | non-feature | — | The existing shared small-ship production path closes base Capybara identity and maintenance: the typed supplemental vessel is the base-small Capybara with 2,000 survivors, 1/1/2 jump costs, two reactor charges, and steps 1–4, while the server-owned rules apply the same identity and printed host food/water table. GM-authorized docking and the four-step maintenance callable use the active host ledger with revision, phase, authority, and replay guards; a focused production-path regression proves Capybara remains distinct from Warrior and Vulcan while borrowing its host ration costs. The full expansion Capybara remains a separate identity, and named Capybara systems stay deferred to 241b–241e. |
 | 241a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 241b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

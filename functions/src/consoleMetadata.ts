@@ -316,6 +316,19 @@ export const SUPPLEMENTAL_CONSOLE_METADATA: Readonly<Record<string, Supplemental
         ['455'],
       ),
     },
+    'gorgoneion:force-field-projector': {
+      consoleId: 'gorgoneion:force-field-projector',
+      vesselId: 'gorgoneion',
+      name: 'Force Field Projector',
+      phase: 'Wolf attack',
+      maintenanceStep: 4,
+      charge: printed('Requires one console charge from the small-ship Reactor.'),
+      effect: 'Before targeting, choose 1 ship. At the end of the Wolf attack, reduce the damage that ship takes by 2.',
+      resolver: unavailable(
+        'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
+        ['437'],
+      ),
+    },
   });
 
 export function supplementalConsoleMetadataFor(
@@ -327,7 +340,7 @@ export function supplementalConsoleMetadataFor(
 
 /** Identity-only vessels currently have no registered console set; later prompts own those definitions. */
 export const UNREGISTERED_VESSEL_CONSOLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  gorgoneion: ['235', '236', '240'],
+  gorgoneion: ['235', '236'],
   'capybara-small': ['241', '241a', '241d', '241e'],
   warrior: ['242', '243', '244', '245'],
   vulcan: ['246', '247', '248'],
