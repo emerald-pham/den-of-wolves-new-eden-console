@@ -4582,7 +4582,7 @@
     {
       "direction": "239 -> 234;165;455",
       "id": "E-239-MISSILE-ARRAY-REGISTRATION",
-      "language": "The shared supplemental-vessel catalog now registers Gorgoneion's charged Missile Array with its Wolf Attack phase, three dice at each range, 6+ / 5+ / 4+ damage thresholds, and one-damage-per-target-per-phase limit. The server-only console registry records the same rule without inventing a damage card, marks the console as charged during small-ship maintenance step 4, and assigns one fail-closed resolver owner to Prompt 455. The live small-ship workspace renders the complete rule and an explicit unavailable status with no firing control, so registration cannot bypass the future authoritative range-phase resolver.",
+      "language": "The shared supplemental-vessel catalog now registers Gorgoneion's charged Missile Array with its Wolf Attack phase, three dice total with one at each range, 6+ / 5+ / 4+ damage thresholds, and one-damage-per-target-per-phase limit. The server-only console registry records the same rule without inventing a damage card, identifies small-ship maintenance step 4 charging, and assigns one fail-closed resolver owner to Prompt 455. The live small-ship workspace offers the canonical Missile Array id during Reactor charging, renders its authoritative charged or uncharged state and complete rule, and exposes no firing control, so registration cannot bypass the future range-phase resolver.",
       "source": "src/data/vessels/templates.ts; src/data/vessels/gorgoneion.ts; src/data/vesselTemplates.test.ts; src/components/SmallShipOperations.tsx; src/components/SmallShipOperations.test.tsx; functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; authorized routed Ships summary",
       "type": "evidence / production-path / typed-registration / server-metadata / fail-closed-resolver / truthful-workspace / regression"
     },
@@ -11816,7 +11816,7 @@
         "acceptance": "the workspace remains truthful and defers action until the range-phase resolver exists.",
         "title": "Register the Gorgoneion Missile Array."
       },
-      "description": "Gorgoneion's shared supplemental-vessel definition now registers the charged Missile Array with its Wolf Attack phase, three dice at each range, exact 6+ / 5+ / 4+ thresholds, and one-damage-per-target-per-phase limit. The server-only supplemental console registry mirrors that rule without inventing a damage card, identifies Reactor charging at small-ship maintenance step 4, and leaves firing fail closed under Prompt 455. The live small-ship workspace displays the complete rule, its unavailable status, and no firing control, preventing registration from bypassing the future authoritative range-phase resolver.",
+      "description": "Gorgoneion's shared supplemental-vessel definition now registers the charged Missile Array with its Wolf Attack phase, three dice total with one at each range, exact 6+ / 5+ / 4+ thresholds, and one-damage-per-target-per-phase limit. The server-only supplemental console registry mirrors that rule without inventing a damage card, identifies Reactor charging at small-ship maintenance step 4, and leaves firing fail closed under Prompt 455. The live small-ship workspace offers the canonical Missile Array during Reactor charging, renders its authoritative charged or uncharged state and complete rule, and exposes no firing control.",
       "evidenceIds": "E-AUDIT-239;E-239-MISSILE-ARRAY-REGISTRATION",
       "hardContract": "none",
       "hardMilestone": "none",

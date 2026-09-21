@@ -120,7 +120,7 @@ describe('shared vessel templates', () => {
   it('registers the Gorgoneion Missile Array without exposing a firing action', () => {
     expect(findVessel('gorgoneion')?.systems).toEqual([{
       id: 'missile-array', name: 'Missile Array', phase: 'Wolf attack', charge: 'reactor',
-      effect: 'Roll 3 dice at long, medium, and short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+      effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
       action: {
         status: 'unavailable',
         reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',

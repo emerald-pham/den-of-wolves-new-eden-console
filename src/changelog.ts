@@ -27,7 +27,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 362, partial: 18, active: 0, missing: 371,
     },
     changes: [
-      'The Gorgoneion small-ship workspace now shows its charged Missile Array rule, including three dice at each range, the exact hit thresholds, and its per-target limit.',
+      'The Gorgoneion small-ship workspace now shows its Missile Array rule, including three dice total with one at each range, the exact hit thresholds, and its per-target limit.',
+      'Reactor charging now uses the canonical Missile Array identity and shows whether it is currently charged.',
       'Missile Array firing remains explicitly unavailable until its server-owned range-phase resolver lands; the workspace exposes no premature firing control.',
       '362 of 751 planned items are complete (48.20%).',
     ],

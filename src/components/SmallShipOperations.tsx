@@ -43,6 +43,18 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
   const [fuelProcessorOreAmount, setFuelProcessorOreAmount] = useState(1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const registeredReactorConsoles = vessel?.systems?.map(({ id: systemId, name }) => ({
+    id: systemId, name,
+  })) ?? [];
+  const genericReactorConsoles = Array.from(
+    { length: Math.max(0, rules.reactorCapacity - registeredReactorConsoles.length) },
+    (_, index) => ({
+      id: `console-${registeredReactorConsoles.length + index + 1}`,
+      name: registeredReactorConsoles.length > 0
+        ? `Unregistered console slot ${registeredReactorConsoles.length + index + 1}`
+        : `Console ${index + 1}`,
+    }),
+  );
 
   if (!vessel) return null;
   if (!available) {
@@ -103,7 +115,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
           {vessel.systems.map((system) => (
             <article key={system.id} aria-label={`${system.name} system // ${system.action.status}`}>
               <h5>{system.name}</h5>
-              <p>{system.phase} // charged console</p>
+              <p>{system.phase} // {cycle?.charges.includes(system.id) ? 'charged' : 'not charged'}</p>
               <p>{system.effect}</p>
               <p role="status">Action unavailable // {system.action.reason} // Prompt {system.action.followOnPrompt}</p>
             </article>
@@ -137,7 +149,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               ? BASE_CAPYBARA_PRODUCTION_CONSOLES
               : id === 'vulcan'
                 ? VULCAN_REACTOR_CONSOLES
-                : Array.from({ length: rules.reactorCapacity }, (_, index) => ({ id: `console-${index + 1}`, name: `Console ${index + 1}` })))
+                : [...registeredReactorConsoles, ...genericReactorConsoles])
               .map((console) => {
                 const checked = consoles.includes(console.id);
                 const atCapacity = consoles.length >= rules.reactorCapacity;
