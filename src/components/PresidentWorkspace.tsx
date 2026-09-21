@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { recordPresidentAction } from '@/lib/presidentWorkspaceService';
+import { recordPresidentAction, updatePoliticalCapital } from '@/lib/presidentWorkspaceService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PresidentActionKind } from '@/types/game';
 
@@ -17,12 +17,15 @@ export default function PresidentWorkspace({ writable, consoleLocked = false }: 
   readonly consoleLocked?: boolean;
 }) {
   const workspace = useSessionStore((state) => state.session?.presidentWorkspace);
+  const capital = useSessionStore((state) => state.session?.politicalCapital);
+  const crisis = useSessionStore((state) => state.session?.resolvedCrisisOutcome);
   const connection = useSessionStore((state) => state.connection);
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const [kind, setKind] = useState<PresidentActionKind>('fleet-policy');
   const [text, setText] = useState('');
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState('');
+  const [capitalPending, setCapitalPending] = useState(false);
   const live = writable && connection === 'live' && freshness === 'server' && !consoleLocked;
 
   async function submit(event: FormEvent): Promise<void> {
@@ -42,6 +45,20 @@ export default function PresidentWorkspace({ writable, consoleLocked = false }: 
     }
   }
 
+  async function changeCapital(action: 'gain' | 'spend'): Promise<void> {
+    if (!live || capitalPending || !crisis) return;
+    setCapitalPending(true);
+    setStatus('');
+    try {
+      await updatePoliticalCapital(action);
+      setStatus(`Political capital ${action === 'gain' ? 'gained' : 'spent'}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Political capital was not updated.');
+    } finally {
+      setCapitalPending(false);
+    }
+  }
+
   return <section className="president-workspace console-workspace__section" aria-label="President workspace">
     <header>
       <p>Dione executive channel // Public audit record</p>
@@ -49,6 +66,32 @@ export default function PresidentWorkspace({ writable, consoleLocked = false }: 
       <p>Record fleet policy, crisis decisions, political capital, addresses, visits, and election actions.</p>
       <p>These records document table decisions. Mechanical effects resolve through their dedicated controls.</p>
     </header>
+    <section aria-label="Political capital ledger" className="president-workspace__capital">
+      <p>Political capital // Server ledger</p>
+      <strong aria-label="Political capital balance">{capital?.balance ?? 0} / 8</strong>
+      {crisis
+        ? <p>Resolved crisis // {crisis.title}</p>
+        : <p>No resolved crisis outcome available</p>}
+      <div>
+        <button className="cic-action-button" type="button"
+          disabled={!live || capitalPending || !crisis || (capital?.balance ?? 0) >= 8 ||
+            Boolean(capital?.entries.some(entry => entry.action === 'gain' && entry.crisisId === crisis.crisisId))}
+          onClick={() => void changeCapital('gain')}>
+          {capitalPending ? 'Updating…' : 'Gain 1'}
+        </button>
+        <button className="cic-action-button" type="button"
+          disabled={!live || capitalPending || !crisis || (capital?.balance ?? 0) < 1}
+          onClick={() => void changeCapital('spend')}>
+          {capitalPending ? 'Updating…' : 'Spend 1'}
+        </button>
+      </div>
+      {capital?.entries.length ? <ol aria-label="Political capital history">
+        {[...capital.entries].reverse().map(entry => <li key={entry.id}>
+          <p>{entry.action === 'gain' ? 'Gained' : 'Spent'} 1 // Cycle {entry.cycle}</p>
+          <strong>{entry.crisisTitle} // Balance {entry.balanceAfter}</strong>
+        </li>)}
+      </ol> : <p>No political capital activity recorded</p>}
+    </section>
     <form onSubmit={(event) => void submit(event)}>
       <label htmlFor="president-action-kind">Action family</label>
       <select id="president-action-kind" value={kind}

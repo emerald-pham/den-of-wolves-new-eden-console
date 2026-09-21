@@ -103,6 +103,7 @@ import { normalizePressDispatch } from './pressDispatchState';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
+import { normalizePoliticalCapital } from './politicalCapitalState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState, turnStateForPhaseContext } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
@@ -2247,6 +2248,18 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     fleetRedAlert: fleetRedAlert(data.fleetRedAlert),
     admiralDirectives: normalizeAdmiralDirectives(data.admiralDirectives),
     presidentWorkspace: normalizePresidentWorkspace(data.presidentWorkspace),
+    politicalCapital: normalizePoliticalCapital(data.politicalCapital),
+    ...(typeof data.resolvedCrisisOutcome === 'object' && data.resolvedCrisisOutcome !== null &&
+      !Array.isArray(data.resolvedCrisisOutcome) &&
+      Object.keys(data.resolvedCrisisOutcome as object).length === 3 &&
+      typeof (data.resolvedCrisisOutcome as Record<string, unknown>).crisisId === 'string' &&
+      /^[\w-]{1,80}$/.test((data.resolvedCrisisOutcome as Record<string, unknown>).crisisId as string) &&
+      Number.isSafeInteger((data.resolvedCrisisOutcome as Record<string, unknown>).revision) &&
+      Number((data.resolvedCrisisOutcome as Record<string, unknown>).revision) >= 1 &&
+      typeof (data.resolvedCrisisOutcome as Record<string, unknown>).title === 'string' &&
+      Boolean(((data.resolvedCrisisOutcome as Record<string, unknown>).title as string).trim()) &&
+      ((data.resolvedCrisisOutcome as Record<string, unknown>).title as string).length <= 160
+      ? { resolvedCrisisOutcome: data.resolvedCrisisOutcome as NonNullable<GameSession['resolvedCrisisOutcome']> } : {}),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),

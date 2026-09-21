@@ -3796,6 +3796,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "524a -> 193b",
+      "id": "E-524A-POLITICAL-CAPITAL",
+      "language": "A resolved crisis creates one immutable server outcome. The exactly bound Dione President may authorize a one-point gain or spend against that exact outcome and current ledger revision. The server keeps the balance between zero and eight, grants each crisis at most once, commits a privacy-safe event and replay receipt, and rejects stale outcomes, stale revisions, malformed history, foreign roles, direct client edits, duplicate gains, overdrafts, and overflow before mutation. The President workspace shows the live balance, resolved-crisis link, and bounded transaction history.",
+      "source": "functions/src/politicalCapital.ts; functions/src/politicalCapital.test.ts; functions/src/presidentWorkspaceCallable.test.ts; functions/src/crisisCallable.test.ts; functions/src/index.ts; src/components/PresidentWorkspace.tsx; src/components/PresidentWorkspace.test.tsx; src/lib/presidentWorkspaceService.ts; src/lib/politicalCapitalState.ts; src/lib/politicalCapitalState.test.ts; src/lib/firestore.ts; src/types/game.ts; tests/rules/firestore.rules.test.ts; full 3653-test unit/functions suite; 117-test Firestore rules suite; TypeScript builds; ESLint",
+      "type": "evidence / production-path / server-authority / exact-crisis-outcome / nonnegative-ledger / bounded-cap / single-grant / exact-replay / stale-cas / direct-write-denial / regression"
+    },
+    {
       "direction": "524b -> 524a",
       "id": "E-AUDIT-524B",
       "language": "President address consumes political capital.",
@@ -19514,8 +19521,8 @@
         "acceptance": "President-authorized gains/spends produce a nonnegative server ledger linked to crisis outcomes and no client can edit the balance.",
         "title": "Track political capital."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524A",
+      "description": "Resolved crises now create immutable server outcome records and expose the latest safe outcome pointer to the President workspace. The active Dione President can authorize one-point gains or spends against an exact outcome and ledger revision. The server keeps the balance from zero through eight, grants each crisis only once even after bounded display history rolls over, records privacy-safe events and exact replay receipts, and rejects stale, malformed, unauthorized, duplicate, overdrawn, overflow, and direct-client mutation attempts.",
+      "evidenceIds": "E-AUDIT-524A;E-524A-POLITICAL-CAPITAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "193b",
@@ -19523,10 +19530,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.81"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

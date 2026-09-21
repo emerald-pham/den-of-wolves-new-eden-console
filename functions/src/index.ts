@@ -42,6 +42,13 @@ import {
   recordPresidentAction,
   type PresidentActionKind,
 } from './presidentWorkspace';
+import {
+  POLITICAL_CAPITAL_ACTIONS,
+  applyPoliticalCapital,
+  politicalCapitalState,
+  type PoliticalCapitalAction,
+  type PoliticalCapitalState,
+} from './politicalCapital';
 import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import {
@@ -8237,6 +8244,7 @@ export const transitionCrisis = onCall<{
   const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
   const zealotryResponseRef = db.doc(`sessions/${crisis.sessionId}/zealotryResponses/current`);
   const civilUnrestResolutionRef = db.doc(`sessions/${crisis.sessionId}/civilUnrestResolutions/current`);
+  const outcomeRef = db.doc(`sessions/${crisis.sessionId}/crisisOutcomes/${crisis.crisisId}`);
   const auditRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current/audit/${crisis.requestId}`);
   const receiptRef = commandReceiptRef(crisis.sessionId, crisis.requestId);
   const eventRef = db.doc(
@@ -8397,6 +8405,18 @@ export const transitionCrisis = onCall<{
       instanceId: crisis.instanceId,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (crisis.state === 'resolved') {
+      const outcome = {
+        type: 'crisis-outcome', sessionId: crisis.sessionId, crisisId: crisis.crisisId,
+        revision, title: crisis.title, capitalGranted: false,
+        resolvedAt: FieldValue.serverTimestamp(),
+      };
+      tx.set(outcomeRef, outcome);
+      tx.update(db.doc(`sessions/${crisis.sessionId}`), {
+        resolvedCrisisOutcome: { crisisId: crisis.crisisId, revision, title: crisis.title },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(auditRef, {
       type: 'crisis-state',
       action: 'transition',
@@ -20991,6 +21011,149 @@ export const recordPresidentActionCommand = onCall<{
         createdAt: FieldValue.serverTimestamp(),
       }),
     );
+    tx.set(receiptRef, { fingerprint, result: next, createdAt: FieldValue.serverTimestamp() });
+    return next;
+  });
+});
+
+function isPoliticalCapitalStateResult(value: unknown): value is PoliticalCapitalState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  try {
+    const parsed = politicalCapitalState(value);
+    return parsed.revision >= 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Apply one President-authorized point against an exact resolved crisis outcome. */
+export const updatePoliticalCapital = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  action?: unknown;
+  crisisId?: unknown;
+  crisisRevision?: unknown;
+  expectedRevision?: unknown;
+  instanceId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'requestId', 'action', 'crisisId', 'crisisRevision', 'expectedRevision', 'instanceId'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      !POLITICAL_CAPITAL_ACTIONS.includes(raw.action as PoliticalCapitalAction) ||
+      typeof raw.crisisId !== 'string' || !/^[\w-]{1,80}$/.test(raw.crisisId) ||
+      !Number.isSafeInteger(raw.crisisRevision) || Number(raw.crisisRevision) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0 ||
+      Number(raw.expectedRevision) >= Number.MAX_SAFE_INTEGER ||
+      (raw.instanceId !== undefined &&
+        (typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId)))) {
+    throw new HttpsError('invalid-argument', 'Invalid political capital request.');
+  }
+  const data = {
+    sessionId: raw.sessionId, requestId: raw.requestId,
+    action: raw.action as PoliticalCapitalAction, crisisId: raw.crisisId,
+    crisisRevision: Number(raw.crisisRevision), expectedRevision: Number(raw.expectedRevision),
+    instanceId: raw.instanceId as string | undefined,
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const outcomeRef = db.doc(`sessions/${data.sessionId}/crisisOutcomes/${data.crisisId}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/political-capital-${data.expectedRevision + 1}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'update-political-capital', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId ?? null,
+    expectedRevision: data.expectedRevision,
+    payload: { action: data.action, crisisId: data.crisisId, crisisRevision: data.crisisRevision },
+  };
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+      throw new HttpsError('permission-denied', 'Only the active Dione President may update political capital.');
+    }
+    await requirePresidentActionAuthority(tx, data.sessionId, player, data.instanceId);
+    const [session, crisis, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(outcomeRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'political capital', []);
+    const replay = replayBoundCommand(receipt, fingerprint, isPoliticalCapitalStateResult, 'political capital');
+    if (replay) return replay;
+    if (session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    requireActiveGameplayPhase(session);
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Political capital is available after gameplay begins.', 'invalid-phase');
+    }
+    requireTurnOneForGameplay(session);
+    if (!crisis.exists || crisis.get('type') !== 'crisis-outcome' ||
+        crisis.get('sessionId') !== data.sessionId || crisis.get('crisisId') !== data.crisisId ||
+        crisis.get('revision') !== data.crisisRevision ||
+        typeof crisis.get('capitalGranted') !== 'boolean' ||
+        typeof crisis.get('title') !== 'string' || !crisis.get('title') || crisis.get('title').length > 160) {
+      throw commandError(
+        'failed-precondition',
+        'The resolved crisis outcome changed. Refresh before updating political capital.',
+        'stale-revision',
+      );
+    }
+    let current: PoliticalCapitalState;
+    try {
+      current = politicalCapitalState(session.get('politicalCapital'));
+    } catch {
+      throw commandError(
+        'failed-precondition',
+        'Stored political capital is invalid. Ask the facilitator to recover the session.',
+        'conflict',
+      );
+    }
+    if (current.revision !== data.expectedRevision) {
+      throw commandError('failed-precondition', 'Political capital changed. Wait for the live update and try again.', 'stale-revision');
+    }
+    if (event.exists) rejectLegacyEventReplay('political capital');
+    if (data.action === 'gain' && crisis.get('capitalGranted') === true) {
+      throw commandError(
+        'failed-precondition',
+        'This crisis has already granted political capital.',
+        'conflict',
+      );
+    }
+    let next: PoliticalCapitalState;
+    try {
+      next = applyPoliticalCapital({
+        current, expectedRevision: data.expectedRevision,
+        id: `political-capital:${data.requestId}`, action: data.action,
+        crisisId: data.crisisId, crisisRevision: data.crisisRevision,
+        crisisTitle: crisis.get('title'), cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: serverTime,
+      });
+    } catch (error) {
+      throw commandError(
+        'failed-precondition',
+        error instanceof Error ? error.message : 'Political capital could not be updated.',
+        'conflict',
+      );
+    }
+    tx.update(sessionRef, { politicalCapital: next, updatedAt: FieldValue.serverTimestamp() });
+    if (data.action === 'gain') {
+      tx.update(outcomeRef, {
+        capitalGranted: true,
+        capitalGrantedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    txSetIfSupported(tx, eventRef, buildPrivacySafeEventRecord({
+      type: 'political-capital',
+      payload: {
+        action: data.action, amount: 1, balance: next.balance, revision: next.revision,
+        crisisId: data.crisisId, crisisRevision: data.crisisRevision,
+        cycle: sessionTurn(session.get('currentTurn')), serverTime,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(receiptRef, { fingerprint, result: next, createdAt: FieldValue.serverTimestamp() });
     return next;
   });

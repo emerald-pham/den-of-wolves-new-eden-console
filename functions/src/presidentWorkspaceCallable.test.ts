@@ -10,6 +10,9 @@ const mock = vi.hoisted(() => ({
   phase: 'active', currentTurn: 2, revision: 0,
   entries: [] as Record<string, unknown>[],
   rawState: undefined as unknown,
+  politicalCapital: undefined as unknown,
+  outcomeExists: true, outcomeId: 'crisis-1', outcomeRevision: 4,
+  outcomeCapitalGranted: false,
   legacyPaths: new Set<string>(),
 }));
 
@@ -26,7 +29,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { recordPresidentActionCommand } from './index';
+import { recordPresidentActionCommand, updatePoliticalCapital } from './index';
 
 const data = {
   sessionId: 's1', requestId: 'president-request-1', kind: 'fleet-policy',
@@ -41,6 +44,8 @@ beforeEach(() => {
     role: 'player', post: 'dione-president', connected: true, sessionExists: true,
     assignedRole: 'dione-president', seat: 'dione-president',
     phase: 'active', currentTurn: 2, revision: 0, entries: [], rawState: undefined,
+    politicalCapital: undefined, outcomeExists: true, outcomeId: 'crisis-1', outcomeRevision: 4,
+    outcomeCapitalGranted: false,
   });
   mock.update.mockReset();
   mock.set.mockReset();
@@ -80,15 +85,108 @@ beforeEach(() => {
       };
       return { id: 'u1', exists: true, get: (key: string) => fields[key] };
     }
+    if (path.includes('/crisisOutcomes/')) {
+      const fields: Record<string, unknown> = {
+        type: 'crisis-outcome', sessionId: 's1', crisisId: mock.outcomeId,
+        revision: mock.outcomeRevision, title: 'Approaching vessel',
+        capitalGranted: mock.outcomeCapitalGranted,
+      };
+      return { exists: mock.outcomeExists, get: (key: string) => fields[key] };
+    }
     const fields: Record<string, unknown> = {
       phase: mock.phase,
       currentTurn: mock.currentTurn,
       activeRoleIds: ['dione-president', 'dione-captain', 'dione-engineer'],
       activeVesselIds: ['dione'],
       presidentWorkspace: mock.rawState ?? { revision: mock.revision, entries: mock.entries },
+      politicalCapital: mock.politicalCapital,
     };
     return { id: 's1', exists: mock.sessionExists, get: (key: string) => fields[key] };
   });
+});
+
+const capitalData = {
+  sessionId: 's1', requestId: 'capital-request-1', action: 'gain',
+  crisisId: 'crisis-1', crisisRevision: 4, expectedRevision: 0,
+};
+
+it('applies and replays one President-authorized crisis-linked capital gain', async () => {
+  const first = await updatePoliticalCapital.run(request(capitalData));
+  expect(first).toMatchObject({ revision: 1, balance: 1, entries: [{
+    action: 'gain', crisisId: 'crisis-1', crisisRevision: 4, balanceAfter: 1,
+  }] });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    politicalCapital: expect.objectContaining({ revision: 1, balance: 1 }),
+  }));
+  mock.update.mockClear();
+  await expect(updatePoliticalCapital.run(request(capitalData))).resolves.toEqual(first);
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('spends only an available point and never produces a negative balance', async () => {
+  mock.politicalCapital = { revision: 1, balance: 1, entries: [{
+    id: 'gain-one', action: 'gain', amount: 1, balanceAfter: 1,
+    crisisId: 'crisis-0', crisisRevision: 3, crisisTitle: 'Earlier crisis', cycle: 1,
+    recordedAt: '2026-09-21T20:00:00.000Z',
+  }] };
+  await expect(updatePoliticalCapital.run(request({ ...capitalData, requestId: 'capital-spend-1',
+    action: 'spend', expectedRevision: 1 }))).resolves.toMatchObject({ revision: 2, balance: 0 });
+  mock.politicalCapital = undefined;
+  await expect(updatePoliticalCapital.run(request({ ...capitalData, requestId: 'capital-spend-2',
+    action: 'spend' }))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'conflict' },
+  });
+});
+
+it('rejects a stale or missing crisis outcome before any session mutation', async () => {
+  mock.outcomeRevision = 5;
+  await expect(updatePoliticalCapital.run(request(capitalData))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'stale-revision' },
+  });
+  mock.outcomeRevision = 4;
+  mock.outcomeExists = false;
+  await expect(updatePoliticalCapital.run(request(capitalData))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'stale-revision' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects a second gain even after bounded ledger history no longer contains the crisis', async () => {
+  mock.outcomeCapitalGranted = true;
+  await expect(updatePoliticalCapital.run(request(capitalData))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'conflict' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects revision/history mismatches and fabricated opening balances without a write', async () => {
+  const malformed = [
+    { revision: 1, balance: 0, entries: [] },
+    { revision: 0, balance: 1, entries: [{
+      id: 'fabricated', action: 'spend', amount: 1, balanceAfter: 1,
+      crisisId: 'crisis-0', crisisRevision: 3, crisisTitle: 'Earlier crisis', cycle: 1,
+      recordedAt: '2026-09-21T20:00:00.000Z',
+    }] },
+  ];
+  for (const politicalCapital of malformed) {
+    mock.politicalCapital = politicalCapital;
+    mock.update.mockClear();
+    mock.set.mockClear();
+    await expect(updatePoliticalCapital.run(request(capitalData))).rejects.toMatchObject({
+      code: 'failed-precondition', details: { commandError: 'conflict' },
+    });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  }
+});
+
+it('rejects non-President and malformed capital commands', async () => {
+  mock.post = 'dione-captain';
+  await expect(updatePoliticalCapital.run(request(capitalData))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.post = 'dione-president';
+  await expect(updatePoliticalCapital.run(request({ ...capitalData, action: 'award' })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it.each(['fleet-policy', 'crisis', 'political-capital', 'address', 'visit', 'election'])('records one public %s action as the active President', async (kind) => {

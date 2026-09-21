@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['524a'],
+    implementationProgress: {
+      completed: 432, total: 751, percentage: '57.52%',
+      done: 432, partial: 16, active: 0, missing: 303,
+    },
+    changes: [
+      'The Dione President can now gain or spend political capital from a resolved crisis, with a live balance and history in the President workspace.',
+      'Each crisis can grant one point, the balance stays between zero and eight, and players cannot edit it directly.',
+      '432 of 751 planned items are complete (57.52%).',
+    ],
+  },
+  {
+    version: '0.4.80',
     implementationPrompts: ['193b'],
     implementationProgress: {
       completed: 431, total: 751, percentage: '57.39%',

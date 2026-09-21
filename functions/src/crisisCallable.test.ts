@@ -103,6 +103,15 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
       ...baseData, requestId: `crisis-${state}`, expectedRevision, state,
     }))).resolves.toMatchObject({ status: 'committed', state, revision: expectedRevision + 1 });
   }
+  expect(mock.documents.get('sessions/s1/crisisOutcomes/approaching-vessel')).toMatchObject({
+    type: 'crisis-outcome', crisisId: 'approaching-vessel', revision: 4,
+    title: 'Approaching vessel', capitalGranted: false,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    resolvedCrisisOutcome: {
+      crisisId: 'approaching-vessel', revision: 4, title: 'Approaching vessel',
+    },
+  });
   const event = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'))
     .map(([, fields]) => fields)
     .find((fields) => fields.state === 'closed');

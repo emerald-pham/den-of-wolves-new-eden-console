@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**431 / 751 prompts complete (57.39%)**
+**432 / 751 prompts complete (57.52%)**
 
-Status breakdown: **431 done · 16 partial · 304 missing**.
+Status breakdown: **432 done · 16 partial · 303 missing**.
 
 Active prompt: **none**
 
@@ -990,7 +990,7 @@ release classification and evidence.
 | 523b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523c | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 524 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 524a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 524a | done | non-feature | 0.4.81 | Resolved crises now create immutable server outcome records and expose the latest safe outcome pointer to the President workspace. The active Dione President can authorize one-point gains or spends against an exact outcome and ledger revision. The server keeps the balance from zero through eight, grants each crisis only once even after bounded display history rolls over, records privacy-safe events and exact replay receipts, and rejects stale, malformed, unauthorized, duplicate, overdrawn, overflow, and direct-client mutation attempts. |
 | 524b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 524c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 524d | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

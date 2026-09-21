@@ -1155,6 +1155,17 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { phase: 'active' }));
   });
 
+  it('denies players and facilitators every direct political capital balance edit', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        politicalCapital: { revision: 1, balance: 8, entries: [] },
+      }));
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        'politicalCapital.balance': 8,
+      }));
+    }
+  });
+
   it('cannot forge turn clocks or an airspace exception from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, {

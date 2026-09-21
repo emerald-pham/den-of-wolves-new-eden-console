@@ -560,6 +560,32 @@ export interface PresidentWorkspaceState {
   readonly entries: readonly PresidentActionRecord[];
 }
 
+export type PoliticalCapitalAction = 'gain' | 'spend';
+
+export interface PoliticalCapitalEntry {
+  readonly id: string;
+  readonly action: PoliticalCapitalAction;
+  readonly amount: 1;
+  readonly balanceAfter: number;
+  readonly crisisId: string;
+  readonly crisisRevision: number;
+  readonly crisisTitle: string;
+  readonly cycle: number;
+  readonly recordedAt: string;
+}
+
+export interface PoliticalCapitalState {
+  readonly revision: number;
+  readonly balance: number;
+  readonly entries: readonly PoliticalCapitalEntry[];
+}
+
+export interface ResolvedCrisisOutcome {
+  readonly crisisId: string;
+  readonly revision: number;
+  readonly title: string;
+}
+
 /** A browser-local GM replay; it is intentionally never persisted or shared. */
 export interface TurnStartReplay {
   readonly sessionId: SessionId;
@@ -729,6 +755,10 @@ export interface GameSession {
   readonly admiralDirectives?: AdmiralDirectiveState;
   /** Public audit record authored through the bounded Dione President console. */
   readonly presidentWorkspace?: PresidentWorkspaceState;
+  /** Server-owned President resource ledger. Every entry is tied to an exact resolved crisis. */
+  readonly politicalCapital?: PoliticalCapitalState;
+  /** Latest server-recorded crisis resolution available to the President ledger. */
+  readonly resolvedCrisisOutcome?: ResolvedCrisisOutcome;
   /** GM-controlled presentation state for the shared end-of-session finale. */
   readonly debriefMode?: {
     readonly active: boolean;
