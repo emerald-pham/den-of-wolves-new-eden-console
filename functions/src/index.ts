@@ -13345,6 +13345,7 @@ export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async requ
   ]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   requireDioneEngineer(player);
+  requireActiveGameplayPhase(session);
   return dioneMaliadesLaunchView(sessionId, session, state);
 });
 
@@ -13390,6 +13391,7 @@ export const launchDioneMaliades = onCall<{
     const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
     if (replay) return { ...replay, status: 'replayed' };
     if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');
+    requireActiveGameplayPhase(session);
     const view = dioneMaliadesLaunchView(sessionId, session, state);
     if (view.turn !== expectedTurn || view.revision !== expectedRevision) {
       throw commandError(
