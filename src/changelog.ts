@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [142],
+    implementationProgress: {
+      completed: 377, total: 751, percentage: '50.20%',
+      done: 377, partial: 17, active: 0, missing: 357,
+    },
+    changes: [
+      'A new Team Phase cannot begin while an enabled shuttle is missing, duplicated, in transit, or parked at an invalid host.',
+      'The server checks the complete shuttle roster before changing the cycle, and legacy sessions retain their canonical starting docks.',
+      '377 of 751 planned items are complete (50.20%).',
+    ],
+  },
+  {
+    version: '0.4.67',
     implementationPrompts: [129],
     implementationProgress: {
       completed: 374, total: 751, percentage: '49.80%',

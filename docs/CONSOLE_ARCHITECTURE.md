@@ -125,6 +125,13 @@ missing server docking field uses that initial manifest for legacy sessions;
 an explicitly empty server list means no craft is docked. The server remains
 authoritative for docking and every future travel action.
 
+Before an active cycle advances into its next Team Phase, the server requires
+every enabled shuttle to have exactly one complete parked docking row at a
+legal active host. Missing, duplicate, unknown, in-transit, inactive-host, and
+role-incompatible rows stop the transition before any state changes. There is
+no inferred facilitator exception: a future exception must be explicit server
+state with its own validation and audit contract.
+
 Shuttle custody keeps the printed owner separate from the current holder. An
 owner or live facilitator may hand a shuttle to a connected player in the
 owner's current fleet group, and the server resolves that holder's active ship.

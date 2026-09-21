@@ -21,6 +21,7 @@ const mock = vi.hoisted(() => ({
   fleetGroups: [] as Array<{ id: string; vesselIds: string[]; memberUids: string[] }>,
   discoveryPlayers: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   activeVesselIds: undefined as readonly string[] | undefined,
+  shuttleDockings: undefined as readonly unknown[] | undefined,
   commandReceipts: {} as Record<string, Record<string, unknown>>,
   race: undefined as {
     attempts: number;
@@ -208,7 +209,9 @@ vi.mock('firebase-admin/firestore', () => ({
             capybaraEnabled: mock.capybaraEnabled,
             dioneEnabled: mock.dioneEnabled,
             smallShipStates: mock.smallShipStates,
+            activeRoleIds: mock.activeRoleIds,
             activeVesselIds: mock.activeVesselIds,
+            shuttleDockings: mock.shuttleDockings,
             pursuitGroups: mock.legacyPursuitGroups,
           };
           const updates: Array<readonly [string, Record<string, unknown>]> = [];
@@ -351,6 +354,7 @@ import {
   unlockPressAirspace,
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
+import { initialShuttleDockingsForRoles } from './shuttlecraft';
 import { emptySmallShipState } from './smallShip';
 
 let advanceRequestSequence = 0;
@@ -389,6 +393,7 @@ beforeEach(() => {
   mock.fleetGroups = [];
   mock.discoveryPlayers = [];
   mock.activeVesselIds = undefined;
+  mock.shuttleDockings = undefined;
   mock.turnPhase = undefined;
   mock.turnState = undefined;
   mock.turnLimit = 6;
@@ -519,6 +524,7 @@ beforeEach(() => {
           pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
+          shuttleDockings: mock.shuttleDockings,
           pursuitGroups: mock.legacyPursuitGroups,
         };
     return { exists: true, get: (key: string) => fields[key] };
@@ -1813,6 +1819,7 @@ it('advances private group pursuit once with the cycle transition and republishe
   vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
   mock.currentTurn = 1;
   mock.activeVesselIds = ['dione', 'shepherd'];
+  mock.activeRoleIds = ['dione-captain', 'shepherd-captain'];
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -1875,6 +1882,7 @@ it('creates one terminal failure when authoritative pursuit reaches 10 and block
   vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
   mock.currentTurn = 2;
   mock.activeVesselIds = ['aegis', 'shepherd'];
+  mock.activeRoleIds = ['admiral', 'shepherd-captain'];
   mock.turnPhase = {
     turn: 2,
     teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -1965,6 +1973,7 @@ it('creates one terminal failure when authoritative pursuit reaches 10 and block
 it('blocks a cycle transition when stored pursuit authority is malformed', async () => {
   mock.currentTurn = 1;
   mock.activeVesselIds = ['dione'];
+  mock.activeRoleIds = ['dione-captain'];
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
@@ -1994,6 +2003,7 @@ it('blocks a cycle transition when stored pursuit authority is malformed', async
 it('migrates legacy member-readable pursuit authority and deletes it atomically', async () => {
   mock.currentTurn = 1;
   mock.activeVesselIds = ['dione'];
+  mock.activeRoleIds = ['dione-captain'];
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
@@ -2030,6 +2040,7 @@ it('migrates legacy member-readable pursuit authority and deletes it atomically'
 it('blocks pursuit advancement when vessel membership or player pointers mismatch group authority', async () => {
   mock.currentTurn = 1;
   mock.activeVesselIds = ['dione', 'shepherd'];
+  mock.activeRoleIds = ['dione-captain', 'shepherd-captain'];
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
@@ -2095,6 +2106,74 @@ it('blocks a next-Team transition while an admitted small ship is undocked', asy
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['missing', (dockings: readonly unknown[]) => dockings.slice(1)],
+  ['duplicated', (dockings: readonly unknown[]) => [...dockings, dockings[0]]],
+  ['in transit', (dockings: readonly unknown[]) => [
+    { ...(dockings[0] as Record<string, unknown>), inTransit: true }, ...dockings.slice(1),
+  ]],
+] as const)('blocks a next-Team transition when an enabled shuttle is %s', async (_case, mutate) => {
+  mock.currentTurn = 1;
+  mock.activeRoleIds = recommendedRoleIds(18);
+  const initialDockings = initialShuttleDockingsForRoles(mock.activeRoleIds);
+  expect(initialDockings.length).toBeGreaterThan(0);
+  mock.shuttleDockings = mutate(initialDockings);
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/shuttle.*docked.*Team/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects an unknown shuttle host even when a corrupted active-vessel roster names it', async () => {
+  mock.currentTurn = 1;
+  mock.activeRoleIds = recommendedRoleIds(18);
+  mock.activeVesselIds = ['bogus'];
+  mock.shuttleDockings = initialShuttleDockingsForRoles(mock.activeRoleIds).map((docking) => ({
+    ...docking,
+    shipId: 'bogus',
+  }));
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/shuttle.*docked.*Team/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('advances a legacy session whose stored role tuple still includes Press', async () => {
+  mock.currentTurn = 1;
+  mock.activeRoleIds = [...recommendedRoleIds(18), 'press-officer'];
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).resolves.toMatchObject({ currentTurn: 2 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ currentTurn: 2 }));
 });
 
 it('commits one server-owned Coordination completion announcement with the next-turn state', async () => {
@@ -2169,6 +2248,11 @@ it('freezes the configured final turn in debrief and replays the terminal receip
   };
   mock.shuttleFuelled = { starlight: true };
   mock.activeVesselIds = ['aegis'];
+  mock.activeRoleIds = ['admiral'];
+  mock.shuttleDockings = initialShuttleDockingsForRoles(mock.activeRoleIds).map((docking) => ({
+    ...docking,
+    inTransit: true,
+  }));
   mock.legacyPursuitGroups = { fleet: 8 };
   mock.fleetGroups = [
     { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
@@ -2682,6 +2766,7 @@ it('serializes simultaneous airspace expiry observers into one transition event'
   mock.shuttleFuelled = { starlight: true, pallas: false };
   mock.gmInstanceOwners = { 'bridge-a': 'u1', 'bridge-b': 'u2' };
   mock.activeVesselIds = ['aegis'];
+  mock.activeRoleIds = ['admiral'];
   mock.navigation = {
     revision: 1,
     shipGalacticCoordinates: { aegis: '0000' },

@@ -250,7 +250,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 140f | NEW | missing | 140d;361 | none | none | none | none | none | none | none | E-AUDIT-140F | M3;M11 | Preserve retained shuttles. |
 | 140g | NEW | done | 140d;111 | none | none | none | none | none | none | none | E-AUDIT-140G;E-140G-SCAVENGE-AUTHORITY | M3;M11 | Scavenge destroyed-ship stores. |
 | 141 | NEW | done | none | none | none | none | none | none | none | none | none | M2 | Define normal airspace. |
-| 142 | NEW | missing | 141;361 | none | none | none | none | none | none | none | E-AUDIT-142 | M2 | Enforce Team Phase docking. |
+| 142 | NEW | done | 141;361 | none | none | none | none | none | none | none | E-AUDIT-142 | M2 | Enforce Team Phase docking. |
 | 143 | NEW | done | 361 | none | none | none | none | none | none | none | E-AUDIT-143 | M2 | Bind shuttle holder and dock. |
 | 144 | NEW | done | 141;143 | none | none | none | none | none | none | none | E-AUDIT-144 | M2 | Resolve a legal shuttle move. |
 | 145 | EXTEND | done | 141 | none | none | none | none | none | none | none | E-AUDIT-145 | M2 | Lock airspace for a Wolf attack. |

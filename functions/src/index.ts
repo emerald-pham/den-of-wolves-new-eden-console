@@ -2540,9 +2540,12 @@ function advanceTurnInTransaction(
   pursuitAuthority?: TurnPursuitAuthority,
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
-  if (currentTurn >= 1) requireSmallShipsDockedAtBoundary(session, 'Team');
-  const nextTurn = currentTurn + 1;
   const maxTurn = sessionTurnLimit(session);
+  if (currentTurn >= 1) requireSmallShipsDockedAtBoundary(session, 'Team');
+  if (currentTurn >= 1 && (maxTurn === undefined || currentTurn < maxTurn)) {
+    requireShuttlesDockedAtTeamBoundary(session);
+  }
+  const nextTurn = currentTurn + 1;
   const currentFleetPopulation = fleetSurvivorPopulation(session);
   const announcementPopulation = currentFleetPopulation % 10 === 0 || currentFleetPopulation % 10 === 5
     ? currentFleetPopulation + 42
@@ -17651,6 +17654,47 @@ function requireSmallShipsDockedAtBoundary(
         'conflict',
       );
     }
+  }
+}
+
+/** Every enabled shuttle must be parked at one valid active host before the
+ * next Team Phase begins. Sessions created before shuttleDockings was stored
+ * retain their canonical setup docking; an explicitly malformed or incomplete
+ * roster fails closed. */
+function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
+  const rawActiveRoleIds = session.get('activeRoleIds');
+  const normalizedStoredRoleIds = Array.isArray(rawActiveRoleIds)
+    ? rawActiveRoleIds.filter((roleId) => roleId !== 'press-officer')
+    : rawActiveRoleIds;
+  const activeRoleIds = configuredRoleIds(session);
+  const expectedActiveVesselIds = activeVesselIdsForRoles(activeRoleIds);
+  const rawActiveVesselIds = session.get('activeVesselIds');
+  const activeVesselIds = rawActiveVesselIds === undefined
+    ? expectedActiveVesselIds
+    : rawActiveVesselIds;
+  const stored = session.get('shuttleDockings');
+  const dockings = stored === undefined
+    ? initialShuttleDockingsForRoles(activeRoleIds)
+    : stored;
+  if ((rawActiveRoleIds !== undefined &&
+        (!Array.isArray(rawActiveRoleIds) ||
+          rawActiveRoleIds.some((roleId) => typeof roleId !== 'string') ||
+          new Set(rawActiveRoleIds).size !== rawActiveRoleIds.length ||
+          !Array.isArray(normalizedStoredRoleIds) ||
+          !isValidRoleConfiguration(normalizedStoredRoleIds))) ||
+      !Array.isArray(activeVesselIds) || activeVesselIds.length === 0 ||
+      activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+      new Set(activeVesselIds).size !== activeVesselIds.length ||
+      activeVesselIds.length !== expectedActiveVesselIds.length ||
+      expectedActiveVesselIds.some((shipId) => !activeVesselIds.includes(shipId)) ||
+      !Array.isArray(dockings) ||
+      !shuttleDockingsAreParked(dockings, activeVesselIds) ||
+      !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, dockings)) {
+    throw commandError(
+      'failed-precondition',
+      'Every enabled shuttle must be docked with one valid active host before the next Team Phase.',
+      'conflict',
+    );
   }
 }
 

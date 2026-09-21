@@ -9314,7 +9314,7 @@
         "acceptance": "every shuttle has a valid host at Team start or appears as an explicit facilitator exception.",
         "title": "Enforce Team Phase docking."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The authoritative cycle transition now refuses to begin another active Team Phase unless the persisted role and vessel rosters are canonical and every enabled shuttle has exactly one complete parked docking row at a legal active host. Unknown, duplicate, missing, in-transit, inactive-host, role-incompatible, or roster-injected rows fail before any session mutation; legacy sessions with no stored roster or docking field derive the canonical setup state, and the historical Press role entry is normalized away from the core roster. The final debrief remains reachable because it does not begin a new Team Phase. No implicit facilitator bypass exists: any future exception must be represented and validated explicitly rather than inferred. Focused callable regressions cover missing, duplicate, in-transit, forged-host, legacy-Press, and final-debrief cases, while existing successful transition and concurrent-boundary tests preserve the legal path.",
       "evidenceIds": "E-AUDIT-142",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9323,10 +9323,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.68"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
