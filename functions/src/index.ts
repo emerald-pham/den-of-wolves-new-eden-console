@@ -237,6 +237,7 @@ import {
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
   shuttleDockingsAreParked,
+  shuttleDockingsAreKnownAndUnique,
   shuttleDockingsMatchActiveRoleOwnedSubset,
   shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
@@ -298,6 +299,10 @@ import {
   parseShuttleControl,
   transferShuttleControl,
 } from './shuttleControl';
+import {
+  parseRetainedShuttles,
+  retainShuttlesFromDestroyedHost,
+} from './retainedShuttles';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import {
   isJoinCode,
@@ -1778,6 +1783,13 @@ function publicShuttleFuelled(value: unknown): Record<string, boolean> {
     AUTHORIZED_SHUTTLE_IDS.has(shuttleId) && typeof fuelled === 'boolean' ? [[shuttleId, fuelled]] : []));
 }
 
+function publicRetainedShuttles(value: unknown) {
+  const retained = parseRetainedShuttles(value);
+  if (!retained) return {};
+  return Object.fromEntries(Object.entries(retained).filter(([shuttleId]) =>
+    AUTHORIZED_SHUTTLE_IDS.has(shuttleId)));
+}
+
 type PublicShuttleDocking = Readonly<{
   shuttleId: string;
   shipId: string;
@@ -1796,12 +1808,15 @@ function publicShuttleDockings(
   value: unknown,
   activeVesselIds: readonly string[],
   activeRoleIds: readonly string[],
+  retainedShuttleIds: readonly string[] = [],
 ): readonly PublicShuttleDocking[] {
   const source = Array.isArray(value) ? value : initialShuttleDockingsForRoles(activeRoleIds);
   const active = new Set(activeVesselIds);
+  const retained = new Set(retainedShuttleIds);
   return source.flatMap((entry) => {
     if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
         !AUTHORIZED_SHUTTLE_IDS.has(entry.shuttleId) ||
+        retained.has(entry.shuttleId) ||
         typeof entry.shipId !== 'string' || typeof entry.dockedAt !== 'string' ||
         !active.has(entry.shipId)) return [];
     return [{ shuttleId: entry.shuttleId, shipId: entry.shipId, dockedAt: entry.dockedAt }];
@@ -4770,6 +4785,84 @@ function shuttleOwnerRoleForPlayer(player: DocumentSnapshot): string | undefined
   if (typeof assigned === 'string' && assigned.length > 0) return assigned;
   const active = player.get('activeConsoleRoleId');
   return active === 'press-officer' ? active : undefined;
+}
+
+function retainedShuttleTransitionForDestruction(
+  session: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  destroyedHostShipId: string,
+  retainedAt: string,
+) {
+  const activeRoleIds = sessionActiveRoleIds(session);
+  const rawDockings = session.get('shuttleDockings') ?? initialShuttleDockingsForRoles(activeRoleIds);
+  const activeVesselIds = activeVesselIdsForSession(session);
+  if (!Array.isArray(rawDockings) || !shuttleDockingsAreKnownAndUnique(rawDockings) ||
+      activeVesselIds.length === 0 || activeVesselIds.some((shipId) =>
+        typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+      !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+      !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings)) {
+    throw commandError(
+      'failed-precondition',
+      'The authoritative shuttle manifest cannot preserve craft during destruction.',
+      'conflict',
+    );
+  }
+  if (!rawDockings.some((docking) => docking.shipId === destroyedHostShipId)) {
+    return undefined;
+  }
+  const storedControl = session.get('shuttleControl');
+  const roleHolders = players.flatMap((player) => {
+    if (!player.exists || player.get('role') !== 'player' || isKickedPlayer(player)) return [];
+    const roleId = shuttleOwnerRoleForPlayer(player);
+    return roleId ? [{ uid: player.id, roleId }] : [];
+  });
+  const enabledDockedIds = new Set(rawDockings.map((docking) => docking.shuttleId));
+  const control = storedControl === undefined
+    ? initialShuttleControl(
+      roleOwnedCraftForRoles(activeRoleIds).filter((craft) =>
+        craft.kind === 'shuttle' && enabledDockedIds.has(craft.id)),
+      roleHolders,
+    )
+    : parseShuttleControl(storedControl);
+  const retained = parseRetainedShuttles(session.get('retainedShuttles'));
+  if (!control || !retained) {
+    throw commandError(
+      'failed-precondition',
+      'The authoritative shuttle custody state cannot preserve craft during destruction.',
+      'conflict',
+    );
+  }
+  const roster = players.filter((player) =>
+    player.exists && player.get('role') === 'player' && !isKickedPlayer(player));
+  const enabledCraft = new Map(roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => craft.kind === 'shuttle')
+    .map((craft) => [craft.id, craft]));
+  const rosterByUid = new Map(roster.map((player) => [player.id, player]));
+  for (const docking of rawDockings.filter((entry) => entry.shipId === destroyedHostShipId)) {
+    const craft = enabledCraft.get(docking.shuttleId);
+    const custody = control[docking.shuttleId];
+    const printedOwners = roster.filter((player) =>
+      shuttleOwnerRoleForPlayer(player) === craft?.ownerRoleId);
+    if (!craft || !custody || custody.ownerRoleId !== craft.ownerRoleId ||
+        printedOwners.length !== 1 || printedOwners[0]?.id !== custody.ownerUid ||
+        !rosterByUid.has(custody.holderUid)) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative shuttle custody state cannot preserve craft during destruction.',
+        'conflict',
+      );
+    }
+  }
+  return {
+    control,
+    ...retainShuttlesFromDestroyedHost({
+      destroyedHostShipId,
+      dockings: rawDockings,
+      control,
+      retained,
+      retainedAt,
+    }),
+  };
 }
 
 /** Hand a shuttle to another connected player or return it to its printed owner. */
@@ -9601,8 +9694,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const activeRoleIds = sessionActiveRoleIds(sessionSnap);
     const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
     const activeVesselIds = setup.activeVesselIds;
+    const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
     const shuttleDockings = publicShuttleDockings(
       sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
+      Object.keys(retainedShuttles),
     );
     const shuttleVisitLog = publicShuttleVisitLog(
       sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
@@ -9663,6 +9758,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
         shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
+        retainedShuttles,
         shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
         shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
         populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
@@ -9882,8 +9978,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const activeRoleIds = sessionActiveRoleIds(sessionSnap);
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
+  const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
   const shuttleDockings = publicShuttleDockings(
     sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
+    Object.keys(retainedShuttles),
   );
   const shuttleVisitLog = publicShuttleVisitLog(
     sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
@@ -9944,6 +10042,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
       shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
+      retainedShuttles,
       shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
       shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
       populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
@@ -16577,6 +16676,14 @@ export const addShipDamage = onCall<{
     const affectedPlayers = newlyDestroyed
       ? await tx.get(db.collection(`sessions/${change.sessionId}/players`))
       : undefined;
+    const retainedShuttleTransition = newlyDestroyed
+      ? retainedShuttleTransitionForDestruction(
+        session,
+        affectedPlayers?.docs ?? [],
+        change.shipId,
+        stableOccurredAt,
+      )
+      : undefined;
     if (newlyDestroyed && destruction) {
       markPlayersForShipEscape(
         tx,
@@ -16595,6 +16702,11 @@ export const addShipDamage = onCall<{
         [`shipSurvivors.${change.shipId}`]: nextPopulation,
         [`shipUnrest.${change.shipId}`]: nextUnrest,
         populationAlerts, unrestAlerts,
+        ...(retainedShuttleTransition ? {
+          shuttleDockings: retainedShuttleTransition.dockings,
+          shuttleControl: retainedShuttleTransition.control,
+          retainedShuttles: retainedShuttleTransition.retained,
+        } : {}),
         ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
         ...terminalPatch,
         updatedAt: FieldValue.serverTimestamp(),
@@ -16603,6 +16715,9 @@ export const addShipDamage = onCall<{
     const revision = newlyDestroyed ? currentRevision + 1 : currentRevision;
     if (result.destroyed) {
       if (!destruction) throw new Error('Missing destruction transition.');
+      for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+        tx.delete(db.doc(`sessions/${change.sessionId}/shuttleDepartures/${shuttleId}`));
+      }
       if (destruction.createEvent) tx.set(db.doc(
         `sessions/${change.sessionId}/damageDraws/${destruction.eventId}`,
       ), {
@@ -18811,6 +18926,14 @@ export const runMaintenance = onCall<{
     const affectedPlayers = destruction && !currentDamage.destroyed
       ? await tx.get(db.collection(`sessions/${data.sessionId}/players`))
       : undefined;
+    const retainedShuttleTransition = destruction && !currentDamage.destroyed
+      ? retainedShuttleTransitionForDestruction(
+        snapshot,
+        affectedPlayers?.docs ?? [],
+        data.shipId,
+        serverTime,
+      )
+      : undefined;
     const populationThreshold = result.population !== population && populationTrackForShip(data.shipId)?.thresholds.includes(result.population);
     if ((unrest < 8 && result.unrest >= 8) || populationThreshold) {
       const instances = await tx.get(db.collection(`sessions/${data.sessionId}/gmInstances`));
@@ -18831,6 +18954,11 @@ export const runMaintenance = onCall<{
       [`shipSurvivors.${data.shipId}`]: result.population,
       shuttleCargo: result.cargo, shuttleFuelled: result.fuelled,
       unrestAlerts, populationAlerts,
+      ...(retainedShuttleTransition ? {
+        shuttleDockings: retainedShuttleTransition.dockings,
+        shuttleControl: retainedShuttleTransition.control,
+        retainedShuttles: retainedShuttleTransition.retained,
+      } : {}),
     };
     const terminalPatch = destruction && !currentDamage.destroyed
       ? totalFleetLossTerminalPatch(data.sessionId, snapshot, data.shipId, result.damage, serverTime)
@@ -18842,6 +18970,9 @@ export const runMaintenance = onCall<{
       `shipUnrest.${data.shipId}`,
       'unrestAlerts',
       'populationAlerts',
+      ...(retainedShuttleTransition
+        ? ['shuttleDockings', 'shuttleControl', 'retainedShuttles'] as const
+        : []),
     ] : [];
     entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch, immutableFields) });
     if (destruction && !currentDamage.destroyed) {
@@ -18852,6 +18983,9 @@ export const runMaintenance = onCall<{
         destruction.eventId,
         result.cycle.revision,
       );
+      for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+        tx.delete(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`));
+      }
     }
     const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
       ? player.get('activeConsoleRoleId') as string : null;

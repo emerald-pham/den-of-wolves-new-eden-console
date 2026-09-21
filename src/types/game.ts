@@ -556,6 +556,17 @@ export interface ShuttleControlEntry {
   readonly revision: number;
 }
 
+/** A surviving shuttle released from a destroyed host and held until redocking. */
+export interface RetainedShuttleEntry {
+  readonly status: 'retained';
+  readonly shuttleId: ShuttleId;
+  readonly ownerRoleId: RoleId;
+  readonly holderUid: PlayerId;
+  readonly destroyedHostShipId: VesselId;
+  readonly controlRevision: number;
+  readonly retainedAt: Timestamp;
+}
+
 /** A server-authorized departure awaiting the physical transit transition. */
 export interface ShuttleDepartureRequestState {
   readonly status: 'requested';
@@ -639,6 +650,7 @@ export interface GameSession {
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
+  readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
   readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;

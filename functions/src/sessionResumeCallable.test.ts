@@ -313,6 +313,31 @@ it('projects only public fleet ticker fields on resume', async () => {
   expect(ticker.current).not.toHaveProperty('internal');
 });
 
+it('does not project a retained Press shuttle as docked when legacy docking fields are absent', async () => {
+  prepareResume(
+    { status: 'open', holderUid: null },
+    {},
+    {
+      retainedShuttles: {
+        'snn-press-shuttle': {
+          status: 'retained', shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+          holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+          retainedAt: '2026-09-21T12:00:00.000Z',
+        },
+      },
+    },
+  );
+
+  const response = await resumeSession.run(request('s1')) as { session: Record<string, unknown> };
+  expect(response.session.retainedShuttles).toHaveProperty('snn-press-shuttle');
+  expect(response.session.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle' }),
+  ]));
+  expect(response.session.shuttleVisitLog).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle' }),
+  ]));
+});
+
 it('omits a valid-shaped turn entity when it disagrees with the current phase or configured limit', async () => {
   prepareResume(
     { status: 'open', holderUid: null },

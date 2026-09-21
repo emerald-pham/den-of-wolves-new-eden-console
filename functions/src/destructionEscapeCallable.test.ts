@@ -38,6 +38,8 @@ vi.mock('firebase-admin/firestore', () => ({
         if (ref.includes('/damageDraws/')) return snapshot({}, ref, false);
         return snapshot({
           activeVesselIds: ['aegis'],
+          shuttleDockings: [],
+          shuttleControl: {},
           shipDamage: mock.damage,
           shipSurvivors: { aegis: 1000 },
           shipUnrest: { aegis: 0 },

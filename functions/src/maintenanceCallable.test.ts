@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
   gmInstanceOwners: {} as Record<string, string>,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
@@ -67,6 +67,7 @@ vi.mock('firebase-admin/firestore', () => ({
               value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, snapshot);
             const updates: Array<readonly [string, Record<string, unknown>]> = [];
             const sets: Array<readonly [string, Record<string, unknown>]> = [];
+            const deletes: string[] = [];
             const document = (path: string) => {
               if (path.includes('/private/shipConsoleWriteGrant')) {
                 const instanceId = path.split('/').at(-3) ?? '';
@@ -151,9 +152,10 @@ vi.mock('firebase-admin/firestore', () => ({
               },
               update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
               set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+              delete: (path: string) => deletes.push(path),
             };
             const result = await callback(tx);
-            const writes = updates.length > 0 || sets.length > 0;
+            const writes = updates.length > 0 || sets.length > 0 || deletes.length > 0;
             if (writes) {
               race.attempts += 1;
               if (race.barrier && race.attempts === 1) await race.ready;
@@ -186,7 +188,8 @@ vi.mock('firebase-admin/firestore', () => ({
               else if (path.includes('/damageDraws/')) state.damageDraws[path] = fields;
               else if (path.includes('/events/')) state.events[path] = fields;
             }
-            if (updates.length > 0 || sets.length > 0) race.version += 1;
+            for (const path of deletes) mock.delete(path);
+            if (writes) race.version += 1;
             return result;
           }
           throw new Error('Mock transaction exceeded optimistic retry limit.');
@@ -216,6 +219,7 @@ vi.mock('firebase-admin/firestore', () => ({
           };
           const updates: Array<readonly [string, Record<string, unknown>]> = [];
           const sets: Array<readonly [string, Record<string, unknown>]> = [];
+          const deletes: string[] = [];
           const tx = {
             get: async (path: string) => {
               if (path.includes('/commandReceipts/')) {
@@ -300,6 +304,7 @@ vi.mock('firebase-admin/firestore', () => ({
             },
             update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
             set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+            delete: (path: string) => deletes.push(path),
           };
           const result = await callback(tx);
           race.attempts += 1;
@@ -326,12 +331,13 @@ vi.mock('firebase-admin/firestore', () => ({
             mock.set(path, fields);
             if (path.includes('/commandReceipts/')) mock.commandReceipts[path] = fields;
           }
+          for (const path of deletes) mock.delete(path);
           race.version += 1;
           return result;
         }
         throw new Error('Mock transaction exceeded optimistic retry limit.');
       }
-      const tx = { get: mock.get, update: mock.update, set: mock.set };
+      const tx = { get: mock.get, update: mock.update, set: mock.set, delete: mock.delete };
       if (mock.retry) await callback(tx);
       return callback(tx);
     },
@@ -413,6 +419,7 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('damage-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.delete.mockReset();
   mock.set.mockImplementation((path: string, fields: Record<string, unknown>) => {
     if (path.includes('/commandReceipts/')) mock.commandReceipts[path] = fields;
   });
@@ -654,11 +661,26 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
     session: {
       phase: 'active', currentTurn: 1,
       activeVesselIds: ['aegis'],
+      activeRoleIds: ['admiral', 'executive-officer', 'wing-commander'],
       maintenanceCycles: { aegis: { step: 4, revision: 4, results: {}, charges: [], refuelled: [] } },
       shipDamage: { aegis: { damagedSystemIds: exhaustedAegis, destroyed: false } },
       shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
       shipUnrest: { aegis: 10 }, shipSurvivors: { aegis: 2500 },
-      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      shuttleDockings: [
+        { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+        { shuttleId: 'pallas', shipId: 'aegis', dockedAt: 'SESSION START' },
+      ],
+      shuttleControl: {
+        starlight: {
+          shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'wing',
+          holderUid: 'wing', revision: 1,
+        },
+        pallas: {
+          shuttleId: 'pallas', ownerRoleId: 'executive-officer', ownerUid: 'xo',
+          holderUid: 'xo', revision: 0,
+        },
+      },
+      retainedShuttles: {}, shuttleCargo: { starlight: { food: 2 } }, shuttleFuelled: { starlight: true },
       smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
@@ -670,6 +692,18 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
     fields: {
       role: 'player', connected: true, assignedRoleId: 'admiral',
       activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    },
+  }, {
+    id: 'wing',
+    fields: {
+      role: 'player', connected: false, assignedRoleId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander', seatId: 'wing-commander',
+    },
+  }, {
+    id: 'xo',
+    fields: {
+      role: 'player', connected: true, assignedRoleId: 'executive-officer',
+      activeConsoleRoleId: 'executive-officer', seatId: 'executive-officer',
     },
   }];
   mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
@@ -698,8 +732,17 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
       type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 1,
     },
     shipSurvivors: { aegis: 2500 },
-    shuttleCargo: {},
-    shuttleFuelled: {},
+    shuttleDockings: [],
+    retainedShuttles: {
+      starlight: expect.objectContaining({
+        status: 'retained', holderUid: 'wing', destroyedHostShipId: 'aegis',
+      }),
+      pallas: expect.objectContaining({
+        status: 'retained', holderUid: 'xo', destroyedHostShipId: 'aegis',
+      }),
+    },
+    shuttleCargo: { starlight: { food: 2 } },
+    shuttleFuelled: { starlight: true },
     smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1/players/player-1', {
@@ -708,6 +751,10 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
     },
     activeConsoleRoleId: null,
   });
+  expect(mock.delete.mock.calls.map(([path]) => path).sort()).toEqual([
+    'sessions/s1/shuttleDepartures/pallas',
+    'sessions/s1/shuttleDepartures/starlight',
+  ]);
 });
 
 it('resolves Dione production atomically with authoritative resources, charge consumption, replay, and stale CAS', async () => {

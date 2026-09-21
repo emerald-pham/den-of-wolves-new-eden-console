@@ -1602,6 +1602,36 @@ function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl
   }));
 }
 
+function retainedShuttles(value: unknown): NonNullable<GameSession['retainedShuttles']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  const knownShuttleIds = new Set(SHUTTLECRAFT.map((shuttle) => shuttle.id));
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, entry]) => {
+    const raw = recordValue(entry);
+    const parsedShuttleId = parseEntityId('shuttle', shuttleId);
+    const ownerRoleId = raw ? parseEntityId('role', raw.ownerRoleId) : undefined;
+    const holderUid = raw ? parseEntityId('player', raw.holderUid) : undefined;
+    const destroyedHostShipId = raw ? parseEntityId('vessel', raw.destroyedHostShipId) : undefined;
+    if (!raw || !knownShuttleIds.has(shuttleId) || parsedShuttleId !== shuttleId ||
+        raw.status !== 'retained' || raw.shuttleId !== shuttleId || !ownerRoleId || !holderUid ||
+        !destroyedHostShipId || !Number.isSafeInteger(raw.controlRevision) ||
+        (raw.controlRevision as number) < 0 || typeof raw.retainedAt !== 'string' ||
+        !Number.isFinite(Date.parse(raw.retainedAt)) || Object.keys(raw).some((key) => ![
+          'status', 'shuttleId', 'ownerRoleId', 'holderUid', 'destroyedHostShipId',
+          'controlRevision', 'retainedAt',
+        ].includes(key))) return [];
+    return [[shuttleId, {
+      status: 'retained' as const,
+      shuttleId: parsedShuttleId,
+      ownerRoleId,
+      holderUid,
+      destroyedHostShipId,
+      controlRevision: raw.controlRevision as number,
+      retainedAt: raw.retainedAt,
+    }]];
+  }));
+}
+
 function shuttlePoint(value: unknown): ShuttleTransitState['originPosition'] | null {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['x', 'y', 'z'].includes(key)) ||
@@ -2035,11 +2065,13 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const admitted = voyageAdmission
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
     : [];
+  const retained = retainedShuttles(data.retainedShuttles);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
     hasActiveRoleIds ? activeRoleIds : undefined,
     playerCount,
+    Object.keys(retained),
   );
   return {
     id: sessionId,
@@ -2095,6 +2127,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),
+    retainedShuttles: retained,
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: shipResources(data.shipResources),
     shipDamage: shipDamage(data.shipDamage),

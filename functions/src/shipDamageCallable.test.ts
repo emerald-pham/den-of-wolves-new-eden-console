@@ -2,12 +2,15 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
   phase: 'active',
   activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'] as string[],
   currentTurn: 1,
   damage: {} as Record<string, unknown>, survivors: {} as Record<string, number>, retry: false,
+  shuttleDockings: [] as Array<{ shuttleId: string; shipId: string; dockedAt: string }>,
+  shuttleControl: {} as Record<string, unknown>, retainedShuttles: {} as Record<string, unknown>,
+  players: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
@@ -17,7 +20,7 @@ vi.mock('firebase-admin/firestore', () => ({
     doc: (path: string) => path,
     collection: (path: string) => path,
     runTransaction: async (callback: (tx: unknown) => unknown) => {
-      const tx = { get: mock.get, update: mock.update, set: mock.set };
+      const tx = { get: mock.get, update: mock.update, set: mock.set, delete: mock.delete };
       if (mock.retry) await callback(tx);
       return callback(tx);
     },
@@ -45,6 +48,10 @@ beforeEach(() => {
   mock.connected = true;
   mock.damage = {};
   mock.survivors = {};
+  mock.shuttleDockings = [];
+  mock.shuttleControl = {};
+  mock.retainedShuttles = {};
+  mock.players = [];
   mock.retry = false;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(3_100_000_000);
@@ -52,8 +59,15 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('damage-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.delete.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path === 'sessions/s1/players') return {
+      exists: true,
+      docs: mock.players.map(({ id, fields }) => ({
+        id, exists: true, get: (key: string) => fields[key],
+      })),
+    };
     if (path.includes('/private/shipConsoleWriteGrant')) {
       const instanceId = path.split('/').at(-3) ?? '';
       const fields = {
@@ -72,6 +86,9 @@ beforeEach(() => {
           phase: mock.phase,
           shipDamage: mock.damage,
           shipSurvivors: mock.survivors,
+          shuttleDockings: mock.shuttleDockings,
+          shuttleControl: mock.shuttleControl,
+          retainedShuttles: mock.retainedShuttles,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -227,8 +244,98 @@ it.each([
     type: 'ship-destroyed', shipId, podCapacity,
   }));
   for (const [, update] of mock.update.mock.calls) {
-    expect(Object.keys(update).some(key => /shipResources|shuttle/i.test(key))).toBe(false);
+    expect(Object.keys(update).some(key => /shipResources|shuttleCargo|shuttleFuelled/i.test(key)))
+      .toBe(false);
   }
+});
+
+it('retains holder-owned shuttles and removes their destroyed AEGIS dock atomically', async () => {
+  mock.damage = {
+    aegis: {
+      damagedSystemIds: SHIP_DAMAGE_DECKS.aegis.map(card => card.systemId),
+      destroyed: false,
+    },
+  };
+  mock.shuttleDockings = [
+    { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+    { shuttleId: 'pallas', shipId: 'aegis', dockedAt: 'SESSION START' },
+    { shuttleId: 'philia', shipId: 'dione', dockedAt: 'SESSION START' },
+  ];
+  mock.shuttleControl = {
+    starlight: {
+      shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'wing',
+      holderUid: 'holder', revision: 2,
+    },
+    pallas: {
+      shuttleId: 'pallas', ownerRoleId: 'executive-officer', ownerUid: 'xo',
+      holderUid: 'xo', revision: 0,
+    },
+    philia: {
+      shuttleId: 'philia', ownerRoleId: 'dione-engineer', ownerUid: 'engineer',
+      holderUid: 'engineer', revision: 0,
+    },
+  };
+  mock.players = [
+    { id: 'wing', fields: { role: 'player', connected: false, assignedRoleId: 'wing-commander' } },
+    { id: 'holder', fields: { role: 'player', connected: true, assignedRoleId: 'admiral' } },
+    { id: 'xo', fields: { role: 'player', connected: true, assignedRoleId: 'executive-officer' } },
+    { id: 'engineer', fields: { role: 'player', connected: true, assignedRoleId: 'dione-engineer' } },
+  ];
+
+  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({ destroyed: true });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    shuttleDockings: [
+      { shuttleId: 'philia', shipId: 'dione', dockedAt: 'SESSION START' },
+    ],
+    shuttleControl: mock.shuttleControl,
+    retainedShuttles: {
+      starlight: expect.objectContaining({
+        status: 'retained', shuttleId: 'starlight', holderUid: 'holder',
+        destroyedHostShipId: 'aegis', controlRevision: 2,
+      }),
+      pallas: expect.objectContaining({
+        status: 'retained', shuttleId: 'pallas', holderUid: 'xo',
+        destroyedHostShipId: 'aegis', controlRevision: 0,
+      }),
+    },
+  }));
+  expect(mock.delete.mock.calls.map(([path]) => path).sort()).toEqual([
+    'sessions/s1/shuttleDepartures/pallas',
+    'sessions/s1/shuttleDepartures/starlight',
+  ]);
+});
+
+it.each([
+  ['forged printed owner', { ownerRoleId: 'executive-officer', ownerUid: 'xo', holderUid: 'holder' }],
+  ['ghost holder', { ownerRoleId: 'wing-commander', ownerUid: 'wing', holderUid: 'ghost' }],
+] as const)('rejects %s before any destruction write', async (_name, custody) => {
+  mock.damage = {
+    aegis: {
+      damagedSystemIds: SHIP_DAMAGE_DECKS.aegis.map(card => card.systemId),
+      destroyed: false,
+    },
+  };
+  mock.shuttleDockings = [
+    { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+  ];
+  mock.shuttleControl = {
+    starlight: {
+      shuttleId: 'starlight', revision: 1, ...custody,
+    },
+  };
+  mock.players = [
+    { id: 'wing', fields: { role: 'player', connected: false, assignedRoleId: 'wing-commander' } },
+    { id: 'holder', fields: { role: 'player', connected: false, assignedRoleId: 'admiral' } },
+    { id: 'xo', fields: { role: 'player', connected: true, assignedRoleId: 'executive-officer' } },
+  ];
+
+  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'conflict' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
 });
 
 it('does not advance or emit another catastrophe when a destroyed ship is drawn again', async () => {

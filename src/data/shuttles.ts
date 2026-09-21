@@ -134,14 +134,18 @@ export function normalizeShuttleManifest(
   visits: readonly ShuttleVisit[] | undefined,
   activeRoleIds?: readonly string[],
   playerCount?: number,
+  retainedShuttleIds: readonly string[] = [],
 ): NormalizedShuttleManifest {
   const generatedDockings = initialShuttleDockingsForSession(activeRoleIds, playerCount);
   const generatedVisits = initialShuttleVisitsForDockings(generatedDockings);
-  const normalizedDockings = dockings === undefined ? [...generatedDockings] : [...dockings];
+  const retained = new Set(retainedShuttleIds);
+  const normalizedDockings = (dockings === undefined ? generatedDockings : dockings)
+    .filter((docking) => !retained.has(docking.shuttleId));
   const hadSnnDocking = normalizedDockings.some(
     (docking) => docking.shuttleId === 'snn-press-shuttle',
   );
-  const legacyDockingCanBeAdded = normalizedDockings.length > 0 && !hadSnnDocking;
+  const legacyDockingCanBeAdded = normalizedDockings.length > 0 && !hadSnnDocking &&
+    !retainedShuttleIds.includes('snn-press-shuttle');
   if (legacyDockingCanBeAdded) {
     const snnDocking = generatedDockings.find(
       (docking) => docking.shuttleId === 'snn-press-shuttle',
@@ -149,13 +153,14 @@ export function normalizeShuttleManifest(
     if (snnDocking) normalizedDockings.push(snnDocking);
   }
 
-  const normalizedVisits = visits === undefined
+  const normalizedVisits = (visits === undefined
     ? (dockings === undefined ? [...generatedVisits] : [])
-    : [...visits];
+    : [...visits]).filter((visit) => !retained.has(visit.shuttleId));
   const hadSnnVisit = normalizedVisits.some(
     (visit) => visit.shuttleId === 'snn-press-shuttle',
   );
-  if ((legacyDockingCanBeAdded || (dockings === undefined && !hadSnnDocking)) && !hadSnnVisit) {
+  if ((legacyDockingCanBeAdded || (dockings === undefined && !hadSnnDocking &&
+      !retained.has('snn-press-shuttle'))) && !hadSnnVisit) {
     const snnVisit = generatedVisits.find((visit) => visit.shuttleId === 'snn-press-shuttle');
     if (snnVisit) normalizedVisits.push(snnVisit);
   }
@@ -167,6 +172,7 @@ interface ShuttleSessionState {
   readonly shuttleVisitLog?: readonly ShuttleVisit[];
   readonly activeRoleIds?: readonly string[];
   readonly playerCount?: number;
+  readonly retainedShuttles?: Readonly<Record<string, unknown>>;
 }
 
 export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) {
@@ -175,6 +181,7 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
     session.shuttleVisitLog,
     session.activeRoleIds,
     session.playerCount,
+    Object.keys(session.retainedShuttles ?? {}),
   );
   const dockings = manifest.dockings;
   const visits = manifest.visits;
@@ -200,6 +207,7 @@ export function dockingForShuttle(session: ShuttleSessionState, shuttleId: strin
     session.shuttleVisitLog,
     session.activeRoleIds,
     session.playerCount,
+    Object.keys(session.retainedShuttles ?? {}),
   ).dockings
     .find((docking) => docking.shuttleId === shuttleId);
 }

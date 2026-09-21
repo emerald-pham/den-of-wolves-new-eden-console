@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['140f'],
+    implementationProgress: {
+      completed: 378, total: 751, percentage: '50.33%',
+      done: 378, partial: 17, active: 0, missing: 356,
+    },
+    changes: [
+      'Shuttles parked aboard a ship now survive its destruction in the custody of their current holder.',
+      'Destroyed-host docks and pending departures are removed atomically while shuttle cargo, fuel, control, and visit history remain intact.',
+      'Retained craft stay explicitly undocked until they have a legal living-ship destination, so the server never invents a replacement host.',
+      '378 of 751 planned items are complete (50.33%).',
+    ],
+  },
+  {
+    version: '0.4.69',
     implementationPrompts: ['106c'],
     implementationProgress: {
       completed: 377, total: 751, percentage: '50.20%',

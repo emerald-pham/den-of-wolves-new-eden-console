@@ -325,6 +325,40 @@ it('projects only the public fleet ticker fields on join', async () => {
   expect(ticker.current).not.toHaveProperty('internal');
 });
 
+it('does not project a retained Press shuttle as docked when legacy docking fields are absent', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one', phase: 'active', currentTurn: 1,
+      retainedShuttles: {
+        'snn-press-shuttle': {
+          status: 'retained', shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+          holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+          retainedAt: '2026-09-21T12:00:00.000Z',
+        },
+      },
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
+  expect(response.session.retainedShuttles).toHaveProperty('snn-press-shuttle');
+  expect(response.session.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle' }),
+  ]));
+  expect(response.session.shuttleVisitLog).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle' }),
+  ]));
+});
+
 it('recovers an active legacy press dispatch from an old authoritative drain on join', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);

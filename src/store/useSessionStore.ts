@@ -543,6 +543,7 @@ function normalizePersistedSession(session: GameSession | null | undefined): Gam
     session.shuttleVisitLog,
     session.activeRoleIds,
     session.playerCount,
+    Object.keys(session.retainedShuttles ?? {}),
   );
   return {
     ...stripGmNavigationProjection(session),

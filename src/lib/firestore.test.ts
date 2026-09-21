@@ -96,6 +96,37 @@ it('hydrates only canonical shuttle-control entries from the member session proj
   });
 });
 
+it('hydrates retained shuttle custody without resurrecting its destroyed-host docking', () => {
+  const session = sessionFrom('retained-shuttle', {
+    ...sessionData(20),
+    activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    shuttleDockings: [
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+    ],
+    retainedShuttles: {
+      'snn-press-shuttle': {
+        status: 'retained', shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+        holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+        retainedAt: '2026-09-21T09:30:00.000Z',
+      },
+      forged: {
+        status: 'retained', shuttleId: 'forged', ownerRoleId: 'press-officer',
+        holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+        retainedAt: '2026-09-21T09:30:00.000Z',
+      },
+    },
+  });
+  expect(session.retainedShuttles).toEqual({
+    'snn-press-shuttle': {
+      status: 'retained', shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+      holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+      retainedAt: '2026-09-21T09:30:00.000Z',
+    },
+  });
+  expect(session.shuttleDockings?.some((docking) =>
+    docking.shuttleId === 'snn-press-shuttle')).toBe(false);
+});
+
 it('hydrates only a canonical group-audienced shuttle departure document', () => {
   const valid = {
     status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',

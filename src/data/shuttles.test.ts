@@ -463,6 +463,26 @@ describe('fleet shuttlebays', () => {
     ]));
   });
 
+  it('does not resurrect a retained Press shuttle at its destroyed legacy host', () => {
+    const survivingDocking = {
+      shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START',
+    } as const;
+    const result = normalizeShuttleManifest(
+      [survivingDocking], [], recommendedRoleIds(20), 20, ['snn-press-shuttle'],
+    );
+    expect(result.dockings).toEqual([survivingDocking]);
+    expect(result.dockings.some((docking) =>
+      docking.shuttleId === 'snn-press-shuttle')).toBe(false);
+  });
+
+  it('does not generate docking or visit history for a retained Press shuttle when legacy fields are absent', () => {
+    const result = normalizeShuttleManifest(
+      undefined, undefined, recommendedRoleIds(20), 20, ['snn-press-shuttle'],
+    );
+    expect(result.dockings.some((entry) => entry.shuttleId === 'snn-press-shuttle')).toBe(false);
+    expect(result.visits.some((entry) => entry.shuttleId === 'snn-press-shuttle')).toBe(false);
+  });
+
   it('uses the active roster over a stale count when hydrating missing SNN history', () => {
     const oldDocking = {
       shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START',
