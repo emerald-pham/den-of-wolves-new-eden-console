@@ -70,6 +70,18 @@ describe('role-owned craft composition', () => {
       .toEqual(['condor']);
   });
 
+  it('keeps Endeavour owned by the Shepherd Scientist and off the Wolf battle table', () => {
+    expect(ownedCraftIdsForRole('shepherd-scientist', ['shepherd-scientist']))
+      .toEqual(['endeavour']);
+    expect(ROLE_OWNED_CRAFT_CATALOG.find(({ id }) => id === 'endeavour')).toEqual({
+      id: 'endeavour',
+      kind: 'shuttle',
+      ownerRoleId: 'shepherd-scientist',
+      enabledMode: 'standard',
+      wolfAttackRole: 'park-only',
+    });
+  });
+
   it('keeps Blacksmith owned by the Icebreaker Engineer', () => {
     expect(ownedCraftIdsForRole('icebreaker-engineer', ['icebreaker-engineer']))
       .toEqual(['blacksmith']);

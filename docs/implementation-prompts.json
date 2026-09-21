@@ -1754,8 +1754,8 @@
     {
       "direction": "267 -> 161;162;165",
       "id": "E-AUDIT-267",
-      "language": "Endeavour registration consumes vessel and console metadata.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Endeavour registration preserves the Shepherd Scientist owner, Shepherd initial dock, unlimited-range one-system scout, two-per-cycle upgrades paid by each target ship, two additional upgrades while fuelled, no cargo-transfer entitlement, and +3 science mission bonus; route and server-manifest proof present the configuration without claiming later mechanic execution.",
+      "source": "src/data/vessels/endeavour.ts; src/data/shuttles.ts; functions/src/craftOwnership.ts; functions/src/shuttlecraft.ts; src/data/shuttles.test.ts; functions/src/craftOwnership.test.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Endeavour derivative",
       "type": "hard_prompt"
     },
     {
@@ -12603,7 +12603,7 @@
         "acceptance": "unlimited scouting, upgrade cadence, fuel exception, mission bonuses, owner, dock, and route are distinct.",
         "title": "Register Endeavour completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Closed as a source-aligned registration and proof update. The canonical Endeavour definition preserves the Shepherd Scientist owner, SESSION START Shepherd dock, one-system-per-cycle scouting regardless of range, two console upgrades per cycle paid by each target ship with two additional upgrades when fuelled, no cargo-transfer entitlement, and +3 science away-mission bonus. Focused data, route, ownership, and server-manifest tests verify the registration and keyboard return to the Shepherd Scientist console. Authorized routed Endeavour derivative evidence establishes these facts; no primary Endeavour PDF inspection is claimed. Later research tracks and cadence, scout entitlements and resolution, field-upgrade mutation, and away-mission resolution remain owned by their dedicated prompts.",
       "evidenceIds": "E-AUDIT-267",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -12615,7 +12615,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

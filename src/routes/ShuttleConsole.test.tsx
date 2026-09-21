@@ -378,6 +378,43 @@ it('opens a printed shipboard shuttle for its owning role and returns by keyboar
   expect(screen.getByText('Quellon Explorer parent')).toBeInTheDocument();
 });
 
+it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['shepherd-scientist'],
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'shepherd-scientist' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/endeavour']}>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/shepherd/roles/shepherd-scientist" element={<p>Shepherd Scientist parent</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'R.S.S. Endeavour' })).toBeInTheDocument();
+  expect(screen.getByText('Scientist // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*shepherd/i,
+  );
+  expect(screen.getByText(/one system each cycle.*regardless of range/i)).toBeInTheDocument();
+  expect(screen.getByText(/up to 2 consoles per cycle.*target ship.*material cost.*fuelled.*2 additional/i)).toBeInTheDocument();
+  expect(screen.getByText(/\+3 to science checks/i)).toBeInTheDocument();
+  expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
+
+  const back = screen.getByRole('link', { name: /back to shepherd scientist console/i });
+  expect(back).toHaveAttribute('href', '/ships/shepherd/roles/shepherd-scientist');
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Shepherd Scientist parent')).toBeInTheDocument();
+});
+
 it('opens Condor on the Quellon Engineer route with its recharge and cargo envelope', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();

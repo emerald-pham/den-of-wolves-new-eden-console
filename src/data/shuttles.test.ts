@@ -136,6 +136,33 @@ describe('fleet shuttlebays', () => {
     ]);
   });
 
+  it('keeps Endeavour unlimited scouting, upgrade cadence, fuel exception, mission bonus, ownership, and docking distinct', () => {
+    const endeavour = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'endeavour');
+    expect(endeavour).toMatchObject({
+      captainRoleId: 'shepherd-scientist',
+      initialDocking: { shipId: 'shepherd', dockedAt: 'SESSION START' },
+    });
+    expect(endeavour).not.toHaveProperty('cargoTransfer');
+    expect(endeavour).not.toHaveProperty('cargoTransferTypes');
+    expect(endeavour?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Long-range sensors',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/one system each cycle.*regardless of range/i),
+      }),
+      expect.objectContaining({
+        name: 'Upgrades',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/up to 2 consoles per cycle.*target ship.*material cost.*fuelled.*2 additional/i),
+      }),
+      expect.objectContaining({
+        name: 'Away missions',
+        phase: 'Away mission',
+        effect: expect.stringMatching(/\+3 to science checks/i),
+      }),
+    ]);
+  });
+
   it('keeps Condor printed recharge and full cargo distinct from Black Sheep', () => {
     const condor = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'condor');
     const blackSheep = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'black-sheep');
