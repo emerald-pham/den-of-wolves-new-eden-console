@@ -2270,6 +2270,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "328 -> 321;327;006;329;330;331;332",
+      "id": "E-328-PRIVATE-SCOUT-RESULT",
+      "language": "A strict server projector canonicalizes one session-bound scout result and one coordinate-matched system fact, strips all non-schema fields by rejecting malformed records, and emits the immutable result only for the same active connected requester or an active connected GM backed by that viewer’s owned same-session facilitator instance and the canonical presence-lease policy. Unrelated or cross-session members, stale, missing or malformed leases, foreign facilitator instances, unknown scout identities, unprinted coordinates, coordinate mismatches, invalid codes or titles, and attempted full-chart siblings fail closed with no result shape or location hint. Chart resolution, storage, auditing, discovery history, and presentation remain separate prompts.",
+      "source": "functions/src/scoutResultProjection.ts; functions/src/scoutResultProjection.test.ts; functions/src/gameSetup.ts isLiveSetupGm; functions/src/gameSetup.test.ts; functions/src/scoutEntitlements.ts; functions/src/starChartGraph.ts; focused 115-test projection/lease/entitlement/current-authority/chart suite; Functions TypeScript build; focused ESLint",
+      "type": "evidence / server-policy / private-projection / requester-only / live-facilitator / one-system-bound / fail-closed / immutable / non-feature contract"
+    },
+    {
       "direction": "329 -> 283;328",
       "id": "E-AUDIT-329",
       "language": "Facilitator reveal consumes chart lookup and private scout result state.",
@@ -14352,8 +14359,8 @@
         "acceptance": "only the requester and permitted facilitator readers receive the requested system fact.",
         "title": "Deliver scout results privately."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-328",
+      "description": "The server-side scout-result projector accepts exactly one session-bound result containing the request identity, current-cycle source, target coordinate, and one code/title fact whose coordinate must match the request. It returns that fact only to the active connected requester in the same session or to an active connected GM whose same-session facilitator instance belongs to the viewer and passes the canonical presence-lease policy at the server clock. Other players, cross-session viewers, inactive or disconnected requesters, GMs without a valid owned instance, foreign-session or stale/malformed leases, malformed identities, unknown sources or coordinates, mismatched facts, and payloads carrying extra organiser-chart fields receive no result. Returned records and nested facts are immutable. Chart lookup, facilitator reveal, persistence, audit, discovery updates, and UI remain downstream.",
+      "evidenceIds": "E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;327;006",
@@ -14364,7 +14371,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
