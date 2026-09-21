@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [363],
+    implementationProgress: {
+      completed: 368, total: 751, percentage: '49.00%',
+      done: 368, partial: 17, active: 0, missing: 366,
+    },
+    changes: [
+      'Handing off or reclaiming a shuttle now moves its authoritative dock to the current holder’s ship in the same server transaction.',
+      'Press and Joint Engineering holders resolve from their craft’s current host, while replacement roles resolve from their current assigned vessel.',
+      'Ambiguous, inactive, escaping, duplicate, or craft-restricted destinations fail safely before control or docking changes.',
+      '368 of 751 planned items are complete (49.00%).',
+    ],
+  },
+  {
+    version: '0.4.61',
     implementationPrompts: [362],
     implementationProgress: {
       completed: 367, total: 751, percentage: '48.87%',

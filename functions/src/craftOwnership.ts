@@ -121,7 +121,7 @@ const UNION_CRAFT_HOSTS: Readonly<Record<string, readonly string[]>> = {
   ally: ['shepherd', 'icebreaker'],
 };
 
-function craftHostIsAllowed(craftId: string, shipId: string | null | undefined): boolean {
+export function shuttleHostIsAllowed(craftId: string, shipId: string | null | undefined): boolean {
   if (!shipId) return false;
   const restrictedHosts = UNION_CRAFT_HOSTS[craftId];
   return restrictedHosts === undefined || restrictedHosts.includes(shipId);
@@ -144,7 +144,7 @@ export function craftStartingManifestForSetup(
   }
   const entries = roleOwnedCraftForRoles(activeRoleIds)
     .filter((craft) => craft.enabledMode === 'standard' ||
-      craftHostIsAllowed(craft.id, dockingHosts.get(craft.id)))
+      shuttleHostIsAllowed(craft.id, dockingHosts.get(craft.id)))
     .map((craft) => ({
     ...craft,
     startingHostId: craft.kind === 'fighter-wing'
@@ -204,7 +204,7 @@ export function shuttleDockingsMatchRoleOwnedCraft(
 ): boolean {
   if (!shuttleDockingsAreKnownAndUnique(shuttleDockings)) return false;
   if (shuttleDockings.some((docking) =>
-    !craftHostIsAllowed(docking.shuttleId, docking.shipId))) return false;
+    !shuttleHostIsAllowed(docking.shuttleId, docking.shipId))) return false;
   const seen = new Set(shuttleDockings.map((docking) => docking.shuttleId));
   const expected = new Set(roleOwnedCraftForRoles(activeRoleIds)
     .filter((craft) => craft.kind === 'shuttle')

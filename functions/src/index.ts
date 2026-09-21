@@ -238,6 +238,7 @@ import {
   shuttleDockingsAreParked,
   shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
+import { resolveHolderBasedDocking } from './shuttleDocking';
 import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
@@ -4763,6 +4764,7 @@ export const transferShuttleControlCommand = onCall<{
   expectedRevision?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
+  const occurredAt = new Date().toISOString();
   const raw = request.data;
   const allowedKeys = new Set([
     'sessionId', 'requestId', 'instanceId', 'shuttleId', 'action', 'targetUid', 'expectedRevision',
@@ -4891,6 +4893,22 @@ export const transferShuttleControlCommand = onCall<{
     // or facilitator after the phase or recipient presence changes. The
     // committed reply contains no hidden state and must remain transport-safe.
     requireActiveGameplayPhase(session);
+    const activeRoleIds = configuredRoleIds(session);
+    const rawDockings = session.get('shuttleDockings');
+    const rawActiveVesselIds = session.get('activeVesselIds');
+    if (!Array.isArray(rawDockings) ||
+        !Array.isArray(rawActiveVesselIds) || rawActiveVesselIds.length === 0 ||
+        rawActiveVesselIds.some((shipId) =>
+          typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        new Set(rawActiveVesselIds).size !== rawActiveVesselIds.length ||
+        !shuttleDockingsAreParked(rawDockings, rawActiveVesselIds) ||
+        !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings)) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative shuttle manifest is unavailable.',
+        'conflict',
+      );
+    }
     const stored = session.get('shuttleControl');
     let control = stored === undefined ? null : parseShuttleControl(stored);
     if (stored !== undefined && !control) {
@@ -4901,22 +4919,6 @@ export const transferShuttleControlCommand = onCall<{
       );
     }
     if (!control?.[data.shuttleId]) {
-      const activeRoleIds = configuredRoleIds(session);
-      const rawDockings = session.get('shuttleDockings');
-      const rawActiveVesselIds = session.get('activeVesselIds');
-      if (!Array.isArray(rawDockings) ||
-          !Array.isArray(rawActiveVesselIds) || rawActiveVesselIds.length === 0 ||
-          rawActiveVesselIds.some((shipId) =>
-            typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
-          new Set(rawActiveVesselIds).size !== rawActiveVesselIds.length ||
-          !shuttleDockingsAreParked(rawDockings, rawActiveVesselIds) ||
-          !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings)) {
-        throw commandError(
-          'failed-precondition',
-          'The authoritative shuttle manifest is unavailable.',
-          'conflict',
-        );
-      }
       const dockedShuttleIds = new Set(rawDockings.map((docking) => docking.shuttleId));
       const enabledCraft = roleOwnedCraftForRoles(activeRoleIds)
         .filter((craft) => craft.kind === 'shuttle' && dockedShuttleIds.has(craft.id));
@@ -4955,6 +4957,29 @@ export const transferShuttleControlCommand = onCall<{
         'conflict',
       );
     }
+    let docking;
+    try {
+      docking = resolveHolderBasedDocking({
+        shuttleId: data.shuttleId,
+        holder: {
+          uid: target.id,
+          role: 'player',
+          assignedRoleId: target.get('assignedRoleId'),
+          activeConsoleRoleId: target.get('activeConsoleRoleId'),
+          replacementRoleId: target.get('replacementRoleId'),
+          escapeState: target.get('escapeState'),
+        },
+        dockings: rawDockings,
+        activeVesselIds: rawActiveVesselIds,
+        occurredAt,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Holder-based shuttle docking failed.',
+        'conflict',
+      );
+    }
     const reply: ShuttleControlReply = {
       status: 'committed',
       sessionId: data.sessionId,
@@ -4966,7 +4991,10 @@ export const transferShuttleControlCommand = onCall<{
       ownerUid,
       revision: next.revision,
     };
-    tx.update(sessionRef, { ['shuttleControl.' + data.shuttleId]: next });
+    tx.update(sessionRef, {
+      ['shuttleControl.' + data.shuttleId]: next,
+      shuttleDockings: docking.dockings,
+    });
     tx.set(auditRef, {
       type: 'shuttle-control-audit',
       sessionId: data.sessionId,
@@ -4978,6 +5006,8 @@ export const transferShuttleControlCommand = onCall<{
       ownerUid,
       previousHolderUid: current.holderUid,
       holderUid: next.holderUid,
+      previousHostShipId: docking.previousHostShipId,
+      hostShipId: docking.hostShipId,
       previousRevision: current.revision,
       revision: next.revision,
       createdAt: FieldValue.serverTimestamp(),

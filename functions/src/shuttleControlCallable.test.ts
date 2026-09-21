@@ -100,6 +100,12 @@ beforeEach(() => {
   put('sessions/s1', {
     phase: 'active',
     activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    activeVesselIds: ['aegis', 'icebreaker'],
+    shuttleDockings: [
+      { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+      { shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'SESSION START' },
+    ],
     shuttleControl: {
       starlight: {
         shuttleId: 'starlight',
@@ -142,9 +148,13 @@ it('commits one owner handoff, writes an audit, and replays without another muta
   });
   expect((mock.documents.get('sessions/s1')?.shuttleControl as Fields).starlight)
     .toMatchObject({ holderUid: 'crew', revision: 1 });
+  expect(mock.documents.get('sessions/s1')?.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker' }),
+  ]));
   expect(mock.documents.get('sessions/s1/shuttleControlAudit/handoff-1')).toMatchObject({
     actorUid: 'wing', actorRole: 'printed-owner',
     previousHolderUid: 'wing', holderUid: 'crew', previousRevision: 0, revision: 1,
+    previousHostShipId: 'aegis', hostShipId: 'icebreaker',
   });
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   const receipt = mock.documents.get('sessions/s1/shuttleControlRequests/handoff-1')!;
@@ -243,6 +253,18 @@ it('lets the printed owner reclaim and denies the recipient from forwarding', as
   }))).resolves.toMatchObject({
     status: 'committed', holderUid: 'wing', revision: 2,
   });
+  expect(mock.documents.get('sessions/s1')?.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'aegis' }),
+  ]));
+});
+
+it('rejects a handoff when the recipient has no unique active ship location', async () => {
+  mock.documents.get('sessions/s1/players/crew')!.assignedRoleId = null;
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: 'locationless',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/role location/i) });
+  expect((mock.documents.get('sessions/s1')?.shuttleControl as Fields).starlight)
+    .toMatchObject({ holderUid: 'wing', revision: 0 });
 });
 
 it('rejects stale, cross-group, disconnected, and conflicting request-id commands without mutation', async () => {
