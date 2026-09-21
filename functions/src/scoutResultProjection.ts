@@ -88,8 +88,13 @@ export function parsePrivateScoutResult(value: unknown): PrivateScoutResult | nu
   });
 }
 
-function isPermittedFacilitator(viewer: ScoutResultViewerAuthority): boolean {
-  if (viewer.role !== 'gm' || !isRecord(viewer.facilitatorInstance) ||
+export function isPermittedScoutFacilitator(
+  viewer: ScoutResultViewerAuthority,
+  sessionId: string,
+): boolean {
+  if (!boundedIdentifier(viewer.sessionId) || viewer.sessionId !== sessionId ||
+      !boundedIdentifier(viewer.uid) || viewer.role !== 'gm' || viewer.active !== true ||
+      viewer.connected !== true || !isRecord(viewer.facilitatorInstance) ||
       !hasExactKeys(viewer.facilitatorInstance, [
         'id', 'sessionId', 'uid', 'connected', 'lastSeenAt',
       ]) || !boundedIdentifier(viewer.facilitatorInstance.id) ||
@@ -120,5 +125,5 @@ export function projectPrivateScoutResult(
       viewer.active !== true ||
       viewer.connected !== true) return null;
   const requester = viewer.role === 'player' && viewer.uid === result.requesterUid;
-  return requester || isPermittedFacilitator(viewer) ? result : null;
+  return requester || isPermittedScoutFacilitator(viewer, result.sessionId) ? result : null;
 }

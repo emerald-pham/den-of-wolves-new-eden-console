@@ -2284,6 +2284,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "329 -> 283;328;321;327",
+      "id": "E-329-FACILITATOR-SCOUT-REVEAL",
+      "language": "A pure server resolver validates one exact session-bound scout-resolution envelope, derives the canonical A/B/C selection only from a matching active session authority with chartSelectionLocked true, reuses the P328 same-session canonical GM lease authority, and looks up only the requested coordinate through the organiser-only catalog. It returns one immutable private fact containing coordinate, code, and full title without chart identity, the organiser map, summary, candidate flag, or unrelated coordinates. Client chart overrides, unlocked or foreign-session chart contexts, extra authority fields, malformed requests, unknown scout identities, invalid cycles, unknown or unlabelled coordinates, non-GMs, foreign instances, wrong owners, and stale or absent leases fail closed before lookup output.",
+      "source": "functions/src/scoutChartResult.ts; functions/src/scoutChartResult.test.ts; functions/src/scoutResultProjection.ts; functions/src/scoutResultProjection.test.ts; functions/src/starChartLookup.ts; functions/src/gameSetup.ts isLiveSetupGm; Prompt 282 locked-session chart authority; focused 129-test reveal/projection/lease/entitlement/chart suite; Functions TypeScript build; focused ESLint",
+      "type": "evidence / server-policy / organiser-only-lookup / one-system-result / live-facilitator / chart-redaction / fail-closed / immutable / non-feature contract"
+    },
+    {
       "direction": "330 -> 313;328",
       "id": "E-AUDIT-330",
       "language": "Discovery notes consume history and private scout results.",
@@ -14382,8 +14389,8 @@
         "acceptance": "the facilitator resolves the selected booklet entry without publishing the organiser chart.",
         "title": "Reveal a chart result as facilitator."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-329",
+      "description": "The server-side facilitator resolver accepts one exact session-bound scout-resolution request plus the same active session’s locked chart authority and an active connected GM backed by that viewer’s owned same-session facilitator instance under the canonical presence lease. It derives the A/B/C choice only from that exact active, chart-locked session context, looks up only the requested printed coordinate, and emits the P328 immutable private result containing its coordinate, chart code, and full site title. A client chart override, an unlocked or foreign-session chart context, the selected chart id, full organiser site map, summaries, candidate flags, and unrelated locations never enter the result. Unknown or extra authority fields, malformed requests, invalid cycles, unprinted or unlabelled coordinates, non-GMs, wrong instances, and stale leases fail closed. Transactional request storage, result persistence, audit, discovery updates, and UI remain downstream.",
+      "evidenceIds": "E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "283;328",
@@ -14394,7 +14401,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
