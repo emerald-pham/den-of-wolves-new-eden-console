@@ -265,6 +265,8 @@ import {
 import {
   SERVICE_SHUTTLE_IDS,
   parseServiceShuttleRecharges,
+  serviceRechargeResourceState,
+  serviceRechargeUpgradeState,
   resolveServiceShuttleRecharge,
   serviceRechargeDamageState,
 } from './serviceShuttleRecharge';
@@ -5355,6 +5357,8 @@ type ServiceShuttleRechargeReply = Readonly<{
   cycle: number;
   maintenanceRevision: number;
   rechargeRevision: number;
+  immediate: boolean;
+  message: string;
 }>;
 
 function isServiceShuttleRechargeReply(
@@ -5368,19 +5372,22 @@ function isServiceShuttleRechargeReply(
     typeof value.hostShipId === 'string' && typeof value.consoleId === 'string' &&
     Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
     Number.isSafeInteger(value.maintenanceRevision) && (value.maintenanceRevision as number) >= 1 &&
-    Number.isSafeInteger(value.rechargeRevision) && (value.rechargeRevision as number) >= 1;
+    Number.isSafeInteger(value.rechargeRevision) && (value.rechargeRevision as number) >= 1 &&
+    typeof value.immediate === 'boolean' && typeof value.message === 'string';
 }
 
-/** Add one service-shuttle charge to the current docked host without resolving its effect. */
+/** Add one service-shuttle charge and resolve any immediate production effect atomically. */
 export const rechargeHostConsoleFromShuttle = onCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; consoleId?: unknown;
   expectedControlRevision?: unknown; expectedMaintenanceRevision?: unknown; expectedCycle?: unknown;
+  productionScrap?: unknown; productionOreAmount?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
     'sessionId', 'requestId', 'shuttleId', 'consoleId',
     'expectedControlRevision', 'expectedMaintenanceRevision', 'expectedCycle',
+    'productionScrap', 'productionOreAmount',
   ]);
   if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
       typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
@@ -5390,12 +5397,16 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       typeof raw.consoleId !== 'string' || !/^[\w-]{1,128}$/.test(raw.consoleId) ||
       !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
       !Number.isSafeInteger(raw.expectedMaintenanceRevision) || (raw.expectedMaintenanceRevision as number) < 0 ||
-      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1) {
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      (raw.productionScrap !== undefined && typeof raw.productionScrap !== 'boolean') ||
+      (raw.productionOreAmount !== undefined &&
+        (!Number.isSafeInteger(raw.productionOreAmount) || (raw.productionOreAmount as number) < 1))) {
     throw new HttpsError('invalid-argument', 'Invalid service-shuttle recharge request.');
   }
   const data = raw as {
     sessionId: string; requestId: string; shuttleId: string; consoleId: string;
     expectedControlRevision: number; expectedMaintenanceRevision: number; expectedCycle: number;
+    productionScrap?: boolean; productionOreAmount?: number;
   };
   const fingerprint: CommandFingerprint = {
     action: 'service-shuttle-recharge', sessionId: data.sessionId, requestId: data.requestId,
@@ -5403,6 +5414,8 @@ export const rechargeHostConsoleFromShuttle = onCall<{
     payload: {
       shuttleId: data.shuttleId, consoleId: data.consoleId,
       expectedControlRevision: data.expectedControlRevision, expectedCycle: data.expectedCycle,
+      productionScrap: data.productionScrap ?? null,
+      productionOreAmount: data.productionOreAmount ?? null,
     },
   };
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
@@ -5469,6 +5482,10 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       }
       const hostDamage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
       if (!hostDamage) throw new Error('The docked host damage state is unavailable.');
+      const hostResources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
+      if (!hostResources) throw new Error('The docked host resource ledger is unavailable.');
+      const hostUpgrades = serviceRechargeUpgradeState(session.get('shipUpgrades'), hostShipId);
+      if (!hostUpgrades) throw new Error('The docked host upgrade state is unavailable.');
       result = resolveServiceShuttleRecharge({
         actorUid: uid, shuttleId: data.shuttleId, targetConsoleId: data.consoleId,
         currentCycle: currentCycle as number,
@@ -5479,6 +5496,15 @@ export const rechargeHostConsoleFromShuttle = onCall<{
         maintenanceCycle: cycles[hostShipId],
         damage: hostDamage,
         rechargeLedger,
+        resources: hostResources,
+        unrest: shipUnrest(session.get('shipUnrest'))[hostShipId] ?? 0,
+        population: populationForShip(hostShipId, session.get('shipSurvivors')) ?? 0,
+        cargo: isRecord(session.get('shuttleCargo'))
+          ? session.get('shuttleCargo') as Record<string, Record<string, number>> : {},
+        upgrades: hostUpgrades,
+        now: new Date().toISOString(),
+        productionScrap: data.productionScrap,
+        productionOreAmount: data.productionOreAmount,
       });
     } catch (cause) {
       throw commandError(
@@ -5492,10 +5518,12 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       shuttleId: data.shuttleId, hostShipId: result.hostShipId, consoleId: data.consoleId,
       cycle: currentCycle as number, maintenanceRevision: result.maintenanceCycle.revision,
       rechargeRevision: result.ledger.revision,
+      immediate: result.immediate, message: result.message,
     };
     tx.update(sessionRef, {
       [`maintenanceCycles.${result.hostShipId}`]: result.maintenanceCycle,
       [`serviceShuttleRecharges.${data.shuttleId}`]: result.ledger,
+      [`shipResources.${result.hostShipId}`]: result.resources,
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(eventRef, buildPrivacySafeEventRecord({
@@ -5509,6 +5537,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       }),
       payload: {
         shuttleId: data.shuttleId, hostShipId: result.hostShipId, consoleId: data.consoleId,
+        immediate: result.immediate, message: result.message,
       },
       createdAt: FieldValue.serverTimestamp(),
     }));

@@ -8,12 +8,14 @@ describe('buildPrivacySafeEventRecord', () => {
       type: 'service-shuttle-recharge',
       payload: {
         shuttleId: 'condor', hostShipId: 'quellon', consoleId: 'hydroponics',
+        immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
         expectedMaintenanceRevision: 7, fingerprint: 'secret',
       },
       createdAt: 'server-time',
     })).toEqual({
       type: 'service-shuttle-recharge', shuttleId: 'condor', hostShipId: 'quellon',
-      consoleId: 'hydroponics', createdAt: 'server-time',
+      consoleId: 'hydroponics', immediate: true,
+      message: 'Hydroponics: spent 1 water, generated 3 food.', createdAt: 'server-time',
     });
   });
 

@@ -1,8 +1,16 @@
-import { chargeableConsoleIds, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
+import {
+  chargeableConsoleIds,
+  parseMaintenanceCycle,
+  resolveMaintenanceProduction,
+  type MaintenanceCycle,
+  type MaintenanceInput,
+} from './maintenance';
+import { consoleMetadataFor } from './consoleMetadata';
 import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import type { ShuttleControlEntry } from './shuttleControl';
 import type { AuthoritativeShuttleDocking } from './shuttleDocking';
-import { isResourceShipId } from './resources';
+import { INITIAL_SHIP_RESOURCES, isResourceShipId } from './resources';
+import type { ShipResourceInventory } from './resources';
 
 export const SERVICE_SHUTTLE_IDS = ['black-sheep', 'condor', 'wobbly'] as const;
 export type ServiceShuttleId = typeof SERVICE_SHUTTLE_IDS[number];
@@ -12,6 +20,45 @@ export interface ServiceShuttleRechargeEntry {
   readonly hostShipId: string;
   readonly consoleId: string;
   readonly revision: number;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+/** Mutation-safe parser: unlike the read projection, it never supplies starting stock. */
+export function serviceRechargeResourceState(
+  value: unknown,
+  hostShipId: string,
+): ShipResourceInventory | null {
+  const root = record(value);
+  const initial = INITIAL_SHIP_RESOURCES[hostShipId];
+  const raw = root && record(root[hostShipId]);
+  if (!root || !initial || !raw) return null;
+  const expectedKeys = Object.keys(initial);
+  if (Object.keys(raw).length !== expectedKeys.length ||
+      Object.keys(raw).some((key) => !expectedKeys.includes(key)) ||
+      expectedKeys.some((key) => !Object.prototype.hasOwnProperty.call(raw, key) ||
+        !Number.isSafeInteger(raw[key]) || (raw[key] as number) < 0)) return null;
+  return raw as unknown as ShipResourceInventory;
+}
+
+/** Absent legacy upgrade state means no upgrade; malformed present state fails closed. */
+export function serviceRechargeUpgradeState(
+  value: unknown,
+  hostShipId: string,
+): readonly string[] | null {
+  if (value === undefined) return [];
+  const root = record(value);
+  if (!root) return null;
+  const raw = root[hostShipId];
+  if (raw === undefined) return [];
+  const knownIds = new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? []).map(({ systemId }) => systemId));
+  if (!Array.isArray(raw) || raw.some((upgrade) => typeof upgrade !== 'string' || !knownIds.has(upgrade)) ||
+      new Set(raw).size !== raw.length) return null;
+  return raw as string[];
 }
 
 /** Fail closed for a present malformed host record while accepting absent legacy damage state. */
@@ -76,10 +123,26 @@ export function resolveServiceShuttleRecharge(input: Readonly<{
   maintenanceCycle: unknown;
   damage: ShipDamageState;
   rechargeLedger: Readonly<Record<string, ServiceShuttleRechargeEntry>>;
+  resources: ShipResourceInventory;
+  unrest: number;
+  population: number;
+  cargo: Record<string, Record<string, number>>;
+  upgrades: readonly string[];
+  now: string;
+  productionScrap?: boolean;
+  productionOreAmount?: number;
 }>): Readonly<{
   hostShipId: string;
   maintenanceCycle: MaintenanceCycle;
   ledger: ServiceShuttleRechargeEntry;
+  resources: ShipResourceInventory;
+  damage: ShipDamageState;
+  unrest: number;
+  population: number;
+  cargo: Record<string, Record<string, number>>;
+  fuelled: Record<string, boolean>;
+  immediate: boolean;
+  message: string;
 }> {
   if (!SERVICE_SHUTTLE_IDS.includes(input.shuttleId as ServiceShuttleId)) {
     throw new Error('That shuttle has no service-recharge procedure.');
@@ -121,18 +184,92 @@ export function resolveServiceShuttleRecharge(input: Readonly<{
     throw new Error('That console is already charged.');
   }
   const revision = (input.rechargeLedger[input.shuttleId]?.revision ?? 0) + 1;
+  const chargedCycle = {
+    ...maintenanceCycle,
+    revision: maintenanceCycle.revision + 1,
+    charges: [...maintenanceCycle.charges, input.targetConsoleId],
+  };
+  const metadata = consoleMetadataFor(hostShipId, input.targetConsoleId);
+  const production = metadata?.resolver.status === 'implemented' &&
+    metadata.resolver.id === 'maintenance.production';
+  const fuelRefinery = input.targetConsoleId === 'fuel-refinery' ||
+    input.targetConsoleId === 'fuel-refinery-ii';
+  if (!production && (input.productionScrap !== undefined || input.productionOreAmount !== undefined)) {
+    throw new Error('That console has no immediate production choice.');
+  }
+  if (production && hostShipId !== 'capybara' && input.productionScrap !== undefined) {
+    throw new Error('Scrap production is available only on Capybara.');
+  }
+  if (production && hostShipId === 'capybara' && input.targetConsoleId === 'scrap-refinery' &&
+      input.productionScrap === undefined) {
+    throw new Error('Choose a Scrap Refinery outcome.');
+  }
+  if (production && fuelRefinery !== (input.productionOreAmount !== undefined)) {
+    throw new Error('Choose an ore amount only for a Fuel Refinery.');
+  }
+  let resolvedCycle = chargedCycle;
+  let resources = input.resources;
+  let damage = input.damage;
+  let unrest = input.unrest;
+  let population = input.population;
+  let cargo = input.cargo;
+  let fuelled = { ...input.fuelled };
+  let message = `${metadata?.name ?? input.targetConsoleId} charged.`;
+  if (production) {
+    const resolved = resolveMaintenanceProduction({
+      shipId: hostShipId,
+      cycle: chargedCycle,
+      currentTurn: input.currentCycle,
+      expectedRevision: chargedCycle.revision,
+      action: 'production',
+      resources,
+      damage,
+      unrest,
+      population,
+      dockings: input.dockings,
+      cargo,
+      fuelled,
+      rolls: [0, 0],
+      entropy: 0,
+      upgraded: input.upgrades,
+      productionConsoleId: input.targetConsoleId,
+      productionScrap: input.productionScrap,
+      productionOreAmount: input.productionOreAmount,
+      now: input.now,
+    } satisfies MaintenanceInput);
+    // Production is borrowed from the maintenance resolver, but this command runs
+    // after maintenance has completed. Carry only the production-owned fields back
+    // so an immediate recharge cannot reopen the completed maintenance sequence.
+    resolvedCycle = {
+      ...chargedCycle,
+      revision: resolved.cycle.revision,
+      results: { ...resolved.cycle.results },
+      charges: [...resolved.cycle.charges],
+    };
+    resources = resolved.resources;
+    damage = resolved.damage;
+    unrest = resolved.unrest;
+    population = resolved.population;
+    cargo = resolved.cargo;
+    fuelled = resolved.fuelled;
+    message = resolved.cycle.results['5'] ?? `${metadata?.name ?? input.targetConsoleId} resolved.`;
+  }
   return {
     hostShipId,
-    maintenanceCycle: {
-      ...maintenanceCycle,
-      revision: maintenanceCycle.revision + 1,
-      charges: [...maintenanceCycle.charges, input.targetConsoleId],
-    },
+    maintenanceCycle: resolvedCycle,
     ledger: {
       cycle: input.currentCycle,
       hostShipId,
       consoleId: input.targetConsoleId,
       revision,
     },
+    resources,
+    damage,
+    unrest,
+    population,
+    cargo,
+    fuelled,
+    immediate: production,
+    message,
   };
 }

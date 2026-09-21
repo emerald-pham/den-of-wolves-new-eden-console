@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [387],
+    implementationProgress: {
+      completed: 416, total: 751, percentage: '55.39%',
+      done: 416, partial: 16, active: 0, missing: 319,
+    },
+    changes: [
+      'A service-shuttle recharge now resolves a production console immediately and reports the exact resource result.',
+      'Fuel Refinery and Capybara production choices are included in the same protected command, so a retry cannot repeat the effect.',
+      'Deferred consoles such as Jump Drive still keep their new charge for the appropriate later procedure.',
+      '416 of 751 planned items are complete (55.39%).',
+    ],
+  },
+  {
+    version: '0.4.76',
     implementationPrompts: [386],
     implementationProgress: {
       completed: 415, total: 751, percentage: '55.26%',

@@ -15,7 +15,7 @@ const mock = vi.hoisted(() => {
     const current = { ...(documents.get(target.path) ?? {}) };
     for (const [key, value] of Object.entries(fields)) {
       const [root, child] = key.split('.');
-      if (child && ['maintenanceCycles', 'serviceShuttleRecharges'].includes(root!)) {
+      if (child && ['maintenanceCycles', 'serviceShuttleRecharges', 'shipResources'].includes(root!)) {
         current[root!] = { ...((current[root!] as Fields | undefined) ?? {}), [child]: value };
       } else current[key] = value;
     }
@@ -66,6 +66,10 @@ beforeEach(() => {
       charges: ['jump-drive'], refuelled: ['condor'], completedAt: '2026-09-21T12:00:00.000Z',
     } },
     shipDamage: { quellon: { damagedSystemIds: [], destroyed: false } },
+    shipResources: {
+      quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 },
+    },
+    shipUnrest: { quellon: 0 }, shipSurvivors: { quellon: 30_000 },
   });
   put('sessions/s1/players/holder', {
     role: 'player', connected: true, assignedRoleId: 'quellon-engineer', fleetGroupId: 'fleet-1',
@@ -81,31 +85,58 @@ beforeEach(() => {
 it('atomically appends one host charge, records the cycle use, and replays without another write', async () => {
   await expect(rechargeHostConsoleFromShuttle.run(request(command))).resolves.toMatchObject({
     status: 'committed', shuttleId: 'condor', hostShipId: 'quellon',
-    consoleId: 'hydroponics', cycle: 3, maintenanceRevision: 8, rechargeRevision: 1,
+    consoleId: 'hydroponics', cycle: 3, maintenanceRevision: 9, rechargeRevision: 1,
+    immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   });
   expect(mock.documents.get('sessions/s1')).toMatchObject({
-    maintenanceCycles: { quellon: { revision: 8, charges: ['jump-drive', 'hydroponics'] } },
+    maintenanceCycles: { quellon: { revision: 9, charges: ['jump-drive'] } },
+    shipResources: { quellon: { food: 13, water: 7 } },
     serviceShuttleRecharges: {
       condor: { cycle: 3, hostShipId: 'quellon', consoleId: 'hydroponics', revision: 1 },
     },
   });
   expect(mock.documents.get('sessions/s1/events/service-recharge-recharge-1')).toMatchObject({
     type: 'service-shuttle-recharge', shuttleId: 'condor',
-    hostShipId: 'quellon', consoleId: 'hydroponics',
+    hostShipId: 'quellon', consoleId: 'hydroponics', immediate: true,
+    message: 'Hydroponics: spent 1 water, generated 3 food.',
   });
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   mock.documents.get('sessions/s1')!.phase = 'debrief';
   await expect(rechargeHostConsoleFromShuttle.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, productionScrap: true })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
 it('rejects a second recharge in the same cycle without another host charge', async () => {
   await rechargeHostConsoleFromShuttle.run(request(command));
   await expect(rechargeHostConsoleFromShuttle.run(request({
-    ...command, requestId: 'recharge-2', consoleId: 'water-production', expectedMaintenanceRevision: 8,
+    ...command, requestId: 'recharge-2', consoleId: 'water-production', expectedMaintenanceRevision: 9,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1')).toMatchObject({
-    maintenanceCycles: { quellon: { charges: ['jump-drive', 'hydroponics'] } },
+    maintenanceCycles: { quellon: { charges: ['jump-drive'] } },
+  });
+});
+
+it('keeps deferred consoles charged without an immediate resource mutation', async () => {
+  await expect(rechargeHostConsoleFromShuttle.run(request({
+    ...command, requestId: 'jump-charge', consoleId: 'water-production-ii',
+  }))).resolves.toMatchObject({ immediate: true });
+  const resourcesAfterImmediate = (mock.documents.get('sessions/s1')!.shipResources as Fields).quellon;
+  expect(resourcesAfterImmediate).toMatchObject({ water: 20 });
+
+  mock.documents.get('sessions/s1')!.serviceShuttleRecharges = {};
+  mock.documents.get('sessions/s1')!.maintenanceCycles = { quellon: {
+    step: 0, revision: 9, turn: 3, results: { '7': 'Maintenance cycle complete.' },
+    charges: [], refuelled: ['condor'], completedAt: '2026-09-21T12:00:00.000Z',
+  } };
+  await expect(rechargeHostConsoleFromShuttle.run(request({
+    ...command, requestId: 'jump-deferred', consoleId: 'jump-drive', expectedMaintenanceRevision: 9,
+  }))).resolves.toMatchObject({ immediate: false, message: 'Jump Drive charged.' });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    maintenanceCycles: { quellon: { revision: 10, charges: ['jump-drive'] } },
+    shipResources: { quellon: resourcesAfterImmediate },
   });
 });
 
@@ -162,6 +193,37 @@ it.each([
   mock.documents.get('sessions/s1')!.shipDamage = { quellon: damage };
   await expect(rechargeHostConsoleFromShuttle.run(request({
     ...command, requestId: `malformed-damage-${String(damage.destroyed)}`,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['missing resource root', undefined],
+  ['missing host ledger', {}],
+  ['partial host ledger', { quellon: { food: 10 } }],
+  ['extra host field', {
+    quellon: {
+      ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2, bonus: 99,
+    },
+  }],
+] as const)('rejects %s without minting fallback resources', async (label, resources) => {
+  mock.documents.get('sessions/s1')!.shipResources = resources;
+  await expect(rechargeHostConsoleFromShuttle.run(request({
+    ...command, requestId: `resources-${label.replaceAll(' ', '-')}`,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  null,
+  { quellon: 'hydroponics' },
+  { quellon: ['invented-console'] },
+  { quellon: ['hydroponics', 'hydroponics'] },
+  { quellon: [{ id: 'hydroponics' }] },
+])('rejects malformed present upgrade state without mutation', async (upgrades) => {
+  mock.documents.get('sessions/s1')!.shipUpgrades = upgrades;
+  await expect(rechargeHostConsoleFromShuttle.run(request({
+    ...command, requestId: 'upgrade-malformed',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });

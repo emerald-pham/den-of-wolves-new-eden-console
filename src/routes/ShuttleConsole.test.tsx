@@ -38,7 +38,9 @@ vi.mock('@/lib/shuttleCargoService', () => ({
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/serviceShuttleRechargeService', () => ({
-  rechargeHostConsoleFromShuttle: vi.fn().mockResolvedValue(undefined),
+  rechargeHostConsoleFromShuttle: vi.fn().mockResolvedValue({
+    immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
+  }),
 }));
 vi.mock('@/lib/shuttleEvacuationService', async (importOriginal) => ({
   ...(await importOriginal<typeof ShuttleEvacuationServiceModule>()),
@@ -79,7 +81,9 @@ beforeEach(() => {
   vi.mocked(transferShuttleCargo).mockReset();
   vi.mocked(transferShuttleCargo).mockResolvedValue(undefined);
   vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
-  vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue(undefined);
+  vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue({
+    immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
+  });
   vi.mocked(evacuateShuttleSurvivors).mockReset();
   vi.mocked(evacuateShuttleSurvivors).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
@@ -1086,6 +1090,9 @@ it('lets a fuelled service-shuttle holder add one host charge during Coordinatio
       charges: ['jump-drive'], refuelled: ['condor'], completedAt: '2026-09-21T12:00:00.000Z',
     } },
     shipDamage: { quellon: { damagedSystemIds: ['water-production'], destroyed: false } },
+    shipResources: { quellon: {
+      ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2,
+    } },
     serviceShuttleRecharges: {},
   });
   state.setMe({
@@ -1101,9 +1108,12 @@ it('lets a fuelled service-shuttle holder add one host charge during Coordinatio
   expect(within(panel).queryByRole('option', { name: 'Jump Drive' })).not.toBeInTheDocument();
   expect(within(panel).queryByRole('option', { name: 'Water Production' })).not.toBeInTheDocument();
   await user.selectOptions(within(panel).getByLabelText('Host console'), 'hydroponics');
+  expect(within(panel).getByText(/effect resolves immediately/i)).toBeVisible();
   await user.click(within(panel).getByRole('button', { name: 'Recharge console' }));
-  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledWith('condor', 'hydroponics', 4, 9, 2);
-  expect(screen.getByRole('status')).toHaveTextContent(/Hydroponics charged on Quellon/i);
+  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledWith(
+    'condor', 'hydroponics', 4, 9, 2, undefined, undefined,
+  );
+  expect(screen.getByRole('status')).toHaveTextContent(/spent 1 water, generated 3 food/i);
 });
 
 it.each([

@@ -9,7 +9,9 @@ export async function rechargeHostConsoleFromShuttle(
   expectedControlRevision: number,
   expectedMaintenanceRevision: number,
   expectedCycle: number,
-): Promise<void> {
+  productionScrap?: boolean,
+  productionOreAmount?: number,
+): Promise<Readonly<{ immediate: boolean; message: string }>> {
   const { session } = useSessionStore.getState();
   if (!session) throw new Error('Reconnect before recharging a host console.');
   requireFreshSessionAuthority();
@@ -21,6 +23,14 @@ export async function rechargeHostConsoleFromShuttle(
     expectedControlRevision,
     expectedMaintenanceRevision,
     expectedCycle,
+    ...(productionScrap === undefined ? {} : { productionScrap }),
+    ...(productionOreAmount === undefined ? {} : { productionOreAmount }),
   };
-  await httpsCallable<typeof payload, unknown>(functions(), 'rechargeHostConsoleFromShuttle')(payload);
+  const response = await httpsCallable<typeof payload, { immediate: boolean; message: string }>(
+    functions(), 'rechargeHostConsoleFromShuttle',
+  )(payload);
+  if (typeof response.data?.immediate !== 'boolean' || typeof response.data?.message !== 'string') {
+    throw new Error('The service-shuttle recharge response was malformed.');
+  }
+  return response.data;
 }

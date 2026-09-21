@@ -3,6 +3,8 @@ import {
   parseServiceShuttleRecharges,
   resolveServiceShuttleRecharge,
   serviceRechargeDamageState,
+  serviceRechargeResourceState,
+  serviceRechargeUpgradeState,
 } from './serviceShuttleRecharge';
 
 const base = {
@@ -20,18 +22,115 @@ const base = {
   },
   damage: { damagedSystemIds: [], destroyed: false },
   rechargeLedger: {},
+  resources: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 },
+  unrest: 0,
+  population: 30_000,
+  cargo: {},
+  upgrades: [],
+  now: '2026-09-21T12:05:00.000Z',
 } as const;
 
 describe('service shuttle recharge', () => {
-  it('adds one host charge without resolving the console effect', () => {
-    expect(resolveServiceShuttleRecharge(base)).toEqual({
+  it('resolves production while preserving the completed maintenance lifecycle', () => {
+    expect(resolveServiceShuttleRecharge(base)).toMatchObject({
       hostShipId: 'shepherd',
       maintenanceCycle: {
-        ...base.maintenanceCycle, revision: 9, charges: ['jump-drive', 'water-reclamation'],
+        ...base.maintenanceCycle,
+        step: 0,
+        revision: 10,
+        charges: ['jump-drive'],
+        results: {
+          ...base.maintenanceCycle.results,
+          '5': 'Water Reclamation: generated 2 water.',
+        },
       },
       ledger: {
         cycle: 2, hostShipId: 'shepherd', consoleId: 'water-reclamation', revision: 1,
       },
+      immediate: true,
+      resources: { water: 10 },
+    });
+    expect(resolveServiceShuttleRecharge(base).maintenanceCycle.completedAt)
+      .toBe(base.maintenanceCycle.completedAt);
+  });
+
+  it('resolves an immediate production effect once and consumes its new charge', () => {
+    const result = resolveServiceShuttleRecharge({
+      ...base,
+      shuttleId: 'condor', targetConsoleId: 'hydroponics',
+      control: { ...base.control, shuttleId: 'condor' },
+      dockings: [{ shuttleId: 'condor', shipId: 'quellon', dockedAt: 'now' }],
+      fuelled: { condor: true },
+    });
+    expect(result).toMatchObject({
+      immediate: true,
+      message: 'Hydroponics: spent 1 water, generated 3 food.',
+      maintenanceCycle: { revision: 10, charges: ['jump-drive'] },
+      resources: { food: 13, water: 7 },
+      ledger: { cycle: 2, hostShipId: 'quellon', consoleId: 'hydroponics', revision: 1 },
+    });
+  });
+
+  it('leaves a deferred console charged without inventing an immediate effect', () => {
+    const result = resolveServiceShuttleRecharge({
+      ...base, targetConsoleId: 'jump-drive',
+      maintenanceCycle: { ...base.maintenanceCycle, charges: [] },
+    });
+    expect(result).toMatchObject({
+      immediate: false, message: 'Jump Drive charged.',
+      maintenanceCycle: { revision: 9, charges: ['jump-drive'] },
+      resources: base.resources,
+    });
+  });
+
+  it('binds immediate production choices and rejects choices on deferred consoles', () => {
+    expect(() => resolveServiceShuttleRecharge({
+      ...base, targetConsoleId: 'jump-drive',
+      maintenanceCycle: { ...base.maintenanceCycle, charges: [] },
+      productionOreAmount: 1,
+    })).toThrow(/no immediate production choice/i);
+    expect(() => resolveServiceShuttleRecharge({
+      ...base,
+      shuttleId: 'wobbly', targetConsoleId: 'fuel-refinery',
+      control: { ...base.control, shuttleId: 'wobbly' },
+      dockings: [{ shuttleId: 'wobbly', shipId: 'refinery-124', dockedAt: 'now' }],
+      fuelled: { wobbly: true },
+      resources: { ...base.resources, ore: 5 },
+    })).toThrow(/ore amount/i);
+  });
+
+  it('applies the selected Fuel Refinery amount exactly once in the resolved result', () => {
+    const result = resolveServiceShuttleRecharge({
+      ...base,
+      shuttleId: 'wobbly', targetConsoleId: 'fuel-refinery',
+      control: { ...base.control, shuttleId: 'wobbly' },
+      dockings: [{ shuttleId: 'wobbly', shipId: 'refinery-124', dockedAt: 'now' }],
+      fuelled: { wobbly: true },
+      maintenanceCycle: { ...base.maintenanceCycle, charges: [] },
+      resources: { ...base.resources, ore: 5 },
+      productionOreAmount: 4,
+    });
+    expect(result).toMatchObject({
+      immediate: true,
+      message: 'Fuel Refinery: spent 4 ore, generated 4 fuel.',
+      maintenanceCycle: { step: 0, revision: 10, charges: [] },
+      resources: { ore: 1, fuel: 7 },
+    });
+  });
+
+  it('requires and applies the selected Capybara Scrap Refinery outcome', () => {
+    const result = resolveServiceShuttleRecharge({
+      ...base,
+      targetConsoleId: 'scrap-refinery',
+      dockings: [{ shuttleId: 'black-sheep', shipId: 'capybara', dockedAt: 'now' }],
+      maintenanceCycle: { ...base.maintenanceCycle, charges: [] },
+      resources: { ...base.resources, scrap: 2 },
+      productionScrap: true,
+    });
+    expect(result).toMatchObject({
+      immediate: true,
+      message: 'Scrap Refinery: spent 1 Scrap, generated 3 materials.',
+      resources: { scrap: 1, materials: 3 },
     });
   });
 
@@ -93,5 +192,28 @@ describe('service shuttle recharge', () => {
     expect(serviceRechargeDamageState({
       quellon: { damagedSystemIds: [], destroyed: 'true' },
     }, 'quellon')).toBeNull();
+  });
+
+  it('requires an exact selected-host resource ledger without starting-stock fallback', () => {
+    expect(serviceRechargeResourceState({ shepherd: base.resources }, 'shepherd')).toEqual(base.resources);
+    expect(serviceRechargeResourceState(undefined, 'shepherd')).toBeNull();
+    expect(serviceRechargeResourceState({}, 'shepherd')).toBeNull();
+    expect(serviceRechargeResourceState({ shepherd: { food: 10 } }, 'shepherd')).toBeNull();
+    expect(serviceRechargeResourceState({ shepherd: { ...base.resources, scrap: 1 } }, 'shepherd'))
+      .toBeNull();
+    expect(serviceRechargeResourceState({ shepherd: { ...base.resources, water: -1 } }, 'shepherd'))
+      .toBeNull();
+  });
+
+  it('accepts only known, unique string upgrades and treats absent legacy state as none', () => {
+    expect(serviceRechargeUpgradeState(undefined, 'quellon')).toEqual([]);
+    expect(serviceRechargeUpgradeState({}, 'quellon')).toEqual([]);
+    expect(serviceRechargeUpgradeState({ quellon: ['hydroponics'] }, 'quellon'))
+      .toEqual(['hydroponics']);
+    expect(serviceRechargeUpgradeState({ quellon: ['invented-console'] }, 'quellon')).toBeNull();
+    expect(serviceRechargeUpgradeState({ quellon: ['hydroponics', 'hydroponics'] }, 'quellon'))
+      .toBeNull();
+    expect(serviceRechargeUpgradeState({ quellon: [{ id: 'hydroponics' }] }, 'quellon'))
+      .toBeNull();
   });
 });

@@ -7,11 +7,21 @@ describe('service shuttle recharge display policy', () => {
   });
 
   it('derives only Reactor-chargeable host consoles for the holder UI', () => {
-    const ids = serviceRechargeConsoleOptions('quellon').map(({ id }) => id);
+    const options = serviceRechargeConsoleOptions('quellon');
+    const ids = options.map(({ id }) => id);
     expect(ids).toEqual([
       'hydroponics', 'water-production', 'water-production-ii', 'jump-drive',
     ]);
     expect(ids).not.toEqual(expect.arrayContaining(['storage', 'reactor', 'shuttle-bay']));
+    expect(options.find(({ id }) => id === 'hydroponics')).toMatchObject({ immediate: true });
+    expect(options.find(({ id }) => id === 'jump-drive')).toMatchObject({ immediate: false });
     expect(serviceRechargeConsoleOptions('unknown')).toEqual([]);
+  });
+
+  it('exposes the printed choices for refinery production', () => {
+    expect(serviceRechargeConsoleOptions('refinery-124').find(({ id }) => id === 'fuel-refinery'))
+      .toMatchObject({ immediate: true, fuelRefinery: true, capybaraScrapChoice: false });
+    expect(serviceRechargeConsoleOptions('capybara').find(({ id }) => id === 'scrap-refinery'))
+      .toMatchObject({ immediate: true, fuelRefinery: false, capybaraScrapChoice: true });
   });
 });

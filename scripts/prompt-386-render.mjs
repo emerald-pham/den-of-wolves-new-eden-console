@@ -75,6 +75,9 @@ function persistedState(now) {
       },
     },
     shipDamage: { quellon: { damagedSystemIds: ['water-production'], destroyed: false } },
+    shipResources: {
+      quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 },
+    },
     serviceShuttleRecharges: {},
   };
   const me = {
@@ -166,6 +169,8 @@ async function main() {
           measurement.options.includes('Water Production')) {
         throw new Error(`${viewport.name}: eligible console filtering is incorrect: ${JSON.stringify(measurement)}`);
       }
+      await panel.getByLabel('Host console').selectOption('hydroponics');
+      await panel.getByText(/effect resolves immediately/i).waitFor({ state: 'visible' });
       await page.screenshot({
         path: resolve(OUTPUT_DIR, `service-recharge-${viewport.width}x${viewport.height}.png`),
         fullPage: false,

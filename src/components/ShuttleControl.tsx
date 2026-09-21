@@ -32,6 +32,8 @@ export default function ShuttleControl({ control }: Props) {
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
   const [rechargeConsoleId, setRechargeConsoleId] = useState('');
+  const [rechargeProductionScrap, setRechargeProductionScrap] = useState(false);
+  const [rechargeProductionOreAmount, setRechargeProductionOreAmount] = useState(1);
   const [evacuationDestinationShipId, setEvacuationDestinationShipId] = useState('');
   const [evacuationAmount, setEvacuationAmount] = useState(0);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
@@ -51,6 +53,12 @@ export default function ShuttleControl({ control }: Props) {
     ? serviceRechargeConsoleOptions(docking.shipId).filter((option) =>
     !hostCycle?.charges.includes(option.id) &&
     (option.id === 'jump-drive' || !hostDamage?.damagedSystemIds.includes(option.id))) : [];
+  const selectedRechargeOption = rechargeOptions.find((option) => option.id === rechargeConsoleId);
+  const hostResources = docking ? session.shipResources?.[docking.shipId] : undefined;
+  const refineryMax = docking && session.shipUpgrades?.[docking.shipId]?.includes(rechargeConsoleId) ? 15 : 10;
+  const invalidRechargeOre = selectedRechargeOption?.fuelRefinery === true &&
+    (!Number.isSafeInteger(rechargeProductionOreAmount) || rechargeProductionOreAmount < 1 ||
+      rechargeProductionOreAmount > refineryMax || rechargeProductionOreAmount > (hostResources?.ore ?? 0));
   const rechargeEntry = session.serviceShuttleRecharges?.[control.shuttleId];
   const rechargedThisCycle = rechargeEntry?.cycle === session.currentTurn;
   const rechargeWindowOpen = session.phase === 'active' &&
@@ -205,13 +213,16 @@ export default function ShuttleControl({ control }: Props) {
     setPending(true);
     setStatus('');
     try {
-      await rechargeHostConsoleFromShuttle(
+      const result = await rechargeHostConsoleFromShuttle(
         control.shuttleId, rechargeConsoleId, control.revision,
         hostCycle.revision, session.currentTurn,
+        selectedRechargeOption?.capybaraScrapChoice ? rechargeProductionScrap : undefined,
+        selectedRechargeOption?.fuelRefinery ? rechargeProductionOreAmount : undefined,
       );
-      const name = rechargeOptions.find((option) => option.id === rechargeConsoleId)?.name ?? rechargeConsoleId;
-      setStatus(`${name} charged on ${findShip(docking.shipId)?.name ?? docking.shipId}.`);
+      setStatus(result.message);
       setRechargeConsoleId('');
+      setRechargeProductionScrap(false);
+      setRechargeProductionOreAmount(1);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge failed.');
     } finally {
@@ -303,7 +314,7 @@ export default function ShuttleControl({ control }: Props) {
     {canRequestDeparture && docking && serviceShuttle && <section aria-label="Service shuttle recharge">
       <p className="console-workspace__eyebrow">Service power // docked host</p>
       <h4>Recharge host console</h4>
-      <p>Fuelled service shuttles add one charge during Coordination. Console effects resolve separately.</p>
+      <p>Fuelled service shuttles add one charge during Coordination. Production effects resolve immediately.</p>
       {!session.shuttleFuelled?.[control.shuttleId] && <p>Fuel this shuttle during maintenance first.</p>}
       {!rechargeWindowOpen && <p>Service recharge opens during Coordination Phase.</p>}
       {!hostMaintenanceReady && <p>Complete host maintenance for this cycle before recharging.</p>}
@@ -315,14 +326,45 @@ export default function ShuttleControl({ control }: Props) {
       <select id={`service-recharge-console-${control.shuttleId}`} value={rechargeConsoleId}
         disabled={pending || !session.shuttleFuelled?.[control.shuttleId] ||
           !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || rechargeOptions.length === 0}
-        onChange={(event) => setRechargeConsoleId(event.target.value)}>
+        onChange={(event) => {
+          setRechargeConsoleId(event.target.value);
+          setRechargeProductionScrap(false);
+          setRechargeProductionOreAmount(1);
+        }}>
         <option value="">Choose eligible console</option>
         {rechargeOptions.map((option) => <option value={option.id} key={option.id}>{option.name}</option>)}
       </select>
+      {selectedRechargeOption?.immediate && <p>
+        This console’s maintenance effect resolves immediately with the recharge.
+      </p>}
+      {selectedRechargeOption?.capybaraScrapChoice && rechargeConsoleId === 'scrap-refinery' && <label>
+        Scrap Refinery outcome
+        <select aria-label="Service recharge Scrap Refinery outcome"
+          value={rechargeProductionScrap ? 'convert' : 'generate'}
+          onChange={(event) => setRechargeProductionScrap(event.target.value === 'convert')}>
+          <option value="generate">Generate 1 Scrap</option>
+          <option value="convert">Spend 1 Scrap for 3 materials</option>
+        </select>
+      </label>}
+      {selectedRechargeOption?.capybaraScrapChoice && rechargeConsoleId !== 'scrap-refinery' && <label>
+        <input type="checkbox" aria-label={`Spend 1 Scrap on ${selectedRechargeOption.name}`}
+          checked={rechargeProductionScrap}
+          disabled={rechargeProductionScrap === false && (hostResources?.scrap ?? 0) < 1}
+          onChange={(event) => setRechargeProductionScrap(event.target.checked)} />
+        Spend 1 Scrap for +6 output
+      </label>}
+      {selectedRechargeOption?.fuelRefinery && <label>
+        Ore to refine
+        <input type="number" min={1} max={refineryMax} aria-label="Service recharge ore to refine"
+          value={rechargeProductionOreAmount}
+          onChange={(event) => setRechargeProductionOreAmount(Number(event.target.value))} />
+        {' '}of {Math.min(hostResources?.ore ?? 0, refineryMax)} available
+      </label>}
       <div className="console-workspace__actions">
         <button className="cic-action-button" type="button"
           disabled={pending || !rechargeConsoleId || !session.shuttleFuelled?.[control.shuttleId] ||
-            !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle}
+            !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle ||
+            invalidRechargeOre || (rechargeProductionScrap && (hostResources?.scrap ?? 0) < 1)}
           onClick={() => void submitRecharge()}>Recharge console</button>
       </div>
     </section>}

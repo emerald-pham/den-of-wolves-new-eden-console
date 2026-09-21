@@ -2608,9 +2608,9 @@
     {
       "direction": "386 -> 361;369",
       "id": "E-386-SERVICE-SHUTTLE-RECHARGE",
-      "language": "During Coordination, the current holder of a fuelled Black Sheep, Condor, or Wobbly can add one charge per cycle to one eligible console on the craft’s single authoritative docked host. The server verifies live custody, control and maintenance revisions, current cycle, fleet-group membership, complete host maintenance, fuel, docking, damage, existing charges, exact service-craft identity, and exact replay before atomically appending the charge and durable use ledger. The routed shuttle control filters unavailable targets and reports the result; it deliberately does not resolve the charged console’s effect, which remains Prompt 387.",
+      "language": "Release 0.4.76 established the server-authoritative service-shuttle recharge command: during Coordination, the current holder of a fuelled Black Sheep, Condor, or Wobbly can add one eligible host-console charge per cycle. It verifies live custody, control and maintenance revisions, current cycle, fleet-group membership, complete host maintenance, fuel, docking, damage, existing charges, exact service-craft identity, and exact replay before atomically appending the charge and durable use ledger. Prompt 387 extends that command with immediate production resolution.",
       "source": "functions/src/serviceShuttleRecharge.ts; functions/src/serviceShuttleRecharge.test.ts; functions/src/index.ts; functions/src/serviceShuttleRechargeCallable.test.ts; functions/src/eventRedaction.ts; src/data/serviceShuttleRecharge.ts; src/data/serviceShuttleRecharge.test.ts; src/lib/serviceShuttleRechargeService.ts; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.test.tsx; src/lib/firestore.ts; src/types/game.ts; scripts/prompt-386-render.mjs",
-      "type": "evidence / production-path / server-authoritative / service-shuttle / Black-Sheep / Condor / Wobbly / Coordination / one-per-cycle / host-console-charge / custody / damage / replay / no-immediate-effect / rendered-responsive-font-touch-proof"
+      "type": "evidence / production-path / server-authoritative / service-shuttle / Black-Sheep / Condor / Wobbly / Coordination / one-per-cycle / host-console-charge / custody / damage / replay / rendered-responsive-font-touch-proof"
     },
     {
       "direction": "387 -> 386",
@@ -2618,6 +2618,13 @@
       "language": "Immediate effects follow committed recharge.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "387 -> 386",
+      "id": "E-387-SERVICE-RECHARGE-IMMEDIATE-EFFECT",
+      "language": "When a service shuttle charges a production console, the callable strictly validates the selected host resource ledger and known installed-upgrade list, then resolves that console through the shared maintenance-production rules in the same transaction, consumes the new charge, preserves the already-completed maintenance lifecycle, commits the exact resource result and replay receipt, and returns the authoritative message. Missing or malformed mutation state fails without writes. Fuel Refinery ore amounts and Capybara Scrap choices are fingerprint-bound; an exact retry replays without another resource mutation. Deferred consoles remain charged for their later procedure. The routed holder control explains immediate resolution and presents the required production choice.",
+      "source": "functions/src/serviceShuttleRecharge.ts; functions/src/serviceShuttleRecharge.test.ts; functions/src/index.ts; functions/src/serviceShuttleRechargeCallable.test.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; src/data/serviceShuttleRecharge.ts; src/data/serviceShuttleRecharge.test.ts; src/lib/serviceShuttleRechargeService.ts; src/lib/serviceShuttleRechargeService.test.ts; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.test.tsx; scripts/prompt-386-render.mjs",
+      "type": "evidence / production-path / server-authoritative / immediate-production / atomic-resource-result / exact-replay / choice-fingerprint / completed-maintenance-preserved / deferred-charge / routed-responsive-proof"
     },
     {
       "direction": "388 -> 265;111",
@@ -15628,7 +15635,7 @@
         "acceptance": "fuelled Black Sheep, Condor, or Wobbly charges one eligible host console once in Coordination.",
         "title": "Resolve service-shuttle recharge."
       },
-      "description": "Fuelled Black Sheep, Condor, and Wobbly holders can now add one eligible console charge to the shuttle’s authoritative docked host during Coordination, once per cycle. The callable owns custody, host, fleet-group, fuel, damage, maintenance-revision, existing-charge, cycle, replay, event, and durable-use checks. The routed control presents only available host consoles and leaves immediate effects to Prompt 387.",
+      "description": "Release 0.4.76 established the server-authoritative service-shuttle recharge command and routed console selection for one eligible host-console charge per service craft per cycle. Prompt 387 subsequently added immediate production resolution.",
       "evidenceIds": "E-AUDIT-386;E-386-SERVICE-SHUTTLE-RECHARGE",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -15653,8 +15660,8 @@
         "acceptance": "a newly charged immediate console resolves once and cannot be retriggered by retry.",
         "title": "Trigger immediate effects from recharge."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-387",
+      "description": "A service-shuttle recharge now strictly validates the selected host resource and installed-upgrade state, then resolves production consoles immediately through the shared maintenance rules in the same authoritative transaction. The command preserves the completed maintenance lifecycle, consumes the new production charge, commits the resource result once, binds Fuel Refinery and Capybara choices into exact retry, and leaves deferred consoles charged for their later procedure. Missing or malformed mutation state fails without writes, and the routed holder control explains immediate resolution and collects required choices.",
+      "evidenceIds": "E-AUDIT-387;E-387-SERVICE-RECHARGE-IMMEDIATE-EFFECT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "386",
@@ -15662,10 +15669,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.77"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
