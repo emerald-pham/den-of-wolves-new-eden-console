@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**396 / 751 prompts complete (52.73%)**
+**397 / 751 prompts complete (52.86%)**
 
-Status breakdown: **396 done · 16 partial · 339 missing**.
+Status breakdown: **397 done · 16 partial · 338 missing**.
 
 Active prompt: **none**
 
@@ -617,7 +617,7 @@ release classification and evidence.
 | 191 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 192 | done | feature | 0.4.74 | The Dione Engineer console now reads a server-filtered Maliades launch view and commits one launch against the exact active Wolf-attack revision. The callable requires the active Dione Engineer role, a declared targeting step with restricted airspace, the current cycle's charged Fighter Bay, an operational 10♦ system, and the declared Maliades battle-table action; stale, duplicate, malformed, uncharged, damaged, and cross-role attempts fail before mutation. The transaction preserves other launched craft, records an audit and privacy-safe event, and supports exact replay. Later Maliades durability and range actions remain owned by Prompts 397 and 453. |
 | 193 | done | non-feature | — | Verified the existing Dione Captain workspace on the production ship route: an exactly assigned and seated player activates only dione-captain, receives live Dione systems and stores, the 100,000-survivor census, ship-policy guidance, and fleet-diplomacy / survivor-representation guidance without GM observer controls or a read-only impersonation path. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change. |
-| 193a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 193a | done | non-feature | — | Verified the existing production Dione Engineer workspace under exact assigned-role and seat binding. It exposes live stores and maintenance; Hydroponics, Water Reclamation, and Shuttle Bay controls call current revision-bound maintenance actions; Philia and Maliades open their assigned craft consoles; and the Maliades launch panel uses Prompt 192's server-filtered authoritative action. Focused route and component suites passed. This is evidence reconciliation with no runtime change. |
 | 193b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 194 | done | non-feature | — | Icebreaker now derives its 40,000-survivor identity, exact 34,000/25,000/15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift. |
 | 195 | done | non-feature | — | The existing Icebreaker Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed. |

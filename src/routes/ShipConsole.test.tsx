@@ -1216,6 +1216,72 @@ it('shows the Dione Engineer live Maliades gate and launches against its exact a
   expect(within(control).getByRole('button', { name: 'Maliades launched' })).toBeDisabled();
 });
 
+it('routes the bound Dione Engineer workspace to live maintenance, craft, production, and bay actions', async () => {
+  const activeSession = useSessionStore.getState().session;
+  const activeMe = useSessionStore.getState().me;
+  if (!activeSession || !activeMe) throw new Error('Expected active session state.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 1,
+    activeRoleIds: ['dione-engineer'], activeVesselIds: ['dione'],
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    shipResources: {
+      ...activeSession.shipResources,
+      dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 0, securityTeams: 2 },
+    },
+    shipDamage: {
+      ...activeSession.shipDamage,
+      dione: { damagedSystemIds: [], destroyed: false },
+    },
+    maintenanceCycles: {
+      ...activeSession.maintenanceCycles,
+      dione: {
+        turn: 1, step: 6, revision: 3,
+        results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 3/4 consoles.' },
+        charges: ['hydroponics', 'water-reclamation', 'fighter-bay'], refuelled: [],
+      },
+    },
+    shuttleDockings: [
+      { shipId: 'dione', shuttleId: 'philia', dockedAt: 'SESSION START' },
+      { shipId: 'dione', shuttleId: 'maliades', dockedAt: 'SESSION START' },
+    ],
+  });
+  useSessionStore.getState().setMe({
+    ...activeMe,
+    role: 'player', assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+    activeConsoleRoleId: null,
+  });
+  useSessionStore.getState().setConnection('live');
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-engineer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('dione-engineer'));
+  const workspace = screen.getByRole('region', { name: 'Dione Engineer console' });
+  expect(within(workspace).getByRole('region', { name: 'Dione maintenance cycle' })).toBeVisible();
+  expect(workspace).toHaveTextContent(/Live stores: 13 food.*14 water.*0 materials.*0 ore.*3 fuel/i);
+  expect(within(workspace).getByRole('link', { name: 'Open Philia shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/philia');
+  expect(within(workspace).getByRole('link', { name: 'Open Maliades shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/maliades');
+  expect(within(workspace).getByRole('button', { name: 'Run Hydroponics' })).toBeEnabled();
+  expect(within(workspace).getByRole('button', { name: 'Run Water Reclamation' })).toBeDisabled();
+  const bay = within(workspace).getByRole('combobox', { name: 'Shuttle Bay refuelling' });
+  expect(bay).toBeEnabled();
+  expect(within(bay).getByRole('option', { name: 'F.S. Philia' })).toBeVisible();
+  expect(within(bay).getByRole('option', { name: 'F.S.F. Maliades' })).toBeVisible();
+  expect(await screen.findByRole('region', { name: 'Maliades launch control' })).toBeVisible();
+  expect(screen.queryByLabelText('View ship console role')).not.toBeInTheDocument();
+});
+
 it('does not expose the Maliades launch control outside the Dione Engineer console', () => {
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
