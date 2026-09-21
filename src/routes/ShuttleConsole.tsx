@@ -26,10 +26,13 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const shuttleEnabled = shuttle
     ? isPressShuttle ? session?.pressEnabled !== false : isShuttleEnabled(shuttle, activeRoles)
     : false;
+  const control = session?.shuttleControl?.[shuttleId];
+  const isControlHolder = control?.holderUid === me?.uid;
+  const isPrintedOwner = control?.ownerUid === me?.uid;
   const canClaimCaptainRole = Boolean(
     session && me && shuttle && (mode === 'console' || mode === 'press') &&
     shuttleEnabled &&
-    (!isPressShuttle || !isGm) &&
+    (!isPressShuttle || !isGm) && !isControlHolder &&
     (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === shuttle.captainRoleId),
   );
 
@@ -39,7 +42,8 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   }, [canClaimCaptainRole, shuttle]);
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== shuttle?.captainRoleId) {
+  if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== shuttle?.captainRoleId &&
+      !isControlHolder && !isPrintedOwner) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
   }
   if (isPressShuttle && session.pressEnabled === false) {
@@ -68,7 +72,11 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const ownerShipAvailable = captainRole && activeShips.includes(captainRole.shipId) &&
     (captainRole.shipId !== 'dione' || session.dioneEnabled !== false) &&
     (captainRole.shipId !== 'capybara' || session.capybaraEnabled !== false);
-  const ownerParent = captainRole && isJointEngineeringRoleId(captainRole.id)
+  const holderReturn = isControlHolder && me.activeConsoleRoleId &&
+    me.activeConsoleRoleId !== shuttle.captainRoleId
+    ? { to: consoleRoleRoute(me.activeConsoleRoleId), label: 'Back to assigned console' }
+    : undefined;
+  const ownerParent = holderReturn ?? (captainRole && isJointEngineeringRoleId(captainRole.id)
     ? {
         to: consoleRoleRoute(captainRole.id),
         label: 'Back to Joint Engineering Union',
@@ -80,7 +88,7 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
       }
     : !isGm && !isPressShuttle
     ? { to: '/console', label: 'Back to role selection' }
-    : undefined;
+    : undefined);
   const returnTo = isPressShuttle && !isGm
     ? me.activeConsoleRoleId === shuttle.captainRoleId
       ? {
@@ -96,5 +104,5 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     : ownerParent;
   return <ShuttleConsoleTemplate shuttle={shuttle} captainName={captainRole?.name ?? 'Captain'}
     canLeave={isGm} docking={docking} fuelled={session.shuttleFuelled?.[shuttle.id] === true}
-    returnTo={returnTo} />;
+    returnTo={returnTo} control={control} />;
 }

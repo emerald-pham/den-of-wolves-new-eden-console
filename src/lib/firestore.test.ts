@@ -69,6 +69,32 @@ function sessionData(playerCount: number) {
   };
 }
 
+it('hydrates only canonical shuttle-control entries from the member session projection', () => {
+  const session = sessionFrom('s1', {
+    ...sessionData(8),
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'owner',
+        holderUid: 'holder', revision: 2,
+      },
+      endeavour: {
+        shuttleId: 'endeavour', ownerRoleId: 'shepherd-captain', ownerUid: 'owner',
+        holderUid: 'holder', revision: 0, forged: true,
+      },
+      unknown: {
+        shuttleId: 'unknown', ownerRoleId: 'admiral', ownerUid: 'owner',
+        holderUid: 'holder', revision: 0,
+      },
+    },
+  });
+  expect(session.shuttleControl).toEqual({
+    starlight: {
+      shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'owner',
+      holderUid: 'holder', revision: 2,
+    },
+  });
+});
+
 it.each([
   [8, 'aegis'],
   [11, 'aegis'],

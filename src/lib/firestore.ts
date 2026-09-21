@@ -1574,6 +1574,31 @@ function shuttleFuelled(value: unknown): NonNullable<GameSession['shuttleFuelled
     knownShuttleIds.has(shuttleId) && typeof fuelled === 'boolean' ? [[shuttleId, fuelled]] : []));
 }
 
+function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  const knownShuttleIds = new Set(SHUTTLECRAFT.map((shuttle) => shuttle.id));
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, entry]) => {
+    const raw = recordValue(entry);
+    const parsedShuttleId = parseEntityId('shuttle', shuttleId);
+    const ownerRoleId = raw ? parseEntityId('role', raw.ownerRoleId) : undefined;
+    const ownerUid = raw ? parseEntityId('player', raw.ownerUid) : undefined;
+    const holderUid = raw ? parseEntityId('player', raw.holderUid) : undefined;
+    if (!raw || !knownShuttleIds.has(shuttleId) || parsedShuttleId !== shuttleId ||
+        raw.shuttleId !== shuttleId || !ownerRoleId || !ownerUid || !holderUid ||
+        !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+        Object.keys(raw).some((key) =>
+          !['shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'].includes(key))) return [];
+    return [[shuttleId, {
+      shuttleId: parsedShuttleId,
+      ownerRoleId,
+      ownerUid,
+      holderUid,
+      revision: raw.revision as number,
+    }]];
+  }));
+}
+
 function shipUpgrades(value: unknown): NonNullable<GameSession['shipUpgrades']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -2001,6 +2026,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     smallShipStates: smallShipStates(data.smallShipStates),
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
+    shuttleControl: shuttleControl(data.shuttleControl),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: shipResources(data.shipResources),
     shipDamage: shipDamage(data.shipDamage),

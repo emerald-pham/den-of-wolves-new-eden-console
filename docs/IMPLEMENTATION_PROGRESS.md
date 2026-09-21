@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**366 / 751 prompts complete (48.74%)**
+**367 / 751 prompts complete (48.87%)**
 
-Status breakdown: **366 done · 17 partial · 368 missing**.
+Status breakdown: **367 done · 17 partial · 367 missing**.
 
 Active prompt: **none**
 
@@ -804,7 +804,7 @@ release classification and evidence.
 | 359 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 360 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 361 | done | non-feature | 0.4.60 | The server-owned setup/start path composes every enabled craft exactly once with its canonical id, shuttle or fighter-wing kind, printed owner role, enabled mode, Wolf battle-table disposition, and authoritative starting host. New sessions derive standard shuttle hosts from printed initial dockings and fighter-wing hosts from their printed vessel bays. GM-controlled Wobbly and Ally remain disabled until an explicit current docking assigns Wobbly to Quellon or Refinery 124, or Ally to Shepherd or Icebreaker; any other active host now fails closed before start. Start rejects changed owners, modes, lists, duplicates, unknown craft, missing standard dockings, invalid hosts, and invalid Union-pair hosts before mutation; exact replay and legacy normalization preserve the accepted manifest without resetting a moved current docking. An exact 20-entry full-roster matrix plus setup/start and composition tests prove the complete manifest. |
-| 362 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 362 | done | non-feature | 0.4.61 | The server initializes revisioned shuttle-control custody from the authoritative craft manifest and current printed-role holders at session start. A connected printed owner may hand the shuttle to another connected player in the same server-owned fleet group or reclaim it; a live facilitator instance may adjudicate either transition. Recipients cannot forward control, malformed state and missing group authority fail closed, stale revisions and reused request IDs cannot mutate twice, and every accepted transition writes a private replay receipt plus a facilitator-readable server audit. The member UI shows the current holder, lets authorized operators hand off or reclaim, gives the recipient a shuttle-console link without claiming the printed owner role, and preserves the owner console path. Focused callable, start, projection, route, service, font, and Firestore-rules tests cover the authority boundary. |
 | 363 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 364 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 365 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

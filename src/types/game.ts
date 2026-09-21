@@ -547,6 +547,15 @@ export interface TotalFleetLossOutcome {
 
 export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome;
 
+/** Public server-owned custody of a printed shuttle. */
+export interface ShuttleControlEntry {
+  readonly shuttleId: ShuttleId;
+  readonly ownerRoleId: RoleId;
+  readonly ownerUid: PlayerId;
+  readonly holderUid: PlayerId;
+  readonly revision: number;
+}
+
 /** Public terminal population result calculated from authoritative ledgers. */
 export interface SurvivorOutcome {
   readonly type: 'survivor-outcome';
@@ -594,6 +603,7 @@ export interface GameSession {
   readonly smallShipStates?: Readonly<Partial<Record<SmallShipId, SmallShipState>>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
+  readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
   readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;

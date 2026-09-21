@@ -903,6 +903,17 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Shuttle-control requests are private replay receipts. The audit is
+      // server-authored and visible only to an active facilitator.
+      match /shuttleControlRequests/{requestId} {
+        allow read, write: if false;
+      }
+
+      match /shuttleControlAudit/{requestId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       match /damageDraws/{drawId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

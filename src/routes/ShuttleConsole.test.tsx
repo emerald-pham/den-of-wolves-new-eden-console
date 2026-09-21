@@ -18,8 +18,17 @@ vi.mock('@/lib/pressDispatchService', () => ({
   dismissPressDispatch: vi.fn(),
   publishPressDispatch: vi.fn(),
 }));
+vi.mock('@/lib/firestore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/firestore')>()),
+  subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+}));
+vi.mock('@/lib/shuttleControlService', () => ({
+  transferShuttleControl: vi.fn().mockResolvedValue(undefined),
+}));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
 const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionService');
+const { subscribeConnectedPlayers } = await import('@/lib/firestore');
+const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 
 beforeEach(() => {
   vi.mocked(selectConsoleRole).mockReset();
@@ -30,6 +39,10 @@ beforeEach(() => {
   vi.mocked(publishPressDispatch).mockResolvedValue(undefined);
   vi.mocked(dismissPressDispatch).mockReset();
   vi.mocked(dismissPressDispatch).mockResolvedValue(undefined);
+  vi.mocked(subscribeConnectedPlayers).mockReset();
+  vi.mocked(subscribeConnectedPlayers).mockReturnValue(vi.fn());
+  vi.mocked(transferShuttleControl).mockReset();
+  vi.mocked(transferShuttleControl).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -865,5 +878,63 @@ it('replaces an unentitled deep link with the held console without claiming the 
   expect(screen.getByText('Role selection parent')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'History forward' }));
   expect(screen.getByText('Held console')).toBeVisible();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+});
+
+it('lets the printed owner hand shuttle control to a connected fleet-group player', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+        holderUid: 'u1', revision: 0,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      state.me!,
+      { ...state.me!, uid: 'u2', displayName: 'Miner', assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner' },
+    ]);
+    return vi.fn();
+  });
+  render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  await user.selectOptions(screen.getByLabelText('Hand off to'), 'u2');
+  await user.click(screen.getByRole('button', { name: 'Hand off control' }));
+  expect(transferShuttleControl).toHaveBeenCalledWith('starlight', 'handoff', 0, 'u2');
+  expect(screen.getByRole('status')).toHaveTextContent('Shuttle control handed off.');
+});
+
+it('lets the current recipient enter without claiming the printed owner role', async () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'owner',
+        holderUid: 'u1', revision: 1,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([state.me!]);
+    return vi.fn();
+  });
+  render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(screen.getByRole('heading', { level: 1, name: /starlight/i })).toBeVisible();
+  expect(screen.getByText(/current holder.*reporter/i)).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Hand off control' })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Back to assigned console' }))
+    .toHaveAttribute('href', '/ships/icebreaker/roles/icebreaker-miner');
   expect(selectConsoleRole).not.toHaveBeenCalled();
 });

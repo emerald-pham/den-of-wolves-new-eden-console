@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [362],
+    implementationProgress: {
+      completed: 367, total: 751, percentage: '48.87%',
+      done: 367, partial: 17, active: 0, missing: 367,
+    },
+    changes: [
+      'A shuttle’s printed owner can now hand control to another connected player in the same fleet group and reclaim it later.',
+      'The current holder receives a direct shuttle-console link without taking over the printed owner’s console role.',
+      'Facilitators can adjudicate control transfers from an active GM instance, while every accepted change is revision-checked and audited by the server.',
+      '367 of 751 planned items are complete (48.87%).',
+    ],
+  },
+  {
+    version: '0.4.60',
     implementationPrompts: [361],
     implementationProgress: {
       completed: 366, total: 751, percentage: '48.74%',

@@ -8,6 +8,8 @@ import HummingbirdHarvest from './HummingbirdHarvest';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
+import type { ShuttleControlEntry } from '@/types/game';
+import ShuttleControl from './ShuttleControl';
 
 const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType<{ shuttle: Shuttlecraft }>; placement: 'workspace' | 'instruments' }> = {
   'newspaper-confetti': { component: PressConfetti, placement: 'instruments' },
@@ -26,6 +28,7 @@ interface Props {
   readonly canLeave: boolean;
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled?: boolean;
+  readonly control?: ShuttleControlEntry | undefined;
   readonly returnTo?: {
     readonly to: string;
     readonly label: string;
@@ -41,6 +44,7 @@ export default function ShuttleConsoleTemplate({
   canLeave,
   docking,
   fuelled = false,
+  control,
   returnTo,
 }: Props) {
   const host = SHIPS.find((ship) => ship.id === docking?.shipId);
@@ -103,6 +107,7 @@ export default function ShuttleConsoleTemplate({
             </div>
           </section>}
           {workspaceCapabilities.map(renderCapability)}
+          {control && <ShuttleControl control={control} />}
           {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>
       </section>

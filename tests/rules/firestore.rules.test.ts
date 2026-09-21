@@ -2096,6 +2096,8 @@ describe('complete server-owned denial matrix', () => {
       SESSION + '/fleetGroups/fleet-1',
       SESSION + '/shipStoreScavenges/aegis',
       SESSION + '/shipStoreScavenges/aegis/audit/scavenge-1',
+      SESSION + '/shuttleControlRequests/handoff-1',
+      SESSION + '/shuttleControlAudit/handoff-1',
       SESSION + '/arbourVisionAuthority/current',
       'joinCodes/482109',
       'activeMemberships/alice',
@@ -2106,6 +2108,19 @@ describe('complete server-owned denial matrix', () => {
       await assertFails(setDoc(target, { forged: true }));
       await assertFails(deleteDoc(target));
     }
+  });
+
+  it('keeps shuttle-control receipts private and exposes server audits only to the GM', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/shuttleControlRequests/handoff-1`), { private: true });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/shuttleControlAudit/handoff-1`), {
+        type: 'shuttle-control-audit', shuttleId: 'starlight', holderUid: 'alice',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/shuttleControlRequests/handoff-1`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/shuttleControlRequests/handoff-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/shuttleControlAudit/handoff-1`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/shuttleControlAudit/handoff-1`)));
   });
 
   it('denies signed-out and stranger reads of private session collections', async () => {
@@ -2126,6 +2141,8 @@ describe('complete server-owned denial matrix', () => {
       'craftOwnership',
       'fleetGroups',
       'shipStoreScavenges',
+      'shuttleControlRequests',
+      'shuttleControlAudit',
     ];
 
     for (const name of protectedCollections) {

@@ -489,7 +489,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 359 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Merge contacts after rejoin. |
 | 360 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Deny direct DRADIS writes. |
 | 361 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-361 | M7 | Build the authoritative shuttle manifest. |
-| 362 | NEW | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-362 | M7 | Transfer shuttle control. |
+| 362 | NEW | done | 361 | none | none | none | none | none | none | none | E-AUDIT-362 | M7 | Transfer shuttle control. |
 | 363 | NEW | missing | 361;362 | none | none | none | none | none | none | none | E-AUDIT-363 | M7 | Resolve holder-based docking. |
 | 364 | NEW | missing | 142;361 | none | none | none | none | none | none | none | E-AUDIT-364 | M7 | Validate Team-start docking. |
 | 365 | NEW | missing | 141;363 | none | none | none | none | none | none | none | E-AUDIT-365 | M7 | Request shuttle departure. |

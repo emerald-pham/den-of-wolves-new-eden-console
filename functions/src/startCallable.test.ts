@@ -462,6 +462,17 @@ it('writes the exact server-derived craft manifest when a legacy start has no ma
   )?.[1];
 
   expect(reply).toMatchObject({ status: 'committed', setupRevision: 1 });
+  const sessionUpdate = mock.update.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1',
+  )?.[1];
+  expect(sessionUpdate?.shuttleControl?.starlight).toEqual({
+    shuttleId: 'starlight',
+    ownerRoleId: 'wing-commander',
+    ownerUid: 'u3',
+    holderUid: 'u3',
+    revision: 0,
+  });
+  expect(sessionUpdate?.shuttleControl).not.toHaveProperty('fighter-wing-alpha');
   expect(manifestWrite).toEqual({
     type: 'role-owned-craft',
     activeRoleIds: [...roleIds],

@@ -276,6 +276,11 @@ import {
   initialShuttleVisitsForDockings,
   sanitizeShuttleCargo,
 } from './shuttlecraft';
+import {
+  initialShuttleControl,
+  parseShuttleControl,
+  transferShuttleControl,
+} from './shuttleControl';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import {
   isJoinCode,
@@ -4469,6 +4474,11 @@ export const startGame = onCall<{
         'malformed-input',
       );
     }
+    const startingCraftIds = new Set(startingCraftManifest.entries.map((craft) => craft.id));
+    const shuttleControl = initialShuttleControl(
+      expectedCraftManifest.roleOwnedCraft.filter((craft) => startingCraftIds.has(craft.id)),
+      holders,
+    );
     const persistedStartingCraft = craftOwnershipManifest.exists
       ? craftOwnershipManifest.get('startingCraft')
       : undefined;
@@ -4681,6 +4691,7 @@ export const startGame = onCall<{
       configurationLocked: true,
       setupRevision: committedSetupRevision,
       pursuitGroups: removeLegacyNavigationField(),
+      shuttleControl,
       ...turnOneState,
     });
     const result = {
@@ -4719,6 +4730,235 @@ export const startGame = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     }));
     return result;
+  });
+});
+
+type ShuttleControlReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  action: 'handoff' | 'reclaim';
+  shuttleId: string;
+  previousHolderUid: string;
+  holderUid: string;
+  ownerUid: string;
+  revision: number;
+}>;
+
+function shuttleOwnerRoleForPlayer(player: DocumentSnapshot): string | undefined {
+  const assigned = player.get('assignedRoleId');
+  if (typeof assigned === 'string' && assigned.length > 0) return assigned;
+  const active = player.get('activeConsoleRoleId');
+  return active === 'press-officer' ? active : undefined;
+}
+
+/** Hand a shuttle to another connected player or return it to its printed owner. */
+export const transferShuttleControlCommand = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  instanceId?: unknown;
+  shuttleId?: unknown;
+  action?: unknown;
+  targetUid?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowedKeys = new Set([
+    'sessionId', 'requestId', 'instanceId', 'shuttleId', 'action', 'targetUid', 'expectedRevision',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowedKeys.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.shuttleId !== 'string' || !AUTHORIZED_SHUTTLE_IDS.has(raw.shuttleId) ||
+      (raw.action !== 'handoff' && raw.action !== 'reclaim') ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 0 ||
+      (raw.instanceId !== undefined &&
+        (typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId))) ||
+      (raw.action === 'handoff' &&
+        (typeof raw.targetUid !== 'string' || !/^[\w-]{1,128}$/.test(raw.targetUid))) ||
+      (raw.action === 'reclaim' && raw.targetUid !== undefined)) {
+    throw new HttpsError('invalid-argument', 'Invalid shuttle control request.');
+  }
+  const data = raw as {
+    sessionId: string;
+    requestId: string;
+    instanceId?: string;
+    shuttleId: string;
+    action: 'handoff' | 'reclaim';
+    targetUid?: string;
+    expectedRevision: number;
+  };
+  const fingerprint = {
+    action: data.action,
+    sessionId: data.sessionId,
+    requestId: data.requestId,
+    actorUid: uid,
+    instanceId: data.instanceId ?? null,
+    shuttleId: data.shuttleId,
+    targetUid: data.targetUid ?? null,
+    expectedRevision: data.expectedRevision,
+  };
+  const sessionRef = db.doc('sessions/' + data.sessionId);
+  const actorRef = db.doc('sessions/' + data.sessionId + '/players/' + uid);
+  const playersRef = db.collection('sessions/' + data.sessionId + '/players');
+  const instanceRef = data.instanceId
+    ? db.doc('sessions/' + data.sessionId + '/gmInstances/' + data.instanceId)
+    : null;
+  const requestRef = db.doc(
+    'sessions/' + data.sessionId + '/shuttleControlRequests/' + data.requestId,
+  );
+  const auditRef = db.doc(
+    'sessions/' + data.sessionId + '/shuttleControlAudit/' + data.requestId,
+  );
+  return db.runTransaction(async tx => {
+    const [session, actor, players, instance, prior] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(actorRef),
+      tx.get(playersRef),
+      instanceRef ? tx.get(instanceRef) : Promise.resolve(undefined),
+      tx.get(requestRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor)) {
+      throw new HttpsError('permission-denied', 'Join the session before transferring a shuttle.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    const actorIsFacilitator = actor.get('role') === 'gm';
+    if (actorIsFacilitator) {
+      if (!instance || !isLiveGmInstance(instance, actor, uid)) {
+        throw new HttpsError('permission-denied', 'Active GM instance required.');
+      }
+    } else if (actor.get('role') !== 'player' || data.instanceId !== undefined) {
+      throw new HttpsError('permission-denied', 'A connected player or facilitator is required.');
+    }
+    const playerDocs = players.docs.filter(isActivePlayer);
+    const roleHolders = playerDocs.flatMap((player) => {
+      const roleId = shuttleOwnerRoleForPlayer(player);
+      return roleId ? [{ uid: player.id, roleId }] : [];
+    });
+    const ownerRoleId = ROLE_OWNED_CRAFT_CATALOG.find((craft) =>
+      craft.id === data.shuttleId && craft.kind === 'shuttle')?.ownerRoleId;
+    const ownerUids = ownerRoleId
+      ? roleHolders.filter((holder) => holder.roleId === ownerRoleId).map((holder) => holder.uid)
+      : [];
+    if (!ownerRoleId || ownerUids.length !== 1) {
+      throw commandError(
+        'failed-precondition',
+        'The shuttle printed owner is unavailable or ambiguous.',
+        'conflict',
+      );
+    }
+    const ownerUid = ownerUids[0]!;
+    if (!actorIsFacilitator && uid !== ownerUid) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the shuttle printed owner or facilitator may transfer control.',
+      );
+    }
+    if (prior.exists) {
+      if (JSON.stringify(prior.get('fingerprint')) !== JSON.stringify(fingerprint)) {
+        throw commandError(
+          'failed-precondition',
+          'This request id was already used for another shuttle control command.',
+          'conflict',
+        );
+      }
+      const reply = prior.get('reply') as ShuttleControlReply | undefined;
+      if (!reply || reply.sessionId !== data.sessionId || reply.shuttleId !== data.shuttleId) {
+        throw commandError(
+          'failed-precondition',
+          'This shuttle control request has no replayable result.',
+          'conflict',
+        );
+      }
+      return { ...reply, status: 'replayed' as const };
+    }
+    // An exact retry remains available to the still-authorized printed owner
+    // or facilitator after the phase or recipient presence changes. The
+    // committed reply contains no hidden state and must remain transport-safe.
+    requireActiveGameplayPhase(session);
+    const stored = session.get('shuttleControl');
+    let control = stored === undefined ? null : parseShuttleControl(stored);
+    if (stored !== undefined && !control) {
+      throw commandError(
+        'failed-precondition',
+        'The shuttle control state is malformed.',
+        'conflict',
+      );
+    }
+    if (!control?.[data.shuttleId]) {
+      const enabledCraft = roleOwnedCraftForRoles(configuredRoleIds(session))
+        .filter((craft) => craft.kind === 'shuttle');
+      control = initialShuttleControl(enabledCraft, roleHolders);
+    }
+    const current = control[data.shuttleId];
+    if (!current) {
+      throw commandError('failed-precondition', 'Shuttle control is unavailable.', 'conflict');
+    }
+    const targetUid = data.action === 'reclaim' ? ownerUid : data.targetUid!;
+    const target = playerDocs.find((player) => player.id === targetUid);
+    if (!target || target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'Choose a connected player.', 'conflict');
+    }
+    if (!actorIsFacilitator &&
+        (typeof actor.get('fleetGroupId') !== 'string' ||
+          target.get('fleetGroupId') !== actor.get('fleetGroupId'))) {
+      throw new HttpsError('permission-denied', 'Choose a player in your current fleet group.');
+    }
+    let next;
+    try {
+      next = transferShuttleControl(
+        { ...control, [data.shuttleId]: { ...current, ownerRoleId, ownerUid } },
+        {
+          shuttleId: data.shuttleId,
+          action: data.action,
+          actorUid: uid,
+          actorIsFacilitator,
+          targetUid: data.targetUid,
+          expectedRevision: data.expectedRevision,
+        },
+      );
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Shuttle control transfer failed.',
+        'conflict',
+      );
+    }
+    const reply: ShuttleControlReply = {
+      status: 'committed',
+      sessionId: data.sessionId,
+      requestId: data.requestId,
+      action: data.action,
+      shuttleId: data.shuttleId,
+      previousHolderUid: current.holderUid,
+      holderUid: next.holderUid,
+      ownerUid,
+      revision: next.revision,
+    };
+    tx.update(sessionRef, { ['shuttleControl.' + data.shuttleId]: next });
+    tx.set(auditRef, {
+      type: 'shuttle-control-audit',
+      sessionId: data.sessionId,
+      requestId: data.requestId,
+      shuttleId: data.shuttleId,
+      action: data.action,
+      actorUid: uid,
+      actorRole: actorIsFacilitator ? 'facilitator' : 'printed-owner',
+      ownerUid,
+      previousHolderUid: current.holderUid,
+      holderUid: next.holderUid,
+      previousRevision: current.revision,
+      revision: next.revision,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, {
+      fingerprint,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });
 
