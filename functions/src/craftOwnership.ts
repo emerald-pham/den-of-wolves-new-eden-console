@@ -115,6 +115,18 @@ const PRINTED_FIGHTER_WING_HOSTS: Readonly<Record<string, string>> = {
   'pdf-escort-fighter-wing': 'refinery-124',
 };
 
+/** Union craft may move only between the two ships assigned to their owner role. */
+const UNION_CRAFT_HOSTS: Readonly<Record<string, readonly string[]>> = {
+  wobbly: ['quellon', 'refinery-124'],
+  ally: ['shepherd', 'icebreaker'],
+};
+
+function craftHostIsAllowed(craftId: string, shipId: string | null | undefined): boolean {
+  if (!shipId) return false;
+  const restrictedHosts = UNION_CRAFT_HOSTS[craftId];
+  return restrictedHosts === undefined || restrictedHosts.includes(shipId);
+}
+
 /**
  * Compose one exact-once starting tuple from the existing role catalog and
  * authoritative docking state. Standard craft require a docking row; a
@@ -131,7 +143,8 @@ export function craftStartingManifestForSetup(
     else dockingHosts.set(docking.shuttleId, null);
   }
   const entries = roleOwnedCraftForRoles(activeRoleIds)
-    .filter((craft) => craft.enabledMode === 'standard' || dockingHosts.has(craft.id))
+    .filter((craft) => craft.enabledMode === 'standard' ||
+      craftHostIsAllowed(craft.id, dockingHosts.get(craft.id)))
     .map((craft) => ({
     ...craft,
     startingHostId: craft.kind === 'fighter-wing'
@@ -190,6 +203,8 @@ export function shuttleDockingsMatchRoleOwnedCraft(
   shuttleDockings: readonly { shuttleId: string; shipId: string }[],
 ): boolean {
   if (!shuttleDockingsAreKnownAndUnique(shuttleDockings)) return false;
+  if (shuttleDockings.some((docking) =>
+    !craftHostIsAllowed(docking.shuttleId, docking.shipId))) return false;
   const seen = new Set(shuttleDockings.map((docking) => docking.shuttleId));
   const expected = new Set(roleOwnedCraftForRoles(activeRoleIds)
     .filter((craft) => craft.kind === 'shuttle')

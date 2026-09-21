@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**365 / 751 prompts complete (48.60%)**
+**366 / 751 prompts complete (48.74%)**
 
-Status breakdown: **365 done · 18 partial · 368 missing**.
+Status breakdown: **366 done · 17 partial · 368 missing**.
 
 Active prompt: **none**
 
@@ -803,7 +803,7 @@ release classification and evidence.
 | 358 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 359 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 360 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 361 | partial | non-feature | — | Partial production path: server-owned setup/start state now composes each enabled craft's exact id, shuttle or fighter-wing kind, printed owner role, enabled mode, and authoritative starting host. Standard craft and printed fighter-wing hosts are validated exactly once before mutation; legacy starts and setup edits preserve current dockings rather than resetting to printed defaults. GM-controlled Wobbly and Ally remain disabled until an explicit current docking exists because the routed source leaves their initial Union pairing unresolved. Base and expansion Capybara craft stay distinct. |
+| 361 | done | non-feature | 0.4.60 | The server-owned setup/start path composes every enabled craft exactly once with its canonical id, shuttle or fighter-wing kind, printed owner role, enabled mode, Wolf battle-table disposition, and authoritative starting host. New sessions derive standard shuttle hosts from printed initial dockings and fighter-wing hosts from their printed vessel bays. GM-controlled Wobbly and Ally remain disabled until an explicit current docking assigns Wobbly to Quellon or Refinery 124, or Ally to Shepherd or Icebreaker; any other active host now fails closed before start. Start rejects changed owners, modes, lists, duplicates, unknown craft, missing standard dockings, invalid hosts, and invalid Union-pair hosts before mutation; exact replay and legacy normalization preserve the accepted manifest without resetting a moved current docking. An exact 20-entry full-roster matrix plus setup/start and composition tests prove the complete manifest. |
 | 362 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 363 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 364 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

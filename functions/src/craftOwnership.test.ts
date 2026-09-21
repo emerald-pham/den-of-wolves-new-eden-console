@@ -141,10 +141,15 @@ describe('role-owned craft composition', () => {
     }, expected)).toBe(false);
   });
 
-  it('composes exact starting hosts, owner, kind, and enabled mode', () => {
+  it('composes every craft with its exact starting host, owner, kind, and enabled mode', () => {
     const activeRoleIds = [
-      'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
-      'quellon-explorer', 'refinery-124-pdf-colonel',
+      'admiral', 'executive-officer', 'wing-commander',
+      'dione-engineer',
+      'icebreaker-miner', 'icebreaker-engineer',
+      'capybara-captain', 'capybara-recycler',
+      'shepherd-scientist', 'shepherd-engineer',
+      'quellon-explorer', 'quellon-engineer',
+      'refinery-124-engineer', 'refinery-124-pdf-colonel',
       'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
     ];
     const dockings = [
@@ -152,16 +157,35 @@ describe('role-owned craft composition', () => {
       { shuttleId: 'wobbly', shipId: 'quellon' },
       { shuttleId: 'ally', shipId: 'shepherd' },
     ];
-    const manifest = craftStartingManifestForSetup(activeRoleIds, 'base-capybara', dockings);
-    expect(manifest.entries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard', startingHostId: 'aegis' }),
-      expect.objectContaining({ id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', startingHostId: 'aegis' }),
-      expect.objectContaining({ id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', startingHostId: 'refinery-124' }),
-      expect.objectContaining({ id: 'wobbly', enabledMode: 'gm-controlled', startingHostId: 'quellon' }),
-      expect.objectContaining({ id: 'ally', enabledMode: 'gm-controlled', startingHostId: 'shepherd' }),
-    ]));
+    const manifest = craftStartingManifestForSetup(activeRoleIds, 'expansion-capybara', dockings);
+    expect(manifest.entries.map(({
+      id, kind, ownerRoleId, enabledMode, wolfAttackRole, startingHostId,
+    }) => ({
+      id, kind, ownerRoleId, enabledMode, wolfAttackRole, startingHostId,
+    }))).toEqual([
+      { id: 'snn-press-shuttle', kind: 'shuttle', ownerRoleId: 'press-officer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'dione' },
+      { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'aegis' },
+      { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'battle-table', startingHostId: 'aegis' },
+      { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'battle-table', startingHostId: 'aegis' },
+      { id: 'pallas', kind: 'shuttle', ownerRoleId: 'executive-officer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'aegis' },
+      { id: 'philia', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'dione' },
+      { id: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'battle-table', startingHostId: 'dione' },
+      { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner', enabledMode: 'standard', wolfAttackRole: 'battle-table', startingHostId: 'icebreaker' },
+      { id: 'blacksmith', kind: 'shuttle', ownerRoleId: 'icebreaker-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'icebreaker' },
+      { id: 'macaw', kind: 'shuttle', ownerRoleId: 'capybara-captain', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'capybara' },
+      { id: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler', enabledMode: 'standard', wolfAttackRole: 'battle-table', startingHostId: 'capybara' },
+      { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'shepherd' },
+      { id: 'black-sheep', kind: 'shuttle', ownerRoleId: 'shepherd-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'shepherd' },
+      { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'quellon' },
+      { id: 'condor', kind: 'shuttle', ownerRoleId: 'quellon-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'quellon' },
+      { id: 'chacau', kind: 'shuttle', ownerRoleId: 'refinery-124-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'refinery-124' },
+      { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'park-only', startingHostId: 'refinery-124' },
+      { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'battle-table', startingHostId: 'refinery-124' },
+      { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only', startingHostId: 'quellon' },
+      { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only', startingHostId: 'shepherd' },
+    ]);
     expect(craftStartingManifestMatches(manifest, manifest, [
-      'aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
+      'aegis', 'dione', 'icebreaker', 'capybara', 'shepherd', 'quellon', 'refinery-124',
     ])).toBe(true);
   });
 
@@ -188,6 +212,25 @@ describe('role-owned craft composition', () => {
       ...resolved,
       { shuttleId: 'macaw', shipId: 'aegis' },
     ])).toBe(false);
+    expect(shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, [
+      ...initial,
+      { shuttleId: 'wobbly', shipId: 'aegis' },
+    ])).toBe(false);
+    expect(craftStartingManifestForSetup(activeRoleIds, 'none', [
+      ...initial,
+      { shuttleId: 'wobbly', shipId: 'aegis' },
+    ]).entries.some((entry) => entry.id === 'wobbly')).toBe(false);
+
+    const allyRoles = ['admiral', 'wing-commander', 'joint-engineering-shepherd-icebreaker'];
+    const allyInitial = initialShuttleDockingsForRoles(allyRoles);
+    expect(shuttleDockingsMatchRoleOwnedCraft(allyRoles, [
+      ...allyInitial,
+      { shuttleId: 'ally', shipId: 'quellon' },
+    ])).toBe(false);
+    expect(shuttleDockingsMatchRoleOwnedCraft(allyRoles, [
+      ...allyInitial,
+      { shuttleId: 'ally', shipId: 'icebreaker' },
+    ])).toBe(true);
   });
 
   it('accepts only a legacy null placeholder for an optional Union entry', () => {

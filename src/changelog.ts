@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [361],
+    implementationProgress: {
+      completed: 366, total: 751, percentage: '48.74%',
+      done: 366, partial: 17, active: 0, missing: 368,
+    },
+    changes: [
+      'Session start now validates every shuttle and fighter wing against one authoritative owner, craft type, enabled mode, and starting host before play begins.',
+      'Joint Engineering Union craft can start only at one of their two assigned ships: Wobbly at Quellon or Refinery 124, and Ally at Shepherd or Icebreaker.',
+      'Invalid, duplicate, missing, or changed craft assignments stop the start safely before any game state is written.',
+      '366 of 751 planned items are complete (48.74%).',
+    ],
+  },
+  {
+    version: '0.4.59',
     implementationPrompts: [247],
     implementationProgress: {
       completed: 364, total: 751, percentage: '48.47%',

@@ -2321,8 +2321,8 @@
     {
       "direction": "361 -> 161;162",
       "id": "E-AUDIT-361",
-      "language": "The server now composes a starting-craft manifest from the role-owned catalog and authoritative dockings: every enabled entry records craft id, kind, printed owner role, enabled mode, and one active starting host; fighter-wing hosts come from their printed bay vessels. Start validates exact-once rows and migrates legacy manifests from current dockings without resetting moved craft. GM-controlled Union craft remain disabled until an explicit docking exists because the routed source does not choose Wobbly/Ally's initial host.",
-      "source": "functions/src/craftOwnership.ts; functions/src/index.ts; functions/src/sessionComposition.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.test.ts; functions/src/startCallable.test.ts; src/data/vessels/starlight.ts; src/data/aegisConsoles.ts; src/data/pdfConsoles.ts; authorized routed REFERENCE_ONLY_SHUTTLES.md; authorized routed REFERENCE_ONLY_CAPYBARA_EXPANSION.md",
+      "language": "The server composes the complete starting-craft manifest from the role-owned catalog and authoritative dockings: every enabled entry records craft id, shuttle or fighter-wing kind, printed owner role, enabled mode, Wolf battle-table disposition, and one active starting host. Standard shuttle and printed fighter-wing hosts are exact. GM-controlled Union craft enter only with an explicit current docking, with Wobbly restricted to Quellon or Refinery 124 and Ally restricted to Shepherd or Icebreaker. Start validates the exact-once manifest and Union pairing before mutation, preserves moved current dockings, normalizes legacy null Union placeholders without activating absent craft, and replays without drift.",
+      "source": "functions/src/craftOwnership.ts; functions/src/shuttlecraft.ts; functions/src/index.ts; functions/src/sessionComposition.ts; functions/src/craftOwnership.test.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; src/data/vessels/*.ts; src/data/aegisConsoles.ts; src/data/pdfConsoles.ts; authorized routed REFERENCE_ONLY_SHUTTLES.md; authorized routed REFERENCE_ONLY_CAPYBARA_EXPANSION.md",
       "type": "hard_prompt"
     },
     {
@@ -14848,7 +14848,7 @@
         "acceptance": "every craft starts once at its printed host with exact owner, type, and enabled-mode rules.",
         "title": "Build the authoritative shuttle manifest."
       },
-      "description": "Partial production path: server-owned setup/start state now composes each enabled craft's exact id, shuttle or fighter-wing kind, printed owner role, enabled mode, and authoritative starting host. Standard craft and printed fighter-wing hosts are validated exactly once before mutation; legacy starts and setup edits preserve current dockings rather than resetting to printed defaults. GM-controlled Wobbly and Ally remain disabled until an explicit current docking exists because the routed source leaves their initial Union pairing unresolved. Base and expansion Capybara craft stay distinct.",
+      "description": "The server-owned setup/start path composes every enabled craft exactly once with its canonical id, shuttle or fighter-wing kind, printed owner role, enabled mode, Wolf battle-table disposition, and authoritative starting host. New sessions derive standard shuttle hosts from printed initial dockings and fighter-wing hosts from their printed vessel bays. GM-controlled Wobbly and Ally remain disabled until an explicit current docking assigns Wobbly to Quellon or Refinery 124, or Ally to Shepherd or Icebreaker; any other active host now fails closed before start. Start rejects changed owners, modes, lists, duplicates, unknown craft, missing standard dockings, invalid hosts, and invalid Union-pair hosts before mutation; exact replay and legacy normalization preserve the accepted manifest without resetting a moved current docking. An exact 20-entry full-roster matrix plus setup/start and composition tests prove the complete manifest.",
       "evidenceIds": "E-AUDIT-361",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -14857,10 +14857,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.60"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

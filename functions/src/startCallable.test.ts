@@ -547,6 +547,24 @@ it('leaves GM-controlled Union craft disabled until an explicit host is persiste
   ]));
 });
 
+it('blocks a Union craft assigned outside its two paired ships before writes', async () => {
+  mock.session.shuttleDockings = (
+    mock.session.shuttleDockings as Array<Record<string, unknown>>
+  ).map((docking) => docking.shuttleId === 'wobbly'
+    ? { ...docking, shipId: 'aegis' }
+    : docking);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge',
+    requestId: 'start-invalid-union-host', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Start blocked: craft-starting-manifest.',
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('records the current authoritative docking when migrating a legacy manifest', async () => {
   mock.session.shuttleDockings = (mock.session.shuttleDockings as Array<Record<string, string>>).map((docking) =>
     docking.shuttleId === 'starlight' ? { ...docking, shipId: 'quellon' } : docking);
