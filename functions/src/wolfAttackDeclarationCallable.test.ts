@@ -243,7 +243,11 @@ async function declareThenSeatDioneEngineer(fields: Fields = {}): Promise<void> 
   put('sessions/s1', {
     ...mock.documents.get('sessions/s1'),
     maintenanceCycles: {
-      dione: { turn: 1, step: 7, revision: 4, results: {}, charges: ['fighter-bay'], refuelled: [] },
+      dione: {
+        turn: 1, step: 7, revision: 4,
+        results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.' },
+        charges: ['fighter-bay'], refuelled: [],
+      },
     },
     shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
     ...fields,
@@ -299,19 +303,31 @@ it('denies stale, uncharged, damaged, malformed, and non-Engineer Maliades launc
     },
     {
       name: 'uncharged', mutate: () => patchSession({
-        maintenanceCycles: { dione: { turn: 1, step: 7, revision: 4, results: {}, charges: [], refuelled: [] } },
+        maintenanceCycles: { dione: {
+          turn: 1, step: 7, revision: 4,
+          results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 0/4 consoles.' },
+          charges: [], refuelled: [],
+        } },
         shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
       }), expected: /charge.*Fighter Bay/i,
     },
     {
       name: 'damaged', mutate: () => patchSession({
-        maintenanceCycles: { dione: { turn: 1, step: 7, revision: 4, results: {}, charges: ['fighter-bay'], refuelled: [] } },
+        maintenanceCycles: { dione: {
+          turn: 1, step: 7, revision: 4,
+          results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.' },
+          charges: ['fighter-bay'], refuelled: [],
+        } },
         shipDamage: { dione: { damagedSystemIds: ['fighter-bay'], destroyed: false } },
       }), expected: /damaged/i,
     },
     {
       name: 'malformed damage', mutate: () => patchSession({
-        maintenanceCycles: { dione: { turn: 1, step: 7, revision: 4, results: {}, charges: ['fighter-bay'], refuelled: [] } },
+        maintenanceCycles: { dione: {
+          turn: 1, step: 7, revision: 4,
+          results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.' },
+          charges: ['fighter-bay'], refuelled: [],
+        } },
         shipDamage: { dione: { damagedSystemIds: 'clear', destroyed: false } },
       }), expected: /damage authority.*malformed/i,
     },
@@ -323,8 +339,46 @@ it('denies stale, uncharged, damaged, malformed, and non-Engineer Maliades launc
     },
     {
       name: 'wrong role', mutate: () => put('sessions/s1/players/u1', {
-        uid: 'u1', role: 'player', connected: true, activeConsoleRoleId: 'dione-captain',
+        uid: 'u1', role: 'player', connected: true,
+        assignedRoleId: 'dione-captain', seatId: 'dione-captain',
+        activeConsoleRoleId: 'dione-captain',
       }), expected: /Dione Engineer/i,
+    },
+    {
+      name: 'stale Engineer pointer', mutate: () => put('sessions/s1/players/u1', {
+        uid: 'u1', role: 'player', connected: true,
+        assignedRoleId: 'dione-captain', seatId: 'dione-captain',
+        activeConsoleRoleId: 'dione-engineer',
+      }), expected: /Dione Engineer/i,
+    },
+    {
+      name: 'pregame lifecycle', mutate: () => patchSession({ phase: 'briefing' }),
+      expected: /active game.*Cycle 0/i,
+    },
+    {
+      name: 'Cycle 0', mutate: () => {
+        patchSession({ currentTurn: 0 });
+        put('sessions/s1/wolfAttackState/current', {
+          ...mock.documents.get('sessions/s1/wolfAttackState/current'), turn: 0,
+        });
+      }, expected: /active game.*Cycle 0/i,
+    },
+    {
+      name: 'prior-cycle retained charge', mutate: () => patchSession({
+        maintenanceCycles: { dione: {
+          turn: 1, step: 1, revision: 5, results: {},
+          charges: ['fighter-bay'], refuelled: [],
+        } },
+      }), expected: /maintenance authority.*malformed/i,
+    },
+    {
+      name: 'malformed charge ledger', mutate: () => patchSession({
+        maintenanceCycles: { dione: {
+          turn: 1, step: 7, revision: 4,
+          results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.' },
+          charges: ['fighter-bay', 7], refuelled: [],
+        } },
+      }), expected: /maintenance authority.*malformed/i,
     },
   ];
   for (const [index, testCase] of cases.entries()) {

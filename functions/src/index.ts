@@ -7,7 +7,7 @@ import {
   parsePlayerEscapeState,
   type PlayerEscapeState,
 } from './escapeState';
-import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
+import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
   INITIAL_SHIP_SURVIVORS,
@@ -13201,10 +13201,23 @@ function isDioneMaliadesLaunchResult(value: unknown): value is DioneMaliadesLaun
 
 function requireDioneEngineer(player: DocumentSnapshot): void {
   if (!player.exists || !isActivePlayer(player) || player.get('role') !== 'player' ||
-      player.get('activeConsoleRoleId') !== 'dione-engineer') {
+      player.get('activeConsoleRoleId') !== 'dione-engineer' ||
+      boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'dione-engineer') {
     throw new HttpsError('permission-denied', 'The active Dione Engineer console is required.');
   }
   requirePlayerShipActionAuthority(player);
+}
+
+function requireActiveDioneMaliadesCycle(session: DocumentSnapshot): number {
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  if (session.get('phase') !== 'active' || currentTurn < 1) {
+    throw commandError(
+      'failed-precondition',
+      'Maliades can launch only during an active game after Cycle 0.',
+      'invalid-phase',
+    );
+  }
+  return currentTurn;
 }
 
 function dioneMaliadesLaunchView(
@@ -13212,8 +13225,7 @@ function dioneMaliadesLaunchView(
   session: DocumentSnapshot,
   state: DocumentSnapshot,
 ): DioneMaliadesLaunchView {
-  requireActiveGameplayPhase(session);
-  const currentTurn = sessionTurn(session.get('currentTurn'));
+  const currentTurn = requireActiveDioneMaliadesCycle(session);
   const phase = turnPhaseState(session.get('turnPhase'));
   if (!sessionActiveRoleIds(session).includes('dione-engineer') ||
       !wolfAttackActiveVesselIds(session).includes('dione')) {
@@ -13272,7 +13284,14 @@ function dioneMaliadesLaunchView(
   const cycles = session.get('maintenanceCycles');
   const rawCycle = isRecord(cycles) ? cycles.dione : undefined;
   const cycle = parseMaintenanceCycle(rawCycle);
-  if (!cycle || cycle.turn !== currentTurn) {
+  const rawCharges = isRecord(rawCycle) ? rawCycle.charges : undefined;
+  const rawResults = isRecord(rawCycle) ? rawCycle.results : undefined;
+  if (!cycle || cycle.turn !== currentTurn || !Array.isArray(rawCharges) ||
+      rawCharges.some((charge) => typeof charge !== 'string') ||
+      new Set(rawCharges).size !== rawCharges.length ||
+      rawCharges.some((charge) => !chargeableConsoleIds('dione').includes(charge)) ||
+      !isRecord(rawResults) || Object.values(rawResults).some((result) => typeof result !== 'string') ||
+      typeof rawResults['5'] !== 'string' || !rawResults['5'].startsWith('Reactor powered up.')) {
     throw commandError(
       'failed-precondition',
       'The current Dione maintenance authority is missing or malformed.',
@@ -13326,7 +13345,6 @@ export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async requ
   ]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   requireDioneEngineer(player);
-  requireActiveGameplayPhase(session);
   return dioneMaliadesLaunchView(sessionId, session, state);
 });
 
@@ -13372,7 +13390,6 @@ export const launchDioneMaliades = onCall<{
     const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
     if (replay) return { ...replay, status: 'replayed' };
     if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');
-    requireActiveGameplayPhase(session);
     const view = dioneMaliadesLaunchView(sessionId, session, state);
     if (view.turn !== expectedTurn || view.revision !== expectedRevision) {
       throw commandError(
