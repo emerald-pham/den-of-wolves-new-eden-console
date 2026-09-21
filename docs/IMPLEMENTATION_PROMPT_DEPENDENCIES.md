@@ -229,7 +229,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 126 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-126 | M2 | Resolve both AEGIS shuttle bays. |
 | 127 | PRESERVE | done | 361 | none | none | none | none | none | none | none | E-AUDIT-127 | M2 | Resolve ordinary single-bay fuelling. |
 | 128 | PRESERVE | done | 103 | none | none | none | none | none | none | none | E-AUDIT-128;E-128-VERIFIED | M2 | Expire unused charges and shuttle fuel. |
-| 129 | PRESERVE | missing | 127 | none | none | none | none | none | none | none | E-AUDIT-129 | M2 | Surface damaged-bay denial. |
+| 129 | PRESERVE | done | 127 | none | none | none | none | none | none | none | E-AUDIT-129 | M2 | Surface damaged-bay denial. |
 | 130 | PRESERVE | done | none | none | none | none | none | none | none | none | E-130-VERIFIED | M2 | Draw damage cards authoritatively. |
 | 131 | PRESERVE | done | 130 | none | none | none | none | none | none | none | E-AUDIT-131;E-131-VERIFIED | M2 | Destroy a ship on empty-deck draw. |
 | 132 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Recycle AEGIS Armoured Hull. |

@@ -324,6 +324,34 @@ it('renders Capybara\'s single bay with exactly the two docked shuttle choices',
   expect(run).toHaveBeenCalledWith('capybara', 'bays', 3, { refuels: { 'shuttle-bay': 'boa' } }, undefined);
 });
 
+it('explains a damaged ordinary bay while allowing maintenance to continue', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 0, securityTeams: 2 } },
+    shipDamage: { dione: { damagedSystemIds: ['shuttle-bay'], destroyed: false } },
+    maintenanceCycles: { dione: {
+      step: 6, revision: 4, results: { '5': 'Reactor powered up.' }, charges: [], refuelled: [],
+    } },
+    shuttleDockings: [{ shipId: 'dione', shuttleId: 'iorgos', dockedAt: 'SESSION START' }],
+  } });
+  render(<MaintenanceSystems name="Dione" shipId="dione"
+    systems={[{ id: 'shuttle-bay', name: 'Shuttle Bay', timing: 6 }]}
+    renderSystem={() => null} rations={null} />);
+
+  const refuelling = screen.getByRole('combobox', { name: 'Shuttle Bay refuelling' });
+  expect(refuelling).toBeDisabled();
+  expect(refuelling).toHaveAccessibleDescription(
+    'Refuelling unavailable // Shuttle Bay is damaged. Continue maintenance without refuelling.',
+  );
+  expect(screen.getByText(
+    'Refuelling unavailable // Shuttle Bay is damaged. Continue maintenance without refuelling.',
+  )).toHaveAttribute('role', 'status');
+  const proceed = screen.getByRole('button', { name: 'Proceed with refuelling' });
+  expect(proceed).toBeEnabled();
+  await userEvent.click(proceed);
+  expect(run).toHaveBeenCalledWith('dione', 'bays', 4, { refuels: {} }, undefined);
+});
+
 it('offers AEGIS Shuttle Bay Zeta before Shuttle Bay Omega and clears the prior bay choice', async () => {
   useSessionStore.setState({ session: {
     ...session,

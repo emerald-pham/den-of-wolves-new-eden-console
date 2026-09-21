@@ -302,15 +302,24 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             </fieldset>}
             {(step === 6 || (step === 7 && shipId === 'aegis' && cycle?.results['7'] === undefined)) && <fieldset
               disabled={disabled(step) || (shipId === 'aegis' && step === 7 && damage?.destroyed === true)} className="maintenance-controls"><legend>Refuel {baysForStep.map(bay => bay.name).join(' / ') || 'docked shuttles'} // 1 fuel each</legend>
-              {baysForStep.map(bay => <label key={bay.id}>{bay.name}
-                <select aria-label={`${bay.name} refuelling`} disabled={damage?.damagedSystemIds.includes(bay.id)} value={refuels[bay.id] ?? ''}
-                  onChange={event => setRefuels(previous => ({ ...previous, [bay.id]: event.target.value }))}>
-                  <option value="">Do not refuel</option>
-                  {docked.map(dock => <option key={dock.shuttleId} value={dock.shuttleId}>
-                    {SHUTTLECRAFT.find(craft => craft.id === dock.shuttleId)?.name ?? dock.shuttleId}
-                  </option>)}
-                </select>
-              </label>)}
+              {baysForStep.map(bay => {
+                const bayDamaged = damage?.damagedSystemIds.includes(bay.id) === true;
+                const damagedBayHelpId = `${shipId}-${bay.id}-damaged-refuelling-help`;
+                return <Fragment key={bay.id}><label>{bay.name}
+                  <select aria-label={`${bay.name} refuelling`}
+                    aria-describedby={bayDamaged ? damagedBayHelpId : undefined}
+                    disabled={bayDamaged} value={refuels[bay.id] ?? ''}
+                    onChange={event => setRefuels(previous => ({ ...previous, [bay.id]: event.target.value }))}>
+                    <option value="">Do not refuel</option>
+                    {docked.map(dock => <option key={dock.shuttleId} value={dock.shuttleId}>
+                      {SHUTTLECRAFT.find(craft => craft.id === dock.shuttleId)?.name ?? dock.shuttleId}
+                    </option>)}
+                  </select>
+                </label>
+                {bayDamaged && <p id={damagedBayHelpId} role="status">
+                  Refuelling unavailable // {bay.name} is damaged. Continue maintenance without refuelling.
+                </p>}</Fragment>;
+              })}
               {!docked.length && <p>No shuttles docked.</p>}
               <button className="cic-action-button" onClick={() => void execute('bays', { refuels })}>Proceed with refuelling</button>
             </fieldset>}

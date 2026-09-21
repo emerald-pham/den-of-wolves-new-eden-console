@@ -8819,7 +8819,7 @@
         "acceptance": "the affected crew sees why fuelling is unavailable while unrelated maintenance remains usable.",
         "title": "Surface damaged-bay denial."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The shared maintenance workspace now identifies a damaged active shuttle bay with visible status copy and links that explanation to the disabled refuelling selector for assistive technology. The same fieldset keeps Proceed with refuelling enabled, submitting an empty bay choice so the authoritative maintenance sequence advances without fuelling while unrelated maintenance remains usable. A focused component regression proves the denial, accessible description, enabled continuation, and empty authoritative command. Released in 0.4.67.",
       "evidenceIds": "E-AUDIT-129",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8828,10 +8828,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.67"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

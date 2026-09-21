@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [129],
+    implementationProgress: {
+      completed: 374, total: 751, percentage: '49.80%',
+      done: 374, partial: 17, active: 0, missing: 360,
+    },
+    changes: [
+      'A damaged shuttle bay now explains why refuelling is unavailable to the affected crew.',
+      'The maintenance step can still continue without refuelling, so bay damage does not block unrelated maintenance.',
+      '374 of 751 planned items are complete (49.80%).',
+    ],
+  },
+  {
+    version: '0.4.66',
     implementationPrompts: [127],
     implementationProgress: {
       completed: 372, total: 751, percentage: '49.53%',

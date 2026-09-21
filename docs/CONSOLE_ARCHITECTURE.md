@@ -91,7 +91,9 @@ authoritative docking row, active ship roster, active craft ownership, current
 maintenance revision, host stores, and prior fuel state in the same transaction;
 unknown, duplicate, malformed, in-transit, wrong-host, already-fuelled, or stale
 choices fail before any state changes. AEGIS and Capybara keep their separately
-encoded bay contracts.
+encoded bay contracts. The active crew sees a damaged-bay explanation beside
+the disabled refuelling choice, while the maintenance continuation remains
+available so the ship can resolve the step without fuelling.
 
 Each ship has one shared docking manifest: an immutable history whose rows name
 the shuttlecraft and the shuttleport where it docked. Current occupancy,
