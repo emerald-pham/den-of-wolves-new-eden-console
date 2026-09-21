@@ -93,6 +93,18 @@ describe('fleet system reference workspaces', () => {
     expect(screen.queryByRole('link', { name: /open macaw shuttle console/i })).not.toBeInTheDocument();
   });
 
+  it('keeps the expansion Captain on Macaw supply and repair work without Boa access', () => {
+    const ship = SHIPS.find(s => s.id === 'capybara')!;
+    renderWorkspace(<FleetConsoleWorkspace ship={ship} role={ship.roles[0]} fuel={3} galacticCoordinate="0101" />);
+
+    const macaw = screen.getByRole('link', { name: /open macaw shuttle console/i }).closest('article');
+    expect(macaw).toHaveTextContent(/salvage shuttle.*repairs or salvages consoles with scrap/i);
+    expect(screen.getByRole('link', { name: /open macaw shuttle console/i }))
+      .toHaveAttribute('href', '/shuttles/macaw');
+    expect(screen.queryByRole('link', { name: /open boa shuttle console/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Scrap allocation' })).not.toBeInTheDocument();
+  });
+
   it('renders the expansion Capybara identity from its full-ship definition', () => {
     const ship = SHIPS.find(candidate => candidate.id === 'capybara')!;
     expect(ship.printedStatistics).toMatchObject({

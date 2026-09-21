@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**413 / 751 prompts complete (54.99%)**
+**414 / 751 prompts complete (55.13%)**
 
-Status breakdown: **413 done · 16 partial · 322 missing**.
+Status breakdown: **414 done · 16 partial · 321 missing**.
 
 Active prompt: **none**
 
@@ -720,7 +720,7 @@ release classification and evidence.
 | 276 | done | non-feature | — | Verified the existing Quellon/Refinery Union assignment. Its active engineer sees and can operate only those two maintenance lanes and Wobbly; server authority and shuttle destination checks preserve the pair during allowed movement. This is evidence reconciliation with no runtime behavior change. |
 | 277 | done | non-feature | — | Verified the existing Shepherd/Icebreaker Union assignment. Its active engineer sees and can operate only those two maintenance lanes and Ally; server authority and shuttle destination checks preserve the pair during allowed movement. This is evidence reconciliation with no runtime behavior change. |
 | 278 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 279 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 279 | done | non-feature | — | Verified the existing expansion Capybara workspaces. The Captain receives Macaw supply and repair/salvage references without Boa access; the Recycler receives Boa recycling/reclamation and Scrap procedures without Macaw access. Server craft ownership and held-console routing preserve this split and keep the other role read-only. This is evidence reconciliation with no runtime behavior change. |
 | 280 | done | non-feature | 0.4.52 | All seven source-defined replacement roles now receive a dedicated console workspace only when the live player projection carries that exact facilitator reassignment and no stale core-console authority. The shared shell exposes identity and station context while deliberately providing no invented action, target, resource, or outcome; mismatched deep links fail closed to the fleet roster. |
 | 281 | done | non-feature | — | One platform-independent immutable graph now supplies all 22 printed systems and 40 undirected edges to both the browser star chart and server coordinate validation. Every adjacency set was checked against the authorized routed source table. Frozen coordinate/edge arrays and returned neighbor lists resist consumer mutation, and unknown or unprinted coordinates have no entry. Existing topology, overlay presentation and coordinate acceptance are unchanged; no new jump authorization or scouting behavior is claimed. |
 | 282 | done | non-feature | — | The GM starmap now derives its overlay from the canonical session setup chart, falling back to the legacy session chart and the established A default only when setup is absent. It no longer offers an independent local chart selector. Existing facilitator-only confirmSetup owns A/B/C choice before configuration locks; new focused tests verify each choice, rejection after lock, and non-facilitator denial. Every current labelled-map lookup follows that authoritative selection, including fresh snapshots and setup precedence. No callable authorization, setup locking or chart topology was changed. |
