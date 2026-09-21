@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**383 / 751 prompts complete (51.00%)**
+**386 / 751 prompts complete (51.40%)**
 
-Status breakdown: **383 done · 16 partial · 352 missing**.
+Status breakdown: **386 done · 16 partial · 349 missing**.
 
 Active prompt: **none**
 
@@ -557,9 +557,9 @@ release classification and evidence.
 | 138a | done | feature | 0.3.19 | Current-turn rollback restores only reversible maintenance state under the matching revision, preserves damage and existing audit events, and rejects stale repeated rollback without writes; Prompt 139/140 remain separate. |
 | 139 | done | feature | 0.3.20 | Maintenance events publish an explicit crew-safe projection of costs and outcomes; client parsing drops hidden deck order, private facilitator data, and unknown fields while existing private receipts and replay identity remain unchanged. Prompt 140 remains separate. |
 | 140 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 140a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 140b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 140c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 140a | done | feature | 0.4.72 | The current cargo-shuttle holder can move survivors from the craft’s one authoritative docked host to another active ship in the same fleet group. The server accepts only positive printed-track transfers and accounts no more than 5,000 survivors per craft per cycle in a durable session ledger. |
+| 140b | done | feature | 0.4.72 | The same atomic evacuation decision requires both resulting survivor counts to remain on their printed tracks and rejects any receiving-ship result above its printed starting population before either ship is changed. |
+| 140c | done | feature | 0.4.72 | Each evacuation binds the expected cycle, shuttle-control revision and evacuation revision to an exact command receipt. The server transaction changes both population counters, craft-cycle usage and one privacy-safe event together; exact retries replay and stale or concurrent requests fail without another write. |
 | 140d | done | non-feature | — | The authoritative damage and maintenance riot transactions expose one stable catastrophe with the destroyed vessel's printed crew-plus-passenger pod capacity, preserve current survivors/resources/retained craft, and replay an already-destroyed result without advancing revision or emitting another catastrophe. All seven printed damage-deck vessels have matching capacity coverage and production-callable tests. Primary component review resolves the earlier small-vessel scope concern: small ships have no damage path, and identity-only extra vessels have no printed damage deck or independent capacity to invent. Unsupported variants remain rejected by the damage resolver; any future source-authorized destruction extension must supply its own capacity. This verifies the existing runtime rather than introducing new gameplay. |
 | 140e | done | non-feature | — | The authoritative destruction path now moves every assigned, replacement, or active-console holder of the destroyed vessel into escape state while preserving identity and server-owned resources and craft. A dedicated route suspends destroyed-ship actions, provides a receipt-backed flee command with stable reconnect replay, and waits for explicit facilitator reassignment; reassignment clears escape state and rejects the destroyed vessel. Maintenance authority checks precede VIP and Union bypasses. Focused tests, independent Terra review, TypeScript builds, and responsive reduced-motion browser proof pass. |
 | 140f | done | feature | 0.4.70 | Both authoritative full-ship destruction paths now reconcile the shuttle manifest in the same transaction as the catastrophe. Every shuttle docked to the destroyed vessel keeps its current server-owned holder and owner role in an explicit retained state; its destroyed-host docking and any pending departure are removed, while cargo, fuel, control, and visit history remain unchanged. No replacement host is invented: the craft stays deliberately undocked until a later authorized placement, and malformed or holderless custody fails closed. Member hydration exposes only canonical retained records and cannot regenerate a legacy Press docking for a retained craft. Focused resolver, add-damage, maintenance, join/resume, manifest, and client hydration regressions cover ordinary and total-fleet-loss destruction. |

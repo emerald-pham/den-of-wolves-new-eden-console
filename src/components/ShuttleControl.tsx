@@ -3,6 +3,11 @@ import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/fire
 import { transferShuttleControl } from '@/lib/shuttleControlService';
 import { beginShuttleTransit, requestShuttleDeparture } from '@/lib/shuttleDepartureService';
 import { transferShuttleCargo } from '@/lib/shuttleCargoService';
+import {
+  evacuateShuttleSurvivors,
+  MAX_SHUTTLE_EVACUATION_PER_CYCLE,
+  validShuttleEvacuationAmounts,
+} from '@/lib/shuttleEvacuationService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/game';
 import { findShip } from '@/data/ships';
@@ -24,6 +29,8 @@ export default function ShuttleControl({ control }: Props) {
   const [departure, setDeparture] = useState<ShuttleMovementState | null>(null);
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
+  const [evacuationDestinationShipId, setEvacuationDestinationShipId] = useState('');
+  const [evacuationAmount, setEvacuationAmount] = useState(0);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
   const docking = dockingForShuttle(session, control.shuttleId);
@@ -36,6 +43,19 @@ export default function ShuttleControl({ control }: Props) {
   const departureWindowOpen = session.phase === 'active' &&
     session.turnPhase?.airspace.state === 'lifted' && !session.turnPhase.timerPause &&
     Date.now() < Date.parse(session.turnPhase.openAirspaceEndsAt);
+  const evacuationLedger = session.shuttleEvacuations?.[control.shuttleId];
+  const evacuatedThisCycle = evacuationLedger && evacuationLedger.cycle === session.currentTurn
+    ? evacuationLedger.moved : 0;
+  const evacuationRemaining = Math.max(0, MAX_SHUTTLE_EVACUATION_PER_CYCLE - evacuatedThisCycle);
+  const sourcePopulation = docking ? session.shipSurvivors?.[docking.shipId] : undefined;
+  const destinationPopulation = evacuationDestinationShipId
+    ? session.shipSurvivors?.[evacuationDestinationShipId] : undefined;
+  const evacuationAmounts = docking && typeof sourcePopulation === 'number' &&
+    typeof destinationPopulation === 'number'
+    ? validShuttleEvacuationAmounts({
+      sourceShipId: docking.shipId, destinationShipId: evacuationDestinationShipId,
+      sourcePopulation, destinationPopulation, remaining: evacuationRemaining,
+    }) : [];
 
   useEffect(() => subscribeConnectedPlayers(session.id, setPlayers), [session.id, me.fleetGroupId]);
   useEffect(() => subscribeShuttleDeparture(
@@ -125,6 +145,24 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
+  async function submitEvacuation(): Promise<void> {
+    if (pending || !evacuationDestinationShipId || !evacuationAmounts.includes(evacuationAmount)) return;
+    setPending(true);
+    setStatus('');
+    try {
+      await evacuateShuttleSurvivors(
+        control.shuttleId, evacuationDestinationShipId, evacuationAmount, control.revision,
+        evacuationLedger?.revision ?? 0,
+      );
+      setStatus(`Moved ${evacuationAmount.toLocaleString()} survivors to ${findShip(evacuationDestinationShipId)?.name ?? evacuationDestinationShipId}.`);
+      setEvacuationAmount(0);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Survivor evacuation failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
   return <section className="console-workspace__section shuttle-control" aria-label="Shuttle control">
     <p className="console-workspace__eyebrow">Custody // server authorised</p>
     <h3>Shuttle control</h3>
@@ -200,6 +238,42 @@ export default function ShuttleControl({ control }: Props) {
           onClick={() => void submitCargo('load')}>Load shuttle</button>
         <button className="cic-action-button" type="button" disabled={pending || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
+      </div>
+    </section>}
+    {canRequestDeparture && docking && cargoTypes.length > 0 && <section aria-label="Survivor evacuation">
+      <p className="console-workspace__eyebrow">Evacuation // server authorised</p>
+      <h4>Move survivors</h4>
+      <p>
+        {evacuationRemaining.toLocaleString()} of 5,000 survivors remain available for this shuttle this cycle.
+      </p>
+      <label htmlFor={`shuttle-evacuation-destination-${control.shuttleId}`}>Receiving ship</label>
+      <select id={`shuttle-evacuation-destination-${control.shuttleId}`}
+        value={evacuationDestinationShipId} disabled={pending || evacuationRemaining === 0}
+        onChange={(event) => {
+          setEvacuationDestinationShipId(event.target.value);
+          setEvacuationAmount(0);
+        }}>
+        <option value="">Choose fleet ship</option>
+        {destinations.map((shipId) => <option value={shipId} key={shipId}>
+          {findShip(shipId)?.name ?? shipId}
+        </option>)}
+      </select>
+      <label htmlFor={`shuttle-evacuation-amount-${control.shuttleId}`}>Survivors</label>
+      <select id={`shuttle-evacuation-amount-${control.shuttleId}`}
+        value={evacuationAmount || ''} disabled={pending || evacuationAmounts.length === 0}
+        onChange={(event) => setEvacuationAmount(Number(event.target.value))}>
+        <option value="">Choose a printed-track transfer</option>
+        {evacuationAmounts.map((amount) => <option value={amount} key={amount}>
+          {amount.toLocaleString()}
+        </option>)}
+      </select>
+      {evacuationDestinationShipId && evacuationAmounts.length === 0 && <p>
+        No valid printed-track transfer fits both ships and the remaining cycle limit.
+      </p>}
+      <div className="console-workspace__actions">
+        <button className="cic-action-button" type="button"
+          disabled={pending || !evacuationAmounts.includes(evacuationAmount)}
+          onClick={() => void submitEvacuation()}>Move survivors</button>
       </div>
     </section>}
     {status && <p role="status">{status}</p>}

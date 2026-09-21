@@ -1577,6 +1577,23 @@ function shuttleFuelled(value: unknown): NonNullable<GameSession['shuttleFuelled
     knownShuttleIds.has(shuttleId) && typeof fuelled === 'boolean' ? [[shuttleId, fuelled]] : []));
 }
 
+function shuttleEvacuations(value: unknown): NonNullable<GameSession['shuttleEvacuations']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  const knownShuttleIds = new Set(SHUTTLECRAFT.map((shuttle) => shuttle.id));
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, entry]) => {
+    const raw = recordValue(entry);
+    if (!knownShuttleIds.has(shuttleId) || !raw ||
+        Object.keys(raw).some((key) => !['cycle', 'moved', 'revision'].includes(key)) ||
+        !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 0 ||
+        !Number.isSafeInteger(raw.moved) || (raw.moved as number) < 0 || (raw.moved as number) > 5_000 ||
+        !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0) return [];
+    return [[shuttleId, {
+      cycle: raw.cycle as number, moved: raw.moved as number, revision: raw.revision as number,
+    }]];
+  }));
+}
+
 function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -2174,6 +2191,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),
+    shuttleEvacuations: shuttleEvacuations(data.shuttleEvacuations),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),

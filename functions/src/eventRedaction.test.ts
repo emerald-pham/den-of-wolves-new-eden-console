@@ -3,6 +3,24 @@ import { EventVisibility } from './eventEnvelope';
 import { buildPrivacySafeEventRecord, memberEventFieldsFor } from './eventRedaction';
 
 describe('buildPrivacySafeEventRecord', () => {
+  it('allow-lists the public survivor evacuation result without command internals', () => {
+    const event = buildPrivacySafeEventRecord({
+      type: 'shuttle-survivor-evacuation',
+      envelope: { sessionId: 's1', requestId: 'evac-1', visibility: 'member', revision: 2 },
+      payload: {
+        shuttleId: 'hummingbird', sourceShipId: 'quellon', destinationShipId: 'capybara',
+        amount: 2_000, sourcePopulation: 28_000, destinationPopulation: 15_000,
+        movedThisCycle: 2_000, expectedEvacuationRevision: 1, fingerprint: 'secret',
+      },
+      createdAt: 'now',
+    });
+    expect(event).toMatchObject({
+      type: 'shuttle-survivor-evacuation', sessionId: 's1', requestId: 'evac-1',
+      shuttleId: 'hummingbird', amount: 2_000, movedThisCycle: 2_000,
+    });
+    expect(event).not.toHaveProperty('expectedEvacuationRevision');
+    expect(event).not.toHaveProperty('fingerprint');
+  });
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',

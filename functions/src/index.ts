@@ -257,6 +257,10 @@ import {
   transferShuttleCargo,
 } from './shuttleCargoTransfer';
 import {
+  evacuateShuttleSurvivors,
+  parseShuttleEvacuations,
+} from './shuttleEvacuation';
+import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
   deletionDeadline,
@@ -5317,6 +5321,175 @@ export const transferShuttleCargoCommand = onCall<{
   });
 });
 
+type ShuttleEvacuationReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shuttleId: string;
+  sourceShipId: string;
+  destinationShipId: string;
+  amount: number;
+  sourcePopulation: number;
+  destinationPopulation: number;
+  cycle: number;
+  movedThisCycle: number;
+  evacuationRevision: number;
+}>;
+
+function isShuttleEvacuationReply(value: unknown, sessionId: string): value is ShuttleEvacuationReply {
+  return isRecord(value) && value.sessionId === sessionId &&
+    (value.status === 'committed' || value.status === 'replayed') &&
+    typeof value.requestId === 'string' && typeof value.shuttleId === 'string' &&
+    typeof value.sourceShipId === 'string' && typeof value.destinationShipId === 'string' &&
+    Number.isSafeInteger(value.amount) && (value.amount as number) > 0 &&
+    Number.isSafeInteger(value.sourcePopulation) && (value.sourcePopulation as number) >= 0 &&
+    Number.isSafeInteger(value.destinationPopulation) && (value.destinationPopulation as number) >= 0 &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    Number.isSafeInteger(value.movedThisCycle) && (value.movedThisCycle as number) >= 1 &&
+    Number.isSafeInteger(value.evacuationRevision) && (value.evacuationRevision as number) >= 1;
+}
+
+/** Move survivors once between a cargo shuttle's docked host and one fleet-group ship. */
+export const evacuateShuttleSurvivorsCommand = onCall<{
+  sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; destinationShipId?: unknown;
+  amount?: unknown; expectedControlRevision?: unknown; expectedCycle?: unknown;
+  expectedEvacuationRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'shuttleId', 'destinationShipId', 'amount',
+    'expectedControlRevision', 'expectedCycle', 'expectedEvacuationRevision',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.shuttleId !== 'string' || !SHUTTLE_CARGO_TYPES[raw.shuttleId] ||
+      typeof raw.destinationShipId !== 'string' || !isResourceShipId(raw.destinationShipId) ||
+      !Number.isSafeInteger(raw.amount) || (raw.amount as number) < 1 || (raw.amount as number) > 5_000 ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedEvacuationRevision) || (raw.expectedEvacuationRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid shuttle survivor evacuation request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; shuttleId: string; destinationShipId: string;
+    amount: number; expectedControlRevision: number; expectedCycle: number;
+    expectedEvacuationRevision: number;
+  };
+  const fingerprint: CommandFingerprint = {
+    action: 'evacuate-shuttle-survivors', sessionId: data.sessionId, requestId: data.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: data.expectedEvacuationRevision,
+    payload: {
+      shuttleId: data.shuttleId, destinationShipId: data.destinationShipId, amount: data.amount,
+      expectedControlRevision: data.expectedControlRevision, expectedCycle: data.expectedCycle,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/shuttle-evacuation-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected shuttle holder may evacuate survivors.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ShuttleEvacuationReply => isShuttleEvacuationReply(value, data.sessionId),
+      'shuttle survivor evacuation',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    requireActionPhase(session, 'transfer', 'player');
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const activeRoleIds = configuredRoleIds(session);
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const evacuationLedger = parseShuttleEvacuations(session.get('shuttleEvacuations'));
+    const alerts = session.get('populationAlerts');
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) || !control ||
+        evacuationLedger === null || (alerts !== undefined && !isRecord(alerts))) {
+      throw commandError('failed-precondition', 'The authoritative shuttle evacuation state is unavailable.', 'conflict');
+    }
+    const sourceShipId = rawDockings.find((docking) =>
+      isRecord(docking) && docking.shuttleId === data.shuttleId)?.shipId;
+    if (typeof sourceShipId === 'string' &&
+        (Boolean((alerts as Record<string, unknown> | undefined)?.[sourceShipId]) ||
+          Boolean((alerts as Record<string, unknown> | undefined)?.[data.destinationShipId]))) {
+      throw commandError(
+        'failed-precondition',
+        'Resolve the current survivor alert before moving more survivors.',
+        'conflict',
+      );
+    }
+    let result: ReturnType<typeof evacuateShuttleSurvivors>;
+    try {
+      result = evacuateShuttleSurvivors({
+        actorUid: uid, shuttleId: data.shuttleId, destinationShipId: data.destinationShipId,
+        amount: data.amount, cycle, expectedCycle: data.expectedCycle,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedEvacuationRevision: data.expectedEvacuationRevision,
+        control: control[data.shuttleId]!, dockings: rawDockings,
+        groupVesselIds: group.vesselIds, activeVesselIds,
+        shipSurvivors: activeShipSurvivors(session.get('shipSurvivors'), activeVesselIds),
+        evacuationLedger,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Shuttle survivor evacuation was rejected.',
+        'conflict',
+      );
+    }
+    const reply: ShuttleEvacuationReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: data.shuttleId, sourceShipId: result.sourceShipId,
+      destinationShipId: result.destinationShipId, amount: result.amount,
+      sourcePopulation: result.sourcePopulation, destinationPopulation: result.destinationPopulation,
+      cycle, movedThisCycle: result.ledger.moved, evacuationRevision: result.ledger.revision,
+    };
+    tx.update(sessionRef, {
+      [`shipSurvivors.${result.sourceShipId}`]: result.sourcePopulation,
+      [`shipSurvivors.${result.destinationShipId}`]: result.destinationPopulation,
+      [`shuttleEvacuations.${data.shuttleId}`]: result.ledger,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'shuttle-survivor-evacuation',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+        turn: cycle, phase: vesselActionPhase(session), type: 'shuttle-survivor-evacuation',
+        requestId: data.requestId, revision: result.ledger.revision,
+        serverTime: new Date(), visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: data.shuttleId, sourceShipId: result.sourceShipId,
+        destinationShipId: result.destinationShipId, amount: result.amount,
+        sourcePopulation: result.sourcePopulation, destinationPopulation: result.destinationPopulation,
+        movedThisCycle: result.ledger.moved,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
 type ShuttleDepartureReply = Omit<ShuttleDepartureRequestState, 'status'> & Readonly<{
   status: 'requested' | 'replayed';
   sessionId: string;
@@ -9977,6 +10150,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
         smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
         shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
+        shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
         retainedShuttles,
         ...(quarantineDocking ? { quarantineDocking } : {}),
@@ -10263,6 +10437,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
       smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
       shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
+      shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
       retainedShuttles,
       ...(quarantineDocking ? { quarantineDocking } : {}),

@@ -2240,9 +2240,9 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 138a
 - [x] Prompt 139
 - [ ] Prompt 140
-- [ ] Prompt 140a
-- [ ] Prompt 140b
-- [ ] Prompt 140c
+- [x] Prompt 140a
+- [x] Prompt 140b
+- [x] Prompt 140c
 - [x] Prompt 140d
 - [x] Prompt 140e
 - [x] Prompt 140f
@@ -2995,7 +2995,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 138a — [PRESERVE] Bound maintenance rollback.** Acceptance: only the current-turn reversible maintenance state rolls back under the matching revision after the active GM-instance, ship authority, and Team-phase gates; a stable request ID binds the actor and canonical payload so an exact retry replays the same result and deterministic event without writes, changed actor/payload reuse is rejected, and a distinct stale contender records only a private replayable receipt without partial mutation while damage and audit history remain immutable.
 - **Prompt 139 — [EXTEND] Publish maintenance results by audience.** Acceptance: crews see costs and outcomes while hidden deck order and private facilitator notes remain protected.
 - **Prompt 140 — [PROVE] Run the all-vessel maintenance matrix.** Acceptance: six core ships, four small ships, Voyage 33-0, and expansion Capybara each execute their own printed path.
-- **Prompt 140a — [NEW] Evacuate survivors by cargo shuttle.** Acceptance: each eligible craft moves no more than 5,000 survivors per turn from its authoritative host.
+- **Prompt 140a — [NEW] Evacuate survivors by cargo shuttle.** Acceptance: each eligible craft moves no more than 5,000 survivors per cycle from its authoritative host.
 - **Prompt 140b — [NEW] Enforce destination population capacity.** Acceptance: no ship receives survivors beyond its printed starting population and a rejected overflow moves nobody.
 - **Prompt 140c — [NEW] Make evacuation retry-safe.** Acceptance: concurrent or repeated transfers never duplicate survivors, capacity, craft use, or events.
 - **Prompt 140d — [NEW] Create escape pods on ship destruction.** Acceptance: the destroyed ship exposes only its printed crew-plus-passenger pod capacity and one durable catastrophe event.

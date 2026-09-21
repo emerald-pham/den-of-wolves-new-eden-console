@@ -5628,6 +5628,13 @@
       "language": "A live facilitator can activate or release docking quarantine only for the current delivered Disease Outbreak. The public server-owned policy keeps ordinary communications allowed and binds the affected active ships to a durable per-cycle acceptance ledger. Holder relocation consumes the destination ship slot atomically with control and docking; a second inbound craft in the same cycle fails before any write. The ledger survives reconnects, reassignment, departure-return attempts, exact retries, release and same-crisis reactivation, while a new crisis receives a fresh ledger. Strict server and client parsers reject malformed or communication-blocking state, and the GM console labels the one-shuttle-per-cycle consequence before either authoritative action.",
       "source": "functions/src/quarantineDocking.ts; functions/src/quarantineDocking.test.ts; functions/src/index.ts setDiseaseQuarantine/transferShuttleControlCommand; functions/src/crisisCallable.test.ts; functions/src/shuttleControlCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx",
       "type": "evidence / production-path / server-authority / atomic-docking / one-per-cycle / communication-preservation / idempotency / reconnect / regression"
+    },
+    {
+      "direction": "140a;140b;140c -> 111;164;361",
+      "id": "E-140A-140B-140C-SHUTTLE-EVACUATION",
+      "language": "The current holder of a printed Cargo Transfer shuttle may move survivors only from its one authoritative active dock to another active ship in the same fleet group. A server transaction requires exact cycle, custody and evacuation revisions; keeps both counters on their printed tracks; caps each craft at 5,000 survivors per cycle; rejects destination overflow and pending population alerts before writes; and atomically commits both populations, durable craft use, one privacy-safe event and an exact-retry receipt. Browser hydration rejects malformed ledger entries, while the shuttle console offers only amounts that satisfy both printed tracks and the remaining cycle allowance.",
+      "source": "functions/src/shuttleEvacuation.ts; functions/src/shuttleEvacuation.test.ts; functions/src/shuttleEvacuationCallable.test.ts; functions/src/index.ts evacuateShuttleSurvivorsCommand; functions/src/eventRedaction.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/shuttleEvacuationService.ts; src/lib/shuttleEvacuationService.test.ts; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.test.tsx",
+      "type": "evidence / production-path / server-authority / printed-tracks / capacity / per-cycle-ledger / atomic-transfer / idempotency / privacy / regression"
     }
   ],
   "plan": {
@@ -9134,15 +9141,15 @@
       "tag": "PROVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "each eligible craft moves no more than 5,000 survivors per turn from its authoritative host.",
+        "acceptance": "each eligible craft moves no more than 5,000 survivors per cycle from its authoritative host.",
         "title": "Evacuate survivors by cargo shuttle."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140A",
+      "description": "The current cargo-shuttle holder can move survivors from the craft’s one authoritative docked host to another active ship in the same fleet group. The server accepts only positive printed-track transfers and accounts no more than 5,000 survivors per craft per cycle in a durable session ledger.",
+      "evidenceIds": "E-AUDIT-140A;E-140A-140B-140C-SHUTTLE-EVACUATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "111;164;361",
@@ -9150,22 +9157,24 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.72"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "no ship receives survivors beyond its printed starting population and a rejected overflow moves nobody.",
         "title": "Enforce destination population capacity."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140B",
+      "description": "The same atomic evacuation decision requires both resulting survivor counts to remain on their printed tracks and rejects any receiving-ship result above its printed starting population before either ship is changed.",
+      "evidenceIds": "E-AUDIT-140B;E-140A-140B-140C-SHUTTLE-EVACUATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140a",
@@ -9173,22 +9182,24 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.72"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "concurrent or repeated transfers never duplicate survivors, capacity, craft use, or events.",
         "title": "Make evacuation retry-safe."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140C",
+      "description": "Each evacuation binds the expected cycle, shuttle-control revision and evacuation revision to an exact command receipt. The server transaction changes both population counters, craft-cycle usage and one privacy-safe event together; exact retries replay and stale or concurrent requests fail without another write.",
+      "evidenceIds": "E-AUDIT-140C;E-140A-140B-140C-SHUTTLE-EVACUATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140a;140b",
@@ -9196,10 +9207,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.72"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

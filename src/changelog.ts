@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['140a', '140b', '140c'],
+    implementationProgress: {
+      completed: 386, total: 751, percentage: '51.40%',
+      done: 386, partial: 16, active: 0, missing: 349,
+    },
+    changes: [
+      'Current holders of cargo-transfer shuttles can move survivors from the docked host to another active ship in their fleet group.',
+      'Each craft moves at most 5,000 survivors per cycle, and both ships remain on their printed population tracks without exceeding the receiving ship’s starting maximum.',
+      'The server commits both population counters, craft usage, the audit event, and an exact-retry receipt together so concurrent or repeated requests cannot duplicate a transfer.',
+      '386 of 751 planned items are complete (51.40%).',
+    ],
+  },
+  {
+    version: '0.4.71',
     implementationPrompts: [149, 150, 531],
     implementationProgress: {
       completed: 381, total: 751, percentage: '50.73%',

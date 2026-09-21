@@ -556,6 +556,13 @@ export interface ShuttleControlEntry {
   readonly revision: number;
 }
 
+/** Server-owned per-craft survivor movement used to enforce the cycle cap. */
+export interface ShuttleEvacuationLedgerEntry {
+  readonly cycle: number;
+  readonly moved: number;
+  readonly revision: number;
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -670,6 +677,7 @@ export interface GameSession {
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
+  readonly shuttleEvacuations?: Readonly<Record<string, ShuttleEvacuationLedgerEntry>>;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;

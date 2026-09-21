@@ -7,6 +7,7 @@ import { SHUTTLECRAFT } from '@/data/shuttles';
 import { findConsoleRole } from '@/data/roles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import ShuttleConsole from './ShuttleConsole';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -36,6 +37,10 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
 vi.mock('@/lib/shuttleCargoService', () => ({
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/lib/shuttleEvacuationService', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShuttleEvacuationServiceModule>()),
+  evacuateShuttleSurvivors: vi.fn().mockResolvedValue(undefined),
+}));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
 const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionService');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
@@ -43,6 +48,7 @@ const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
 const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
+const { evacuateShuttleSurvivors } = await import('@/lib/shuttleEvacuationService');
 
 beforeEach(() => {
   vi.mocked(selectConsoleRole).mockReset();
@@ -68,6 +74,8 @@ beforeEach(() => {
   vi.mocked(beginShuttleTransit).mockResolvedValue(undefined);
   vi.mocked(transferShuttleCargo).mockReset();
   vi.mocked(transferShuttleCargo).mockResolvedValue(undefined);
+  vi.mocked(evacuateShuttleSurvivors).mockReset();
+  vi.mocked(evacuateShuttleSurvivors).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -446,6 +454,36 @@ it('lets the current holder transfer only Hummingbird printed cargo while docked
   await user.click(screen.getByRole('button', { name: 'Load shuttle' }));
   expect(transferShuttleCargo).toHaveBeenCalledWith('hummingbird', 'food', 'load', 2, 3);
   expect(screen.getByText('Loaded 2 Food.')).toHaveAttribute('role', 'status');
+});
+
+it('offers only printed-track survivor transfers within the shuttle cycle allowance', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 3,
+    activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon', 'capybara'],
+    shipSurvivors: { quellon: 30_000, capybara: 13_000 },
+    shuttleEvacuations: { hummingbird: { cycle: 3, moved: 2_000, revision: 4 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const evacuation = screen.getByRole('region', { name: 'Survivor evacuation' });
+  expect(evacuation).toHaveTextContent('3,000 of 5,000 survivors remain available for this shuttle this cycle.');
+  await user.selectOptions(screen.getByLabelText('Receiving ship'), 'capybara');
+  expect(screen.getByRole('option', { name: '2,000' })).toBeInTheDocument();
+  expect(screen.queryByRole('option', { name: '5,000' })).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText('Survivors'), '2000');
+  await user.click(screen.getByRole('button', { name: 'Move survivors' }));
+  expect(evacuateShuttleSurvivors).toHaveBeenCalledWith('hummingbird', 'capybara', 2_000, 3, 4);
+  expect(screen.getByText('Moved 2,000 survivors to Capybara.')).toHaveAttribute('role', 'status');
 });
 
 it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {

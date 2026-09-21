@@ -96,6 +96,21 @@ it('hydrates only canonical shuttle-control entries from the member session proj
   });
 });
 
+it('hydrates only canonical per-shuttle evacuation accounting', () => {
+  const session = sessionFrom('s1', {
+    ...sessionData(8),
+    shuttleEvacuations: {
+      hummingbird: { cycle: 3, moved: 2_000, revision: 4 },
+      starlight: { cycle: 3, moved: 5_001, revision: 1 },
+      endeavour: { cycle: 3, moved: 1_000, revision: 1, forged: true },
+      unknown: { cycle: 3, moved: 1_000, revision: 1 },
+    },
+  });
+  expect(session.shuttleEvacuations).toEqual({
+    hummingbird: { cycle: 3, moved: 2_000, revision: 4 },
+  });
+});
+
 it('hydrates retained shuttle custody without resurrecting its destroyed-host docking', () => {
   const session = sessionFrom('retained-shuttle', {
     ...sessionData(20),
