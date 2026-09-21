@@ -835,17 +835,17 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "164 -> 113;377",
-      "id": "E-164-ALLOWLIST-PARTIAL",
-      "language": "Registered shuttle definitions carry source-aligned cargo allowlists and an exact printed matrix test, while no production cargo-transfer callable or resolver exists yet; authoritative enforcement remains deferred to the later transfer prompts.",
-      "source": "src/data/vessels/templates.ts; src/data/vessels/*.ts; src/data/shuttles.test.ts; functions/src/actionMetadata.ts; functions/src/index.ts",
-      "type": "evidence"
+      "direction": "164;377 -> 113;361;363",
+      "id": "E-164-377-CARGO-AUTHORITY",
+      "language": "The client and server carry the same exact per-shuttle printed cargo allowlists. The production transferShuttleCargoCommand transaction derives the current holder and unique active dock from server state, confines the host to the holder's current fleet group, rejects unsupported resource and security-team types or malformed/currently unavailable inventories, and atomically updates only that docked host and shuttle. Exact retries replay without another mutation, while transit, duplicate docks, stale custody, cross-group hosts and insufficient stock fail before writes.",
+      "source": "src/data/vessels/templates.ts; src/data/vessels/*.ts; src/data/shuttles.test.ts; functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/index.ts transferShuttleCargoCommand; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.test.tsx",
+      "type": "evidence / production-path / printed-allowlist / server-authority / atomic-transfer / idempotency / regression"
     },
     {
       "direction": "113;377 -> 164",
       "id": "E-164-TRANSFER-RELATED",
-      "language": "Prompts 113 and 377 consume P164's typed shuttle allowlists; their authoritative transfer integration closes P164's remaining enforcement boundary without making the partial foundation a hard prerequisite.",
-      "source": "docs/implementation-prompts.json; src/data/vessels/templates.ts; src/data/shuttles.test.ts",
+      "language": "Prompt 113's released production cargo transaction is the transfer path required by Prompt 377. Its authoritative integration consumes and completes Prompt 164's typed allowlist boundary without inventing a duplicate transfer system.",
+      "source": "docs/implementation-prompts.json; functions/src/shuttleCargoTransfer.ts; functions/src/index.ts transferShuttleCargoCommand; functions/src/shuttleCargoTransferCallable.test.ts",
       "type": "related/consumes"
     },
     {
@@ -9847,8 +9847,8 @@
         "acceptance": "each transfer accepts only the resource and security-team types printed for the acting craft.",
         "title": "Encode cargo permissions."
       },
-      "description": "Registered shuttle definitions carry source-aligned cargo type IDs beside their printed cargo strings, and a cross-boundary test requires the client and server allowlists to remain identical. Prompt 113 now enforces those permissions for docked holder transfers with authoritative custody, manifest, fleet-group, inventory, quantity, and revision checks. P164 remains partial until Prompt 377 applies the same printed permissions to its separate transfer path.",
-      "evidenceIds": "E-AUDIT-164;E-164-ALLOWLIST-PARTIAL",
+      "description": "Registered shuttle definitions carry source-aligned cargo type IDs beside their printed cargo strings, and exact client/server matrix tests prevent allowlist drift. The released Prompt 113 production transaction is also Prompt 377's transfer path: it accepts only the acting shuttle's printed resource or security-team types, one current authoritative dock, the live holder revision, and valid current host/shuttle inventories before atomically moving a positive whole amount. This closes the permission boundary without a second transfer system.",
+      "evidenceIds": "E-AUDIT-164;E-164-377-CARGO-AUTHORITY;E-164-TRANSFER-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162",
@@ -9859,7 +9859,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -15255,8 +15255,8 @@
         "acceptance": "only current docked inventories and each craft's allowlist can move resources or teams.",
         "title": "Transfer permitted shuttle cargo."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-377;E-164-TRANSFER-RELATED",
+      "description": "The production shuttle cargo callable already implements this acceptance through the released Prompt 113 path. It derives the current holder, unique live dock, active manifest, group-local host, exact printed allowlist and both current inventories from server state, then updates only the host and shuttle ledgers in one transaction. Transit, duplicate or missing docks, stale custody, unsupported cargo, cross-group hosts, malformed ledgers, insufficient stock and request collisions fail before mutation; exact retries return the stored result without moving cargo twice.",
+      "evidenceIds": "E-AUDIT-377;E-164-377-CARGO-AUTHORITY;E-164-TRANSFER-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;363",
@@ -15267,7 +15267,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
