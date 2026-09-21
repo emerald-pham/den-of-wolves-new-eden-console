@@ -147,12 +147,46 @@ it('commits one owner handoff, writes an audit, and replays without another muta
     previousHolderUid: 'wing', holderUid: 'crew', previousRevision: 0, revision: 1,
   });
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  const receipt = mock.documents.get('sessions/s1/shuttleControlRequests/handoff-1')!;
+  const stored = receipt.fingerprint as Fields;
+  const payload = stored.payload as Fields;
+  receipt.fingerprint = {
+    payload: {
+      targetUid: payload.targetUid,
+      command: payload.command,
+      shuttleId: payload.shuttleId,
+    },
+    expectedRevision: stored.expectedRevision,
+    instanceId: stored.instanceId,
+    actorUid: stored.actorUid,
+    requestId: stored.requestId,
+    sessionId: stored.sessionId,
+    action: stored.action,
+  };
   mock.documents.get('sessions/s1')!.phase = 'debrief';
   mock.documents.get('sessions/s1/players/crew')!.connected = false;
   await expect(transferShuttleControlCommand.run(request(command))).resolves.toMatchObject({
     status: 'replayed', holderUid: 'crew', revision: 1,
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('does not synthesize a Union shuttle omitted by the authoritative starting manifest', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeRoleIds = ['joint-engineering-quellon-refinery'];
+  session.shuttleControl = {};
+  session.shuttleDockings = [
+    { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+  ];
+  const owner = mock.documents.get('sessions/s1/players/wing')!;
+  owner.assignedRoleId = 'joint-engineering-quellon-refinery';
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: 'absent-union', shuttleId: 'wobbly',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Shuttle control is unavailable.',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('lets the printed owner reclaim and denies the recipient from forwarding', async () => {

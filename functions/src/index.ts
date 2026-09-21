@@ -4789,15 +4789,18 @@ export const transferShuttleControlCommand = onCall<{
     targetUid?: string;
     expectedRevision: number;
   };
-  const fingerprint = {
-    action: data.action,
+  const fingerprint: CommandFingerprint = {
+    action: 'transfer-shuttle-control',
     sessionId: data.sessionId,
     requestId: data.requestId,
     actorUid: uid,
     instanceId: data.instanceId ?? null,
-    shuttleId: data.shuttleId,
-    targetUid: data.targetUid ?? null,
     expectedRevision: data.expectedRevision,
+    payload: {
+      shuttleId: data.shuttleId,
+      command: data.action,
+      targetUid: data.targetUid ?? null,
+    },
   };
   const sessionRef = db.doc('sessions/' + data.sessionId);
   const actorRef = db.doc('sessions/' + data.sessionId + '/players/' + uid);
@@ -4857,7 +4860,14 @@ export const transferShuttleControlCommand = onCall<{
       );
     }
     if (prior.exists) {
-      if (JSON.stringify(prior.get('fingerprint')) !== JSON.stringify(fingerprint)) {
+      const disposition = commandReceiptDisposition(prior.get('fingerprint'), fingerprint);
+      if (disposition.kind === 'foreign-actor') {
+        throw new HttpsError(
+          'permission-denied',
+          'This shuttle control request belongs to a different actor.',
+        );
+      }
+      if (disposition.kind === 'collision') {
         throw commandError(
           'failed-precondition',
           'This request id was already used for another shuttle control command.',
@@ -4888,8 +4898,19 @@ export const transferShuttleControlCommand = onCall<{
       );
     }
     if (!control?.[data.shuttleId]) {
-      const enabledCraft = roleOwnedCraftForRoles(configuredRoleIds(session))
-        .filter((craft) => craft.kind === 'shuttle');
+      const activeRoleIds = configuredRoleIds(session);
+      const rawDockings = session.get('shuttleDockings');
+      if (!Array.isArray(rawDockings) ||
+          !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, rawDockings)) {
+        throw commandError(
+          'failed-precondition',
+          'The authoritative shuttle manifest is unavailable.',
+          'conflict',
+        );
+      }
+      const dockedShuttleIds = new Set(rawDockings.map((docking) => docking.shuttleId));
+      const enabledCraft = roleOwnedCraftForRoles(activeRoleIds)
+        .filter((craft) => craft.kind === 'shuttle' && dockedShuttleIds.has(craft.id));
       control = initialShuttleControl(enabledCraft, roleHolders);
     }
     const current = control[data.shuttleId];
