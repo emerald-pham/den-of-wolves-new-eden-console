@@ -111,6 +111,35 @@ describe('fleet shuttlebays', () => {
       .toEqual(['snn-press-shuttle', 'starlight', 'maliades', 'endeavour']);
   });
 
+  it('registers Highwall with its complete mining, combat, mission, cargo, and ownership envelope', () => {
+    const highwall = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'highwall');
+
+    expect(highwall).toMatchObject({
+      captainRoleId: 'icebreaker-miner',
+      wolfAttackRole: 'battle-table',
+      cargoTransferTypes: ['ore', 'materials'],
+      cargoTransfer: 'Strytium ore and materials only',
+      initialDocking: { shipId: 'icebreaker', dockedAt: 'SESSION START' },
+    });
+    expect(highwall?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Mining operations',
+        phase: 'Coordination',
+        effect: expect.stringMatching(/up to 2 operations.*1d6.*materials.*3d6.*strytium ore.*fuelled.*third operation/i),
+      }),
+      expect.objectContaining({
+        name: 'Away missions',
+        phase: 'Away mission',
+        effect: expect.stringMatching(/\+3 to mining.*\+2 to engineering/i),
+      }),
+      expect.objectContaining({
+        name: 'Mining laser',
+        phase: 'Wolf attack',
+        effect: expect.stringMatching(/fuelled.*one die.*medium and short range.*5\+.*3 damage/i),
+      }),
+    ]);
+  });
+
   it('keeps Hummingbird printed exploration, harvesting, ownership, docking, cargo, and mission facts distinct', () => {
     const hummingbird = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'hummingbird');
     expect(hummingbird).toMatchObject({

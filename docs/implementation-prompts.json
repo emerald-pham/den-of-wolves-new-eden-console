@@ -1773,6 +1773,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "265 -> 161;162;164;388",
+      "id": "E-265-HIGHWALL-REGISTRATION-VERIFIED",
+      "language": "Highwall is registered as the Icebreaker Miner craft with its Icebreaker starting dock, exact ore-and-materials cargo allowlist, two normal mining operations plus a fuelled third operation, fuelled medium/short mining-laser procedure, +3 mining and +2 engineering mission bonuses, and battle-table role. The shared shuttle route renders every ordinary registered craft and returns to its owning console; later Prompt 388 remains responsible for resolving mining actions rather than registration.",
+      "source": "src/data/vessels/highwall.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; functions/src/shuttlecraft.ts; functions/src/shuttlecraft.test.ts; functions/src/awayMissionCards.ts; functions/src/awayMissionCards.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx",
+      "type": "evidence / production-registration / Highwall / Icebreaker-Miner / mining-cadence / fuelled-third-operation / battle-table / mission-bonuses / exact-cargo / routed-console"
+    },
+    {
       "direction": "266 -> 161;162",
       "id": "E-AUDIT-266",
       "language": "Blacksmith registration preserves its Icebreaker Engineer owner, all source-aligned cargo types, Icebreaker initial dock, and distinct repair, permissioned dismantle, fuelled second-ship repair, and boarding procedures; route proof presents the configuration without claiming mechanic execution.",
@@ -12715,8 +12722,8 @@
         "acceptance": "mining cadence, fuelled third operation, combat, mission bonuses, cargo, owner, and route are typed.",
         "title": "Register Highwall completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-265",
+      "description": "Verified the existing production Highwall registration. The Icebreaker Miner owns the routed craft with its exact cargo, mining cadence, fuelled third operation, battle-table combat procedure, mission bonuses, and Icebreaker starting dock. Prompt 388 still owns execution of the mining action; this closure records the complete typed registration without claiming that later engine.",
+      "evidenceIds": "E-AUDIT-265;E-265-HIGHWALL-REGISTRATION-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162;164",
@@ -12727,7 +12734,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
