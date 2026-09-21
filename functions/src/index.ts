@@ -263,6 +263,12 @@ import {
   transferShuttleCargo,
 } from './shuttleCargoTransfer';
 import {
+  SERVICE_SHUTTLE_IDS,
+  parseServiceShuttleRecharges,
+  resolveServiceShuttleRecharge,
+  serviceRechargeDamageState,
+} from './serviceShuttleRecharge';
+import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,
 } from './shuttleEvacuation';
@@ -5339,6 +5345,178 @@ export const transferShuttleCargoCommand = onCall<{
   });
 });
 
+type ServiceShuttleRechargeReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shuttleId: string;
+  hostShipId: string;
+  consoleId: string;
+  cycle: number;
+  maintenanceRevision: number;
+  rechargeRevision: number;
+}>;
+
+function isServiceShuttleRechargeReply(
+  value: unknown,
+  sessionId: string,
+): value is ServiceShuttleRechargeReply {
+  return isRecord(value) && value.sessionId === sessionId &&
+    (value.status === 'committed' || value.status === 'replayed') &&
+    typeof value.requestId === 'string' &&
+    SERVICE_SHUTTLE_IDS.includes(value.shuttleId as typeof SERVICE_SHUTTLE_IDS[number]) &&
+    typeof value.hostShipId === 'string' && typeof value.consoleId === 'string' &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    Number.isSafeInteger(value.maintenanceRevision) && (value.maintenanceRevision as number) >= 1 &&
+    Number.isSafeInteger(value.rechargeRevision) && (value.rechargeRevision as number) >= 1;
+}
+
+/** Add one service-shuttle charge to the current docked host without resolving its effect. */
+export const rechargeHostConsoleFromShuttle = onCall<{
+  sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; consoleId?: unknown;
+  expectedControlRevision?: unknown; expectedMaintenanceRevision?: unknown; expectedCycle?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'shuttleId', 'consoleId',
+    'expectedControlRevision', 'expectedMaintenanceRevision', 'expectedCycle',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.shuttleId !== 'string' ||
+      !SERVICE_SHUTTLE_IDS.includes(raw.shuttleId as typeof SERVICE_SHUTTLE_IDS[number]) ||
+      typeof raw.consoleId !== 'string' || !/^[\w-]{1,128}$/.test(raw.consoleId) ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedMaintenanceRevision) || (raw.expectedMaintenanceRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'Invalid service-shuttle recharge request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; shuttleId: string; consoleId: string;
+    expectedControlRevision: number; expectedMaintenanceRevision: number; expectedCycle: number;
+  };
+  const fingerprint: CommandFingerprint = {
+    action: 'service-shuttle-recharge', sessionId: data.sessionId, requestId: data.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: data.expectedMaintenanceRevision,
+    payload: {
+      shuttleId: data.shuttleId, consoleId: data.consoleId,
+      expectedControlRevision: data.expectedControlRevision, expectedCycle: data.expectedCycle,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/service-recharge-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected shuttle holder may recharge a console.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ServiceShuttleRechargeReply =>
+        isServiceShuttleRechargeReply(value, data.sessionId),
+      'service-shuttle recharge',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('service-shuttle recharge');
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'Service-shuttle recharge is available only during active gameplay.',
+        'invalid-phase',
+      );
+    }
+    requireActionPhase(session, 'transfer', 'player');
+    const currentCycle = session.get('currentTurn');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before recharging.', 'stale-revision');
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const fuelled = session.get('shuttleFuelled');
+    const cycles = session.get('maintenanceCycles');
+    const rechargeLedger = parseServiceShuttleRecharges(session.get('serviceShuttleRecharges'));
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
+        !control || !isRecord(fuelled) || !isRecord(cycles) || rechargeLedger === null) {
+      throw commandError('failed-precondition', 'The authoritative service-shuttle state is unavailable.', 'conflict');
+    }
+    let result: ReturnType<typeof resolveServiceShuttleRecharge>;
+    try {
+      const hostShipId = rawDockings.find((docking) =>
+        isRecord(docking) && docking.shuttleId === data.shuttleId)?.shipId;
+      if (typeof hostShipId !== 'string' || !group.vesselIds.includes(hostShipId)) {
+        throw new Error('The docked host is outside the holder’s current fleet group.');
+      }
+      const hostDamage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
+      if (!hostDamage) throw new Error('The docked host damage state is unavailable.');
+      result = resolveServiceShuttleRecharge({
+        actorUid: uid, shuttleId: data.shuttleId, targetConsoleId: data.consoleId,
+        currentCycle: currentCycle as number,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedMaintenanceRevision: data.expectedMaintenanceRevision,
+        control: control[data.shuttleId]!, dockings: rawDockings,
+        fuelled: fuelled as Record<string, boolean>,
+        maintenanceCycle: cycles[hostShipId],
+        damage: hostDamage,
+        rechargeLedger,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Service-shuttle recharge was rejected.',
+        'conflict',
+      );
+    }
+    const reply: ServiceShuttleRechargeReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: data.shuttleId, hostShipId: result.hostShipId, consoleId: data.consoleId,
+      cycle: currentCycle as number, maintenanceRevision: result.maintenanceCycle.revision,
+      rechargeRevision: result.ledger.revision,
+    };
+    tx.update(sessionRef, {
+      [`maintenanceCycles.${result.hostShipId}`]: result.maintenanceCycle,
+      [`serviceShuttleRecharges.${data.shuttleId}`]: result.ledger,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'service-shuttle-recharge',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+        turn: currentCycle as number, phase: vesselActionPhase(session),
+        type: 'service-shuttle-recharge', requestId: data.requestId,
+        revision: result.ledger.revision, serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: data.shuttleId, hostShipId: result.hostShipId, consoleId: data.consoleId,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
 type ShuttleEvacuationReply = Readonly<{
   status: 'committed' | 'replayed';
   sessionId: string;
@@ -10188,6 +10366,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
         shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
         shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
+        serviceShuttleRecharges:
+          parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
         retainedShuttles,
         ...(quarantineDocking ? { quarantineDocking } : {}),
@@ -10475,6 +10655,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
       shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
       shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
+      serviceShuttleRecharges:
+        parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
       retainedShuttles,
       ...(quarantineDocking ? { quarantineDocking } : {}),

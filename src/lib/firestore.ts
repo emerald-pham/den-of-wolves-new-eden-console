@@ -1608,6 +1608,24 @@ function shuttleEvacuations(value: unknown): NonNullable<GameSession['shuttleEva
   }));
 }
 
+function serviceShuttleRecharges(value: unknown): NonNullable<GameSession['serviceShuttleRecharges']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  const serviceShuttles = new Set(['black-sheep', 'condor', 'wobbly']);
+  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, entry]) => {
+    const raw = recordValue(entry);
+    const hostShipId = raw ? parseEntityId('vessel', raw.hostShipId) : undefined;
+    if (!serviceShuttles.has(shuttleId) || !raw || !hostShipId || !VESSEL_CATALOG_IDS.has(hostShipId) ||
+        Object.keys(raw).some((key) => !['cycle', 'hostShipId', 'consoleId', 'revision'].includes(key)) ||
+        !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+        typeof raw.consoleId !== 'string' || raw.consoleId.length === 0 ||
+        !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1) return [];
+    return [[shuttleId, {
+      cycle: raw.cycle as number, hostShipId, consoleId: raw.consoleId, revision: raw.revision as number,
+    }]];
+  }));
+}
+
 function shuttleControl(value: unknown): NonNullable<GameSession['shuttleControl']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -2207,6 +2225,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),
     shuttleEvacuations: shuttleEvacuations(data.shuttleEvacuations),
+    serviceShuttleRecharges: serviceShuttleRecharges(data.serviceShuttleRecharges),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),

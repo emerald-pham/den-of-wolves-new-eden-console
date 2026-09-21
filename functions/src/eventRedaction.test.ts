@@ -3,6 +3,20 @@ import { EventVisibility } from './eventEnvelope';
 import { buildPrivacySafeEventRecord, memberEventFieldsFor } from './eventRedaction';
 
 describe('buildPrivacySafeEventRecord', () => {
+  it('publishes only the service-shuttle result coordinates', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'service-shuttle-recharge',
+      payload: {
+        shuttleId: 'condor', hostShipId: 'quellon', consoleId: 'hydroponics',
+        expectedMaintenanceRevision: 7, fingerprint: 'secret',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'service-shuttle-recharge', shuttleId: 'condor', hostShipId: 'quellon',
+      consoleId: 'hydroponics', createdAt: 'server-time',
+    });
+  });
+
   it('allow-lists the public survivor evacuation result without command internals', () => {
     const event = buildPrivacySafeEventRecord({
       type: 'shuttle-survivor-evacuation',

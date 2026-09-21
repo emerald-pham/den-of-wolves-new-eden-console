@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [386],
+    implementationProgress: {
+      completed: 415, total: 751, percentage: '55.26%',
+      done: 415, partial: 16, active: 0, missing: 320,
+    },
+    changes: [
+      'A fuelled Black Sheep, Condor, or Wobbly can now add one console charge to its docked host during Coordination.',
+      'The current shuttle holder chooses an eligible console once per cycle; existing charges, damaged consoles, stale controls, and repeated requests remain protected.',
+      'Console effects still resolve through their own procedures after the service shuttle adds the charge.',
+      '415 of 751 planned items are complete (55.26%).',
+    ],
+  },
+  {
+    version: '0.4.75',
     implementationPrompts: [372],
     implementationProgress: {
       completed: 405, total: 751, percentage: '53.93%',

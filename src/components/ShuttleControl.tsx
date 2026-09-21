@@ -3,6 +3,7 @@ import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/fire
 import { transferShuttleControl } from '@/lib/shuttleControlService';
 import { beginShuttleTransit, requestShuttleDeparture } from '@/lib/shuttleDepartureService';
 import { transferShuttleCargo } from '@/lib/shuttleCargoService';
+import { rechargeHostConsoleFromShuttle } from '@/lib/serviceShuttleRechargeService';
 import {
   evacuateShuttleSurvivors,
   MAX_SHUTTLE_EVACUATION_PER_CYCLE,
@@ -13,6 +14,7 @@ import type { Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/
 import { findShip } from '@/data/ships';
 import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/data/shuttles';
 import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
+import { SERVICE_SHUTTLE_IDS, serviceRechargeConsoleOptions } from '@/data/serviceShuttleRecharge';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -29,6 +31,7 @@ export default function ShuttleControl({ control }: Props) {
   const [departure, setDeparture] = useState<ShuttleMovementState | null>(null);
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
+  const [rechargeConsoleId, setRechargeConsoleId] = useState('');
   const [evacuationDestinationShipId, setEvacuationDestinationShipId] = useState('');
   const [evacuationAmount, setEvacuationAmount] = useState(0);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
@@ -37,6 +40,22 @@ export default function ShuttleControl({ control }: Props) {
   const cargoTypes = SHUTTLECRAFT.find((shuttle) => shuttle.id === control.shuttleId)
     ?.cargoTransferTypes ?? [];
   const cargoAmountIsValid = Number.isSafeInteger(cargoAmount) && cargoAmount >= 1;
+  const serviceShuttle = SERVICE_SHUTTLE_IDS.includes(
+    control.shuttleId as typeof SERVICE_SHUTTLE_IDS[number],
+  );
+  const hostCycle = docking ? session.maintenanceCycles?.[docking.shipId] : undefined;
+  const hostDamage = docking ? session.shipDamage?.[docking.shipId] : undefined;
+  const hostMaintenanceReady = Boolean(hostCycle && hostCycle.turn === session.currentTurn && hostCycle.completedAt);
+  const hostRechargeEligible = hostMaintenanceReady && hostDamage?.destroyed !== true;
+  const rechargeOptions = docking && hostRechargeEligible
+    ? serviceRechargeConsoleOptions(docking.shipId).filter((option) =>
+    !hostCycle?.charges.includes(option.id) &&
+    (option.id === 'jump-drive' || !hostDamage?.damagedSystemIds.includes(option.id))) : [];
+  const rechargeEntry = session.serviceShuttleRecharges?.[control.shuttleId];
+  const rechargedThisCycle = rechargeEntry?.cycle === session.currentTurn;
+  const rechargeWindowOpen = session.phase === 'active' &&
+    (session.currentTurn ?? 0) >= 1 && session.turnPhase?.turn === session.currentTurn &&
+    session.turnPhase?.airspace.state === 'lifted';
   const destinations = (session.activeVesselIds ?? [])
     .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
       shuttleDestinationIsAllowed(control.shuttleId, shipId));
@@ -181,6 +200,25 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
+  async function submitRecharge(): Promise<void> {
+    if (pending || !docking || !rechargeConsoleId || !hostCycle || !session.currentTurn) return;
+    setPending(true);
+    setStatus('');
+    try {
+      await rechargeHostConsoleFromShuttle(
+        control.shuttleId, rechargeConsoleId, control.revision,
+        hostCycle.revision, session.currentTurn,
+      );
+      const name = rechargeOptions.find((option) => option.id === rechargeConsoleId)?.name ?? rechargeConsoleId;
+      setStatus(`${name} charged on ${findShip(docking.shipId)?.name ?? docking.shipId}.`);
+      setRechargeConsoleId('');
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
   return <section className="console-workspace__section shuttle-control" aria-label="Shuttle control">
     <p className="console-workspace__eyebrow">Custody // server authorised</p>
     <h3>Shuttle control</h3>
@@ -260,6 +298,32 @@ export default function ShuttleControl({ control }: Props) {
           onClick={() => void submitCargo('load')}>Load shuttle</button>
         <button className="cic-action-button" type="button" disabled={pending || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
+      </div>
+    </section>}
+    {canRequestDeparture && docking && serviceShuttle && <section aria-label="Service shuttle recharge">
+      <p className="console-workspace__eyebrow">Service power // docked host</p>
+      <h4>Recharge host console</h4>
+      <p>Fuelled service shuttles add one charge during Coordination. Console effects resolve separately.</p>
+      {!session.shuttleFuelled?.[control.shuttleId] && <p>Fuel this shuttle during maintenance first.</p>}
+      {!rechargeWindowOpen && <p>Service recharge opens during Coordination Phase.</p>}
+      {!hostMaintenanceReady && <p>Complete host maintenance for this cycle before recharging.</p>}
+      {hostDamage?.destroyed && <p>A destroyed host cannot receive a console charge.</p>}
+      {rechargedThisCycle && rechargeEntry && <p>
+        Recharged {rechargeEntry.consoleId} on {findShip(rechargeEntry.hostShipId)?.name ?? rechargeEntry.hostShipId} this cycle.
+      </p>}
+      <label htmlFor={`service-recharge-console-${control.shuttleId}`}>Host console</label>
+      <select id={`service-recharge-console-${control.shuttleId}`} value={rechargeConsoleId}
+        disabled={pending || !session.shuttleFuelled?.[control.shuttleId] ||
+          !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || rechargeOptions.length === 0}
+        onChange={(event) => setRechargeConsoleId(event.target.value)}>
+        <option value="">Choose eligible console</option>
+        {rechargeOptions.map((option) => <option value={option.id} key={option.id}>{option.name}</option>)}
+      </select>
+      <div className="console-workspace__actions">
+        <button className="cic-action-button" type="button"
+          disabled={pending || !rechargeConsoleId || !session.shuttleFuelled?.[control.shuttleId] ||
+            !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle}
+          onClick={() => void submitRecharge()}>Recharge console</button>
       </div>
     </section>}
     {canRequestDeparture && docking && cargoTypes.length > 0 && <section aria-label="Survivor evacuation">

@@ -111,6 +111,23 @@ it('hydrates only canonical per-shuttle evacuation accounting', () => {
   });
 });
 
+it('hydrates only canonical service-shuttle recharge accounting', () => {
+  const session = sessionFrom('s1', {
+    ...sessionData(8),
+    serviceShuttleRecharges: {
+      condor: { cycle: 3, hostShipId: 'quellon', consoleId: 'hydroponics', revision: 2 },
+      wobbly: { cycle: 3, hostShipId: 'unknown', consoleId: 'reactor', revision: 1 },
+      'black-sheep': {
+        cycle: 3, hostShipId: 'shepherd', consoleId: 'sensors', revision: 1, forged: true,
+      },
+      starlight: { cycle: 3, hostShipId: 'aegis', consoleId: 'sensors', revision: 1 },
+    },
+  });
+  expect(session.serviceShuttleRecharges).toEqual({
+    condor: { cycle: 3, hostShipId: 'quellon', consoleId: 'hydroponics', revision: 2 },
+  });
+});
+
 it('hydrates only a canonical private fleet-group vessel tuple', () => {
   const callbacks: Array<(snapshot: ReturnType<typeof sessionSnapshot>) => void> = [];
   vi.mocked(onSnapshot).mockImplementation((...args: unknown[]) => {

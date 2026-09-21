@@ -602,6 +602,14 @@ export interface ShuttleEvacuationLedgerEntry {
   readonly revision: number;
 }
 
+/** One service-shuttle console charge, retained to enforce its cycle limit. */
+export interface ServiceShuttleRechargeEntry {
+  readonly cycle: number;
+  readonly hostShipId: VesselId;
+  readonly consoleId: string;
+  readonly revision: number;
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -719,6 +727,7 @@ export interface GameSession {
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
   readonly shuttleEvacuations?: Readonly<Record<string, ShuttleEvacuationLedgerEntry>>;
+  readonly serviceShuttleRecharges?: Readonly<Record<string, ServiceShuttleRechargeEntry>>;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;

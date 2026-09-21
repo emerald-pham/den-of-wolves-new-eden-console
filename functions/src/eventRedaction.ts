@@ -36,6 +36,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
     'shuttleId', 'sourceShipId', 'destinationShipId', 'amount',
     'sourcePopulation', 'destinationPopulation', 'movedThisCycle',
   ],
+  'service-shuttle-recharge': ['shuttleId', 'hostShipId', 'consoleId'],
 };
 
 /**

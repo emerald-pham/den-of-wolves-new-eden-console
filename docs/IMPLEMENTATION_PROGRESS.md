@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**414 / 751 prompts complete (55.13%)**
+**415 / 751 prompts complete (55.26%)**
 
-Status breakdown: **414 done · 16 partial · 321 missing**.
+Status breakdown: **415 done · 16 partial · 320 missing**.
 
 Active prompt: **none**
 
@@ -828,7 +828,7 @@ release classification and evidence.
 | 383 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 384 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 385 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 386 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 386 | done | feature | 0.4.76 | Fuelled Black Sheep, Condor, and Wobbly holders can now add one eligible console charge to the shuttle’s authoritative docked host during Coordination, once per cycle. The callable owns custody, host, fleet-group, fuel, damage, maintenance-revision, existing-charge, cycle, replay, event, and durable-use checks. The routed control presents only available host consoles and leaves immediate effects to Prompt 387. |
 | 387 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 388 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 389 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

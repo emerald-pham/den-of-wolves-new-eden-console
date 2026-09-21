@@ -37,6 +37,9 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
 vi.mock('@/lib/shuttleCargoService', () => ({
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/lib/serviceShuttleRechargeService', () => ({
+  rechargeHostConsoleFromShuttle: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@/lib/shuttleEvacuationService', async (importOriginal) => ({
   ...(await importOriginal<typeof ShuttleEvacuationServiceModule>()),
   evacuateShuttleSurvivors: vi.fn().mockResolvedValue(undefined),
@@ -48,6 +51,7 @@ const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
 const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
+const { rechargeHostConsoleFromShuttle } = await import('@/lib/serviceShuttleRechargeService');
 const { evacuateShuttleSurvivors } = await import('@/lib/shuttleEvacuationService');
 
 beforeEach(() => {
@@ -74,6 +78,8 @@ beforeEach(() => {
   vi.mocked(beginShuttleTransit).mockResolvedValue(undefined);
   vi.mocked(transferShuttleCargo).mockReset();
   vi.mocked(transferShuttleCargo).mockResolvedValue(undefined);
+  vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
+  vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue(undefined);
   vi.mocked(evacuateShuttleSurvivors).mockReset();
   vi.mocked(evacuateShuttleSurvivors).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
@@ -1056,6 +1062,94 @@ it('lets the printed owner hand shuttle control to a connected fleet-group playe
   await user.click(screen.getByRole('button', { name: 'Hand off control' }));
   expect(transferShuttleControl).toHaveBeenCalledWith('starlight', 'handoff', 0, 'u2');
   expect(screen.getByRole('status')).toHaveTextContent('Shuttle control handed off.');
+});
+
+it('lets a fuelled service-shuttle holder add one host charge during Coordination', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['quellon-engineer'], activeVesselIds: ['quellon'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [{ shuttleId: 'condor', shipId: 'quellon', dockedAt: 'now' }],
+    shuttleFuelled: { condor: true },
+    shuttleControl: { condor: {
+      shuttleId: 'condor', ownerRoleId: 'quellon-engineer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 4,
+    } },
+    maintenanceCycles: { quellon: {
+      step: 0, revision: 9, turn: 2, results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'], refuelled: ['condor'], completedAt: '2026-09-21T12:00:00.000Z',
+    } },
+    shipDamage: { quellon: { damagedSystemIds: ['water-production'], destroyed: false } },
+    serviceShuttleRecharges: {},
+  });
+  state.setMe({
+    ...state.me!, assignedRoleId: 'quellon-engineer',
+    activeConsoleRoleId: 'quellon-engineer', fleetGroupId: 'fleet-1',
+  });
+
+  render(<MemoryRouter initialEntries={['/shuttles/condor']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const panel = screen.getByRole('region', { name: 'Service shuttle recharge' });
+  expect(within(panel).queryByRole('option', { name: 'Jump Drive' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('option', { name: 'Water Production' })).not.toBeInTheDocument();
+  await user.selectOptions(within(panel).getByLabelText('Host console'), 'hydroponics');
+  await user.click(within(panel).getByRole('button', { name: 'Recharge console' }));
+  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledWith('condor', 'hydroponics', 4, 9, 2);
+  expect(screen.getByRole('status')).toHaveTextContent(/Hydroponics charged on Quellon/i);
+});
+
+it.each([
+  ['unfinished maintenance', {
+    step: 1, revision: 8, turn: 2, results: {}, charges: [], refuelled: ['condor'],
+  }, { damagedSystemIds: [], destroyed: false }, /complete host maintenance/i],
+  ['stale maintenance', {
+    step: 0, revision: 9, turn: 1, results: {}, charges: [], refuelled: ['condor'],
+    completedAt: '2026-09-21T12:00:00.000Z',
+  }, { damagedSystemIds: [], destroyed: false }, /complete host maintenance/i],
+  ['destroyed host', {
+    step: 0, revision: 9, turn: 2, results: {}, charges: [], refuelled: ['condor'],
+    completedAt: '2026-09-21T12:00:00.000Z',
+  }, { damagedSystemIds: [], destroyed: true }, /destroyed host cannot receive/i],
+] as const)('does not offer eligible recharge targets for %s', (_label, maintenance, damage, guidance) => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['quellon-engineer'], activeVesselIds: ['quellon'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [{ shuttleId: 'condor', shipId: 'quellon', dockedAt: 'now' }],
+    shuttleFuelled: { condor: true },
+    shuttleControl: { condor: {
+      shuttleId: 'condor', ownerRoleId: 'quellon-engineer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 4,
+    } },
+    maintenanceCycles: { quellon: maintenance },
+    shipDamage: { quellon: damage }, serviceShuttleRecharges: {},
+  });
+  state.setMe({
+    ...state.me!, assignedRoleId: 'quellon-engineer',
+    activeConsoleRoleId: 'quellon-engineer', fleetGroupId: 'fleet-1',
+  });
+  render(<MemoryRouter initialEntries={['/shuttles/condor']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const panel = screen.getByRole('region', { name: 'Service shuttle recharge' });
+  expect(within(panel).getByText(guidance)).toBeVisible();
+  expect(within(panel).getByLabelText('Host console')).toBeDisabled();
+  expect(within(panel).getByRole('button', { name: 'Recharge console' })).toBeDisabled();
+  expect(within(panel).queryByRole('option', { name: 'Hydroponics' })).not.toBeInTheDocument();
 });
 
 it('lets the current recipient enter without claiming the printed owner role', async () => {
