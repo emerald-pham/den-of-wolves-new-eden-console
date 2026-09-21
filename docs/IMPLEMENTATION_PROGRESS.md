@@ -815,7 +815,7 @@ release classification and evidence.
 | 370 | done | non-feature | — | Verified the existing production cycle boundary. The server atomically sets every recorded shuttle fuel state to false during normal rollover, final debrief, and pursuit failure; concurrent advances cannot clear twice, and join/resume only project the persisted cleared state. This is evidence reconciliation with no runtime change. |
 | 371 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 372 | done | feature | 0.4.75 | AEGIS Press access now authorizes only the enabled SNN Press shuttle to request departure and enter transit while general airspace remains restricted. Server and routed UI checks reject disabled-Press stale custody, preserve ordinary craft restrictions, and retain all existing timing, routing, custody, replay, and attack locks. |
-| 373 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 373 | missing | non-feature | — | Blocked on Prompt 146's explicit owner decision for equally near legal hosts. Once that deterministic policy is selected, declaration must relocate every craft to its nearest legal host and derive battle participation from the printed capability catalog. |
 | 374 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 375 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 376 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

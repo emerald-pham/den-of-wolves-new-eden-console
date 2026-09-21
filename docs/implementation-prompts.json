@@ -2459,9 +2459,9 @@
       "type": "evidence / production-path / server-authoritative / SNN / AEGIS / restricted-airspace / exact-exception / replay / responsive-route / regression"
     },
     {
-      "direction": "373 -> 145;147",
+      "direction": "373 -> 145;146;147",
       "id": "E-AUDIT-373",
-      "language": "Attack parking consumes airspace lock and combat-capability filtering.",
+      "language": "Attack parking consumes the airspace lock, the unresolved equal-distance nearest-host policy, and combat-capability filtering.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -15266,11 +15266,11 @@
         "acceptance": "declaration moves all craft to nearest hosts and battle participation follows capabilities.",
         "title": "Park every craft for a Wolf attack."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Blocked on Prompt 146's explicit owner decision for equally near legal hosts. Once that deterministic policy is selected, declaration must relocate every craft to its nearest legal host and derive battle participation from the printed capability catalog.",
       "evidenceIds": "E-AUDIT-373",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "145;147",
+      "hardPromptPrerequisites": "145;146;147",
       "id": "373",
       "milestoneHints": "M7",
       "relatedConsumes": "none",
