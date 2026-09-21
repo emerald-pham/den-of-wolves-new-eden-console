@@ -138,6 +138,13 @@ opens; accepted departure, transit, and arrival commands bind the current
 holder, fleet group, cycle, route, custody revision, and live phase. Do not add
 a client-only travel or docking mutation.
 
+A departure request authorizes one move without removing the shuttle from its
+current dock. Only the current holder can request it during the open-airspace
+Coordination window, and the origin and destination must be distinct active
+ships in that holder's server-owned fleet group and legal for that craft. A
+second request remains blocked until the accepted request enters transit or is
+otherwise cleared by server authority.
+
 ## Validation and authority
 
 Follow the test-first policy in `CLAUDE.md`. Template tests exercise a second

@@ -127,6 +127,23 @@ it('persists one holder departure request and replays without another write', as
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('allows only one pending Coordination move for the current holder and cycle', async () => {
+  await expect(requestShuttleDeparture.run(request(command))).resolves.toMatchObject({
+    status: 'requested', holderUid: 'holder', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
+  });
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+
+  await expect(requestShuttleDeparture.run(request({
+    ...command, requestId: 'depart-2',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).toMatchObject({
+    requestId: 'depart-1', holderUid: 'holder', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', cycle: 2,
+  });
+});
+
 it('accepts departure while another enabled shuttle is already off the docking ledger', async () => {
   const session = mock.documents.get('sessions/s1')!;
   session.shuttleDockings = (session.shuttleDockings as Fields[])

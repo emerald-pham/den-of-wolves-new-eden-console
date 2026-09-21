@@ -9360,7 +9360,7 @@
         "acceptance": "only the holder can request one eligible Coordination move to a valid ship.",
         "title": "Resolve a legal shuttle move."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The existing requestShuttleDeparture callable authorizes exactly one pending local move without undocking the craft. It derives live shuttle custody, requires the authenticated actor to be the current holder, binds the expected control revision and shared cycle, requires active open-airspace Coordination timing, validates a unique local origin plus a different craft-legal destination inside the holder's authoritative fleet group, and rejects unresolved Wolf movement. The accepted request is transaction-owned and idempotent; non-holders, stale custody/cycle, closed or paused airspace, expired windows, same/cross-group/illegal destinations, malformed state, and a second pending request fail before mutation. Focused pure, callable, service, and route tests prove holder-only authorization, one pending move, valid destination selection, replay, and client submission of observed authority. This slice records preservation evidence only and changes no runtime behavior.",
       "evidenceIds": "E-AUDIT-144",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9372,7 +9372,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
