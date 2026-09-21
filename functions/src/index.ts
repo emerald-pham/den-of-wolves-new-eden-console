@@ -259,6 +259,10 @@ import {
   type ShuttleTransitState,
 } from './shuttleTransit';
 import {
+  resolveWolfAttackShuttleParking,
+  type WolfAttackParkingDecision,
+} from './wolfAttackParking';
+import {
   SHUTTLE_CARGO_TYPES,
   transferShuttleCargo,
 } from './shuttleCargoTransfer';
@@ -1877,6 +1881,9 @@ type WolfAttackParkingSnapshot = Readonly<{
   parkedCraftIds: readonly string[];
   battleTableCraftActions: readonly BattleTableCraftActionRegistration[];
   parkedShuttleDockings: readonly PublicShuttleDocking[];
+  parkingDecisions: readonly WolfAttackParkingDecision[];
+  clearedTransitIds: readonly string[];
+  shuttleVisitLog: readonly PublicShuttleVisit[];
 }>;
 
 /**
@@ -1889,6 +1896,11 @@ function requireWolfAttackParking(
   session: DocumentSnapshot,
   activeVesselIds: readonly string[],
   activeRoleIds: readonly string[],
+  fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
+  departures: { readonly docs: readonly DocumentSnapshot[] },
+  cycle: number,
+  parkedAt: string,
+  requestId: string,
 ): WolfAttackParkingSnapshot {
   const initialDockings = initialShuttleDockingsForRoles(activeRoleIds);
   const storedDockings = session.get('shuttleDockings');
@@ -1918,21 +1930,11 @@ function requireWolfAttackParking(
       'conflict',
     );
   }
-  if (!shuttleDockingsAreParked(source, activeVesselIds)) {
-    throw commandError(
-      'failed-precondition',
-      'The Wolf attack cannot be declared while craft parking is incomplete.',
-      'conflict',
-    );
-  }
-
-  const activeHosts = new Set(activeVesselIds);
-  const seen = new Set<string>();
-  const parkedShuttleDockings: PublicShuttleDocking[] = [];
+  const currentDockings: PublicShuttleDocking[] = [];
   for (const entry of source) {
     if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
-        !expectedShuttleIds.has(entry.shuttleId) || seen.has(entry.shuttleId) ||
-        typeof entry.shipId !== 'string' || !activeHosts.has(entry.shipId) ||
+        !expectedShuttleIds.has(entry.shuttleId) ||
+        typeof entry.shipId !== 'string' ||
         typeof entry.dockedAt !== 'string' || entry.dockedAt.trim().length === 0 ||
         entry.inTransit === true || entry.transit === true ||
         entry.status === 'in-transit' || entry.state === 'in-transit' ||
@@ -1943,23 +1945,58 @@ function requireWolfAttackParking(
         'conflict',
       );
     }
-    seen.add(entry.shuttleId);
-    parkedShuttleDockings.push({
+    currentDockings.push({
       shuttleId: entry.shuttleId,
       shipId: entry.shipId,
       dockedAt: entry.dockedAt,
     });
   }
-  if (seen.size !== expectedShuttleIds.size ||
-      [...expectedShuttleIds].some((shuttleId) => !seen.has(shuttleId))) {
+
+  const transits = departures.docs.flatMap((snapshot) => {
+    if (!expectedShuttleIds.has(snapshot.id)) return [];
+    const raw = snapshot.data();
+    const transit = parseShuttleTransit(raw, snapshot.id);
+    if (transit) return [transit];
+    const pending = parseShuttleDepartures({ [snapshot.id]: raw });
+    if (pending?.[snapshot.id]) return [];
     throw commandError(
       'failed-precondition',
-      'The Wolf attack cannot be declared while craft parking is incomplete.',
+      'The Wolf attack cannot resolve malformed shuttle departure authority.',
+      'conflict',
+    );
+  });
+  const groups = fleetGroups.docs.map((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    if (!group || group.id !== snapshot.id) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot resolve craft against malformed fleet groups.',
+        'conflict',
+      );
+    }
+    return { id: group.id, vesselIds: group.vesselIds };
+  });
+  let parking;
+  try {
+    parking = resolveWolfAttackShuttleParking({
+      shuttleIds: [...expectedShuttleIds],
+      activeVesselIds,
+      dockings: currentDockings,
+      transits,
+      fleetGroups: groups,
+      cycle,
+      parkedAt,
+    });
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'The Wolf attack cannot complete craft parking.',
       'conflict',
     );
   }
 
   const rawVisitLog = session.get('shuttleVisitLog');
+  let shuttleVisitLog: PublicShuttleVisit[];
   if (rawVisitLog !== undefined) {
     if (!Array.isArray(rawVisitLog)) {
       throw commandError(
@@ -1969,9 +2006,12 @@ function requireWolfAttackParking(
       );
     }
     const latestVisit = new Map<string, 'docked' | 'departed'>();
+    shuttleVisitLog = [];
     for (const entry of rawVisitLog) {
       if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
           !expectedShuttleIds.has(entry.shuttleId) ||
+          typeof entry.id !== 'string' || typeof entry.shipId !== 'string' ||
+          !activeVesselIds.includes(entry.shipId) || typeof entry.occurredAt !== 'string' ||
           (entry.action !== 'docked' && entry.action !== 'departed')) {
         throw commandError(
           'failed-precondition',
@@ -1980,14 +2020,33 @@ function requireWolfAttackParking(
         );
       }
       latestVisit.set(entry.shuttleId, entry.action);
+      shuttleVisitLog.push({
+        id: entry.id,
+        shuttleId: entry.shuttleId,
+        shipId: entry.shipId,
+        action: entry.action,
+        occurredAt: entry.occurredAt,
+      });
     }
-    if ([...latestVisit.values()].some((action) => action === 'departed')) {
+    const transitIds = new Set(parking.clearedTransitIds);
+    if ([...latestVisit.entries()].some(([shuttleId, action]) =>
+      action === 'departed' && !transitIds.has(shuttleId))) {
       throw commandError(
         'failed-precondition',
         'The Wolf attack cannot be declared while craft parking is incomplete.',
         'conflict',
       );
     }
+  } else shuttleVisitLog = initialShuttleVisitsForDockings(currentDockings);
+  for (const shuttleId of parking.clearedTransitIds) {
+    const docking = parking.dockings.find((entry) => entry.shuttleId === shuttleId)!;
+    shuttleVisitLog.push({
+      id: `wolf-attack-${requestId}-${shuttleId}-docking`,
+      shuttleId,
+      shipId: docking.shipId,
+      action: 'docked',
+      occurredAt: parkedAt,
+    });
   }
 
   const fighterWings = ownedCraft.filter((craft) => craft.kind === 'fighter-wing');
@@ -2010,7 +2069,10 @@ function requireWolfAttackParking(
   return {
     parkedCraftIds,
     battleTableCraftActions: battleTableCraftActionsForParkedCraft(parkedCraftIds),
-    parkedShuttleDockings,
+    parkedShuttleDockings: parking.dockings,
+    parkingDecisions: parking.decisions,
+    clearedTransitIds: parking.clearedTransitIds,
+    shuttleVisitLog,
   };
 }
 
@@ -12724,6 +12786,9 @@ type WolfAttackDeclarationInputs = Readonly<{
   parkedCraftIds: readonly string[];
   battleTableCraftActions: readonly BattleTableCraftActionRegistration[];
   parkedShuttleDockings: readonly PublicShuttleDocking[];
+  parkingDecisions: readonly WolfAttackParkingDecision[];
+  clearedTransitIds: readonly string[];
+  shuttleVisitLog: readonly PublicShuttleVisit[];
   targetRing: WolfTargetRing;
 }>;
 
@@ -12826,8 +12891,12 @@ function validateWolfAttackDeclaration(
   stateProjection: DocumentSnapshot,
   eventProjection: DocumentSnapshot,
   auditProjection: DocumentSnapshot,
+  fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
+  departures: { readonly docs: readonly DocumentSnapshot[] },
   uid: string,
   expectedRevision: number,
+  parkedAt: string,
+  requestId: string,
 ): WolfAttackDeclarationInputs {
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isLiveGmInstance(instance, player, uid)) {
@@ -12905,7 +12974,16 @@ function validateWolfAttackDeclaration(
     : CORE_WOLF_TARGET_RING;
   requireSmallShipsDockedAtBoundary(session, 'Wolf attack');
   const activeRoleIds = sessionActiveRoleIds(session);
-  const parking = requireWolfAttackParking(session, activeVesselIds, activeRoleIds);
+  const parking = requireWolfAttackParking(
+    session,
+    activeVesselIds,
+    activeRoleIds,
+    fleetGroups,
+    departures,
+    currentTurn,
+    parkedAt,
+    requestId,
+  );
   return { phase, preparation, window, ...parking, targetRing };
 }
 
@@ -12969,6 +13047,7 @@ export const declareWolfAttack = onCall<{
   const navigationRef = navigationStateRef(declaration.sessionId);
   const fleetGroupsRef = db.collection(`sessions/${declaration.sessionId}/fleetGroups`);
   const playersRef = db.collection(`sessions/${declaration.sessionId}/players`);
+  const departuresRef = db.collection(`sessions/${declaration.sessionId}/shuttleDepartures`);
   const stateRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current`);
   const auditRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current/audit/${declaration.requestId}`);
   const receiptRef = commandReceiptRef(declaration.sessionId, declaration.requestId);
@@ -12985,10 +13064,11 @@ export const declareWolfAttack = onCall<{
 
   const [preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
     preflightWindow, preflightNavigation, preflightState, preflightReceipt,
-    preflightAudit, preflightEvent, preflightFleetGroups, preflightPlayers] = await Promise.all([
+    preflightAudit, preflightEvent, preflightFleetGroups, preflightPlayers,
+    preflightDepartures] = await Promise.all([
     sessionRef.get(), playerRef.get(), instanceRef.get(), preparationRef.get(),
     windowRef.get(), navigationRef.get(), stateRef.get(), receiptRef.get(), auditRef.get(), eventRef.get(),
-    fleetGroupsRef.get(), playersRef.get(),
+    fleetGroupsRef.get(), playersRef.get(), departuresRef.get(),
   ]);
   if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
@@ -13001,15 +13081,16 @@ export const declareWolfAttack = onCall<{
     preflightReceipt, fingerprint, isWolfAttackDeclarationResult, 'Wolf attack declaration',
   );
   if (preflightReplay) return preflightReplay;
+  const declaredAt = new Date().toISOString();
   const preflight = validateWolfAttackDeclaration(
     preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
-    preflightWindow, preflightState, preflightEvent, preflightAudit, uid,
-    declaration.expectedRevision,
+    preflightWindow, preflightState, preflightEvent, preflightAudit,
+    preflightFleetGroups, preflightDepartures, uid, declaration.expectedRevision,
+    declaredAt, declaration.requestId,
   );
   const preflightPursuit = wolfAttackPursuitSnapshot(
     preflightSession, preflightNavigation, preflightFleetGroups, preflightPlayers,
   );
-  const declaredAt = new Date().toISOString();
   const calculationReceipt = wolfTargetingStageReceipt(
     preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
   );
@@ -13030,10 +13111,11 @@ export const declareWolfAttack = onCall<{
 
   return db.runTransaction(async tx => {
     const [session, player, instance, preparation, window, navigation,
-      state, receipt, audit, event, fleetGroups, players] = await Promise.all([
+      state, receipt, audit, event, fleetGroups, players, departures] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(preparationRef),
       tx.get(windowRef), tx.get(navigationRef), tx.get(stateRef), tx.get(receiptRef),
       tx.get(auditRef), tx.get(eventRef), tx.get(fleetGroupsRef), tx.get(playersRef),
+      tx.get(departuresRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
@@ -13044,8 +13126,9 @@ export const declareWolfAttack = onCall<{
       throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
     }
     const inputs = validateWolfAttackDeclaration(
-      session, player, instance, preparation, window, state, event, audit, uid,
-      declaration.expectedRevision,
+      session, player, instance, preparation, window, state, event, audit,
+      fleetGroups, departures, uid, declaration.expectedRevision, declaredAt,
+      declaration.requestId,
     );
     const pursuit = wolfAttackPursuitSnapshot(session, navigation, fleetGroups, players);
     if (inputs.phase.turn !== preflight.phase.turn ||
@@ -13053,6 +13136,8 @@ export const declareWolfAttack = onCall<{
         inputs.window.revision !== preflight.window.revision ||
         inputs.preparation.revision !== preflight.preparation.revision ||
         wolfAttackPursuitFingerprint(pursuit) !== wolfAttackPursuitFingerprint(preflightPursuit) ||
+        JSON.stringify(inputs.parkingDecisions) !== JSON.stringify(preflight.parkingDecisions) ||
+        JSON.stringify(inputs.parkedShuttleDockings) !== JSON.stringify(preflight.parkedShuttleDockings) ||
         JSON.stringify(inputs.targetRing) !== JSON.stringify(preflight.targetRing)) {
       throw commandError(
         'failed-precondition',
@@ -13089,6 +13174,10 @@ export const declareWolfAttack = onCall<{
       battleTableCraftActions: inputs.battleTableCraftActions.map((action) => ({ ...action })),
       launchedCraftIds: [],
       parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
+      parkingDecisions: inputs.parkingDecisions.map((decision) => ({
+        ...decision,
+        tiedHostIds: [...decision.tiedHostIds],
+      })),
       calculationReceipt,
       commanderRerollIndexes: [],
       preparation: inputs.preparation,
@@ -13105,8 +13194,13 @@ export const declareWolfAttack = onCall<{
       turnPhase: lockedPhase,
       ...(turnState ? { turnState } : {}),
       fleetTicker,
+      shuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
+      shuttleVisitLog: inputs.shuttleVisitLog.map((visit) => ({ ...visit })),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    for (const shuttleId of inputs.clearedTransitIds) {
+      tx.delete(db.doc(`sessions/${declaration.sessionId}/shuttleDepartures/${shuttleId}`));
+    }
     tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
     tx.set(auditRef, {
       type: 'wolf-attack-declaration',

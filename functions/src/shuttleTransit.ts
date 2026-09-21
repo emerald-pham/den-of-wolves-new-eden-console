@@ -25,15 +25,42 @@ export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 
   readonly arrivesAt: string;
 }
 
-const FLEET_WORLD_POSITIONS: Readonly<Record<string, ShuttleWorldPoint>> = {
-  aegis: { x: 0, y: 0, z: 0 },
-  dione: { x: -0.32, y: 0.18, z: 0.22 },
-  icebreaker: { x: 0.26, y: -0.12, z: 0.28 },
-  capybara: { x: -0.08, y: -0.31, z: 0.12 },
-  shepherd: { x: 0.34, y: 0.24, z: -0.16 },
-  quellon: { x: -0.28, y: -0.08, z: -0.26 },
-  'refinery-124': { x: 0.09, y: 0.32, z: 0.31 },
-};
+const FLEET_WORLD_POSITIONS: Readonly<Record<string, ShuttleWorldPoint>> = Object.freeze({
+  aegis: Object.freeze({ x: 0, y: 0, z: 0 }),
+  dione: Object.freeze({ x: -0.32, y: 0.18, z: 0.22 }),
+  icebreaker: Object.freeze({ x: 0.26, y: -0.12, z: 0.28 }),
+  capybara: Object.freeze({ x: -0.08, y: -0.31, z: 0.12 }),
+  shepherd: Object.freeze({ x: 0.34, y: 0.24, z: -0.16 }),
+  quellon: Object.freeze({ x: -0.28, y: -0.08, z: -0.26 }),
+  'refinery-124': Object.freeze({ x: 0.09, y: 0.32, z: 0.31 }),
+});
+
+/** Return one immutable ship position in the local fleet-space model. */
+export function fleetWorldPositionForShip(shipId: string): ShuttleWorldPoint | undefined {
+  return FLEET_WORLD_POSITIONS[shipId];
+}
+
+/** Derive a transit craft's physical position at one server timestamp. */
+export function shuttlePositionAt(transit: ShuttleTransitState, now: number): ShuttleWorldPoint {
+  if (!Number.isFinite(now)) throw new Error('Shuttle parking time must be finite.');
+  const departedAt = Date.parse(transit.departedAt);
+  const arrivesAt = Date.parse(transit.arrivesAt);
+  if (!Number.isFinite(departedAt) || !Number.isFinite(arrivesAt) || arrivesAt <= departedAt) {
+    throw new Error('Shuttle transit timing is malformed.');
+  }
+  const elapsedSeconds = Math.max(0, Math.min(arrivesAt - departedAt, now - departedAt)) / 1_000;
+  if (elapsedSeconds === 0) return transit.originPosition;
+  if (now >= arrivesAt) return transit.destinationPosition;
+  const position = {
+    x: transit.originPosition.x + transit.velocity.x * elapsedSeconds,
+    y: transit.originPosition.y + transit.velocity.y * elapsedSeconds,
+    z: transit.originPosition.z + transit.velocity.z * elapsedSeconds,
+  };
+  if (![position.x, position.y, position.z].every(Number.isFinite)) {
+    throw new Error('Shuttle transit position is malformed.');
+  }
+  return Object.freeze(position);
+}
 
 function point(value: unknown): ShuttleWorldPoint | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;

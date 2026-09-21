@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [373],
+    implementationProgress: {
+      completed: 419, total: 751, percentage: '55.79%',
+      done: 419, partial: 16, active: 0, missing: 316,
+    },
+    changes: [
+      'A Wolf attack now catches every travelling shuttle and parks it at the nearest legal ship before combat begins.',
+      'Split fleets stay separate, and equally near ships use the same fixed fleet order every time.',
+      'Attack declaration records the complete parking result atomically; later combat stages remain separate work.',
+      '419 of 751 planned items are complete (55.79%).',
+    ],
+  },
+  {
+    version: '0.4.78',
     implementationPrompts: [388],
     implementationProgress: {
       completed: 417, total: 751, percentage: '55.53%',

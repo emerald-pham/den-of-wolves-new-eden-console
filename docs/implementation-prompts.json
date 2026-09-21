@@ -2489,9 +2489,16 @@
     {
       "direction": "373 -> 145;146;147",
       "id": "E-AUDIT-373",
-      "language": "Attack parking consumes the airspace lock, the unresolved equal-distance nearest-host policy, and combat-capability filtering.",
+      "language": "Attack parking consumes the airspace lock, the completed deterministic nearest-host tie policy, and combat-capability filtering.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "373 -> 145;146;147;432;435",
+      "id": "E-373-WOLF-ATTACK-PARKING",
+      "language": "Release 0.4.79 makes Wolf declaration park every represented shuttle before combat. The server transaction reads current dockings, in-flight departure records, the active vessel roster, and canonical fleet groups; derives each in-flight craft position from immutable route timing; restricts candidates to legal ships in that craft's own fleet group; applies P146's fixed order for distances equal within floating-point precision; and records the host, squared distance, and ordered tie set. The same transaction writes the complete docking and visit snapshot, deletes consumed transit records, locks airspace, stores the private attack state and calculation receipt, resolves the due marker, and emits one member-safe announcement. Missing, duplicate, stale-cycle, cross-group, illegal-host, non-finite, changed, or partial parking authority fails before mutation. Existing capability filtering still admits only printed combat craft. This completes P373 and removes parking as P432's remaining implementation boundary; P432 and P435 stay partial while their hard prerequisite P428 remains partial.",
+      "source": "functions/src/wolfAttackParking.ts; functions/src/wolfAttackParking.test.ts; functions/src/shuttleTransit.ts; functions/src/shuttleTransit.test.ts; functions/src/index.ts declareWolfAttack; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/craftOwnership.ts; focused Wolf/shuttle tests; Functions build; independent Terra exact-SHA review",
+      "type": "evidence / production-path / server-authoritative / atomic / nearest-host / split-fleet / deterministic-tie / transit / replay / privacy"
     },
     {
       "direction": "374 -> 130;373",
@@ -5471,7 +5478,7 @@
     {
       "direction": "146 -> 371;373",
       "id": "E-146-WOLF-PARKING-TIE-POLICY",
-      "language": "The product policy now resolves equally near legal Wolf-attack parking hosts automatically in canonical vessel presentation order: AEGIS, Dione, Icebreaker, Capybara, Shepherd, Quellon, then Refinery 124. The pure server resolver measures squared Euclidean distance from the craft's authoritative local transit position, ignores candidate input order, records every exactly equally near host in canonical order, and fails closed for empty, unknown, duplicate, non-finite, or overflowing candidates. Twenty-one focused parking/transit-position tests and the Functions TypeScript build pass. Prompt 373 owns declaration-time relocation and Prompt 371 owns ordinary airspace-close parking; this decision adds no runtime call path or deployment claim.",
+      "language": "The product policy resolves equally near legal Wolf-attack parking hosts automatically in canonical vessel presentation order: AEGIS, Dione, Icebreaker, Capybara, Shepherd, Quellon, then Refinery 124. The pure server resolver measures squared Euclidean distance from the craft's authoritative local transit position, ignores candidate input order, treats mathematically equal interpolated distances as ties within floating-point precision, records the ordered tie set, and fails closed for empty, unknown, duplicate, non-finite, or overflowing candidates. Focused parking/transit-position tests and the Functions TypeScript build pass. Prompt 373 owns declaration-time relocation and Prompt 371 owns ordinary airspace-close parking.",
       "source": "functions/src/wolfAttackParking.ts; functions/src/wolfAttackParking.test.ts; functions/src/shuttleTransit.ts authoritative local position contract; src/data/ships.ts canonical vessel presentation order; authorized continuation of all implementation prompts 2026-09-21",
       "type": "evidence / product policy"
     },
@@ -9599,7 +9606,7 @@
         "acceptance": "one deterministic, recorded facilitator/product policy resolves equal-distance hosts.",
         "title": "Decide nearest-ship parking ties."
       },
-      "description": "Equal-distance parking now resolves automatically by canonical vessel presentation order: AEGIS, Dione, Icebreaker, Capybara, Shepherd, Quellon, then Refinery 124. A pure server resolver measures squared Euclidean distance from an authoritative local craft position, ignores caller ordering, returns the chosen host plus the complete canonically ordered exact tie set for later recording, and fails closed for empty, unknown, duplicate, or non-finite host data. Prompt 373 owns Wolf-attack relocation and Prompt 371 owns ordinary airspace-close parking.",
+      "description": "Equal-distance parking resolves automatically by canonical vessel presentation order: AEGIS, Dione, Icebreaker, Capybara, Shepherd, Quellon, then Refinery 124. A pure server resolver measures squared Euclidean distance from an authoritative local craft position, ignores caller ordering, treats mathematically equal interpolated distances as ties within floating-point precision, returns the chosen host plus the complete ordered tie set for recording, and fails closed for empty, unknown, duplicate, or non-finite host data. Prompt 373 consumes this policy for Wolf attacks and Prompt 371 owns ordinary airspace-close parking.",
       "evidenceIds": "E-146-WOLF-PARKING-TIE-POLICY",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -15343,8 +15350,8 @@
         "acceptance": "declaration moves all craft to nearest hosts and battle participation follows capabilities.",
         "title": "Park every craft for a Wolf attack."
       },
-      "description": "Ready after Prompt 146 selected the canonical fixed-order tie policy. Declaration must now relocate every craft to its nearest legal host from authoritative local positions, record the selected host, and derive battle participation from the printed capability catalog.",
-      "evidenceIds": "E-AUDIT-373",
+      "description": "Release 0.4.79 makes declaration atomically park every represented shuttle at its nearest legal active host before combat. In-flight positions derive from immutable server route timing; candidates remain inside the shuttle's canonical fleet group and printed host restrictions; distances equal within floating-point precision use P146's fixed vessel order. The private attack state records every selected host, squared distance, and ordered tie set, while the session receives the complete docking and visit snapshot and consumed transit records are removed. Existing capability filtering admits only printed combat craft to battle actions.",
+      "evidenceIds": "E-AUDIT-373;E-373-WOLF-ATTACK-PARKING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "145;146;147",
@@ -15352,10 +15359,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.79"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16871,8 +16880,8 @@
         "acceptance": "a GM-console declaration commits attack state, airspace lock, parked craft, current step/deadline, calculation receipt, and one announcement together.",
         "title": "Declare the attack atomically."
       },
-      "description": "Partial production-path implementation: the server-only declareWolfAttack callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, and authoritative active target configuration; it then validates every represented shuttle's active-host docking and fighter-wing bay state, rejecting missing, malformed, duplicate, inactive-host, or in-transit craft before any write. A valid snapshot atomically locks airspace, resolves the due timing marker, stores a GM-only targeting-stage calculation receipt and preparation snapshot, and emits one allowlisted member announcement. P428 targeting uses server-owned samples at declaration with the printed base d6 ring or the configured expansion Capybara d8 ring (7 selects Capybara and 8 rerolls); range, boarding, damage, and casualty outcomes remain deferred until later action prompts. P146 now supplies the fixed equal-distance policy; P373 still owns nearest-host relocation, so craft requiring relocation remain denied until that production path lands.",
-      "evidenceIds": "E-WOLF;E-AUDIT-432;E-432-DECLARATION",
+      "description": "Release 0.4.79 completes P373's atomic parking portion of declaration. The server-only callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, authoritative target configuration, pursuit groups, represented craft, fighter-wing bay state, dockings, and transit authority. One transaction parks craft, restricts airspace, resolves the due timing marker, stores the GM-only targeting calculation and preparation snapshot, and emits one allowlisted member announcement. This prompt remains partial because its hard P428 combat-math prerequisite remains partial; range, boarding, damage, casualties, and later lifecycle stages stay with their action prompts.",
+      "evidenceIds": "E-WOLF;E-AUDIT-432;E-432-DECLARATION;E-373-WOLF-ATTACK-PARKING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "427;428",
@@ -16880,7 +16889,9 @@
       "milestoneHints": "M9",
       "relatedConsumes": "146;373;429;430",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.79"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
       "status": "partial",
@@ -17032,8 +17043,8 @@
         "acceptance": "the assigned Commander rerolls each eligible die no more than once before Command and Control.",
         "title": "Resolve Wolf Commander target rerolls."
       },
-      "description": "Production path implemented: the active player with P515's replacementRoleId wolf-commander authority reads a filtered current-dice view and submits selected rerolls against P432's successful GM-only targeting receipt. The server transaction uses shared command fingerprints, turn/revision CAS, unique persistent consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. Printed Capybara 8 rerolls remain separate. P432 remains partial only for P373's nearest-host parking production path, which now consumes P146's completed tie policy; this prompt does not add timeout, auto-advance, C&C, range, damage, or parking behavior. Later targeting steps remain separate prompts. Independent review f8362d9 cleared active-game reads, session/authority transition handling, and corrupt receipt denials. The reroll behavior is complete for declared targeting, but catalog closure remains partial while its hard P432 prerequisite retains the separate unfinished parking scope.",
-      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435",
+      "description": "The implemented production path lets the active player with P515's replacementRoleId Wolf Commander authority read a filtered current-dice view and submit selected rerolls against the successful private targeting receipt. The transaction uses shared command fingerprints, cycle/revision CAS, unique consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. P373 has removed parking as a blocker, but this prompt remains partial while its hard P432 prerequisite remains partial behind P428. Printed Capybara 8 rerolls, timeout, auto-advance, Command and Control, range, and damage remain separate prompts.",
+      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435;E-373-WOLF-ATTACK-PARKING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;515",

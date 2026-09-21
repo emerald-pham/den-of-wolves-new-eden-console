@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest';
-import { enterShuttleTransit, parseShuttleTransit, SHUTTLE_TRANSIT_DURATION_MS } from './shuttleTransit';
+import {
+  enterShuttleTransit,
+  fleetWorldPositionForShip,
+  parseShuttleTransit,
+  SHUTTLE_TRANSIT_DURATION_MS,
+  shuttlePositionAt,
+} from './shuttleTransit';
 
 const now = Date.parse('2026-09-21T06:00:00.000Z');
 const departure = {
@@ -85,4 +91,22 @@ it('rejects malformed stored transit state', () => {
   const transit = enterShuttleTransit(base).transit;
   expect(parseShuttleTransit({ ...transit, arrivesAt: transit.departedAt }, 'starlight')).toBeNull();
   expect(parseShuttleTransit({ ...transit, forged: true }, 'starlight')).toBeNull();
+});
+
+it('derives the physical position from immutable route time and clamps at both endpoints', () => {
+  const transit = enterShuttleTransit(base).transit;
+  expect(shuttlePositionAt(transit, now - 1)).toEqual(transit.originPosition);
+  expect(shuttlePositionAt(transit, now + SHUTTLE_TRANSIT_DURATION_MS / 2)).toEqual({
+    x: 0.13, y: -0.06, z: 0.14,
+  });
+  expect(shuttlePositionAt(transit, now + SHUTTLE_TRANSIT_DURATION_MS + 1))
+    .toEqual(transit.destinationPosition);
+});
+
+it('returns defensive copies of canonical fleet positions', () => {
+  const aegis = fleetWorldPositionForShip('aegis');
+  expect(aegis).toEqual({ x: 0, y: 0, z: 0 });
+  expect(fleetWorldPositionForShip('not-a-ship')).toBeUndefined();
+  expect(Reflect.set(aegis!, 'x', 99)).toBe(false);
+  expect(fleetWorldPositionForShip('aegis')).toEqual({ x: 0, y: 0, z: 0 });
 });

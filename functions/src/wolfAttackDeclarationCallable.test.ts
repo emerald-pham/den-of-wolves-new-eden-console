@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn() }));
@@ -31,7 +31,8 @@ const mock = vi.hoisted(() => {
   });
   const collection = (path: string) => ({ path, get: async () => querySnapshot(path) });
   const get = vi.fn(async (target: { path: string }) =>
-    target.path.endsWith('/fleetGroups') || target.path.endsWith('/players')
+    target.path.endsWith('/fleetGroups') || target.path.endsWith('/players') ||
+      target.path.endsWith('/shuttleDepartures')
       ? querySnapshot(target.path)
       : snapshot(target.path));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
@@ -40,9 +41,10 @@ const mock = vi.hoisted(() => {
   const set = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...fields });
   });
+  const remove = vi.fn((target: { path: string }) => documents.delete(target.path));
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback({ get, update, set }));
-  return { documents, get, update, set, runTransaction, db: { doc: ref, collection, runTransaction } };
+    callback({ get, update, set, delete: remove }));
+  return { documents, get, update, set, remove, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -171,9 +173,10 @@ function resetFixture(): void {
   mock.get.mockClear();
   mock.update.mockClear();
   mock.set.mockClear();
+  mock.remove.mockClear();
   mock.runTransaction.mockClear();
   mock.runTransaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
-    callback({ get: mock.get, update: mock.update, set: mock.set }));
+    callback({ get: mock.get, update: mock.update, set: mock.set, delete: mock.remove }));
   cryptoMock.randomInt.mockImplementation(() => 0);
   session();
   gm();
@@ -184,6 +187,7 @@ function resetFixture(): void {
 }
 
 beforeEach(resetFixture);
+afterEach(() => vi.useRealTimers());
 
 it('atomically locks airspace, snapshots parked craft, records a hidden stage receipt, and emits one safe announcement', async () => {
   const result = await declareWolfAttack.run(request());
@@ -451,6 +455,56 @@ it('retains each authoritative shuttle host until normal movement reopens', asyn
   });
 });
 
+it('atomically parks an in-flight shuttle at the nearest legal host and clears transit', async () => {
+  const now = Date.now();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(now);
+  const departedAt = new Date(now - 30_000).toISOString();
+  const arrivesAt = new Date(now + 30_000).toISOString();
+  const dockings = initialShuttleDockingsForRoles(activeRoleIds)
+    .filter((docking) => docking.shuttleId !== 'starlight');
+  session({
+    shuttleDockings: dockings,
+    shuttleVisitLog: [{
+      id: 'starlight-departed', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'departed', occurredAt: departedAt,
+    }],
+  });
+  put('sessions/s1/shuttleDepartures/starlight', {
+    status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+    shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
+    originShipId: 'aegis', destinationShipId: 'dione', cycle: 1, controlRevision: 2,
+    requestedAt: departedAt, revision: 1,
+    originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+    destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
+    velocity: { x: -0.32 / 60, y: 0.18 / 60, z: 0.22 / 60 },
+    departedAt, arrivesAt,
+  });
+
+  await declareWolfAttack.run(request({ ...baseData, requestId: 'park-transit' }));
+
+  expect(mock.documents.get('sessions/s1').shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'aegis' }),
+  ]));
+  expect(mock.documents.get('sessions/s1').shuttleVisitLog).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      id: 'wolf-attack-park-transit-starlight-docking',
+      shuttleId: 'starlight', shipId: 'aegis', action: 'docked',
+    }),
+  ]));
+  expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(false);
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    parkingDecisions: expect.arrayContaining([expect.objectContaining({
+      craftId: 'starlight', source: 'in-transit', hostShipId: 'aegis',
+      tiedHostIds: ['aegis', 'dione'],
+    })]),
+    parkedShuttleDockings: expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'starlight', shipId: 'aegis' }),
+    ]),
+  });
+  vi.useRealTimers();
+});
+
 it('uses only committed private pursuit authority and rejects malformed or changed snapshots', async () => {
   session({ pursuitGroups: { fleet: 2 } });
   navigation({ revision: 7, pursuitGroups: { 'fleet-1': 6, 'fleet-2': 8 } });
@@ -621,6 +675,81 @@ it('rejects a departed shuttle visit as in transit even when the docking project
   expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
   expect(mock.documents.has('sessions/s1/events/wolf-attack-in-transit')).toBe(false);
   expect(mock.documents.has('sessions/s1/commandReceipts/in-transit')).toBe(false);
+});
+
+it('rejects malformed in-transit authority even when a stale docking is still present', async () => {
+  put('sessions/s1/shuttleDepartures/starlight', {
+    status: 'in-transit', shuttleId: 'starlight', forged: true,
+  });
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'malformed-transit' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/wolf-attack-malformed-transit')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/malformed-transit')).toBe(false);
+});
+
+it('rejects future transit and malformed pending authority without any declaration write', async () => {
+  const now = Date.now();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(now);
+  const futureDeparture = new Date(now + 1_000).toISOString();
+  const futureArrival = new Date(now + 61_000).toISOString();
+  const corruptions: readonly [string, Fields][] = [
+    ['future-transit', {
+      status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+      shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
+      originShipId: 'aegis', destinationShipId: 'dione', cycle: 1, controlRevision: 2,
+      requestedAt: new Date(now - 1_000).toISOString(), revision: 1,
+      originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+      destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
+      velocity: { x: -0.32 / 60, y: 0.18 / 60, z: 0.22 / 60 },
+      departedAt: futureDeparture, arrivesAt: futureArrival,
+    }],
+    ['malformed-pending', {
+      status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',
+      holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      destinationShipId: 'dione', cycle: 1, controlRevision: 2,
+      requestedAt: new Date(now - 1_000).toISOString(), forged: true,
+    }],
+    ['unknown-status', { status: 'teleporting', shuttleId: 'starlight' }],
+  ];
+
+  for (const [requestId, departure] of corruptions) {
+    resetFixture();
+    put('sessions/s1/shuttleDepartures/starlight', departure);
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+
+    await expect(declareWolfAttack.run(request({ ...baseData, requestId })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+    expect(mock.documents.has(`sessions/s1/events/wolf-attack-${requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  }
+});
+
+it('keeps an exact pending departure while parking its still-docked shuttle', async () => {
+  const pending = {
+    status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',
+    holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    destinationShipId: 'dione', cycle: 1, controlRevision: 2,
+    requestedAt: new Date().toISOString(),
+  };
+  put('sessions/s1/shuttleDepartures/starlight', pending);
+
+  await declareWolfAttack.run(request({ ...baseData, requestId: 'pending-departure' }));
+
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).toEqual(pending);
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    parkingDecisions: expect.arrayContaining([expect.objectContaining({
+      craftId: 'starlight', source: 'docked', hostShipId: 'aegis',
+    })]),
+  });
 });
 
 it('uses the configured expansion target ring when full Capybara is active', async () => {

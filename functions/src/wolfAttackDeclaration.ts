@@ -1,4 +1,5 @@
 import type { WolfAttackPreparation } from './wolfAttackPreparation';
+import type { WolfAttackParkingDecision } from './wolfAttackParking';
 
 /** The declaration boundary owns only the first printed attack step. */
 export const WOLF_ATTACK_DECLARATION_STEP = 'targeting' as const;
@@ -31,6 +32,8 @@ export interface WolfAttackStageState {
     readonly shipId: string;
     readonly dockedAt: string;
   }[];
+  /** Server-recorded nearest-host choice for every represented shuttle. */
+  readonly parkingDecisions: readonly WolfAttackParkingDecision[];
   /** Hidden GM state: targeting rolls remain outside member-readable events. */
   readonly calculationReceipt: unknown;
   /** Server-owned consumed roster indexes; each may be used at most once. */
