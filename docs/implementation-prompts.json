@@ -5469,11 +5469,11 @@
       "type": "evidence / source verification"
     },
     {
-      "direction": "146 -> OWNER-EQUIDISTANT-SHUTTLE-PARKING",
-      "id": "E-146-OWNER-DECISION-PENDING",
-      "language": "Prompt 146 is an explicit policy decision. Authorized shuttle and Wolf-attack references specify nearest-host docking without an equal-distance tie-break. The owner clarification is pending; record that dependency so this unselected rule does not appear implementation-ready. No gameplay behavior or completion status changes.",
-      "source": "authorized routed shuttle and Wolf-attack references; docs/implementation-prompts.json Prompt 146; owner clarification request 2026-09-19",
-      "type": "decision_owner"
+      "direction": "146 -> 371;373",
+      "id": "E-146-WOLF-PARKING-TIE-POLICY",
+      "language": "The product policy now resolves equally near legal Wolf-attack parking hosts automatically in canonical vessel presentation order: AEGIS, Dione, Icebreaker, Capybara, Shepherd, Quellon, then Refinery 124. The pure server resolver measures squared Euclidean distance from the craft's authoritative local transit position, ignores candidate input order, records every exactly equally near host in canonical order, and fails closed for empty, unknown, duplicate, non-finite, or overflowing candidates. Twenty-one focused parking/transit-position tests and the Functions TypeScript build pass. Prompt 373 owns declaration-time relocation and Prompt 371 owns ordinary airspace-close parking; this decision adds no runtime call path or deployment claim.",
+      "source": "functions/src/wolfAttackParking.ts; functions/src/wolfAttackParking.test.ts; functions/src/shuttleTransit.ts authoritative local position contract; src/data/ships.ts canonical vessel presentation order; authorized continuation of all implementation prompts 2026-09-21",
+      "type": "evidence / product policy"
     },
     {
       "direction": "617 -> 012;089;616",
@@ -9576,7 +9576,7 @@
         "acceptance": "extend the existing authoritative airspace/turn primitives so declaring an attack blocks ordinary movement and begins server-owned parking for every shuttle without weakening current restrictions.",
         "title": "Lock airspace for a Wolf attack."
       },
-      "description": "Complete production boundary: `declareWolfAttack` fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts `turnPhase.airspace` and starts server-owned parking by recording the complete craft and shuttle-docking snapshot. `moveShipToLocation` and `jumpShip` reject that restricted phase, so no ordinary movement can follow the declaration. This prompt deliberately stops at the parking-start boundary: P373 owns nearest-host relocation and P146 owns only the unresolved equal-distance host policy.",
+      "description": "Complete production boundary: `declareWolfAttack` fails closed unless every represented shuttle is validly docked and every fighter-wing bay record is present, then atomically restricts `turnPhase.airspace` and starts server-owned parking by recording the complete craft and shuttle-docking snapshot. `moveShipToLocation` and `jumpShip` reject that restricted phase, so no ordinary movement can follow the declaration. This prompt deliberately stops at the parking-start boundary: P373 owns nearest-host relocation and consumes P146's fixed equal-distance host policy.",
       "evidenceIds": "E-AUDIT-145",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -9594,13 +9594,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-EQUIDISTANT-SHUTTLE-PARKING",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "one deterministic, recorded facilitator/product policy resolves equal-distance hosts.",
         "title": "Decide nearest-ship parking ties."
       },
-      "description": "The printed nearest-host parking rule does not select among equally distant legal hosts. The owner is deciding between a recorded GM choice among tied hosts and an automatic fixed ship-order tie-break. No tie policy is selected or implemented until that decision arrives; ordinary nearest-host parking remains Prompt 373.",
-      "evidenceIds": "E-146-OWNER-DECISION-PENDING",
+      "description": "Equal-distance parking now resolves automatically by canonical vessel presentation order: AEGIS, Dione, Icebreaker, Capybara, Shepherd, Quellon, then Refinery 124. A pure server resolver measures squared Euclidean distance from an authoritative local craft position, ignores caller ordering, returns the chosen host plus the complete canonically ordered exact tie set for later recording, and fails closed for empty, unknown, duplicate, or non-finite host data. Prompt 373 owns Wolf-attack relocation and Prompt 371 owns ordinary airspace-close parking.",
+      "evidenceIds": "E-146-WOLF-PARKING-TIE-POLICY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -9611,7 +9611,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -15343,7 +15343,7 @@
         "acceptance": "declaration moves all craft to nearest hosts and battle participation follows capabilities.",
         "title": "Park every craft for a Wolf attack."
       },
-      "description": "Blocked on Prompt 146's explicit owner decision for equally near legal hosts. Once that deterministic policy is selected, declaration must relocate every craft to its nearest legal host and derive battle participation from the printed capability catalog.",
+      "description": "Ready after Prompt 146 selected the canonical fixed-order tie policy. Declaration must now relocate every craft to its nearest legal host from authoritative local positions, record the selected host, and derive battle participation from the printed capability catalog.",
       "evidenceIds": "E-AUDIT-373",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -16871,7 +16871,7 @@
         "acceptance": "a GM-console declaration commits attack state, airspace lock, parked craft, current step/deadline, calculation receipt, and one announcement together.",
         "title": "Declare the attack atomically."
       },
-      "description": "Partial production-path implementation: the server-only declareWolfAttack callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, and authoritative active target configuration; it then validates every represented shuttle's active-host docking and fighter-wing bay state, rejecting missing, malformed, duplicate, inactive-host, or in-transit craft before any write. A valid snapshot atomically locks airspace, resolves the due timing marker, stores a GM-only targeting-stage calculation receipt and preparation snapshot, and emits one allowlisted member announcement. P428 targeting uses server-owned samples at declaration with the printed base d6 ring or the configured expansion Capybara d8 ring (7 selects Capybara and 8 rerolls); range, boarding, damage, and casualty outcomes remain deferred until later action prompts. Nearest-host relocation is not attempted: craft requiring relocation or an unresolved P146 tie deny the declaration until the P373/P146 movement policy exists.",
+      "description": "Partial production-path implementation: the server-only declareWolfAttack callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, and authoritative active target configuration; it then validates every represented shuttle's active-host docking and fighter-wing bay state, rejecting missing, malformed, duplicate, inactive-host, or in-transit craft before any write. A valid snapshot atomically locks airspace, resolves the due timing marker, stores a GM-only targeting-stage calculation receipt and preparation snapshot, and emits one allowlisted member announcement. P428 targeting uses server-owned samples at declaration with the printed base d6 ring or the configured expansion Capybara d8 ring (7 selects Capybara and 8 rerolls); range, boarding, damage, and casualty outcomes remain deferred until later action prompts. P146 now supplies the fixed equal-distance policy; P373 still owns nearest-host relocation, so craft requiring relocation remain denied until that production path lands.",
       "evidenceIds": "E-WOLF;E-AUDIT-432;E-432-DECLARATION",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -17032,7 +17032,7 @@
         "acceptance": "the assigned Commander rerolls each eligible die no more than once before Command and Control.",
         "title": "Resolve Wolf Commander target rerolls."
       },
-      "description": "Production path implemented: the active player with P515's replacementRoleId wolf-commander authority reads a filtered current-dice view and submits selected rerolls against P432's successful GM-only targeting receipt. The server transaction uses shared command fingerprints, turn/revision CAS, unique persistent consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. Printed Capybara 8 rerolls remain separate. P432 remains partial only for its independent nearest-host/P146/P373 parking policy; this prompt does not add timeout, auto-advance, C&C, range, damage, or parking behavior. Later targeting steps remain separate prompts. Independent review f8362d9 cleared active-game reads, session/authority transition handling, and corrupt receipt denials. The reroll behavior is complete for declared targeting, but catalog closure remains partial while its hard P432 prerequisite retains the separate unfinished parking scope.",
+      "description": "Production path implemented: the active player with P515's replacementRoleId wolf-commander authority reads a filtered current-dice view and submits selected rerolls against P432's successful GM-only targeting receipt. The server transaction uses shared command fingerprints, turn/revision CAS, unique persistent consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. Printed Capybara 8 rerolls remain separate. P432 remains partial only for P373's nearest-host parking production path, which now consumes P146's completed tie policy; this prompt does not add timeout, auto-advance, C&C, range, damage, or parking behavior. Later targeting steps remain separate prompts. Independent review f8362d9 cleared active-game reads, session/authority transition handling, and corrupt receipt denials. The reroll behavior is complete for declared targeting, but catalog closure remains partial while its hard P432 prerequisite retains the separate unfinished parking scope.",
       "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435",
       "hardContract": "none",
       "hardMilestone": "none",
