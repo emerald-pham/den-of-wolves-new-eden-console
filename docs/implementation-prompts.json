@@ -968,9 +968,9 @@
       "type": "evidence / production-path / server-authority / role-bound / cas / idempotency / privacy / responsive-ui / regression"
     },
     {
-      "direction": "180 -> 166;182",
+      "direction": "180 -> 166;171;182;261;377;394;436;445;446;447;448;449;461;463",
       "id": "E-AUDIT-180",
-      "language": "Executive Officer actions consume role binding and AEGIS combat-console registration.",
+      "language": "The Executive Officer workspace consumes authoritative role binding, AEGIS maintenance and combat-console registration, permitted Pallas cargo transfer, Pallas boarding and relocation, Command and Control, Fighter Bay launch, both Missile Launcher ranges, enriched warheads, Point Defence, and the shared boarding reroll result. The workspace cannot truthfully route every named system to a real action before those resolvers exist.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -10252,11 +10252,11 @@
         "acceptance": "maintenance, AEGIS weapons, Pallas, enriched warheads, and Command and Control route to real actions.",
         "title": "Create the Executive Officer workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. The existing Executive Officer shell can route maintenance and registered Pallas cargo through released server actions, while every combat console remains deliberately fail-closed. Workspace completion waits for the server-owned Pallas boarding and relocation actions plus Command and Control, Fighter Bay launch, Missile Launcher, enriched-warhead, and Point Defence resolvers; no production-path completion is claimed yet.",
       "evidenceIds": "E-AUDIT-180",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "166;182",
+      "hardPromptPrerequisites": "166;171;182;261;377;394;436;445;446;447;448;449;461;463",
       "id": "180",
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
