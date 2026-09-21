@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [149, 150, 531],
+    implementationProgress: {
+      completed: 381, total: 751, percentage: '50.73%',
+      done: 381, partial: 17, active: 0, missing: 353,
+    },
+    changes: [
+      'Facilitators can activate or release docking quarantine for ships named by a delivered Disease Outbreak.',
+      'Each quarantined ship accepts at most one inbound shuttle per cycle, with the limit committed atomically alongside custody and docking.',
+      'Reconnects, handoffs, return loops, retries, and same-crisis reactivation cannot reset the docking limit; fleet communications remain available.',
+      '381 of 751 planned items are complete (50.73%).',
+    ],
+  },
+  {
+    version: '0.4.70',
     implementationPrompts: ['140f'],
     implementationProgress: {
       completed: 378, total: 751, percentage: '50.33%',

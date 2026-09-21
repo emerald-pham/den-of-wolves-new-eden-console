@@ -303,6 +303,12 @@ import {
   parseRetainedShuttles,
   retainShuttlesFromDestroyedHost,
 } from './retainedShuttles';
+import {
+  acceptQuarantineDocking,
+  parseQuarantineDockingState,
+  setQuarantineDockingPolicy,
+  type QuarantineDockingState,
+} from './quarantineDocking';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import {
   isJoinCode,
@@ -1788,6 +1794,10 @@ function publicRetainedShuttles(value: unknown) {
   if (!retained) return {};
   return Object.fromEntries(Object.entries(retained).filter(([shuttleId]) =>
     AUTHORIZED_SHUTTLE_IDS.has(shuttleId)));
+}
+
+function publicQuarantineDocking(value: unknown): QuarantineDockingState | undefined {
+  return parseQuarantineDockingState(value) ?? undefined;
 }
 
 type PublicShuttleDocking = Readonly<{
@@ -5095,6 +5105,42 @@ export const transferShuttleControlCommand = onCall<{
         'conflict',
       );
     }
+    const storedQuarantine = session.get('quarantineDocking');
+    const quarantine = parseQuarantineDockingState(storedQuarantine);
+    if (storedQuarantine !== undefined && !quarantine) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative quarantine docking state is malformed.',
+        'conflict',
+      );
+    }
+    const currentCycle = session.get('currentTurn');
+    if (quarantine?.status === 'active' &&
+        (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1)) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative cycle is unavailable for quarantine docking.',
+        'conflict',
+      );
+    }
+    let nextQuarantine: QuarantineDockingState | null;
+    try {
+      nextQuarantine = acceptQuarantineDocking({
+        state: quarantine,
+        previousHostShipId: docking.previousHostShipId,
+        hostShipId: docking.hostShipId,
+        shuttleId: data.shuttleId,
+        cycle: sessionTurn(currentCycle),
+        requestId: data.requestId,
+        acceptedAt: occurredAt,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Quarantine docking was rejected.',
+        'conflict',
+      );
+    }
     const reply: ShuttleControlReply = {
       status: 'committed',
       sessionId: data.sessionId,
@@ -5109,6 +5155,7 @@ export const transferShuttleControlCommand = onCall<{
     tx.update(sessionRef, {
       ['shuttleControl.' + data.shuttleId]: next,
       shuttleDockings: docking.dockings,
+      ...(nextQuarantine !== quarantine ? { quarantineDocking: nextQuarantine } : {}),
     });
     tx.delete(departureRef);
     tx.set(auditRef, {
@@ -7782,6 +7829,19 @@ export const transitionCrisis = onCall<{
       crisisKind !== (current.get('crisisKind') ?? (isCrisisKind(previousCrisisId) ? previousCrisisId : 'custom')) ||
       (crisis.state !== 'delivered' && configurationOverride !== (current.get('configurationOverride') ?? ''))
     )) throw commandError('failed-precondition', 'Crisis configuration is fixed after draft creation.', 'conflict');
+    const storedQuarantine = authority.session.get('quarantineDocking');
+    const activeQuarantine = parseQuarantineDockingState(storedQuarantine);
+    if (storedQuarantine !== undefined && !activeQuarantine) {
+      throw commandError('failed-precondition', 'The quarantine docking state is malformed.', 'conflict');
+    }
+    if (crisis.state === 'closed' && crisisKind === 'disease-outbreak' &&
+        activeQuarantine?.status === 'active' && activeQuarantine.crisisId === crisis.crisisId) {
+      throw commandError(
+        'failed-precondition',
+        'Release the active quarantine before closing this Disease Outbreak.',
+        'conflict',
+      );
+    }
     const activeRoles = authority.session.get('activeRoleIds') ?? DEFAULT_ACTIVE_ROLE_IDS;
     const blocker = crisisConfigurationBlocker(crisisKind, {
       presidentEnabled: authority.session.get('dioneEnabled') !== false && Array.isArray(activeRoles) && activeRoles.includes('dione-president'),
@@ -7916,6 +7976,165 @@ export const transitionCrisis = onCall<{
         createdAt: FieldValue.serverTimestamp(),
       }));
     }
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type DiseaseQuarantineResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  action: 'activate' | 'release';
+  crisisId: string;
+  crisisRevision: number;
+  revision: number;
+  affectedShipIds: readonly string[];
+  communications: 'allowed';
+}>;
+
+function isDiseaseQuarantineResult(
+  value: unknown,
+  sessionId: string,
+): value is DiseaseQuarantineResult {
+  if (!isRecord(value)) return false;
+  return (value.status === 'committed' || value.status === 'replayed') &&
+    value.sessionId === sessionId && typeof value.requestId === 'string' &&
+    (value.action === 'activate' || value.action === 'release') &&
+    typeof value.crisisId === 'string' && Number.isSafeInteger(value.crisisRevision) &&
+    Number.isSafeInteger(value.revision) && Array.isArray(value.affectedShipIds) &&
+    value.affectedShipIds.every((shipId) => typeof shipId === 'string') &&
+    value.communications === 'allowed';
+}
+
+/** Bind or release the current Disease Outbreak docking policy by facilitator authority. */
+export const setDiseaseQuarantine = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  action?: unknown;
+  expectedCrisisRevision?: unknown;
+  expectedQuarantineRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'action',
+    'expectedCrisisRevision', 'expectedQuarantineRevision',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      raw.action !== 'activate' && raw.action !== 'release' ||
+      !Number.isSafeInteger(raw.expectedCrisisRevision) ||
+      (raw.expectedCrisisRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedQuarantineRevision) ||
+      (raw.expectedQuarantineRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid disease quarantine request.');
+  }
+  const data = raw as {
+    sessionId: string; instanceId: string; requestId: string;
+    action: 'activate' | 'release'; expectedCrisisRevision: number;
+    expectedQuarantineRevision: number;
+  };
+  const fingerprint: CommandFingerprint = {
+    action: 'set-disease-quarantine', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
+    expectedRevision: data.expectedQuarantineRevision,
+    payload: {
+      action: data.action, expectedCrisisRevision: data.expectedCrisisRevision,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const crisisRef = db.doc(`sessions/${data.sessionId}/crisisState/current`);
+  const auditRef = db.doc(`sessions/${data.sessionId}/quarantineDockingAudit/${data.requestId}`);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/quarantine-${data.requestId}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  return db.runTransaction(async (tx): Promise<DiseaseQuarantineResult> => {
+    const [authority, crisis, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId),
+      tx.get(crisisRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is DiseaseQuarantineResult =>
+        isDiseaseQuarantineResult(value, data.sessionId),
+      'disease quarantine',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (audit.exists) rejectLegacyEventReplay('disease quarantine');
+    requireActiveGameplayPhase(authority.session);
+    const crisisState = crisis.get('state');
+    const crisisRevision = crisis.get('revision');
+    const crisisId = crisis.get('crisisId');
+    const outbreak = parseDiseaseOutbreak(crisis.get('diseaseOutbreak'));
+    if (!crisis.exists || crisis.get('type') !== 'crisis-state' ||
+        crisis.get('crisisKind') !== 'disease-outbreak' ||
+        !isCrisisState(crisisState) || crisisState === 'draft' || crisisState === 'closed' ||
+        typeof crisisId !== 'string' || crisisId.length === 0 ||
+        crisisRevision !== data.expectedCrisisRevision || !outbreak) {
+      throw commandError(
+        'failed-precondition',
+        'A delivered current Disease Outbreak is required to change quarantine.',
+        'conflict',
+      );
+    }
+    const stored = authority.session.get('quarantineDocking');
+    const existing = parseQuarantineDockingState(stored);
+    if (stored !== undefined && !existing) {
+      throw commandError('failed-precondition', 'The quarantine docking state is malformed.', 'conflict');
+    }
+    if ((existing?.revision ?? 0) !== data.expectedQuarantineRevision ||
+        (data.action === 'release' &&
+          (!existing || existing.crisisId !== crisisId || existing.status !== 'active')) ||
+        (data.action === 'activate' && existing?.crisisId === crisisId && existing.status === 'active')) {
+      throw commandError(
+        'failed-precondition',
+        'The quarantine policy changed. Refresh before trying again.',
+        'stale-revision',
+      );
+    }
+    const activeShips = activeVesselIdsForSession(authority.session);
+    if (outbreak.affectedShipIds.some((shipId) => !activeShips.includes(shipId))) {
+      throw commandError(
+        'failed-precondition',
+        'Every quarantined ship must still be active in this session.',
+        'conflict',
+      );
+    }
+    const next = setQuarantineDockingPolicy({
+      existing, action: data.action, crisisId, crisisRevision,
+      affectedShipIds: outbreak.affectedShipIds,
+    });
+    const result: DiseaseQuarantineResult = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      action: data.action, crisisId, crisisRevision, revision: next.revision,
+      affectedShipIds: next.affectedShipIds, communications: 'allowed',
+    };
+    tx.update(sessionRef, { quarantineDocking: next, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, {
+      type: 'quarantine-docking-audit', sessionId: data.sessionId,
+      requestId: data.requestId, action: data.action, crisisId, crisisRevision,
+      revision: next.revision, affectedShipIds: next.affectedShipIds,
+      communications: 'allowed', actorUid: uid, instanceId: data.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'quarantine-docking',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: null,
+        turn: sessionTurn(authority.session.get('currentTurn')),
+        phase: vesselActionPhase(authority.session), type: 'quarantine-docking',
+        requestId: data.requestId, revision: next.revision,
+        serverTime: new Date(), visibility: EventVisibility.Member,
+      }),
+      payload: {
+        status: next.status, affectedShipIds: next.affectedShipIds,
+        communications: 'allowed',
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -9695,6 +9914,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
     const activeVesselIds = setup.activeVesselIds;
     const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
+    const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
     const shuttleDockings = publicShuttleDockings(
       sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
       Object.keys(retainedShuttles),
@@ -9759,6 +9979,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
         retainedShuttles,
+        ...(quarantineDocking ? { quarantineDocking } : {}),
         shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
         shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
         populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
@@ -9979,6 +10200,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
   const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
+  const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
   const shuttleDockings = publicShuttleDockings(
     sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
     Object.keys(retainedShuttles),
@@ -10043,6 +10265,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
       retainedShuttles,
+      ...(quarantineDocking ? { quarantineDocking } : {}),
       shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
       shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
       populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),

@@ -50,7 +50,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { submitCivilUnrestGrievance, transitionCrisis } from './index';
+import { setDiseaseQuarantine, submitCivilUnrestGrievance, transitionCrisis } from './index';
 
 const baseData = {
   sessionId: 's1',
@@ -447,6 +447,98 @@ it('delivers explicitly public outbreak details while keeping facilitator notes 
   await transitionCrisis.run(request({ ...baseData, crisisId: input.crisisId, crisisKind: input.crisisKind, details: input.details, requestId: 'legacy-outbreak-debate', expectedRevision: 2, state: 'debated' }));
   expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ diseaseOutbreak });
   expect(mock.documents.get('sessions/s1/crisisReports/current')?.body).toEqual(report?.body);
+});
+
+it('lets only the facilitator bind and release outbreak quarantine while preserving communications', async () => {
+  const diseaseOutbreak = {
+    affectedShipIds: ['aegis'], workRestrictions: 'Limited work.',
+    escalationRisk: 'Further spread.',
+  };
+  put('sessions/s1', { phase: 'active', currentTurn: 2, activeVesselIds: ['aegis', 'dione'] });
+  put('sessions/s1/crisisState/current', {
+    type: 'crisis-state', sessionId: 's1', crisisId: 'outbreak-1',
+    crisisKind: 'disease-outbreak', state: 'delivered', revision: 2,
+    title: 'Outbreak', details: 'Private.', diseaseOutbreak,
+  });
+  const activate = {
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'quarantine-on',
+    action: 'activate', expectedCrisisRevision: 2, expectedQuarantineRevision: 0,
+  };
+  await expect(setDiseaseQuarantine.run(request(activate))).resolves.toMatchObject({
+    status: 'committed', action: 'activate', revision: 1,
+    affectedShipIds: ['aegis'], communications: 'allowed',
+  });
+  expect(mock.documents.get('sessions/s1')?.quarantineDocking).toMatchObject({
+    type: 'quarantine-docking', status: 'active', affectedShipIds: ['aegis'],
+    acceptedByShip: {}, communications: 'allowed',
+  });
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(setDiseaseQuarantine.run(request(activate))).resolves.toMatchObject({
+    status: 'replayed', revision: 1,
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+
+  await expect(setDiseaseQuarantine.run(request({
+    ...activate, requestId: 'quarantine-off', action: 'release',
+    expectedQuarantineRevision: 1,
+  }))).resolves.toMatchObject({ status: 'committed', action: 'release', revision: 2 });
+  expect(mock.documents.get('sessions/s1')?.quarantineDocking).toMatchObject({
+    status: 'released', communications: 'allowed',
+  });
+});
+
+it('rejects quarantine without a current delivered outbreak or live facilitator', async () => {
+  const command = {
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'quarantine-on',
+    action: 'activate', expectedCrisisRevision: 1, expectedQuarantineRevision: 0,
+  };
+  await expect(setDiseaseQuarantine.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  put('sessions/s1/crisisState/current', {
+    type: 'crisis-state', sessionId: 's1', crisisId: 'outbreak-1',
+    crisisKind: 'disease-outbreak', state: 'delivered', revision: 1,
+    title: 'Outbreak', details: '', diseaseOutbreak: {
+      affectedShipIds: ['aegis'], workRestrictions: 'Limited work.', escalationRisk: 'Further spread.',
+    },
+  });
+  await expect(setDiseaseQuarantine.run(request(command, 'other'))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+});
+
+it('requires an explicit authorized release before closing an active outbreak quarantine', async () => {
+  const diseaseOutbreak = {
+    affectedShipIds: ['aegis'], workRestrictions: 'Limited work.', escalationRisk: 'Further spread.',
+  };
+  put('sessions/s1', {
+    phase: 'active', currentTurn: 2, activeVesselIds: ['aegis'],
+    quarantineDocking: {
+      type: 'quarantine-docking', status: 'active', crisisId: 'outbreak-1',
+      crisisRevision: 5, revision: 1, affectedShipIds: ['aegis'],
+      acceptedByShip: {}, communications: 'allowed',
+    },
+  });
+  put('sessions/s1/crisisState/current', {
+    type: 'crisis-state', sessionId: 's1', crisisId: 'outbreak-1',
+    crisisKind: 'disease-outbreak', state: 'announced', revision: 5,
+    title: 'Outbreak', details: 'Private.', configurationOverride: '', diseaseOutbreak,
+  });
+  const close = {
+    ...baseData, crisisId: 'outbreak-1', crisisKind: 'disease-outbreak',
+    title: 'Outbreak', details: 'Private.', requestId: 'outbreak-close',
+    expectedRevision: 5, state: 'closed' as const,
+  };
+  await expect(transitionCrisis.run(request(close))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/release the active quarantine/i),
+  });
+  await setDiseaseQuarantine.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'release-before-close', action: 'release',
+    expectedCrisisRevision: 5, expectedQuarantineRevision: 1,
+  }));
+  await expect(transitionCrisis.run(request(close))).resolves.toMatchObject({
+    state: 'closed', revision: 6,
+  });
 });
 
 it('requires complete outbreak details at delivery and permits adding them to an existing draft', async () => {

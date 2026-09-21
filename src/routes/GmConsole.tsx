@@ -46,6 +46,7 @@ import {
   authorUniversalArbourVision,
   authorFacilitatorRuleCall,
   transitionCrisis,
+  setDiseaseQuarantine,
   admitVoyage33,
   recordZealotryResponse,
   recordCivilUnrestResolution,
@@ -399,6 +400,7 @@ export default function GmConsole() {
   const [diseaseRisk, setDiseaseRisk] = useState('');
   const [crisisOverrideDraft, setCrisisOverrideDraft] = useState('');
   const [crisisMutationState, setCrisisMutationState] = useState<CrisisStateName | null>(null);
+  const [quarantineMutation, setQuarantineMutation] = useState(false);
   const [voyageAdmissionMutation, setVoyageAdmissionMutation] = useState(false);
   const [crisisMessage, setCrisisMessage] = useState<string | null>(null);
   const [zealotryActionsDraft, setZealotryActionsDraft] = useState<ZealotryResponseAction[]>([]);
@@ -648,6 +650,7 @@ export default function GmConsole() {
       case 'kickPlayer': return 'Player removal pending';
       case 'setPressEnabled': return 'Press availability pending';
       case 'transitionCrisis': return 'Crisis transition pending';
+      case 'setDiseaseQuarantine': return 'Quarantine policy pending';
       default: return 'Authoritative command pending';
     }
   });
@@ -1705,6 +1708,35 @@ export default function GmConsole() {
     }
   }
 
+  async function changeDiseaseQuarantine(action: 'activate' | 'release'): Promise<void> {
+    if (quarantineMutation) return;
+    const authorityKey = currentCrisisAuthorityKey();
+    if (!authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) {
+      setCrisisMessage('Live GM authority is still being verified; retry when the manifest is current.');
+      return;
+    }
+    setQuarantineMutation(true);
+    setCrisisMessage(null);
+    try {
+      const disposition = await setDiseaseQuarantine(action);
+      if (currentCrisisAuthorityKey() !== authorityKey ||
+          verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      setCrisisMessage(disposition === 'queued'
+        ? 'Quarantine policy queued // waiting for the live facilitator connection.'
+        : `Quarantine ${action === 'activate' ? 'activated' : 'released'} // communications remain available.`);
+    } catch (cause) {
+      if (currentCrisisAuthorityKey() !== authorityKey ||
+          verifiedCrisisAuthorityKey.current !== authorityKey) return;
+      const error = normalizeCommandError(cause);
+      setCrisisMessage(error.kind === 'stale-revision'
+        ? 'Quarantine changed // review the live state and retry.'
+        : 'Quarantine change rejected // the server did not commit this change.');
+    } finally {
+      if (currentCrisisAuthorityKey() === authorityKey &&
+          verifiedCrisisAuthorityKey.current === authorityKey) setQuarantineMutation(false);
+    }
+  }
+
   async function admitVoyage33FromCrisis(): Promise<void> {
     const crisis = useSessionStore.getState().gmCrisisState;
     if (voyageAdmissionMutation || !crisis || crisis.crisisKind !== 'approaching-vessel' ||
@@ -2695,6 +2727,33 @@ export default function GmConsole() {
                     </button>
                   </>
                 )}
+              </section>
+            )}
+            {gmCrisisState?.crisisKind === 'disease-outbreak' &&
+              gmCrisisState.state !== 'draft' && gmCrisisState.state !== 'closed' && (
+              <section className="gm-crisis__quarantine" aria-label="Disease quarantine docking policy">
+                <h3 className="gm-console__section-title">Quarantine docking</h3>
+                <p className="gm-console__hint">
+                  {session?.quarantineDocking?.status === 'active' &&
+                  session.quarantineDocking.crisisId === gmCrisisState.crisisId
+                    ? 'Active // each affected ship may accept one inbound shuttle per cycle. Fleet communications remain available.'
+                    : 'Inactive // activate the one-shuttle-per-cycle docking limit for the affected ships. Fleet communications remain available.'}
+                </p>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={!local || quarantineMutation}
+                  onClick={() => void changeDiseaseQuarantine(
+                    session?.quarantineDocking?.status === 'active' &&
+                    session.quarantineDocking.crisisId === gmCrisisState.crisisId
+                      ? 'release' : 'activate',
+                  )}
+                >
+                  {quarantineMutation ? 'Committing quarantine…'
+                    : session?.quarantineDocking?.status === 'active' &&
+                      session.quarantineDocking.crisisId === gmCrisisState.crisisId
+                      ? 'Release quarantine' : 'Activate quarantine'}
+                </button>
               </section>
             )}
             <p className="gm-console__status" role="status" aria-live="polite">

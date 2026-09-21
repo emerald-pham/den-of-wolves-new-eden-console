@@ -5621,6 +5621,13 @@
       "language": "The addShipDamage and maintenance-riot destruction transactions atomically remove every docking and pending departure tied to the destroyed host, preserve existing shuttle cargo, fuel, control and visit history, and record each affected shuttle as retained by its current authoritative holder without choosing an unsupported destination. The shared resolver rejects duplicate docking and missing custody, retained records are strictly parsed for member hydration, and the legacy Press fallback cannot resurrect a retained craft at its destroyed starting host. Focused Functions and client tests cover both destruction producers, multiple retained craft, unrelated dockings, malformed state, total fleet loss, join/resume projections and legacy hydration.",
       "source": "functions/src/retainedShuttles.ts; functions/src/retainedShuttles.test.ts; functions/src/index.ts addShipDamage/runMaintenance; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; authorized routed REFERENCE_ONLY_SHIPS.md",
       "type": "evidence / production-path / server-authority / atomic-retention / custody / manifest / idempotency / legacy-hydration / regression"
+    },
+    {
+      "direction": "149;150;531 -> 143;530",
+      "id": "E-149-150-531-QUARANTINE-DOCKING",
+      "language": "A live facilitator can activate or release docking quarantine only for the current delivered Disease Outbreak. The public server-owned policy keeps ordinary communications allowed and binds the affected active ships to a durable per-cycle acceptance ledger. Holder relocation consumes the destination ship slot atomically with control and docking; a second inbound craft in the same cycle fails before any write. The ledger survives reconnects, reassignment, departure-return attempts, exact retries, release and same-crisis reactivation, while a new crisis receives a fresh ledger. Strict server and client parsers reject malformed or communication-blocking state, and the GM console labels the one-shuttle-per-cycle consequence before either authoritative action.",
+      "source": "functions/src/quarantineDocking.ts; functions/src/quarantineDocking.test.ts; functions/src/index.ts setDiseaseQuarantine/transferShuttleControlCommand; functions/src/crisisCallable.test.ts; functions/src/shuttleControlCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx",
+      "type": "evidence / production-path / server-authority / atomic-docking / one-per-cycle / communication-preservation / idempotency / reconnect / regression"
     }
   ],
   "plan": {
@@ -9482,15 +9489,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "an affected ship accepts at most one shuttle dock per turn while retaining its allowed communication.",
+        "acceptance": "an affected ship accepts at most one shuttle dock per cycle while retaining its allowed communication.",
         "title": "Restrict quarantined docking."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-149",
+      "description": "A facilitator-authorized Disease Outbreak quarantine now records affected active ships in public server-owned state with communications explicitly allowed. Each inbound holder relocation atomically consumes at most one shuttle-docking slot for the destination ship in the current cycle; unaffected ships and same-host custody changes do not consume a slot. Strict parsing and member hydration fail closed for malformed policy or acceptance records.",
+      "evidenceIds": "E-AUDIT-149;E-149-150-531-QUARANTINE-DOCKING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "143",
@@ -9498,22 +9505,24 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.71"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "reassignment, depart-return loops, reconnect, and stale retries cannot bypass the per-turn limit.",
+        "acceptance": "reassignment, depart-return loops, reconnect, and stale retries cannot bypass the per-cycle limit.",
         "title": "Prevent quarantine reset exploits."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-150",
+      "description": "The quarantine acceptance ledger is stored independently of players and shuttle control, so reconnect, reassignment, and depart-return attempts cannot reset it. Exact retries replay from command receipts, concurrent transactions serialize on the session record, release and same-crisis reactivation preserve prior same-cycle acceptance, and only a later cycle replaces the ship slot.",
+      "evidenceIds": "E-AUDIT-150;E-149-150-531-QUARANTINE-DOCKING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "149",
@@ -9521,10 +9530,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.71"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19452,15 +19463,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "binding choices preserve communication, restrict docking to one shuttle per turn, and remain reversible only by authority.",
+        "acceptance": "binding choices preserve communication, restrict docking to one shuttle per cycle, and remain reversible only by authority.",
         "title": "Resolve quarantine policy."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-531",
+      "description": "The GM console now offers explicit Activate quarantine and Release quarantine actions only for a delivered current Disease Outbreak. The callable requires a live facilitator instance plus matching crisis and policy revisions, audits and announces the choice, preserves allowed fleet communication, applies the one-shuttle-per-cycle affected-ship docking rule, and permits reversal only through the same authority path.",
+      "evidenceIds": "E-AUDIT-531;E-149-150-531-QUARANTINE-DOCKING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "530;149",
@@ -19468,10 +19479,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.71"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

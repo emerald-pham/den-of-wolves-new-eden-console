@@ -2255,8 +2255,8 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 146
 - [x] Prompt 147
 - [x] Prompt 148
-- [ ] Prompt 149
-- [ ] Prompt 150
+- [x] Prompt 149
+- [x] Prompt 150
 - [x] Prompt 151
 - [ ] Prompt 152
 - [ ] Prompt 153
@@ -2683,7 +2683,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 528
 - [ ] Prompt 529
 - [x] Prompt 530
-- [ ] Prompt 531
+- [x] Prompt 531
 - [x] Prompt 532
 - [x] Prompt 533
 - [x] Prompt 534
@@ -3010,8 +3010,8 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 146 — [DECISION] Decide nearest-ship parking ties.** Acceptance: one deterministic, recorded facilitator/product policy resolves equal-distance hosts.
 - **Prompt 147 — [EXTEND] Restrict battle-table craft.** Acceptance: extend current typed craft/docking catalogs so only printed combat-capable shuttles and fighter wings appear in attack actions; all others remain parked.
 - **Prompt 148 — [NEW] Preserve post-attack parking.** Acceptance: surviving craft stay at their authoritative hosts until normal movement reopens and never teleport home.
-- **Prompt 149 — [NEW] Restrict quarantined docking.** Acceptance: an affected ship accepts at most one shuttle dock per turn while retaining its allowed communication.
-- **Prompt 150 — [NEW] Prevent quarantine reset exploits.** Acceptance: reassignment, depart-return loops, reconnect, and stale retries cannot bypass the per-turn limit.
+- **Prompt 149 — [NEW] Restrict quarantined docking.** Acceptance: an affected ship accepts at most one shuttle dock per cycle while retaining its allowed communication.
+- **Prompt 150 — [NEW] Prevent quarantine reset exploits.** Acceptance: reassignment, depart-return loops, reconnect, and stale retries cannot bypass the per-cycle limit.
 - **Prompt 151 — [NEW] Block split-fleet communications.** Acceptance: ordinary messages cannot cross fleet groups and scout-taxi exceptions use a separate authorized path.
 - **Prompt 152 — [NEW] Redact split-fleet shuttle state.** Acceptance: each group sees only its permitted local craft and cannot infer another group's position from counts or events.
 - **Prompt 153 — [NEW] Constrain cross-group docking.** Acceptance: only a legal ferry capability can move people or fuel between separated groups.
@@ -3452,7 +3452,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 528 — [DECISION] Resolve Approaching Vessel choices.** Acceptance: leave, wait, prepare, aid, or other facilitator-recorded response updates timing and pressure without a client-invented consequence.
 - **Prompt 529 — [NEW] Integrate Voyage 33-0 arrival.** Acceptance: accepting the vessel activates its people, needs, maintenance, docking, and motivated-role hooks exactly once.
 - **Prompt 530 — [NEW] Deliver Disease Outbreak.** Acceptance: affected ships, work restrictions, escalation risk, and facilitator notes reach only permitted readers.
-- **Prompt 531 — [NEW] Resolve quarantine policy.** Acceptance: binding choices preserve communication, restrict docking to one shuttle per turn, and remain reversible only by authority.
+- **Prompt 531 — [NEW] Resolve quarantine policy.** Acceptance: binding choices preserve communication, restrict docking to one shuttle per cycle, and remain reversible only by authority.
 - **Prompt 532 — [NEW] Deliver Religious Zealotry.** Acceptance: the crisis appears only with a compatible Universal Arbour/Cult configuration and preserves secret alignment.
 - **Prompt 533 — [DECISION] Resolve zealotry responses.** Acceptance: leave, pressure, investigate, or arrest is recorded as an explicit facilitator outcome linked to the social-deduction loop.
 - **Prompt 534 — [NEW] Deliver Civil Unrest.** Acceptance: named affected teams can submit their own grievances privately or publicly without the app inventing sentiment.

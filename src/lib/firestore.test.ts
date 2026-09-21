@@ -127,6 +127,34 @@ it('hydrates retained shuttle custody without resurrecting its destroyed-host do
     docking.shuttleId === 'snn-press-shuttle')).toBe(false);
 });
 
+it('hydrates only canonical quarantine docking state with communications allowed', () => {
+  const session = sessionFrom('quarantine', {
+    ...sessionData(8),
+    quarantineDocking: {
+      type: 'quarantine-docking', status: 'active', crisisId: 'outbreak-1',
+      crisisRevision: 2, revision: 3, affectedShipIds: ['aegis'], communications: 'allowed',
+      acceptedByShip: {
+        aegis: {
+          shipId: 'aegis', shuttleId: 'starlight', cycle: 2,
+          requestId: 'dock-1', acceptedAt: '2026-09-21T12:00:00.000Z',
+        },
+      },
+    },
+  });
+  expect(session.quarantineDocking).toMatchObject({
+    status: 'active', communications: 'allowed',
+    acceptedByShip: { aegis: { shuttleId: 'starlight', cycle: 2 } },
+  });
+  expect(sessionFrom('bad-quarantine', {
+    ...sessionData(8),
+    quarantineDocking: {
+      type: 'quarantine-docking', status: 'active', crisisId: 'outbreak-1',
+      crisisRevision: 2, revision: 3, affectedShipIds: ['aegis'],
+      acceptedByShip: {}, communications: 'blocked',
+    },
+  }).quarantineDocking).toBeUndefined();
+});
+
 it('hydrates only a canonical group-audienced shuttle departure document', () => {
   const valid = {
     status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',

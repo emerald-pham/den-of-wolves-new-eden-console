@@ -101,6 +101,7 @@ beforeEach(() => {
   mock.runTransaction.mockClear();
   put('sessions/s1', {
     phase: 'active',
+    currentTurn: 2,
     activeRoleIds: ['wing-commander', 'icebreaker-miner'],
     activeVesselIds: ['aegis', 'icebreaker'],
     shuttleDockings: [
@@ -199,6 +200,61 @@ it('commits one owner handoff, writes an audit, and replays without another muta
     status: 'replayed', holderUid: 'crew', revision: 1,
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('accepts one inbound quarantine docking and leaves fleet communication authority unchanged', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.quarantineDocking = {
+    type: 'quarantine-docking', status: 'active', crisisId: 'outbreak-1',
+    crisisRevision: 2, revision: 1, affectedShipIds: ['icebreaker'],
+    acceptedByShip: {}, communications: 'allowed',
+  };
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['wing', 'crew'],
+    communicationScope: 'ordinary-local',
+  });
+
+  await expect(transferShuttleControlCommand.run(request(command))).resolves.toMatchObject({
+    status: 'committed', holderUid: 'crew',
+  });
+  expect((mock.documents.get('sessions/s1')!.quarantineDocking as Fields)).toMatchObject({
+    revision: 2, communications: 'allowed', acceptedByShip: {
+      icebreaker: { shuttleId: 'starlight', cycle: 2, requestId: 'handoff-1' },
+    },
+  });
+  expect(mock.documents.get('sessions/s1/fleetGroups/fleet-1')).toMatchObject({
+    communicationScope: 'ordinary-local',
+  });
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(transferShuttleControlCommand.run(request(command))).resolves.toMatchObject({
+    status: 'replayed', holderUid: 'crew',
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  expect((mock.documents.get('sessions/s1')!.quarantineDocking as Fields)).toMatchObject({
+    revision: 2, communications: 'allowed',
+  });
+});
+
+it('rejects a second inbound quarantine docking in the same cycle without writes', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.quarantineDocking = {
+    type: 'quarantine-docking', status: 'active', crisisId: 'outbreak-1',
+    crisisRevision: 2, revision: 2, affectedShipIds: ['icebreaker'], communications: 'allowed',
+    acceptedByShip: {
+      icebreaker: {
+        shipId: 'icebreaker', shuttleId: 'highwall', cycle: 2,
+        requestId: 'prior-dock', acceptedAt: '2026-09-21T12:00:00.000Z',
+      },
+    },
+  };
+  await expect(transferShuttleControlCommand.run(request({
+    ...command, requestId: 'second-quarantine-dock',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/already accepted one shuttle this cycle/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect((session.shuttleControl as Fields).starlight).toMatchObject({ holderUid: 'wing', revision: 0 });
 });
 
 it('transfers a parked shuttle while another enabled shuttle is in transit', async () => {

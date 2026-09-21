@@ -1632,6 +1632,52 @@ function retainedShuttles(value: unknown): NonNullable<GameSession['retainedShut
   }));
 }
 
+function quarantineDocking(value: unknown): GameSession['quarantineDocking'] {
+  const raw = recordValue(value);
+  if (!raw || raw.type !== 'quarantine-docking' ||
+      raw.status !== 'active' && raw.status !== 'released' ||
+      typeof raw.crisisId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) ||
+      !Number.isSafeInteger(raw.crisisRevision) || (raw.crisisRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Array.isArray(raw.affectedShipIds) || raw.affectedShipIds.length === 0 ||
+      new Set(raw.affectedShipIds).size !== raw.affectedShipIds.length ||
+      raw.communications !== 'allowed' || Object.keys(raw).some((key) => ![
+        'type', 'status', 'crisisId', 'crisisRevision', 'revision', 'affectedShipIds',
+        'acceptedByShip', 'communications',
+      ].includes(key))) return undefined;
+  const affectedShipIds = raw.affectedShipIds.flatMap((value) => {
+    const shipId = parseEntityId('vessel', value);
+    return shipId ? [shipId] : [];
+  });
+  if (affectedShipIds.length !== raw.affectedShipIds.length) return undefined;
+  const storedAcceptances = recordValue(raw.acceptedByShip);
+  if (!storedAcceptances) return undefined;
+  const acceptedByShip = Object.fromEntries(Object.entries(storedAcceptances).flatMap(([key, value]) => {
+    const acceptance = recordValue(value);
+    const shipId = parseEntityId('vessel', key);
+    const shuttleId = acceptance ? parseEntityId('shuttle', acceptance.shuttleId) : undefined;
+    if (!acceptance || !shipId || acceptance.shipId !== shipId || !shuttleId ||
+        !affectedShipIds.includes(shipId) || !Number.isSafeInteger(acceptance.cycle) ||
+        (acceptance.cycle as number) < 0 || typeof acceptance.requestId !== 'string' ||
+        !/^[\w-]{1,128}$/.test(acceptance.requestId) ||
+        typeof acceptance.acceptedAt !== 'string' ||
+        !Number.isFinite(Date.parse(acceptance.acceptedAt)) ||
+        Object.keys(acceptance).some((field) => ![
+          'shipId', 'shuttleId', 'cycle', 'requestId', 'acceptedAt',
+        ].includes(field))) return [];
+    return [[shipId, {
+      shipId, shuttleId, cycle: acceptance.cycle as number,
+      requestId: acceptance.requestId, acceptedAt: acceptance.acceptedAt,
+    }]];
+  }));
+  if (Object.keys(acceptedByShip).length !== Object.keys(storedAcceptances).length) return undefined;
+  return {
+    type: 'quarantine-docking', status: raw.status, crisisId: raw.crisisId,
+    crisisRevision: raw.crisisRevision as number, revision: raw.revision as number,
+    affectedShipIds, acceptedByShip, communications: 'allowed',
+  };
+}
+
 function shuttlePoint(value: unknown): ShuttleTransitState['originPosition'] | null {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['x', 'y', 'z'].includes(key)) ||
@@ -2066,6 +2112,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
     : [];
   const retained = retainedShuttles(data.retainedShuttles);
+  const quarantine = quarantineDocking(data.quarantineDocking);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2128,6 +2175,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),
     retainedShuttles: retained,
+    ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: shipResources(data.shipResources),
     shipDamage: shipDamage(data.shipDamage),

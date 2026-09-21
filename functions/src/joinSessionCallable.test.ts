@@ -339,6 +339,11 @@ it('does not project a retained Press shuttle as docked when legacy docking fiel
           retainedAt: '2026-09-21T12:00:00.000Z',
         },
       },
+      quarantineDocking: {
+        type: 'quarantine-docking', status: 'active', crisisId: 'outbreak-1',
+        crisisRevision: 2, revision: 1, affectedShipIds: ['aegis'],
+        acceptedByShip: {}, communications: 'allowed',
+      },
     });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
     if (path === 'sessions/s1/players') return snapshot({}, true);
@@ -351,6 +356,9 @@ it('does not project a retained Press shuttle as docked when legacy docking fiel
 
   const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
   expect(response.session.retainedShuttles).toHaveProperty('snn-press-shuttle');
+  expect(response.session.quarantineDocking).toMatchObject({
+    status: 'active', affectedShipIds: ['aegis'], communications: 'allowed',
+  });
   expect(response.session.shuttleDockings).not.toEqual(expect.arrayContaining([
     expect.objectContaining({ shuttleId: 'snn-press-shuttle' }),
   ]));

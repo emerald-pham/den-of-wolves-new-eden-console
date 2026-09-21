@@ -53,6 +53,7 @@ vi.mock('@/lib/sessionService', () => ({
   authorUniversalArbourVision: vi.fn(),
   authorFacilitatorRuleCall: vi.fn(),
   transitionCrisis: vi.fn(),
+  setDiseaseQuarantine: vi.fn(),
   admitVoyage33: vi.fn(),
   recordZealotryResponse: vi.fn(),
   recordCivilUnrestResolution: vi.fn(),
@@ -89,7 +90,7 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
@@ -3309,6 +3310,43 @@ it('labels outbreak fields as public and submits them separately from private no
       affectedShipIds: ['aegis'], workRestrictions: 'Affected crew cannot work.', escalationRisk: 'Further spread is possible.',
     } },
   ));
+});
+
+it('activates and releases quarantine while stating that communications remain available', async () => {
+  const user = userEvent.setup();
+  const outbreak = {
+    ...liveCrisis, state: 'delivered' as const, revision: 2,
+    crisisKind: 'disease-outbreak' as const,
+    diseaseOutbreak: {
+      affectedShipIds: ['aegis'], workRestrictions: 'Limited work.', escalationRisk: 'Further spread.',
+    },
+  };
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, publish) => {
+    publish(outbreak);
+    return vi.fn();
+  });
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, phase: 'active', activeVesselIds: ['aegis'],
+  });
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(setDiseaseQuarantine).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+  const policy = await screen.findByRole('region', { name: 'Disease quarantine docking policy' });
+  expect(within(policy).getByText(/Fleet communications remain available/)).toBeVisible();
+  await user.click(within(policy).getByRole('button', { name: 'Activate quarantine' }));
+  await waitFor(() => expect(setDiseaseQuarantine).toHaveBeenCalledWith('activate'));
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    quarantineDocking: {
+      type: 'quarantine-docking', status: 'active', crisisId: outbreak.crisisId,
+      crisisRevision: 2, revision: 1, affectedShipIds: ['aegis'],
+      acceptedByShip: {}, communications: 'allowed',
+    },
+  }));
+  await user.click(within(policy).getByRole('button', { name: 'Release quarantine' }));
+  await waitFor(() => expect(setDiseaseQuarantine).toHaveBeenCalledWith('release'));
 });
 
 

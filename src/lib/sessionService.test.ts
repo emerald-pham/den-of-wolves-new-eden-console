@@ -39,6 +39,7 @@ const {
   setGmControlsLocked,
   advanceTurn,
   authorFacilitatorRuleCall,
+  setDiseaseQuarantine,
   startGame,
   replayTurnStartAnnouncement,
   beginOpenAirspacePhase,
@@ -2718,6 +2719,35 @@ describe('same-uid cross-session delayed callable matrix', () => {
     });
     await expect(authoring).resolves.toBe('applied');
     expect(useSessionStore.getState().gmFacilitatorRuleCall?.callId).toBe(payload.requestId);
+  });
+
+  it('sends quarantine authority with crisis and policy revisions', async () => {
+    const sessionA = enterSessionA();
+    useSessionStore.getState().setGmCrisisState({
+      sessionId: sessionA.id, crisisId: 'outbreak-1', crisisKind: 'disease-outbreak',
+      state: 'delivered', revision: 4, title: 'Outbreak', details: '',
+      diseaseOutbreak: {
+        affectedShipIds: ['aegis'], workRestrictions: 'Limited work.', escalationRisk: 'Further spread.',
+      },
+    });
+    useSessionStore.getState().setSession({
+      ...sessionA,
+      quarantineDocking: {
+        type: 'quarantine-docking', status: 'released', crisisId: 'outbreak-1',
+        crisisRevision: 3, revision: 7, affectedShipIds: ['aegis'],
+        acceptedByShip: {}, communications: 'allowed',
+      },
+    });
+    const callable = callableReturning({ status: 'committed' });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(setDiseaseQuarantine('activate')).resolves.toBe('applied');
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setDiseaseQuarantine');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: sessionA.id, instanceId: `gm-${sessionA.id}`, action: 'activate',
+      expectedCrisisRevision: 4, expectedQuarantineRevision: 7,
+      requestId: expect.any(String),
+    }));
   });
 
   it.each(['demotion', 'instance swap'] as const)(

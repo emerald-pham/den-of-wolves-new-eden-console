@@ -302,6 +302,7 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
     case 'authorArbourVision':
     case 'authorFacilitatorRuleCall':
     case 'transitionCrisis':
+    case 'setDiseaseQuarantine':
     case 'admitVoyage33':
     case 'recordZealotryResponse':
     case 'submitCivilUnrestGrievance':
@@ -1734,6 +1735,31 @@ export async function transitionCrisis(
       title: title.trim(),
       details: details.trim(),
       ...(configuration ? { crisisKind: configuration.crisisKind, configurationOverride: configuration.configurationOverride.trim(), ...(configuration.diseaseOutbreak ? { diseaseOutbreak: configuration.diseaseOutbreak } : {}) } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Bind or release docking quarantine for the current delivered outbreak. */
+export async function setDiseaseQuarantine(
+  action: 'activate' | 'release',
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || !store.gmCrisisState ||
+      store.gmCrisisState.crisisKind !== 'disease-outbreak' ||
+      store.gmCrisisState.state === 'draft' || store.gmCrisisState.state === 'closed') {
+    throw new Error('A delivered Disease Outbreak is required before changing quarantine.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setDiseaseQuarantine',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      action,
+      expectedCrisisRevision: store.gmCrisisState.revision,
+      expectedQuarantineRevision: store.session.quarantineDocking?.revision ?? 0,
     },
     createdAt: new Date().toISOString(),
   });

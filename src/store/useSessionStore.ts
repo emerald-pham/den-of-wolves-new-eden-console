@@ -291,6 +291,19 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'setDiseaseQuarantine';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly action: 'activate' | 'release';
+        readonly expectedCrisisRevision: number;
+        readonly expectedQuarantineRevision: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'admitVoyage33';
       readonly payload: {
         readonly sessionId: string;

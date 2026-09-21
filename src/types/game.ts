@@ -567,6 +567,26 @@ export interface RetainedShuttleEntry {
   readonly retainedAt: Timestamp;
 }
 
+export interface QuarantineDockingAcceptance {
+  readonly shipId: VesselId;
+  readonly shuttleId: ShuttleId;
+  readonly cycle: number;
+  readonly requestId: string;
+  readonly acceptedAt: Timestamp;
+}
+
+/** Facilitator-authorized docking restriction; ordinary communication remains available. */
+export interface QuarantineDockingState {
+  readonly type: 'quarantine-docking';
+  readonly status: 'active' | 'released';
+  readonly crisisId: string;
+  readonly crisisRevision: number;
+  readonly revision: number;
+  readonly affectedShipIds: readonly VesselId[];
+  readonly acceptedByShip: Readonly<Record<string, QuarantineDockingAcceptance>>;
+  readonly communications: 'allowed';
+}
+
 /** A server-authorized departure awaiting the physical transit transition. */
 export interface ShuttleDepartureRequestState {
   readonly status: 'requested';
@@ -651,6 +671,7 @@ export interface GameSession {
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
+  readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
   readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;
