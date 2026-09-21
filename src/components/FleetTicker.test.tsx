@@ -64,6 +64,8 @@ it('keeps the current mobile Press pass, drops only its unentered repeats, and a
   const pressGroups = [...view.container.querySelectorAll<HTMLElement>(
     `.fleet-ticker__group[data-message-id="${press.id}"]`,
   )];
+  const originalVisibleGroup = pressGroups[0]!;
+  const originalVisibleCopy = originalVisibleGroup.querySelector<HTMLElement>('.fleet-ticker__copy')!;
   pressGroups.forEach((group, index) => {
     const left = index === 0 ? 0 : 900;
     group.getBoundingClientRect = () => ({
@@ -91,11 +93,17 @@ it('keeps the current mobile Press pass, drops only its unentered repeats, and a
     `.fleet-ticker__group[data-message-id="${redAlert.id}"]`,
   );
   expect(retainedPress).toHaveLength(1);
-  expect(retainedPress[0]!.querySelectorAll('.fleet-ticker__copy')).toHaveLength(1);
-  expect(retainedPress[0]!.textContent?.match(/CURRENT DISPATCH/g)).toHaveLength(1);
+  expect(retainedPress[0]).toBe(originalVisibleGroup);
+  expect(retainedPress[0]!.querySelector('.fleet-ticker__copy')).toBe(originalVisibleCopy);
+  expect(retainedPress[0]!.querySelectorAll(
+    '.fleet-ticker__copy-slot[data-committed="true"]',
+  )).toHaveLength(1);
+  expect(retainedPress[0]!.querySelector(
+    '.fleet-ticker__copy-slot[data-committed="true"]',
+  )).toHaveTextContent('CURRENT DISPATCH');
   expect(appendedAlert).toBeInTheDocument();
   expect(Number.parseFloat(appendedAlert!.style.getPropertyValue('--fleet-ticker-start-x')))
-    .toBeGreaterThanOrEqual(390);
+    .toBeCloseTo(390, 1);
 });
 
 it('keeps one current Press pass staged at the mobile right edge before Red Alert', () => {
@@ -133,7 +141,9 @@ it('keeps one current Press pass staged at the mobile right edge before Red Aler
     `.fleet-ticker__group[data-message-id="${press.id}"]`,
   );
   expect(retainedPress).toHaveLength(1);
-  expect(retainedPress[0]!.querySelectorAll('.fleet-ticker__copy')).toHaveLength(1);
+  expect(retainedPress[0]!.querySelectorAll(
+    '.fleet-ticker__copy-slot[data-committed="true"]',
+  )).toHaveLength(1);
   expect(view.container.querySelector(
     `.fleet-ticker__group[data-message-id="${redAlert.id}"]`,
   )).toBeInTheDocument();

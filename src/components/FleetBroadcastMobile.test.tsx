@@ -75,10 +75,11 @@ afterEach(() => {
 });
 
 it('keeps the narrow ticker visible with reserved space when an alert replaces standing copy', () => {
-  setTicker(tickerMessage({
+  const press = tickerMessage({
     id: 's1:fleet-ticker:1', sequence: 1, source: 'press', priority: 20,
     text: 'SNN // ROUTE CONFIRMED', tone: 'normal',
-  }));
+  });
+  setTicker(press);
   const view = render(<FleetBroadcast />);
 
   const surface = view.container.querySelector('.fleet-broadcast')!;
@@ -88,14 +89,44 @@ it('keeps the narrow ticker visible with reserved space when an alert replaces s
   expect(surface).not.toHaveAttribute('data-expanded');
   expect(screen.getByRole('status', { name: /route confirmed/i })).toBeVisible();
 
+  const frame = view.container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 390, top: 0, bottom: 28, width: 390, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  const originalGroup = view.container.querySelector<HTMLElement>(
+    `[data-message-id="${press.id}"]`,
+  )!;
+  const originalCopy = originalGroup.querySelector<HTMLElement>('.fleet-ticker__copy')!;
+  originalGroup.getBoundingClientRect = () => ({
+    left: 0, right: 780, top: 0, bottom: 28, width: 780, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  [...originalGroup.querySelectorAll<HTMLElement>('.fleet-ticker__copy')]
+    .forEach((copy, index) => {
+      const left = 100 + (index * 520);
+      copy.getBoundingClientRect = () => ({
+        left, right: left + 260, top: 0, bottom: 28, width: 260, height: 28,
+        x: left, y: 0, toJSON: () => undefined,
+      });
+    });
+
   act(() => setTicker(tickerMessage({
     id: 's1:fleet-ticker:2', sequence: 2, source: 'admiral', priority: 80,
     text: 'ICSN ADMIRAL // RED ALERT', tone: 'danger',
-  })));
+  }), [press]));
   expect(screen.queryByRole('button', { name: /fleet broadcasts/i })).not.toBeInTheDocument();
   expect(surface).not.toHaveAttribute('data-hidden');
   expect(surface).not.toHaveAttribute('data-expanded');
   expect(screen.getByRole('status', { name: /red alert/i })).toBeVisible();
+  const retainedGroup = view.container.querySelector<HTMLElement>(
+    `[data-message-id="${press.id}"]`,
+  );
+  expect(retainedGroup).toBe(originalGroup);
+  expect(retainedGroup?.querySelector('.fleet-ticker__copy')).toBe(originalCopy);
+  expect(retainedGroup?.querySelectorAll(
+    '.fleet-ticker__copy-slot[data-committed="true"]',
+  )).toHaveLength(1);
 
   act(() => window.dispatchEvent(new Event('scroll')));
   expect(screen.getByRole('status', { name: /red alert/i })).toBeVisible();

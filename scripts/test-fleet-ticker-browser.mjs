@@ -501,6 +501,17 @@ async function runTickerLifecycleCase() {
             startX: Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-start-x')),
             groupWidth: Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-group-width')),
             elapsed: frameTime,
+            paintedCopies: [...group.querySelectorAll(
+              '.fleet-ticker__copy-slot:not([data-committed="false"]) .fleet-ticker__copy',
+            )].map((copy) => {
+              const copyBounds = copy.getBoundingClientRect();
+              return {
+                id: copy.getAttribute('data-copy-instance-id') ?? '',
+                left: copyBounds.left,
+                right: copyBounds.right,
+                width: copyBounds.width,
+              };
+            }).filter((copy) => copy.id && copy.width > 0),
           };
         }).filter((group) => group.id && group.width > 0);
         rows.push({ frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
@@ -515,7 +526,8 @@ async function runTickerLifecycleCase() {
       const velocitySamples = [];
       const tracks = new Map();
       for (const sample of rows) {
-        const ordered = [...sample.groups].sort((left, right) => left.left - right.left);
+        const ordered = sample.groups.flatMap((group) => group.paintedCopies)
+          .sort((left, right) => left.left - right.left);
         for (let index = 1; index < ordered.length; index += 1) {
           const previous = ordered[index - 1];
           const current = ordered[index];
@@ -637,48 +649,105 @@ async function runTickerLifecycleCase() {
       window.__tickerLifecycleSet = (props) => root.render(React.createElement(FleetTicker, props));
     });
     await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
-    await captureGeometry('press-one', { targetId: lifecycle.pressOne.id, requiredExits: 1 });
-
-    await setTicker(lifecycle.aegis, [lifecycle.pressOne, lifecycle.pressTwo]);
-    await page.waitForFunction(({ outgoingId, incomingId }) => {
+    const committedBeforeAlert = await page.waitForFunction((outgoingId) => {
       const frame = document.querySelector('#ticker-lifecycle-harness .fleet-ticker__window');
-      return Boolean(frame?.querySelector(`[data-message-id="${outgoingId}"]`) &&
+      if (!frame) return false;
+      const frameBounds = frame.getBoundingClientRect();
+      const groups = [...frame.querySelectorAll(`[data-message-id="${outgoingId}"]`)];
+      for (const group of groups) {
+        const copy = [...group.querySelectorAll('.fleet-ticker__copy')].find((candidate) => {
+          const bounds = candidate.getBoundingClientRect();
+          const middle = (bounds.left + bounds.right) / 2;
+          return bounds.right > frameBounds.left && bounds.left < frameBounds.right &&
+            middle > frameBounds.left + (frameBounds.width * 0.2) &&
+            middle < frameBounds.right - (frameBounds.width * 0.2);
+        });
+        if (copy) return {
+          groupId: group.getAttribute('data-instance-id'),
+          copyId: copy.getAttribute('data-copy-instance-id'),
+        };
+      }
+      return false;
+    }, lifecycle.pressOne.id).then((handle) => handle.jsonValue());
+    await setTicker(lifecycle.aegis, [lifecycle.pressOne, lifecycle.pressTwo]);
+    await page.waitForFunction(({ outgoingId, incomingId, retainedGroupId }) => {
+      const frame = document.querySelector('#ticker-lifecycle-harness .fleet-ticker__window');
+      return Boolean(frame?.querySelector(
+        `[data-message-id="${outgoingId}"][data-instance-id="${retainedGroupId}"]`,
+      ) &&
         frame?.querySelector(`[data-message-id="${incomingId}"]`));
-    }, { outgoingId: lifecycle.pressOne.id, incomingId: lifecycle.aegis.id });
-    const priorityHandoff = await page.evaluate(({ outgoingId, incomingId }) => {
+    }, {
+      outgoingId: lifecycle.pressOne.id,
+      incomingId: lifecycle.aegis.id,
+      retainedGroupId: committedBeforeAlert.groupId,
+    });
+    const priorityHandoff = await page.evaluate(({
+      outgoingId, incomingId, retainedGroupId, retainedCopyId,
+    }) => {
       const frame = document.querySelector('#ticker-lifecycle-harness .fleet-ticker__window');
       if (!frame) return { error: 'frame missing' };
       const frameBounds = frame.getBoundingClientRect();
       const outgoing = [...frame.querySelectorAll(`[data-message-id="${outgoingId}"]`)]
         .map((group) => {
-          const bounds = group.getBoundingClientRect();
+          const committedCopies = [...group.querySelectorAll(
+            '.fleet-ticker__copy-slot[data-committed="true"] .fleet-ticker__copy',
+          )];
+          const bounds = committedCopies.map((copy) => copy.getBoundingClientRect());
           return {
-            left: bounds.left, right: bounds.right,
-            copies: group.querySelectorAll('.fleet-ticker__copy').length,
-            text: group.textContent ?? '',
+            instanceId: group.getAttribute('data-instance-id'),
+            copyIds: committedCopies.map((copy) => copy.getAttribute('data-copy-instance-id')),
+            left: Math.min(...bounds.map((copy) => copy.left)),
+            right: Math.max(...bounds.map((copy) => copy.right)),
+            copies: committedCopies.length,
+            text: committedCopies.map((copy) => copy.textContent ?? '').join(' '),
           };
-        }).filter(({ left, right }) => right > frameBounds.left && left < frameBounds.right);
+        }).filter(({ copies, left, right }) => copies > 0 && right > frameBounds.left && left < frameBounds.right);
       const incoming = [...frame.querySelectorAll(`[data-message-id="${incomingId}"]`)]
         .map((group) => {
           const bounds = group.getBoundingClientRect();
           return { left: bounds.left, right: bounds.right };
         }).sort((left, right) => left.left - right.left);
+      const retainedCopies = [...frame.querySelectorAll(
+        '.fleet-ticker__copy-slot[data-committed="true"] .fleet-ticker__copy',
+      )].filter((copy) => copy.closest('.fleet-ticker__group')
+        ?.getAttribute('data-message-id') !== incomingId)
+        .map((copy) => {
+          const bounds = copy.getBoundingClientRect();
+          return {
+            id: copy.getAttribute('data-copy-instance-id'),
+            messageId: copy.closest('.fleet-ticker__group')?.getAttribute('data-message-id'),
+            left: bounds.left,
+            right: bounds.right,
+          };
+        });
       const trailingEdge = Math.max(frameBounds.right, ...outgoing.map(({ right }) => right));
+      const firstIncomingLeft = incoming[0]?.left;
       return {
         label: 'press-to-red-alert-handoff',
         frameLeft: frameBounds.left,
         frameRight: frameBounds.right,
         outgoing,
+        retainedCopies,
+        retainedOriginalNode: outgoing.some(({ instanceId, copyIds }) =>
+          instanceId === retainedGroupId && copyIds.includes(retainedCopyId)),
         incoming,
         retainedPaintedPress: outgoing.length > 0 && outgoing.every(({ copies, text }) => (
           copies === 1 && text.includes('SNN // ONE')
         )),
         incomingBehindTail: incoming.length > 0 && incoming[0].left >= trailingEdge - 2,
+        incomingAtNextOpportunity: firstIncomingLeft !== undefined &&
+          firstIncomingLeft <= trailingEdge + 2,
       };
-    }, { outgoingId: lifecycle.pressOne.id, incomingId: lifecycle.aegis.id });
+    }, {
+      outgoingId: lifecycle.pressOne.id,
+      incomingId: lifecycle.aegis.id,
+      retainedGroupId: committedBeforeAlert.groupId,
+      retainedCopyId: committedBeforeAlert.copyId,
+    });
     samples.push(priorityHandoff);
-    if (priorityHandoff.error || !priorityHandoff.retainedPaintedPress ||
-        !priorityHandoff.incomingBehindTail) {
+    if (priorityHandoff.error || !priorityHandoff.retainedOriginalNode ||
+        !priorityHandoff.retainedPaintedPress ||
+        !priorityHandoff.incomingBehindTail || !priorityHandoff.incomingAtNextOpportunity) {
       throw new Error(`lifecycle/press-to-red-alert-handoff: ${JSON.stringify(priorityHandoff)}`);
     }
     await captureGeometry('aegis', { targetId: lifecycle.aegis.id, requiredExits: 1 });

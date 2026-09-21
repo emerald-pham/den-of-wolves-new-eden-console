@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['106c'],
+    implementationProgress: {
+      completed: 377, total: 751, percentage: '50.20%',
+      done: 377, partial: 17, active: 0, missing: 357,
+    },
+    changes: [
+      'Ticker priority changes now keep the exact moving message instance on screen until its last glyph exits, including on mobile browsers.',
+      'Red Alert enters immediately behind the retained Press or Air Traffic Control tail; only future offscreen repetitions are removed.',
+      'The release gate now proves stable physical copy identity, immediate right-edge entry, constant speed, non-overlap, two Stand Down passes, and Press resumption.',
+      '377 of 751 planned items are complete (50.20%).',
+    ],
+  },
+  {
+    version: '0.4.68',
     implementationPrompts: [142],
     implementationProgress: {
       completed: 377, total: 751, percentage: '50.20%',

@@ -8253,7 +8253,7 @@
         "acceptance": "one transaction-owned stream gives automatic, Admiral, and Press transmissions deterministic session-scoped identities, revisions, precedence, current/queued/draining state, dismissals, replay cursors, and server deadlines. Concurrent send/replace/dismiss, terminal/debrief publication, and Red Alert activation/stand-down serialize once; idempotent retry, reconnect, replay, late join, and every live client converge on the same server order/status without local resurrection, duplication, reorder, or early tail disposal. The server owns order, lifecycle status, and deadlines; each viewport finishes already-visible tails locally at constant speed, with no client frame or visual-pass acknowledgement writing shared progress. Red Alert stand-down has a 60-second server lifetime. Enforce authenticated role/holder/GM authority, schemas, CAS, privacy-safe projections/audit, direct-write denial, and screen-reader announcement identity before P652a/P652b presentation work.",
         "title": "Make fleet-ticker lifecycle server-authoritative."
       },
-      "description": "The FleetTicker lifecycle now uses one server-owned stream for automatic, Admiral, and Press transmissions. Deterministic session/message/revision identities, precedence, current/queued/draining state, dismissals, replay cursors, and server deadlines serialize concurrent send/replace/dismiss plus Red Alert activation/stand-down, including the terminal/debrief producer. Reconnect, replay, and late join converge on server order/status; each viewport scrolls visible tails at constant speed without client frame or visual-pass writes. Red Alert stand-down expires after a shared 60-second server lifetime. Authenticated authority, idempotent CAS, privacy-safe projections/audit, schema bounds, and direct-write denial are covered before P652a/P652b.",
+      "description": "The FleetTicker lifecycle uses one server-owned stream for automatic, Admiral, and Press transmissions while each viewport owns physical playback. The mobile handoff repair preserves the exact keyed animation node and painted copy when priority changes, hides only future offscreen repetitions, appends the higher-priority source at the retained tail's next right-edge opportunity, and removes the old instance only after its last glyph exits. Deterministic session/message/revision identities, queue and drain state, dismissals, replay cursors, concurrent serialization, reconnect convergence, authority, CAS, schemas, audit redaction, and direct-write denial remain intact. Stand Down completes two presentation passes before the currently eligible Press or ATC pool resumes; no client frame acknowledgement writes shared state. Focused unit and mobile-store regressions plus the browser lifecycle gate prove stable physical identity, immediate append, constant 48 px/s movement, non-overlap, two Stand Down passes, and Press resumption.",
       "evidenceIds": "E-TICKER",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -8263,7 +8263,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.48"
+        "0.3.48",
+        "0.4.69"
       ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "TICKER-LIFECYCLE",

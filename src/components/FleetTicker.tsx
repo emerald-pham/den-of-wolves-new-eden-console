@@ -36,6 +36,9 @@ interface MovingGroup extends GroupGeometry {
   readonly message: FleetMessage;
   readonly startX: number;
   readonly animationDelay?: number;
+  /** Keep the original animated node alive while suppressing only copies that
+   * have not entered when a higher-priority source takes over. */
+  readonly committedCopyIndexes?: readonly number[];
 }
 
 type TickerGroupStyle = CSSProperties & {
@@ -366,6 +369,17 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   const relativeRight = useCallback((group: MovingGroup): number => {
     const element = groupElements.current.get(group.key);
     const frame = windowRef.current?.getBoundingClientRect();
+    if (element && frame && group.committedCopyIndexes !== undefined) {
+      const committedRights = group.committedCopyIndexes.flatMap((index) => {
+        const copy = element.querySelector<HTMLElement>(
+          `.fleet-ticker__copy-slot[data-copy-index="${index}"] .fleet-ticker__copy`,
+        );
+        return copy ? [copy.getBoundingClientRect()] : [];
+      })
+        .filter((bounds) => bounds.width > 0 || bounds.height > 0)
+        .map((bounds) => bounds.right - frame.left);
+      if (committedRights.length > 0) return Math.max(...committedRights);
+    }
     const bounds = element?.getBoundingClientRect();
     if (frame && bounds && (bounds.width > 0 || bounds.height > 0)) {
       return bounds.right - frame.left;
@@ -438,40 +452,46 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     const frame = windowRef.current?.getBoundingClientRect();
     if (!frame || frame.width <= 0) return groupsRef.current.filter(isOnScreen);
 
-    return groupsRef.current.flatMap((group) => {
+    const measured = groupsRef.current.flatMap((group) => {
       const element = groupElements.current.get(group.key);
       const copies = element
         ? [...element.querySelectorAll<HTMLElement>('.fleet-ticker__copy')]
         : [];
-      const measured = copies.flatMap((copy) => {
+      return copies.flatMap((copy, index) => {
+        if (group.committedCopyIndexes !== undefined &&
+            !group.committedCopyIndexes.includes(index)) return [];
         const bounds = copy.getBoundingClientRect();
         if (bounds.width <= 0 && bounds.height <= 0) return [];
-        return [{ bounds }];
+        return [{ group, index, bounds }];
       });
-      if (measured.length === 0) return isOnScreen(group) ? [group] : [];
+    });
 
-      // Copies with painted pixels in the lane are irrevocably committed. If
-      // none has entered yet, retain exactly the first copy staged at the
-      // right edge as the current pass. Later lower-priority repetitions are
-      // still eligible-pool material and may be replaced by the new source.
-      const visible = measured.filter(({ bounds }) => (
-        bounds.right > frame.left && bounds.left < frame.right
-      ));
-      const boundary = visible.length > 0 ? [] : measured.filter(({ bounds }) => (
-        bounds.right > frame.left && bounds.left <= frame.right
-      )).slice(0, 1);
-      return [...visible, ...boundary].map(({ bounds }) => {
-        const committed: MovingGroup = {
-          key: sequence.current,
-          message: group.message,
-          startX: bounds.left - frame.left,
-          width: bounds.width,
-          copyCount: 1,
-          animationDelay: 0,
-        };
-        sequence.current += 1;
-        return committed;
-      });
+    const visible = measured.filter(({ bounds }) => (
+      bounds.right > frame.left && bounds.left < frame.right
+    ));
+    const outgoingSignature = messageSignature(activeMessage.current);
+    const outgoingVisible = visible.some(({ group }) =>
+      messageSignature(group.message) === outgoingSignature);
+    const staged = outgoingVisible ? [] : measured
+      .filter(({ group, bounds }) =>
+        messageSignature(group.message) === outgoingSignature && bounds.right > frame.left)
+      .sort((left, right) => left.bounds.left - right.bounds.left)
+      .slice(0, 1);
+    const retained = [...visible, ...staged];
+    const retainedByGroup = new Map<number, number[]>();
+    for (const { group, index } of retained) {
+      const indexes = retainedByGroup.get(group.key) ?? [];
+      if (!indexes.includes(index)) indexes.push(index);
+      retainedByGroup.set(group.key, indexes);
+    }
+
+    // Preserve each original keyed animation node. Replacing it with a
+    // measured clone can make mobile compositors discard the painted layer
+    // before the clone is promoted, which visibly erases the outgoing copy.
+    return groupsRef.current.flatMap((group) => {
+      const indexes = retainedByGroup.get(group.key);
+      if (!indexes) return [];
+      return [{ ...group, committedCopyIndexes: indexes }];
     });
   }, [isOnScreen]);
 
@@ -485,6 +505,19 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     const nextGroups = groupsRef.current.map((group, index) => {
       const element = groupElements.current.get(group.key);
       const bounds = element?.getBoundingClientRect();
+      if (group.committedCopyIndexes !== undefined && element) {
+        const committedBounds = group.committedCopyIndexes.flatMap((copyIndex) => {
+          const copy = element.querySelector<HTMLElement>(
+            `.fleet-ticker__copy-slot[data-copy-index="${copyIndex}"] .fleet-ticker__copy`,
+          );
+          return copy ? [copy.getBoundingClientRect()] : [];
+        });
+        previousEnd = group.startX;
+        previousPaintedEnd = committedBounds.length > 0
+          ? Math.max(...committedBounds.map((copy) => copy.right - frame.left))
+          : previousPaintedEnd;
+        return group;
+      }
       const measuredWidth = bounds && bounds.width > 0 ? bounds.width : group.width;
       const startX = index === 0
         ? group.startX
@@ -689,6 +722,30 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     setGroups(nextGroups);
   }, [appendGroups, geometryFor, nextPressMessage, onMessageComplete, planFor, probeFor, setGroups]);
 
+  useEffect(() => {
+    const frame = windowRef.current?.getBoundingClientRect();
+    if (!frame) return undefined;
+    const timers = groups.flatMap((group) => {
+      if (group.committedCopyIndexes === undefined) return [];
+      const element = groupElements.current.get(group.key);
+      if (!element) return [];
+      const rightEdges = group.committedCopyIndexes.flatMap((index) => {
+        const copy = element.querySelector<HTMLElement>(
+          `.fleet-ticker__copy-slot[data-copy-index="${index}"] .fleet-ticker__copy`,
+        );
+        return copy ? [copy.getBoundingClientRect().right - frame.left] : [];
+      });
+      if (rightEdges.length === 0) return [];
+      const remainingPixels = Math.max(0, ...rightEdges);
+      const timer = window.setTimeout(
+        () => finishGroup(group.key),
+        Math.ceil((remainingPixels / TICKER_SPEED_PX_PER_SECOND) * 1_000) + 50,
+      );
+      return [timer];
+    });
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [finishGroup, groups]);
+
   const waitingForLayout = processedKey !== inputKey;
   if (!announcedMessage && groups.length === 0 && !waitingForLayout) {
     return null;
@@ -728,8 +785,13 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
                 }}
                 onAnimationEnd={() => finishGroup(group.key)}>
                 {Array.from({ length: group.copyCount }, (_, index) => (
-                  <MessageCopy message={group.message} key={index}
-                    copyInstanceId={`${group.message.id}:${group.key}:${index}`} />
+                  <span key={index} className="fleet-ticker__copy-slot"
+                    data-copy-index={index}
+                    data-committed={group.committedCopyIndexes === undefined ||
+                      group.committedCopyIndexes.includes(index) ? 'true' : 'false'}>
+                    <MessageCopy message={group.message}
+                      copyInstanceId={`${group.message.id}:${group.key}:${index}`} />
+                  </span>
                 ))}
               </span>
             );

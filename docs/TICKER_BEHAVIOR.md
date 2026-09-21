@@ -79,6 +79,13 @@ staged at the right edge is also committed. Later repetitions remain
 replaceable. An alert therefore wins the next available place without erasing
 the current Press or ATC message.
 
+A committed moving copy keeps the same physical animation instance until its
+last glyph exits. Do not replace it with a measured clone during a priority
+handoff: mobile compositors may discard the old animation layer before the
+replacement paints. Suppress only future offscreen repetitions, append the new
+source at the retained tail, and remove the original instance after that tail
+has physically left the window.
+
 A compact geometry rule for implementation is:
 
 - The incoming leading edge starts at or beyond the window's right edge.
