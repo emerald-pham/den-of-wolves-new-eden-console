@@ -2299,7 +2299,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 190
 - [ ] Prompt 191
 - [x] Prompt 192
-- [ ] Prompt 193
+- [x] Prompt 193
 - [ ] Prompt 193a
 - [ ] Prompt 193b
 - [x] Prompt 194
@@ -2311,7 +2311,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 200
 - [ ] Prompt 201
 - [ ] Prompt 202
-- [ ] Prompt 203
+- [x] Prompt 203
 - [ ] Prompt 203a
 - [ ] Prompt 203b
 - [x] Prompt 204
@@ -2325,7 +2325,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 212
 - [ ] Prompt 213
 - [ ] Prompt 214
-- [ ] Prompt 215
+- [x] Prompt 215
 - [ ] Prompt 215a
 - [ ] Prompt 215b
 - [x] Prompt 216
@@ -2335,7 +2335,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 220
 - [x] Prompt 221
 - [ ] Prompt 222
-- [ ] Prompt 223
+- [x] Prompt 223
 - [ ] Prompt 223a
 - [ ] Prompt 223b
 - [x] Prompt 224
@@ -2347,7 +2347,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 230
 - [ ] Prompt 231
 - [ ] Prompt 232
-- [ ] Prompt 233
+- [x] Prompt 233
 - [ ] Prompt 233a
 - [ ] Prompt 233b
 - [x] Prompt 234

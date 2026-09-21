@@ -1110,6 +1110,52 @@ it.each([
   expect(scaffold).toHaveTextContent(/tracked at the table/i);
 });
 
+it.each([
+  ['dione', 'Dione', 'dione-captain', 'Hydroponics', '100,000'],
+  ['icebreaker', 'Icebreaker', 'icebreaker-captain', 'Mining Drone Control', '40,000'],
+  ['shepherd', 'Shepherd', 'shepherd-captain', 'Advanced Hydroponics', '30,000'],
+  ['quellon', 'Quellon', 'quellon-captain', 'Water Production', '30,000'],
+  ['refinery-124', 'Refinery 124', 'refinery-124-captain', 'Fuel Refinery', '20,000'],
+] as const)(
+  'keeps the %s Captain policy, diplomacy, survivor, and liaison workspace on the bound player role',
+  async (shipId, shipName, roleId, supplySystem, survivors) => {
+    const activeSession = useSessionStore.getState().session;
+    const activeMe = useSessionStore.getState().me;
+    if (!activeSession || !activeMe) throw new Error('Expected active session state.');
+    useSessionStore.getState().setSession({
+      ...activeSession,
+      phase: 'active',
+      activeRoleIds: [roleId],
+      activeVesselIds: [shipId],
+    });
+    useSessionStore.getState().setMe({
+      ...activeMe,
+      role: 'player',
+      assignedRoleId: roleId,
+      seatId: roleId,
+      activeConsoleRoleId: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/ships/${shipId}/roles/${roleId}`]}>
+        <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith(roleId));
+    const workspace = screen.getByRole('region', { name: `${shipName} Captain console` });
+    expect(within(workspace).getByRole('heading', { name: 'Ship policy' })).toBeVisible();
+    expect(within(workspace).getByRole('heading', { name: 'Fleet diplomacy' })).toBeVisible();
+    expect(workspace).toHaveTextContent(/liaise with other ships.*represent your survivors/i);
+    expect(within(workspace).getByRole('heading', { name: supplySystem })).toBeVisible();
+    expect(screen.getByRole('region', { name: `${shipName} census` })).toHaveTextContent(survivors);
+    expect(screen.getByText('Role assignment').nextElementSibling).toHaveTextContent('Captain');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Engage ICN console lock' })).toBeEnabled());
+    expect(screen.queryByLabelText('View ship console role')).not.toBeInTheDocument();
+    expect(screen.queryByText(/console access.*read only/i)).not.toBeInTheDocument();
+  },
+);
+
 it('labels shared system outcomes as conditional damage and Shepherd upgrades', () => {
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-engineer']}>

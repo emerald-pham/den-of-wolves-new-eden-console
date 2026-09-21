@@ -5663,6 +5663,13 @@
       "language": "Dione Fighter Bay launch is a server-owned, Engineer-only Wolf-attack action. It consumes the current cycle charge, exact 10♦ damage authority, declared battle-table registration, attack revision, and shared command-receipt namespace before admitting Maliades exactly once.",
       "source": "functions/src/index.ts getDioneMaliadesLaunch and launchDioneMaliades; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/consoleMetadata.ts; src/components/DioneMaliadesLaunch.tsx; src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/lib/sessionService.ts; src/lib/firestore.ts",
       "type": "evidence / production-path / server-authority / role-bound / exact-revision / idempotency / malformed-state / responsive-ui / regression"
+    },
+    {
+      "direction": "193;203;215;223;233 -> 166",
+      "id": "E-FLEET-CAPTAIN-WORKSPACES-VERIFIED",
+      "language": "Each fleet Captain reaches the shared production workspace only through the exact assigned-role and seat binding. The workspace exposes live ship systems and stores, the vessel survivor census, ship-policy guidance, and fleet-diplomacy guidance; ship-specific production systems keep resource, food, water, and fuel bargaining visible. Player-bound routes remain writable without GM observer controls, while Prompt 166 rejects route or payload impersonation.",
+      "source": "src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/components/FleetConsoleWorkspace.tsx; src/components/FleetSystemsWorkspace.tsx; src/data/roleProcedures.ts; src/data/vessels/; functions/src/consoleRolePolicy.ts; functions/src/sessionLifecycleCallable.test.ts",
+      "type": "evidence / production-path / role-bound / survivor-census / diplomacy / no-impersonation / regression"
     }
   ],
   "plan": {
@@ -10571,8 +10578,8 @@
         "acceptance": "ship policy, diplomacy, survivor protection, and fleet liaison remain playable without console or GM impersonation.",
         "title": "Complete the Dione Captain workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-193",
+      "description": "Verified the existing Dione Captain workspace on the production ship route: an exactly assigned and seated player activates only dione-captain, receives live Dione systems and stores, the 100,000-survivor census, ship-policy guidance, and fleet-diplomacy / survivor-representation guidance without GM observer controls or a read-only impersonation path. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-193;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166",
@@ -10583,7 +10590,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10853,8 +10860,8 @@
         "acceptance": "ship policy, resource bargaining, survivor protection, and fleet liaison remain playable without console impersonation.",
         "title": "Complete the Icebreaker Captain workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-203",
+      "description": "Verified the existing Icebreaker Captain workspace on the production ship route: an exactly assigned and seated player activates only icebreaker-captain, receives live Icebreaker systems and stores including Mining Drone Control for resource bargaining, the 40,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-203;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166",
@@ -10865,7 +10872,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11179,8 +11186,8 @@
         "acceptance": "ship policy, food diplomacy, survivor protection, and fleet liaison remain playable without console impersonation.",
         "title": "Complete the Shepherd Captain workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-215",
+      "description": "Verified the existing Shepherd Captain workspace on the production ship route: an exactly assigned and seated player activates only shepherd-captain, receives live Shepherd systems and stores including Advanced Hydroponics for food diplomacy, the 30,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-215;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166",
@@ -11191,7 +11198,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11413,8 +11420,8 @@
         "acceptance": "ship policy, water diplomacy, survivor protection, and fleet liaison remain playable without console impersonation.",
         "title": "Complete the Quellon Captain workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-223",
+      "description": "Verified the existing Quellon Captain workspace on the production ship route: an exactly assigned and seated player activates only quellon-captain, receives live Quellon systems and stores including Water Production for water diplomacy, the 30,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-223;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166",
@@ -11425,7 +11432,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11695,8 +11702,8 @@
         "acceptance": "ship policy, fuel diplomacy, survivor protection, and fleet liaison remain playable without console impersonation.",
         "title": "Complete the Refinery 124 Captain workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-233",
+      "description": "Verified the existing Refinery 124 Captain workspace on the production ship route: an exactly assigned and seated player activates only refinery-124-captain, receives live Refinery 124 systems and stores including Fuel Refinery for fuel diplomacy, the 20,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-233;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166",
@@ -11707,7 +11714,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
