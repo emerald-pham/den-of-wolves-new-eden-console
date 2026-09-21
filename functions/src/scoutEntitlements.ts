@@ -41,6 +41,16 @@ export const SCOUT_ENTITLEMENTS: readonly ScoutEntitlement[] = Object.freeze([
   }),
 ]);
 
+export interface ScoutEntitlementAuthorityInput {
+  readonly playerRole: unknown;
+  readonly connected: unknown;
+  readonly assignedRoleId: unknown;
+  readonly seatId: unknown;
+  readonly replacementRoleId: unknown;
+  readonly activeRoleIds: unknown;
+  readonly activeVesselIds: unknown;
+}
+
 function stringSet(value: unknown, label: string): ReadonlySet<string> {
   if (!Array.isArray(value) || value.some((entry) =>
     typeof entry !== 'string' || entry.length === 0) || new Set(value).size !== value.length) {
@@ -55,14 +65,7 @@ function stringSet(value: unknown, label: string): ReadonlySet<string> {
  */
 export function requireScoutEntitlement(input: Readonly<{
   requestedEntitlementId: unknown;
-  playerRole: unknown;
-  connected: unknown;
-  assignedRoleId: unknown;
-  seatId: unknown;
-  replacementRoleId: unknown;
-  activeRoleIds: unknown;
-  activeVesselIds: unknown;
-}>): ScoutEntitlement {
+} & ScoutEntitlementAuthorityInput>): ScoutEntitlement {
   const activeRoleIds = stringSet(input.activeRoleIds, 'role roster');
   const activeVesselIds = stringSet(input.activeVesselIds, 'vessel roster');
   if (!isValidRoleConfiguration([...activeRoleIds])) {

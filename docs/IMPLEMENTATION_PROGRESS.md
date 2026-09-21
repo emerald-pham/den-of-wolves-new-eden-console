@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**420 / 751 prompts complete (55.93%)**
+**421 / 751 prompts complete (56.06%)**
 
-Status breakdown: **420 done · 16 partial · 315 missing**.
+Status breakdown: **421 done · 16 partial · 314 missing**.
 
 Active prompt: **none**
 
@@ -764,7 +764,7 @@ release classification and evidence.
 | 319 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 320 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 321 | done | non-feature | — | The server authority layer defines exactly four scout request identities: Starlight for the active Wing Commander, Hummingbird for the active Quellon Explorer, Endeavour for the active Shepherd Scientist, and the short-range scan for the player currently assigned the Comms Officer replacement role. Resolution requires a connected player, a valid printed role configuration and matching vessel roster, canonical assignment-and-seat binding for core craft, exact replacement-role authority for Comms, and the canonical craft/replacement catalogs; stale or mismatched core authority, cross-entitlement requests, inactive anchors, unknown identities, and malformed or duplicate rosters fail closed. This identity contract deliberately leaves range, cadence, fuel, chart lookup, result privacy, persistence, and UI to downstream prompts. |
-| 322 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 322 | done | non-feature | — | The server-side Starlight first-scan resolver requires the exact current Wing Commander entitlement, a valid active role/vessel configuration, the complete authoritative per-ship coordinate map, and a positive cycle. It derives the origin only from current AEGIS position, measures the canonical printed chart graph, and returns an immutable first-attempt request for any printed system at distance 0, 1, or 2. Targets three or more jumps away, unknown systems or positions, incomplete or extra fleet coordinates, stale or mismatched role authority, replacement assignments, and malformed cycles fail closed. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, cadence, fuelled second scans, private delivery, and UI remain downstream. |
 | 323 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 324 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 325 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
