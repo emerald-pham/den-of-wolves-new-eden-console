@@ -102,6 +102,9 @@ beforeEach(() => {
   put('sessions/s1', {
     phase: 'active',
     currentTurn: 2,
+    turnPhase: {
+      turn: 2, airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
     activeRoleIds: ['wing-commander', 'icebreaker-miner'],
     activeVesselIds: ['aegis', 'icebreaker'],
     shuttleDockings: [

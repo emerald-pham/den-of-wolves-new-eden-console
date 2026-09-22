@@ -2520,9 +2520,9 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
 }
 
 /**
- * Enforce the shared Team/Coordination policy when a session has a phase
- * clock. Legacy sessions predate that field and retain their existing
- * callable behavior until the next authoritative turn transition supplies it.
+ * Enforce the shared Team/Coordination policy from the authoritative phase
+ * clock. Fresh actions fail closed when that clock is absent or malformed;
+ * exact committed replays are checked by each caller before reaching here.
  */
 function requireActiveGameplayPhase(session: DocumentSnapshot): void {
   const lifecyclePhase = session.get('phase');
@@ -2544,7 +2544,6 @@ function requireActionPhase(
   actorScope: ActorScope,
 ): void {
   requireActiveGameplayPhase(session);
-  if (session.get('turnPhase') === undefined) return;
   const decision = decideActionAuthorization({
     action,
     actorScope,
@@ -5146,7 +5145,7 @@ export const transferShuttleControlCommand = onCall<{
     // An exact retry remains available to the still-authorized printed owner
     // or facilitator after the phase or recipient presence changes. The
     // committed reply contains no hidden state and must remain transport-safe.
-    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'transfer', actorIsFacilitator ? 'facilitator' : 'player');
     const activeRoleIds = configuredRoleIds(session);
     const rawDockings = session.get('shuttleDockings');
     const rawActiveVesselIds = session.get('activeVesselIds');
@@ -5388,7 +5387,7 @@ export const transferShuttleCargoCommand = onCall<{
       'shuttle cargo transfer',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
-    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'transfer', 'player');
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
       throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');

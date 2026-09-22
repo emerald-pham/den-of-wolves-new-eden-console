@@ -497,6 +497,7 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
 });
 
 it('rejects Coordination jumps while the server phase is Team', async () => {
+  let includePhaseClock = true;
   mock.get.mockImplementation(async (path: string) => {
     if (path === 'sessions/s1/wolfAttackState/current') {
       return { exists: false, data: () => undefined, get: () => undefined };
@@ -514,10 +515,10 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
         : {
           phase: 'active',
           currentTurn: mock.currentTurn,
-          turnPhase: {
+          ...(includePhaseClock ? { turnPhase: {
             turn: 1,
             airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-          },
+          } } : {}),
           capybaraEnabled: true,
           dioneEnabled: true,
           shipGalacticCoordinates: { aegis: mock.coordinate },
@@ -541,6 +542,23 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
     message: expect.stringMatching(/coordination phase/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+
+  includePhaseClock = false;
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'missing-clock-jump', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/no current server phase/i),
+  });
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'missing-clock-movement', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/no current server phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 

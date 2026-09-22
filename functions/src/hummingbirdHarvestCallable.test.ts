@@ -178,6 +178,21 @@ it('checks the action phase before sampling or writing a new roll', async () => 
   expect(mock.documents.get('sessions/s1/hummingbirdHarvestRequests/outside-phase')).toBeUndefined();
 });
 
+it('rejects a new scouting roll when the authoritative phase clock is absent without sampling or writing', async () => {
+  delete mock.documents.get('sessions/s1')!.turnPhase;
+  cryptoMock.randomInt.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request({
+    ...rollRequest, requestId: 'missing-phase-clock',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/no current server phase/i),
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/hummingbirdHarvests/u1')).toBeUndefined();
+  expect(mock.documents.get('sessions/s1/hummingbirdHarvestRequests/missing-phase-clock')).toBeUndefined();
+});
+
 it('checks the action phase before allocating a pending roll', async () => {
   await rollHummingbirdHarvest.run(request(rollRequest));
   const writesBefore = mock.update.mock.calls.length + mock.set.mock.calls.length;

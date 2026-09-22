@@ -49,7 +49,11 @@ const put = (path: string, fields: Fields) => mock.documents.set(path, { ...fiel
 beforeEach(() => {
   mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear();
   put('sessions/s1', {
-    phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    phase: 'active', currentTurn: 1,
+    turnPhase: {
+      turn: 1, airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'now' }],
     shuttleControl: { hummingbird: {
       shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'owner',
@@ -94,11 +98,26 @@ it.each([
 });
 
 it('rejects cargo movement outside the live Coordination phase without mutation', async () => {
-  mock.documents.get('sessions/s1')!.phase = 'debrief';
+  mock.documents.get('sessions/s1')!.turnPhase = {
+    turn: 1, airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
 
   await expect(transferShuttleCargoCommand.run(request({
     ...command, requestId: 'wrong-phase',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects cargo movement when the authoritative phase clock is absent without mutation', async () => {
+  delete mock.documents.get('sessions/s1')!.turnPhase;
+
+  await expect(transferShuttleCargoCommand.run(request({
+    ...command, requestId: 'missing-phase-clock',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/no current server phase/i),
+  });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
