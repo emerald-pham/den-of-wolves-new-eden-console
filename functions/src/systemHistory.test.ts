@@ -138,4 +138,31 @@ describe('system history persistence and audience projection', () => {
     expect(Object.keys(replacement.systemHistory ?? {})).toEqual(['1413']);
     expect(replacement.systemHistory).not.toHaveProperty('5143');
   });
+
+  it('preserves a valid candidate reveal only in its entitled ship projection', () => {
+    const state = navigationState({
+      shipGalacticCoordinates: { aegis: '6798', dione: '0000' },
+      shipNavigationLogs: { aegis: [], dione: [] },
+      systemHistory: {
+        aegis: {
+          '6798': {
+            coordinate: '6798',
+            candidateDiscovery: {
+              id: 'arrival-1', occurredAt: '2026-09-22T14:00:00.000Z',
+              code: 'N', title: 'Ancient Jump Ring', source: 'arrival',
+            },
+          },
+        },
+      },
+    }, ['aegis', 'dione']);
+
+    const aegis = playerDiscoveryProjection(
+      player({ fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' }), state, 5,
+    );
+    const dione = playerDiscoveryProjection(
+      player({ fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' }), state, 5,
+    );
+    expect(aegis.systemHistory?.['6798']?.candidateDiscovery?.code).toBe('N');
+    expect(dione.systemHistory).toBeUndefined();
+  });
 });

@@ -10,6 +10,7 @@ import {
 import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
+import { candidateDiscoveryFromArrival } from './candidateDiscovery';
 import { isDeepStrictEqual } from 'node:util';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
@@ -1294,6 +1295,28 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
     pursuitGroups: navigation.pursuitGroups,
     ...(navigation.systemHistory ? { systemHistory: navigation.systemHistory } : {}),
   };
+}
+
+function withCandidateArrival(
+  navigation: NavigationState,
+  shipId: string,
+  coordinate: string,
+  chart: 'A' | 'B' | 'C',
+): NavigationState {
+  const logs = navigation.shipNavigationLogs[shipId] ?? [];
+  const arrival = logs[logs.length - 1];
+  if (!arrival || arrival.type !== 'self-jump' || arrival.destination !== coordinate) {
+    throw new Error('Authoritative candidate arrival event is unavailable.');
+  }
+  const systemHistory = candidateDiscoveryFromArrival(navigation.systemHistory, {
+    shipId,
+    coordinate,
+    chart,
+    event: { id: arrival.id, occurredAt: arrival.occurredAt },
+  });
+  return systemHistory === navigation.systemHistory
+    ? navigation
+    : { ...navigation, ...(systemHistory ? { systemHistory } : {}) };
 }
 
 type MaintenanceHazardAuthority =
@@ -12214,7 +12237,7 @@ export const moveShipToLocation = onCall<{
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      movedNavigation,
+      withCandidateArrival(movedNavigation, change.shipId, move.destination, chart),
       pursuitFleetGroups,
       change.shipId,
       move.destination,
@@ -12470,7 +12493,7 @@ export const jumpShip = onCall<{
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      movedNavigation,
+      withCandidateArrival(movedNavigation, change.shipId, move.destination, chart),
       pursuitFleetGroups,
       change.shipId,
       move.destination,

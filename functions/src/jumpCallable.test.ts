@@ -290,6 +290,48 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
   }));
 });
 
+it('persists a candidate arrival while keeping it out of another ship projection', async () => {
+  mock.fleetGroups = [{
+    ...mock.fleetGroups[0]!, memberUids: ['u1', 'u2'],
+  }];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+  ];
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'candidate-arrival', destination: '6798',
+  }))).resolves.toMatchObject({ destination: '6798' });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({
+      systemHistory: expect.objectContaining({
+        aegis: expect.objectContaining({
+          '6798': expect.objectContaining({
+            candidateDiscovery: expect.objectContaining({
+              code: 'N', title: 'Ancient Jump Ring', source: 'arrival',
+            }),
+          }),
+        }),
+      }),
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/playerDiscoveries/u1',
+    expect.objectContaining({
+      systemHistory: expect.objectContaining({
+        '6798': expect.objectContaining({
+          candidateDiscovery: expect.objectContaining({ code: 'N' }),
+        }),
+      }),
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/playerDiscoveries/u2',
+    expect.not.objectContaining({ systemHistory: expect.anything() }),
+  );
+});
+
 it('creates one group-scoped mission opportunity on first arrival and exposes its stable identity', async () => {
   await expect(moveShipToLocation.run(request({
     ...data, requestId: 'mission-first-arrival', destination: '1413',

@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [318],
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 13, active: 0, missing: 281,
+    },
+    changes: [
+      'Reaching a New Eden candidate now records that discovery from the session’s protected chart without revealing other candidate locations.',
+      'Private scouting can record the same discovery only from a valid candidate result, and each ship sees only its own discovery history.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+  },
+  {
+    version: '0.4.90',
     implementationPrompts: [317],
     implementationProgress: {
       completed: 456, total: 751, percentage: '60.72%',
