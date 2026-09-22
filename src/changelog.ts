@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [367],
+    implementationProgress: {
+      completed: 460, total: 751, percentage: '61.25%',
+      done: 460, partial: 13, active: 0, missing: 278,
+    },
+    changes: [
+      'Shuttles now complete due trips automatically and appear docked at their destination with one reliable visit record.',
+      'Arrival retries cannot duplicate docking or history, and late replies from a previous session no longer affect the current shuttle.',
+      '460 of 751 planned items are complete (61.25%).',
+    ],
+  },
+  {
+    version: '0.4.93',
     implementationPrompts: [381],
     implementationProgress: {
       completed: 459, total: 751, percentage: '61.12%',

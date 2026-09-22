@@ -2557,6 +2557,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "367 -> AUTHORITATIVE-SHUTTLE-ARRIVAL",
+      "id": "E-367-SHUTTLE-ARRIVAL",
+      "language": "An authenticated current shuttle holder can complete a due private transit through one authoritative transaction. The callable binds session and holder authority, connected group membership, active origin and destination hosts, canonical shuttle ownership, exact transit identity and control revision, destination and arrival time, then atomically replaces private transit with one public destination docking, appends deterministic depart and arrive visit rows exactly once, writes one member-safe arrival event, stores an exact replay receipt, and deletes the transit. Arrival receipts live in a server-only collection and the event uses a server-generated UUID persisted in that receipt, so another member cannot preclaim predictable shared IDs to strand arrival. Firestore denies all client access to arrival receipts, while member event redaction exposes only the shuttle identity and omits holder, role, group, and route. Automatic and manual client completion capture session authority and key pending, retry, result, and completion state by session, UID, authority version, shuttle, and transit; delayed callbacks from an old identity cannot update or block the new session. Existing public docking and visit history remain the DRADIS-visible arrival projection; no new contact glyph or timeline item is claimed.",
+      "source": "functions/src/shuttleArrival.ts; functions/src/shuttleArrival.test.ts; functions/src/shuttleArrivalCallable.ts; functions/src/shuttleArrivalCallable.test.ts; functions/src/index.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/shuttleDepartureService.ts; src/lib/shuttleDepartureService.test.ts; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.test.tsx; src/lib/sessionMutationAuthority.ts",
+      "type": "evidence / production-path / server-authority / transaction / shuttle-arrival / docking / visit-history / replay / id-collision / privacy / stale-session / client-retry / regression"
+    },
+    {
       "direction": "368 -> 366",
       "id": "E-AUDIT-368",
       "language": "Retargeting consumes authoritative transit state.",
@@ -15503,15 +15510,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "host, holder, visit log, event, and DRADIS update exactly once.",
         "title": "Complete shuttle arrival."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-367",
+      "description": "Release 0.4.94 completes due shuttle transits through one server-authoritative arrival transaction. It rechecks holder, group, active hosts, destination, arrival time, transit identity, and control revision before replacing private transit with one public docking, deterministic visit history, one privacy-safe event, and an exact replay receipt. Server-only receipt identity and server-generated event IDs prevent another member from preclaiming predictable records, while client completion discards delayed callbacks after any session-authority change. Existing public docking and history remain the DRADIS-visible projection; no new contact glyph or timeline item is claimed.",
+      "evidenceIds": "E-AUDIT-367;E-367-SHUTTLE-ARRIVAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "366;313",
@@ -15519,10 +15526,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.94"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
