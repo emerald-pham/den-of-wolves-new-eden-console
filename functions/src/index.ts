@@ -20863,6 +20863,17 @@ export const runMaintenance = onCall<{
             groups,
             players,
           );
+          const storedPursuitGroupIds = Object.keys(
+            environmentalAuthority.navigation.pursuitGroups,
+          ).sort();
+          const fleetGroupIds = fleetGroups.map((group) => group.id).sort();
+          if (!isDeepStrictEqual(storedPursuitGroupIds, fleetGroupIds)) {
+            throw commandError(
+              'failed-precondition',
+              'The protected pursuit authority does not match the current fleet groups.',
+              'malformed-input',
+            );
+          }
           return {
             players: players.docs ?? [],
             fleetGroups,

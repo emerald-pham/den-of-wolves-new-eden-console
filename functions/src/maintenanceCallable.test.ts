@@ -857,6 +857,59 @@ it.each([
   expect(mock.delete).not.toHaveBeenCalled();
 });
 
+it('rejects a protected pursuit map with a stale extra fleet group without writes', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = environmentalNavigation('1096', {
+    pursuitGroups: { 'fleet-1': 0, 'fleet-99': 4 },
+  });
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-stale-pursuit-group',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('rejects a protected pursuit map missing a current split-fleet group without writes', async () => {
+  mock.activeVesselIds = ['aegis', 'dione'];
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['u2'] },
+  ];
+  mock.discoveryPlayers = [
+    {
+      id: 'u1',
+      fields: {
+        connected: true, role: 'player', fleetGroupId: 'fleet-1',
+        assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+      },
+    },
+    {
+      id: 'u2',
+      fields: {
+        connected: true, role: 'player', fleetGroupId: 'fleet-2',
+        assignedRoleId: 'president', activeConsoleRoleId: 'president',
+      },
+    },
+  ];
+  mock.navigation = {
+    shipGalacticCoordinates: { aegis: '1096', dione: '0000' },
+    shipNavigationLogs: { aegis: [], dione: [] },
+    pursuitGroups: { 'fleet-1': 0 },
+    revision: 0,
+  };
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-missing-pursuit-group',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('commits one environmental draw across transaction retry, duplicate request, and replay', async () => {
   setEnvironmentalHistoryAuthority();
   mock.navigation = environmentalNavigation('1096');
