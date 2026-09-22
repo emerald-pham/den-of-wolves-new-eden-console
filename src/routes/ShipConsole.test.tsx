@@ -1358,6 +1358,69 @@ it('routes the bound Dione Engineer workspace to live maintenance, craft, produc
   expect(screen.queryByLabelText('View ship console role')).not.toBeInTheDocument();
 });
 
+it('routes the bound Icebreaker Miner workspace to authoritative production and Highwall operations', async () => {
+  const activeSession = useSessionStore.getState().session;
+  const activeMe = useSessionStore.getState().me;
+  if (!activeSession || !activeMe) throw new Error('Expected active session state.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 2,
+    activeRoleIds: ['icebreaker-miner'], activeVesselIds: ['icebreaker'],
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    shipResources: {
+      ...activeSession.shipResources,
+      icebreaker: { ore: 7, fuel: 4, food: 11, water: 9, materials: 6, securityTeams: 2 },
+    },
+    shipDamage: {
+      ...activeSession.shipDamage,
+      icebreaker: { damagedSystemIds: [], destroyed: false },
+    },
+    maintenanceCycles: {
+      ...activeSession.maintenanceCycles,
+      icebreaker: {
+        turn: 2, step: 6, revision: 5,
+        results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 2/4 consoles.' },
+        charges: ['mining-drone-control', 'jump-drive'], refuelled: [],
+      },
+    },
+    shuttleDockings: [
+      { shipId: 'icebreaker', shuttleId: 'highwall', dockedAt: 'SESSION START' },
+    ],
+    shuttleControl: {
+      highwall: {
+        shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: activeMe.uid,
+        holderUid: activeMe.uid, revision: 3,
+      },
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...activeMe,
+    role: 'player', assignedRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
+    activeConsoleRoleId: null,
+  });
+  useSessionStore.getState().setConnection('live');
+
+  render(
+    <MemoryRouter initialEntries={['/ships/icebreaker/roles/icebreaker-miner']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('icebreaker-miner'));
+  const workspace = screen.getByRole('region', { name: 'Icebreaker Miner console' });
+  expect(within(workspace).getByRole('region', { name: 'Icebreaker maintenance cycle' })).toBeVisible();
+  expect(workspace).toHaveTextContent(/Live stores: 11 food.*9 water.*6 materials.*7 ore.*4 fuel/i);
+  expect(within(workspace).getByRole('button', { name: 'Run Mining Drone Control' })).toBeEnabled();
+  expect(within(workspace).getByRole('link', { name: 'Open Highwall shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/highwall');
+  expect(screen.queryByLabelText('View ship console role')).not.toBeInTheDocument();
+});
+
 it('does not expose the Maliades launch control outside the Dione Engineer console', () => {
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>

@@ -1199,6 +1199,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "203b -> 166;194;265;388",
+      "id": "E-203B-ICEBREAKER-MINER-WORKSPACE",
+      "language": "The exactly bound Icebreaker Miner production route exposes live Icebreaker stores and maintenance state. Mining Drone Control invokes the current revision-bound authoritative maintenance action, while the assigned Highwall route invokes server-random mining and renders canonical material or strytium ore results. Server-owned craft, battle-declaration, cargo, and away-mission registries bind Highwall to the Miner for battle-table eligibility, ore-and-material cargo, and mission participation. The workspace renders Highwall's registered fuelled Medium and Short mining-laser procedure without exposing a firing control before Prompt 389's range resolver exists. Player-bound routes do not expose GM observer selection or route impersonation.",
+      "source": "src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/MaintenanceSystems.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; src/components/HighwallMining.tsx; src/lib/highwallMiningService.ts; src/data/vessels/highwall.ts; src/data/shuttles.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/highwallMining.ts; functions/src/highwallMiningCallable.test.ts; functions/src/craftOwnership.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/awayMissionCards.ts; functions/src/awayMissionCallable.test.ts; functions/src/shuttleCargoTransfer.ts; functions/src/index.ts",
+      "type": "evidence / production-path / role-bound / authoritative-actions / mining / cargo / combat-registration / mission-participation / no-impersonation / regression"
+    },
+    {
       "direction": "204 -> 114;161;162",
       "id": "E-AUDIT-204",
       "language": "Shepherd's canonical client definition and server registries agree on survivors, exact thresholds, printed rations, starting stores, and the complete maintenance order; focused data, rendering-source, population, resource, and maintenance tests prove the lane without duplicating authority.",
@@ -11134,8 +11141,8 @@
         "acceptance": "Mining Drone Control, Highwall mining/combat, ore/material results, and mission participation are authoritative.",
         "title": "Complete the Miner workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-203B",
+      "description": "Verified the production Icebreaker Miner workspace under exact assigned-role and seat binding. It exposes live Icebreaker stores and the charged Mining Drone Control action through the revision-bound maintenance callable, routes the Miner to Highwall, and surfaces authoritative server-rolled material or strytium ore results. Server catalogs bind Highwall to the Miner for Wolf-attack battle-table eligibility and away-mission participation; the workspace preserves the registered fuelled mining-laser procedure without inventing the separately deferred range attack resolver. Focused route, maintenance, Highwall, cargo, combat-registration, and mission-participation suites passed. This is evidence reconciliation with no runtime release.",
+      "evidenceIds": "E-AUDIT-203B;E-203B-ICEBREAKER-MINER-WORKSPACE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;194;265;388",
@@ -11146,7 +11153,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
