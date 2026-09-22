@@ -766,6 +766,26 @@ it('hydrates only bounded Macaw repair history', () => {
   }).macawRepairs).toBeUndefined();
 });
 
+it('hydrates only canonical Chacau damage-deck history', () => {
+  expect(sessionFrom('chacau-history', {
+    ...sessionData(8),
+    chacauRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'aegis', systemIds: ['fighter-bay-alpha'] }],
+    },
+  }).chacauRepairs).toEqual({
+    cycle: 3, revision: 2,
+    hosts: [{ shipId: 'aegis', systemIds: ['fighter-bay-alpha'] }],
+  });
+  expect(sessionFrom('bad-chacau-console-history', {
+    ...sessionData(8),
+    chacauRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'aegis', systemIds: ['not-a-damage-card'] }],
+    },
+  }).chacauRepairs).toBeUndefined();
+});
+
 it('does not carry malformed IDs from an untrusted session snapshot', () => {
   const session = sessionFrom('safe-session', {
     ...sessionData(8),

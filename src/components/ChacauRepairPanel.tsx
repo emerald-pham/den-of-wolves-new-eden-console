@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
 import { repairConsolesFromChacau, type ChacauRepairCommand } from '@/lib/chacauRepairService';
+import { parseChacauRepairLedger } from '@/lib/chacauRepairLedger';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
@@ -9,51 +10,14 @@ import {
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
-interface ChacauRepairHostEntry {
-  readonly shipId: string;
-  readonly systemIds: readonly string[];
-}
-
-interface ChacauRepairLedger {
-  readonly cycle: number;
-  readonly revision: number;
-  readonly hosts: readonly ChacauRepairHostEntry[];
-}
-
-type ChacauRepairSession = GameSession & { readonly chacauRepairs?: unknown };
-
 interface Props {
   readonly control: ShuttleControlEntry;
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled: boolean;
 }
 
-function parseChacauRepairLedger(value: unknown): ChacauRepairLedger | null {
-  if (value === undefined) return { cycle: 0, revision: 0, hosts: [] };
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
-  const ledger = value as Record<string, unknown>;
-  if (Object.keys(ledger).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
-      !Number.isSafeInteger(ledger.cycle) || (ledger.cycle as number) < 1 ||
-      !Number.isSafeInteger(ledger.revision) || (ledger.revision as number) < 1 ||
-      !Array.isArray(ledger.hosts) || ledger.hosts.length < 1 || ledger.hosts.length > 2) return null;
-  const seenShips = new Set<string>();
-  const hosts: ChacauRepairHostEntry[] = [];
-  for (const host of ledger.hosts) {
-    if (typeof host !== 'object' || host === null || Array.isArray(host)) return null;
-    const entry = host as Record<string, unknown>;
-    if (Object.keys(entry).some((key) => !['shipId', 'systemIds'].includes(key)) ||
-        typeof entry.shipId !== 'string' || entry.shipId.length === 0 || seenShips.has(entry.shipId) ||
-        !Array.isArray(entry.systemIds) || entry.systemIds.length < 1 || entry.systemIds.length > 2 ||
-        entry.systemIds.some((id) => typeof id !== 'string' || id.length === 0) ||
-        new Set(entry.systemIds).size !== entry.systemIds.length) return null;
-    seenShips.add(entry.shipId);
-    hosts.push({ shipId: entry.shipId, systemIds: entry.systemIds as string[] });
-  }
-  return { cycle: ledger.cycle as number, revision: ledger.revision as number, hosts };
-}
-
 export default function ChacauRepairPanel({ control, docking, fuelled }: Props) {
-  const session = useSessionStore((state) => state.session)! as ChacauRepairSession;
+  const session = useSessionStore((state) => state.session)! as GameSession;
   const me = useSessionStore((state) => state.me)!;
   const [systemIds, setSystemIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);

@@ -137,6 +137,12 @@ describe('Chacau repair', () => {
       cycle: 3, revision: 1, hosts: [{ shipId: 'refinery-124', systemIds: ['reactor'] }],
     })).toMatchObject({ cycle: 3, revision: 1 });
     expect(parseChacauRepairLedger({
+      cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['fighter-bay-alpha'] }],
+    })).toMatchObject({ cycle: 3, revision: 1 });
+    expect(parseChacauRepairLedger({
+      cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['not-a-damage-card'] }],
+    })).toBeNull();
+    expect(parseChacauRepairLedger({
       cycle: 3, revision: 1, hosts: [
         { shipId: 'refinery-124', systemIds: ['reactor'] },
         { shipId: 'refinery-124', systemIds: ['storage'] },

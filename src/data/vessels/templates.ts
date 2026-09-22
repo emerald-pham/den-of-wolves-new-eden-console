@@ -161,6 +161,8 @@ export interface ShuttleOperation {
   readonly name: string;
   readonly phase: ShuttleOperationPhase;
   readonly effect: string;
+  /** Optional player-facing copy when a printed action remains owned by a later prompt. */
+  readonly surfaceEffect?: string;
 }
 
 export interface Shuttlecraft {

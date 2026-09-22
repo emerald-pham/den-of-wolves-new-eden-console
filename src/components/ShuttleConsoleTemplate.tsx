@@ -106,7 +106,7 @@ export default function ShuttleConsoleTemplate({
                 key={`${operation.phase}-${operation.name}`}>
                 <p>{operationPhaseLabel(operation.phase)}</p>
                 <h3>{operation.name}</h3>
-                <p>{operation.effect}</p>
+                <p>{operation.surfaceEffect ?? operation.effect}</p>
               </article>)}
             </div>
           </section>}

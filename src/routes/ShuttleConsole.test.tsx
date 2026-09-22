@@ -959,8 +959,9 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
-  expect(screen.getByText(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i))
+  expect(screen.getByText(/repair up to 2 consoles.*4 materials each\./i))
     .toBeInTheDocument();
+  expect(screen.queryByText(/damage a console.*permission.*gain 3 materials/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Fuelled repair' })).toBeInTheDocument();
   expect(screen.getByText(/fuelled.*repair consoles on a second ship/i)).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Chacau console repair' })).toBeInTheDocument();

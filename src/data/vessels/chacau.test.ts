@@ -16,6 +16,7 @@ it('keeps repair and fuelled second-ship behavior on the Chacau procedure', () =
       name: 'Repair',
       phase: 'Coordination',
       effect: 'Repair up to 2 consoles on one ship for 4 materials each, or damage a console with a ship player’s permission to gain 3 materials.',
+      surfaceEffect: 'Repair up to 2 consoles on one ship for 4 materials each.',
     },
     {
       name: 'Fuelled repair',

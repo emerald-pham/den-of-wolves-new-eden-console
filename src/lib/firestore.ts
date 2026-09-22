@@ -100,6 +100,7 @@ import {
 import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
+import { damageSystemIdsForShip, parseChacauRepairLedger } from './chacauRepairLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -1696,43 +1697,12 @@ function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {
   return repairLedger(value);
 }
 
-function damageSystemIdsForShip(shipId: string): ReadonlySet<string> {
-  const ids = new Set(SHIPS.find((ship) => ship.id === shipId)?.systems?.map(({ id }) => id) ?? []);
-  if (shipId === 'aegis') {
-    // The AEGIS damage deck includes five combat consoles that are not part
-    // of the Admiral ship-system list.
-    ['command-and-control', 'fighter-bay-alpha', 'fighter-bay-bravo',
-      'missile-launchers', 'point-defence-lasers'].forEach((id) => ids.add(id));
-  }
-  return ids;
-}
-
 function macawRepairs(value: unknown): GameSession['macawRepairs'] {
   return repairLedger(value, damageSystemIdsForShip);
 }
 
 function chacauRepairs(value: unknown): GameSession['chacauRepairs'] {
-  const raw = recordValue(value);
-  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
-      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
-      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-      !Array.isArray(raw.hosts) || raw.hosts.length < 1 || raw.hosts.length > 2) return undefined;
-  const seen = new Set<string>();
-  const hosts = raw.hosts.flatMap((value) => {
-    const host = recordValue(value);
-    const shipId = host ? parseEntityId('vessel', host.shipId) : undefined;
-    const rawSystemIds = host?.systemIds;
-    const systemIds = Array.isArray(rawSystemIds) ? stringArray(rawSystemIds) : [];
-    if (!host || !shipId || !VESSEL_CATALOG_IDS.has(shipId) || seen.has(shipId) ||
-        Object.keys(host).some((key) => !['shipId', 'systemIds'].includes(key)) ||
-        systemIds.length < 1 || systemIds.length > 2 ||
-        !Array.isArray(rawSystemIds) || systemIds.length !== rawSystemIds.length ||
-        new Set(systemIds).size !== systemIds.length) return [];
-    seen.add(shipId);
-    return [{ shipId, systemIds }];
-  });
-  if (hosts.length !== raw.hosts.length) return undefined;
-  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
+  return parseChacauRepairLedger(value) ?? undefined;
 }
 
 function highwallMining(value: unknown): GameSession['highwallMining'] {

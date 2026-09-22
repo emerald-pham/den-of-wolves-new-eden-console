@@ -190,3 +190,16 @@ it('fails closed on malformed repair history and a copied Philia owner', () => {
   expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeDisabled();
   expect(within(repair).getByText(/current Refinery 124 Engineer holding Chacau/)).toBeInTheDocument();
 });
+
+it('fails closed when persisted repair history names a non-deck console', () => {
+  installSession({
+    chacauRepairs: {
+      cycle: 3, revision: 1,
+      hosts: [{ shipId: 'aegis', systemIds: ['not-a-damage-card'] }],
+    },
+  });
+  renderRepair();
+  const repair = screen.getByRole('region', { name: 'Chacau console repair' });
+  expect(within(repair).getByText(/repair history is unavailable/i)).toBeInTheDocument();
+  expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeDisabled();
+});
