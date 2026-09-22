@@ -1432,6 +1432,7 @@ describe('seats', () => {
       `${SESSION}/gmResponsibilityRequests/request-1`,
       `${SESSION}/loyaltyAssignmentRequests/request-1`,
       `${SESSION}/commandReceipts/request-1`,
+      `${SESSION}/shuttleArrivalReceipts/transit-1`,
       `sessionStartRequests/s1_start-1`,
       `${SESSION}/events/setup-confirm-request-1`,
       `${SESSION}/events/seat-claim-request-1`,
@@ -1445,6 +1446,7 @@ describe('seats', () => {
     }
     await assertFails(getDoc(doc(db, `${SESSION}/loyaltyAssignmentRequests/request-1`)));
     await assertFails(getDoc(doc(db, `${SESSION}/commandReceipts/request-1`)));
+    await assertFails(getDoc(doc(db, `${SESSION}/shuttleArrivalReceipts/transit-1`)));
     await assertFails(updateDoc(doc(db, SESSION), {
       setup: {
         playerCount: 8,
@@ -2207,6 +2209,7 @@ describe('complete server-owned denial matrix', () => {
       'events',
       'loyaltyAssignmentRequests',
       'commandReceipts',
+      'shuttleArrivalReceipts',
       'maintenanceRequests',
       'voyage33MaintenanceRequests',
       'damageDraws',

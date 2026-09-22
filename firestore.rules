@@ -848,6 +848,13 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Shuttle arrival retries use a separate server-only receipt namespace;
+      // their transit ids are visible to fleet peers and must not be claimable
+      // through another caller-selected command id.
+      match /shuttleArrivalReceipts/{transitRequestId} {
+        allow read, write: if false;
+      }
+
       // A committed Wolf action identifies a hidden agent and its private
       // consequence. The callable returns only the actor's receipt; no client may
       // read, list, forge, or erase this server-owned state or its audit.

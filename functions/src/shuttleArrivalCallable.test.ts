@@ -168,7 +168,11 @@ it('commits docking, history, event, transit deletion, and one replay receipt at
     expect.objectContaining({ id: 'shuttle-arrival-transit-1-docked', shipId: 'icebreaker', action: 'docked' }),
   ]));
   expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(false);
-  const event = mock.documents.get('sessions/s1/events/shuttle-arrival-transit-1')!;
+  const receiptPath = 'sessions/s1/shuttleArrivalReceipts/transit-1';
+  const receipt = mock.documents.get(receiptPath)!;
+  const eventId = receipt.eventId as string;
+  expect(eventId).toMatch(/^shuttle-arrival-[\w-]{36}$/);
+  const event = mock.documents.get(`sessions/s1/events/${eventId}`)!;
   expect(event).toMatchObject({ type: 'shuttle-arrival', shuttleId: 'starlight', visibility: 'member' });
   expect(event).not.toHaveProperty('actorUid');
   expect(event).not.toHaveProperty('actorRoleId');
@@ -176,8 +180,7 @@ it('commits docking, history, event, transit deletion, and one replay receipt at
   expect(event).not.toHaveProperty('destinationShipId');
   expect(event).not.toHaveProperty('fleetGroupId');
   expect(event).not.toHaveProperty('holderUid');
-  const receiptPath = 'sessions/s1/commandReceipts/arrival-transit-1';
-  expect(mock.documents.get(receiptPath)?.result).toMatchObject({ status: 'arrived', hostShipId: 'icebreaker' });
+  expect(receipt.result).toMatchObject({ status: 'arrived', hostShipId: 'icebreaker' });
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length +
     mock.create.mock.calls.length + mock.remove.mock.calls.length;
 
@@ -231,12 +234,8 @@ it('rejects early arrival, stale holder control, Wolf lock, and extra client aut
   expect(mock.remove).not.toHaveBeenCalled();
 });
 
-it('rejects malformed public history and a pre-existing event without partial writes', async () => {
+it('rejects malformed public history without partial writes', async () => {
   mock.documents.get('sessions/s1')!.shuttleVisitLog = [{ id: 'secret', shuttleId: 'starlight' }];
-  await expect(completeShuttleArrival.run(request()))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
-  mock.documents.get('sessions/s1')!.shuttleVisitLog = baseVisitLog();
-  put('sessions/s1/events/shuttle-arrival-transit-1', { type: 'shuttle-arrival' });
   await expect(completeShuttleArrival.run(request()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
@@ -245,16 +244,47 @@ it('rejects malformed public history and a pre-existing event without partial wr
   expect(mock.remove).not.toHaveBeenCalled();
 });
 
+it('does not let a peer preclaim a generic receipt or predictable event id to strand arrival', async () => {
+  const sharedRequestId = 'arrival-transit-1';
+  const claimedReceiptPath = `sessions/s1/commandReceipts/${sharedRequestId}`;
+  const claimedEventPath = 'sessions/s1/events/shuttle-arrival-transit-1';
+  const claimedReceipt = {
+    fingerprint: {
+      action: 'request-shuttle-departure', sessionId: 's1', requestId: sharedRequestId,
+      actorUid: 'peer', instanceId: null, expectedRevision: 2,
+      payload: { shuttleId: 'highwall', destinationShipId: 'aegis', expectedCycle: 2 },
+    },
+    result: { status: 'requested' },
+  };
+  const claimedEvent = { type: 'unrelated-peer-event' };
+  put(claimedReceiptPath, claimedReceipt);
+  put(claimedEventPath, claimedEvent);
+
+  await expect(completeShuttleArrival.run(request())).resolves.toMatchObject({
+    status: 'arrived', hostShipId: 'icebreaker',
+  });
+
+  const receipt = mock.documents.get('sessions/s1/shuttleArrivalReceipts/transit-1')!;
+  expect(receipt.result).toMatchObject({ status: 'arrived', hostShipId: 'icebreaker' });
+  expect(receipt.eventId).not.toBe(claimedEventPath.split('/').at(-1));
+  expect(mock.documents.get(claimedReceiptPath)).toEqual(claimedReceipt);
+  expect(mock.documents.get(claimedEventPath)).toEqual(claimedEvent);
+  expect(mock.documents.get(`sessions/s1/events/${receipt.eventId}`))
+    .toMatchObject({ type: 'shuttle-arrival', shuttleId: 'starlight' });
+});
+
 it('fails closed on replay when the committed member event is missing or unsafe', async () => {
   await completeShuttleArrival.run(request());
-  mock.documents.delete('sessions/s1/events/shuttle-arrival-transit-1');
+  const receipt = mock.documents.get('sessions/s1/shuttleArrivalReceipts/transit-1')!;
+  const eventPath = `sessions/s1/events/${receipt.eventId}`;
+  mock.documents.delete(eventPath);
   await expect(completeShuttleArrival.run(request()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   const restoredEvent: Fields = {
     type: 'shuttle-arrival', sessionId: 's1', requestId: 'arrival-transit-1',
     visibility: 'member', shuttleId: 'starlight', actorUid: 'holder',
   };
-  put('sessions/s1/events/shuttle-arrival-transit-1', restoredEvent);
+  put(eventPath, restoredEvent);
   await expect(completeShuttleArrival.run(request()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { commandError } from './commandErrors';
@@ -106,6 +107,7 @@ function replayArrival(
   requestId: string,
   transitRequestId: string,
   shuttleId: string,
+  eventId: unknown,
 ): ShuttleArrivalReply | null {
   if (!receipt.exists) return null;
   const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprint);
@@ -118,6 +120,9 @@ function replayArrival(
   const result = receipt.get('result');
   if (!isShuttleArrivalReply(result, sessionId, requestId, transitRequestId, shuttleId)) {
     throw commandError('failed-precondition', 'This shuttle arrival has no replayable result.', 'conflict');
+  }
+  if (typeof eventId !== 'string' || !/^shuttle-arrival-[\w-]{36}$/.test(eventId)) {
+    throw commandError('failed-precondition', 'This shuttle arrival has no replayable event.', 'conflict');
   }
   return result;
 }
@@ -157,23 +162,28 @@ export function createCompleteShuttleArrivalCallable() {
   const db = getFirestore();
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
-  const receiptRef = db.doc(`sessions/${data.sessionId}/commandReceipts/${requestId}`);
+  const receiptRef = db.doc(`sessions/${data.sessionId}/shuttleArrivalReceipts/${data.transitRequestId}`);
   const transitRef = db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`);
-  const eventRef = db.doc(`sessions/${data.sessionId}/events/shuttle-arrival-${data.transitRequestId}`);
   const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
+  const proposedEventId = `shuttle-arrival-${randomUUID()}`;
 
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, transitSnapshot, eventSnapshot, attackState] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef),
-      tx.get(eventRef), tx.get(attackStateRef),
+    const [session, actor, receipt, transitSnapshot, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const now = Date.now();
     if (!activePlayer(actor, now)) {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may complete arrival.');
     }
+    const eventId = receipt.exists ? receipt.get('eventId') : proposedEventId;
+    if (typeof eventId !== 'string' || !/^shuttle-arrival-[\w-]{36}$/.test(eventId)) {
+      throw commandError('failed-precondition', 'This shuttle arrival has no replayable event.', 'conflict');
+    }
+    const eventRef = db.doc(`sessions/${data.sessionId}/events/${eventId}`);
+    const eventSnapshot = await tx.get(eventRef);
     const replay = replayArrival(
-      receipt, fingerprint, data.sessionId, requestId, data.transitRequestId, data.shuttleId,
+      receipt, fingerprint, data.sessionId, requestId, data.transitRequestId, data.shuttleId, eventId,
     );
     if (replay) {
       if (!eventSnapshot.exists || !isSafeArrivalEvent(eventSnapshot.data(), data.sessionId, requestId, data.shuttleId)) {
@@ -291,7 +301,12 @@ export function createCompleteShuttleArrivalCallable() {
     });
     tx.delete(transitRef);
     tx.create(eventRef, event);
-    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    tx.create(receiptRef, {
+      fingerprint,
+      result: reply,
+      eventId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     return reply;
   });
   });
