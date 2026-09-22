@@ -740,14 +740,14 @@ it('hydrates only bounded Macaw repair history', () => {
       cycle: 3, revision: 2,
       hosts: [
         { shipId: 'capybara', systemIds: ['reactor', 'storage'] },
-        { shipId: 'aegis', systemIds: ['jump-drive'] },
+        { shipId: 'aegis', systemIds: ['jump-drive', 'fighter-bay-alpha'] },
       ],
     },
   }).macawRepairs).toEqual({
     cycle: 3, revision: 2,
     hosts: [
       { shipId: 'capybara', systemIds: ['reactor', 'storage'] },
-      { shipId: 'aegis', systemIds: ['jump-drive'] },
+      { shipId: 'aegis', systemIds: ['jump-drive', 'fighter-bay-alpha'] },
     ],
   });
   expect(sessionFrom('bad-macaw-history', {

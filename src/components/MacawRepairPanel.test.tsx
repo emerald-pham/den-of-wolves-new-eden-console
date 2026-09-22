@@ -113,3 +113,20 @@ it('uses Capybara Scrap for an eligible fuelled second host', async () => {
     expectedRepairRevision: 1, expectedHostShipId: 'aegis', systemIds: ['reactor'],
   })));
 });
+
+it('uses Capybara Scrap for a first repair on an Aegis host without host Scrap', async () => {
+  mocks.repair.mockResolvedValue({
+    status: 'committed', hostShipId: 'aegis', systemIds: ['reactor'],
+    scrapRemaining: 2, cycle: 3, repairRevision: 1,
+  } satisfies MacawRepairResult);
+  installSession();
+  renderMacaw(control, { shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'now' });
+  const repair = screen.getByRole('region', { name: 'Macaw console repair' });
+  expect(within(repair).getByText(/Capybara Scrap \/\/ 3/)).toBeInTheDocument();
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  expect(within(repair).getByRole('button', { name: 'Repair selected consoles' })).toBeEnabled();
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledWith(expect.objectContaining({
+    expectedRepairRevision: 0, expectedHostShipId: 'aegis', systemIds: ['reactor'],
+  })));
+});
