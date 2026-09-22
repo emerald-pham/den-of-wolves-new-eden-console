@@ -65,10 +65,12 @@ const MEMBER_ENVELOPE_FIELDS = [
   'createdAt',
 ] as const;
 
-// Arrival events tell members that a shuttle completed its trip without
-// exposing the holder identity or the private transit route.
+// Arrival and Philia repair events report their public operational outcome
+// without exposing the holder identity, role, or private authority path.
 const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>> = {
   'shuttle-arrival': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'philia-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
 };
 

@@ -88,8 +88,7 @@ describe('buildPrivacySafeEventRecord', () => {
       },
       createdAt: 'server-time',
     })).toEqual({
-      sessionId: 's1', actorUid: 'engineer', actorRoleId: 'dione-engineer',
-      turn: 3, phase: 'active', type: 'philia-repair', requestId: 'repair-1',
+      sessionId: 's1', turn: 3, phase: 'active', type: 'philia-repair', requestId: 'repair-1',
       revision: 2, serverTime: '2026-09-22T15:00:00.000Z',
       visibility: EventVisibility.Member, createdAt: 'server-time',
       shuttleId: 'philia', hostShipId: 'dione', systemIds: ['reactor', 'storage'],
