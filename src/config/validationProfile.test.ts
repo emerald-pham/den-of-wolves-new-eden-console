@@ -137,6 +137,75 @@ describe('validation profiles', () => {
     expect(data.commands).not.toContain('npm run test:ticker:browser');
   });
 
+  it('keeps a P603-shaped render harness and global CSS release range focused', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'docs/IMPLEMENTATION_PLAN.md',
+        'docs/implementation-prompts.json',
+        'package-lock.json',
+        'package.json',
+        'scripts/prompt-603-render.mjs',
+        'src/changelog.ts',
+        'src/index.css',
+        'src/styles/aesthetic.test.ts',
+      ],
+      versionMetadataOnly: true,
+    });
+    expect(profile.kind).toBe('focused');
+    expect(profile.requiresReview).toBe(false);
+    expect(profile.commands).toContain('npm run test:font-consistency');
+    expect(profile.commands).toContain('npm run test:ticker:browser');
+    expect(profile.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(profile.commands).toContain('node scripts/check-bundle-size.mjs');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run build --prefix functions');
+  });
+
+  it('keeps a P611-shaped application chrome release range focused', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'docs/IMPLEMENTATION_PROGRESS.md',
+        'docs/implementation-prompts.json',
+        'package-lock.json',
+        'package.json',
+        'src/App.test.tsx',
+        'src/changelog.ts',
+        'src/components/ContactPlot.test.tsx',
+        'src/components/ContactPlot.tsx',
+        'src/components/ShipPlot.test.tsx',
+        'src/styles/plot.css',
+      ],
+      versionMetadataOnly: true,
+    });
+    expect(profile.kind).toBe('focused');
+    expect(profile.commands).toContain('npm run test:font-consistency');
+    expect(profile.commands).toContain('npm run test:ticker:browser');
+    expect(profile.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(profile.commands).toContain('node scripts/check-bundle-size.mjs');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run build --prefix functions');
+  });
+
+  it('keeps mixed server changes on the full fail-closed profile', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['scripts/prompt-603-render.mjs', 'src/index.css', 'functions/src/index.ts'],
+      versionMetadataOnly: true,
+    });
+    expect(profile.kind).toBe('full');
+    expect(profile.requiresReview).toBe(true);
+    expect(profile.commands).toContain('npm run test:all');
+    expect(profile.commands).toContain('npm run build --prefix functions');
+  });
+
+  it('fails closed for an unrecognized prompt render script', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['scripts/prompt-unknown-render.mjs', 'src/index.css'],
+    });
+    expect(profile.kind).toBe('full');
+    expect(profile.requiresReview).toBe(true);
+    expect(profile.commands).toContain('npm run test:all');
+  });
+
   it('retains independent review for capacity and release evidence tooling', () => {
     for (const file of [
       'scripts/prompt-639-browser-capacity.mjs',

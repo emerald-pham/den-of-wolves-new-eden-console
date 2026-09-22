@@ -9,6 +9,8 @@ const WEB_PATTERN = /^(?:src\/|public\/|index\.html$|package(?:-lock)?\.json$|ts
 const FUNCTIONS_PATTERN = /^functions\//i;
 const FIRESTORE_PATTERN = /^(?:firestore\.rules|firestore\.indexes\.json)$/i;
 const ROOT_TOOLING_PATTERN = /^(?:scripts\/|config\/|\.github\/|\.githooks\/|eslint\.config\.|vitest\.config\.)/i;
+const UI_RENDER_HARNESS_PATTERN = /^scripts\/prompt-\d+[a-z]?-(?:render|geometry)(?:-[a-z0-9-]+)?\.mjs$/i;
+const UNRECOGNIZED_RENDER_HARNESS_PATTERN = /^scripts\/prompt-[^/]+-(?:render|geometry)(?:-[^/]*)?\.mjs$/i;
 
 // The ticker is shared application chrome. Route composition, session
 // projection, global styling, dependencies, and the ticker harness can all
@@ -21,7 +23,7 @@ const FONT_PATTERN = /^(?:src\/(?:App|main)\.[^/]+|src\/index\.css|src\/(?:compo
 
 // The sustained-render benchmark is intentionally narrower than general UI:
 // run it for the tactical canvases/styles and for its own harness or budgets.
-const RENDER_PATTERN = /^(?:src\/(?:components|routes)\/[^/]*(?:Dradis|DRADIS|Starmap|StarMap|ContactPlot)[^/]*|src\/styles\/starmap\.css$|src\/index\.css$|scripts\/prompt-637-render-performance\.mjs$|config\/render-performance[^/]*\.json$)/i;
+const RENDER_PATTERN = /^(?:src\/(?:components|routes)\/[^/]*(?:Dradis|DRADIS|Starmap|StarMap|ContactPlot)[^/]*|src\/styles\/starmap\.css$|src\/index\.css$|scripts\/prompt-\d+[a-z]?-(?:render|geometry)(?:-[a-z0-9-]+)?\.mjs$|config\/render-performance[^/]*\.json$)/i;
 
 function normalize(files) {
   return [...new Set(files.map((file) => String(file ?? '').trim()
@@ -107,7 +109,9 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
     !FIRESTORE_PATTERN.test(file) && !ROOT_TOOLING_PATTERN.test(file) &&
     file !== 'firebase.json' && file !== '.firebaserc');
   const firebaseConfig = nonDocumentation.some((file) => file === 'firebase.json' || file === '.firebaserc');
-  const failClosed = unknown || firebaseConfig;
+  const unrecognizedRenderHarness = nonDocumentation.some((file) =>
+    UNRECOGNIZED_RENDER_HARNESS_PATTERN.test(file) && !UI_RENDER_HARNESS_PATTERN.test(file));
+  const failClosed = unknown || firebaseConfig || unrecognizedRenderHarness;
   const ticker = riskProductionFiles.some((file) => TICKER_PATTERN.test(file)) || failClosed;
   const font = riskProductionFiles.some((file) => FONT_PATTERN.test(file)) || failClosed;
   const render = riskProductionFiles.some((file) => RENDER_PATTERN.test(file)) || failClosed;

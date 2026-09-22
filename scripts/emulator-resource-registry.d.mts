@@ -180,6 +180,7 @@ export interface ReleaseState {
   readonly mainVersion: string;
   readonly branchLockVersion: string;
   readonly mainLockVersion: string;
+  readonly versionMetadataOnly?: boolean;
   readonly branchChangelog: readonly ChangelogSnapshotEntry[];
   readonly mainChangelog: readonly ChangelogSnapshotEntry[];
   readonly validationProfile?: ValidationProfile;
@@ -234,7 +235,11 @@ export interface ValidationPlan {
 export function deriveCopyOnlyValidationProfile(options?: Readonly<Record<string, unknown>>): ValidationProfile;
 export function validationPlanForFiles(
   changedFiles?: readonly string[],
-  options?: { readonly profile?: ValidationProfile; readonly affectedTests?: readonly string[] },
+  options?: {
+    readonly profile?: ValidationProfile;
+    readonly affectedTests?: readonly string[];
+    readonly versionMetadataOnly?: boolean;
+  },
 ): ValidationPlan;
 export function coordinationFilePath(
   environment?: Readonly<Record<string, string | undefined>>,

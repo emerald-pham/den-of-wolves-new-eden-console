@@ -52,7 +52,7 @@ function releaseSnapshot(changedFiles: readonly string[], branchSha = 'validated
   };
 }
 
-async function releaseGitFixture({ largeDiff = false }: { largeDiff?: boolean } = {}) {
+async function releaseGitFixture({ largeDiff = false, versionBump = false }: { largeDiff?: boolean; versionBump?: boolean } = {}) {
   const root = await mkdtemp(resolve(tmpdir(), `emulator-release-${randomUUID()}-`));
   const remote = resolve(root, 'remote.git');
   const directory = resolve(root, 'checkout');
@@ -77,7 +77,11 @@ async function releaseGitFixture({ largeDiff = false }: { largeDiff?: boolean } 
       `export const catalog = ${JSON.stringify('x'.repeat(1_100_000))};\n`,
     );
   }
-  await execFileAsync('git', ['add', 'scripts'], { cwd: directory });
+  if (versionBump) {
+    await writeFile(resolve(directory, 'package.json'), '{"name":"release-fixture","version":"1.0.1"}\n');
+    await writeFile(resolve(directory, 'package-lock.json'), '{"name":"release-fixture","version":"1.0.1","lockfileVersion":3,"packages":{"":{"name":"release-fixture","version":"1.0.1"}}}\n');
+  }
+  await execFileAsync('git', ['add', 'scripts', 'package.json', 'package-lock.json'], { cwd: directory });
   await execFileAsync('git', ['commit', '-m', 'candidate change'], { cwd: directory });
   const branchSha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: directory })).stdout.trim();
   const mainSha = (await execFileAsync('git', ['rev-parse', 'main'], { cwd: directory })).stdout.trim();
@@ -483,8 +487,28 @@ describe('simplified coordination registry', () => {
     expect(plan.commands).toContain('npm run lint');
   });
 
+  it('passes release metadata-only evidence through the focused UI plan', () => {
+    const plan = validationPlanForFiles([
+      'package.json',
+      'package-lock.json',
+      'src/changelog.ts',
+      'scripts/prompt-611-render.mjs',
+      'src/index.css',
+    ], { versionMetadataOnly: true });
+    expect(plan.profile.kind).toBe('focused');
+    expect(plan.commands).toContain('npm run test:ticker:browser');
+    expect(plan.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(plan.commands).toContain('node scripts/check-bundle-size.mjs');
+    expect(plan.commands).not.toContain('npm run test:all');
+    expect(plan.commands).not.toContain('npm run build --prefix functions');
+  });
+
   it('maps generated-roadmap validation to the executable npm script', () => {
     expect(validationCommandArguments('npm run roadmap:check')).toEqual(['run', 'roadmap:check']);
+    expect(validationCommandArguments('node scripts/prompt-637-render-performance.mjs'))
+      .toEqual(['scripts/prompt-637-render-performance.mjs']);
+    expect(validationCommandArguments('node scripts/check-bundle-size.mjs'))
+      .toEqual(['scripts/check-bundle-size.mjs']);
     expect(() => validationCommandArguments('npm run unknown-check')).toThrow(/No executable validation mapping/);
   });
 
@@ -552,6 +576,22 @@ describe('simplified coordination registry', () => {
       });
       expect(release.changedFiles).toContain('scripts/catalog-sized-change.mjs');
       expect(release.validationProfile?.evidence?.diffIdentity).toMatch(/^[0-9a-f]{64}$/);
+    } finally {
+      await rm(fixtureState.root, { recursive: true, force: true });
+    }
+  });
+
+  it('derives metadata-only release state before selecting the UI profile', async () => {
+    const fixtureState = await releaseGitFixture({ versionBump: true });
+    try {
+      const release = await readReleaseState({
+        cwd: fixtureState.directory,
+        startBranchSha: fixtureState.branchSha,
+      });
+      expect(release.versionMetadataOnly).toBe(true);
+      expect(release.validationProfile?.kind).toBe('tooling');
+      expect(release.validationProfile?.commands).not.toContain('npm run test:all');
+      expect(release.validationProfile?.commands).not.toContain('npm run build --prefix functions');
     } finally {
       await rm(fixtureState.root, { recursive: true, force: true });
     }

@@ -40,6 +40,7 @@ import {
   deriveCopyOnlyValidationProfile,
   deriveValidationProfile,
 } from './validation-profile.mjs';
+import { isVersionMetadataOnlyPackageChange } from './risk-gates.mjs';
 
 export { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
 export {
@@ -163,12 +164,17 @@ function contentIdentity(content) {
   return createHash('sha256').update(String(content)).digest('hex');
 }
 
-export function validationPlanForFiles(changedFiles = [], { profile, affectedTests = [] } = {}) {
+export function validationPlanForFiles(changedFiles = [], { profile, affectedTests = [], versionMetadataOnly = false } = {}) {
   const files = (Array.isArray(changedFiles) ? changedFiles : [])
     .filter((filePath) => typeof filePath === 'string' && filePath.trim())
     .map(normalizePath);
   const documentationOnly = files.length > 0 && files.every(isDocumentationFile);
-  const derived = profile ?? deriveValidationProfile({ changedFiles: files, affectedTests, repositoryDirectory: process.cwd() });
+  const derived = profile ?? deriveValidationProfile({
+    changedFiles: files,
+    affectedTests,
+    versionMetadataOnly,
+    repositoryDirectory: process.cwd(),
+  });
   return {
     documentationOnly,
     requiresDocumentationReview: false,
@@ -378,13 +384,25 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   });
   const changedFiles = await readChangedFiles(base, branchSha, cwd);
   const diffText = await runGit(['diff', '--unified=0', `${base}...${branchSha}`], cwd);
-  const profile = deriveValidationProfile({ changedFiles, repositoryDirectory: cwd });
+  let versionMetadataOnly = false;
+  try {
+    versionMetadataOnly = isVersionMetadataOnlyPackageChange({
+      beforePackage: JSON.parse(mainPackage),
+      afterPackage: JSON.parse(branchPackage),
+      beforeLockfile: JSON.parse(mainLock),
+      afterLockfile: JSON.parse(branchLock),
+    });
+  } catch {
+    versionMetadataOnly = false;
+  }
+  const profile = deriveValidationProfile({ changedFiles, repositoryDirectory: cwd, versionMetadataOnly });
   return {
     branchName, branchSha, mainSha, originTrackingMainSha: trackingMain, originMainSha,
     mainContainsBranch, mainIsAncestorOfBranch, worktreeClean: status.length === 0,
     branchVersion, mainVersion,
     branchLockVersion: parseLockfileVersion(branchLock, 'HEAD:package-lock.json'),
     mainLockVersion: parseLockfileVersion(mainLock, `${main.ref}:package-lock.json`),
+    versionMetadataOnly,
     branchChangelog: parseChangelogSnapshot(branchChangelog, branchVersion),
     mainChangelog: parseChangelogSnapshot(mainChangelog, mainVersion),
     changedFiles,
@@ -951,6 +969,8 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run test:all', ['run', 'test:all']],
   ['npm run test:font-consistency', ['run', 'test:font-consistency']],
   ['npm run test:ticker:browser', ['run', 'test:ticker:browser']],
+  ['node scripts/prompt-637-render-performance.mjs', ['scripts/prompt-637-render-performance.mjs']],
+  ['node scripts/check-bundle-size.mjs', ['scripts/check-bundle-size.mjs']],
   ['npm run roadmap:check', ['run', 'roadmap:check']],
   ['npm run build', ['run', 'build']],
   ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
@@ -1150,7 +1170,12 @@ export async function validateCoordinationEntry(filePath, options = {}) {
     );
   }
   const files = changedFilesForRelease(release, snapshot);
-  const profile = deriveValidationProfile({ changedFiles: files, repositoryDirectory: process.cwd(), forceFull: options.forceFull === true });
+  const profile = deriveValidationProfile({
+    changedFiles: files,
+    repositoryDirectory: process.cwd(),
+    forceFull: options.forceFull === true,
+    versionMetadataOnly: release.versionMetadataOnly === true,
+  });
   const commands = validationPlanForFiles(files, { profile }).commands;
   const releaseEvidence = objectRecord(release.validationProfile?.evidence);
   const validationBaseSha = text(releaseEvidence.baseSha);

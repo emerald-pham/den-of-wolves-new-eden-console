@@ -68,7 +68,11 @@ const FULL_VALIDATION_COMMANDS = Object.freeze([
 ]);
 
 const TOOLING_PATH_PATTERN = /^(?:scripts\/|\.githooks\/|\.github\/|docs\/implementation-prompts\.json$|vitest\.config\.|eslint\.config\.)/i;
-const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|public\/|index\.html$)/i;
+const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|src\/index\.css$|public\/|index\.html$)/i;
+const UI_RENDER_HARNESS_PATH_PATTERN = /^scripts\/prompt-\d+[a-z]?-(?:render|geometry)(?:-[a-z0-9-]+)?\.mjs$/i;
+const UNRECOGNIZED_RENDER_HARNESS_PATH_PATTERN = /^scripts\/prompt-[^/]+-(?:render|geometry)(?:-[^/]*)?\.mjs$/i;
+const RELEASE_METADATA_PATH_PATTERN = /^(?:package\.json|package-lock\.json|src\/changelog\.ts)$/i;
+const ROADMAP_METADATA_PATH_PATTERN = /^docs\/implementation-prompts\.json$/i;
 const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
 const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
 const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|config\/[^/]*(?:capacity|release)[^/]*\.json$|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile|deployment-targets|risk-gates|verify-deployment|verify-functions-artifact|[^/]*(?:capacity|release)[^/]*)\.mjs$)/i;
@@ -148,13 +152,16 @@ export function deriveValidationProfile({
   changedFiles = [],
   affectedTests = [],
   forceFull = false,
+  versionMetadataOnly = false,
   repositoryDirectory = process.cwd(),
 } = {}) {
   const files = normalizedFiles(changedFiles);
-  const riskGates = classifyRiskGates(files);
+  const riskGates = classifyRiskGates(files, { versionMetadataOnly });
   const riskCommands = [
     ...(riskGates.font ? ['npm run test:font-consistency'] : []),
     ...(riskGates.ticker ? ['npm run test:ticker:browser'] : []),
+    ...(riskGates.render ? ['node scripts/prompt-637-render-performance.mjs'] : []),
+    ...(riskGates.bundle ? ['node scripts/check-bundle-size.mjs'] : []),
   ];
   const roadmapCommands = files.includes('docs/implementation-prompts.json')
     ? ['npm run roadmap:check']
@@ -176,12 +183,17 @@ export function deriveValidationProfile({
     };
   }
 
-  const nonDocumentationFiles = files.filter((file) => !isDocumentationPath(file));
+  const nonDocumentationFiles = files
+    .filter((file) => !isDocumentationPath(file) && !ROADMAP_METADATA_PATH_PATTERN.test(file))
+    .filter((file) => !versionMetadataOnly || !RELEASE_METADATA_PATH_PATTERN.test(file));
   const hasFunctionsTests = nonDocumentationFiles.some((file) =>
     /^functions\//i.test(file) && TEST_PATH_PATTERN_ANY.test(file));
   const requiresExactSecurityReview = files.some((file) => SECURITY_GOVERNANCE_PATH_PATTERN.test(file));
+  const unrecognizedRenderHarness = nonDocumentationFiles.some((file) =>
+    UNRECOGNIZED_RENDER_HARNESS_PATH_PATTERN.test(file) && !UI_RENDER_HARNESS_PATH_PATTERN.test(file));
   const highRisk = forceFull || requiresExactSecurityReview ||
-    files.some((file) => HIGH_RISK_PATH_PATTERN.test(file) && !TEST_PATH_PATTERN_ANY.test(file));
+    unrecognizedRenderHarness ||
+    nonDocumentationFiles.some((file) => HIGH_RISK_PATH_PATTERN.test(file) && !TEST_PATH_PATTERN_ANY.test(file));
   if (highRisk) {
     return {
       kind: 'full',
@@ -197,11 +209,21 @@ export function deriveValidationProfile({
     };
   }
 
+  if (nonDocumentationFiles.length === 0) {
+    return {
+      kind: 'tooling',
+      reason: 'release metadata-only changes use a diff and generated-roadmap check',
+      commands: ['git diff --check', ...roadmapCommands],
+      requiresReview: false,
+    };
+  }
+
   // Tests exercise risky paths but do not change their runtime authority. Keep
   // their validation focused on the edited suites and relevant type builds;
   // an independent review remains reserved for production-path changes.
   const testOnly = nonDocumentationFiles.length > 0 &&
-    nonDocumentationFiles.every((file) => TEST_PATH_PATTERN_ANY.test(file));
+    nonDocumentationFiles.every((file) => TEST_PATH_PATTERN_ANY.test(file)) &&
+    !files.some((file) => ROADMAP_METADATA_PATH_PATTERN.test(file));
   if (testOnly) {
     const webTests = nonDocumentationFiles.some((file) => !/^functions\//i.test(file));
     return {
@@ -220,11 +242,12 @@ export function deriveValidationProfile({
     };
   }
 
-  const tooling = nonDocumentationFiles.some((file) => TOOLING_PATH_PATTERN.test(file)) &&
+  const hasRoadmapMetadata = files.some((file) => ROADMAP_METADATA_PATH_PATTERN.test(file));
+  const tooling = (hasRoadmapMetadata || nonDocumentationFiles.some((file) => TOOLING_PATH_PATTERN.test(file))) &&
     nonDocumentationFiles.every((file) => TOOLING_PATH_PATTERN.test(file) || TEST_PATH_PATTERN_ANY.test(file));
   const uiOrData = nonDocumentationFiles.some((file) => UI_PATH_PATTERN.test(file) || DATA_HELPER_PATH_PATTERN.test(file)) &&
     nonDocumentationFiles.every((file) => UI_PATH_PATTERN.test(file) ||
-      DATA_HELPER_PATH_PATTERN.test(file) || TEST_PATH_PATTERN_ANY.test(file));
+      UI_RENDER_HARNESS_PATH_PATTERN.test(file) || DATA_HELPER_PATH_PATTERN.test(file) || TEST_PATH_PATTERN_ANY.test(file));
   const discoveredTests = discoverAffectedTests(files, affectedTests, repositoryDirectory);
   if (tooling) {
     return {

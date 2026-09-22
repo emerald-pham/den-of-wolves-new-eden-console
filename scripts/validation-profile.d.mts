@@ -17,6 +17,7 @@ export function deriveValidationProfile(options?: {
   readonly changedFiles?: readonly string[];
   readonly affectedTests?: readonly string[];
   readonly forceFull?: boolean;
+  readonly versionMetadataOnly?: boolean;
   readonly repositoryDirectory?: string;
 }): ValidationProfile;
 

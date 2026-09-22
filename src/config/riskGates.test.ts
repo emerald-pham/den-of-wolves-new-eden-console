@@ -144,6 +144,56 @@ describe('risk-based CI gates', () => {
     });
   });
 
+  it('recognizes prompt render harnesses without selecting server gates', () => {
+    expect(classifyRiskGates([
+      'scripts/prompt-603-render.mjs',
+      'src/index.css',
+    ])).toMatchObject({
+      unit: true,
+      webBuild: true,
+      ticker: true,
+      font: true,
+      render: true,
+      bundle: true,
+      functions: false,
+      firestore: false,
+    });
+  });
+
+  it('fails closed for an unrecognized prompt render harness', () => {
+    expect(classifyRiskGates([
+      'scripts/prompt-unknown-render.mjs',
+      'src/index.css',
+    ])).toMatchObject({
+      unit: true,
+      functions: true,
+      firestore: true,
+      webBuild: true,
+      ticker: true,
+      font: true,
+      render: true,
+      bundle: true,
+    });
+  });
+
+  it('preserves browser gates while a mixed server change stays fail closed', () => {
+    expect(classifyRiskGates([
+      'scripts/prompt-611-render.mjs',
+      'src/index.css',
+      'functions/src/index.ts',
+      'firestore.rules',
+    ])).toMatchObject({
+      unit: true,
+      functions: true,
+      firestore: true,
+      webBuild: true,
+      ticker: true,
+      font: true,
+      render: true,
+      bundle: true,
+    });
+  });
+
   it('fails closed for unknown paths and manual releases', () => {
     for (const profile of [
       classifyRiskGates(['unexpected.production']),
