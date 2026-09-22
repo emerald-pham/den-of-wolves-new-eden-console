@@ -10,7 +10,7 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete landing JavaScript, raw | 1,600,000 bytes |
+| Complete application JavaScript, raw | 1,700,000 bytes |
 | Complete landing JavaScript, gzip | 460,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
@@ -46,3 +46,11 @@ p95 with 49 frames over 50 ms. The enforced limits leave bounded runner
 headroom while still rejecting roughly doubled render cost or a sustained drop
 below about eight update frames per second. Local results are expected to be
 faster and do not replace the CI-host baseline.
+
+Baseline version 4 raises only the complete raw-JavaScript ceiling from
+1,660,000 to 1,700,000 bytes after GitHub Actions run `35749928263` measured
+1,676,531 bytes for the reviewed universal status and playable Philia repair
+releases. The gzip ceiling remains 460,000 bytes, the largest-chunk ceiling
+remains 512,000 bytes, and every startup, render-update, and mobile-frame
+budget is unchanged. This keeps the intentional feature growth explicit while
+retaining the network-size and runtime-performance regression limits.
