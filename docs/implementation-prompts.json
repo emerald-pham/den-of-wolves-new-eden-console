@@ -4412,6 +4412,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "603 -> NARROW-SHIP-CONSOLE-READABILITY",
+      "id": "E-603-NARROW-SHIP-CONSOLES",
+      "language": "Ship-console resource labels now use the shared console monospace family at a readable narrow-phone size and wrap without truncating critical values. On short-landscape joined ship routes, the shared header participates in page scrolling so status, maintenance order, damage, stores, and the primary action remain reachable without being covered; the selector stays scoped away from other routed surfaces and preserves the always-visible FleetBroadcast ticker. A source-component browser matrix covers 320x740, 390x844, 844x390, and 1440x900 in normal and reduced motion, checking critical-region visibility, wrapping, horizontal containment, 44px touch targets, keyboard focus, and console typography; the independent FleetBroadcast browser lifecycle gate covers ticker presence and handoff behavior.",
+      "source": "src/index.css; src/styles/aesthetic.test.ts; scripts/prompt-603-render.mjs; scripts/test-fleet-ticker-browser.mjs",
+      "type": "evidence / production-path / responsive / narrow-phone / short-landscape / accessibility / font / ticker / rendered review / regression"
+    },
+    {
       "direction": "604 -> 603",
       "id": "E-AUDIT-604",
       "language": "Short-landscape maintenance extends narrow-console layout.",
@@ -21740,15 +21747,15 @@
       "tag": "REPAIR"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "maintenance order, stores, damage, status, and primary action remain readable without clipped critical content.",
         "title": "Make ship consoles work on narrow phones."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-603",
+      "description": "Release 0.4.95 keeps ship-console status, maintenance order, damage, stores, and primary actions readable at narrow-phone and short-landscape sizes. Resource labels use the shared console monospace family at a readable size and wrap instead of clipping, while the short-landscape joined ship header scrolls with the page so critical content stays reachable. Focused static tests and a real-browser matrix cover 320x740, 390x844, 844x390, and 1440x900 in normal and reduced motion, including critical-region visibility, wrapping, keyboard focus, 44px touch targets, horizontal containment, and console typography. The full font-consistency and FleetBroadcast lifecycle gates protect the space-console aesthetic and persistent ticker.",
+      "evidenceIds": "E-AUDIT-603;E-603-NARROW-SHIP-CONSOLES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361",
@@ -21756,10 +21763,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.95"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

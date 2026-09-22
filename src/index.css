@@ -5630,6 +5630,21 @@ body {
   .ship-console:not(.shuttle-console) .ship-console__instruments {
     order: -1;
   }
+
+  .ship-resources li { min-height: 2.75rem; }
+  .ship-resources li .resource-label > span {
+    overflow: visible;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+/* Short landscape ship consoles scroll the session chrome away with the page,
+   so its tall status block cannot cover damage, stores, or actions while reading. */
+@media (max-height: 42rem) and (min-width: 48.01rem) {
+  html:has(.ship-console--gameplay) .app-header { position: absolute; }
 }
 
 /* Printed ship-sheet flow: numbered maintenance with phase systems alongside. */

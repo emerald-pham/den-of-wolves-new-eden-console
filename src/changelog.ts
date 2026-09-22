@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [603],
+    implementationProgress: {
+      completed: 461, total: 751, percentage: '61.38%',
+      done: 461, partial: 13, active: 0, missing: 277,
+    },
+    changes: [
+      'Ship-console status, maintenance order, damage, stores, and primary actions now stay readable on narrow phones without clipped resource labels.',
+      'On short landscape screens, the console header scrolls with the page so critical controls remain reachable.',
+      '461 of 751 planned items are complete (61.38%).',
+    ],
+  },
+  {
+    version: '0.4.94',
     implementationPrompts: [367],
     implementationProgress: {
       completed: 460, total: 751, percentage: '61.25%',

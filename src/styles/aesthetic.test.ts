@@ -495,6 +495,14 @@ describe('ship console instrument layout', () => {
   }`);
   });
 
+  it('lets the tall session header scroll away on short landscape ship consoles', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /@media \(max-height: 42rem\) and \(min-width: 48\.01rem\)\s*\{\s*html:has\(\.ship-console--gameplay\) \.app-header\s*\{\s*position: absolute;\s*\}\s*\}/,
+    );
+  });
+
   it('formats compact phone galactic coordinates as a short stacked readout', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
 
@@ -524,6 +532,24 @@ describe('ship console instrument layout', () => {
     expect(rail).toContain('--ship-plot-widget-size');
     expect(bay).toContain('overflow: auto');
     expect(bay).toContain('min-height: 0');
+  });
+
+  it('keeps ship resource names readable without ellipses on phones and short screens', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const compactBlocks = [...index.matchAll(
+      /@media \(max-width: 42rem\), \(max-height: 42rem\) \{([\s\S]*?)(?=\n\})/g,
+    )].map((match) => match[1] ?? '');
+    const compact = compactBlocks.find((block) => block.includes('.ship-resources li')) ?? '';
+    const rows = compact.match(/\.ship-resources li\s*\{([^}]*)\}/)?.[1] ?? '';
+    const labels = compact.match(
+      /\.ship-resources li \.resource-label > span\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(rows).toContain('min-height: 2.75rem');
+    expect(labels).toContain('font-size: 0.72rem');
+    expect(labels).toContain('overflow: visible');
+    expect(labels).toContain('text-overflow: clip');
+    expect(labels).toContain('white-space: normal');
   });
 
   it('keeps the pursuit rail directly below DRADIS when a ship console enters narrow document flow', () => {
