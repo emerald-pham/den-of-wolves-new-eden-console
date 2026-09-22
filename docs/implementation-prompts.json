@@ -6104,6 +6104,13 @@
       "language": "Prompt 611's explicit compact/expanded DRADIS fleetRedAlert slice is implemented: ContactPlot derives one visible RED ALERT cue and one role=status FLEETWIDE RED ALERT ACTIVE announcement from the current session projection; the semantic node stays outside the aria-hidden geometry and survives ShipPlot zoom, session activation/Stand Down/replay/late join, reconnect, and reduced motion. Focused ContactPlot/ShipPlot tests pass 52/52, ShipConsole/GmConsole integration tests pass 215/215, the console-font gate passes 60/60, and the production build passes. Exact-candidate Chrome evidence at 320x844, 390x844, 1440x900, and 844x390 in normal/reduced motion confirms compact/expanded cues, Stand Down removal, no horizontal overflow, and no browser errors. P605a attack visualization remains deferred.",
       "source": "src/components/ContactPlot.tsx; src/components/ContactPlot.test.tsx; src/components/ShipPlot.test.tsx; src/styles/plot.css; src/routes/ShipConsole.test.tsx; src/routes/GmConsole.test.tsx; npm run test:font-consistency; npm run build; /tmp/p611-exact-render-20260922.json",
       "type": "evidence / accessibility / responsive / rendered review / build"
+    },
+    {
+      "direction": "672",
+      "id": "E-672-VERIFIED",
+      "language": "Release 0.4.97 exposes the existing authoritative shuttlebay history as an accessible main-ship-console live list: each docked visit retains server-projected ship/session scope and order while rendering a readable occurrence time, shuttle, and port; legacy cycle labels display as CYCLE, departure records remain omitted, the empty state stays explicit, and live/reconnect snapshots update without client-owned history or duplicate events. Focused ShipConsole and shuttle projection tests pass 138/138. The console-font and shared ticker gates, production build, and fresh Chrome evidence at 320x844, 390x844, 1440x900, and 844x390 in normal/reduced motion cover populated, empty, and updated history with no horizontal overflow or browser errors while non-GM DRADIS remains present.",
+      "source": "src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/data/shuttles.ts; src/data/shuttles.test.ts; npm run test:all; npm run test:font-consistency; npm run test:ticker:browser; npm run build; npm run build --prefix functions; /tmp/p672-docking-history-render-20260922.json",
+      "type": "evidence / accessibility / projection / responsive / rendered review / build"
     }
   ],
   "plan": {
@@ -23557,8 +23564,8 @@
         "acceptance": "Make the shuttle docking history currently shown in the right sidebar available within the main ship consoles, reusing the existing authoritative history and shared presentation where practical. Preserve chronological ordering, live/reconnect updates, ship/session scoping, privacy and read permissions, and existing docking behavior without introducing client-owned history or duplicate events. Keep the existing sidebar usable unless a separately accepted design changes it. Verify populated, empty, and updated history with accessible readable layout at phone, desktop, and short-landscape sizes, reduced motion, and unchanged non-GM DRADIS behavior.",
         "title": "Show shuttle docking history in main ship consoles."
       },
-      "description": "Owner-requested placement of existing right-sidebar shuttle docking history inside main ship consoles, preserving its data authority, access rules, and existing sidebar behavior.",
-      "evidenceIds": "E-AUDIT-672",
+      "description": "Release 0.4.97 adds the existing authoritative shuttle docking history to main ship consoles. Docked visits retain server-projected ship/session scope and order, show a readable occurrence time, shuttle, and port, and update through live/reconnect snapshots with an accessible polite live list. Legacy cycle labels use the player-facing CYCLE term; departures, other-ship visits, and empty history remain correctly bounded. Focused projection/component tests, font and ticker gates, build, and Chrome evidence cover populated, empty, and updated states at phone, desktop, and short-landscape sizes in normal and reduced motion.",
+      "evidenceIds": "E-672-VERIFIED;E-AUDIT-672",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;367",
@@ -23566,10 +23573,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.97"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "POLISH"
     },
     {

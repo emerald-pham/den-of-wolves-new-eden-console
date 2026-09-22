@@ -319,10 +319,75 @@ it('shows Dione docking history with the SNN shuttle and its shuttleport', () =>
 
   const manifest = screen.getByRole('list', { name: /shuttle docking history/i });
   expect(screen.getByRole('heading', { name: 'Shuttle docking history' })).toBeInTheDocument();
+  expect(manifest).toHaveAttribute('aria-live', 'polite');
+  expect(manifest).toHaveAttribute('aria-relevant', 'additions text');
   expect(manifest).toHaveTextContent(/SNN Independent Press Shuttle.*Civilian access hatch/i);
+  expect(within(manifest).getAllByText('SESSION START', { selector: 'time' })).toHaveLength(3);
   expect(screen.queryByText(/currently docked/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/mechanical dock occupancy/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/linked mechanical bays/i)).not.toBeInTheDocument();
+});
+
+it('preserves the authoritative ship-scoped docking order and updates it live', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    shuttleDockings: [],
+    shuttleVisitLog: [
+      { id: 'starlight-turn-3', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: 'TURN 3' },
+      { id: 'starlight-turn-2-departed', shuttleId: 'starlight', shipId: 'aegis', action: 'departed', occurredAt: 'TURN 2' },
+      { id: 'philia-turn-4', shuttleId: 'philia', shipId: 'dione', action: 'docked', occurredAt: 'TURN 4' },
+    ],
+  });
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const manifest = screen.getByRole('list', { name: /shuttle docking history/i });
+  expect(within(manifest).getAllByRole('listitem')).toHaveLength(1);
+  expect(within(manifest).getByText('CYCLE 3', { selector: 'time' })).toBeInTheDocument();
+  expect(manifest).not.toHaveTextContent('TURN');
+  expect(manifest).not.toHaveTextContent('TURN 2');
+  expect(manifest).not.toHaveTextContent('F.S. Philia');
+
+  const arrivedAt = '2026-09-22T17:45:00.000Z';
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    shuttleVisitLog: [
+      { id: 'starlight-turn-3', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: 'TURN 3' },
+      { id: 'starlight-cycle-5', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: arrivedAt },
+    ],
+  }));
+  expect(within(manifest).getByText(new Date(arrivedAt).toLocaleString(), { selector: 'time' }))
+    .toHaveAttribute('dateTime', arrivedAt);
+  expect(within(manifest).getAllByRole('listitem')).toHaveLength(2);
+  expect([...manifest.querySelectorAll('time')].map((time) => time.textContent)).toEqual([
+    'CYCLE 3', new Date(arrivedAt).toLocaleString(),
+  ]);
+});
+
+it('states when a ship has no recorded docking history without leaking another ship', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    shuttleDockings: [],
+    shuttleVisitLog: [
+      { id: 'dione-turn-4', shuttleId: 'philia', shipId: 'dione', action: 'docked', occurredAt: 'TURN 4' },
+    ],
+  });
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('No recorded shuttle dockings')).toBeInTheDocument();
+  expect(screen.queryByText('F.S. Philia')).not.toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: /shuttle docking history/i })).not.toBeInTheDocument();
 });
 
 it.each([

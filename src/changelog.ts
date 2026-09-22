@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [672],
+    implementationProgress: {
+      completed: 463, total: 751, percentage: '61.65%',
+      done: 463, partial: 13, active: 0, missing: 275,
+    },
+    changes: [
+      'Main ship consoles now show shuttle docking history with its time, shuttle, and port, including live updates.',
+      'The history stays scoped to the current ship and keeps clear empty, reconnect, and screen-reader states.',
+      '463 of 751 planned items are complete (61.65%).',
+    ],
+  },
+  {
+    version: '0.4.96',
     implementationPrompts: [611],
     implementationProgress: {
       completed: 462, total: 751, percentage: '61.52%',

@@ -42,6 +42,18 @@ const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
   } as ConfettiStyle,
 }));
 
+function dockingOccurrence(occurredAt: string): { label: string; dateTime?: string } {
+  const legacyCycle = /^TURN\s+(\d+)$/i.exec(occurredAt.trim());
+  if (legacyCycle) return { label: `CYCLE ${legacyCycle[1]}` };
+
+  const timestamp = Date.parse(occurredAt);
+  if (!Number.isFinite(timestamp)) return { label: occurredAt };
+  return {
+    label: new Date(timestamp).toLocaleString(),
+    dateTime: new Date(timestamp).toISOString(),
+  };
+}
+
 export default function ShipConsole({ observer = false }: { observer?: boolean }) {
   const { shipId, roleId } = useParams();
   const session = useSessionStore((state) => state.session);
@@ -657,13 +669,22 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <p className="ship-shuttlebay__eyebrow">Shuttlebay // docking manifest</p>
           <h2>Shuttle docking history</h2>
           {shuttlebay?.visits.some((visit) => visit.action === 'docked') ? (
-            <ol className="ship-shuttlebay__log" aria-label="Shuttle docking history">
-              {shuttlebay.visits.filter((visit) => visit.action === 'docked').map((visit) => (
-                <li key={visit.id}>
-                  <strong>{visit.shuttle.name}</strong>
-                  <span>{visit.shuttleport}</span>
-                </li>
-              ))}
+            <ol
+              className="ship-shuttlebay__log"
+              aria-label="Shuttle docking history"
+              aria-live="polite"
+              aria-relevant="additions text"
+            >
+              {shuttlebay.visits.filter((visit) => visit.action === 'docked').map((visit) => {
+                const occurrence = dockingOccurrence(visit.occurredAt);
+                return (
+                  <li key={visit.id}>
+                    <time dateTime={occurrence.dateTime}>{occurrence.label}</time>
+                    <strong>{visit.shuttle.name}</strong>
+                    <span>{visit.shuttleport}</span>
+                  </li>
+                );
+              })}
             </ol>
           ) : <p>No recorded shuttle dockings</p>}
         </section>
