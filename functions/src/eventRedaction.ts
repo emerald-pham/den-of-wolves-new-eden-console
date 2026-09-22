@@ -42,6 +42,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'service-shuttle-recharge': ['shuttleId', 'hostShipId', 'consoleId', 'immediate', 'message'],
   'blacksmith-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'philia-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
+  'macaw-repair': ['shuttleId', 'hostShipId', 'systemIds', 'scrapSpent'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };
 
@@ -74,6 +75,8 @@ const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>
   'shuttle-retarget': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
   'philia-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'macaw-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
 };
 

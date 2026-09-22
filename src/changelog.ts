@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [575],
+    implementationProgress: {
+      completed: 469, total: 751, percentage: '62.45%',
+      done: 469, partial: 12, active: 0, missing: 270,
+    },
+    changes: [
+      'The Capybara Captain can now spend one Scrap per console to repair up to two damaged consoles with Macaw.',
+      'Fuelled Macaw repairs can reach one second eligible ship during the same cycle, with server authority and safe retry handling.',
+      '469 of 751 planned items are complete (62.45%).',
+    ],
+  },
+  {
+    version: '0.5.2',
     implementationPrompts: [319],
     implementationProgress: {
       completed: 468, total: 751, percentage: '62.32%',

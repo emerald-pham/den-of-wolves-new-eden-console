@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**468 / 751 prompts complete (62.32%)**
+**469 / 751 prompts complete (62.45%)**
 
-Status breakdown: **468 done · 12 partial · 271 missing**.
+Status breakdown: **469 done · 12 partial · 270 missing**.
 
 Active prompt: **none**
 
@@ -1044,7 +1044,7 @@ release classification and evidence.
 | 572 | done | non-feature | 0.4.43 | Capybara maintenance now selects the server-authoritative printed ration schedule from the current survivor count: the initial 15,001–20,000 table, the 5,001–15,000 replacement table when population reaches 15,000, and the 1–5,000 replacement table when it reaches 5,000. The live console shows the same active band and exact food/water costs. Riot casualties and both GM population-counter paths add two unrest only on the transition to zero population; later inputs at zero cannot add it again. Off-track survivor state fails closed before ration spending while the console remains rendered with ration inputs locked. Focused pure, callable, and component regressions pass 263/263 and preserve request replay, revision, resource, and role authority. |
 | 573 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 574 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 575 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 575 | done | non-feature | 0.5.3 | Completed in the 0.5.3 release. Macaw repairs now run through an authoritative transactional callable: the Capybara Captain spends one Scrap per damaged console, repairs up to two consoles per eligible docked ship, and fuel permits a second ship in the same cycle. Group, docking, role, cycle, damage, Scrap, replay, privacy, hydration, UI, and direct-write denial regressions are covered. |
 | 576 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 577 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 578 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

@@ -6,6 +6,7 @@ import RoleAssignment from './RoleAssignment';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import HummingbirdHarvest from './HummingbirdHarvest';
 import PhiliaRepairPanel from './PhiliaRepairPanel';
+import MacawRepairPanel from './MacawRepairPanel';
 import HighwallMining from './HighwallMining';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
@@ -112,6 +113,8 @@ export default function ShuttleConsoleTemplate({
           {control && <ShuttleControl control={control} />}
           {shuttle.id === 'philia' && control &&
             <PhiliaRepairPanel control={control} docking={docking} fuelled={fuelled} />}
+          {shuttle.id === 'macaw' && control &&
+            <MacawRepairPanel control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>

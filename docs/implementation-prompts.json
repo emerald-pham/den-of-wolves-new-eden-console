@@ -21072,7 +21072,7 @@
         "acceptance": "one Scrap repairs each of up to two consoles, with fuel permitting a second eligible ship.",
         "title": "Resolve Macaw repairs."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Completed in the 0.5.3 release. Macaw repairs now run through an authoritative transactional callable: the Capybara Captain spends one Scrap per damaged console, repairs up to two consoles per eligible docked ship, and fuel permits a second ship in the same cycle. Group, docking, role, cycle, damage, Scrap, replay, privacy, hydration, UI, and direct-write denial regressions are covered.",
       "evidenceIds": "E-AUDIT-575",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21081,10 +21081,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.3"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

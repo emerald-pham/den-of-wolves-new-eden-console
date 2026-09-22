@@ -729,7 +729,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 572 | NEW | done | 571 | none | none | none | none | none | none | none | E-AUDIT-572;E-572-CAPYBARA-RATION-THRESHOLDS | M3;M11 | Resolve Capybara population thresholds. |
 | 573 | DECISION | missing | 571;130 | none | none | none | none | none | none | none | E-AUDIT-573 | M3;M11 | Resolve Capybara damage cards. |
 | 574 | NEW | missing | 369;399 | none | none | none | none | none | none | none | E-AUDIT-574 | M3;M11 | Resolve Macaw refuelling. |
-| 575 | NEW | missing | 399 | none | none | none | none | none | none | none | E-AUDIT-575 | M3;M11 | Resolve Macaw repairs. |
+| 575 | NEW | done | 399 | none | none | none | none | none | none | none | E-AUDIT-575 | M3;M11 | Resolve Macaw repairs. |
 | 576 | DECISION | missing | 385;575 | none | none | none | none | none | none | none | E-AUDIT-576 | M3;M11 | Resolve Macaw salvage dismantling. |
 | 577 | NEW | missing | 164;377;399 | none | none | none | none | none | none | none | E-AUDIT-577 | M3;M11 | Resolve Macaw cargo. |
 | 578 | NEW | missing | 400 | none | none | none | none | none | none | none | E-AUDIT-578 | M3;M11 | Resolve Boa recycling. |

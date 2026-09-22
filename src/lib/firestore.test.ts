@@ -733,6 +733,32 @@ it('hydrates only bounded Blacksmith repair history', () => {
   }).blacksmithRepairs).toBeUndefined();
 });
 
+it('hydrates only bounded Macaw repair history', () => {
+  expect(sessionFrom('macaw-history', {
+    ...sessionData(8),
+    macawRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [
+        { shipId: 'capybara', systemIds: ['reactor', 'storage'] },
+        { shipId: 'aegis', systemIds: ['jump-drive'] },
+      ],
+    },
+  }).macawRepairs).toEqual({
+    cycle: 3, revision: 2,
+    hosts: [
+      { shipId: 'capybara', systemIds: ['reactor', 'storage'] },
+      { shipId: 'aegis', systemIds: ['jump-drive'] },
+    ],
+  });
+  expect(sessionFrom('bad-macaw-history', {
+    ...sessionData(8),
+    macawRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'capybara', systemIds: ['reactor', 'reactor'] }],
+    },
+  }).macawRepairs).toBeUndefined();
+});
+
 it('does not carry malformed IDs from an untrusted session snapshot', () => {
   const session = sessionFrom('safe-session', {
     ...sessionData(8),

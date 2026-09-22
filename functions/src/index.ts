@@ -321,6 +321,17 @@ import {
   resolvePhiliaRepair,
 } from './philiaRepair';
 import {
+  MACAW_REPAIR_COST,
+  parseMacawRepairLedger,
+  resolveMacawRepair,
+} from './macawRepair';
+import {
+  isMacawRepairCallableReply,
+  macawRepairCommandFingerprint,
+  parseMacawRepairCallableCommand,
+  type MacawRepairCallableReply,
+} from './macawRepairCallable';
+import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,
 } from './shuttleEvacuation';
@@ -6416,6 +6427,139 @@ export const repairConsolesFromPhilia = onCall<{
       payload: {
         shuttleId: 'philia', hostShipId: result.hostShipId, systemIds: result.repairedSystemIds,
         materialsSpent: result.repairedSystemIds.length * PHILIA_REPAIR_COST,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+/** Repair one or two damaged consoles on Macaw's authoritative docked host. */
+export const repairConsolesFromMacaw = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
+  expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
+  systemIds?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const data = parseMacawRepairCallableCommand(request.data);
+  if (!data) throw new HttpsError('invalid-argument', 'Invalid Macaw repair request.');
+  const fingerprint = macawRepairCommandFingerprint(uid, data);
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/macaw-repair-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected Macaw holder may repair consoles.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Macaw repair', []);
+    const replay = replayBoundCommand(
+      receipt, fingerprint as CommandFingerprint,
+      (value): value is MacawRepairCallableReply => isMacawRepairCallableReply(value, fingerprint),
+      'Macaw repair',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('Macaw repair');
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Macaw repair is available only during active gameplay.', 'invalid-phase');
+    }
+    requireActionPhase(session, 'transfer', 'player');
+    const currentCycle = session.get('currentTurn');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+    }
+    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+    if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
+        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+      throw commandError(
+        'failed-precondition',
+        'Macaw repair is available only during a live Coordination window.',
+        'invalid-phase',
+      );
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The Macaw holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const fuelled = session.get('shuttleFuelled');
+    const ledger = parseMacawRepairLedger(session.get('macawRepairs'));
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
+        !control || !isRecord(fuelled) || !ledger) {
+      throw commandError('failed-precondition', 'The authoritative Macaw repair state is unavailable.', 'conflict');
+    }
+    let result: ReturnType<typeof resolveMacawRepair>;
+    try {
+      const hostShipId = rawDockings.find((docking) =>
+        isRecord(docking) && docking.shuttleId === 'macaw')?.shipId;
+      if (hostShipId !== data.expectedHostShipId || !group.vesselIds.includes(hostShipId)) {
+        throw new Error('The docked host is outside the holder’s current fleet group.');
+      }
+      const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
+      const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
+      const capybaraResources = serviceRechargeResourceState(session.get('shipResources'), 'capybara');
+      const deck = SHIP_DAMAGE_DECKS[hostShipId];
+      if (!damage || !resources || !capybaraResources || !deck || !activeVesselIds.includes('capybara')) {
+        throw new Error('The authoritative Capybara Scrap ledger is unavailable.');
+      }
+      result = resolveMacawRepair({
+        actorUid: uid, actorRoleId: actor.get('assignedRoleId') as string,
+        currentCycle: currentCycle as number, expectedCycle: data.expectedCycle,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedRepairRevision: data.expectedRepairRevision,
+        expectedHostShipId: data.expectedHostShipId, fleetGroupVesselIds: group.vesselIds,
+        systemIds: data.systemIds, control: control.macaw!, dockings: rawDockings,
+        fuelled: fuelled.macaw === true, damage, scrap: capybaraResources.scrap ?? 0,
+        knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Macaw repair was rejected.',
+        'conflict',
+      );
+    }
+    const reply: MacawRepairCallableReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: 'macaw', hostShipId: result.hostShipId,
+      systemIds: result.repairedSystemIds, scrapRemaining: result.scrap,
+      cycle: currentCycle as number, repairRevision: result.ledger.revision,
+    };
+    tx.update(sessionRef, {
+      [`shipDamage.${result.hostShipId}`]: result.damage,
+      'shipResources.capybara.scrap': result.scrap,
+      macawRepairs: result.ledger,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'macaw-repair',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+        turn: currentCycle as number, phase: vesselActionPhase(session),
+        type: 'macaw-repair', requestId: data.requestId,
+        revision: result.ledger.revision, serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: 'macaw', hostShipId: result.hostShipId,
+        systemIds: result.repairedSystemIds,
+        scrapSpent: result.repairedSystemIds.length * MACAW_REPAIR_COST,
       },
       createdAt: FieldValue.serverTimestamp(),
     }));

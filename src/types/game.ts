@@ -684,6 +684,15 @@ export interface PhiliaRepairLedger {
   }>[];
 }
 
+export interface MacawRepairLedger {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly hosts: readonly Readonly<{
+    readonly shipId: VesselId;
+    readonly systemIds: readonly string[];
+  }>[];
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -809,6 +818,7 @@ export interface GameSession {
   readonly serviceShuttleRecharges?: Readonly<Record<string, ServiceShuttleRechargeEntry>>;
   readonly blacksmithRepairs?: BlacksmithRepairLedger;
   readonly philiaRepairs?: PhiliaRepairLedger;
+  readonly macawRepairs?: MacawRepairLedger;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

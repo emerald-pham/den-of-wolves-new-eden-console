@@ -123,6 +123,29 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('allow-lists the member-safe Macaw repair outcome without authority details', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'macaw-repair',
+      envelope: {
+        sessionId: 's1', actorUid: 'captain', actorRoleId: 'capybara-captain',
+        turn: 3, phase: 'active', requestId: 'macaw-repair-1', revision: 1,
+        serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        shuttleId: 'macaw', hostShipId: 'aegis', systemIds: ['reactor'],
+        scrapSpent: 1, scrapRemaining: 2, actorUid: 'private',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 3, phase: 'active', type: 'macaw-repair', requestId: 'macaw-repair-1',
+      revision: 1, serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      createdAt: 'server-time', shuttleId: 'macaw', hostShipId: 'aegis', systemIds: ['reactor'], scrapSpent: 1,
+    });
+    expect(memberEventFieldsFor('macaw-repair')).toEqual([
+      'shuttleId', 'hostShipId', 'systemIds', 'scrapSpent',
+    ]);
+  });
+
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',
