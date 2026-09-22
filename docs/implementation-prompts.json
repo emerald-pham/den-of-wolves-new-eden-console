@@ -21646,7 +21646,7 @@
       "tag": "PROVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
