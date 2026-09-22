@@ -369,6 +369,28 @@ it('fails closed without navigation writes when a stored opportunity is malforme
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('fails closed without writes for forged non-empty opportunity source metadata', async () => {
+  const baseOpportunity = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-1413', groupId: 'fleet-1', chart: 'A',
+    coordinate: '1413', siteCode: 'A', sourceShipId: 'dione',
+    sourceTransitionId: 'jump-original-arrival', sourceCycle: 0,
+  };
+  for (const [requestId, sourcePatch] of [
+    ['mission-forged-source-ship', { sourceShipId: 'forged-ship' }],
+    ['mission-forged-transition', { sourceTransitionId: 'anything' }],
+  ] as const) {
+    mock.missionOpportunityRecord = { ...baseOpportunity, ...sourcePatch };
+    await expect(moveShipToLocation.run(request({
+      ...data, requestId, destination: '1413',
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition', details: { commandError: 'malformed-input' },
+    });
+  }
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('does not create away-mission opportunities at New Eden candidates', async () => {
   await expect(moveShipToLocation.run(request({
     ...data, requestId: 'candidate-arrival', destination: '6798',

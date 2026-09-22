@@ -5,6 +5,8 @@ import {
 } from './missionCards';
 import { organiserSitesForChart, type ChartId } from './starChartLookup';
 import type { SystemHistory } from './systemHistory';
+import { isCanonicalRequestId } from './requestGuards';
+import { isFleetShipId } from './shipConfetti';
 
 export interface MissionOpportunityEligibility {
   readonly type: 'mission-opportunity';
@@ -21,6 +23,16 @@ export interface MissionOpportunityEligibility {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isMissionTransitionId(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const prefix = value.startsWith('navigation-')
+    ? 'navigation-'
+    : value.startsWith('jump-')
+      ? 'jump-'
+      : undefined;
+  return prefix !== undefined && isCanonicalRequestId(value.slice(prefix.length));
 }
 
 /**
@@ -42,8 +54,9 @@ export function parseStoredMissionOpportunity(
     value.chart !== expected.chart ||
     value.coordinate !== expected.coordinate ||
     value.siteCode !== expected.siteCode ||
-    typeof value.sourceShipId !== 'string' || value.sourceShipId.length === 0 ||
-    typeof value.sourceTransitionId !== 'string' || value.sourceTransitionId.length === 0 ||
+    typeof value.sourceShipId !== 'string' ||
+    !isFleetShipId(value.sourceShipId) || value.sourceShipId === 'snn-press-shuttle' ||
+    !isMissionTransitionId(value.sourceTransitionId) ||
     !Number.isSafeInteger(value.sourceCycle) || (value.sourceCycle as number) < 0) {
     throw new Error('Stored mission opportunity is malformed or belongs to another arrival.');
   }

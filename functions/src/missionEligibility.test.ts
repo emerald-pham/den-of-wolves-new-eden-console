@@ -115,7 +115,10 @@ describe('group first-arrival mission eligibility', () => {
       { ...stored, coordinate: '5143' },
       { ...stored, siteCode: 'L' },
       { ...stored, sourceShipId: '' },
+      { ...stored, sourceShipId: 'forged-ship' },
       { ...stored, sourceTransitionId: '' },
+      { ...stored, sourceTransitionId: 'anything' },
+      { ...stored, sourceTransitionId: 'navigation-move/1' },
       { ...stored, sourceCycle: -1 },
     ]) {
       expect(() => parseStoredMissionOpportunity(malformed, 's1', opportunity)).toThrow(/stored/i);
