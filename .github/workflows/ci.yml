@@ -208,19 +208,19 @@ jobs:
         run: npm run test:font-consistency
 
       - name: Install ticker smoke browser
-        if: steps.change_scope.outputs.ticker == 'true' || steps.change_scope.outputs.render == 'true'
+        if: (steps.change_scope.outputs.ticker == 'true' || steps.change_scope.outputs.render == 'true') && steps.change_scope.outputs.exact_head_commit != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Browser ticker smoke
-        if: steps.change_scope.outputs.ticker == 'true'
+        if: steps.change_scope.outputs.ticker == 'true' && steps.change_scope.outputs.exact_head_commit != 'true'
         run: npm run test:ticker:browser
 
       - name: Render-performance baselines
-        if: steps.change_scope.outputs.render == 'true'
+        if: steps.change_scope.outputs.render == 'true' && steps.change_scope.outputs.exact_head_commit != 'true'
         run: node scripts/prompt-637-render-performance.mjs
 
       - name: Upload render-performance evidence
-        if: always() && steps.change_scope.outputs.render == 'true'
+        if: always() && steps.change_scope.outputs.render == 'true' && steps.change_scope.outputs.exact_head_commit != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: render-performance-p637
@@ -262,3 +262,53 @@ jobs:
           path: functions/lib
           if-no-files-found: error
           retention-days: 1
+
+  exact-sha-browser-gates:
+    if: ${{ inputs.exact_head_commit && (inputs.ticker_required || inputs.render_required) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci --prefer-offline --no-audit
+
+      - name: Install browser gates
+        run: npx playwright install --with-deps chromium
+
+      - name: Build web for render baseline
+        if: ${{ inputs.render_required }}
+        run: npm run build
+
+      - name: Browser ticker smoke
+        if: ${{ inputs.ticker_required }}
+        run: npm run test:ticker:browser
+
+      - name: Render-performance baselines
+        if: ${{ inputs.render_required }}
+        run: node scripts/prompt-637-render-performance.mjs
+
+      - name: Upload render-performance evidence
+        if: always() && inputs.render_required
+        uses: actions/upload-artifact@v7
+        with:
+          name: render-performance-p637
+          path: /tmp/p637-render-performance/results.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload ticker smoke failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-ticker-smoke-failure
+          path: /tmp/fleet-ticker-smoke
+          if-no-files-found: ignore
+          retention-days: 7

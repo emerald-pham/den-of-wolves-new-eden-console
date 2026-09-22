@@ -531,6 +531,18 @@ it('keeps CI dependency caches, timeouts, and single-pass bundle checking explic
   expect(ci).toContain('node scripts/check-bundle-size.mjs');
 });
 
+it('runs exact-SHA browser gates in parallel without weakening branch validation', () => {
+  expect(ci).toContain('exact-sha-browser-gates:');
+  expect(ci).toContain("if: ${{ inputs.exact_head_commit && (inputs.ticker_required || inputs.render_required) }}");
+  expect(ci).toContain("if: ${{ inputs.ticker_required }}");
+  expect(ci).toContain("if: ${{ inputs.render_required }}");
+  expect(ci).toContain('Build web for render baseline');
+  expect(ci).toContain("steps.change_scope.outputs.exact_head_commit != 'true'");
+  expect(ci.match(/run: npm run test:ticker:browser/g)).toHaveLength(2);
+  expect(ci.match(/run: node scripts\/prompt-637-render-performance\.mjs/g)).toHaveLength(2);
+  expect(deploy).toContain('needs: [determine-targets, verify]');
+});
+
 it('uses current Node 24 action runtimes in verification and deployment', () => {
   expect(ci).toContain('actions/checkout@v7');
   expect(ci).toContain('actions/setup-node@v7');
