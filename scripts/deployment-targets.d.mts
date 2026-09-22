@@ -19,7 +19,7 @@ export interface DeploymentRangeClassification extends DeploymentTargetClassific
 
 export function classifyChangedFiles(
   files: readonly string[],
-  options?: { readonly manual?: boolean },
+  options?: { readonly manual?: boolean; readonly versionMetadataOnly?: boolean },
 ): DeploymentTargetClassification;
 
 export function classifyDeploymentRange(options: {
@@ -28,6 +28,8 @@ export function classifyDeploymentRange(options: {
   readonly currentMainTip?: string;
   readonly manual?: boolean;
   readonly changedFiles?: readonly string[];
+  readonly versionMetadataOnly?: boolean;
+  readonly cwd?: string;
   readonly isAncestor?: (before: string, after: string) => boolean;
 }): DeploymentRangeClassification;
 

@@ -16,7 +16,14 @@ export interface RiskGateProfile {
 
 export function classifyRiskGates(
   files: readonly string[],
-  options?: { readonly manual?: boolean },
+  options?: { readonly manual?: boolean; readonly versionMetadataOnly?: boolean },
 ): RiskGateProfile;
+
+export function isVersionMetadataOnlyPackageChange(options: {
+  readonly beforePackage?: unknown;
+  readonly afterPackage?: unknown;
+  readonly beforeLockfile?: unknown;
+  readonly afterLockfile?: unknown;
+}): boolean;
 
 export function formatRiskGateOutputs(profile: RiskGateProfile): string;
