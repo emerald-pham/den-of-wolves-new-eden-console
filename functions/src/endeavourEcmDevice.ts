@@ -19,6 +19,7 @@ export interface EndeavourEcmDeviceResult {
 
 const READY_KEYS = ['revision', 'status'];
 const USED_KEYS = ['ownerGroupId', 'pursuitAfter', 'pursuitBefore', 'revision', 'status'];
+const FLEET_GROUP_ID_PATTERN = /^fleet-[1-9][0-9]*$/;
 
 const isCanonicalRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) &&
@@ -40,7 +41,7 @@ export function parseEndeavourEcmDeviceState(value: unknown): EndeavourEcmDevice
       : null;
   }
   if (value.status !== 'used' || !hasExactKeys(value, USED_KEYS) || value.revision !== 1 ||
-    typeof value.ownerGroupId !== 'string' || value.ownerGroupId.length === 0 ||
+    typeof value.ownerGroupId !== 'string' || !FLEET_GROUP_ID_PATTERN.test(value.ownerGroupId) ||
     !isPursuitValue(value.pursuitBefore) || !isPursuitValue(value.pursuitAfter) ||
     value.pursuitAfter !== Math.max(0, value.pursuitBefore - 3)) return null;
   return Object.freeze({
@@ -55,6 +56,9 @@ function canonicalFleetGroups(value: readonly FleetGroupRecord[]): readonly Flee
     throw new Error('ECM fleet-group authority is malformed.');
   }
   const canonical = groups as FleetGroupRecord[];
+  if (canonical.some((group) => !FLEET_GROUP_ID_PATTERN.test(group.id))) {
+    throw new Error('ECM fleet-group authority contains a non-canonical group id.');
+  }
   if (new Set(canonical.map((group) => group.id)).size !== canonical.length) {
     throw new Error('ECM fleet-group authority contains duplicate groups.');
   }

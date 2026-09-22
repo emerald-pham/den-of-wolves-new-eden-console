@@ -79,6 +79,17 @@ it('fails closed when Shepherd ownership or pursuit authority is ambiguous or ma
   })).toThrow(/pursuit authority/i);
 });
 
+it.each(['', 'group-alpha'])(
+  'rejects non-canonical fleet-group id %j before producing a one-shot result',
+  (groupId) => {
+    expect(() => activateEndeavourEcmDevice({
+      progress: { 'ecm-device': 5 }, state: undefined, expectedRevision: 0,
+      navigation: navigation({ [groupId]: 8 }),
+      fleetGroups: [{ id: groupId, vesselIds: ['shepherd'], memberUids: ['scientist'] }],
+    })).toThrow(/non-canonical group id/i);
+  },
+);
+
 it('parses only reachable one-shot device states', () => {
   expect(parseEndeavourEcmDeviceState(undefined)).toEqual({ status: 'ready', revision: 0 });
   expect(parseEndeavourEcmDeviceState({ status: 'ready', revision: 0 }))
@@ -91,6 +102,9 @@ it('parses only reachable one-shot device states', () => {
   expect(parseEndeavourEcmDeviceState({ status: 'ready', revision: 1 })).toBeNull();
   expect(parseEndeavourEcmDeviceState({
     status: 'used', revision: 2, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+  })).toBeNull();
+  expect(parseEndeavourEcmDeviceState({
+    status: 'used', revision: 1, ownerGroupId: 'group-alpha', pursuitBefore: 8, pursuitAfter: 5,
   })).toBeNull();
   expect(parseEndeavourEcmDeviceState({
     status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 2, pursuitAfter: 1,

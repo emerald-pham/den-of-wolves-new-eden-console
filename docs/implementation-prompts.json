@@ -5926,8 +5926,8 @@
     {
       "direction": "213 -> 211",
       "id": "E-213-ECM-DEVICE",
-      "language": "The completed canonical ECM research track unlocks one revision-bound activation. The server transition derives the owning group from Shepherd fleet membership, validates exact group-local pursuit authority, subtracts three from only that group with a zero floor, and rejects incomplete research, stale state, repeated activation, ambiguous ownership, or malformed pursuit data.",
-      "source": "functions/src/endeavourEcmDevice.ts; functions/src/endeavourEcmDevice.test.ts; functions/src/endeavourResearch.ts; focused 5-test ECM device suite; Functions TypeScript build",
+      "language": "The completed canonical ECM research track unlocks one revision-bound pure activation transition. It derives the owning group from Shepherd membership in exactly one canonical fleet-N group, validates exact group-local pursuit authority, subtracts three from only that group with a zero floor, and rejects incomplete research, stale state, repeated activation, ambiguous ownership, non-canonical group IDs, or malformed pursuit data. This evidence covers the non-feature domain contract only; callable persistence, actor and phase authority, durable replay/events, projections, UI, deployment, and playable use remain unimplemented and unclaimed.",
+      "source": "functions/src/endeavourEcmDevice.ts; functions/src/endeavourEcmDevice.test.ts; functions/src/endeavourResearch.ts; focused 7-test ECM device suite; Functions TypeScript build",
       "type": "evidence / server-authority / research-device / pursuit / fleet-group / one-shot / regression"
     }
   ],
@@ -11403,7 +11403,7 @@
         "acceptance": "the completed device reduces the owning group’s pursuit by three exactly once per allowed use.",
         "title": "Build and use the ECM Device."
       },
-      "description": "The server-owned ECM Device transition requires the canonical five-box research track to be complete, derives ownership from the one fleet group containing Shepherd, and validates the complete private pursuit authority before use. Activation subtracts the fixed printed value of three from only that group, bounded at zero, preserves every other group, and moves the device through a revision-bound one-shot state so stale or repeated use cannot apply the effect twice. Focused domain tests cover exact reduction, low-value bounds, ownership isolation, incomplete research, stale and repeated requests, and malformed authority.",
+      "description": "The pure server-domain ECM Device transition requires the canonical five-box research track to be complete, derives ownership from the one canonical fleet group containing Shepherd, and validates the complete private pursuit authority before use. Activation subtracts the fixed printed value of three from only that group, bounded at zero, preserves every other group, and moves the device through a revision-bound one-shot state so stale or repeated use cannot apply the effect twice. This closes Prompt 213's non-feature domain contract only: no callable, session transaction or persistence, actor or phase authorization, durable replay/event, projection, UI, deployment, or playable release is claimed here. Focused domain tests cover exact reduction, low-value bounds, ownership isolation, canonical group IDs, incomplete research, stale and repeated requests, and malformed authority.",
       "evidenceIds": "E-AUDIT-213;E-213-ECM-DEVICE",
       "hardContract": "none",
       "hardMilestone": "none",
