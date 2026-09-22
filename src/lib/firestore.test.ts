@@ -2802,6 +2802,7 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
       knownSystems: { 'system-01': '0000', 'system-02': '5143' }, revision: 2,
       pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
       shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
+      candidatePlanCheckpoint: { cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
       systemHistory: {
         aegis: {
           '5143': {
@@ -2844,6 +2845,7 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     data: () => ({
       shipGalacticCoordinates: { aegis: '8378' }, shipNavigationLogs: { aegis: [] },
       knownSystems: { 'system-01': '0000', 'system-17': '8378' }, revision: 1,
+      candidatePlanCheckpoint: { cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
       systemHistory: {
         aegis: {
           '8378': {
@@ -2872,6 +2874,7 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
     shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
+    candidatePlanCheckpoint: { cycle: 6, planExists: true },
   });
   const gmProjection = onGmDiscovery.mock.lastCall?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[]; candidateDiscovery?: { code: string } }>> };
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.attempts[0]?.id).toBe('attempt-1');

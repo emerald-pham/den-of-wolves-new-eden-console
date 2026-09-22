@@ -45,6 +45,7 @@ import {
   deliverWolfCultIntelligence,
   authorUniversalArbourVision,
   authorFacilitatorRuleCall,
+  setCandidatePlanCheckpoint,
   transitionCrisis,
   setDiseaseQuarantine,
   admitVoyage33,
@@ -388,6 +389,10 @@ export default function GmConsole() {
   const [ruleCallMutation, setRuleCallMutation] = useState(false);
   const [ruleCallMessage, setRuleCallMessage] = useState<string | null>(null);
   const gmFacilitatorRuleCall = useSessionStore((state) => state.gmFacilitatorRuleCall);
+  const candidatePlanCheckpoint = useSessionStore((state) => state.session?.candidatePlanCheckpoint);
+  const [candidatePlanExistsDraft, setCandidatePlanExistsDraft] = useState(false);
+  const [candidatePlanMutation, setCandidatePlanMutation] = useState(false);
+  const [candidatePlanMessage, setCandidatePlanMessage] = useState<string | null>(null);
   const gmCrisisState = useSessionStore((state) => state.gmCrisisState);
   const gmZealotryResponse = useSessionStore((state) => state.gmZealotryResponse);
   const gmCivilUnrestResolution = useSessionStore((state) => state.gmCivilUnrestResolution);
@@ -413,6 +418,10 @@ export default function GmConsole() {
   const [civilUnrestRationaleDraft, setCivilUnrestRationaleDraft] = useState('');
   const [civilUnrestMutation, setCivilUnrestMutation] = useState(false);
   const [civilUnrestMessage, setCivilUnrestMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (candidatePlanCheckpoint) setCandidatePlanExistsDraft(candidatePlanCheckpoint.planExists);
+  }, [candidatePlanCheckpoint]);
 
   function clearZealotryResponseDraft(): void {
     setZealotryActionsDraft([]);
@@ -2189,6 +2198,26 @@ export default function GmConsole() {
       setRuleCallMessage('CALL REJECTED // active facilitator authority required');
     } finally {
       setRuleCallMutation(false);
+    }
+  }
+
+  async function saveCandidatePlanStatus(): Promise<void> {
+    if (candidatePlanMutation || endgameEvaluation) return;
+    setCandidatePlanMutation(true);
+    setCandidatePlanMessage(null);
+    try {
+      const disposition = await setCandidatePlanCheckpoint(candidatePlanExistsDraft);
+      setCandidatePlanMessage(
+        disposition === 'queued'
+          ? 'CYCLE 6 PLAN STATUS QUEUED // awaiting reconnection'
+          : disposition === 'stale'
+            ? 'CHECKPOINT STALE // refresh the live facilitator state and retry'
+            : `CYCLE 6 PLAN STATUS ${disposition.toUpperCase()}`,
+      );
+    } catch (cause) {
+      setCandidatePlanMessage(normalizeCommandError(cause).message);
+    } finally {
+      setCandidatePlanMutation(false);
     }
   }
 
@@ -4216,6 +4245,38 @@ export default function GmConsole() {
                   />
                 )}
               </div>
+            </section>
+          )}
+
+          {isGm && (
+            <section className="gm-console__module cic-frame gm-arbour-vision" aria-label="Cycle 6 candidate plan checkpoint">
+              <h2 className="gm-console__section-title">Cycle 6 candidate plan checkpoint</h2>
+              <p className="gm-player-roster__hint">
+                Track whether a candidate plan exists by Cycle 6. Plan guidance and contents stay facilitator-private.
+              </p>
+              <label htmlFor="candidate-plan-exists">
+                <input
+                  id="candidate-plan-exists"
+                  type="checkbox"
+                  checked={candidatePlanExistsDraft}
+                  onChange={(event) => setCandidatePlanExistsDraft(event.target.checked)}
+                  disabled={candidatePlanMutation || endgameEvaluation}
+                />
+                {' '}Candidate plan exists
+              </label>
+              <button
+                className="gm-census-note__save cic-action-button"
+                type="button"
+                onClick={() => void saveCandidatePlanStatus()}
+                disabled={candidatePlanMutation || endgameEvaluation}
+              >
+                {candidatePlanMutation ? 'Saving Cycle 6 status…' : 'Save Cycle 6 plan status'}
+              </button>
+              <p className="gm-player-roster__note" role="status" aria-live="polite">
+                {candidatePlanMessage ?? (candidatePlanCheckpoint
+                  ? `Current status // ${candidatePlanCheckpoint.planExists ? 'plan exists' : 'no plan recorded'} // checked ${candidatePlanCheckpoint.checkedAt}`
+                  : 'No Cycle 6 candidate plan status recorded yet.')}
+              </p>
             </section>
           )}
 

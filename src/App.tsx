@@ -261,6 +261,7 @@ function AppRoutes() {
             ...(current.pursuitDistances ? { pursuitDistances: current.pursuitDistances } : {}),
             ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
             ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
+            ...(current.candidatePlanCheckpoint ? { candidatePlanCheckpoint: current.candidatePlanCheckpoint } : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
         },

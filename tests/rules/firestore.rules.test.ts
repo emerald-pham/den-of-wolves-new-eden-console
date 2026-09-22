@@ -946,7 +946,9 @@ describe('session header', () => {
       await setDoc(doc(ctx.firestore(), `${SESSION}/gmDiscovery/current`), {
         knownSystems: { 'system-01': '0000' }, organiserSites: { '0000': { code: 'START' } },
         pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
-        shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' }, revision: 1,
+        shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
+        candidatePlanCheckpoint: { cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
+        revision: 1,
       });
       await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/navigation`), {
         pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 }, revision: 1,
@@ -965,6 +967,7 @@ describe('session header', () => {
     expect(gmProjection.data()).toMatchObject({
       pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
       shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
+      candidatePlanCheckpoint: { cycle: 6, planExists: true },
     });
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/gmDiscovery/current`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/serverState/navigation`)));

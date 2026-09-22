@@ -11,11 +11,16 @@ import {
   type SystemHistory,
   type SystemHistoryForShip,
 } from './systemHistory';
+import {
+  parseCandidatePlanCheckpoint,
+  type CandidatePlanCheckpoint,
+} from './candidatePlanCheckpoint';
 
 export interface NavigationState {
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
   readonly shipNavigationLogs: NavigationLogs;
   readonly systemHistory?: SystemHistory;
+  readonly candidatePlanCheckpoint?: CandidatePlanCheckpoint;
   readonly pursuitGroups: Readonly<Record<string, number>>;
 }
 
@@ -110,6 +115,7 @@ export function navigationState(
     logsForShip(logs[shipId], shipId),
   ])) as NavigationLogs;
   const normalizedHistory = systemHistory(raw.systemHistory, activeVesselIds, shipNavigationLogs);
+  const candidatePlanCheckpoint = parseCandidatePlanCheckpoint(raw.candidatePlanCheckpoint);
   return {
     // Keep a malformed current fix for the movement authority to reject with
     // its integrity guard; player projections sanitize it to the origin below.
@@ -119,6 +125,7 @@ export function navigationState(
     ])),
     shipNavigationLogs,
     ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
+    ...(candidatePlanCheckpoint ? { candidatePlanCheckpoint } : {}),
     pursuitGroups: pursuitGroups(raw, legacyPursuitGroups),
   };
 }

@@ -273,6 +273,17 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'setCandidatePlanCheckpoint';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly planExists: boolean;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'transitionCrisis';
       readonly payload: {
         readonly sessionId: string;

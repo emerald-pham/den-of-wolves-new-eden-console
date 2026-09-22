@@ -1536,6 +1536,32 @@ export function requireFacilitatorRuleCallRequest(data: {
   };
 }
 
+/** Record the facilitator-only Cycle 6 candidate plan presence marker. */
+export function requireCandidatePlanCheckpointRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  planExists?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  planExists: boolean;
+} {
+  const allowedKeys = new Set(['sessionId', 'instanceId', 'requestId', 'planExists']);
+  if (Object.keys(data).some((key) => !allowedKeys.has(key))) {
+    throw new HttpsError('invalid-argument', 'The candidate plan checkpoint accepts only its boolean marker.');
+  }
+  if (typeof data.planExists !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'planExists must be a boolean.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    planExists: data.planExists,
+  };
+}
+
 /** Manual facilitator transition for the server-owned crisis lifecycle. */
 export function requireCrisisTransitionRequest(data: {
   sessionId?: unknown;

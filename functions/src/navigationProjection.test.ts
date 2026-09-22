@@ -56,6 +56,23 @@ describe('server discovery projections', () => {
     });
   });
 
+  it('carries only the facilitator boolean Cycle 6 checkpoint', () => {
+    expect(navigationState({
+      candidatePlanCheckpoint: {
+        cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z',
+      },
+    }, ['dione'])).toMatchObject({
+      candidatePlanCheckpoint: {
+        cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z',
+      },
+    });
+    expect(navigationState({
+      candidatePlanCheckpoint: {
+        cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z', hiddenGuide: 'private',
+      },
+    }, ['dione'])).not.toHaveProperty('candidatePlanCheckpoint');
+  });
+
   it('fails closed for unprinted coordinate values in legacy state and logs', () => {
     expect(navigationState({
       shipGalacticCoordinates: { dione: '9999' },

@@ -17,6 +17,7 @@ import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import type {
   CommissarPurgeAuthority,
+  CandidatePlanCheckpoint,
   DamageDraw,
   FacilitatorRuleCall,
   GameSession,
@@ -212,6 +213,16 @@ function optionalIso(value: unknown): string | undefined {
     }
   }
   return undefined;
+}
+
+function candidatePlanCheckpoint(value: unknown): CandidatePlanCheckpoint | undefined {
+  const raw = recordValue(value);
+  if (!raw || Object.keys(raw).length !== 3 || raw.cycle !== 6 ||
+      typeof raw.planExists !== 'boolean' || typeof raw.checkedAt !== 'string' ||
+      optionalIso(raw.checkedAt) !== raw.checkedAt || new Date(raw.checkedAt).toISOString() !== raw.checkedAt) {
+    return undefined;
+  }
+  return { cycle: 6, planExists: raw.planExists, checkedAt: raw.checkedAt };
 }
 
 function parseEntityIdArray<K extends EntityKind>(kind: K, value: unknown): readonly EntityId<K>[] | undefined {
@@ -1262,12 +1273,14 @@ function organiserSiteProjection(value: unknown): OrganiserSiteProjection | unde
 
 type GmDiscoveryProjection = Pick<GameSession,
   'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' |
-  'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds'>;
+  'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds' |
+  'candidatePlanCheckpoint'>;
 
 function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefined {
   const raw = recordValue(value);
   if (!raw) return undefined;
   const parsedSystemHistory = systemHistory(raw.systemHistory);
+  const parsedCandidatePlanCheckpoint = candidatePlanCheckpoint(raw.candidatePlanCheckpoint);
   const sitesRaw = recordValue(raw.organiserSites);
   const organiserSites = Object.fromEntries(Object.entries(sitesRaw ?? {}).flatMap(([coordinate, site]) => {
     const parsed = organiserSiteProjection(site);
@@ -1293,6 +1306,7 @@ function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefine
     })),
     pursuitGroups: pursuitGroups(raw.pursuitGroups),
     shipFleetGroupIds,
+    ...(parsedCandidatePlanCheckpoint ? { candidatePlanCheckpoint: parsedCandidatePlanCheckpoint } : {}),
   };
 }
 
