@@ -175,6 +175,35 @@ describe('validation profiles', () => {
     expect(profile.commands).not.toContain('npm run build --prefix functions');
   });
 
+  it('keeps unit and render gates for a recognized harness-only change', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['scripts/prompt-603a-geometry.mjs'],
+    });
+    expect(profile.kind).toBe('tooling');
+    expect(profile.commands).toContain('npm run test:unit');
+    expect(profile.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run build --prefix functions');
+  });
+
+  it('keeps unit and render gates for metadata plus a recognized harness', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'docs/implementation-prompts.json',
+        'package-lock.json',
+        'package.json',
+        'scripts/prompt-603-render.mjs',
+        'src/changelog.ts',
+      ],
+      versionMetadataOnly: true,
+    });
+    expect(profile.kind).toBe('tooling');
+    expect(profile.commands).toContain('npm run test:unit');
+    expect(profile.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run build --prefix functions');
+  });
+
   it('keeps a P611-shaped application chrome release range focused', () => {
     const profile = deriveValidationProfile({
       changedFiles: [
