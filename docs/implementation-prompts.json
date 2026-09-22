@@ -2753,6 +2753,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "383 -> CHACAU-REPAIR-TRANSACTION; PLAYABLE-CHACAU-CONTROL",
+      "id": "E-383-CHACAU-REPAIRS",
+      "language": "Release 0.5.4 makes Chacau's Refinery 124 Engineer repair path playable. The authoritative transaction requires the connected current holder, role-owned Chacau custody, current fleet-group membership and dock, live Coordination window, undestroyed host damage, four host materials per console, cycle and control revisions, fuel for a second ship, and an actor-bound exact replay receipt before atomically updating damage, materials, ledger, and one member-safe redacted event. The ledger caps repairs at two consoles per ship and two ships per cycle; malformed, stale, foreign, underfunded, duplicate, undocked, destroyed, and direct-client writes fail closed. Typed snapshot hydration, pending/error/exact-retry handling, the Chacau console panel, and production route tests preserve the same authority boundary.",
+      "source": "functions/src/chacauRepair.ts; functions/src/chacauRepair.test.ts; functions/src/chacauRepairCallable.ts; functions/src/chacauRepairCallable.test.ts; functions/src/chacauRepairCallable.integration.test.ts; functions/src/index.ts; functions/src/eventRedaction.ts; src/components/ChacauRepairPanel.tsx; src/components/ChacauRepairPanel.test.tsx; src/components/ShuttleConsoleTemplate.tsx; src/lib/chacauRepairService.ts; src/lib/chacauRepairService.test.ts; src/lib/firestore.ts; src/types/game.ts; tests/rules/firestore.rules.test.ts; src/routes/ShuttleConsole.test.tsx; focused Functions/web/rules validation",
+      "type": "evidence / production-path / server-authority / transaction / repair / resource-cost / fuel / replay / privacy / stale-session / typed-hydration / playable-ui / direct-write-denial / regression"
+    },
+    {
       "direction": "384 -> 275;361",
       "id": "E-AUDIT-384",
       "language": "Ally repair consumes craft registration and manifest authority.",
@@ -12205,7 +12212,7 @@
         "acceptance": "maintenance, ore/fuel stores, Chacau, refining, repair, and distribution route to real actions.",
         "title": "Complete the Refinery Engineer workspace."
       },
-      "description": "Planned [NEW] prompt. The existing role-bound Refinery Engineer shell exposes server-authoritative maintenance, ore and fuel stores, both Fuel Refinery actions, the registered Chacau route, and released cargo distribution. Chacau repair execution remains owned by unfinished Prompt 383. Workspace completion waits for that real repair action rather than presenting printed procedure copy as executable behavior; no production-path completion is claimed yet.",
+      "description": "Planned [NEW] prompt. The existing role-bound Refinery Engineer shell exposes server-authoritative maintenance, ore and fuel stores, both Fuel Refinery actions, the registered Chacau route, and released cargo distribution. Completed Prompt 383 now supplies the real Chacau repair action through the production callable and panel; this workspace prompt remains open for its own complete role-bound acceptance audit.",
       "evidenceIds": "E-AUDIT-233A",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -15955,8 +15962,8 @@
         "acceptance": "its actual sheet, not copied Philia wording, controls cargo, repair, fuel, and ownership.",
         "title": "Resolve Chacau repairs."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-383",
+      "description": "Release 0.5.4 makes Chacau repairs playable from the shuttle console. The Refinery 124 Engineer can repair one or two damaged consoles on one eligible docked ship for four host materials each; fuel permits one second eligible ship in the same cycle. The server transaction rechecks holder, role, docking, group, Coordination window, damage, materials, cycle, fuel, revision, and actor-bound exact replay before committing damage, materials, ledger, receipt, and a member-safe event. Typed hydration, direct-write denial, stale-session callback handling, and the live Chacau panel preserve the same contract.",
+      "evidenceIds": "E-AUDIT-383;E-383-CHACAU-REPAIRS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "271;361",
@@ -15964,10 +15971,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.4"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

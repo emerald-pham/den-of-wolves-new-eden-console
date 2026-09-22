@@ -6489,7 +6489,11 @@ export const repairConsolesFromMacaw = onCall<{
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
         !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
-      throw commandError('failed-precondition', 'Macaw repair is available only during a live Coordination window.', 'invalid-phase');
+      throw commandError(
+        'failed-precondition',
+        'Macaw repair is available only during a live Coordination window.',
+        'invalid-phase',
+      );
     }
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -6535,7 +6539,11 @@ export const repairConsolesFromMacaw = onCall<{
         knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
       });
     } catch (cause) {
-      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Macaw repair was rejected.', 'conflict');
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Macaw repair was rejected.',
+        'conflict',
+      );
     }
     const reply: MacawRepairCallableReply = {
       status: 'committed', sessionId: data.sessionId, requestId: data.requestId,

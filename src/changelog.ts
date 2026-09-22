@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [383],
+    implementationProgress: {
+      completed: 470, total: 751, percentage: '62.58%',
+      done: 470, partial: 12, active: 0, missing: 269,
+    },
+    changes: [
+      'The Refinery 124 Engineer can now spend four materials per console to repair up to two damaged consoles with Chacau.',
+      'Fuelled Chacau repairs can reach one second eligible ship during the same cycle, with server authority and safe retry handling.',
+      '470 of 751 planned items are complete (62.58%).',
+    ],
+  },
+  {
+    version: '0.5.3',
     implementationPrompts: [575],
     implementationProgress: {
       completed: 469, total: 751, percentage: '62.45%',
