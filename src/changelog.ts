@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [312],
+    implementationProgress: {
+      completed: 450, total: 751, percentage: '59.92%',
+      done: 450, partial: 14, active: 0, missing: 287,
+    },
+    changes: [
+      'Entering an active Wolf Outpost or Fortress now queues its required attack for the arriving fleet group with the correct printed minimum force.',
+      'Away missions stay locked while that Wolf base is operational and reopen after the fleet group leaves the system.',
+      '450 of 751 planned items are complete (59.92%).',
+    ],
+  },
+  {
+    version: '0.4.84',
     implementationPrompts: [278],
     implementationProgress: {
       completed: 447, total: 751, percentage: '59.52%',

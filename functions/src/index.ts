@@ -190,6 +190,11 @@ import {
 } from './jumpDrive';
 import { deriveRoutineWolfAssignment } from './wolfAssignment';
 import { scheduledWolfAttackComposition } from './wolfAttackComposition';
+import {
+  parseWolfArrivalPressureState,
+  wolfArrivalPressureBlocksMissions,
+  wolfArrivalPressureForMovement,
+} from './arrivalPressure';
 import { expireTurnScopedResources } from './turnTransition';
 import {
   DEFAULT_ACTIVE_ROLE_IDS,
@@ -1248,6 +1253,10 @@ function playerDiscoveryProjectionRef(sessionId: string, uid: string) {
   return db.doc(`sessions/${sessionId}/playerDiscoveries/${uid}`);
 }
 
+function wolfArrivalPressureStateRef(sessionId: string, groupId: string) {
+  return db.doc(`sessions/${sessionId}/serverState/wolfArrivalPressure/groups/${groupId}`);
+}
+
 function navigationStateForSession(
   navigationDoc: DocumentSnapshot,
   session: Pick<DocumentSnapshot, 'get'>,
@@ -1391,6 +1400,80 @@ function movementPursuitNavigation(
       cause instanceof Error ? cause.message : 'Movement could not adjust pursuit.',
       'malformed-input',
     );
+  }
+}
+
+async function writeWolfArrivalPressureForMovement(
+  tx: Transaction,
+  sessionId: string,
+  groups: readonly FleetGroupRecord[],
+  navigation: NavigationState,
+  shipId: string,
+  destination: string,
+  chart: 'A' | 'B' | 'C',
+  cycle: number,
+  sourceTransitionId: string,
+): Promise<void> {
+  const matchingGroups = groups.filter((group) => group.vesselIds.includes(shipId));
+  if (matchingGroups.length !== 1) {
+    throw commandError(
+      'failed-precondition',
+      'The moving ship must belong to exactly one fleet group before arrival pressure can resolve.',
+      'malformed-input',
+    );
+  }
+  const group = matchingGroups[0]!;
+  const stateRef = wolfArrivalPressureStateRef(sessionId, group.id);
+  const stored = await tx.get(stateRef);
+  const current = stored.exists ? parseWolfArrivalPressureState(stored.data(), chart) : undefined;
+  if (stored.exists && !current) {
+    throw commandError(
+      'failed-precondition',
+      'The stored Wolf-base arrival pressure is malformed; movement cannot continue.',
+      'malformed-input',
+    );
+  }
+  let transition;
+  try {
+    transition = wolfArrivalPressureForMovement({
+      chart,
+      group,
+      coordinates: navigation.shipGalacticCoordinates,
+      movedShipId: shipId,
+      destination,
+      sourceTransitionId,
+      cycle,
+      ...(current ? { current } : {}),
+    });
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Wolf-base arrival pressure could not resolve.',
+      'malformed-input',
+    );
+  }
+  if (transition.state && JSON.stringify(transition.state) !== JSON.stringify(current)) {
+    tx.set(stateRef, { ...transition.state, updatedAt: FieldValue.serverTimestamp() });
+  }
+  if (transition.scheduled) {
+    tx.set(db.doc(`sessions/${sessionId}/wolfAttackPressure/arrival-${sourceTransitionId}`), {
+      type: 'wolf-base-arrival-pressure-schedule',
+      status: 'scheduled',
+      sessionId,
+      groupId: transition.scheduled.groupId,
+      chart: transition.scheduled.chart,
+      coordinate: transition.scheduled.coordinate,
+      siteCode: transition.scheduled.siteCode,
+      sourceShipId: transition.scheduled.sourceShipId,
+      sourceTransitionId: transition.scheduled.sourceTransitionId,
+      sourceCycle: transition.scheduled.cycle,
+      arrivalTiming: transition.scheduled.arrivalTiming,
+      minimumBattleStations: transition.scheduled.minimumBattleStations,
+      minimumOtherShipDamage: transition.scheduled.minimumOtherShipDamage,
+      recurringUntil: [...transition.scheduled.recurringUntil],
+      missionAccess: transition.scheduled.missionAccess,
+      createdAt: FieldValue.serverTimestamp(),
+    });
   }
 }
 
@@ -6372,6 +6455,7 @@ export const dealPrivateInitialCards = onCall<{
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-cards-dealt-${command.requestId}`);
   const playersRef = db.collection(`sessions/${command.sessionId}/players`);
+  const fleetGroupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
   const craftOwnershipManifestRef = db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`);
   const missionDeckRef = db.doc(`sessions/${command.sessionId}/serverState/missionDeck`);
   const missionRef = db.doc(
@@ -6391,11 +6475,13 @@ export const dealPrivateInitialCards = onCall<{
   };
 
   return db.runTransaction(async (tx) => {
-    const [marker, authority, players, craftOwnershipManifest, missionDeckSnapshot, missionSnapshot, eventSnapshot] =
+    const [marker, authority, players, fleetGroups, craftOwnershipManifest,
+      missionDeckSnapshot, missionSnapshot, eventSnapshot] =
       await Promise.all([
         tx.get(markerRef),
         requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
         tx.get(playersRef),
+        tx.get(fleetGroupsRef),
         tx.get(craftOwnershipManifestRef),
         tx.get(missionDeckRef),
         tx.get(missionRef),
@@ -6448,6 +6534,11 @@ export const dealPrivateInitialCards = onCall<{
       lockedSetup.activeRoleIds,
       vesselModeForConfiguration(lockedSetup),
     );
+    const canonicalFleetGroups = movementPursuitFleetGroups(
+      activeVesselIdsForSession(authority.session),
+      fleetGroups,
+      players,
+    );
     if (!craftOwnershipManifest.exists ||
         !roleOwnedCraftManifestMatches(craftOwnershipManifest.data(), expectedCraftManifest)) {
       throw commandError(
@@ -6467,9 +6558,14 @@ export const dealPrivateInitialCards = onCall<{
 
     const playersByUid = new Map(players.docs.map((player) => [player.id, player]));
     const participants: AwayMissionParticipantSnapshot[] = [];
+    let missionGroupId: string | undefined;
     for (const participantUid of command.participantUids) {
       const player = playersByUid.get(participantUid);
       const roleId = player?.get('assignedRoleId');
+      const groupId = player?.get('fleetGroupId');
+      const canonicalGroups = canonicalFleetGroups.filter((group) =>
+        group.memberUids.includes(participantUid));
+      const canonicalGroupId = canonicalGroups.length === 1 ? canonicalGroups[0]!.id : undefined;
       const sourceCraftIds = typeof roleId === 'string' ? awayMissionCraftForRole(roleId) : [];
       const manifestCraftIds = typeof roleId === 'string'
         ? expectedCraftManifest.roleOwnedCraft
@@ -6478,6 +6574,9 @@ export const dealPrivateInitialCards = onCall<{
         : [];
       if (!player || !isActivePlayer(player) || player.get('role') !== 'player' ||
           typeof roleId !== 'string' || !activeRoleIds.includes(roleId) ||
+          typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId) ||
+          canonicalGroupId !== groupId ||
+          (missionGroupId !== undefined && missionGroupId !== canonicalGroupId) ||
           sourceCraftIds.length === 0 ||
           sourceCraftIds.some((craftId) => !manifestCraftIds.includes(craftId))) {
         throw commandError(
@@ -6486,11 +6585,39 @@ export const dealPrivateInitialCards = onCall<{
           'conflict',
         );
       }
+      missionGroupId ??= canonicalGroupId;
       participants.push({
         uid: participantUid,
         roleId,
         craftIds: [...sourceCraftIds],
       });
+    }
+    if (!missionGroupId) {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission deal blocked: fleet-group authority.',
+        'malformed-input',
+      );
+    }
+    const pressureSnapshot = await tx.get(
+      wolfArrivalPressureStateRef(command.sessionId, missionGroupId),
+    );
+    const pressure = pressureSnapshot.exists
+      ? parseWolfArrivalPressureState(pressureSnapshot.data(), lockedSetup.chartId)
+      : undefined;
+    if (pressureSnapshot.exists && !pressure) {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission deal blocked: Wolf-base pressure is malformed.',
+        'malformed-input',
+      );
+    }
+    if (wolfArrivalPressureBlocksMissions(pressure, missionGroupId)) {
+      throw commandError(
+        'failed-precondition',
+        'Away missions are blocked while the Wolf base is operational.',
+        'invalid-phase',
+      );
     }
 
     const persistedDeck = missionDeckSnapshot.exists
@@ -6529,6 +6656,7 @@ export const dealPrivateInitialCards = onCall<{
       missionId: command.missionId,
       requestId: command.requestId,
       actorUid: uid,
+      groupId: missionGroupId,
       participantSnapshots: participants,
       handIds: participants.map((participant) => awayMissionHandId(command.missionId, participant.uid)),
       cardIds: allocations.map(({ card }) => card.id),
@@ -11869,6 +11997,17 @@ export const moveShipToLocation = onCall<{
       move.destination,
       session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
     );
+    await writeWolfArrivalPressureForMovement(
+      tx,
+      change.sessionId,
+      pursuitFleetGroups,
+      nextNavigation,
+      change.shipId,
+      move.destination,
+      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      sessionTurn(session.get('currentTurn')),
+      eventIdPrefix,
+    );
     const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision: nextRevision,
@@ -12098,6 +12237,17 @@ export const jumpShip = onCall<{
       change.shipId,
       move.destination,
       session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+    );
+    await writeWolfArrivalPressureForMovement(
+      tx,
+      change.sessionId,
+      pursuitFleetGroups,
+      nextNavigation,
+      change.shipId,
+      move.destination,
+      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      currentTurn,
+      transitionId,
     );
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision,

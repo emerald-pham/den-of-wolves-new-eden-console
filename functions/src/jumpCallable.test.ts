@@ -27,6 +27,7 @@ const mock = vi.hoisted(() => ({
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
+  arrivalPressureState: undefined as Record<string, unknown> | undefined,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -94,6 +95,7 @@ beforeEach(() => {
   mock.upgrades = {};
   mock.damage = {};
   mock.wolfAttackState = undefined;
+  mock.arrivalPressureState = undefined;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -105,6 +107,14 @@ beforeEach(() => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path === 'sessions/s1/wolfAttackState/current') {
       const fields = mock.wolfAttackState;
+      return {
+        exists: fields !== undefined,
+        data: fields === undefined ? undefined : () => fields,
+        get: (key: string) => fields?.[key],
+      };
+    }
+    if (path === 'sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1') {
+      const fields = mock.arrivalPressureState;
       return {
         exists: fields !== undefined,
         data: fields === undefined ? undefined : () => fields,
@@ -258,6 +268,48 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pursuitGroups: 'delete-field',
   }));
+});
+
+it('atomically schedules group-local L arrival pressure with the printed attack minimums', async () => {
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'wolf-base-entry', destination: '5143',
+  }))).resolves.toMatchObject({ status: 'jumped', destination: '5143' });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1',
+    expect.objectContaining({
+      type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'A', revision: 1,
+      entries: [expect.objectContaining({
+        status: 'operational', chart: 'A', coordinate: '5143', siteCode: 'L',
+        sourceShipId: 'aegis', sourceTransitionId: 'jump-wolf-base-entry',
+        minimumBattleStations: 1, minimumOtherShipDamage: 20,
+        missionAccess: 'blockedWhileWolfBaseOperational',
+      })],
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/wolfAttackPressure/arrival-jump-wolf-base-entry',
+    expect.objectContaining({
+      type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled',
+      groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
+      arrivalTiming: 'immediate', minimumBattleStations: 1,
+      minimumOtherShipDamage: 20,
+    }),
+  );
+});
+
+it('fails closed before navigation writes when stored L/M pressure is malformed', async () => {
+  mock.arrivalPressureState = {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', revision: 1,
+    entries: [{ coordinate: '5143', status: 'operational' }],
+  };
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'malformed-arrival-pressure', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'malformed-input' },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('changes only the moving ship fleet group and uses the full printed destination depth', async () => {

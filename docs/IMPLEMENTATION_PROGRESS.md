@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**449 / 751 prompts complete (59.79%)**
+**450 / 751 prompts complete (59.92%)**
 
-Status breakdown: **449 done · 14 partial · 288 missing**.
+Status breakdown: **450 done · 14 partial · 287 missing**.
 
 Active prompt: **none**
 
@@ -754,7 +754,7 @@ release classification and evidence.
 | 309 | done | non-feature | 0.4.32 | Authoritative facilitator movement and successful shipboard jumps now resolve the destination against the session’s locked A, B, or C organiser chart. When that printed site is Level 5 Survivable Planet G, the moving fleet group retains its current pursuit despite the coordinate’s graph depth; ordinary destinations still subtract their full server-computed shortest-path depth and other groups remain unchanged. Focused pure tests prove the distinct G coordinate on all three charts, and callable coverage proves production movement consumes the locked chart rather than client input. |
 | 310 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 311 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 312 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 312 | done | non-feature | 0.4.85 | Release 0.4.85 derives Active Wolf Outpost and Fortress arrival pressure inside the authoritative relocation and jump transactions. L schedules at least 1 Battlestation plus 20 other damage; M schedules at least 2 plus 25. Each fleet group keeps independent operational-site state, leaving one hostile coordinate cannot erase another, duplicate entry cannot schedule twice, and away-mission dealing rejects the group without consuming cards until every occupied L/M base has been left or cleared. |
 | 313 | done | feature | — | Server-owned navigation persists a typed per-ship history envelope beside the denied navigation state. Discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive setup changes, movement writes, reconnect, and role replacement while players receive only their entitled ship history and the facilitator retains the active-fleet view. Later gameplay prompts own creating their outcomes; this completed persistence contract never invents them. |
 | 314 | partial | non-feature | — | Partial production-path implementation for existing full-ship destruction state: moveShipToLocation and jumpShip now fail closed for destroyed ships before any coordinate, fuel, charge, jump-state, or navigation-log mutation, while the shared DRADIS projection excludes destroyed full ships and keeps surviving active contacts visible. The existing P140d catastrophe record continues to expose ship-destroyed pod capacity, survivors, resources, and retained shuttle records through their existing paths. Small/base-vessel destruction producers and pod-capacity state are not present in the authoritative source, so this prompt remains partial and does not invent those mechanics. |
 | 315 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

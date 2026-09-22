@@ -5343,6 +5343,13 @@
       "type": "evidence / production-path / authority"
     },
     {
+      "direction": "312 -> L/M ARRIVAL PRESSURE",
+      "id": "E-312-ARRIVAL-PRESSURE",
+      "language": "Server-owned organiser chart lookup now resolves every successful facilitator relocation and shipboard jump into group-local Wolf-base pressure. Entering L schedules an immediate attack requiring at least 1 Battlestation plus 20 damage of other ships; entering M schedules at least 2 Battlestations plus 25 other damage. Every pressure entry is bound to the session's locked organiser chart and must match that chart's canonical coordinate/code pair. Operational sites remain independently tracked when one group has ships at more than one hostile coordinate, duplicate entry does not schedule a second pressure record, and a site changes to departed only after no vessel in that group remains there. Away-mission dealing reconciles participant pointers against the complete canonical fleet-group authority, rejects missing, stale, non-member, mixed, or malformed group state, blocks without consuming cards while any L/M base for that group remains operational, and reopens after departure. The immutable facilitator-visible schedule and denied server-state lifecycle are committed in the same transaction as navigation. Focused pure-domain, relocation/jump callable, and away-mission callable regressions pass with the Functions TypeScript build.",
+      "source": "functions/src/arrivalPressure.ts; functions/src/arrivalPressure.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/awayMissionCallable.test.ts; functions/src/missionCards.ts; functions/src/starChartLookup.ts; firestore.rules; authorized routed REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md",
+      "type": "evidence / production-path / server-authority / mission-lock / split-fleet / malformed-state / regression"
+    },
+    {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
       "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
@@ -14151,8 +14158,8 @@
         "acceptance": "entering an operational Outpost or Fortress schedules the required attack and blocks missions.",
         "title": "Trigger L/M arrival pressure."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-312",
+      "description": "Release 0.4.85 derives Active Wolf Outpost and Fortress arrival pressure inside the authoritative relocation and jump transactions. L schedules at least 1 Battlestation plus 20 other damage; M schedules at least 2 plus 25. Each fleet group keeps independent operational-site state, leaving one hostile coordinate cannot erase another, duplicate entry cannot schedule twice, and away-mission dealing rejects the group without consuming cards until every occupied L/M base has been left or cleared.",
+      "evidenceIds": "E-AUDIT-312;E-312-ARRIVAL-PRESSURE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "283;313",
@@ -14160,10 +14167,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.85"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

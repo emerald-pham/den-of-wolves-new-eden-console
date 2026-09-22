@@ -706,9 +706,9 @@ service cloud.firestore {
         }
       }
 
-      // Every homing beacon creates one immutable facilitator-visible pressure
-      // schedule. Its hidden actor, target system, and after-cycle-start timing
-      // are server authored; players cannot read, enumerate, forge, or erase it.
+      // Homing beacons and Wolf-base arrivals create immutable facilitator-visible
+      // pressure schedules. Their target, timing, and required force are server
+      // authored; players cannot read, enumerate, forge, or erase them.
       match /wolfAttackPressure/{requestId} {
         allow get, list: if isGm(sessionId);
         allow write: if false;

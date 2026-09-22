@@ -14,6 +14,8 @@ const mock = vi.hoisted(() => ({
   discardMarker: undefined as Record<string, unknown> | undefined,
   readyMarker: undefined as Record<string, unknown> | undefined,
   discardEvent: false,
+  arrivalPressureState: undefined as Record<string, unknown> | undefined,
+  fleetGroups: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -41,8 +43,10 @@ import { dealPrivateInitialCards, discardPrivateMissionCard, openPrivateMissionD
 import { roleOwnedCraftManifestForSetup } from './craftOwnership';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
+import { activeVesselIdsForRoles } from './gameSetup';
 
 const activeRoleIds = [...recommendedRoleIds(8)];
+const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
 const sessionFields = {
   phase: 'active',
   setupRevision: 1,
@@ -55,11 +59,12 @@ const sessionFields = {
   universalArbourEnabled: false,
   wolfCultEnabled: false,
   activeRoleIds,
+  activeVesselIds,
 };
 const players = [
-  { id: 'gm1', fields: { connected: true, role: 'gm', assignedRoleId: null } },
-  { id: 'alice', fields: { connected: true, role: 'player', assignedRoleId: 'wing-commander' } },
-  { id: 'bob', fields: { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' } },
+  { id: 'gm1', fields: { connected: true, role: 'gm', assignedRoleId: null, fleetGroupId: 'fleet-1' } },
+  { id: 'alice', fields: { connected: true, role: 'player', assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-1' } },
+  { id: 'bob', fields: { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' } },
 ];
 const deck = missionDeckStateFromCards(missionDeck());
 const manifest = roleOwnedCraftManifestForSetup(activeRoleIds, 'none');
@@ -90,10 +95,25 @@ beforeEach(() => {
   mock.discardMarker = undefined;
   mock.readyMarker = undefined;
   mock.discardEvent = false;
+  mock.arrivalPressureState = undefined;
+  for (const player of players) player.fields.fleetGroupId = 'fleet-1';
+  mock.fleetGroups = [{
+    id: 'fleet-1',
+    fields: { id: 'fleet-1', vesselIds: activeVesselIds, memberUids: players.map(({ id }) => id) },
+  }];
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(sessionFields, ref.path);
     if (ref.path === 'sessions/s1/players') {
       return { exists: true, docs: players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/fleetGroups') {
+      return {
+        exists: true,
+        docs: mock.fleetGroups.map(({ id, fields }) => snapshot(
+          fields,
+          `sessions/s1/fleetGroups/${id}`,
+        )),
+      };
     }
     const player = players.find(({ id }) => ref.path === `sessions/s1/players/${id}`);
     if (player) return snapshot(player.fields, ref.path);
@@ -103,6 +123,13 @@ beforeEach(() => {
     }
     if (ref.path === 'sessions/s1/craftOwnership/manifest') return snapshot(manifest, ref.path);
     if (ref.path === 'sessions/s1/serverState/missionDeck') return snapshot(deck, ref.path);
+    if (ref.path === 'sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1') {
+      return snapshot(
+        mock.arrivalPressureState ?? {},
+        ref.path,
+        mock.arrivalPressureState !== undefined,
+      );
+    }
     if (ref.path === 'sessions/s1/commandReceipts/deal-1' && mock.marker) return snapshot(mock.marker, ref.path);
     if (ref.path === 'sessions/s1/events/mission-cards-dealt-deal-1' && mock.orphanEvent) {
       return snapshot({ type: 'mission-cards-dealt' }, ref.path);
@@ -344,6 +371,81 @@ describe('dealPrivateInitialCards', () => {
     await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
     expect(mock.set).not.toHaveBeenCalled();
     expect(first).toMatchObject({ status: 'committed' });
+  });
+
+  it('blocks the group while an L/M base is operational without consuming cards', async () => {
+    mock.arrivalPressureState = {
+      type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'A', revision: 1,
+      entries: [{
+        type: 'wolf-base-arrival-pressure', status: 'operational',
+        groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
+        sourceShipId: 'aegis', sourceTransitionId: 'jump-entry-1', cycle: 2, revision: 1,
+        attackStatus: 'scheduled', arrivalTiming: 'immediate',
+        minimumBattleStations: 1, minimumOtherShipDamage: 20,
+        missionAccess: 'blockedWhileWolfBaseOperational',
+        recurringUntil: ['baseDestroyed', 'jumpAway'],
+      }],
+    };
+    await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/blocked while the Wolf base is operational/i),
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it.each(['stale-pointer', 'missing-group', 'non-member'] as const)(
+    'rejects %s fleet-group authority without consuming mission cards',
+    async (scenario) => {
+      if (scenario === 'stale-pointer') players[1]!.fields.fleetGroupId = 'fleet-2';
+      if (scenario === 'missing-group') mock.fleetGroups = [];
+      if (scenario === 'non-member') {
+        mock.fleetGroups[0]!.fields.memberUids = ['gm1', 'bob'];
+      }
+      await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
+        code: 'failed-precondition',
+      });
+      expect(mock.set).not.toHaveBeenCalled();
+      expect(mock.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects pressure whose L/M code does not match the locked chart coordinate', async () => {
+    mock.arrivalPressureState = {
+      type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'A', revision: 1,
+      entries: [{
+        type: 'wolf-base-arrival-pressure', status: 'operational',
+        groupId: 'fleet-1', chart: 'A', coordinate: '9997', siteCode: 'L',
+        sourceShipId: 'aegis', sourceTransitionId: 'jump-forged', cycle: 2, revision: 1,
+        attackStatus: 'scheduled', arrivalTiming: 'immediate',
+        minimumBattleStations: 1, minimumOtherShipDamage: 20,
+        missionAccess: 'blockedWhileWolfBaseOperational',
+        recurringUntil: ['baseDestroyed', 'jumpAway'],
+      }],
+    };
+    await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
+      code: 'failed-precondition', details: { commandError: 'malformed-input' },
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('allows the group after its recorded Wolf base was left', async () => {
+    mock.arrivalPressureState = {
+      type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'A', revision: 2,
+      entries: [{
+        type: 'wolf-base-arrival-pressure', status: 'departed', endedBy: 'jumpAway',
+        groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
+        sourceShipId: 'aegis', sourceTransitionId: 'jump-entry-1', cycle: 2, revision: 2,
+        attackStatus: 'scheduled', arrivalTiming: 'immediate',
+        minimumBattleStations: 1, minimumOtherShipDamage: 20,
+        missionAccess: 'blockedWhileWolfBaseOperational',
+        recurringUntil: ['baseDestroyed', 'jumpAway'],
+      }],
+    };
+    await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({
+      status: 'committed', participantCount: 2,
+    });
   });
 
   it('rejects a non-facilitator before private state can be read or written', async () => {
