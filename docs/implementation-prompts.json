@@ -5929,6 +5929,13 @@
       "language": "The completed canonical ECM research track unlocks one revision-bound pure activation transition. It derives the owning group from Shepherd membership in exactly one canonical fleet-N group, validates exact group-local pursuit authority, subtracts three from only that group with a zero floor, and rejects incomplete research, stale state, repeated activation, ambiguous ownership, non-canonical group IDs, or malformed pursuit data. This evidence covers the non-feature domain contract only; callable persistence, actor and phase authority, durable replay/events, projections, UI, deployment, and playable use remain unimplemented and unclaimed.",
       "source": "functions/src/endeavourEcmDevice.ts; functions/src/endeavourEcmDevice.test.ts; functions/src/endeavourResearch.ts; focused 7-test ECM device suite; Functions TypeScript build",
       "type": "evidence / server-authority / research-device / pursuit / fleet-group / one-shot / regression"
+    },
+    {
+      "direction": "214 -> 211;508",
+      "id": "E-214-WOLF-DETECTOR-ALLOWANCE",
+      "language": "A completed canonical Wolf Agent Detector track unlocks a pure revision-bound allowance of three ordinal reservations per cycle. The exact state resets only when a later cycle is supplied, rejects stale, backward, malformed, over-limit, and unreachable histories, and deliberately contains no target or result. This evidence covers only the non-feature allowance contract; Prompt 508 retains target authorization, private server randomness and accuracy, persistence/replay, private delivery, UI, deployment, and playable testing.",
+      "source": "functions/src/endeavourWolfAgentDetector.ts; functions/src/endeavourWolfAgentDetector.test.ts; functions/src/endeavourResearch.ts; focused 6-test detector allowance suite; Functions TypeScript build",
+      "type": "evidence / server-domain / research-device / cycle-limit / private-boundary / revision / regression"
     }
   ],
   "plan": {
@@ -11423,11 +11430,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "the completed device permits up to three private server-randomized tests per turn.",
+        "acceptance": "the completed device permits up to three private server-randomized tests per cycle.",
         "title": "Build and use the Wolf Agent Detector."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-214",
+      "description": "The pure server-domain Wolf Agent Detector allowance requires the canonical four-box research track to be complete and reserves at most three ordinal test slots per cycle. Its exact-key, revision-bound state resets the allowance on a later cycle, rejects stale, backward, malformed, over-limit, and unreachable histories, and stores no target identity or randomized result. This closes Prompt 214's non-feature device allowance contract only. Prompt 508 still owns target authority, private server randomness, approximate 80% accuracy, durable persistence and replay, private delivery, UI, deployment, and playable use; none of those are claimed here.",
+      "evidenceIds": "E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "211",
@@ -11438,7 +11445,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19047,7 +19054,7 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "a built device performs up to three private approximately 80%-accurate tests per turn.",
+        "acceptance": "a built device performs up to three private approximately 80%-accurate tests per cycle.",
         "title": "Test with the Wolf Agent Detector."
       },
       "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",

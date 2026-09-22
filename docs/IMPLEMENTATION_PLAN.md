@@ -2324,7 +2324,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 211
 - [x] Prompt 212
 - [x] Prompt 213
-- [ ] Prompt 214
+- [x] Prompt 214
 - [x] Prompt 215
 - [ ] Prompt 215a
 - [ ] Prompt 215b
@@ -3081,7 +3081,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 211 — [NEW] Encode Endeavour console-upgrade research tracks.** Acceptance: each track advances the left-most box and exposes the correct current material cost.
 - **Prompt 212 — [NEW] Enforce Endeavour research cadence.** Acceptance: up to three distinct choices plus no more than two five-ore extras resolve per Team Phase.
 - **Prompt 213 — [NEW] Build and use the ECM Device.** Acceptance: the completed device reduces the owning group’s pursuit by three exactly once per allowed use.
-- **Prompt 214 — [NEW] Build and use the Wolf Agent Detector.** Acceptance: the completed device permits up to three private server-randomized tests per turn.
+- **Prompt 214 — [NEW] Build and use the Wolf Agent Detector.** Acceptance: the completed device permits up to three private server-randomized tests per cycle.
 - **Prompt 215 — [NEW] Complete the Shepherd Captain workspace.** Acceptance: ship policy, food diplomacy, survivor protection, and fleet liaison remain playable without console impersonation.
 - **Prompt 215a — [NEW] Complete the Shepherd Engineer workspace.** Acceptance: maintenance, stores, Black Sheep, charging, and food/water distribution route to real actions.
 - **Prompt 215b — [NEW] Complete the Scientist workspace.** Acceptance: research tracks/devices, Endeavour, scouting, upgrades, and mission participation remain private and authoritative.
@@ -3418,7 +3418,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 505 — [NEW] Investigate as the Intelligence Agent.** Acceptance: one target per cycle returns an approximately 80%-accurate private server result.
 - **Prompt 506 — [PROVE] Prove investigation randomness ownership.** Acceptance: hidden truth and reported result are separately recorded and no client can submit “Wolf” or “loyal.”
 - **Prompt 507 — [NEW] Apply Intelligence Agent suspicion.** Acceptance: each investigation adds two and only a Wolf-aligned investigator triggers Wolf clue behavior.
-- **Prompt 508 — [NEW] Test with the Wolf Agent Detector.** Acceptance: a built device performs up to three private approximately 80%-accurate tests per turn.
+- **Prompt 508 — [NEW] Test with the Wolf Agent Detector.** Acceptance: a built device performs up to three private approximately 80%-accurate tests per cycle.
 - **Prompt 509 — [NEW] Publish Android proof.** Acceptance: the Android can prove their own non-Wolf card and nobody can forge or compel the event.
 - **Prompt 510 — [NEW] Reveal Friend trust privately.** Acceptance: valid partners identify each other while unrelated players remain denied.
 - **Prompt 511 — [NEW] Deliver Universal Arbour visions.** Acceptance: facilitator-authored location, danger, or suspicion content is private and labeled as a call.
