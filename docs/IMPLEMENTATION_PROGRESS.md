@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**458 / 751 prompts complete (60.99%)**
+**459 / 751 prompts complete (61.12%)**
 
-Status breakdown: **458 done · 13 partial · 280 missing**.
+Status breakdown: **459 done · 13 partial · 279 missing**.
 
 Active prompt: **none**
 
@@ -823,7 +823,7 @@ release classification and evidence.
 | 378 | done | non-feature | — | A pure server authority now preserves security teams in separate exact ship and shuttle ledgers and derives boarding eligibility from the current authoritative docking map. Teams loaded into a shuttle remain countable there; while docked they reinforce only that host, moving the dock moves eligibility without changing inventory, and an undocked or in-transit shuttle reinforces no ship. The policy validates the exact active fleet and enabled shuttle manifest, each shuttle’s printed cargo allowlist, non-negative safe counts, unique legal docks, and safe host totals; missing or extra hosts, unknown cargo or docks, forbidden security cargo, malformed counts, duplicate docking, and overflow fail closed. Callable integration into the later boarding transaction remains downstream. |
 | 379 | done | non-feature | — | Verified the production cargo-transfer denial matrix. Unsupported types, negative or fractional amounts, overdraw, absent or duplicate docking, cross-group hosts, foreign holders, wrong phase, stale custody, and missing or malformed inventories all fail before either ledger changes. Exact accepted retries replay without another write. Focused pure and callable suites passed, including new negative-amount and wrong-phase regressions. This is evidence reconciliation with no runtime change. |
 | 380 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 381 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 381 | done | feature | 0.4.93 | Release 0.4.93 makes Philia repairs playable from the shuttle console. The live holder can repair one or two damaged consoles on one eligible docked ship for four materials each; server-owned fuel permits one second eligible ship in the same cycle. One authoritative transaction rechecks holder, role, docking, group, Coordination window, damage, materials, fuel, cycle ledger, revision, and replay identity before committing. Pending and retry UI rejects stale callbacks after an identity or session change, and the canonical event projection omits private repair authority and ledger details. |
 | 382 | done | non-feature | 0.4.82 | Blacksmith now repairs one or two selected damaged consoles on its authoritative docked host for four host materials each. The server transaction requires the live holder, current fleet group and Coordination cycle, exact custody and repair revisions, valid damage and resource ledgers, and a fuelled craft before a second ship can be repaired in the same cycle. Exact retries replay without another mutation; malformed, stale, foreign, underfunded, destroyed-host, and direct-client requests fail closed. The shuttle console exposes the live selection and remaining materials. |
 | 383 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 384 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

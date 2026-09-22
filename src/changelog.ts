@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [381],
+    implementationProgress: {
+      completed: 459, total: 751, percentage: '61.12%',
+      done: 459, partial: 13, active: 0, missing: 279,
+    },
+    changes: [
+      'The Philia can now repair one or two damaged consoles on a docked ship for four materials each.',
+      'A fuelled Philia can repair one second eligible ship in the same cycle, with server checks protecting materials, fuel, damage, and retries.',
+      '459 of 751 planned items are complete (61.12%).',
+    ],
+  },
+  {
+    version: '0.4.92',
     implementationPrompts: [601],
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
