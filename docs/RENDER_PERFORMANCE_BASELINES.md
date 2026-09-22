@@ -10,7 +10,7 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,700,000 bytes |
+| Complete application JavaScript, raw | 1,702,000 bytes |
 | Complete landing JavaScript, gzip | 460,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
@@ -54,3 +54,11 @@ releases. The gzip ceiling remains 460,000 bytes, the largest-chunk ceiling
 remains 512,000 bytes, and every startup, render-update, and mobile-frame
 budget is unchanged. This keeps the intentional feature growth explicit while
 retaining the network-size and runtime-performance regression limits.
+
+Baseline version 5 raises only the complete raw-JavaScript ceiling from
+1,700,000 to 1,702,000 bytes for the reviewed Macaw repair console. GitHub
+Actions run `35793837388` measured 1,701,408 bytes before release. The final
+candidate first removed duplicate repair-ledger parsing and redundant ship-data
+imports, reducing the measured application to 1,700,842 bytes. Gzip remains
+below its existing 460,000-byte ceiling, and the largest-chunk, startup,
+render-update, and mobile-frame budgets are unchanged.

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { findShip } from '@/data/ships';
 import { repairConsolesFromMacaw, type MacawRepairCommand } from '@/lib/macawRepairService';
 import {
   captureSessionAuthority,
@@ -13,9 +12,11 @@ interface Props {
   readonly control: ShuttleControlEntry;
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled: boolean;
+  readonly hostName?: string | undefined;
+  readonly hostSystems?: readonly { readonly id: string; readonly name: string }[] | undefined;
 }
 
-export default function MacawRepairPanel({ control, docking, fuelled }: Props) {
+export default function MacawRepairPanel({ control, docking, fuelled, hostName, hostSystems }: Props) {
   const session = useSessionStore((state) => state.session)! as GameSession;
   const me = useSessionStore((state) => state.me)!;
   const [systemIds, setSystemIds] = useState<string[]>([]);
@@ -90,7 +91,7 @@ export default function MacawRepairPanel({ control, docking, fuelled }: Props) {
     <h3>Repair damaged consoles</h3>
     <p>Spend 1 Scrap per console to repair up to 2 consoles on this ship. A fuelled Macaw may repair a second ship in the same cycle.</p>
     {docking
-      ? <p>Docked host // {findShip(docking.shipId)?.name ?? docking.shipId} // Capybara Scrap // {scrap} // repair slots remaining // {repairSlotsRemaining}</p>
+      ? <p>Docked host // {hostName ?? docking.shipId} // Capybara Scrap // {scrap} // repair slots remaining // {repairSlotsRemaining}</p>
       : <p>Dock Macaw before repairing consoles.</p>}
     {!isHolder && <p>The current Capybara Captain holding Macaw controls repairs.</p>}
     {!repairWindowOpen && <p>Macaw repairs open during Coordination Phase.</p>}
@@ -106,7 +107,7 @@ export default function MacawRepairPanel({ control, docking, fuelled }: Props) {
       {repairOptions.map((systemId) => {
         const checked = systemIds.includes(systemId);
         const atCapacity = systemIds.length >= Math.min(2, repairSlotsRemaining);
-        const name = findShip(docking?.shipId)?.systems?.find((system) => system.id === systemId)?.name ??
+        const name = hostSystems?.find((system) => system.id === systemId)?.name ??
           systemId.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         return <label key={systemId}>
           <input type="checkbox" checked={checked} disabled={!checked && atCapacity}

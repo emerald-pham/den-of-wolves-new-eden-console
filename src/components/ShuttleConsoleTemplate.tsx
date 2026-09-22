@@ -114,7 +114,8 @@ export default function ShuttleConsoleTemplate({
           {shuttle.id === 'philia' && control &&
             <PhiliaRepairPanel control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'macaw' && control &&
-            <MacawRepairPanel control={control} docking={docking} fuelled={fuelled} />}
+            <MacawRepairPanel control={control} docking={docking} fuelled={fuelled}
+              hostName={host?.name} hostSystems={host?.systems} />}
           {shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>

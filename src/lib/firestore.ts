@@ -81,7 +81,6 @@ import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UN
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
-import { EXECUTIVE_SYSTEMS } from '@/data/roleProcedures';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -97,7 +96,6 @@ import {
   INITIAL_SHIP_JUMP_TRANSITIONS,
   SHIPS,
   SMALL_SHIPS,
-  findShip,
 } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
@@ -1665,7 +1663,10 @@ function serviceShuttleRecharges(value: unknown): NonNullable<GameSession['servi
   }));
 }
 
-function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {
+function repairLedger(
+  value: unknown,
+  knownSystemIds?: (shipId: string) => ReadonlySet<string>,
+): NonNullable<GameSession['blacksmithRepairs']> | undefined {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
@@ -1677,11 +1678,13 @@ function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {
     const shipId = host ? parseEntityId('vessel', host.shipId) : undefined;
     const rawSystemIds = host?.systemIds;
     const systemIds = Array.isArray(rawSystemIds) ? stringArray(rawSystemIds) : [];
+    const known = shipId ? knownSystemIds?.(shipId) : undefined;
     if (!host || !shipId || !VESSEL_CATALOG_IDS.has(shipId) || seen.has(shipId) ||
         Object.keys(host).some((key) => !['shipId', 'systemIds'].includes(key)) ||
         systemIds.length < 1 || systemIds.length > 2 ||
         !Array.isArray(rawSystemIds) || systemIds.length !== rawSystemIds.length ||
-        new Set(systemIds).size !== systemIds.length) return [];
+        new Set(systemIds).size !== systemIds.length ||
+        known !== undefined && systemIds.some((id) => !known.has(id))) return [];
     seen.add(shipId);
     return [{ shipId, systemIds }];
   });
@@ -1689,39 +1692,23 @@ function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {
   return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
 }
 
+function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {
+  return repairLedger(value);
+}
+
 function damageSystemIdsForShip(shipId: string): ReadonlySet<string> {
-  const ship = findShip(shipId);
-  const ids = new Set((ship?.systems ?? []).map(({ id }) => id));
+  const ids = new Set(SHIPS.find((ship) => ship.id === shipId)?.systems?.map(({ id }) => id) ?? []);
   if (shipId === 'aegis') {
-    EXECUTIVE_SYSTEMS.forEach(({ id }) => ids.add(id));
+    // The AEGIS damage deck includes five combat consoles that are not part
+    // of the Admiral ship-system list.
+    ['command-and-control', 'fighter-bay-alpha', 'fighter-bay-bravo',
+      'missile-launchers', 'point-defence-lasers'].forEach((id) => ids.add(id));
   }
   return ids;
 }
 
 function macawRepairs(value: unknown): GameSession['macawRepairs'] {
-  const raw = recordValue(value);
-  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
-      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
-      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-      !Array.isArray(raw.hosts) || raw.hosts.length < 1 || raw.hosts.length > 2) return undefined;
-  const seen = new Set<string>();
-  const hosts = raw.hosts.flatMap((value) => {
-    const host = recordValue(value);
-    const shipId = host ? parseEntityId('vessel', host.shipId) : undefined;
-    const rawSystemIds = host?.systemIds;
-    const systemIds = Array.isArray(rawSystemIds) ? stringArray(rawSystemIds) : [];
-    const knownSystemIds = shipId ? damageSystemIdsForShip(shipId) : new Set<string>();
-    if (!host || !shipId || !VESSEL_CATALOG_IDS.has(shipId) || seen.has(shipId) ||
-        Object.keys(host).some((key) => !['shipId', 'systemIds'].includes(key)) ||
-        systemIds.length < 1 || systemIds.length > 2 ||
-        !Array.isArray(rawSystemIds) || systemIds.length !== rawSystemIds.length ||
-        systemIds.some((id) => !knownSystemIds.has(id)) ||
-        new Set(systemIds).size !== systemIds.length) return [];
-    seen.add(shipId);
-    return [{ shipId, systemIds }];
-  });
-  if (hosts.length !== raw.hosts.length) return undefined;
-  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
+  return repairLedger(value, damageSystemIdsForShip);
 }
 
 function highwallMining(value: unknown): GameSession['highwallMining'] {
