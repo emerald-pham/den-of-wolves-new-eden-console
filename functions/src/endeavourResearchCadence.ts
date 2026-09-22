@@ -63,7 +63,9 @@ export function parseEndeavourResearchCadenceState(value: unknown): EndeavourRes
       oreCost: candidate.funding === 'standard' ? 0 : 5,
     });
   }
-  if (standardCount > 3 || oreCount > 2 || (value.cycle === 0 && choices.length > 0)) return null;
+  if (standardCount > 3 || oreCount > 2 ||
+    (value.cycle === 0 && (value.revision !== 0 || choices.length > 0)) ||
+    (value.cycle > 0 && (choices.length === 0 || value.revision < choices.length))) return null;
   return Object.freeze({
     cycle: value.cycle,
     revision: value.revision,
@@ -86,6 +88,9 @@ export function resolveEndeavourResearchChoice(input: Readonly<{
   if (!Number.isSafeInteger(input.cycle) || input.cycle < 1) throw new Error('Endeavour research requires a valid cycle.');
   if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== state.revision) {
     throw new Error('Endeavour research changed; refresh before choosing.');
+  }
+  if (state.revision >= Number.MAX_SAFE_INTEGER) {
+    throw new Error('Endeavour research revision cannot advance safely.');
   }
   if (state.cycle > input.cycle) throw new Error('Endeavour research cadence is ahead of the current cycle.');
   if (typeof input.trackId !== 'string' || !TRACK_IDS.has(input.trackId)) {

@@ -85,13 +85,32 @@ describe('Endeavour research cadence', () => {
       state: empty, progress: {}, cycle: 2, expectedRevision: 1,
       trackId: 'reactor', funding: 'standard', shepherdOre: 0,
     })).toThrow(/changed/i);
-    expect(() => choose({ cycle: 3, revision: 0, choices: [] }, {}, 'reactor', 'standard', 0, 2))
+    expect(() => choose({
+      cycle: 3, revision: 1,
+      choices: [{ trackId: 'jump-drive', funding: 'standard', oreCost: 0 }],
+    }, {}, 'reactor', 'standard', 0, 2))
       .toThrow(/ahead/i);
     expect(() => choose(empty, {}, 'reactor', 'invalid' as never)).toThrow(/unknown.*funding/i);
     expect(() => choose(empty, {}, 'reactor', 'standard', -1)).toThrow(/non-negative integer/i);
     expect(() => choose(empty, {}, 'reactor', 'standard', Number.MAX_SAFE_INTEGER + 1))
       .toThrow(/non-negative integer/i);
     expect(() => choose(empty, { reactor: 5 }, 'reactor')).toThrow(/already complete/i);
+  });
+
+  it('rejects an exhausted revision without changing state or research progress', () => {
+    const state = Object.freeze({
+      cycle: 2, revision: Number.MAX_SAFE_INTEGER,
+      choices: Object.freeze([
+        Object.freeze({ trackId: 'reactor' as const, funding: 'standard' as const, oreCost: 0 as const }),
+      ]),
+    });
+    const progress = Object.freeze({ reactor: 1 });
+    expect(() => choose(state, progress, 'jump-drive')).toThrow(/revision cannot advance safely/i);
+    expect(state).toEqual({
+      cycle: 2, revision: Number.MAX_SAFE_INTEGER,
+      choices: [{ trackId: 'reactor', funding: 'standard', oreCost: 0 }],
+    });
+    expect(progress).toEqual({ reactor: 1 });
   });
 
   it('parses only canonical, distinct, in-limit cadence state', () => {
@@ -110,6 +129,9 @@ describe('Endeavour research cadence', () => {
       { ...valid, choices: [{ trackId: 'reactor', funding: 'standard', oreCost: 5 }] },
       { ...valid, choices: [...valid.choices, valid.choices[0]] },
       { cycle: 0, revision: 1, choices: valid.choices },
+      { cycle: 0, revision: 5, choices: [] },
+      { cycle: 2, revision: 0, choices: [valid.choices[0]] },
+      { cycle: 2, revision: 5, choices: [] },
       { cycle: 2, revision: 1, choices: [
         { trackId: 'reactor', funding: 'standard', oreCost: 0 },
         { trackId: 'jump-drive', funding: 'standard', oreCost: 0 },
