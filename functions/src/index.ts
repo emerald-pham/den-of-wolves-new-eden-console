@@ -12205,6 +12205,7 @@ export const moveShipToLocation = onCall<{
     if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
       throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
+    const chart = lockedNavigationChart(session);
     const activeVesselIds = activeVesselIdsForSession(session);
     const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
     let move;
@@ -12229,7 +12230,6 @@ export const moveShipToLocation = onCall<{
     }
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
-    const chart = lockedNavigationChart(session);
     const cycle = sessionTurn(session.get('currentTurn'));
     const missionOpportunity = await missionOpportunityForMovement(
       tx,
@@ -12364,6 +12364,7 @@ export const jumpShip = onCall<{
     if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
       throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
+    const chart = lockedNavigationChart(session);
     const activeVesselIds = activeVesselIdsForSession(session);
     const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
     const currentTurn = sessionTurn(session.get('currentTurn'));
@@ -12474,7 +12475,6 @@ export const jumpShip = onCall<{
     });
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
-    const chart = lockedNavigationChart(session);
     const missionOpportunity = await missionOpportunityForMovement(
       tx,
       change.sessionId,

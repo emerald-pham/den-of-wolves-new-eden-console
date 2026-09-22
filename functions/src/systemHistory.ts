@@ -46,9 +46,17 @@ function historyEvent(value: unknown): SystemHistoryEvent | undefined {
   return { id: value.id, occurredAt: value.occurredAt };
 }
 
+function isIsoTimestamp(value: string): boolean {
+  try {
+    return value.length > 0 && new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
 function candidateDiscovery(value: unknown): CandidateDiscovery | undefined {
   const event = historyEvent(value);
-  if (!event || !isRecord(value) ||
+  if (!event || !isIsoTimestamp(event.occurredAt) || !isRecord(value) ||
       (value.code !== 'N' && value.code !== 'O' && value.code !== 'P') ||
       typeof value.title !== 'string' || value.title.length === 0 || value.title.length > 160 ||
       value.title.trim() !== value.title ||

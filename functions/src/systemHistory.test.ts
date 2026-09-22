@@ -165,4 +165,23 @@ describe('system history persistence and audience projection', () => {
     expect(aegis.systemHistory?.['6798']?.candidateDiscovery?.code).toBe('N');
     expect(dione.systemHistory).toBeUndefined();
   });
+
+  it('rejects candidate history with a malformed timestamp', () => {
+    const state = navigationState({
+      shipGalacticCoordinates: { aegis: '6798' },
+      shipNavigationLogs: { aegis: [] },
+      systemHistory: {
+        aegis: {
+          '6798': {
+            coordinate: '6798',
+            candidateDiscovery: {
+              id: 'forged-time', occurredAt: 'not-a-time',
+              code: 'N', title: 'Ancient Jump Ring', source: 'arrival',
+            },
+          },
+        },
+      },
+    }, ['aegis']);
+    expect(state.systemHistory).toBeUndefined();
+  });
 });

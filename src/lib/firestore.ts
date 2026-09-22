@@ -1158,7 +1158,13 @@ function systemHistoryEvents(value: unknown): readonly SystemHistoryEvent[] {
 function candidateDiscovery(value: unknown): SystemHistoryEntry['candidateDiscovery'] | undefined {
   const raw = recordValue(value);
   const event = systemHistoryEvent(value);
-  if (!raw || !event || Object.keys(raw).length !== 5 ||
+  let validTimestamp = false;
+  try {
+    validTimestamp = new Date(event?.occurredAt ?? '').toISOString() === event?.occurredAt;
+  } catch {
+    validTimestamp = false;
+  }
+  if (!raw || !event || !validTimestamp || Object.keys(raw).length !== 5 ||
       !['id', 'occurredAt', 'code', 'title', 'source'].every((key) => key in raw) ||
       (raw.code !== 'N' && raw.code !== 'O' && raw.code !== 'P') ||
       typeof raw.title !== 'string' || raw.title.length === 0 || raw.title.length > 160 ||

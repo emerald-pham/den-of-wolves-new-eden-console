@@ -2783,6 +2783,14 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
           },
           attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
         },
+        '4888': {
+          coordinate: '4888',
+          candidateDiscovery: {
+            id: 'bad-time', occurredAt: 'not-a-time',
+            code: 'P', title: 'Ancient Space Station', source: 'scout',
+          },
+          attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        },
       },
     }),
   });
@@ -2858,6 +2866,7 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
   expect(ownProjection.systemHistory?.['5143']?.attempts[0]?.id).toBe('attempt-1');
   expect(ownProjection.systemHistory?.['5143']?.candidateDiscovery?.code).toBe('N');
   expect(ownProjection.systemHistory).not.toHaveProperty('6798');
+  expect(ownProjection.systemHistory).not.toHaveProperty('4888');
   expect(onGmDiscovery).toHaveBeenCalledTimes(1);
   expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),

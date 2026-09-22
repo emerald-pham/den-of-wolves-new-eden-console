@@ -348,6 +348,12 @@ it.each([
     code: 'failed-precondition',
     message: expect.stringMatching(/locked organiser chart is unavailable/i),
   });
+  await expect(jumpShip.run(request({
+    ...data, requestId: `candidate-jump-${requestId}`, destination: '6798',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/locked organiser chart is unavailable/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
