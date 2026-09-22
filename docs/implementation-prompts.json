@@ -11509,11 +11509,11 @@
         "acceptance": "research tracks/devices, Endeavour, scouting, upgrades, and mission participation remain private and authoritative.",
         "title": "Complete the Scientist workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. The existing role-bound Shepherd Scientist shell exposes the registered Endeavour route, while research persistence and controls, device activation, transactional private scouting, field upgrades, contribution-linked mission bonuses, complete away-mission participation, and private Wolf Agent Detector use remain owned by unfinished downstream prompts. Workspace completion waits for those server-authoritative actions and projections; no production-path completion is claimed yet.",
       "evidenceIds": "E-AUDIT-215B",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "166;204;211;321",
+      "hardPromptPrerequisites": "166;204;211;212;213;214;267;321;325;328;391;401;410;422;508",
       "id": "215b",
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",

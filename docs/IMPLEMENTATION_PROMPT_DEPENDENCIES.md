@@ -329,7 +329,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 214 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE | M3;M5 | Build and use the Wolf Agent Detector. |
 | 215 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-215;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Shepherd Captain workspace. |
 | 215a | NEW | done | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215A;E-215A-SHEPHERD-ENGINEER-WORKSPACE | M3;M5 | Complete the Shepherd Engineer workspace. |
-| 215b | NEW | missing | 166;204;211;321 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |
+| 215b | NEW | missing | 166;204;211;212;213;214;267;321;325;328;391;401;410;422;508 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |
 | 216 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-216 | M3;M5 | Complete Quellon identity and maintenance lane. |
 | 217 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-217;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Quellon Storage. |
 | 218 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-218;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Quellon Reactor. |
