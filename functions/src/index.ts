@@ -1368,7 +1368,8 @@ function maintenanceHazardAuthority(
       !exactVesselKeys(rawLogs) ||
       Object.values(rawLogs).some((logs) => !Array.isArray(logs)) ||
       !rawPursuitGroups || !isValidPursuitAuthority(rawPursuitGroups) ||
-      !Number.isSafeInteger(revision) || (revision as number) < 0) {
+      !Number.isSafeInteger(revision) || (revision as number) < 0 ||
+      (revision as number) >= Number.MAX_SAFE_INTEGER) {
     throw commandError(
       'failed-precondition',
       'The protected navigation authority is unavailable or malformed.',

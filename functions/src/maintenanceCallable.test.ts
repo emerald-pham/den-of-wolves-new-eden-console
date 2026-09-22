@@ -838,6 +838,11 @@ it.each([
     mock.navigation = environmentalNavigation('1096');
     delete mock.navigation.revision;
   }],
+  ['exhausted navigation revision', () => {
+    mock.navigation = environmentalNavigation('1096', {
+      revision: Number.MAX_SAFE_INTEGER,
+    });
+  }],
 ] as const)('rejects %s without normalizing or writing protected state', async (_label, corrupt) => {
   setEnvironmentalHistoryAuthority();
   mock.navigation = environmentalNavigation('1096');
