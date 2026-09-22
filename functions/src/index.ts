@@ -11,6 +11,7 @@ import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaint
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
 import { candidateDiscoveryFromArrival } from './candidateDiscovery';
+import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
 import { isDeepStrictEqual } from 'node:util';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
@@ -98,6 +99,7 @@ import {
   requireWolfIntelligenceRequest,
   requireIntelligenceInvestigationRequest,
   requireFacilitatorCensusNoteRequest,
+  requireCandidatePlanCheckpointRequest,
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
   requireFacilitatorRuleCallRequest,
@@ -1305,6 +1307,8 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
     shipNavigationLogs: navigation.shipNavigationLogs,
     pursuitGroups: navigation.pursuitGroups,
     ...(navigation.systemHistory ? { systemHistory: navigation.systemHistory } : {}),
+    ...(navigation.candidatePlanCheckpoint
+      ? { candidatePlanCheckpoint: navigation.candidatePlanCheckpoint } : {}),
   };
 }
 
@@ -10828,6 +10832,108 @@ export const authorFacilitatorRuleCall = onCall<{
       }
     }
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type CandidatePlanCheckpointResult = {
+  readonly status: 'committed';
+  readonly sessionId: string;
+  readonly cycle: 6;
+  readonly planExists: boolean;
+  readonly checkedAt: string;
+  readonly revision: number;
+};
+
+function isCandidatePlanCheckpointResult(
+  value: unknown,
+  sessionId: string,
+): value is CandidatePlanCheckpointResult {
+  if (!isRecord(value)) return false;
+  return value.status === 'committed' && value.sessionId === sessionId &&
+    value.cycle === 6 && typeof value.planExists === 'boolean' &&
+    typeof value.checkedAt === 'string' && Number.isSafeInteger(value.revision) &&
+    (value.revision as number) >= 1;
+}
+
+/** Persist the facilitator-only Cycle 6 candidate-plan presence marker. */
+export const setCandidatePlanCheckpoint = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  planExists?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireCandidatePlanCheckpointRequest(request.data ?? {});
+  const navigationRef = navigationStateRef(change.sessionId);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-candidate-plan-checkpoint',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: change.instanceId,
+    expectedRevision: null,
+    payload: { planExists: change.planExists },
+  };
+  const checkedAt = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const [authority, navigationDoc, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId),
+      tx.get(navigationRef),
+      tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CandidatePlanCheckpointResult =>
+        isCandidatePlanCheckpointResult(value, change.sessionId),
+      'candidate plan checkpoint',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(authority.session);
+    const activeVesselIds = activeVesselIdsForSession(authority.session);
+    const currentNavigation = navigationStateForSession(
+      navigationDoc,
+      authority.session,
+      activeVesselIds,
+    );
+    const checkpoint = recordCandidatePlanCheckpoint(change.planExists, checkedAt);
+    if (!checkpoint) {
+      throw commandError('failed-precondition', 'The candidate plan checkpoint could not be recorded.', 'malformed-input');
+    }
+    const storedRevision = navigationDoc.exists ? navigationDoc.get('revision') : 0;
+    if (!Number.isSafeInteger(storedRevision) || (storedRevision as number) < 0) {
+      throw commandError('failed-precondition', 'Navigation authority is malformed.', 'malformed-input');
+    }
+    const revision = (storedRevision as number) + 1;
+    const nextNavigation: NavigationState = {
+      ...currentNavigation,
+      candidatePlanCheckpoint: checkpoint,
+    };
+    tx.set(navigationRef, {
+      ...navigationProjectionFields(nextNavigation),
+      revision,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation),
+      revision,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    const result: CandidatePlanCheckpointResult = {
+      status: 'committed',
+      sessionId: change.sessionId,
+      cycle: 6,
+      planExists: change.planExists,
+      checkedAt,
+      revision,
+    };
+    txSetIfSupported(tx, receiptRef, {
+      fingerprint,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     return result;
   });
 });

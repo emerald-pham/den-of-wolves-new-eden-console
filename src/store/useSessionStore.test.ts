@@ -94,11 +94,12 @@ describe('useSessionStore', () => {
       organiserSystemHistory: {}, pursuitDistances: { dione: 6 },
       shipGalacticCoordinates: { aegis: '0000', dione: '8378' },
       shipNavigationLogs: { aegis: [], dione: [] },
+      candidatePlanCheckpoint: { cycle: 6 as const, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
     };
     useSessionStore.getState().setIdentity(privileged, { ...player, role: 'gm' });
     const assertOwnOnly = (value: GameSession) => {
       expect(JSON.stringify(value)).not.toContain('8378');
-      for (const key of ['organiserSystems', 'organiserSites', 'organiserSystemHistory', 'pursuitDistances']) {
+      for (const key of ['organiserSystems', 'organiserSites', 'organiserSystemHistory', 'pursuitDistances', 'candidatePlanCheckpoint']) {
         expect(value).not.toHaveProperty(key);
       }
       expect(value.shipGalacticCoordinates).toEqual(hasOwn ? { aegis: '0000' } : undefined);

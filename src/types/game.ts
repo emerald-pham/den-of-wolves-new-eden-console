@@ -128,6 +128,13 @@ export interface CandidateDiscovery extends SystemHistoryEvent {
   readonly source: 'arrival' | 'scout';
 }
 
+/** Facilitator-only Cycle 6 marker; plan guidance and contents stay private. */
+export interface CandidatePlanCheckpoint {
+  readonly cycle: 6;
+  readonly planExists: boolean;
+  readonly checkedAt: Timestamp;
+}
+
 /** Durable state for one printed system, scoped to the entitled ship. */
 export interface SystemHistoryEntry {
   readonly coordinate: GalacticCoordinate;
@@ -856,6 +863,8 @@ export interface GameSession {
   readonly organiserSystems?: Readonly<Record<string, GalacticCoordinate>>;
   /** Facilitator-only complete system history across active ships. */
   readonly organiserSystemHistory?: SystemHistory;
+  /** Facilitator-only marker for whether a candidate plan exists by Cycle 6. */
+  readonly candidatePlanCheckpoint?: CandidatePlanCheckpoint;
   /** Server-authored pursuit depth for the current entitled ship/fleet view. */
   readonly pursuitDistance?: number;
   /** Server-authorized travel lock state, by ship. */

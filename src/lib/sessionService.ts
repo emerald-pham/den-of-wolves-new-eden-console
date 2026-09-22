@@ -303,6 +303,7 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
     case 'deliverWolfCultIntelligence':
     case 'authorArbourVision':
     case 'authorFacilitatorRuleCall':
+    case 'setCandidatePlanCheckpoint':
     case 'transitionCrisis':
     case 'setDiseaseQuarantine':
     case 'admitVoyage33':
@@ -387,7 +388,7 @@ function applyCommandResult(
   if (!isCleanupCommand(command) && !authorityCheckpointIsCurrent(checkpoint, allowConnecting)) return;
   const store = useSessionStore.getState();
   if (
-    (command.kind === 'authorFacilitatorRuleCall' || command.kind === 'recordZealotryResponse' || command.kind === 'recordCivilUnrestResolution') &&
+    (command.kind === 'authorFacilitatorRuleCall' || command.kind === 'setCandidatePlanCheckpoint' || command.kind === 'recordZealotryResponse' || command.kind === 'recordCivilUnrestResolution') &&
     !facilitatorRuleCallAuthorityCheckpointIsCurrent(
       command.payload.sessionId,
       command.payload.instanceId,
@@ -738,6 +739,30 @@ function applyCommandResult(
         ...(typeof reply.supersedesCallId === 'string' ? { supersedesCallId: reply.supersedesCallId } : {}),
         label: 'FACILITATOR RULE CALL',
       } satisfies FacilitatorRuleCall);
+    }
+  }
+  if (
+    command.kind === 'setCandidatePlanCheckpoint' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    if (
+      (reply.status === 'committed' || reply.status === 'replayed') &&
+      reply.sessionId === command.payload.sessionId && reply.cycle === 6 &&
+      reply.planExists === command.payload.planExists &&
+      typeof reply.checkedAt === 'string' &&
+      new Date(reply.checkedAt).toISOString() === reply.checkedAt &&
+      Number.isSafeInteger(reply.revision) && (reply.revision as number) >= 1
+    ) {
+      store.setSession({
+        ...store.session,
+        candidatePlanCheckpoint: {
+          cycle: 6,
+          planExists: command.payload.planExists,
+          checkedAt: reply.checkedAt,
+        },
+      });
     }
   }
   if (
@@ -1707,6 +1732,27 @@ export async function authorFacilitatorRuleCall(
       audience: input.audience,
       ...(input.recipientUid ? { recipientUid: input.recipientUid } : {}),
       ...(input.supersedesCallId ? { supersedesCallId: input.supersedesCallId } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Record the facilitator-only Cycle 6 candidate plan presence marker. */
+export async function setCandidatePlanCheckpoint(planExists: boolean): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || store.me?.role !== 'gm' ||
+      !store.gmInstance || store.gmInstance.sessionId !== store.session.id ||
+      store.gmInstance.uid !== store.me.uid) {
+    throw new Error('An active GM instance is required before recording the candidate plan checkpoint.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setCandidatePlanCheckpoint',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      planExists,
     },
     createdAt: new Date().toISOString(),
   });

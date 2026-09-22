@@ -52,6 +52,7 @@ vi.mock('@/lib/sessionService', () => ({
   deliverWolfCultIntelligence: vi.fn(),
   authorUniversalArbourVision: vi.fn(),
   authorFacilitatorRuleCall: vi.fn(),
+  setCandidatePlanCheckpoint: vi.fn(),
   transitionCrisis: vi.fn(),
   setDiseaseQuarantine: vi.fn(),
   admitVoyage33: vi.fn(),
@@ -90,7 +91,7 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
@@ -607,6 +608,21 @@ it('records a durable facilitator rule call for a selected player', async () => 
     audience: 'gm-only',
   });
   expect(await within(panel).findByRole('status')).toHaveTextContent(/rule call applied/i);
+});
+
+it('records only the Cycle 6 candidate plan presence marker', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(setCandidatePlanCheckpoint).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Cycle 6 candidate plan checkpoint' });
+  await user.click(within(panel).getByRole('checkbox', { name: 'Candidate plan exists' }));
+  await user.click(within(panel).getByRole('button', { name: 'Save Cycle 6 plan status' }));
+  expect(setCandidatePlanCheckpoint).toHaveBeenCalledWith(true);
+  expect(await within(panel).findByRole('status')).toHaveTextContent(/cycle 6 plan status applied/i);
+  expect(panel).not.toHaveTextContent('hidden plan text');
 });
 
 it('lets the facilitator author and advance a crisis lifecycle from the GM console', async () => {

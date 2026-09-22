@@ -45,6 +45,7 @@ import {
   requireLoyaltyAssignmentRequest,
   requireAndroidDisclosureRequest,
   requireFacilitatorResponsibilityRequest,
+  requireCandidatePlanCheckpointRequest,
   requireGameStartRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
@@ -62,6 +63,23 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
+  it('accepts only a boolean facilitator Cycle 6 candidate-plan marker', () => {
+    expect(requireCandidatePlanCheckpointRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-1', planExists: true,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-1', planExists: true,
+    });
+    expect(requireCandidatePlanCheckpointRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-2', planExists: false,
+    }).planExists).toBe(false);
+    expectHttpsError(() => requireCandidatePlanCheckpointRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-3', planExists: 'yes',
+    }), 'invalid-argument');
+    expectHttpsError(() => requireCandidatePlanCheckpointRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-4', planExists: true, hiddenGuide: 'secret',
+    } as never), 'invalid-argument');
+  });
+
   it('accepts only canonical console-observation and sabotage requests', () => {
     expect(requireStartWolfConsoleVisitRequest({
       sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-1', expectedCycle: 2,
