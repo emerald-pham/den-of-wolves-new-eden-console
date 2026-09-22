@@ -51,6 +51,7 @@ beforeEach(() => {
   mock.activeConsoleRoleId = null;
   mock.session = {
     activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
+    turnPhase: { turn: 1, airspace: { state: 'restricted' } },
     expansion: 'base', capybaraEnabled: true,
     shipResources: {
       aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
@@ -196,6 +197,20 @@ it('runs maintenance against only the docked host ledger and persists a replay r
   expect(receiptCall?.[1]).toEqual(expect.objectContaining({ reply: expect.objectContaining({ status: 'committed' }) }));
 });
 
+it('rejects fresh small-ship maintenance without an authoritative phase clock before writes', async () => {
+  mock.session.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion', 'aegis') };
+  delete mock.session.turnPhase;
+
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, requestId: 'missing-phase-clock',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/no current server phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('replays a completed command before rechecking mutable host authority', async () => {
   mock.session.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion', 'aegis') };
   await runSmallShipMaintenance.run(request(maintenanceBase));
@@ -231,6 +246,7 @@ it('runs base Capybara production atomically against the host with authority, re
   };
   mock.session = {
     activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
+    turnPhase: { turn: 1, airspace: { state: 'restricted' } },
     expansion: 'base', capybaraEnabled: true,
     shipResources: {
       aegis: { ore: 0, fuel: 4, food: 3, water: 2, materials: 1, securityTeams: 2 },
@@ -340,6 +356,7 @@ it('runs the charged base Capybara Fuel Processor against the host ore and fuel 
   };
   mock.session = {
     activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
+    turnPhase: { turn: 1, airspace: { state: 'restricted' } },
     expansion: 'base', capybaraEnabled: true,
     shipResources: {
       aegis: { ore: 7, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },

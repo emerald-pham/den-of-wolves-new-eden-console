@@ -39,6 +39,7 @@ const base = {
 beforeEach(() => {
   mock.session = {
     activeVesselIds: ['aegis'], phase: 'active', currentTurn: 1,
+    turnPhase: { turn: 1, airspace: { state: 'restricted' } },
     voyage33Admission: {
       type: 'voyage-admission', sessionId: 's1', id: 'voyage-33-0', status: 'admitted',
       crisisId: 'approach-1', crisisRevision: 2, population: 40_000, unrest: 0, hostShipId: null,
@@ -127,4 +128,17 @@ it('rejects maintenance when admission or the host-backed state is missing', asy
   mock.session.voyage33Maintenance = emptyVoyage33MaintenanceState(null);
   await expect(runVoyage33Maintenance.run(request({ ...base, requestId: 'voyage-maint-2' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('rejects fresh maintenance without an authoritative phase clock before writes', async () => {
+  delete mock.session.turnPhase;
+
+  await expect(runVoyage33Maintenance.run(request({
+    ...base, requestId: 'missing-phase-clock',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/no current server phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });

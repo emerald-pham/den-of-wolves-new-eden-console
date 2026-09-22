@@ -109,6 +109,9 @@ beforeEach(() => {
   gmInstanceFields.connected = true;
   sessionFields.phase = 'active';
   sessionFields.currentTurn = 1;
+  sessionFields.turnPhase = {
+    turn: 1, airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
   sessionFields.shipDamage = {};
   sessionFields.maintenanceCycles = {
     dione: { turn: 1, step: 5, revision: 0, charges: ['vip-lounge'], results: {}, refuelled: [] },
@@ -157,6 +160,20 @@ describe('drawVipCard', () => {
     });
     expect(mock.randomInt).not.toHaveBeenCalled();
     expect(mock.set).not.toHaveBeenCalled();
+  });
+
+  it('rejects a fresh draw without an authoritative phase clock before randomness or writes', async () => {
+    delete sessionFields.turnPhase;
+
+    await expect(drawVipCard.run(request({
+      ...drawCommand, requestId: 'missing-phase-clock',
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/no current server phase/i),
+    });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
   });
 
   it('returns stale without drawing when the maintenance revision changed', async () => {
@@ -216,6 +233,12 @@ describe('drawVipCard', () => {
 });
 
 describe('transferVipCard', () => {
+  beforeEach(() => {
+    sessionFields.turnPhase = {
+      turn: 1, airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    };
+  });
+
   it('writes both private owner projections and rejects the former owner', async () => {
     mock.documents.set('sessions/s1/serverState/vipCards', {
       revision: 1,
@@ -269,5 +292,27 @@ describe('transferVipCard', () => {
     await expect(transferVipCard.run(request(command))).rejects.toMatchObject({
       code: 'permission-denied',
     });
+  });
+
+  it('rejects a fresh transfer without an authoritative phase clock before writes', async () => {
+    delete sessionFields.turnPhase;
+    mock.documents.set('sessions/s1/serverState/vipCards', {
+      revision: 1,
+      cards: [
+        { id: 'party-deck', name: 'Party Deck', ownerUid: 'alice', status: 'available' },
+        ...['spa-deck', 'gaming-deck', 'casino-deck', 'theatre-deck', 'restaurant-deck', 'art-deck', 'family-fun-deck', 'theme-park-deck']
+          .map(id => ({ id, name: id, ownerUid: null, status: 'available' })),
+      ],
+    });
+
+    await expect(transferVipCard.run(request({
+      sessionId: 's1', requestId: 'missing-phase-clock', cardId: 'party-deck',
+      targetUid: 'bob', expectedRevision: 1,
+    }, 'alice'))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/no current server phase/i),
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
   });
 });
