@@ -13,12 +13,24 @@ export interface ShuttleWorldPoint {
   readonly z: number;
 }
 
+/** One server-authored leg in the immutable route history. */
+export interface ShuttleTransitLeg {
+  readonly fromShipId: string;
+  readonly toShipId: string;
+  readonly originPosition: ShuttleWorldPoint;
+  readonly destinationPosition: ShuttleWorldPoint;
+  readonly departedAt: string;
+  readonly arrivesAt: string;
+}
+
 export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 'status'> {
   readonly status: 'in-transit';
   readonly transitRequestId: string;
   readonly revision: number;
   /** Immutable timestamp of the original departure from originShipId. */
   readonly originDepartedAt: string;
+  /** Server-authored chain of every leg, including the current leg anchor. */
+  readonly routeLegs: readonly ShuttleTransitLeg[];
   readonly originPosition: ShuttleWorldPoint;
   readonly currentPosition: ShuttleWorldPoint;
   readonly destinationPosition: ShuttleWorldPoint;
@@ -86,31 +98,124 @@ function velocityBetween(
   };
 }
 
-/** Validate the persisted leg before deriving a new server-authoritative position. */
-export function isCanonicalShuttleTransitLeg(transit: ShuttleTransitState): boolean {
-  const originPosition = fleetWorldPositionForShip(transit.originShipId);
-  const destinationPosition = fleetWorldPositionForShip(transit.destinationShipId);
-  const originDepartedAt = Date.parse(transit.originDepartedAt);
-  const departedAt = Date.parse(transit.departedAt);
-  const arrivesAt = Date.parse(transit.arrivesAt);
-  if (!originPosition || !destinationPosition || !Number.isFinite(originDepartedAt) ||
-      !Number.isFinite(departedAt) || !Number.isFinite(arrivesAt) ||
-      originDepartedAt > departedAt || arrivesAt - departedAt !== SHUTTLE_TRANSIT_DURATION_MS ||
-      !point(transit.currentPosition) || !point(transit.velocity) ||
-      !pointsMatch(transit.originPosition, originPosition) ||
-      !pointsMatch(transit.destinationPosition, destinationPosition)) return false;
-  if (transit.revision === 1 && originDepartedAt !== departedAt) return false;
-  const expectedCurrent = transit.revision === 1 ? originPosition : transit.currentPosition;
-  if (transit.revision === 1 && !pointsMatch(transit.currentPosition, originPosition)) return false;
-  const expectedVelocity = velocityBetween(expectedCurrent, destinationPosition);
-  return pointsMatch(transit.velocity, expectedVelocity);
-}
-
 function pointsMatch(left: ShuttleWorldPoint, right: ShuttleWorldPoint): boolean {
   const coordinateMatches = (a: number, b: number) =>
     Math.abs(a - b) <= Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 16;
   return coordinateMatches(left.x, right.x) &&
     coordinateMatches(left.y, right.y) && coordinateMatches(left.z, right.z);
+}
+
+function positionAtLeg(leg: ShuttleTransitLeg, at: number): ShuttleWorldPoint {
+  const departedAt = Date.parse(leg.departedAt);
+  const arrivesAt = Date.parse(leg.arrivesAt);
+  if (!Number.isFinite(departedAt) || !Number.isFinite(arrivesAt) || arrivesAt <= departedAt) {
+    throw new Error('Shuttle transit leg timing is malformed.');
+  }
+  if (at <= departedAt) return leg.originPosition;
+  if (at >= arrivesAt) return leg.destinationPosition;
+  const elapsedSeconds = (at - departedAt) / 1_000;
+  const velocity = velocityBetween(leg.originPosition, leg.destinationPosition);
+  return {
+    x: leg.originPosition.x + velocity.x * elapsedSeconds,
+    y: leg.originPosition.y + velocity.y * elapsedSeconds,
+    z: leg.originPosition.z + velocity.z * elapsedSeconds,
+  };
+}
+
+function parseTransitLeg(value: unknown): ShuttleTransitLeg | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const originPosition = point(raw.originPosition);
+  const destinationPosition = point(raw.destinationPosition);
+  if (Object.keys(raw).some((key) => ![
+    'fromShipId', 'toShipId', 'originPosition', 'destinationPosition', 'departedAt', 'arrivesAt',
+  ].includes(key)) || typeof raw.fromShipId !== 'string' || raw.fromShipId.length === 0 ||
+      typeof raw.toShipId !== 'string' || raw.toShipId.length === 0 ||
+      !originPosition || !destinationPosition || typeof raw.departedAt !== 'string' ||
+      typeof raw.arrivesAt !== 'string' || !Number.isFinite(Date.parse(raw.departedAt)) ||
+      !Number.isFinite(Date.parse(raw.arrivesAt)) ||
+      Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== SHUTTLE_TRANSIT_DURATION_MS) {
+    return null;
+  }
+  return {
+    fromShipId: raw.fromShipId,
+    toShipId: raw.toShipId,
+    originPosition,
+    destinationPosition,
+    departedAt: raw.departedAt,
+    arrivesAt: raw.arrivesAt,
+  };
+}
+
+function initialTransitLeg(
+  originShipId: string,
+  destinationShipId: string,
+  originPosition: ShuttleWorldPoint,
+  destinationPosition: ShuttleWorldPoint,
+  departedAt: string,
+  arrivesAt: string,
+): ShuttleTransitLeg {
+  return {
+    fromShipId: originShipId,
+    toShipId: destinationShipId,
+    originPosition,
+    destinationPosition,
+    departedAt,
+    arrivesAt,
+  };
+}
+
+/** Validate the full server-authored leg chain before deriving a position. */
+export function isCanonicalShuttleTransitLeg(transit: ShuttleTransitState): boolean {
+  const legs = Array.isArray(transit.routeLegs) ? transit.routeLegs : transit.revision === 1
+    ? [initialTransitLeg(
+      transit.originShipId, transit.destinationShipId, transit.originPosition,
+      transit.destinationPosition, transit.departedAt, transit.arrivesAt,
+    )]
+    : null;
+  const requestedAt = Date.parse(transit.requestedAt);
+  const originDepartedAt = Date.parse(transit.originDepartedAt);
+  const originPosition = fleetWorldPositionForShip(transit.originShipId);
+  if (!legs || legs.length !== transit.revision || transit.revision < 1 ||
+      !Number.isFinite(requestedAt) || !Number.isFinite(originDepartedAt) ||
+      !originPosition || requestedAt > originDepartedAt ||
+      !point(transit.currentPosition) || !point(transit.velocity) ||
+      !point(transit.originPosition) || !point(transit.destinationPosition)) return false;
+
+  let previous: ShuttleTransitLeg | undefined;
+  for (const [index, leg] of legs.entries()) {
+    const parsed = parseTransitLeg(leg);
+    if (!parsed || !shuttleHostIsAllowed(transit.shuttleId, parsed.fromShipId) ||
+        !shuttleHostIsAllowed(transit.shuttleId, parsed.toShipId) ||
+        parsed.fromShipId === parsed.toShipId) return false;
+    const departedAt = Date.parse(parsed.departedAt);
+    const arrivesAt = Date.parse(parsed.arrivesAt);
+    const destinationPosition = fleetWorldPositionForShip(parsed.toShipId);
+    if (!destinationPosition || !pointsMatch(parsed.destinationPosition, destinationPosition) ||
+        !Number.isFinite(departedAt) || !Number.isFinite(arrivesAt) ||
+        arrivesAt - departedAt !== SHUTTLE_TRANSIT_DURATION_MS ||
+        (previous !== undefined && (parsed.fromShipId !== previous.toShipId ||
+          departedAt < Date.parse(previous.departedAt) || departedAt >= Date.parse(previous.arrivesAt) ||
+          !pointsMatch(parsed.originPosition, positionAtLeg(previous, departedAt)))) ||
+        (index === 0 && (parsed.fromShipId !== transit.originShipId ||
+          departedAt !== originDepartedAt || !pointsMatch(parsed.originPosition, originPosition)))) {
+      return false;
+    }
+    previous = parsed;
+  }
+
+  const last = previous;
+  const first = legs[0];
+  if (!last || !first || !pointsMatch(transit.originPosition, first.originPosition) ||
+      transit.originShipId !== first.fromShipId || transit.destinationShipId !== last.toShipId ||
+      !pointsMatch(transit.currentPosition, last.originPosition) ||
+      !pointsMatch(transit.destinationPosition, last.destinationPosition) ||
+      Date.parse(transit.departedAt) !== Date.parse(last.departedAt) ||
+      Date.parse(transit.arrivesAt) !== Date.parse(last.arrivesAt) ||
+      !pointsMatch(transit.velocity, velocityBetween(last.originPosition, last.destinationPosition))) {
+    return false;
+  }
+  return true;
 }
 
 export function parseShuttleTransit(value: unknown, shuttleId: string): ShuttleTransitState | null {
@@ -126,7 +231,7 @@ export function parseShuttleTransit(value: unknown, shuttleId: string): ShuttleT
   if (Object.keys(raw).some((key) => ![
     'status', 'requestId', 'transitRequestId', 'shuttleId', 'holderUid', 'fleetGroupId',
     'originShipId', 'destinationShipId', 'cycle', 'controlRevision', 'requestedAt',
-    'revision', 'originDepartedAt', 'originPosition', 'currentPosition', 'destinationPosition', 'velocity',
+    'revision', 'originDepartedAt', 'routeLegs', 'originPosition', 'currentPosition', 'destinationPosition', 'velocity',
     'departedAt', 'arrivesAt',
   ].includes(key)) || raw.status !== 'in-transit' || raw.shuttleId !== shuttleId ||
       typeof raw.requestId !== 'string' || raw.requestId.length === 0 ||
@@ -144,7 +249,19 @@ export function parseShuttleTransit(value: unknown, shuttleId: string): ShuttleT
       typeof originDepartedAt !== 'string' || !Number.isFinite(Date.parse(originDepartedAt)) ||
       Date.parse(originDepartedAt) > Date.parse(raw.departedAt) ||
       !originPosition || !currentPosition || !destinationPosition || !velocity) return null;
-  return { ...raw, originDepartedAt } as unknown as ShuttleTransitState;
+  const parsedRouteLegs = raw.routeLegs === undefined && revision === 1
+    ? [initialTransitLeg(
+      raw.originShipId as string, raw.destinationShipId as string, originPosition,
+      destinationPosition, raw.departedAt as string, raw.arrivesAt as string,
+    )]
+    : Array.isArray(raw.routeLegs) ? raw.routeLegs.map(parseTransitLeg) : null;
+  if (!parsedRouteLegs || parsedRouteLegs.some((leg) => leg === null)) return null;
+  const transit = {
+    ...raw,
+    originDepartedAt,
+    routeLegs: parsedRouteLegs,
+  } as unknown as ShuttleTransitState;
+  return isCanonicalShuttleTransitLeg(transit) ? transit : null;
 }
 
 export function enterShuttleTransit(input: Readonly<{
@@ -201,6 +318,10 @@ export function enterShuttleTransit(input: Readonly<{
       transitRequestId: input.transitRequestId,
       revision: 1,
       originDepartedAt: departedAt,
+      routeLegs: [initialTransitLeg(
+        departure.originShipId, departure.destinationShipId, originPosition,
+        destinationPosition, departedAt, arrivesAt,
+      )],
       originPosition,
       currentPosition: originPosition,
       destinationPosition,
@@ -227,7 +348,10 @@ export function retargetShuttleTransit(input: Readonly<{
   now: number;
 }>): ShuttleTransitState {
   const transit = parseShuttleTransit(input.transit, input.transit.shuttleId);
-  if (!transit || transit.transitRequestId !== input.expectedTransitRequestId ||
+  if (!transit) {
+    throw new Error('The stored shuttle transit motion state is malformed; refresh before retargeting.');
+  }
+  if (transit.transitRequestId !== input.expectedTransitRequestId ||
       !Number.isSafeInteger(input.now) || input.now < 0 ||
       input.actorUid !== transit.holderUid || input.control.holderUid !== input.actorUid ||
       input.control.shuttleId !== transit.shuttleId ||
@@ -255,23 +379,33 @@ export function retargetShuttleTransit(input: Readonly<{
     throw new Error('The requested shuttle course is no longer legal for this fleet group.');
   }
   const departedAtMs = Date.parse(transit.departedAt);
-  const arrivesAt = Date.parse(transit.arrivesAt);
-  if (!Number.isFinite(departedAtMs) || !Number.isFinite(arrivesAt) ||
-      input.now < departedAtMs || input.now >= arrivesAt) {
+  const arrivesAtMs = Date.parse(transit.arrivesAt);
+  if (!Number.isFinite(departedAtMs) || !Number.isFinite(arrivesAtMs) ||
+      input.now < departedAtMs || input.now >= arrivesAtMs) {
     throw new Error('The shuttle has reached its destination; complete arrival before retargeting.');
   }
   const currentPosition = shuttlePositionAt(transit, input.now);
   const destinationPosition = fleetWorldPositionForShip(input.destinationShipId);
   if (!destinationPosition) throw new Error('The requested shuttle destination has no world position.');
   const departedAt = new Date(input.now).toISOString();
+  const arrivesAt = new Date(input.now + SHUTTLE_TRANSIT_DURATION_MS).toISOString();
+  const routeLegs = [...transit.routeLegs, {
+    fromShipId: transit.destinationShipId,
+    toShipId: input.destinationShipId,
+    originPosition: currentPosition,
+    destinationPosition,
+    departedAt,
+    arrivesAt,
+  }];
   return {
     ...transit,
     destinationShipId: input.destinationShipId,
-    revision: transit.revision + 1,
+    revision: routeLegs.length,
+    routeLegs,
     currentPosition,
     destinationPosition,
     velocity: velocityBetween(currentPosition, destinationPosition),
     departedAt,
-    arrivesAt: new Date(input.now + SHUTTLE_TRANSIT_DURATION_MS).toISOString(),
+    arrivesAt,
   };
 }

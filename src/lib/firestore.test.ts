@@ -274,9 +274,12 @@ it('hydrates a canonical group-private shuttle transit document', () => {
     originShipId: 'aegis', destinationShipId: 'icebreaker', cycle: 2, controlRevision: 4,
     requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
     originDepartedAt: '2026-01-01T00:10:01.000Z',
+    routeLegs: [{ fromShipId: 'aegis', toShipId: 'icebreaker',
+      originPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+      departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z' }],
     originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
     destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
-    velocity: { x: 0.004, y: -0.002, z: 0.004 },
+    velocity: { x: 0.26 / 60, y: -0.12 / 60, z: 0.28 / 60 },
     departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
   } as const;
   const callbacks: Array<(snapshot: unknown) => void> = [];
@@ -297,6 +300,14 @@ it('hydrates a server-retargeted transit revision while preserving the immutable
     originShipId: 'aegis', destinationShipId: 'dione', cycle: 2, controlRevision: 4,
     requestedAt: '2026-01-01T00:10:00.000Z', revision: 2,
     originDepartedAt: '2026-01-01T00:10:01.000Z',
+    routeLegs: [
+      { fromShipId: 'aegis', toShipId: 'icebreaker',
+        originPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+        departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z' },
+      { fromShipId: 'icebreaker', toShipId: 'dione',
+        originPosition: { x: 0.13, y: -0.06, z: 0.14 }, destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
+        departedAt: '2026-01-01T00:10:31.000Z', arrivesAt: '2026-01-01T00:11:31.000Z' },
+    ],
     originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0.13, y: -0.06, z: 0.14 },
     destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
     velocity: { x: -0.0075, y: 0.004, z: 0.0013333333333333333 },
@@ -311,6 +322,22 @@ it('hydrates a server-retargeted transit revision while preserving the immutable
   subscribeShuttleDeparture('s1', 'starlight', onDeparture);
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => valid });
   expect(onDeparture).toHaveBeenCalledWith(valid);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
+    ...valid,
+    currentPosition: { x: 0.9, y: 0.9, z: 0.9 },
+    velocity: { x: (-0.32 - 0.9) / 60, y: (0.18 - 0.9) / 60, z: (0.22 - 0.9) / 60 },
+  }) });
+  expect(onDeparture).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
+    ...valid,
+    requestedAt: '2026-01-01T00:10:01.001Z',
+  }) });
+  expect(onDeparture).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
+    ...valid,
+    routeLegs: [valid.routeLegs[0], { ...valid.routeLegs[1], originPosition: { x: 0.2, y: -0.2, z: 0.2 } }],
+  }) });
+  expect(onDeparture).toHaveBeenLastCalledWith(null);
 });
 
 it.each([

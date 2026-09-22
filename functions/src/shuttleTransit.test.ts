@@ -119,6 +119,7 @@ it('retargets from the server-resolved mid-flight position and increments the le
   });
   expect(retargeted.originPosition).toEqual(transit.originPosition);
   expect(retargeted.originDepartedAt).toBe(transit.originDepartedAt);
+  expect(retargeted.routeLegs).toHaveLength(2);
   expect(shuttlePositionAt(retargeted, now + 30_000)).toEqual(retargeted.currentPosition);
   expect(Date.parse(retargeted.arrivesAt) - Date.parse(retargeted.departedAt))
     .toBe(SHUTTLE_TRANSIT_DURATION_MS);
@@ -132,6 +133,7 @@ it('retargets from the server-resolved mid-flight position and increments the le
   });
   expect(retargetedAgain.revision).toBe(3);
   expect(retargetedAgain.originDepartedAt).toBe(transit.originDepartedAt);
+  expect(retargetedAgain.routeLegs).toHaveLength(3);
   expect(retargetedAgain.currentPosition.x).toBeCloseTo(0.0175, 10);
   expect(retargetedAgain.currentPosition.y).toBeCloseTo(0, 10);
   expect(retargetedAgain.currentPosition.z).toBeCloseTo(0.16, 10);
@@ -156,6 +158,29 @@ it('fails closed when a stored incoming leg has forged motion state', () => {
     activeVesselIds: ['aegis', 'icebreaker', 'dione'], phase: base.phase,
     now: now + 30_000,
   })).toThrow(/motion state is malformed/i);
+});
+
+it('reconstructs every revision from the canonical route chain before trusting motion', () => {
+  const transit = enterShuttleTransit(base).transit;
+  const retargeted = retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'dione', transit, control: base.control,
+    group: { ...base.group, vesselIds: ['aegis', 'icebreaker', 'dione'] },
+    activeVesselIds: ['aegis', 'icebreaker', 'dione'], phase: base.phase,
+    now: now + 30_000,
+  });
+  const forgedPosition = { x: 0.9, y: 0.9, z: 0.9 };
+  expect(parseShuttleTransit({ ...retargeted, currentPosition: forgedPosition,
+    velocity: { x: (-0.32 - forgedPosition.x) / 60, y: (0.18 - forgedPosition.y) / 60,
+      z: (0.22 - forgedPosition.z) / 60 } }, 'starlight')).toBeNull();
+  expect(parseShuttleTransit({ ...retargeted,
+    requestedAt: new Date(Date.parse(retargeted.originDepartedAt) + 1).toISOString(),
+    routeLegs: [{ ...retargeted.routeLegs[0]!, departedAt: retargeted.originDepartedAt,
+      arrivesAt: new Date(Date.parse(retargeted.originDepartedAt) + 60_000).toISOString() }, retargeted.routeLegs[1]!] },
+  'starlight')).toBeNull();
+  expect(parseShuttleTransit({ ...retargeted,
+    routeLegs: [retargeted.routeLegs[0]!, { ...retargeted.routeLegs[1]!,
+      originPosition: { x: 0.2, y: -0.2, z: 0.2 } }] }, 'starlight')).toBeNull();
 });
 
 it.each([

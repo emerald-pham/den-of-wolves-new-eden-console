@@ -728,6 +728,16 @@ export interface ShuttleWorldPoint {
   readonly z: number;
 }
 
+/** Server-authored immutable history for each in-flight course leg. */
+export interface ShuttleTransitLeg {
+  readonly fromShipId: VesselId;
+  readonly toShipId: VesselId;
+  readonly originPosition: ShuttleWorldPoint;
+  readonly destinationPosition: ShuttleWorldPoint;
+  readonly departedAt: Timestamp;
+  readonly arrivesAt: Timestamp;
+}
+
 /** Group-private server transit state; clients only project it for display. */
 export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 'status'> {
   readonly status: 'in-transit';
@@ -735,6 +745,8 @@ export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 
   readonly revision: number;
   /** Immutable timestamp of the original departure from originShipId. */
   readonly originDepartedAt: Timestamp;
+  /** Server-authored chain of every leg, including the current leg anchor. */
+  readonly routeLegs: readonly ShuttleTransitLeg[];
   readonly originPosition: ShuttleWorldPoint;
   readonly currentPosition: ShuttleWorldPoint;
   readonly destinationPosition: ShuttleWorldPoint;
