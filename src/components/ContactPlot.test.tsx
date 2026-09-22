@@ -1,5 +1,5 @@
 import { useSessionStore } from '@/store/useSessionStore';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import ContactPlot, {
@@ -16,9 +16,8 @@ import { CONTACT_SCAN_EVENT } from './sweep';
 import { SCAN_FRESH_MS } from './sweep';
 import { setMotionOverride } from '@/lib/motionPreference';
 
-// The plot is a decorative background layer. It deliberately exposes no role,
-// no accessible name and no meaningful text, so there is nothing to query it
-// by except its own container -- the one case CLAUDE.md allows a class query.
+// Plot geometry and the visible alert flag are decorative. Its semantic alert
+// counterpart stays outside the aria-hidden geometry subtree.
 const plotIn = (container: HTMLElement) =>
   container.querySelector<HTMLElement>('.contact-plot');
 const contactsIn = (container: HTMLElement) =>
@@ -27,10 +26,21 @@ const ambientSession = {
   id: 'fleet-session',
   createdAt: '2026-01-01T00:00:00.000Z',
 };
+const alertSession = (id: string, active: boolean, revision: number) => ({
+  id,
+  name: 'Fleet',
+  joinCode: '1234',
+  phase: 'active' as const,
+  ownerUid: 'u1',
+  createdAt: '',
+  updatedAt: '',
+  fleetRedAlert: { active, revision },
+});
 
 let listeners: ((event: MediaQueryListEvent) => void)[] = [];
 
 beforeEach(() => {
+  useSessionStore.setState({ session: null });
   listeners = [];
   vi.stubGlobal(
     'matchMedia',
@@ -51,11 +61,12 @@ afterEach(() => {
   setMotionOverride('system');
 });
 
-it('is decorative: hidden from assistive technology and unreachable by keyboard', () => {
+it('hides decorative plot geometry from assistive technology and keyboard navigation', () => {
   const { container } = render(<ContactPlot />);
 
-  expect(plotIn(container)).toHaveAttribute('aria-hidden', 'true');
+  expect(plotIn(container)?.querySelector('.contact-plot__rig')).toHaveAttribute('aria-hidden', 'true');
   expect(container.querySelectorAll('a, button, input, select, [tabindex]')).toHaveLength(0);
+  expect(screen.queryByRole('status')).toBeNull();
 });
 
 it('paints every track on its own bearing so contacts never stack on one another', () => {
@@ -838,10 +849,48 @@ it('reuses stationary return projections until DRADIS geometry changes', () => {
   expect(actualBounds).toHaveBeenCalledTimes(2);
 });
 
-it('shows a bottom-left warning for active fleet alerts and clears it on stand-down', () => {
-  useSessionStore.setState({ session: { id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '', fleetRedAlert: { active: true, revision: 1 } } });
+it('exposes the active fleet alert outside the decorative plot for assistive technology', () => {
+  useSessionStore.setState({ session: alertSession('s1', true, 1) });
   const { container } = render(<ContactPlot placement="widget" />);
   expect(container.querySelector('.contact-plot__red-alert')).toHaveTextContent('RED ALERT');
-  act(() => useSessionStore.setState({ session: null }));
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+  expect(status.closest('[aria-hidden="true"]')).toBeNull();
+  expect(status.closest('.contact-plot__rig')).toBeNull();
+});
+
+it('clears or restores the DRADIS alert cue only from the current session projection', () => {
+  useSessionStore.setState({ session: alertSession('s1', true, 1) });
+  const { container, rerender } = render(<ContactPlot placement="widget" />);
+  const initialStatus = screen.getByRole('status');
+  expect(initialStatus).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+  act(() => useSessionStore.setState({ session: alertSession('s1', true, 1) }));
+  expect(screen.getAllByRole('status')).toHaveLength(1);
+  expect(screen.getByRole('status')).toBe(initialStatus);
+
+  act(() => useSessionStore.setState({ session: alertSession('s1', false, 2) }));
+  expect(screen.queryByRole('status')).toBeNull();
   expect(container.querySelector('.contact-plot__red-alert')).toBeNull();
+
+  act(() => useSessionStore.setState({ session: alertSession('s1', true, 3) }));
+  expect(screen.getByRole('status')).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+  act(() => useSessionStore.setState({ session: alertSession('s2', false, 2) }));
+  expect(screen.queryByRole('status')).toBeNull();
+
+  act(() => useSessionStore.setState({ session: null }));
+  expect(screen.queryByRole('status')).toBeNull();
+  act(() => useSessionStore.setState({ session: alertSession('s3', true, 1) }));
+  expect(screen.getByRole('status')).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+
+  rerender(<ContactPlot placement="inset" />);
+  expect(screen.getByRole('status')).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+});
+
+it('keeps the non-color cue available when DRADIS motion is reduced', () => {
+  setMotionOverride('reduce');
+  useSessionStore.setState({ session: alertSession('s1', true, 1) });
+  const { container } = render(<ContactPlot placement="widget" />);
+
+  expect(screen.getByRole('status')).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+  expect(plotIn(container)).toHaveAttribute('data-still', 'true');
 });

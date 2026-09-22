@@ -385,15 +385,22 @@ export default function ContactPlot({
     <div
       ref={plot}
       className="contact-plot"
-      aria-hidden="true"
       data-hostile={String(hostile)}
       data-placement={placement}
       data-still={String(still)}
       style={size ? ({ '--plot-size': size } as PlotStyle) : undefined}
     >
-      {redAlert && <span className="contact-plot__red-alert">RED ALERT</span>}
+      {redAlert && (
+        <>
+          <span className="contact-plot__red-alert-status" role="status" aria-atomic="true">
+            FLEETWIDE RED ALERT ACTIVE
+          </span>
+          <span className="contact-plot__red-alert" aria-hidden="true">RED ALERT</span>
+        </>
+      )}
       <div
         className="contact-plot__rig"
+        aria-hidden="true"
         style={orientation ? {
           '--view-pitch': `${orientation.pitch}deg`,
           '--view-yaw': `${orientation.yaw}deg`,

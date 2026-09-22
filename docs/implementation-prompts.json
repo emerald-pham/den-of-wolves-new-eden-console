@@ -6097,6 +6097,13 @@
       "language": "The source-verified server-domain transition binds the current Warrior Captain, current Coordination cycle, canonical active vessel set, strict current completed-maintenance and charged Warrior state, and its one active docked resource host. It spends exactly six host materials to remove one or two distinct known damaged consoles, never passive AEGIS armour once per cycle while rejecting malformed, stale, overcharged, foreign, unknown, destroyed, insufficient, repeated, or unreachable authority.",
       "source": "functions/src/warriorRepairDrones.ts; functions/src/warriorRepairDrones.test.ts; functions/src/smallShip.ts; functions/src/resources.ts; functions/src/shipDamage.ts; functions/src/replacementRoles.ts; functions/src/maintenanceOrder.ts; authorized routed REFERENCE_ONLY_SHIPS.md; original base v1.1 A4 double-sided component page 27 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86) inspected as a full-page render; focused 112-test repair/small-ship/phase/role/resource/damage suite; Functions TypeScript build",
       "type": "evidence / source-verified / server-domain / small-ship / charged-repair / coordination / host-resources / revision / regression"
+    },
+    {
+      "direction": "611",
+      "id": "E-611-VERIFIED",
+      "language": "Prompt 611's explicit compact/expanded DRADIS fleetRedAlert slice is implemented: ContactPlot derives one visible RED ALERT cue and one role=status FLEETWIDE RED ALERT ACTIVE announcement from the current session projection; the semantic node stays outside the aria-hidden geometry and survives ShipPlot zoom, session activation/Stand Down/replay/late join, reconnect, and reduced motion. Focused ContactPlot/ShipPlot tests pass 52/52, ShipConsole/GmConsole integration tests pass 215/215, the console-font gate passes 60/60, and the production build passes. Exact-candidate Chrome evidence at 320x844, 390x844, 1440x900, and 844x390 in normal/reduced motion confirms compact/expanded cues, Stand Down removal, no horizontal overflow, and no browser errors. P605a attack visualization remains deferred.",
+      "source": "src/components/ContactPlot.tsx; src/components/ContactPlot.test.tsx; src/components/ShipPlot.test.tsx; src/styles/plot.css; src/routes/ShipConsole.test.tsx; src/routes/GmConsole.test.tsx; npm run test:font-consistency; npm run build; /tmp/p611-exact-render-20260922.json",
+      "type": "evidence / accessibility / responsive / rendered review / build"
     }
   ],
   "plan": {
@@ -21987,15 +21994,15 @@
       "tag": "EXTEND"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "danger, damage, privacy, offline, pending, and success use text/icon semantics and verified CIC contrast. In particular, minimized/compact and expanded DRADIS both expose a stable non-color `RED ALERT` text/icon cue derived from authoritative `fleetRedAlert`; activation, stand-down, reconnect, replay, late join, stale cache, rotation, and reduced motion cannot leave a false or color-only alert. Prove keyboard/screen-reader semantics and unobscured placement at 320×844, 390×844, 1440×900, and 844×390 without expanding P605a's deferred attack visualization.",
         "title": "Distinguish status without color alone."
       },
-      "description": "Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred.",
-      "evidenceIds": "E-PRESENTATION;E-AUDIT-611",
+      "description": "Release 0.4.96 adds an authoritative non-color fleet Red Alert cue across compact and expanded DRADIS. ContactPlot keeps the visible RED ALERT indicator while exposing one stable role=status announcement outside the aria-hidden geometry; activation, Stand Down, replay, late join, zoom, reconnect, rotation, and reduced motion keep the cue matched to the current session projection. Focused component and route integration tests, the console font gate, the FleetBroadcast lifecycle gate, the production build, and Chrome evidence cover the required phone, desktop, and short-landscape viewports with no overflow or browser errors. This closes the explicit fleetRedAlert presentation slice; P605a attack visualization remains deferred.",
+      "evidenceIds": "E-611-VERIFIED;E-PRESENTATION;E-AUDIT-611",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "601",
@@ -22003,10 +22010,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.96"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "PRESENTATION-INDEPENDENT",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

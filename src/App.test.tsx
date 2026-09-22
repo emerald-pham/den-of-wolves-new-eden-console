@@ -1160,8 +1160,10 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
-    // A decorative background layer has no role, name or text to query by.
-    expect(container.querySelector('.contact-plot')).toHaveAttribute('aria-hidden', 'true');
+    // Keep the plot geometry decorative while leaving the root available for
+    // the conditional fleetwide Red Alert status.
+    expect(container.querySelector('.contact-plot__rig')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('.contact-plot__red-alert-status')).toBeNull();
   });
 
   it('keeps the header, the settings menu and the board out of the screen fade', () => {

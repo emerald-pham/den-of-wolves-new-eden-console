@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [611],
+    implementationProgress: {
+      completed: 462, total: 751, percentage: '61.52%',
+      done: 462, partial: 13, active: 0, missing: 276,
+    },
+    changes: [
+      'Compact and expanded DRADIS now keep a written RED ALERT cue and announce the fleetwide alert state to screen readers.',
+      'Stand Down, reconnects, zoom changes, and reduced motion keep the cue matched to the current session.',
+      '462 of 751 planned items are complete (61.52%).',
+    ],
+  },
+  {
+    version: '0.4.95',
     implementationPrompts: [603],
     implementationProgress: {
       completed: 461, total: 751, percentage: '61.38%',

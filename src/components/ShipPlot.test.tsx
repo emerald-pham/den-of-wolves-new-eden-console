@@ -127,6 +127,31 @@ it('opens the shipboard DRADIS with a discrete control and closes it explicitly'
   expect(plot).toHaveAttribute('data-expanded', 'false');
 });
 
+it('keeps the authoritative red-alert status available in compact and expanded DRADIS', async () => {
+  const user = userEvent.setup();
+  const session = {
+    id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby' as const, ownerUid: 'u1',
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    fleetRedAlert: { active: true, revision: 4 },
+  };
+  useSessionStore.getState().setIdentity(session, {
+    uid: 'u1', sessionId: 's1', displayName: 'Crew', role: 'player', seatId: 'admiral',
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  });
+  const { container } = render(<ShipPlot hostile={false} aboard viewerId="aegis" />);
+
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+  expect(status.closest('[aria-hidden="true"]')).toBeNull();
+  expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'false');
+
+  await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+
+  expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'true');
+  expect(screen.getByRole('status')).toBe(status);
+  expect(screen.getByRole('status')).toHaveTextContent('FLEETWIDE RED ALERT ACTIVE');
+});
+
 it('does not add a combat-range key to expanded DRADIS', async () => {
   const user = userEvent.setup();
   render(<ShipPlot hostile={false} aboard viewerId="aegis" />);
