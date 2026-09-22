@@ -139,4 +139,7 @@ it('requires a fuelled second ship and rejects malformed server state', async ()
   session.macawRepairs = { cycle: 3, revision: 2, hosts: 'invalid' };
   await expect(repairConsolesFromMacaw.run(request({ ...command, requestId: 'malformed', expectedRepairRevision: 2, expectedHostShipId: 'aegis', systemIds: ['reactor'] })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
+  session.macawRepairs = { cycle: 3, revision: 2, hosts: [{ shipId: 'aegis', systemIds: ['not-a-console'] }] };
+  await expect(repairConsolesFromMacaw.run(request({ ...command, requestId: 'malformed-console', expectedRepairRevision: 2, expectedHostShipId: 'aegis', systemIds: ['reactor'] })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
 });

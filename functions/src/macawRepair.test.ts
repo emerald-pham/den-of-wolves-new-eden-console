@@ -62,5 +62,9 @@ describe('Macaw repairs', () => {
       damage: { damagedSystemIds: ['reactor'], destroyed: false }, ledger: first.ledger,
     })).toThrow(/Fuel Macaw/);
     expect(parseMacawRepairLedger({ cycle: 3, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor', 'reactor'] }] })).toBeNull();
+    expect(parseMacawRepairLedger({ cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['not-a-console'] }] })).toBeNull();
+    expect(parseMacawRepairLedger({ cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['fighter-bay-alpha'] }] })).toEqual({
+      cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['fighter-bay-alpha'] }],
+    });
   });
 });

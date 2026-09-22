@@ -757,6 +757,13 @@ it('hydrates only bounded Macaw repair history', () => {
       hosts: [{ shipId: 'capybara', systemIds: ['reactor', 'reactor'] }],
     },
   }).macawRepairs).toBeUndefined();
+  expect(sessionFrom('bad-macaw-console-history', {
+    ...sessionData(8),
+    macawRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'aegis', systemIds: ['not-a-console'] }],
+    },
+  }).macawRepairs).toBeUndefined();
 });
 
 it('does not carry malformed IDs from an untrusted session snapshot', () => {

@@ -92,3 +92,24 @@ it('keeps foreign role holders from submitting Macaw repairs', () => {
   expect(within(repair).getByText(/current Capybara Captain holding Macaw controls/i)).toBeInTheDocument();
   expect(within(repair).getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
 });
+
+it('uses Capybara Scrap for an eligible fuelled second host', async () => {
+  mocks.repair.mockResolvedValue({
+    status: 'committed', hostShipId: 'aegis', systemIds: ['reactor'],
+    scrapRemaining: 2, cycle: 3, repairRevision: 2,
+  } satisfies MacawRepairResult);
+  installSession({
+    macawRepairs: {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor'] }],
+    },
+  });
+  renderMacaw(control, { shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'later' });
+  const repair = screen.getByRole('region', { name: 'Macaw console repair' });
+  expect(within(repair).getByText(/Capybara Scrap \/\/ 3/)).toBeInTheDocument();
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  expect(within(repair).getByRole('button', { name: 'Repair selected consoles' })).toBeEnabled();
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledWith(expect.objectContaining({
+    expectedRepairRevision: 1, expectedHostShipId: 'aegis', systemIds: ['reactor'],
+  })));
+});

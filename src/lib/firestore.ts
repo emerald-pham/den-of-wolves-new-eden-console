@@ -81,6 +81,7 @@ import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UN
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
+import { EXECUTIVE_SYSTEMS } from '@/data/roleProcedures';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -96,6 +97,7 @@ import {
   INITIAL_SHIP_JUMP_TRANSITIONS,
   SHIPS,
   SMALL_SHIPS,
+  findShip,
 } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
@@ -1687,6 +1689,15 @@ function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {
   return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
 }
 
+function damageSystemIdsForShip(shipId: string): ReadonlySet<string> {
+  const ship = findShip(shipId);
+  const ids = new Set((ship?.systems ?? []).map(({ id }) => id));
+  if (shipId === 'aegis') {
+    EXECUTIVE_SYSTEMS.forEach(({ id }) => ids.add(id));
+  }
+  return ids;
+}
+
 function macawRepairs(value: unknown): GameSession['macawRepairs'] {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
@@ -1699,10 +1710,12 @@ function macawRepairs(value: unknown): GameSession['macawRepairs'] {
     const shipId = host ? parseEntityId('vessel', host.shipId) : undefined;
     const rawSystemIds = host?.systemIds;
     const systemIds = Array.isArray(rawSystemIds) ? stringArray(rawSystemIds) : [];
+    const knownSystemIds = shipId ? damageSystemIdsForShip(shipId) : new Set<string>();
     if (!host || !shipId || !VESSEL_CATALOG_IDS.has(shipId) || seen.has(shipId) ||
         Object.keys(host).some((key) => !['shipId', 'systemIds'].includes(key)) ||
         systemIds.length < 1 || systemIds.length > 2 ||
         !Array.isArray(rawSystemIds) || systemIds.length !== rawSystemIds.length ||
+        systemIds.some((id) => !knownSystemIds.has(id)) ||
         new Set(systemIds).size !== systemIds.length) return [];
     seen.add(shipId);
     return [{ shipId, systemIds }];

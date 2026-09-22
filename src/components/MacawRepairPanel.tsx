@@ -39,7 +39,7 @@ export default function MacawRepairPanel({ control, docking, fuelled }: Props) {
   const damage = docking ? session.shipDamage?.[docking.shipId] : undefined;
   const repairOptions = docking
     ? (damage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [];
-  const scrap = docking ? session.shipResources?.[docking.shipId]?.scrap ?? 0 : 0;
+  const scrap = session.shipResources?.capybara?.scrap ?? 0;
   const deadline = Date.parse(session.turnPhase?.openAirspaceEndsAt ?? '');
   const turnPhase = session.turnPhase;
   const repairWindowOpen = session.phase === 'active' &&
@@ -90,7 +90,7 @@ export default function MacawRepairPanel({ control, docking, fuelled }: Props) {
     <h3>Repair damaged consoles</h3>
     <p>Spend 1 Scrap per console to repair up to 2 consoles on this ship. A fuelled Macaw may repair a second ship in the same cycle.</p>
     {docking
-      ? <p>Docked host // {findShip(docking.shipId)?.name ?? docking.shipId} // Scrap // {scrap} // repair slots remaining // {repairSlotsRemaining}</p>
+      ? <p>Docked host // {findShip(docking.shipId)?.name ?? docking.shipId} // Capybara Scrap // {scrap} // repair slots remaining // {repairSlotsRemaining}</p>
       : <p>Dock Macaw before repairing consoles.</p>}
     {!isHolder && <p>The current Capybara Captain holding Macaw controls repairs.</p>}
     {!repairWindowOpen && <p>Macaw repairs open during Coordination Phase.</p>}
@@ -98,7 +98,7 @@ export default function MacawRepairPanel({ control, docking, fuelled }: Props) {
     {hostsThisCycle.length >= 2 && !hostAlreadyUsed && <p>Macaw may repair at most two ships this cycle.</p>}
     {damage?.destroyed && <p>A destroyed ship cannot receive Macaw repairs.</p>}
     {repairOptions.length === 0 && <p>No damaged consoles are eligible on this ship.</p>}
-    {systemIds.length > scrap && <p>This repair needs {systemIds.length} Scrap; the host has {scrap}.</p>}
+    {systemIds.length > scrap && <p>This repair needs {systemIds.length} Scrap; the Capybara ledger has {scrap}.</p>}
     {!repairHistoryValid && <p>Macaw repair history is unavailable. Refresh the live session before repairing.</p>}
     <fieldset disabled={!repairHistoryValid || pending || !isHolder || !docking || !repairWindowOpen ||
       !repairShipAvailable || repairSlotsRemaining === 0 || damage?.destroyed === true}>
