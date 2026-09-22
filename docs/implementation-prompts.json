@@ -121,6 +121,13 @@
       "type": "related/consumes"
     },
     {
+      "direction": "601 -> UNIVERSAL-PRIMARY-STATUS",
+      "id": "E-601-UNIVERSAL-PRIMARY-STATUS",
+      "language": "The shared application header now derives and renders six explicit status fields on every routed player, role, ship, shuttle, observer, facilitator, mission, attack, and debrief surface: cycle, phase, location, authority, next action, and failure state. Missing or malformed projection data fails visibly as Unknown or Unavailable rather than disappearing. Focused model and component tests cover route families and degraded state; the established Prompt 602 real-browser matrix proves the combined header on all 14 route families at phone, short-landscape, and desktop sizes with keyboard focus, 44px targets, containment, unobstructed hit targets, console typography, and no horizontal overflow. The risk-based console-font suite and full ticker browser lifecycle matrix pass on the same candidate.",
+      "source": "src/components/AppHeader.tsx; src/components/PrimaryStatus.tsx; src/components/primaryStatusModel.ts; src/components/PrimaryStatus.test.tsx; src/components/primaryStatusModel.test.ts; src/styles/aesthetic.test.ts; scripts/prompt-602-return-navigation.mjs; scripts/test-fleet-ticker-browser.mjs",
+      "type": "evidence / production-path / universal-status / accessibility / rendered review / font / ticker"
+    },
+    {
       "direction": "602 -> 602a",
       "id": "E-602-CLOSURE",
       "language": "Universal Prompt 602 cannot close until the ordinary shuttle return repair 602a is green; this is a closure gate, not a start blocker.",
@@ -21643,11 +21650,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names turn, phase, location, authority, next action, and failure state.",
+        "acceptance": "every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names cycle, phase, location, authority, next action, and failure state.",
         "title": "Make primary status universal."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Release 0.4.92 adds one shared primary-status instrument to the application header across every routed experience. It names cycle, phase, location, authority, next action, and failure state from the current server/session projection, and keeps all six labels visible with explicit Unknown or Unavailable values when data is incomplete. Focused tests cover route families and degraded projections; the real-browser return-navigation matrix proves the combined header on all 14 route families at phone, short-landscape, and desktop sizes, while the risk-based font and ticker lifecycle suites protect the console aesthetic and persistent ticker.",
+      "evidenceIds": "E-601-UNIVERSAL-PRIMARY-STATUS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -21655,10 +21662,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.92"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

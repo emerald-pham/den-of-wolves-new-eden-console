@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**457 / 751 prompts complete (60.85%)**
+**458 / 751 prompts complete (60.99%)**
 
-Status breakdown: **457 done · 13 partial · 281 missing**.
+Status breakdown: **458 done · 13 partial · 280 missing**.
 
 Active prompt: **none**
 
@@ -1072,7 +1072,7 @@ release classification and evidence.
 | 598 | done | feature | 0.3.6, 0.3.10, 0.3.95 | Live joined Turn 0 now displays and exposes the exact CONNECTED — AWAITING IRIS AUTHENTICATION label and title. Anchored accessibility assertions prevent the old NOT CONNECTED substring false positive. The existing 30-second grace and first-turn presentation ceremony remain intact; neither grants nor blocks authority. Independent review clear; narrow phone through desktop rendered checks passed. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 601 | done | non-feature | 0.4.92 | Release 0.4.92 adds one shared primary-status instrument to the application header across every routed experience. It names cycle, phase, location, authority, next action, and failure state from the current server/session projection, and keeps all six labels visible with explicit Unknown or Unavailable values when data is incomplete. Focused tests cover route families and degraded projections; the real-browser return-navigation matrix proves the combined header on all 14 route families at phone, short-landscape, and desktop sizes, while the risk-based font and ticker lifecycle suites protect the console aesthetic and persistent ticker. |
 | 602 | done | feature | 0.3.25, 0.4.27 | 0.3.25 restored compact Finale geometry around the existing controls. Release 0.4.27 completes the universal contract: every declared nonlanding route is bound to a real-browser proof case, ordinary Joint Engineering operators gain a state-preserving return, and role selection plus the locked escape screen gain the established danger-red, cancelable two-step session exit. Focused tests prove confirmation, blur and Escape cancellation, and preservation behavior; the route-inventory guard fails when a route lacks a proof case. The browser matrix keyboard-activates all 13 route families across phone, short landscape, and desktop, verifies each destination, proves identity retention or explicit confirmed release, and checks keyboard focus, 44px targets, containment, unobstructed hit targets, console typography, and no horizontal overflow. |
 | 602a | done | feature | 0.3.104 | Audited the original shuttle roster, Union and Press route history and the restored generic owner return in 0a110375. All ordinary shuttles use canonical captain-role association and route helpers rather than treating a visiting dock as permission to another ship. The return now falls back to role selection when the authoritative fleet no longer permits the owning ship. Explicit accessible names exclude the decorative CSS arrow. Tests cover every ordinary shuttle, deep-link denial and route replacement, keyboard return, Back/Forward, rehydrated docking updates, unchanged held identity and queued commands, plus existing Press/Union/GM exits. Actual source-component renders cover ordinary, fallback and special exits at 320, 390, 844 and 1440 pixel widths in normal/reduced motion, with visible focus, at least 44px targets, containment and no title overlap. This closes the dedicated shuttle repair only; universal navigation Prompt 602 remains open. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

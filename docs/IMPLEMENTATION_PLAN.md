@@ -2755,7 +2755,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 598
 - [ ] Prompt 599
 - [ ] Prompt 600
-- [ ] Prompt 601
+- [x] Prompt 601
 - [x] Prompt 602
 - [x] Prompt 602a
 - [ ] Prompt 603
@@ -3528,7 +3528,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 600 — [PROVE] Run the onboarding-to-first-action scenario.** Acceptance: a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.
 
 #### Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)
-- **Prompt 601 — [EXTEND] Make primary status universal.** Acceptance: every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names turn, phase, location, authority, next action, and failure state.
+- **Prompt 601 — [EXTEND] Make primary status universal.** Acceptance: every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names cycle, phase, location, authority, next action, and failure state.
 - **Prompt 602 — [PROVE] Prove return navigation everywhere.** Acceptance: every nonlanding route has a visible keyboard-accessible logical return that preserves state unless explicitly released.
 - **Prompt 602a — [REPAIR] Restore shuttle-to-associated-ship return navigation.** Acceptance: audit current `ShuttleConsole`, `ShuttleConsoleTemplate`, shuttle/role/docking catalogs, route policy, tests, responsive styles, and the history around `d259cb0`, `9009807`, `dced782`, and `3299767`; if a prior generic return exists, preserve it as the design baseline. Every entitled ordinary shuttle console exposes one explicit visible return to its deterministic associated ship console, resolved from authoritative docking/association state and canonical route helpers rather than a client guess. If no entitled target exists, return safely to the established role-selection parent instead of inventing a ship. Navigation preserves session, seat, active console, shuttle state, and pending authoritative work; it does not release authority or mutate gameplay. Direct deep links, reconnect hydration, browser Back/Forward, and route replacement converge on the same permitted target without loops or cross-ship access. Preserve Press's `Back to Independent Stations`, Joint Engineering's Union return, and GM leave behavior as distinct cases. The control has an exact accessible name, visible focus, at least 44px target, screen-reader semantics, and nonoverlapping placement on mobile and short landscape; reduced motion removes decorative transition only. Add chronological route/entitlement/state/reconnect/history regression tests and real viewport proof before marking the universal Prompt 602 complete.
 - **Prompt 603 — [EXTEND] Make ship consoles work on narrow phones.** Acceptance: maintenance order, stores, damage, status, and primary action remain readable without clipped critical content.

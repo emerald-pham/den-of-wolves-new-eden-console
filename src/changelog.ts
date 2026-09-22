@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [601],
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 13, active: 0, missing: 280,
+    },
+    changes: [
+      'Every game screen now keeps cycle, phase, location, authority, next action, and failure state visible in the header.',
+      'Incomplete session details stay visible as Unknown or Unavailable so missing status cannot silently disappear.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+  },
+  {
+    version: '0.4.91',
     implementationPrompts: [318],
     implementationProgress: {
       completed: 457, total: 751, percentage: '60.85%',
