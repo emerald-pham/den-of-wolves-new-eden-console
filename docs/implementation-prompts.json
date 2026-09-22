@@ -1852,7 +1852,7 @@
     {
       "direction": "272 -> 161;162",
       "id": "E-AUDIT-272",
-      "language": "Chepu registration preserves its PDF Colonel owner, Refinery 124 dock, security-team cargo, boarding support, and fuelled Boarding Action relocation; the routed shuttle derivative leaves mission participation and numeric bonus unresolved.",
+      "language": "Chepu registration preserves its PDF Colonel owner, Refinery 124 dock, security-team cargo, boarding support, and fuelled Boarding Action relocation; the routed shuttle derivative and preserved source inventory leave mission participation and numeric bonus unresolved, requiring OWNER-CHEPU-MISSION-PARTICIPATION-BONUS rather than an invented value.",
       "source": "src/data/vessels/chepu.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Chepu derivative",
       "type": "hard_prompt"
     },
@@ -13106,12 +13106,12 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-CHEPU-MISSION-PARTICIPATION-BONUS",
       "definition": {
         "acceptance": "security cargo, boarding support, fuelled relocation, owner, dock, mission bonuses, and route are typed.",
         "title": "Register Chepu completely."
       },
-      "description": "The canonical Chepu registration preserves the Refinery 124 PDF Colonel owner, SESSION START Refinery 124 dock, security-teams-only cargo, boarding support, and fuelled movement to a chosen ship at the start of Boarding Action. Focused data, server craft-ownership, manifest, and route tests verify these facts and keyboard return to the parent console. The routed REFERENCE_ONLY_SHUTTLES derivative establishes the listed cargo, boarding, relocation, owner, and dock facts, but its away-mission bonus summary does not state whether Chepu may contribute or what numeric bonus applies; no preserved Chepu primary artifact is available in the authorized source index. P272 remains partial pending an authoritative mission-participation/bonus decision; later cargo transfer, boarding, relocation, and mission engines remain separate prompts.",
+      "description": "The canonical Chepu registration preserves the Refinery 124 PDF Colonel owner, SESSION START Refinery 124 dock, security-teams-only cargo, boarding support, and fuelled movement to a chosen ship at the start of Boarding Action. Focused data, server craft-ownership, manifest, and route tests verify these facts and keyboard return to the parent console. The routed REFERENCE_ONLY_SHUTTLES derivative establishes the listed cargo, boarding, relocation, owner, and dock facts, but its away-mission bonus summary does not state whether Chepu may contribute or what numeric bonus applies; no preserved Chepu primary artifact is available in the authorized source index. P272 remains partial under OWNER-CHEPU-MISSION-PARTICIPATION-BONUS pending an authoritative decision on whether Chepu contributes to away missions and, if so, its exact typed bonus; later cargo transfer, boarding, relocation, and mission engines remain separate prompts.",
       "evidenceIds": "E-AUDIT-272",
       "hardContract": "none",
       "hardMilestone": "none",
