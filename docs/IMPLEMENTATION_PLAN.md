@@ -2444,7 +2444,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 316
 - [x] Prompt 317
 - [x] Prompt 318
-- [ ] Prompt 319
+- [x] Prompt 319
 - [ ] Prompt 320
 - [x] Prompt 321
 - [x] Prompt 322
@@ -3205,7 +3205,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 316 — [NEW] Make arrival effects idempotent.** Acceptance: retries and duplicate snapshots cannot create a second mission, hazard, attack, discovery, or reward.
 - **Prompt 317 — [NEW] Resolve environmental maintenance hazards.** Acceptance: ships in I or J receive their printed check from authoritative location, not client coordinates.
 - **Prompt 318 — [NEW] Track candidate discovery.** Acceptance: N/O/P become found only through a legal scout or arrival and only entitled readers see the reveal.
-- **Prompt 319 — [NEW] Surface the Turn 6 planning checkpoint.** Acceptance: facilitators can track whether a candidate plan exists without exposing hidden guidance.
+- **Prompt 319 — [NEW] Surface the Cycle 6 planning checkpoint.** Acceptance: facilitators can track whether a candidate plan exists without exposing hidden guidance.
 - **Prompt 320 — [PROVE] Run the jump-and-system scenario.** Acceptance: one fixture selects a chart, jumps ships independently, updates pursuit, triggers an arrival effect, and reconnects safely.
 - **Prompt 321 — [NEW] Define scout entitlements.** Acceptance: only Starlight, Hummingbird, Endeavour, or the assigned Comms Officer can create their printed request.
 - **Prompt 322 — [NEW] Resolve Starlight's first scan.** Acceptance: the Wing Commander scouts one system within two jumps of current AEGIS position.
