@@ -1711,6 +1711,30 @@ function macawRepairs(value: unknown): GameSession['macawRepairs'] {
   return repairLedger(value, damageSystemIdsForShip);
 }
 
+function chacauRepairs(value: unknown): GameSession['chacauRepairs'] {
+  const raw = recordValue(value);
+  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Array.isArray(raw.hosts) || raw.hosts.length < 1 || raw.hosts.length > 2) return undefined;
+  const seen = new Set<string>();
+  const hosts = raw.hosts.flatMap((value) => {
+    const host = recordValue(value);
+    const shipId = host ? parseEntityId('vessel', host.shipId) : undefined;
+    const rawSystemIds = host?.systemIds;
+    const systemIds = Array.isArray(rawSystemIds) ? stringArray(rawSystemIds) : [];
+    if (!host || !shipId || !VESSEL_CATALOG_IDS.has(shipId) || seen.has(shipId) ||
+        Object.keys(host).some((key) => !['shipId', 'systemIds'].includes(key)) ||
+        systemIds.length < 1 || systemIds.length > 2 ||
+        !Array.isArray(rawSystemIds) || systemIds.length !== rawSystemIds.length ||
+        new Set(systemIds).size !== systemIds.length) return [];
+    seen.add(shipId);
+    return [{ shipId, systemIds }];
+  });
+  if (hosts.length !== raw.hosts.length) return undefined;
+  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
+}
+
 function highwallMining(value: unknown): GameSession['highwallMining'] {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'operations'].includes(key)) ||
@@ -2275,6 +2299,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentHighwallMining = highwallMining(data.highwallMining);
   const currentBlacksmithRepairs = blacksmithRepairs(data.blacksmithRepairs);
   const currentMacawRepairs = macawRepairs(data.macawRepairs);
+  const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2354,6 +2379,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     serviceShuttleRecharges: serviceShuttleRecharges(data.serviceShuttleRecharges),
     ...(currentBlacksmithRepairs ? { blacksmithRepairs: currentBlacksmithRepairs } : {}),
     ...(currentMacawRepairs ? { macawRepairs: currentMacawRepairs } : {}),
+    ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),

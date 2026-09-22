@@ -332,6 +332,16 @@ import {
   type MacawRepairCallableReply,
 } from './macawRepairCallable';
 import {
+  CHACAU_REPAIR_COST,
+  parseChacauRepairLedger,
+  resolveChacauRepair,
+} from './chacauRepair';
+import {
+  chacauRepairCommandFingerprint,
+  isChacauRepairCallableReply,
+  parseChacauRepairCallableCommand,
+} from './chacauRepairCallable';
+import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,
 } from './shuttleEvacuation';
@@ -6479,11 +6489,7 @@ export const repairConsolesFromMacaw = onCall<{
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
         !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
-      throw commandError(
-        'failed-precondition',
-        'Macaw repair is available only during a live Coordination window.',
-        'invalid-phase',
-      );
+      throw commandError('failed-precondition', 'Macaw repair is available only during a live Coordination window.', 'invalid-phase');
     }
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -6529,11 +6535,7 @@ export const repairConsolesFromMacaw = onCall<{
         knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
       });
     } catch (cause) {
-      throw commandError(
-        'failed-precondition',
-        cause instanceof Error ? cause.message : 'Macaw repair was rejected.',
-        'conflict',
-      );
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Macaw repair was rejected.', 'conflict');
     }
     const reply: MacawRepairCallableReply = {
       status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
@@ -6560,6 +6562,136 @@ export const repairConsolesFromMacaw = onCall<{
         shuttleId: 'macaw', hostShipId: result.hostShipId,
         systemIds: result.repairedSystemIds,
         scrapSpent: result.repairedSystemIds.length * MACAW_REPAIR_COST,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+type ChacauRepairReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shuttleId: 'chacau';
+  hostShipId: string;
+  systemIds: readonly string[];
+  materialsRemaining: number;
+  cycle: number;
+  repairRevision: number;
+}>;
+
+/** Repair one or two damaged consoles through Chacau's Refinery 124 authority. */
+export const repairConsolesFromChacau = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parseChacauRepairCallableCommand(request.data);
+  if (!data) throw new HttpsError('invalid-argument', 'Invalid Chacau repair request.');
+  const fingerprint = chacauRepairCommandFingerprint(uid, data);
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/chacau-repair-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected Refinery 124 Engineer may repair consoles with Chacau.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Chacau repair', []);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is ChacauRepairReply => isChacauRepairCallableReply(value, fingerprint),
+      'Chacau repair',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('Chacau repair');
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Chacau repair is available only during active gameplay.', 'invalid-phase');
+    }
+    requireActionPhase(session, 'transfer', 'player');
+    const currentCycle = session.get('currentTurn');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+    }
+    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+    if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
+        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+      throw commandError('failed-precondition', 'Chacau repair is available only during a live Coordination window.', 'invalid-phase');
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The Refinery 124 Engineer has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const fuelled = session.get('shuttleFuelled');
+    const ledger = parseChacauRepairLedger(session.get('chacauRepairs'));
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
+        !control || !isRecord(fuelled) || !ledger) {
+      throw commandError('failed-precondition', 'The authoritative Chacau repair state is unavailable.', 'conflict');
+    }
+    let result: ReturnType<typeof resolveChacauRepair>;
+    try {
+      const hostShipId = rawDockings.find((docking) =>
+        isRecord(docking) && docking.shuttleId === 'chacau')?.shipId;
+      if (hostShipId !== data.expectedHostShipId || !group.vesselIds.includes(hostShipId)) {
+        throw new Error('The docked host is outside the holder’s current fleet group.');
+      }
+      const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
+      const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
+      const deck = SHIP_DAMAGE_DECKS[hostShipId];
+      if (!damage || !resources || !deck) throw new Error('The docked host repair state is unavailable.');
+      result = resolveChacauRepair({
+        actorUid: uid, actorRoleId: actor.get('assignedRoleId') as string,
+        currentCycle: currentCycle as number, expectedCycle: data.expectedCycle,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedRepairRevision: data.expectedRepairRevision,
+        expectedHostShipId: data.expectedHostShipId,
+        fleetGroupVesselIds: group.vesselIds,
+        systemIds: data.systemIds, control: control.chacau!, dockings: rawDockings,
+        fuelled: fuelled.chacau === true, damage, materials: resources.materials ?? 0,
+        knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Chacau repair was rejected.', 'conflict');
+    }
+    const reply: ChacauRepairReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: 'chacau', hostShipId: result.hostShipId,
+      systemIds: result.repairedSystemIds, materialsRemaining: result.materials,
+      cycle: currentCycle as number, repairRevision: result.ledger.revision,
+    };
+    tx.update(sessionRef, {
+      [`shipDamage.${result.hostShipId}`]: result.damage,
+      [`shipResources.${result.hostShipId}.materials`]: result.materials,
+      chacauRepairs: result.ledger,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'chacau-repair',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+        turn: currentCycle as number, phase: vesselActionPhase(session),
+        type: 'chacau-repair', requestId: data.requestId,
+        revision: result.ledger.revision, serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: 'chacau', hostShipId: result.hostShipId,
+        systemIds: result.repairedSystemIds, materialsSpent: result.repairedSystemIds.length * CHACAU_REPAIR_COST,
       },
       createdAt: FieldValue.serverTimestamp(),
     }));

@@ -932,6 +932,14 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
     activeRoleIds: ['refinery-124-engineer'],
     shuttleDockings: [{ shuttleId: 'chacau', shipId: 'refinery-124', dockedAt: 'SESSION START' }],
     shuttleFuelled: { chacau: true },
+    shuttleControl: { chacau: {
+      shuttleId: 'chacau', ownerRoleId: 'refinery-124-engineer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 1,
+    } },
+    shipDamage: { 'refinery-124': { damagedSystemIds: ['reactor'], destroyed: false } },
+    shipResources: { 'refinery-124': {
+      ore: 0, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2,
+    } },
   });
   state.setMe({ ...state.me!, activeConsoleRoleId: 'refinery-124-engineer' });
 
@@ -955,6 +963,7 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Fuelled repair' })).toBeInTheDocument();
   expect(screen.getByText(/fuelled.*repair consoles on a second ship/i)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Chacau console repair' })).toBeInTheDocument();
   expect(screen.queryByText(/fuelled.*repair or scrap/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
 

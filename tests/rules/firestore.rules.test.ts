@@ -1289,6 +1289,13 @@ describe('session header', () => {
       await assertFails(updateDoc(session, {
         'shipDamage.aegis.destroyed': true,
       }));
+      await assertFails(updateDoc(session, {
+        chacauRepairs: {
+          cycle: 3,
+          revision: 1,
+          hosts: [{ shipId: 'refinery-124', systemIds: ['reactor'] }],
+        },
+      }));
     }
   });
 

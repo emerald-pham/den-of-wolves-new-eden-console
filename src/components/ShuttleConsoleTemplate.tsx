@@ -7,6 +7,7 @@ import RoleConsoleTemplate from './RoleConsoleTemplate';
 import HummingbirdHarvest from './HummingbirdHarvest';
 import PhiliaRepairPanel from './PhiliaRepairPanel';
 import MacawRepairPanel from './MacawRepairPanel';
+import ChacauRepairPanel from './ChacauRepairPanel';
 import HighwallMining from './HighwallMining';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
@@ -116,6 +117,8 @@ export default function ShuttleConsoleTemplate({
           {shuttle.id === 'macaw' && control &&
             <MacawRepairPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} hostSystems={host?.systems} />}
+          {shuttle.id === 'chacau' && control &&
+            <ChacauRepairPanel control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>
