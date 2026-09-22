@@ -5705,7 +5705,55 @@ body {
 /* Short landscape ship consoles scroll the session chrome away with the page,
    so its tall status block cannot cover damage, stores, or actions while reading. */
 @media (max-height: 42rem) and (min-width: 48.01rem) {
-  html:has(.ship-console--gameplay) .app-header { position: absolute; }
+  /* Let the composed ship status and maintenance document scroll while the
+     shared live-news instrument remains present throughout that scroll. */
+  html:has(.ship-console--gameplay) .app-header {
+    position: absolute;
+    flex-wrap: wrap;
+  }
+
+  html:has(.ship-console--gameplay) .app-header > .fleet-broadcast__reserve {
+    display: block;
+    flex: 0 0 100%;
+    order: -1;
+    min-height: 2.5rem;
+  }
+
+  html:has(.ship-console--gameplay) .fleet-broadcast {
+    position: fixed;
+    top: max(0.75rem, env(safe-area-inset-top));
+    right: max(0.75rem, env(safe-area-inset-right));
+    left: max(0.75rem, env(safe-area-inset-left));
+    z-index: 12;
+    display: block;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  html:has(.ship-console--gameplay) .fleet-broadcast__ticker {
+    min-height: 0;
+    max-height: 3rem;
+    overflow: hidden;
+  }
+
+  html:has(.ship-console--gameplay) :where(
+    .primary-status,
+    .ship-console__status,
+    .ship-console__instruments,
+    .maintenance-systems__cycle,
+    .maintenance-reference,
+    .maintenance-systems__cycle > ol > li,
+    .maintenance-systems__cycle > button,
+    .maintenance-systems__cycle button,
+    .maintenance-systems__cycle fieldset,
+    .maintenance-systems__step,
+    .maintenance-systems__cycle [role='status'],
+    .aegis-system[data-damaged='true'],
+    .ship-resources,
+    .confetti-dispenser--fleet-alert
+  ) {
+    scroll-margin-block-start: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem);
+  }
 }
 
 /* Printed ship-sheet flow: numbered maintenance with phase systems alongside. */

@@ -4433,6 +4433,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "604 -> SHORT-LANDSCAPE-MAINTENANCE-READABILITY",
+      "id": "E-604-SHORT-LANDSCAPE",
+      "language": "Prompt 604's short-landscape ship-console path keeps the live FleetBroadcast ticker fixed while the composed session header and ship document scroll normally. A reserved ticker row prevents the fixed instrument from covering session controls, and responsive scroll margins keep primary status, maintenance reference, every maintenance step and result, damage, stores, and critical actions clear of the ticker. The source-level aesthetic regression checks the scoped media contract. The local Chrome matrix covers 320x740, 390x844, 844x390, and 1440x900 in normal and reduced motion, verifies the authoritative Airspace Closed ticker remains visible with no horizontal overflow, checks all seven maintenance steps/results and critical action bounds, and saves viewport screenshots. This is local source and rendered evidence; deployment is not claimed.",
+      "source": "src/index.css; src/styles/aesthetic.test.ts; scripts/prompt-604-render.mjs; local Chrome rendered proof at 320x740, 390x844, 844x390, and 1440x900 in normal and reduced motion; /tmp/prompt-604-render/*.png",
+      "type": "evidence / production-path / responsive / short-landscape / accessibility / font / ticker / reduced-motion / rendered review / regression"
+    },
+    {
       "direction": "605 -> 351",
       "id": "E-AUDIT-605",
       "language": "Responsive DRADIS consumes the local-contact presentation contract; sampled transit remains a separate consumer.",
@@ -21834,8 +21841,8 @@
         "acceptance": "every step and result is reachable with intentional scrolling and no obscured control.",
         "title": "Make maintenance work in short landscape."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-604",
+      "description": "Release 0.5.0 keeps the FleetBroadcast ticker pinned on short-landscape ship consoles while status, maintenance steps/results, stores, damage, and critical actions remain reachable through intentional scrolling with no obscured controls. Focused responsive and reduced-motion browser proof covers narrow phone, phone, short landscape, and desktop.",
+      "evidenceIds": "E-AUDIT-604;E-604-SHORT-LANDSCAPE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "603",
@@ -21843,10 +21850,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.0"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

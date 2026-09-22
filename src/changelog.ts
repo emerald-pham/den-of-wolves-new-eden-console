@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [604],
+    implementationProgress: {
+      completed: 466, total: 751, percentage: '62.05%',
+      done: 466, partial: 12, active: 0, missing: 273,
+    },
+    changes: [
+      'Short landscape ship consoles now keep the live ticker visible while maintenance, damage, stores, status, and critical actions scroll beneath it.',
+      'All seven maintenance steps and their results remain reachable without clipped text or controls hidden behind the ticker.',
+      '466 of 751 planned items are complete (62.05%).',
+    ],
+  },
+  {
+    version: '0.4.99',
     implementationPrompts: [609],
     implementationProgress: {
       completed: 465, total: 751, percentage: '61.92%',

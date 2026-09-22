@@ -153,6 +153,22 @@ describe('the CIC frame', () => {
   });
 });
 
+describe('short-landscape ship maintenance', () => {
+  it('keeps the live ticker pinned while maintenance content scrolls clear of it', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /@media \(max-height: 42rem\) and \(min-width: 48\.01rem\)[\s\S]*?html:has\(\.ship-console--gameplay\) \.fleet-broadcast\s*\{[^}]*position:\s*fixed/s,
+    );
+    expect(index).toMatch(
+      /html:has\(\.ship-console--gameplay\) \.app-header > \.fleet-broadcast__reserve\s*\{[^}]*flex:\s*0 0 100%/s,
+    );
+    expect(index).toMatch(
+      /html:has\(\.ship-console--gameplay\) :where\([\s\S]*?\.maintenance-systems__step[\s\S]*?scroll-margin-block-start:/s,
+    );
+  });
+});
+
 describe('the motion safety gate', () => {
   it('keeps the first-load choice full-screen, square, responsive, and still', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
@@ -499,7 +515,7 @@ describe('ship console instrument layout', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
 
     expect(index).toMatch(
-      /@media \(max-height: 42rem\) and \(min-width: 48\.01rem\)\s*\{\s*html:has\(\.ship-console--gameplay\) \.app-header\s*\{\s*position: absolute;\s*\}\s*\}/,
+      /@media \(max-height: 42rem\) and \(min-width: 48\.01rem\)[\s\S]*?html:has\(\.ship-console--gameplay\) \.app-header\s*\{[^}]*position:\s*absolute;/s,
     );
   });
 
