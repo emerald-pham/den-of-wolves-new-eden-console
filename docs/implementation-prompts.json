@@ -5957,6 +5957,13 @@
       "language": "The server-domain gate binds the canonical active role and vessel roster, strict current completed Refinery maintenance authority, and printed 8♦ Fighter Bay charge to the exact canonical P.D.F. Escort Fighter Wing tuple and active P.D.F. Colonel during the Wolf attack targeting window. It fails closed on rogue rosters, lossy or incomplete state, stale, uncharged, damaged, destroyed, foreign, duplicate, and already-launched authority.",
       "source": "functions/src/refineryFighterBay.ts; functions/src/refineryFighterBay.test.ts; functions/src/maintenance.ts; functions/src/shipDamage.ts; functions/src/craftOwnership.ts; focused 210-test fighter-bay/maintenance/craft/attack suite; Functions TypeScript build",
       "type": "evidence / server-domain / fighter-bay / role-gate / charge / damage / attack-window / regression"
+    },
+    {
+      "direction": "238 -> 234;361",
+      "id": "E-238-GORGONEION-REPAIR-DRONES",
+      "language": "The strict server-domain transition authorizes the printed Gorgoneion Captain once per cycle during Coordination, derives the canonical docked resource host from Gorgoneion state, spends exactly three host materials, and removes exactly one known damaged console while preserving all other host state. Revision, phase, role, docking, resource, damage, and history boundaries fail closed, including unreachable revision/cycle pairs and historical consoles unknown to their recorded host.",
+      "source": "functions/src/gorgoneionRepairDrones.ts; functions/src/gorgoneionRepairDrones.test.ts; functions/src/smallShip.ts; functions/src/resources.ts; functions/src/shipDamage.ts; functions/src/replacementRoles.ts; focused 74-test repair/small-ship/phase/authority/resource/damage suite; Functions TypeScript build",
+      "type": "evidence / server-domain / small-ship / repair / coordination / host-resources / revision / regression"
     }
   ],
   "plan": {
@@ -12179,8 +12186,8 @@
         "acceptance": "once in Coordination, three host materials repair one eligible console.",
         "title": "Resolve Gorgoneion Repair Drones."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-238",
+      "description": "The pure server-domain Gorgoneion Repair Drones transition requires the printed Gorgoneion Captain, authoritative Coordination phase and cycle, a canonical docked Gorgoneion state, one eligible undestroyed resource host, a known damaged console, and three host materials. It removes exactly that console from host damage, spends exactly three materials, and advances a strict revision-bound ledger that permits one repair per cycle and resets only on a later cycle. Malformed, stale, wrong-phase, wrong-role, undocked, unknown-host, unknown/undamaged, destroyed, insufficient-material, repeated, and backward or unreachable histories and host-unknown historical consoles fail closed. This closes Prompt 238's non-feature domain contract only; callable persistence, actor/session binding, durable replay/events, projections, UI, deployment, and playable release remain unimplemented and unclaimed.",
+      "evidenceIds": "E-AUDIT-238;E-238-GORGONEION-REPAIR-DRONES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;361",
@@ -12191,7 +12198,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
