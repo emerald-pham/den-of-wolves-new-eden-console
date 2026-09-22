@@ -85,6 +85,10 @@ describe('Endeavour research tracks', () => {
     expect(() => endeavourResearchTrack({ reactor: 1.5 }, 'reactor')).toThrow(/invalid crossed-box/i);
     expect(() => endeavourResearchTrack({ reactor: 6 }, 'reactor')).toThrow(/invalid crossed-box/i);
     expect(() => endeavourResearchTrack({ unknown: 1 } as never, 'reactor')).toThrow(/unknown track/i);
+    for (const malformed of [null, 0, '', true, [], new Date(), Object.create(null)]) {
+      expect(() => advanceEndeavourResearch(malformed, 'reactor')).toThrow(/canonical record/i);
+    }
+    expect(() => advanceEndeavourResearch({}, 'unknown' as never)).toThrow(/unknown.*track/i);
   });
 
   it('preserves every unrelated canonical track while advancing one box', () => {

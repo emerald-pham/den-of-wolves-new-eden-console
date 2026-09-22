@@ -62,7 +62,22 @@ const CONSOLE_TRACK_BY_SYSTEM_ID: Readonly<Record<string, EndeavourResearchTrack
   'missile-launchers': 'missile-launchers',
 });
 
-function crossedBoxesFor(progress: EndeavourResearchProgress, trackId: EndeavourResearchTrackId): number {
+function canonicalProgress(value: unknown): EndeavourResearchProgress {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype) {
+    throw new Error('Endeavour research progress must be a canonical record.');
+  }
+  return value as EndeavourResearchProgress;
+}
+
+function requireTrackId(value: unknown): asserts value is EndeavourResearchTrackId {
+  if (typeof value !== 'string' || !TRACK_ID_SET.has(value)) {
+    throw new Error('Unknown Endeavour research track.');
+  }
+}
+
+function crossedBoxesFor(progressValue: unknown, trackId: EndeavourResearchTrackId): number {
+  const progress = canonicalProgress(progressValue);
   for (const [candidateId, candidateValue] of Object.entries(progress)) {
     if (!TRACK_ID_SET.has(candidateId)) throw new Error('Endeavour research progress contains an unknown track.');
     const costs = ENDEAVOUR_RESEARCH_TRACKS[candidateId as EndeavourResearchTrackId].materialCosts;
@@ -75,9 +90,10 @@ function crossedBoxesFor(progress: EndeavourResearchProgress, trackId: Endeavour
 
 /** Return the next printed material cost after crossing boxes strictly from left to right. */
 export function endeavourResearchTrack(
-  progress: EndeavourResearchProgress,
+  progress: unknown,
   trackId: EndeavourResearchTrackId,
 ): EndeavourResearchTrackView {
+  requireTrackId(trackId);
   const definition = ENDEAVOUR_RESEARCH_TRACKS[trackId];
   const crossedBoxes = crossedBoxesFor(progress, trackId);
   return {
@@ -92,14 +108,16 @@ export function endeavourResearchTrack(
 
 /** Cross exactly the left-most remaining box; callers cannot select or skip a box. */
 export function advanceEndeavourResearch(
-  progress: EndeavourResearchProgress,
+  progress: unknown,
   trackId: EndeavourResearchTrackId,
 ): EndeavourResearchAdvance {
-  const before = endeavourResearchTrack(progress, trackId);
+  requireTrackId(trackId);
+  const canonical = canonicalProgress(progress);
+  const before = endeavourResearchTrack(canonical, trackId);
   if (before.complete || before.currentMaterialCost === null) {
     throw new Error(`${before.name} research is already complete.`);
   }
-  const nextProgress = Object.freeze({ ...progress, [trackId]: before.crossedBoxes + 1 });
+  const nextProgress = Object.freeze({ ...canonical, [trackId]: before.crossedBoxes + 1 });
   return {
     progress: nextProgress,
     crossedBox: before.crossedBoxes,
