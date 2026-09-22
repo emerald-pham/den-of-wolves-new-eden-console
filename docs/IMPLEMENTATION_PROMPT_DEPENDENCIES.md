@@ -314,7 +314,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 201 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-201 | M3;M5 | Audit the Icebreaker Jump Drive. |
 | 202 | NEW | missing | 201 | none | none | none | none | none | none | none | E-AUDIT-202 | M3;M5 | Resolve the Ram Scoop. |
 | 203 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-203;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Icebreaker Captain workspace. |
-| 203a | NEW | missing | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203A | M3;M5 | Complete the Icebreaker Engineer workspace. |
+| 203a | NEW | done | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203A | M3;M5 | Complete the Icebreaker Engineer workspace. |
 | 203b | NEW | missing | 166;194;265;388 | none | none | none | none | none | none | none | E-AUDIT-203B | M3;M5 | Complete the Miner workspace. |
 | 204 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-204 | M3;M5 | Complete Shepherd identity and maintenance lane. |
 | 205 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-205;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Shepherd Storage. |
@@ -509,7 +509,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 379 | NEW | done | 377 | none | none | none | none | none | none | none | E-AUDIT-379;E-379-INVALID-CARGO-MOVES-DENIED | M7 | Deny invalid cargo moves. |
 | 380 | NEW | missing | 365;366;367 | none | none | none | none | none | none | none | E-AUDIT-380 | M7 | Reconcile movement conflicts. |
 | 381 | NEW | missing | 263;361 | none | none | none | none | none | none | none | E-AUDIT-381 | M7 | Resolve Philia repairs. |
-| 382 | NEW | missing | 266;361 | none | none | none | none | none | none | none | E-AUDIT-382 | M7 | Resolve Blacksmith repairs. |
+| 382 | NEW | done | 266;361 | none | none | none | none | none | none | none | E-AUDIT-382 | M7 | Resolve Blacksmith repairs. |
 | 383 | NEW | missing | 271;361 | none | none | none | none | none | none | none | E-AUDIT-383 | M7 | Resolve Chacau repairs. |
 | 384 | NEW | missing | 275;361 | none | none | none | none | none | none | none | E-AUDIT-384 | M7 | Resolve Ally repairs. |
 | 385 | NEW | missing | 361;377 | none | none | none | none | none | none | none | E-AUDIT-385 | M7 | Resolve permissioned dismantling. |

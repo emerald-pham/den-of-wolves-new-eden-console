@@ -1145,6 +1145,47 @@ it.each([
   expect(scaffold).toHaveTextContent(/tracked at the table/i);
 });
 
+it('routes every Icebreaker Engineer responsibility to live controls', async () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected the test identity.');
+  useSessionStore.getState().setSession({
+    ...session, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['icebreaker-engineer'], activeVesselIds: ['icebreaker'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    maintenanceCycles: { icebreaker: {
+      step: 5, revision: 4, turn: 2, results: {}, charges: [], refuelled: [],
+    } },
+    shipResources: { icebreaker: {
+      ore: 3, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2,
+    } },
+    shipDamage: { icebreaker: { damagedSystemIds: [], destroyed: false } },
+    shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker', dockedAt: 'SESSION START' }],
+  });
+  useSessionStore.getState().setMe({
+    ...me, assignedRoleId: 'icebreaker-engineer', seatId: 'icebreaker-engineer',
+    activeConsoleRoleId: null,
+  });
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter initialEntries={['/ships/icebreaker/roles/icebreaker-engineer']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('icebreaker-engineer'));
+  const workspace = screen.getByRole('region', { name: 'Icebreaker Engineer console' });
+  expect(within(workspace).getByRole('region', { name: 'Icebreaker maintenance cycle' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Icebreaker resource stores' })).toHaveTextContent(/materials.*12/i);
+  expect(within(workspace).getByRole('button', { name: 'Power up reactor' })).toBeEnabled();
+  expect(within(workspace).getByRole('link', { name: 'Open Blacksmith shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/blacksmith');
+  expect(workspace).toHaveTextContent(/repairs fleet consoles.*full cargo load/i);
+});
+
 it.each([
   ['dione', 'Dione', 'dione-captain', 'Hydroponics', '100,000'],
   ['icebreaker', 'Icebreaker', 'icebreaker-captain', 'Mining Drone Control', '40,000'],

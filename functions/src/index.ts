@@ -288,6 +288,10 @@ import {
   serviceRechargeDamageState,
 } from './serviceShuttleRecharge';
 import {
+  parseBlacksmithRepairLedger,
+  resolveBlacksmithRepair,
+} from './blacksmithRepair';
+import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,
 } from './shuttleEvacuation';
@@ -5633,6 +5637,202 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       payload: {
         shuttleId: data.shuttleId, hostShipId: result.hostShipId, consoleId: data.consoleId,
         immediate: result.immediate, message: result.message,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+type BlacksmithRepairReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shuttleId: 'blacksmith';
+  hostShipId: string;
+  systemIds: readonly string[];
+  materialsRemaining: number;
+  cycle: number;
+  repairRevision: number;
+}>;
+
+function isBlacksmithRepairReply(
+  value: unknown,
+  fingerprint: CommandFingerprint,
+): value is BlacksmithRepairReply {
+  const keys = [
+    'status', 'sessionId', 'requestId', 'shuttleId', 'hostShipId',
+    'systemIds', 'materialsRemaining', 'cycle', 'repairRevision',
+  ];
+  const expectedSystemIds = fingerprint.payload.systemIds;
+  return isRecord(value) && Object.keys(value).length === keys.length &&
+    keys.every((key) => Object.hasOwn(value, key)) &&
+    value.sessionId === fingerprint.sessionId && value.requestId === fingerprint.requestId &&
+    (value.status === 'committed' || value.status === 'replayed') &&
+    value.shuttleId === 'blacksmith' && value.hostShipId === fingerprint.payload.hostShipId &&
+    Array.isArray(value.systemIds) && Array.isArray(expectedSystemIds) &&
+    value.systemIds.length === expectedSystemIds.length &&
+    value.systemIds.every((id, index) => id === expectedSystemIds[index]) &&
+    Number.isSafeInteger(value.materialsRemaining) && (value.materialsRemaining as number) >= 0 &&
+    value.cycle === fingerprint.payload.expectedCycle &&
+    typeof fingerprint.expectedRevision === 'number' &&
+    value.repairRevision === fingerprint.expectedRevision + 1;
+}
+
+/** Repair one or two damaged consoles on Blacksmith's authoritative docked host. */
+export const repairConsolesFromBlacksmith = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
+  expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
+  systemIds?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'expectedControlRevision', 'expectedRepairRevision',
+    'expectedCycle', 'expectedHostShipId', 'systemIds',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedRepairRevision) || (raw.expectedRepairRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||
+      !Array.isArray(raw.systemIds) || raw.systemIds.length < 1 || raw.systemIds.length > 2 ||
+      raw.systemIds.some((id) => typeof id !== 'string' || !/^[\w-]{1,128}$/.test(id)) ||
+      new Set(raw.systemIds).size !== raw.systemIds.length) {
+    throw new HttpsError('invalid-argument', 'Invalid Blacksmith repair request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; expectedControlRevision: number;
+    expectedRepairRevision: number; expectedCycle: number; expectedHostShipId: string;
+    systemIds: string[];
+  };
+  const canonicalSystemIds = [...data.systemIds].sort();
+  const fingerprint: CommandFingerprint = {
+    action: 'blacksmith-repair', sessionId: data.sessionId, requestId: data.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: data.expectedRepairRevision,
+    payload: {
+      expectedControlRevision: data.expectedControlRevision,
+      expectedCycle: data.expectedCycle,
+      hostShipId: data.expectedHostShipId,
+      systemIds: canonicalSystemIds,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/blacksmith-repair-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected Blacksmith holder may repair consoles.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    await rejectForeignLegacyM1Command(
+      tx, data.sessionId, data.requestId, 'Blacksmith repair', [],
+    );
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is BlacksmithRepairReply => isBlacksmithRepairReply(value, fingerprint),
+      'Blacksmith repair',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('Blacksmith repair');
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Blacksmith repair is available only during active gameplay.', 'invalid-phase');
+    }
+    requireActionPhase(session, 'transfer', 'player');
+    const currentCycle = session.get('currentTurn');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+    }
+    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+    if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
+        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+      throw commandError(
+        'failed-precondition',
+        'Blacksmith repair is available only during a live Coordination window.',
+        'invalid-phase',
+      );
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The Blacksmith holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const fuelled = session.get('shuttleFuelled');
+    const ledger = parseBlacksmithRepairLedger(session.get('blacksmithRepairs'));
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
+        !control || !isRecord(fuelled) || !ledger) {
+      throw commandError('failed-precondition', 'The authoritative Blacksmith repair state is unavailable.', 'conflict');
+    }
+    let result: ReturnType<typeof resolveBlacksmithRepair>;
+    try {
+      const hostShipId = rawDockings.find((docking) =>
+        isRecord(docking) && docking.shuttleId === 'blacksmith')?.shipId;
+      if (hostShipId !== data.expectedHostShipId || !group.vesselIds.includes(hostShipId)) {
+        throw new Error('The docked host is outside the holder’s current fleet group.');
+      }
+      const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
+      const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
+      const deck = SHIP_DAMAGE_DECKS[hostShipId];
+      if (!damage || !resources || !deck) throw new Error('The docked host repair state is unavailable.');
+      result = resolveBlacksmithRepair({
+        actorUid: uid, currentCycle: currentCycle as number,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedRepairRevision: data.expectedRepairRevision,
+        systemIds: canonicalSystemIds,
+        control: control.blacksmith!, dockings: rawDockings,
+        fuelled: fuelled.blacksmith === true,
+        damage, materials: resources.materials ?? 0,
+        knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Blacksmith repair was rejected.',
+        'conflict',
+      );
+    }
+    const reply: BlacksmithRepairReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: 'blacksmith', hostShipId: result.hostShipId,
+      systemIds: result.repairedSystemIds, materialsRemaining: result.materials,
+      cycle: currentCycle as number, repairRevision: result.ledger.revision,
+    };
+    tx.update(sessionRef, {
+      [`shipDamage.${result.hostShipId}`]: result.damage,
+      [`shipResources.${result.hostShipId}.materials`]: result.materials,
+      blacksmithRepairs: result.ledger,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'blacksmith-repair',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+        turn: currentCycle as number, phase: vesselActionPhase(session),
+        type: 'blacksmith-repair', requestId: data.requestId,
+        revision: result.ledger.revision, serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: 'blacksmith', hostShipId: result.hostShipId,
+        systemIds: result.repairedSystemIds, materialsSpent: result.repairedSystemIds.length * 4,
       },
       createdAt: FieldValue.serverTimestamp(),
     }));

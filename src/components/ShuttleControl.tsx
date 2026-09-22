@@ -15,6 +15,7 @@ import { findShip } from '@/data/ships';
 import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/data/shuttles';
 import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
 import { SERVICE_SHUTTLE_IDS, serviceRechargeConsoleOptions } from '@/data/serviceShuttleRecharge';
+import { repairConsolesFromBlacksmith } from '@/lib/blacksmithRepairService';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -36,6 +37,7 @@ export default function ShuttleControl({ control }: Props) {
   const [rechargeProductionOreAmount, setRechargeProductionOreAmount] = useState(1);
   const [evacuationDestinationShipId, setEvacuationDestinationShipId] = useState('');
   const [evacuationAmount, setEvacuationAmount] = useState(0);
+  const [repairSystemIds, setRepairSystemIds] = useState<string[]>([]);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
   const docking = dockingForShuttle(session, control.shuttleId);
@@ -99,6 +101,30 @@ export default function ShuttleControl({ control }: Props) {
       sourceShipId: docking.shipId, destinationShipId: evacuationDestinationShipId,
       sourcePopulation, destinationPopulation, remaining: evacuationRemaining,
     }) : [];
+  const blacksmithRepair = session.blacksmithRepairs;
+  const blacksmithRepairRevision = blacksmithRepair?.revision ?? 0;
+  const repairHostsThisCycle = blacksmithRepair && blacksmithRepair.cycle === session.currentTurn
+    ? blacksmithRepair.hosts : [];
+  const repairedOnHost = docking
+    ? repairHostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? [] : [];
+  const repairHostAlreadyUsed = Boolean(docking &&
+    repairHostsThisCycle.some((host) => host.shipId === docking.shipId));
+  const repairShipAvailable = repairHostAlreadyUsed || repairHostsThisCycle.length === 0 ||
+    (repairHostsThisCycle.length < 2 && session.shuttleFuelled?.blacksmith === true);
+  const repairSlotsRemaining = Math.max(0, 2 - repairedOnHost.length);
+  const repairOptions = docking && control.shuttleId === 'blacksmith'
+    ? (hostDamage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [];
+  const repairMaterials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
+  const repairDeadline = session.turnPhase?.openAirspaceEndsAt
+    ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
+  const repairWindowOpen = session.phase === 'active' &&
+    session.turnPhase?.turn === session.currentTurn && session.turnPhase?.airspace.state === 'lifted' &&
+    session.turnPhase.timerPause === undefined && Number.isFinite(repairDeadline) &&
+    Date.now() < repairDeadline;
+
+  useEffect(() => setRepairSystemIds([]), [
+    blacksmithRepairRevision, control.revision, control.shuttleId, docking?.shipId, session.currentTurn,
+  ]);
 
   useEffect(() => subscribeConnectedPlayers(session.id, setPlayers), [session.id, me.fleetGroupId]);
   useEffect(() => subscribeShuttleDeparture(
@@ -225,6 +251,25 @@ export default function ShuttleControl({ control }: Props) {
       setRechargeProductionOreAmount(1);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function submitBlacksmithRepair(): Promise<void> {
+    if (pending || !docking || control.shuttleId !== 'blacksmith' || !session.currentTurn ||
+        repairSystemIds.length < 1 || repairSystemIds.length > repairSlotsRemaining) return;
+    setPending(true);
+    setStatus('');
+    try {
+      const result = await repairConsolesFromBlacksmith(
+        repairSystemIds, control.revision, blacksmithRepairRevision, session.currentTurn,
+        docking.shipId,
+      );
+      setStatus(`Repaired ${repairSystemIds.length} console${repairSystemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`);
+      setRepairSystemIds([]);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Blacksmith repair failed.');
     } finally {
       setPending(false);
     }
@@ -366,6 +411,36 @@ export default function ShuttleControl({ control }: Props) {
             !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle ||
             invalidRechargeOre || (rechargeProductionScrap && (hostResources?.scrap ?? 0) < 1)}
           onClick={() => void submitRecharge()}>Recharge console</button>
+      </div>
+    </section>}
+    {canRequestDeparture && docking && control.shuttleId === 'blacksmith' && <section aria-label="Blacksmith console repair">
+      <p className="console-workspace__eyebrow">Repair rig // docked host</p>
+      <h4>Repair damaged consoles</h4>
+      <p>Spend 4 materials for each of up to 2 consoles on this ship. A fuelled Blacksmith may repair a second ship in the same cycle.</p>
+      <p>Docked host materials // {repairMaterials} // repair slots remaining // {repairSlotsRemaining}</p>
+      {!repairWindowOpen && <p>Blacksmith repairs open during Coordination Phase.</p>}
+      {!repairShipAvailable && <p>Fuel Blacksmith before repairing a second ship this cycle.</p>}
+      {repairOptions.length === 0 && <p>No damaged consoles are eligible on this ship.</p>}
+      <fieldset disabled={pending || !repairWindowOpen || !repairShipAvailable || repairSlotsRemaining === 0 || hostDamage?.destroyed}>
+        <legend>Damaged consoles</legend>
+        {repairOptions.map((systemId) => {
+          const checked = repairSystemIds.includes(systemId);
+          const atCapacity = repairSystemIds.length >= repairSlotsRemaining;
+          const name = findShip(docking.shipId)?.systems?.find((system) => system.id === systemId)?.name ??
+            systemId.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+          return <label key={systemId}>
+            <input type="checkbox" checked={checked} disabled={!checked && atCapacity}
+              onChange={(event) => setRepairSystemIds((current) => event.target.checked
+                ? [...current, systemId] : current.filter((id) => id !== systemId))} /> {name}
+          </label>;
+        })}
+      </fieldset>
+      <div className="console-workspace__actions">
+        <button className="cic-action-button" type="button"
+          disabled={pending || !repairWindowOpen || !repairShipAvailable || repairSystemIds.length < 1 ||
+            repairSystemIds.length > repairSlotsRemaining || repairMaterials < repairSystemIds.length * 4 ||
+            hostDamage?.destroyed}
+          onClick={() => void submitBlacksmithRepair()}>Repair selected consoles</button>
       </div>
     </section>}
     {canRequestDeparture && docking && cargoTypes.length > 0 && <section aria-label="Survivor evacuation">

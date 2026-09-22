@@ -38,6 +38,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
     'sourcePopulation', 'destinationPopulation', 'movedThisCycle',
   ],
   'service-shuttle-recharge': ['shuttleId', 'hostShipId', 'consoleId', 'immediate', 'message'],
+  'blacksmith-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };
 

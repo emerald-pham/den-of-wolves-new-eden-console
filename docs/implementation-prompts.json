@@ -11109,7 +11109,7 @@
         "acceptance": "maintenance, stores, Blacksmith, charging, repair, and resource distribution route to real actions.",
         "title": "Complete the Icebreaker Engineer workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The Icebreaker Engineer workspace now routes every assigned responsibility to live production controls: server-authoritative maintenance and reactor charging, current ship stores, the owned Blacksmith console, printed cargo transfers for resource distribution, and an atomic Blacksmith repair action. The repair callable binds the current holder, fleet group, docked host, Coordination cycle, custody and repair revisions, exact damaged console IDs, materials cost, per-ship limit, and fuelled second-ship allowance; replay cannot spend or repair twice, and direct client state edits remain denied.",
       "evidenceIds": "E-AUDIT-203A",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11118,10 +11118,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.82"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15652,7 +15654,7 @@
         "acceptance": "the same printed repair contract runs under Icebreaker ownership and its actual dock.",
         "title": "Resolve Blacksmith repairs."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Blacksmith now repairs one or two selected damaged consoles on its authoritative docked host for four host materials each. The server transaction requires the live holder, current fleet group and Coordination cycle, exact custody and repair revisions, valid damage and resource ledgers, and a fuelled craft before a second ship can be repaired in the same cycle. Exact retries replay without another mutation; malformed, stale, foreign, underfunded, destroyed-host, and direct-client requests fail closed. The shuttle console exposes the live selection and remaining materials.",
       "evidenceIds": "E-AUDIT-382",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -15661,10 +15663,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.82"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

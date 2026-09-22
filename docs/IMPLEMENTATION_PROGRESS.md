@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**432 / 751 prompts complete (57.52%)**
+**434 / 751 prompts complete (57.79%)**
 
-Status breakdown: **432 done · 16 partial · 303 missing**.
+Status breakdown: **434 done · 16 partial · 301 missing**.
 
 Active prompt: **none**
 
@@ -629,7 +629,7 @@ release classification and evidence.
 | 201 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 202 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 203 | done | non-feature | — | Verified the existing Icebreaker Captain workspace on the production ship route: an exactly assigned and seated player activates only icebreaker-captain, receives live Icebreaker systems and stores including Mining Drone Control for resource bargaining, the 40,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change. |
-| 203a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 203a | done | non-feature | 0.4.82 | The Icebreaker Engineer workspace now routes every assigned responsibility to live production controls: server-authoritative maintenance and reactor charging, current ship stores, the owned Blacksmith console, printed cargo transfers for resource distribution, and an atomic Blacksmith repair action. The repair callable binds the current holder, fleet group, docked host, Coordination cycle, custody and repair revisions, exact damaged console IDs, materials cost, per-ship limit, and fuelled second-ship allowance; replay cannot spend or repair twice, and direct client state edits remain denied. |
 | 203b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 204 | done | non-feature | — | Shepherd now derives its 30,000-survivor identity, exact 24,000/15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift. |
 | 205 | done | non-feature | — | The existing Shepherd Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed. |
@@ -824,7 +824,7 @@ release classification and evidence.
 | 379 | done | non-feature | — | Verified the production cargo-transfer denial matrix. Unsupported types, negative or fractional amounts, overdraw, absent or duplicate docking, cross-group hosts, foreign holders, wrong phase, stale custody, and missing or malformed inventories all fail before either ledger changes. Exact accepted retries replay without another write. Focused pure and callable suites passed, including new negative-amount and wrong-phase regressions. This is evidence reconciliation with no runtime change. |
 | 380 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 381 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 382 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 382 | done | non-feature | 0.4.82 | Blacksmith now repairs one or two selected damaged consoles on its authoritative docked host for four host materials each. The server transaction requires the live holder, current fleet group and Coordination cycle, exact custody and repair revisions, valid damage and resource ledgers, and a fuelled craft before a second ship can be repaired in the same cycle. Exact retries replay without another mutation; malformed, stale, foreign, underfunded, destroyed-host, and direct-client requests fail closed. The shuttle console exposes the live selection and remaining materials. |
 | 383 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 384 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 385 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

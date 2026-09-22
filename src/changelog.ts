@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['203a', 382],
+    implementationProgress: {
+      completed: 434, total: 751, percentage: '57.79%',
+      done: 434, partial: 16, active: 0, missing: 301,
+    },
+    changes: [
+      'Icebreaker Engineers now have live maintenance, charging, stores, cargo distribution, and Blacksmith controls in one working route.',
+      'Blacksmith can repair up to two damaged consoles for four materials each, and a fuelled craft can continue repairs on a second ship during the same cycle.',
+      '434 of 751 planned items are complete (57.79%).',
+    ],
+  },
+  {
+    version: '0.4.81',
     implementationPrompts: ['524a'],
     implementationProgress: {
       completed: 432, total: 751, percentage: '57.52%',

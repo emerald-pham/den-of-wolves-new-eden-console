@@ -42,6 +42,11 @@ vi.mock('@/lib/serviceShuttleRechargeService', () => ({
     immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   }),
 }));
+vi.mock('@/lib/blacksmithRepairService', () => ({
+  repairConsolesFromBlacksmith: vi.fn().mockResolvedValue({
+    materialsRemaining: 4, repairRevision: 1,
+  }),
+}));
 vi.mock('@/lib/highwallMiningService', () => ({
   runHighwallMining: vi.fn().mockResolvedValue({
     status: 'committed', cycle: 2, revision: 3,
@@ -61,6 +66,7 @@ const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, requestShuttleDeparture } = await import('@/lib/shuttleDepartureService');
 const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
 const { rechargeHostConsoleFromShuttle } = await import('@/lib/serviceShuttleRechargeService');
+const { repairConsolesFromBlacksmith } = await import('@/lib/blacksmithRepairService');
 const { runHighwallMining } = await import('@/lib/highwallMiningService');
 const { evacuateShuttleSurvivors } = await import('@/lib/shuttleEvacuationService');
 
@@ -91,6 +97,10 @@ beforeEach(() => {
   vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
   vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue({
     immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
+  });
+  vi.mocked(repairConsolesFromBlacksmith).mockReset();
+  vi.mocked(repairConsolesFromBlacksmith).mockResolvedValue({
+    materialsRemaining: 4, repairRevision: 1,
   });
   vi.mocked(runHighwallMining).mockReset();
   vi.mocked(runHighwallMining).mockResolvedValue({
@@ -781,6 +791,60 @@ it('opens Blacksmith on its Icebreaker Engineer route with its repair and cargo 
   expect(back).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(screen.getByText('Icebreaker Engineer parent')).toBeInTheDocument();
+});
+
+it('repairs selected Icebreaker consoles through the live Blacksmith control', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 3,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    activeRoleIds: ['icebreaker-engineer'], activeVesselIds: ['icebreaker'],
+    shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker', dockedAt: 'now' }],
+    shuttleFuelled: { blacksmith: true },
+    shuttleControl: { blacksmith: {
+      shuttleId: 'blacksmith', ownerRoleId: 'icebreaker-engineer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 2,
+    } },
+    shipDamage: { icebreaker: { damagedSystemIds: ['reactor', 'storage'], destroyed: false } },
+    shipResources: { icebreaker: { ore: 0, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2 } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'icebreaker-engineer' });
+
+  render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}>
+    <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+  </MemoryRouter>);
+
+  const repair = screen.getByRole('region', { name: 'Blacksmith console repair' });
+  expect(repair).toHaveTextContent(/materials.*12.*remaining.*2/i);
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  await user.click(within(repair).getByRole('checkbox', { name: 'Storage' }));
+  await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledWith(
+    ['reactor', 'storage'], 2, 0, 3, 'icebreaker',
+  ));
+  expect(await screen.findByText(/repaired 2 consoles.*4 materials remain/i)).toHaveAttribute('role', 'status');
+
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  const liveSession = useSessionStore.getState().session!;
+  act(() => {
+    state.setSession({
+      ...liveSession,
+      turnPhase: {
+        ...liveSession.turnPhase!,
+        timerPause: {
+          window: 'open', remainingMs: 60_000, pausedAt: '2099-09-21T12:01:00.000Z',
+        },
+      },
+    });
+  });
+  await waitFor(() => expect(within(repair).getByRole('button', {
+    name: 'Repair selected consoles',
+  })).toBeDisabled());
 });
 
 it('opens Black Sheep on its Shepherd Engineer route with the owned recharge envelope', async () => {

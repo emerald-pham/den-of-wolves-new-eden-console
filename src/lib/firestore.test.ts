@@ -646,6 +646,32 @@ it('removes hidden state nested in public and crew projections while preserving 
   expect(crewProjection).not.toHaveProperty('facilitatorNotes');
 });
 
+it('hydrates only bounded Blacksmith repair history', () => {
+  expect(sessionFrom('blacksmith-history', {
+    ...sessionData(8),
+    blacksmithRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [
+        { shipId: 'icebreaker', systemIds: ['reactor', 'storage'] },
+        { shipId: 'dione', systemIds: ['jump-drive'] },
+      ],
+    },
+  }).blacksmithRepairs).toEqual({
+    cycle: 3, revision: 2,
+    hosts: [
+      { shipId: 'icebreaker', systemIds: ['reactor', 'storage'] },
+      { shipId: 'dione', systemIds: ['jump-drive'] },
+    ],
+  });
+  expect(sessionFrom('bad-blacksmith-history', {
+    ...sessionData(8),
+    blacksmithRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'icebreaker', systemIds: ['reactor', 'reactor'] }],
+    },
+  }).blacksmithRepairs).toBeUndefined();
+});
+
 it('does not carry malformed IDs from an untrusted session snapshot', () => {
   const session = sessionFrom('safe-session', {
     ...sessionData(8),
