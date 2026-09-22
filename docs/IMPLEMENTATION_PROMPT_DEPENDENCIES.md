@@ -350,7 +350,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 231 | NEW | done | 182;273 | none | none | none | none | none | none | none | E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE | M3;M5 | Gate the Refinery Fighter Bay. |
 | 232 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-232 | M3;M5 | Audit the Refinery 124 Jump Drive. |
 | 233 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-233;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Refinery 124 Captain workspace. |
-| 233a | NEW | missing | 166;224;361 | none | none | none | none | none | none | none | E-AUDIT-233A | M3;M5 | Complete the Refinery Engineer workspace. |
+| 233a | NEW | missing | 166;224;230;271;361;377;383 | none | none | none | none | none | none | none | E-AUDIT-233A | M3;M5 | Complete the Refinery Engineer workspace. |
 | 233b | NEW | missing | 166;224;273 | none | none | none | none | none | none | none | E-AUDIT-233B | M3;M5 | Complete the PDF Colonel workspace. |
 | 234 | EXTEND | done | 161;162;111;141 | none | none | none | none | none | none | none | E-AUDIT-234 | M3;M5;M6 | Implement shared small-ship rules. |
 | 234a | DECISION | done | none | none | none | none | none | none | none | none | E-234A-IMPLEMENTED | M3;M5;M6 | Apply the extra-role balance dial. |

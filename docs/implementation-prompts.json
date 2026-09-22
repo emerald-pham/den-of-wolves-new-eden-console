@@ -12016,11 +12016,11 @@
         "acceptance": "maintenance, ore/fuel stores, Chacau, refining, repair, and distribution route to real actions.",
         "title": "Complete the Refinery Engineer workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. The existing role-bound Refinery Engineer shell exposes server-authoritative maintenance, ore and fuel stores, both Fuel Refinery actions, the registered Chacau route, and released cargo distribution. Chacau repair execution remains owned by unfinished Prompt 383. Workspace completion waits for that real repair action rather than presenting printed procedure copy as executable behavior; no production-path completion is claimed yet.",
       "evidenceIds": "E-AUDIT-233A",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "166;224;361",
+      "hardPromptPrerequisites": "166;224;230;271;361;377;383",
       "id": "233a",
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
