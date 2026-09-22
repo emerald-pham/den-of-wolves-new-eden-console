@@ -1640,9 +1640,9 @@
       "type": "evidence / production-path / authority / privacy / accessibility / layout"
     },
     {
-      "direction": "250 -> 234;249",
+      "direction": "250 -> 234;249;251",
       "id": "E-AUDIT-250",
-      "language": "Voyage maintenance builds on the completed shared host-store/four-step authority (P234) and Voyage admission (P249); P114's whole-vessel order closure consumes the Voyage-specific maintenance result.",
+      "language": "Voyage maintenance builds on the completed shared host-store/four-step authority (P234), Voyage admission (P249), and the P251 docking producer that provisions its authoritative host-backed state; P114 remains a later related consumer of the completed result.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -12597,11 +12597,11 @@
         "acceptance": "host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.",
         "title": "Resolve Voyage 33-0 maintenance."
       },
-      "description": "The repository contains a preparatory server-authoritative Voyage 33-0 maintenance path with a distinct admitted-vessel state, P234 host food/water ledger and four-step lane, one-console reactor cap, failed-unrest population loss with charging skipped, and dual maintenance/docking revision guards. P251 remains responsible for docking and provisioning the host-backed state; its movement path is hard-blocked by unfinished jump prompts 287–304. No production initializer or player-facing entrypoint currently creates that state, so players cannot execute Voyage maintenance yet. The callable, client payload, public projection, replay/fingerprint, rules, state, and existing small-ship regressions pass focused checks; this prompt remains partial until the P251 docking slice lands.",
+      "description": "The repository contains a preparatory server-authoritative Voyage 33-0 maintenance path with a distinct admitted-vessel state, P234 host food/water ledger and four-step lane, one-console reactor cap, failed-unrest population loss with charging skipped, and dual maintenance/docking revision guards. P251 is now recorded as a hard prerequisite because it remains responsible for docking and provisioning the host-backed state; its movement path is hard-blocked by unfinished jump prompts 287–304. No production initializer or player-facing entrypoint currently creates that state, so players cannot execute Voyage maintenance yet. The callable, client payload, public projection, replay/fingerprint, rules, state, and existing small-ship regressions pass focused checks; this prompt remains partial until the P251 docking slice lands.",
       "evidenceIds": "E-AUDIT-250;E-AUDIT-250-RELATED;E-P250-IMPLEMENTATION",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "234;249",
+      "hardPromptPrerequisites": "234;249;251",
       "id": "250",
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "114",
