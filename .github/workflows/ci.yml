@@ -122,12 +122,13 @@ jobs:
             [[ ",$DEPLOYMENT_TARGETS," == *,hosting,* ]] && has_hosting=true
             [[ ",$DEPLOYMENT_TARGETS," == *,functions,* ]] && has_functions=true
             [[ ",$DEPLOYMENT_TARGETS," == *,firestore,* ]] && has_firestore=true
-            run_unit=$has_hosting
+            # A Hosting release always builds its deployable artifact. Other web
+            # checks follow the classifier so server-only releases do not rerun
+            # unrelated unit or bundle gates.
+            run_unit=$UNIT_REQUIRED
             run_web_build=$has_hosting
-            run_bundle=$has_hosting
-            [[ "$UNIT_REQUIRED" == "true" ]] && run_unit=true
+            run_bundle=$BUNDLE_REQUIRED
             [[ "$WEB_BUILD_REQUIRED" == "true" ]] && run_web_build=true
-            [[ "$BUNDLE_REQUIRED" == "true" ]] && run_bundle=true
             echo "documentation_only=false" >> "$GITHUB_OUTPUT"
             echo "roadmap_changed=true" >> "$GITHUB_OUTPUT"
             echo "root_install=true" >> "$GITHUB_OUTPUT"

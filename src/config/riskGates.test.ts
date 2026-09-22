@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { classifyRiskGates } from '../../scripts/risk-gates.mjs';
+import {
+  classifyRiskGates,
+  isVersionMetadataOnlyPackageChange,
+} from '../../scripts/risk-gates.mjs';
 
 describe('risk-based CI gates', () => {
   it('keeps documentation changes out of application gates', () => {
@@ -36,12 +39,78 @@ describe('risk-based CI gates', () => {
 
   it('runs the Functions project when only a Functions test changed', () => {
     expect(classifyRiskGates(['functions/src/roleBriefs.test.ts'])).toMatchObject({
+      unit: false,
       functions: true,
       functionsInstall: true,
       webBuild: false,
       ticker: false,
       font: false,
     });
+  });
+
+  it('keeps a synchronized release-only package bump out of unrelated web gates', () => {
+    expect(classifyRiskGates([
+      'package.json',
+      'package-lock.json',
+      'src/changelog.ts',
+    ], { versionMetadataOnly: true })).toMatchObject({
+      webBuild: true,
+      unit: false,
+      bundle: false,
+      ticker: false,
+      font: false,
+    });
+  });
+
+  it('keeps server gates while version metadata stops selecting unrelated web checks', () => {
+    expect(classifyRiskGates([
+      'package.json',
+      'package-lock.json',
+      'src/changelog.ts',
+      'functions/src/index.ts',
+    ], { versionMetadataOnly: true })).toMatchObject({
+      functions: true,
+      webBuild: true,
+      unit: false,
+      bundle: false,
+      ticker: false,
+      font: false,
+    });
+
+    expect(classifyRiskGates([
+      'package.json',
+      'package-lock.json',
+      'src/changelog.ts',
+      'src/routes/ShipConsole.tsx',
+    ], { versionMetadataOnly: true })).toMatchObject({
+      unit: true,
+      bundle: true,
+      ticker: true,
+      font: true,
+    });
+  });
+
+  it('proves package metadata changes by content and rejects dependency drift', () => {
+    const beforePackage = { name: 'console', version: '0.4.90', dependencies: { react: '1' } };
+    const beforeLockfile = {
+      name: 'console', version: '0.4.90', lockfileVersion: 3,
+      packages: { '': { name: 'console', version: '0.4.90', dependencies: { react: '1' } } },
+    };
+    const afterPackage = { ...beforePackage, version: '0.4.91' };
+    const afterLockfile = {
+      ...beforeLockfile,
+      version: '0.4.91',
+      packages: { '': { ...beforeLockfile.packages[''], version: '0.4.91' } },
+    };
+    expect(isVersionMetadataOnlyPackageChange({
+      beforePackage, afterPackage, beforeLockfile, afterLockfile,
+    })).toBe(true);
+    expect(isVersionMetadataOnlyPackageChange({
+      beforePackage,
+      afterPackage: { ...afterPackage, dependencies: { react: '2' } },
+      beforeLockfile,
+      afterLockfile,
+    })).toBe(false);
   });
 
   it('treats Hosting build configuration as ticker and font risk', () => {

@@ -1,5 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { classifyRiskGates, formatRiskGateOutputs } from './risk-gates.mjs';
+import {
+  classifyRiskGates,
+  formatRiskGateOutputs,
+  isVersionMetadataOnlyPackageChange,
+} from './risk-gates.mjs';
 
 export const ALL_DEPLOYMENT_TARGETS = Object.freeze([
   'hosting',
@@ -47,7 +51,10 @@ function addAllTargets(targets) {
   for (const target of ALL_DEPLOYMENT_TARGETS) targets.add(target);
 }
 
-export function classifyChangedFiles(files, { manual = false } = {}) {
+export function classifyChangedFiles(files, {
+  manual = false,
+  versionMetadataOnly = false,
+} = {}) {
   if (manual) {
     return {
       targets: [...ALL_DEPLOYMENT_TARGETS],
@@ -91,8 +98,30 @@ export function classifyChangedFiles(files, { manual = false } = {}) {
     targets: ALL_DEPLOYMENT_TARGETS.filter((target) => targets.has(target)),
     unknownFiles,
     ignoredFiles,
-    riskGates: classifyRiskGates(normalizedFiles, { manual }),
+    riskGates: classifyRiskGates(normalizedFiles, { manual, versionMetadataOnly }),
   };
+}
+
+function jsonAtRevision(revision, file, cwd = process.cwd()) {
+  try {
+    return JSON.parse(execFileSync('git', ['show', `${revision}:${file}`], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd,
+    }));
+  } catch {
+    return undefined;
+  }
+}
+
+function versionMetadataOnlyForRange(before, after, files, cwd = process.cwd()) {
+  if (!files.includes('package.json') || !files.includes('package-lock.json')) return false;
+  return isVersionMetadataOnlyPackageChange({
+    beforePackage: jsonAtRevision(before, 'package.json', cwd),
+    afterPackage: jsonAtRevision(after, 'package.json', cwd),
+    beforeLockfile: jsonAtRevision(before, 'package-lock.json', cwd),
+    afterLockfile: jsonAtRevision(after, 'package-lock.json', cwd),
+  });
 }
 
 function revisionIsAncestor(before, after) {
@@ -112,6 +141,8 @@ export function classifyDeploymentRange({
   currentMainTip = after,
   manual = false,
   changedFiles,
+  versionMetadataOnly,
+  cwd = process.cwd(),
   isAncestor = revisionIsAncestor,
 } = {}) {
   const currentTip = Boolean(after && currentMainTip && after === currentMainTip);
@@ -150,8 +181,10 @@ export function classifyDeploymentRange({
       baselineAncestry: false,
     };
   }
+  const files = changedFiles ?? filesFromGit(before, after, cwd);
+  const metadataOnly = versionMetadataOnly ?? versionMetadataOnlyForRange(before, after, files, cwd);
   return {
-    ...classifyChangedFiles(changedFiles ?? filesFromGit(before, after)),
+    ...classifyChangedFiles(files, { versionMetadataOnly: metadataOnly }),
     currentTip: true,
     staleRun: false,
     baselineAncestry: true,
@@ -185,12 +218,13 @@ function parseOptions(argv) {
   return options;
 }
 
-function filesFromGit(before, after) {
+function filesFromGit(before, after, cwd = process.cwd()) {
   if (!before || !after) return ['__missing_diff_revision__'];
   try {
     return execFileSync('git', ['diff', '--name-only', before, after], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      cwd,
     }).split('\n').filter(Boolean);
   } catch {
     return ['__unreadable_diff__'];

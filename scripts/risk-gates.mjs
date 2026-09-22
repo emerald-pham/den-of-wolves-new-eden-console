@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 
 const DOCUMENTATION_PATTERN = /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i;
 const CATALOG_PATTERN = /^docs\/implementation-prompts\.json$/i;
@@ -27,7 +28,44 @@ function normalize(files) {
     .replaceAll('\\', '/').replace(/^\.\//, '')).filter(Boolean))].sort();
 }
 
-export function classifyRiskGates(files, { manual = false } = {}) {
+function withoutRootVersion(value, { lockfile = false } = {}) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const copy = structuredClone(value);
+  delete copy.version;
+  if (lockfile) {
+    if (typeof copy.packages !== 'object' || copy.packages === null ||
+        Array.isArray(copy.packages) ||
+        typeof copy.packages[''] !== 'object' || copy.packages[''] === null ||
+        Array.isArray(copy.packages[''])) return undefined;
+    delete copy.packages[''].version;
+  }
+  return copy;
+}
+
+/** Prove both root package files changed only their synchronized release version. */
+export function isVersionMetadataOnlyPackageChange({
+  beforePackage,
+  afterPackage,
+  beforeLockfile,
+  afterLockfile,
+}) {
+  const beforeVersion = beforePackage?.version;
+  const afterVersion = afterPackage?.version;
+  if (typeof beforeVersion !== 'string' || typeof afterVersion !== 'string' ||
+      beforeVersion === afterVersion ||
+      beforeLockfile?.version !== beforeVersion || afterLockfile?.version !== afterVersion ||
+      beforeLockfile?.packages?.['']?.version !== beforeVersion ||
+      afterLockfile?.packages?.['']?.version !== afterVersion) return false;
+  return isDeepStrictEqual(
+    withoutRootVersion(beforePackage),
+    withoutRootVersion(afterPackage),
+  ) && isDeepStrictEqual(
+    withoutRootVersion(beforeLockfile, { lockfile: true }),
+    withoutRootVersion(afterLockfile, { lockfile: true }),
+  );
+}
+
+export function classifyRiskGates(files, { manual = false, versionMetadataOnly = false } = {}) {
   const changedFiles = normalize(files);
   if (manual || changedFiles.includes('__unknown_diff__')) {
     return {
@@ -50,22 +88,29 @@ export function classifyRiskGates(files, { manual = false } = {}) {
   const nonDocumentation = changedFiles.filter((file) =>
     !DOCUMENTATION_PATTERN.test(file) && !CATALOG_PATTERN.test(file));
   const productionFiles = nonDocumentation.filter((file) => !TEST_PATTERN.test(file));
+  const riskProductionFiles = versionMetadataOnly
+    ? productionFiles.filter((file) =>
+        file !== 'package.json' && file !== 'package-lock.json' && file !== 'src/changelog.ts')
+    : productionFiles;
   const web = productionFiles.some((file) => WEB_PATTERN.test(file));
+  const riskWeb = riskProductionFiles.some((file) => WEB_PATTERN.test(file));
   const functions = productionFiles.some((file) => FUNCTIONS_PATTERN.test(file));
   const functionsTests = nonDocumentation.some((file) =>
     FUNCTIONS_PATTERN.test(file) && TEST_PATTERN.test(file));
   const functionsGate = functions || functionsTests;
   const firestore = productionFiles.some((file) => FIRESTORE_PATTERN.test(file));
   const tooling = nonDocumentation.some((file) => ROOT_TOOLING_PATTERN.test(file));
+  const rootTests = nonDocumentation.some((file) =>
+    TEST_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file));
   const unknown = nonDocumentation.some((file) =>
     !WEB_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file) &&
     !FIRESTORE_PATTERN.test(file) && !ROOT_TOOLING_PATTERN.test(file) &&
     file !== 'firebase.json' && file !== '.firebaserc');
   const firebaseConfig = nonDocumentation.some((file) => file === 'firebase.json' || file === '.firebaserc');
   const failClosed = unknown || firebaseConfig;
-  const ticker = productionFiles.some((file) => TICKER_PATTERN.test(file)) || failClosed;
-  const font = productionFiles.some((file) => FONT_PATTERN.test(file)) || failClosed;
-  const render = productionFiles.some((file) => RENDER_PATTERN.test(file)) || failClosed;
+  const ticker = riskProductionFiles.some((file) => TICKER_PATTERN.test(file)) || failClosed;
+  const font = riskProductionFiles.some((file) => FONT_PATTERN.test(file)) || failClosed;
+  const render = riskProductionFiles.some((file) => RENDER_PATTERN.test(file)) || failClosed;
 
   return {
     documentationOnly: nonDocumentation.length === 0,
@@ -73,14 +118,14 @@ export function classifyRiskGates(files, { manual = false } = {}) {
     rootInstall: nonDocumentation.length > 0,
     functionsInstall: functionsGate || failClosed,
     lint: nonDocumentation.length > 0,
-    unit: web || tooling || nonDocumentation.some((file) => TEST_PATTERN.test(file)) || failClosed,
+    unit: riskWeb || tooling || rootTests || failClosed,
     functions: functionsGate || failClosed,
     firestore: firestore || failClosed,
     webBuild: web || render || failClosed,
     ticker,
     font,
     render,
-    bundle: web || failClosed,
+    bundle: riskWeb || failClosed,
   };
 }
 

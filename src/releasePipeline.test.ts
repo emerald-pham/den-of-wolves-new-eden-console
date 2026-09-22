@@ -59,6 +59,75 @@ it('classifies the cumulative range from the last successful deployment', () => 
   expect(result.targets).toEqual(['firestore', 'functions']);
 });
 
+it('keeps exact Hosting builds while selecting unit and bundle checks by risk', () => {
+  expect(ci).toContain('run_unit=$UNIT_REQUIRED');
+  expect(ci).toContain('run_web_build=$has_hosting');
+  expect(ci).toContain('run_bundle=$BUNDLE_REQUIRED');
+  expect(ci).not.toContain('run_unit=$has_hosting');
+  expect(ci).not.toContain('run_bundle=$has_hosting');
+});
+
+it('keeps a real server release out of web gates when package files only bump version', async () => {
+  const repositoryDirectory = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-release-risk-'));
+  const git = (args: string[]) => execFileAsync('git', args, {
+    cwd: repositoryDirectory,
+    encoding: 'utf8',
+  });
+  try {
+    await git(['init', '--quiet', '--initial-branch=main']);
+    await git(['config', 'user.email', 'ci@example.test']);
+    await git(['config', 'user.name', 'CI']);
+    await mkdir(resolve(repositoryDirectory, 'src'), { recursive: true });
+    await mkdir(resolve(repositoryDirectory, 'functions', 'src'), { recursive: true });
+    await mkdir(resolve(repositoryDirectory, 'docs'), { recursive: true });
+    await writeFile(resolve(repositoryDirectory, 'package.json'), JSON.stringify({
+      name: 'console', version: '0.4.90', dependencies: { react: '1' },
+    }));
+    await writeFile(resolve(repositoryDirectory, 'package-lock.json'), JSON.stringify({
+      name: 'console', version: '0.4.90', lockfileVersion: 3,
+      packages: { '': { name: 'console', version: '0.4.90', dependencies: { react: '1' } } },
+    }));
+    await writeFile(resolve(repositoryDirectory, 'src/changelog.ts'), 'export const version = "0.4.90";\n');
+    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), 'export const value = 1;\n');
+    await writeFile(resolve(repositoryDirectory, 'docs', 'implementation-prompts.json'), '{}\n');
+    await git(['add', '.']);
+    await git(['commit', '--quiet', '-m', 'baseline']);
+    const before = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+    const packageDocument = JSON.parse(await readFile(resolve(repositoryDirectory, 'package.json'), 'utf8'));
+    packageDocument.version = '0.4.91';
+    await writeFile(resolve(repositoryDirectory, 'package.json'), JSON.stringify(packageDocument));
+    const lockDocument = JSON.parse(await readFile(resolve(repositoryDirectory, 'package-lock.json'), 'utf8'));
+    lockDocument.version = '0.4.91';
+    lockDocument.packages[''].version = '0.4.91';
+    await writeFile(resolve(repositoryDirectory, 'package-lock.json'), JSON.stringify(lockDocument));
+    await writeFile(resolve(repositoryDirectory, 'src/changelog.ts'), 'export const version = "0.4.91";\n');
+    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), 'export const value = 2;\n');
+    await writeFile(resolve(repositoryDirectory, 'docs', 'implementation-prompts.json'), '{"done":true}\n');
+    await git(['add', '.']);
+    await git(['commit', '--quiet', '-m', 'release']);
+    const after = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+
+    const result = classifyDeploymentRange({
+      before,
+      after,
+      currentMainTip: after,
+      isAncestor: () => true,
+      cwd: repositoryDirectory,
+    });
+    expect(result.targets).toEqual(['hosting', 'functions']);
+    expect(result.riskGates).toMatchObject({
+      functions: true,
+      webBuild: true,
+      unit: false,
+      bundle: false,
+      ticker: false,
+      font: false,
+    });
+  } finally {
+    await rm(repositoryDirectory, { recursive: true, force: true });
+  }
+});
+
 it('skips proven documentation, test, and tooling-only changes', () => {
   const result = classifyChangedFiles([
     'README.md',
