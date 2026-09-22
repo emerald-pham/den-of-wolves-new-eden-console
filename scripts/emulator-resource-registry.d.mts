@@ -70,6 +70,11 @@ export interface ValidationRecord {
   readonly validatedAt: string;
 }
 
+export interface ValidationCommandSpec {
+  readonly executable: string;
+  readonly args: readonly string[];
+}
+
 export interface IndependentSecurityReviewReceipt {
   readonly version: 1;
   readonly kind: 'independent-security-review';
@@ -444,5 +449,6 @@ export function executeValidationProcess(
   options?: { readonly signalSource?: NodeJS.Process; readonly signal?: AbortSignal; readonly timeoutMs?: number },
 ): Promise<{ readonly stdout: string; readonly stderr: string }>;
 export function validationCommandArguments(command: string): string[];
+export function validationCommandSpec(command: string): ValidationCommandSpec;
 export function runValidationCommand(command: string, cwd: string, options?: Readonly<Record<string, unknown>>): Promise<void>;
 export function normalizeFilePathForValidation(filePath: string): string;

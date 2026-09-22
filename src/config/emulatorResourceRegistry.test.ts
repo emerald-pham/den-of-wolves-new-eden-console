@@ -21,6 +21,7 @@ import {
   reserveConfiguredEmulatorSlot,
   validationPlanForFiles,
   validationCommandArguments,
+  validationCommandSpec,
   validateCoordinationEntry,
   validateReleaseCompletion,
 } from '../../scripts/emulator-resource-registry.mjs';
@@ -504,13 +505,33 @@ describe('simplified coordination registry', () => {
   });
 
   it('maps generated-roadmap validation to the executable npm script', () => {
+    expect(validationCommandSpec('npm run roadmap:check'))
+      .toEqual({ executable: 'npm', args: ['run', 'roadmap:check'] });
+    expect(validationCommandSpec('npm run test:unit'))
+      .toEqual({ executable: 'npm', args: ['run', 'test:unit'] });
+    expect(validationCommandSpec('node scripts/prompt-637-render-performance.mjs'))
+      .toEqual({ executable: 'node', args: ['scripts/prompt-637-render-performance.mjs'] });
+    expect(validationCommandSpec('node scripts/check-bundle-size.mjs'))
+      .toEqual({ executable: 'node', args: ['scripts/check-bundle-size.mjs'] });
     expect(validationCommandArguments('npm run roadmap:check')).toEqual(['run', 'roadmap:check']);
     expect(validationCommandArguments('npm run test:unit')).toEqual(['run', 'test:unit']);
     expect(validationCommandArguments('node scripts/prompt-637-render-performance.mjs'))
       .toEqual(['scripts/prompt-637-render-performance.mjs']);
     expect(validationCommandArguments('node scripts/check-bundle-size.mjs'))
       .toEqual(['scripts/check-bundle-size.mjs']);
+    expect(() => validationCommandSpec('npm run unknown-check')).toThrow(/No executable validation mapping/);
     expect(() => validationCommandArguments('npm run unknown-check')).toThrow(/No executable validation mapping/);
+  });
+
+  it('keeps executable command display strings unchanged in the validation receipt plan', () => {
+    const plan = validationPlanForFiles([
+      'src/index.css',
+      'scripts/prompt-603-render.mjs',
+    ]);
+    expect(plan.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(plan.commands).toContain('node scripts/check-bundle-size.mjs');
+    expect(plan.commands).not.toContain('npm scripts/prompt-637-render-performance.mjs');
+    expect(plan.commands).not.toContain('npm scripts/check-bundle-size.mjs');
   });
 
   it('uses current main for late registration and keeps the validated diff after landing', () => {

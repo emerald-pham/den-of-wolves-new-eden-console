@@ -964,23 +964,27 @@ export function executeValidationProcess(command, args, cwd, { signalSource = pr
 }
 
 const VALIDATION_COMMANDS = new Map([
-  ['npm run coordination:docs', ['run', 'coordination:docs']],
-  ['npm run lint', ['run', 'lint']],
-  ['npm run test:all', ['run', 'test:all']],
-  ['npm run test:unit', ['run', 'test:unit']],
-  ['npm run test:font-consistency', ['run', 'test:font-consistency']],
-  ['npm run test:ticker:browser', ['run', 'test:ticker:browser']],
-  ['node scripts/prompt-637-render-performance.mjs', ['scripts/prompt-637-render-performance.mjs']],
-  ['node scripts/check-bundle-size.mjs', ['scripts/check-bundle-size.mjs']],
-  ['npm run roadmap:check', ['run', 'roadmap:check']],
-  ['npm run build', ['run', 'build']],
-  ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
+  ['npm run coordination:docs', { executable: 'npm', args: ['run', 'coordination:docs'] }],
+  ['npm run lint', { executable: 'npm', args: ['run', 'lint'] }],
+  ['npm run test:all', { executable: 'npm', args: ['run', 'test:all'] }],
+  ['npm run test:unit', { executable: 'npm', args: ['run', 'test:unit'] }],
+  ['npm run test:font-consistency', { executable: 'npm', args: ['run', 'test:font-consistency'] }],
+  ['npm run test:ticker:browser', { executable: 'npm', args: ['run', 'test:ticker:browser'] }],
+  ['node scripts/prompt-637-render-performance.mjs', { executable: 'node', args: ['scripts/prompt-637-render-performance.mjs'] }],
+  ['node scripts/check-bundle-size.mjs', { executable: 'node', args: ['scripts/check-bundle-size.mjs'] }],
+  ['npm run roadmap:check', { executable: 'npm', args: ['run', 'roadmap:check'] }],
+  ['npm run build', { executable: 'npm', args: ['run', 'build'] }],
+  ['npm run build --prefix functions', { executable: 'npm', args: ['run', 'build', '--prefix', 'functions'] }],
 ]);
 
+export function validationCommandSpec(command) {
+  const spec = VALIDATION_COMMANDS.get(command);
+  if (!spec) throw new Error(`No executable validation mapping exists for ${command}.`);
+  return { executable: spec.executable, args: [...spec.args] };
+}
+
 export function validationCommandArguments(command) {
-  const args = VALIDATION_COMMANDS.get(command);
-  if (!args) throw new Error(`No executable validation mapping exists for ${command}.`);
-  return [...args];
+  return validationCommandSpec(command).args;
 }
 
 function safeFocusedTestPath(value) {
@@ -993,8 +997,8 @@ export async function runValidationCommand(command, cwd, options = {}) {
   if (command === 'git diff --check') { await runGit(['diff', '--check', 'main...HEAD'], cwd); return; }
   const prefix = 'npm test -- --run ';
   if (command.startsWith(prefix)) { await executeValidationProcess('npm', ['test', '--', '--run', safeFocusedTestPath(command.slice(prefix.length).trim())], cwd, options); return; }
-  const args = validationCommandArguments(command);
-  await executeValidationProcess('npm', args, cwd, options);
+  const { executable, args } = validationCommandSpec(command);
+  await executeValidationProcess(executable, args, cwd, options);
 }
 
 function changedFilesForRelease(release, entry) {
