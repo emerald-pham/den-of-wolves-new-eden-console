@@ -20,6 +20,10 @@ describe('action metadata', () => {
       actorScope: ['player', 'facilitator'],
       requiredPhase: 'coordination',
     });
+    expect(ACTION_METADATA.research).toMatchObject({
+      actorScope: ['player', 'facilitator'],
+      requiredPhase: 'team',
+    });
   });
 
   it('normalizes current nested and legacy direct phase representations', () => {
@@ -91,6 +95,27 @@ describe('action metadata', () => {
       phase: 'coordination',
       reason: 'allowed',
     });
+  });
+
+  it.each(['movement', 'transfer', 'scouting', 'jump'] as const)(
+    'denies %s during Team and allows it during Coordination',
+    (action) => {
+      expect(decideActionAuthorization({
+        action, actorScope: 'player', turnPhase: { airspace: { state: 'restricted' } },
+      })).toMatchObject({ allowed: false, phase: 'team', reason: 'wrong-phase' });
+      expect(decideActionAuthorization({
+        action, actorScope: 'player', turnPhase: { airspace: { state: 'lifted' } },
+      })).toMatchObject({ allowed: true, phase: 'coordination', reason: 'allowed' });
+    },
+  );
+
+  it('allows the printed research exception during Team and denies it during Coordination', () => {
+    expect(decideActionAuthorization({
+      action: 'research', actorScope: 'player', turnPhase: { airspace: { state: 'restricted' } },
+    })).toMatchObject({ allowed: true, phase: 'team', reason: 'allowed' });
+    expect(decideActionAuthorization({
+      action: 'research', actorScope: 'player', turnPhase: { airspace: { state: 'lifted' } },
+    })).toMatchObject({ allowed: false, phase: 'coordination', reason: 'wrong-phase' });
   });
 
   it('rejects wrong-phase actions with a stable reason', () => {

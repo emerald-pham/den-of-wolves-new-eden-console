@@ -431,8 +431,8 @@
     {
       "direction": "100 -> M2-COORDINATION-ACTIONS",
       "id": "E-100-COORDINATION-METADATA",
-      "language": "The shared action metadata classifies transfer as a Coordination action, and policy tests prove transfer is denied during Team and allowed during Coordination. Transfer, scouting, and research callable coverage remains open, so Prompt 100 stays partial.",
-      "source": "functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; authorized source review",
+      "language": "The shared action metadata classifies movement, transfer, scouting, and jump as Coordination actions. Endeavour research is the printed Team-phase exception established by Prompts 211-212. Policy tests prove each Coordination family is denied during Team and allowed during Coordination, while research is allowed during Team and denied during Coordination.",
+      "source": "functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; authorized source review",
       "type": "evidence"
     },
     {
@@ -1278,8 +1278,8 @@
     {
       "direction": "212 -> 211",
       "id": "E-212-ENDEAVOUR-RESEARCH-CADENCE",
-      "language": "The pure server cadence resolver consumes Prompt 211 canonical progress and one current-cycle choice at a time. Canonical state allows no more than three standard and two Shepherd-ore choices, requires every chosen track to be distinct across both funding types, spends exactly five available Shepherd ore for an additional choice, increments one monotonic revision, and resets only the choice history on a later cycle. Exact persisted shapes, safe non-negative integers, current revision, nonfuture cycle, valid funding and track identity, remaining track capacity, available ore, and incomplete left-most progress all fail closed before a new immutable result is returned. Team-phase authority, persistence, transactions, replay, and UI remain downstream.",
-      "source": "functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; functions/src/endeavourResearch.ts; functions/src/endeavourResearch.test.ts; src/data/roleProcedures.ts; focused 31-test research/cadence/console-metadata suite; Functions TypeScript build",
+      "language": "The pure server cadence resolver consumes Prompt 211 canonical progress and one current-cycle choice at a time. Canonical state allows no more than three standard and two Shepherd-ore choices, requires every chosen track to be distinct across both funding types, spends exactly five available Shepherd ore for an additional choice, increments one monotonic revision, and resets only the choice history on a later cycle. Exact persisted shapes, safe non-negative integers, current revision, nonfuture cycle, valid funding and track identity, remaining track capacity, available ore, and incomplete left-most progress all fail closed before a new immutable result is returned. The same server action metadata permits research only as the printed Team-phase exception and rejects Coordination, unknown phase, and unauthorized actors. Persistence, transactions, replay, and UI remain downstream.",
+      "source": "functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; functions/src/endeavourResearch.ts; functions/src/endeavourResearch.test.ts; functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; src/data/roleProcedures.ts; focused research and phase-policy suite; Functions TypeScript build",
       "type": "evidence / server-contract / canonical-cadence / distinct-tracks / exact-ore-cost / cycle-reset / revision / fail-closed / non-feature"
     },
     {
@@ -4697,6 +4697,13 @@
       "language": "Coordination gating remains incomplete until concrete transfer (113), scouting (321), and research cadence (212, which consumes research tracks 211) are implemented; movement and jump gates already exist.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "100 -> 113;321;212",
+      "id": "E-100-COORDINATION-GATE-MATRIX",
+      "language": "The shared server gate derives Team versus Coordination only from the authoritative session clock and rejects wrong or malformed phases before fresh mutations. Production fleet movement and jump, shuttle control and transfer paths, service-shuttle and Blacksmith actions, VIP and survivor transfers, Vulcan labour, and Hummingbird scouting invoke that gate, while shuttle departure and transit enforce their equivalent server phase policy and the printed SNN exception; exact committed replays remain replayable across a later phase transition without creating a second mutation. Prompt 212 research consumes the same metadata decision as the printed Team-phase exception and rejects Coordination, missing phase, and system actors before advancing progress. Focused policy and callable coverage passes 149 tests.",
+      "source": "functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/shuttleControlCallable.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/shuttleDepartureCallable.test.ts; functions/src/shuttleTransitCallable.test.ts; functions/src/hummingbirdHarvestCallable.test.ts; functions/src/serviceShuttleRechargeCallable.test.ts; functions/src/blacksmithRepairCallable.test.ts; functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; focused 149-test policy/callable matrix; Functions TypeScript build",
+      "type": "evidence / server-authority / phase-gate / coordination-actions / printed-team-exception / replay-safe / callable-matrix / regression"
     },
     {
       "direction": "154 -> 142;141;145;149;336;414",
@@ -8318,8 +8325,8 @@
         "acceptance": "movement, transfer, scouting, research, and jumps fail outside Coordination except printed exceptions.",
         "title": "Gate Coordination actions."
       },
-      "description": "`functions/src/actionMetadata.ts` now classifies transfer as a Coordination action, with policy tests proving Team-phase denial and Coordination allowance; transfer, scouting, and research callable coverage and the complete gate matrix remain open.",
-      "evidenceIds": "E-100-COORDINATION-METADATA;E-AUDIT-100",
+      "description": "The shared server action gate now classifies fleet movement, transfers, scouting, and jumps as Coordination actions and preserves Endeavour research as the printed Team-phase exception. Production movement, jump, shuttle-control, shuttle-cargo, shuttle-departure/transit, service-shuttle, Blacksmith, evacuation, VIP-transfer, Vulcan-labour, and Hummingbird-harvest paths consume the authoritative session phase before fresh mutation; exact stored replays remain replayable after a phase transition. The Prompt 212 research resolver now consumes the same fail-closed metadata decision, denying Coordination, unknown phase, and unauthorized actor scopes. A focused 149-test policy/callable matrix passed.",
+      "evidenceIds": "E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "113;321;212",
@@ -8330,7 +8337,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11366,7 +11373,7 @@
         "acceptance": "up to three distinct choices plus no more than two five-ore extras resolve per Team Phase.",
         "title": "Enforce Endeavour research cadence."
       },
-      "description": "The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. Team-phase authority, persistence, and client controls remain downstream; this non-feature contract does not mutate a session.",
+      "description": "The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. The resolver consumes the server phase policy, allowing this printed Team-phase exception while denying Coordination, missing phase, and unauthorized actor scopes. Persistence and client controls remain downstream; this non-feature contract does not mutate a session.",
       "evidenceIds": "E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE",
       "hardContract": "none",
       "hardMilestone": "none",

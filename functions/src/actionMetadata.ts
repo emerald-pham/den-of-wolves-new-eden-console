@@ -35,7 +35,8 @@ export const ACTION_METADATA: Readonly<Record<ActionId, ActionMetadata>> = {
   jump: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
   movement: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
   scouting: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
-  research: { actorScope: ['player', 'facilitator'], requiredPhase: 'coordination' },
+  // Endeavour research is the printed exception resolved during Team Phase.
+  research: { actorScope: ['player', 'facilitator'], requiredPhase: 'team' },
   press: { actorScope: ['facilitator', 'system'], requiredPhase: 'coordination' },
 };
 

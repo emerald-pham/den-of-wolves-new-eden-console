@@ -22,6 +22,7 @@ function choose(
     : 0;
   return resolveEndeavourResearchChoice({
     state, progress, cycle, expectedRevision: revision, trackId, funding, shepherdOre,
+    actorScope: 'player', turnPhase: { airspace: { state: 'restricted' } },
   });
 }
 
@@ -84,6 +85,7 @@ describe('Endeavour research cadence', () => {
     expect(() => resolveEndeavourResearchChoice({
       state: empty, progress: {}, cycle: 2, expectedRevision: 1,
       trackId: 'reactor', funding: 'standard', shepherdOre: 0,
+      actorScope: 'player', turnPhase: { airspace: { state: 'restricted' } },
     })).toThrow(/changed/i);
     expect(() => choose({
       cycle: 3, revision: 1,
@@ -111,6 +113,28 @@ describe('Endeavour research cadence', () => {
       choices: [{ trackId: 'reactor', funding: 'standard', oreCost: 0 }],
     });
     expect(progress).toEqual({ reactor: 1 });
+  });
+
+  it('allows the printed Team-phase exception and rejects Coordination, unknown phase, and system actors', () => {
+    const base = {
+      state: empty, progress: {}, cycle: 2, expectedRevision: 0,
+      trackId: 'reactor' as const, funding: 'standard' as const, shepherdOre: 0,
+      actorScope: 'player' as const,
+    };
+    expect(resolveEndeavourResearchChoice({
+      ...base, turnPhase: { airspace: { state: 'restricted' } },
+    }).choice.trackId).toBe('reactor');
+    expect(() => resolveEndeavourResearchChoice({
+      ...base, turnPhase: { airspace: { state: 'lifted' } },
+    })).toThrow(/only during Team Phase/i);
+    expect(() => resolveEndeavourResearchChoice({ ...base, turnPhase: undefined }))
+      .toThrow(/no current server phase/i);
+    expect(() => resolveEndeavourResearchChoice({
+      ...base, actorScope: 'system', turnPhase: { airspace: { state: 'restricted' } },
+    })).toThrow(/actor cannot resolve/i);
+    expect(() => resolveEndeavourResearchChoice({
+      ...base, state: null, actorScope: 'system', turnPhase: { airspace: { state: 'restricted' } },
+    })).toThrow(/actor cannot resolve/i);
   });
 
   it('parses only canonical, distinct, in-limit cadence state', () => {

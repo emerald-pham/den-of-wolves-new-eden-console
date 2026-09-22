@@ -4,6 +4,7 @@ import {
   type EndeavourResearchProgress,
   type EndeavourResearchTrackId,
 } from './endeavourResearch';
+import { decideActionAuthorization, type ActorScope } from './actionMetadata';
 
 export type EndeavourResearchFunding = 'standard' | 'shepherd-ore';
 
@@ -82,7 +83,17 @@ export function resolveEndeavourResearchChoice(input: Readonly<{
   trackId: EndeavourResearchTrackId;
   funding: EndeavourResearchFunding;
   shepherdOre: number;
+  actorScope: ActorScope;
+  turnPhase: unknown;
 }>): EndeavourResearchCadenceResult {
+  const phase = decideActionAuthorization({
+    action: 'research', actorScope: input.actorScope, turnPhase: input.turnPhase,
+  });
+  if (!phase.allowed) {
+    if (phase.reason === 'actor-scope-denied') throw new Error('This actor cannot resolve Endeavour research.');
+    if (phase.reason === 'unknown-phase') throw new Error('No current server phase is available for Endeavour research.');
+    throw new Error('Endeavour research is available only during Team Phase.');
+  }
   const state = parseEndeavourResearchCadenceState(input.state);
   if (!state) throw new Error('Endeavour research cadence state is malformed.');
   if (!Number.isSafeInteger(input.cycle) || input.cycle < 1) throw new Error('Endeavour research requires a valid cycle.');
