@@ -287,6 +287,7 @@ import {
   parseShuttleTransit,
   type ShuttleTransitState,
 } from './shuttleTransit';
+import { createCompleteShuttleArrivalCallable } from './shuttleArrivalCallable';
 import {
   resolveWolfAttackShuttleParking,
   type WolfAttackParkingDecision,
@@ -6864,6 +6865,8 @@ export const beginShuttleTransit = onCall<{
     return reply;
   });
 });
+
+export const completeShuttleArrival = createCompleteShuttleArrivalCallable();
 
 type AwayMissionDealReply = Readonly<{
   status: 'committed' | 'replayed' | 'stale';
