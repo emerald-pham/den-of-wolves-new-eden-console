@@ -1850,7 +1850,8 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementSta
   const destinationPosition = shuttlePoint(raw.destinationPosition);
   const velocity = shuttlePoint(raw.velocity);
   if (typeof raw.transitRequestId !== 'string' || raw.transitRequestId.length === 0 ||
-      raw.revision !== 1 || !originPosition || !currentPosition || !destinationPosition || !velocity ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !originPosition || !currentPosition || !destinationPosition || !velocity ||
       typeof raw.departedAt !== 'string' || typeof raw.arrivesAt !== 'string' ||
       !Number.isFinite(Date.parse(raw.departedAt)) || !Number.isFinite(Date.parse(raw.arrivesAt)) ||
       Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000) return null;
@@ -1858,7 +1859,7 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementSta
     ...base,
     status: 'in-transit',
     transitRequestId: raw.transitRequestId,
-    revision: 1,
+    revision: raw.revision as number,
     originPosition,
     currentPosition,
     destinationPosition,

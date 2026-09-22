@@ -3,6 +3,7 @@ import {
   enterShuttleTransit,
   fleetWorldPositionForShip,
   parseShuttleTransit,
+  retargetShuttleTransit,
   SHUTTLE_TRANSIT_DURATION_MS,
   shuttlePositionAt,
 } from './shuttleTransit';
@@ -101,6 +102,44 @@ it('derives the physical position from immutable route time and clamps at both e
   });
   expect(shuttlePositionAt(transit, now + SHUTTLE_TRANSIT_DURATION_MS + 1))
     .toEqual(transit.destinationPosition);
+});
+
+it('retargets from the server-resolved mid-flight position and increments the leg revision', () => {
+  const transit = enterShuttleTransit(base).transit;
+  const retargeted = retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'dione', transit, control: base.control,
+    group: { ...base.group, vesselIds: ['aegis', 'icebreaker', 'dione'] },
+    activeVesselIds: ['aegis', 'icebreaker', 'dione'], phase: base.phase,
+    now: now + 30_000,
+  });
+  expect(retargeted).toMatchObject({
+    transitRequestId: 'transit-1', revision: 2, originShipId: 'aegis',
+    destinationShipId: 'dione', currentPosition: { x: 0.13, y: -0.06, z: 0.14 },
+  });
+  expect(retargeted.originPosition).toEqual(transit.originPosition);
+  expect(shuttlePositionAt(retargeted, now + 30_000)).toEqual(retargeted.currentPosition);
+  expect(Date.parse(retargeted.arrivesAt) - Date.parse(retargeted.departedAt))
+    .toBe(SHUTTLE_TRANSIT_DURATION_MS);
+});
+
+it.each([
+  ['stale transit identity', { expectedTransitRequestId: 'old' }],
+  ['stale control revision', { expectedControlRevision: 3 }],
+  ['stale cycle', { expectedCycle: 3 }],
+  ['closed airspace', { phase: { ...base.phase, airspace: { ...base.phase.airspace, state: 'restricted' as const } } }],
+  ['future departure', { now: now - 1_000 }],
+  ['expired leg', { now: now + SHUTTLE_TRANSIT_DURATION_MS }],
+  ['origin destination', { destinationShipId: 'aegis' }],
+  ['foreign destination group', { destinationShipId: 'dione' }],
+] as const)('rejects %s without producing a course change', (_label, patch) => {
+  const transit = enterShuttleTransit(base).transit;
+  expect(() => retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'dione', transit, control: base.control,
+    group: base.group, activeVesselIds: ['aegis', 'icebreaker'], phase: base.phase,
+    now: now + 30_000, ...patch,
+  })).toThrow();
 });
 
 it('returns defensive copies of canonical fleet positions', () => {

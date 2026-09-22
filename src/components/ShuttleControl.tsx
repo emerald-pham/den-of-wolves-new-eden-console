@@ -5,6 +5,7 @@ import {
   beginShuttleTransit,
   completeShuttleArrival,
   requestShuttleDeparture,
+  retargetShuttleTransit,
 } from '@/lib/shuttleDepartureService';
 import { transferShuttleCargo } from '@/lib/shuttleCargoService';
 import { rechargeHostConsoleFromShuttle } from '@/lib/serviceShuttleRechargeService';
@@ -129,6 +130,9 @@ export default function ShuttleControl({ control }: Props) {
   const destinations = (session.activeVesselIds ?? [])
     .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
       shuttleDestinationIsAllowed(control.shuttleId, shipId));
+  const retargetDestinations = transit
+    ? destinations.filter((shipId) => shipId !== transit.originShipId && shipId !== transit.destinationShipId)
+    : [];
   const projectedFleetVesselIds = session.playerDiscovery &&
     session.playerDiscovery.groupId === me.fleetGroupId
     ? session.playerDiscovery.fleetGroupVesselIds ?? [] : [];
@@ -336,6 +340,27 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
+  async function submitRetarget(): Promise<void> {
+    if (busy || !transit || !destinationShipId || !departureWindowOpen) return;
+    setPending(true);
+    setStatus('');
+    try {
+      await retargetShuttleTransit(
+        control.shuttleId,
+        transit.transitRequestId,
+        destinationShipId,
+        control.revision,
+        transit.cycle,
+      );
+      setStatus(`Course changed to ${findShip(destinationShipId)?.name ?? destinationShipId}.`);
+      setDestinationShipId('');
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Shuttle course change failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
   function submitArrival(): void {
     if (busy || !transit || !arrivalReady || arrivalComplete) return;
     const current = useSessionStore.getState();
@@ -456,6 +481,23 @@ export default function ShuttleControl({ control }: Props) {
           In transit to {findShip(transit.destinationShipId)?.name ?? transit.destinationShipId}.
           {' '}Arrival will be completed when the shuttle reaches the ship.
         </p>
+        <label htmlFor={`shuttle-retarget-destination-${control.shuttleId}`}>New destination ship</label>
+        <select id={`shuttle-retarget-destination-${control.shuttleId}`} value={destinationShipId}
+          disabled={busy || !departureWindowOpen}
+          onChange={(event) => setDestinationShipId(event.target.value)}>
+          <option value="">Keep current course</option>
+          {retargetDestinations.map((shipId) => <option value={shipId} key={shipId}>
+            {findShip(shipId)?.name ?? shipId}
+          </option>)}
+        </select>
+        <div className="console-workspace__actions">
+          <button className="cic-action-button" type="button"
+            disabled={busy || !departureWindowOpen || !destinationShipId}
+            onClick={() => void submitRetarget()}>Retarget shuttle</button>
+        </div>
+        {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
+          ? 'Course changes open when airspace is open or AEGIS grants Press access.'
+          : 'Course changes open when airspace is open.'}</p>}
         {arrivalReady && !arrivalComplete && <div className="console-workspace__actions">
           <button className="cic-action-button" type="button" disabled={busy}
             onClick={() => void submitArrival()}>

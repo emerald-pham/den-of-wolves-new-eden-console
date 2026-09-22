@@ -21,8 +21,12 @@ const mock = vi.hoisted(() => {
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
-  return { documents, get, set, update, runTransaction, db: { doc: ref, collection: ref, runTransaction } };
+  const create = vi.fn((target: { path: string }, fields: Fields) => {
+    if (documents.has(target.path)) throw new Error(`Document already exists: ${target.path}`);
+    documents.set(target.path, { ...fields });
+  });
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update, create }));
+  return { documents, get, set, update, create, runTransaction, db: { doc: ref, collection: ref, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -47,7 +51,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { beginShuttleTransit } from './index';
+import { beginShuttleTransit, retargetShuttleTransit } from './index';
 
 const command = {
   sessionId: 's1', requestId: 'transit-1', shuttleId: 'starlight',
@@ -67,6 +71,7 @@ beforeEach(() => {
   mock.get.mockClear();
   mock.set.mockClear();
   mock.update.mockClear();
+  mock.create.mockClear();
   const now = Date.now();
   put('sessions/s1', {
     phase: 'active', currentTurn: 2,
@@ -125,6 +130,35 @@ it('atomically enters transit, removes only the departing docking, and replays w
     status: 'replayed', transitRequestId: 'transit-1',
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('retargets the active leg from server time, preserves transit identity, and replays safely', async () => {
+  await beginShuttleTransit.run(request(command));
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['aegis', 'icebreaker', 'dione'];
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis', 'icebreaker', 'dione'];
+  const retargetCommand = {
+    sessionId: 's1', requestId: 'retarget-1', shuttleId: 'starlight',
+    transitRequestId: 'transit-1', destinationShipId: 'dione',
+    expectedControlRevision: 0, expectedCycle: 2,
+  };
+  const first = await retargetShuttleTransit.run(request(retargetCommand));
+  expect(first).toMatchObject({
+    status: 'in-transit', transitRequestId: 'transit-1', destinationShipId: 'dione', revision: 2,
+  });
+  const transit = mock.documents.get('sessions/s1/shuttleDepartures/starlight')!;
+  expect(transit.originShipId).toBe('aegis');
+  expect(transit.currentPosition).toEqual(expect.objectContaining({ x: expect.any(Number) }));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length;
+  await expect(retargetShuttleTransit.run(request(retargetCommand))).resolves.toMatchObject({
+    status: 'replayed', transitRequestId: 'transit-1', revision: 2,
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
+  const eventPath = [...mock.documents.keys()].find((path) => path.includes('/events/shuttle-retarget-'));
+  expect(eventPath).toBeDefined();
+  const event = mock.documents.get(eventPath!);
+  expect(event).toMatchObject({ type: 'shuttle-retarget', shuttleId: 'starlight' });
+  expect(event).not.toHaveProperty('destinationShipId');
 });
 
 it('enters SNN transit during AEGIS-authorized restricted airspace', async () => {

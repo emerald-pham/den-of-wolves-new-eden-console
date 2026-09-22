@@ -37,6 +37,7 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
     hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z',
   }),
   requestShuttleDeparture: vi.fn().mockResolvedValue(undefined),
+  retargetShuttleTransit: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/shuttleCargoService', () => ({
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
@@ -67,7 +68,7 @@ const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionSer
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
-const { beginShuttleTransit, completeShuttleArrival, requestShuttleDeparture } =
+const { beginShuttleTransit, completeShuttleArrival, requestShuttleDeparture, retargetShuttleTransit } =
   await import('@/lib/shuttleDepartureService');
 const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
 const { rechargeHostConsoleFromShuttle } = await import('@/lib/serviceShuttleRechargeService');
@@ -121,6 +122,8 @@ beforeEach(() => {
   vi.mocked(requestShuttleDeparture).mockResolvedValue(undefined);
   vi.mocked(beginShuttleTransit).mockReset();
   vi.mocked(beginShuttleTransit).mockResolvedValue(undefined);
+  vi.mocked(retargetShuttleTransit).mockReset();
+  vi.mocked(retargetShuttleTransit).mockResolvedValue(undefined);
   vi.mocked(completeShuttleArrival).mockReset();
   vi.mocked(completeShuttleArrival).mockResolvedValue({
     hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z',
@@ -1516,7 +1519,7 @@ it('lets the holder enter transit from an authorized departure without a duplica
   expect(screen.getByRole('status')).toHaveTextContent('Transit begun to Icebreaker.');
 });
 
-it('shows authoritative transit without a docking or another movement action', () => {
+it('shows authoritative transit without a docking or departure action', () => {
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!, phase: 'active', currentTurn: 2,
@@ -1549,8 +1552,54 @@ it('shows authoritative transit without a docking or another movement action', (
 
   expect(screen.getByText('Shuttle location // In transit')).toBeVisible();
   expect(screen.getByRole('region', { name: 'Shuttle departure' })).toHaveTextContent('In transit to Icebreaker.');
-  expect(screen.queryByRole('button', { name: /departure|transit/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /request departure|begin transit/i })).not.toBeInTheDocument();
   expect(completeShuttleArrival).not.toHaveBeenCalled();
+});
+
+it('lets the current holder retarget an active shuttle leg without client position input', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    activeVesselIds: ['aegis', 'icebreaker', 'dione'], shuttleDockings: [],
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+        holderUid: 'u1', revision: 3,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+  vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
+    onDeparture({
+      status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3, revision: 1,
+      originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+      destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+      velocity: { x: 0.004, y: -0.002, z: 0.004 },
+      requestedAt: '2026-01-01T00:10:00.000Z',
+      departedAt: '2099-01-01T00:10:01.000Z', arrivesAt: '2099-01-01T00:11:01.000Z',
+    });
+    return vi.fn();
+  });
+  render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const departure = screen.getByRole('region', { name: 'Shuttle departure' });
+  await user.selectOptions(within(departure).getByLabelText('New destination ship'), 'dione');
+  await user.click(within(departure).getByRole('button', { name: 'Retarget shuttle' }));
+  expect(retargetShuttleTransit).toHaveBeenCalledWith('starlight', 'transit-1', 'dione', 3, 2);
+  await waitFor(() => expect(screen.getByRole('status'))
+    .toHaveTextContent('Course changed to Dione.'));
 });
 
 it('completes a reached transit automatically and exposes the server-confirmed destination', async () => {

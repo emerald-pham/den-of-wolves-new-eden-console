@@ -285,6 +285,7 @@ import {
 import {
   enterShuttleTransit,
   parseShuttleTransit,
+  retargetShuttleTransit as retargetTransitState,
   type ShuttleTransitState,
 } from './shuttleTransit';
 import { createCompleteShuttleArrivalCallable } from './shuttleArrivalCallable';
@@ -6862,6 +6863,196 @@ export const beginShuttleTransit = onCall<{
     });
     tx.set(transitRef, result.transit);
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+/** Move one active shuttle leg to a new legal destination without exposing its route. */
+export const retargetShuttleTransit = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  shuttleId?: unknown;
+  transitRequestId?: unknown;
+  destinationShipId?: unknown;
+  expectedControlRevision?: unknown;
+  expectedCycle?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'shuttleId', 'transitRequestId', 'destinationShipId',
+    'expectedControlRevision', 'expectedCycle',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.shuttleId !== 'string' || !AUTHORIZED_SHUTTLE_IDS.has(raw.shuttleId) ||
+      typeof raw.transitRequestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.transitRequestId) ||
+      typeof raw.destinationShipId !== 'string' || !isResourceShipId(raw.destinationShipId) ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'Invalid shuttle retarget request.');
+  }
+  const data = raw as {
+    sessionId: string; requestId: string; shuttleId: string; transitRequestId: string;
+    destinationShipId: string; expectedControlRevision: number; expectedCycle: number;
+  };
+  const fingerprint: CommandFingerprint = {
+    action: 'retarget-shuttle-transit',
+    sessionId: data.sessionId,
+    requestId: data.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: data.expectedControlRevision,
+    payload: {
+      shuttleId: data.shuttleId,
+      transitRequestId: data.transitRequestId,
+      destinationShipId: data.destinationShipId,
+      expectedCycle: data.expectedCycle,
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
+  const transitRef = db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`);
+  const proposedEventId = `shuttle-retarget-${randomUUID()}`;
+  const isSafeRetargetEvent = (value: unknown): boolean => {
+    if (!isRecord(value)) return false;
+    const allowedEventFields = new Set([
+      'sessionId', 'requestId', 'type', 'createdAt', 'turn', 'phase', 'revision',
+      'serverTime', 'visibility', 'shuttleId',
+    ]);
+    return Object.keys(value).every((key) => allowedEventFields.has(key)) &&
+      value.sessionId === data.sessionId && value.requestId === data.requestId &&
+      value.type === 'shuttle-retarget' && value.visibility === EventVisibility.Member &&
+      value.shuttleId === data.shuttleId && typeof value.serverTime === 'string' &&
+      !Object.hasOwn(value, 'actorUid') && !Object.hasOwn(value, 'actorRoleId') &&
+      !Object.hasOwn(value, 'originShipId') && !Object.hasOwn(value, 'destinationShipId') &&
+      !Object.hasOwn(value, 'fleetGroupId') && !Object.hasOwn(value, 'holderUid');
+  };
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, transitSnapshot, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef), tx.get(attackStateRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor)) {
+      throw new HttpsError('permission-denied', 'Only a connected shuttle holder may retarget transit.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
+    }
+    const eventId = receipt.exists ? receipt.get('eventId') : proposedEventId;
+    if (typeof eventId !== 'string' || !/^shuttle-retarget-[\w-]{36}$/.test(eventId)) {
+      throw commandError('failed-precondition', 'This shuttle retarget has no replayable event.', 'conflict');
+    }
+    const eventRef = db.doc(`sessions/${data.sessionId}/events/${eventId}`);
+    const eventSnapshot = await tx.get(eventRef);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is ShuttleTransitReply => isShuttleTransitReply(value, data.sessionId),
+      'shuttle retarget',
+    );
+    if (replay) {
+      if (!eventSnapshot.exists || !isSafeRetargetEvent(eventSnapshot.data())) {
+        throw commandError('failed-precondition', 'The shuttle retarget event is unavailable or unsafe.', 'conflict');
+      }
+      return { ...replay, status: 'replayed' as const };
+    }
+    if (eventSnapshot.exists) {
+      throw commandError('failed-precondition', 'The shuttle retarget event already exists without its receipt.', 'conflict');
+    }
+    requireActiveGameplayPhase(session);
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Normal shuttle movement is blocked until the Wolf attack is resolved.',
+        'invalid-phase',
+      );
+    }
+    const transit = transitSnapshot.exists
+      ? parseShuttleTransit(transitSnapshot.data(), data.shuttleId)
+      : null;
+    if (!transit || transit.transitRequestId !== data.transitRequestId) {
+      throw commandError('failed-precondition', 'The shuttle transit is no longer available.', 'conflict');
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId !== transit.fleetGroupId) {
+      throw new HttpsError('permission-denied', 'The shuttle holder no longer belongs to the transit fleet group.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${transit.fleetGroupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = session.get('activeVesselIds');
+    const activeRoleIds = configuredRoleIds(session);
+    const rawDockings = session.get('shuttleDockings');
+    const controls = parseShuttleControl(session.get('shuttleControl'));
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const currentCycle = session.get('currentTurn');
+    if (!group || group.id !== transit.fleetGroupId || !controls?.[data.shuttleId] || !phase ||
+        !Array.isArray(activeVesselIds) || activeVesselIds.length === 0 ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        new Set(activeVesselIds).size !== activeVesselIds.length ||
+        group.vesselIds.some((shipId) => !activeVesselIds.includes(shipId)) ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
+        !Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The authoritative shuttle retarget state is unavailable.', 'conflict');
+    }
+    let result: ShuttleTransitState;
+    try {
+      result = retargetTransitState({
+        actorUid: uid,
+        expectedTransitRequestId: data.transitRequestId,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedCycle: data.expectedCycle,
+        destinationShipId: data.destinationShipId,
+        transit,
+        control: controls[data.shuttleId]!,
+        group,
+        activeVesselIds,
+        phase,
+        now: Date.now(),
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Shuttle retarget was rejected.',
+        'conflict',
+      );
+    }
+    const reply: ShuttleTransitReply = {
+      ...result,
+      sessionId: data.sessionId,
+    };
+    const event = buildPrivacySafeEventRecord({
+      type: 'shuttle-retarget',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId,
+        actorUid: uid,
+        actorRoleId: null,
+        turn: currentCycle as number,
+        phase: 'active',
+        type: 'shuttle-retarget',
+        requestId: data.requestId,
+        revision: result.revision,
+        serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: { shuttleId: data.shuttleId },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, { updatedAt: FieldValue.serverTimestamp() });
+    tx.set(transitRef, result);
+    tx.create(eventRef, event);
+    tx.create(receiptRef, {
+      fingerprint,
+      result: reply,
+      eventId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     return reply;
   });
 });

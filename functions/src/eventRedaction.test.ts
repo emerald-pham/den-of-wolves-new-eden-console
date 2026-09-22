@@ -73,6 +73,30 @@ describe('buildPrivacySafeEventRecord', () => {
     });
   });
 
+  it('publishes a retarget marker without disclosing its private route', () => {
+    const event = buildPrivacySafeEventRecord({
+      type: 'shuttle-retarget',
+      envelope: {
+        sessionId: 's1', actorUid: 'holder-secret', actorRoleId: 'wing-commander',
+        requestId: 'retarget-1', turn: 2, phase: 'active', revision: 2,
+        serverTime: '2026-09-22T12:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        shuttleId: 'starlight', originShipId: 'aegis', destinationShipId: 'dione',
+        fleetGroupId: 'fleet-1', holderUid: 'holder-secret', fingerprint: 'secret',
+      },
+      createdAt: 'server-time',
+    });
+    expect(event).toMatchObject({
+      sessionId: 's1', requestId: 'retarget-1', type: 'shuttle-retarget', shuttleId: 'starlight',
+    });
+    expect(event).not.toHaveProperty('actorUid');
+    expect(event).not.toHaveProperty('originShipId');
+    expect(event).not.toHaveProperty('destinationShipId');
+    expect(event).not.toHaveProperty('fleetGroupId');
+    expect(event).not.toHaveProperty('holderUid');
+  });
+
   it('allow-lists the member-safe Philia repair outcome', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'philia-repair',

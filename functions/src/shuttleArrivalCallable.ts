@@ -77,7 +77,8 @@ function isShuttleArrivalReply(
     value.sessionId === sessionId && value.requestId === requestId &&
     value.transitRequestId === transitRequestId && value.shuttleId === shuttleId &&
     typeof value.hostShipId === 'string' && typeof value.arrivedAt === 'string' &&
-    Number.isFinite(Date.parse(value.arrivedAt)) && value.transitRevision === 1;
+    Number.isFinite(Date.parse(value.arrivedAt)) &&
+    Number.isSafeInteger(value.transitRevision) && (value.transitRevision as number) >= 1;
 }
 
 function isSafeArrivalEvent(

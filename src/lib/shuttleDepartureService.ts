@@ -47,6 +47,28 @@ export async function beginShuttleTransit(
   await httpsCallable<typeof payload, unknown>(functions(), 'beginShuttleTransit')(payload);
 }
 
+export async function retargetShuttleTransit(
+  shuttleId: string,
+  transitRequestId: string,
+  destinationShipId: string,
+  expectedControlRevision: number,
+  expectedCycle: number,
+): Promise<void> {
+  const { session } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before retargeting shuttle transit.');
+  requireFreshSessionAuthority();
+  const payload = {
+    sessionId: session.id,
+    requestId: requestId(),
+    shuttleId,
+    transitRequestId,
+    destinationShipId,
+    expectedControlRevision,
+    expectedCycle,
+  };
+  await httpsCallable<typeof payload, unknown>(functions(), 'retargetShuttleTransit')(payload);
+}
+
 export async function completeShuttleArrival(
   shuttleId: string,
   transitRequestId: string,

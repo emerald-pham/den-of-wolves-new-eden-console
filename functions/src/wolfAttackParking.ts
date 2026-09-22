@@ -222,10 +222,10 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
       const originPosition = fleetWorldPositionForShip(transit.originShipId);
       const destinationPosition = fleetWorldPositionForShip(transit.destinationShipId);
       const durationSeconds = SHUTTLE_TRANSIT_DURATION_MS / 1_000;
-      const expectedVelocity = originPosition && destinationPosition ? {
-        x: (destinationPosition.x - originPosition.x) / durationSeconds,
-        y: (destinationPosition.y - originPosition.y) / durationSeconds,
-        z: (destinationPosition.z - originPosition.z) / durationSeconds,
+      const expectedVelocity = destinationPosition && isWorldPoint(transit.currentPosition) ? {
+        x: (destinationPosition.x - transit.currentPosition.x) / durationSeconds,
+        y: (destinationPosition.y - transit.currentPosition.y) / durationSeconds,
+        z: (destinationPosition.z - transit.currentPosition.z) / durationSeconds,
       } : undefined;
       if (!Number.isFinite(departedAtMs) || departedAtMs > parkedAtMs ||
           transit.cycle !== input.cycle || !group ||
@@ -234,6 +234,7 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
           !shuttleHostIsAllowed(shuttleId, transit.originShipId) ||
           !shuttleHostIsAllowed(shuttleId, transit.destinationShipId) ||
           !originPosition || !destinationPosition || !expectedVelocity ||
+          !isWorldPoint(transit.currentPosition) ||
           !pointsAreEqual(transit.originPosition, originPosition) ||
           !pointsAreEqual(transit.destinationPosition, destinationPosition) ||
           !pointsAreEqual(transit.velocity, expectedVelocity)) {

@@ -1436,6 +1436,7 @@ describe('seats', () => {
       `sessionStartRequests/s1_start-1`,
       `${SESSION}/events/setup-confirm-request-1`,
       `${SESSION}/events/seat-claim-request-1`,
+      `${SESSION}/events/shuttle-retarget-request-1`,
     ];
 
     for (const path of targets) {

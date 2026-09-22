@@ -120,6 +120,26 @@ it('parks an in-flight craft at the physically nearer group-local ship', () => {
   });
 });
 
+it('keeps a retargeted in-flight leg eligible for authoritative attack parking', () => {
+  const retargetedTransit = transit({
+    destinationShipId: 'icebreaker',
+    revision: 2,
+    currentPosition: { x: -0.16, y: 0.09, z: 0.11 },
+    destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+    velocity: { x: 0.42 / 60, y: -0.21 / 60, z: 0.17 / 60 },
+    departedAt: '2026-09-21T18:00:30.000Z',
+    arrivesAt: '2026-09-21T18:01:30.000Z',
+  });
+  const result = resolveWolfAttackShuttleParking({
+    shuttleIds: ['starlight'], activeVesselIds: ['aegis', 'dione', 'icebreaker'],
+    dockings: [], transits: [retargetedTransit], fleetGroups: [
+      { id: 'fleet-1', vesselIds: ['aegis', 'dione', 'icebreaker'] },
+    ], cycle: 2, parkedAt: '2026-09-21T18:00:45.000Z',
+  });
+  expect(result.decisions[0]).toMatchObject({ craftId: 'starlight', source: 'in-transit' });
+  expect(result.clearedTransitIds).toEqual(['starlight']);
+});
+
 it('never crosses a split-fleet boundary even when another group ship is physically closer', () => {
   const splitTransit = transit({
     originShipId: 'quellon', destinationShipId: 'refinery-124',

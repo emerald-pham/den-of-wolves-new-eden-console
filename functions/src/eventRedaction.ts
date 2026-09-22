@@ -38,6 +38,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
     'sourcePopulation', 'destinationPopulation', 'movedThisCycle',
   ],
   'shuttle-arrival': ['shuttleId'],
+  'shuttle-retarget': ['shuttleId'],
   'service-shuttle-recharge': ['shuttleId', 'hostShipId', 'consoleId', 'immediate', 'message'],
   'blacksmith-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'philia-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
@@ -69,6 +70,8 @@ const MEMBER_ENVELOPE_FIELDS = [
 // without exposing the holder identity, role, or private authority path.
 const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>> = {
   'shuttle-arrival': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'shuttle-retarget': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
   'philia-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
