@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**436 / 751 prompts complete (58.06%)**
+**437 / 751 prompts complete (58.19%)**
 
-Status breakdown: **436 done · 16 partial · 299 missing**.
+Status breakdown: **437 done · 16 partial · 298 missing**.
 
 Active prompt: **none**
 
@@ -639,7 +639,7 @@ release classification and evidence.
 | 209 | done | non-feature | 0.4.42 | Both Shepherd Advanced Hydroponics consoles now resolve independently through the authoritative maintenance path. Each charged console spends two water for 12 food, or 16 when that console is upgraded, and consumes only its own charge. Atomic resource guards, replay, CAS, damage, UI controls, and duplicate-console independence are covered. |
 | 210 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 211 | done | non-feature | — | The server research contract now encodes all fourteen Endeavour tracks with their exact ordered material costs, including the four-box Wolf Agent Detector track and the printed Command and Control sequence. One pure transition validates the entire progress record, crosses exactly the left-most remaining box, exposes the prior and next current material costs, preserves unrelated tracks, and rejects unknown, fractional, negative, overrun, or completed progress. Canonical ship-console lookup maps duplicate printed console ids to their shared research track and rejects unknown ship/system pairs. Research cadence, persistence, device effects, and material-spending field upgrades remain owned by Prompts 212–214 and 391. |
-| 212 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 212 | done | non-feature | — | The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. Team-phase authority, persistence, and client controls remain downstream; this non-feature contract does not mutate a session. |
 | 213 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 214 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 215 | done | non-feature | — | Verified the existing Shepherd Captain workspace on the production ship route: an exactly assigned and seated player activates only shepherd-captain, receives live Shepherd systems and stores including Advanced Hydroponics for food diplomacy, the 30,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change. |

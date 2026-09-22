@@ -1276,6 +1276,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "212 -> 211",
+      "id": "E-212-ENDEAVOUR-RESEARCH-CADENCE",
+      "language": "The pure server cadence resolver consumes Prompt 211 canonical progress and one current-cycle choice at a time. Canonical state allows no more than three standard and two Shepherd-ore choices, requires every chosen track to be distinct across both funding types, spends exactly five available Shepherd ore for an additional choice, increments one monotonic revision, and resets only the choice history on a later cycle. Exact persisted shapes, safe non-negative integers, current revision, nonfuture cycle, valid funding and track identity, remaining track capacity, available ore, and incomplete left-most progress all fail closed before a new immutable result is returned. Team-phase authority, persistence, transactions, replay, and UI remain downstream.",
+      "source": "functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; functions/src/endeavourResearch.ts; functions/src/endeavourResearch.test.ts; src/data/roleProcedures.ts; focused 31-test research/cadence/console-metadata suite; Functions TypeScript build",
+      "type": "evidence / server-contract / canonical-cadence / distinct-tracks / exact-ore-cost / cycle-reset / revision / fail-closed / non-feature"
+    },
+    {
       "direction": "213 -> 211",
       "id": "E-AUDIT-213",
       "language": "Endeavour devices consume research-track state.",
@@ -11359,8 +11366,8 @@
         "acceptance": "up to three distinct choices plus no more than two five-ore extras resolve per Team Phase.",
         "title": "Enforce Endeavour research cadence."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-212",
+      "description": "The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. Team-phase authority, persistence, and client controls remain downstream; this non-feature contract does not mutate a session.",
+      "evidenceIds": "E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "211",
@@ -11371,7 +11378,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
