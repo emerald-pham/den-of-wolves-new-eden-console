@@ -27,7 +27,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 460, partial: 13, active: 0, missing: 278,
     },
     changes: [
-      'Shuttles now complete due trips automatically and appear docked at their destination with one reliable visit record.',
+      'An open shuttle console now completes due trips and shows the shuttle docked at its destination with one reliable visit record.',
       'Arrival retries cannot duplicate docking or history, and late replies from a previous session no longer affect the current shuttle.',
       '460 of 751 planned items are complete (61.25%).',
     ],
