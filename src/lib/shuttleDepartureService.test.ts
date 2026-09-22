@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
-import { beginShuttleTransit, requestShuttleDeparture } from './shuttleDepartureService';
+import { beginShuttleTransit, completeShuttleArrival, requestShuttleDeparture } from './shuttleDepartureService';
 
 beforeEach(() => {
   mocks.call.mockReset();
@@ -46,4 +46,24 @@ it('begins transit from the exact observed departure, custody revision, and cycl
     sessionId: 's1', requestId: expect.any(String), shuttleId: 'starlight',
     expectedDepartureRequestId: 'departure-1', expectedControlRevision: 3, expectedCycle: 2,
   });
+});
+
+it('uses a trip-stable arrival command bound to the current custody revision', async () => {
+  mocks.call.mockResolvedValue({
+    data: { status: 'arrived', hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z' },
+  });
+  await expect(completeShuttleArrival('starlight', 'transit-1', 3)).resolves.toEqual({
+    hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z',
+  });
+  expect(mocks.callable).toHaveBeenCalledWith('functions', 'completeShuttleArrival');
+  expect(mocks.call).toHaveBeenCalledWith({
+    sessionId: 's1', shuttleId: 'starlight', transitRequestId: 'transit-1', expectedControlRevision: 3,
+  });
+});
+
+it('rejects cache-backed arrival completion before contacting the callable', async () => {
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  await expect(completeShuttleArrival('starlight', 'transit-1', 3))
+    .rejects.toThrow(/live session state/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });

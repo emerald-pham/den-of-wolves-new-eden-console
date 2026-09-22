@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/firestore';
 import { transferShuttleControl } from '@/lib/shuttleControlService';
-import { beginShuttleTransit, requestShuttleDeparture } from '@/lib/shuttleDepartureService';
+import {
+  beginShuttleTransit,
+  completeShuttleArrival,
+  requestShuttleDeparture,
+} from '@/lib/shuttleDepartureService';
 import { transferShuttleCargo } from '@/lib/shuttleCargoService';
 import { rechargeHostConsoleFromShuttle } from '@/lib/serviceShuttleRechargeService';
 import {
@@ -30,6 +34,9 @@ export default function ShuttleControl({ control }: Props) {
   const [status, setStatus] = useState('');
   const [destinationShipId, setDestinationShipId] = useState('');
   const [departure, setDeparture] = useState<ShuttleMovementState | null>(null);
+  const [arrivalReady, setArrivalReady] = useState(false);
+  const [arrivalComplete, setArrivalComplete] = useState(false);
+  const arrivalAttemptedTransitId = useRef<string | null>(null);
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
   const [rechargeConsoleId, setRechargeConsoleId] = useState('');
@@ -40,6 +47,7 @@ export default function ShuttleControl({ control }: Props) {
   const [repairSystemIds, setRepairSystemIds] = useState<string[]>([]);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
+  const transit = departure?.status === 'in-transit' ? departure : null;
   const docking = dockingForShuttle(session, control.shuttleId);
   const cargoTypes = SHUTTLECRAFT.find((shuttle) => shuttle.id === control.shuttleId)
     ?.cargoTransferTypes ?? [];
@@ -132,6 +140,50 @@ export default function ShuttleControl({ control }: Props) {
     control.shuttleId,
     setDeparture,
   ), [control.shuttleId, me.fleetGroupId, session.id]);
+  useEffect(() => {
+    setArrivalReady(false);
+    setArrivalComplete(false);
+  }, [transit?.transitRequestId]);
+  useEffect(() => {
+    if (!transit || !canRequestDeparture || transit.holderUid !== me.uid) {
+      setArrivalReady(false);
+      return;
+    }
+    const arrivesAt = Date.parse(transit.arrivesAt);
+    if (!Number.isFinite(arrivesAt)) return;
+    let timer: number | undefined;
+    const checkArrivalTime = () => {
+      const remaining = arrivesAt - Date.now();
+      if (remaining <= 0) {
+        setArrivalReady(true);
+        return;
+      }
+      timer = window.setTimeout(checkArrivalTime, Math.min(remaining, 2_147_000_000));
+    };
+    checkArrivalTime();
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [canRequestDeparture, me.uid, transit]);
+  useEffect(() => {
+    if (!arrivalReady || !transit || !canRequestDeparture ||
+        transit.holderUid !== me.uid || arrivalComplete ||
+        arrivalAttemptedTransitId.current === transit.transitRequestId) return;
+    arrivalAttemptedTransitId.current = transit.transitRequestId;
+    setPending(true);
+    setStatus('');
+    void completeShuttleArrival(
+      control.shuttleId,
+      transit.transitRequestId,
+      control.revision,
+    ).then((result) => {
+      setArrivalComplete(true);
+      setStatus(`Shuttle arrived at ${findShip(result.hostShipId)?.name ?? result.hostShipId}.`);
+    }).catch((cause) => {
+      setStatus(cause instanceof Error ? cause.message : 'Shuttle arrival could not be confirmed.');
+    }).finally(() => setPending(false));
+  }, [arrivalComplete, arrivalReady, canRequestDeparture, control.revision, control.shuttleId,
+    me.uid, transit]);
   const holder = players.find((player) => player.uid === control.holderUid);
   const targets = useMemo(() => players.filter((player) =>
     player.role === 'player' && player.uid !== control.holderUid), [control.holderUid, players]);
@@ -189,6 +241,25 @@ export default function ShuttleControl({ control }: Props) {
       setStatus(`Transit begun to ${findShip(departure.destinationShipId)?.name ?? departure.destinationShipId}.`);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : 'Shuttle transit failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function submitArrival(): Promise<void> {
+    if (pending || !transit || !arrivalReady || arrivalComplete) return;
+    setPending(true);
+    setStatus('');
+    try {
+      const result = await completeShuttleArrival(
+        control.shuttleId,
+        transit.transitRequestId,
+        control.revision,
+      );
+      setArrivalComplete(true);
+      setStatus(`Shuttle arrived at ${findShip(result.hostShipId)?.name ?? result.hostShipId}.`);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Shuttle arrival could not be confirmed.');
     } finally {
       setPending(false);
     }
@@ -296,9 +367,18 @@ export default function ShuttleControl({ control }: Props) {
     {canRequestDeparture && <section aria-label="Shuttle departure">
       <p className="console-workspace__eyebrow">Flight plan // server authorised</p>
       <h4>Request departure</h4>
-      {departure?.status === 'in-transit' ? <p>
-        In transit to {findShip(departure.destinationShipId)?.name ?? departure.destinationShipId}.
-      </p> : departure ? <>
+      {transit ? <>
+        <p>
+          In transit to {findShip(transit.destinationShipId)?.name ?? transit.destinationShipId}.
+          {' '}Arrival will be completed when the shuttle reaches the ship.
+        </p>
+        {arrivalReady && !arrivalComplete && <div className="console-workspace__actions">
+          <button className="cic-action-button" type="button" disabled={pending}
+            onClick={() => void submitArrival()}>
+            {arrivalAttemptedTransitId.current === transit.transitRequestId ? 'Retry arrival' : 'Complete arrival'}
+          </button>
+        </div>}
+      </> : departure ? <>
         <p>
           Departure requested to {findShip(departure.destinationShipId)?.name ?? departure.destinationShipId};
           ready to begin transit.
