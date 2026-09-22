@@ -602,6 +602,19 @@ function setEnvironmentalHistoryAuthority() {
   }];
 }
 
+function environmentalNavigation(
+  coordinate: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    shipGalacticCoordinates: { aegis: coordinate },
+    shipNavigationLogs: { aegis: [] },
+    pursuitGroups: { 'fleet-1': 0 },
+    revision: 0,
+    ...overrides,
+  };
+}
+
 it('rejects oversized canonical maintenance collections before authority preflight', async () => {
   mock.get.mockClear();
   mock.update.mockClear();
@@ -711,10 +724,7 @@ it.each([
 ) => {
   setEnvironmentalHistoryAuthority();
   mock.chartId = chartId;
-  mock.navigation = {
-    shipGalacticCoordinates: { aegis: coordinate },
-    shipNavigationLogs: { aegis: [] },
-  };
+  mock.navigation = environmentalNavigation(coordinate);
   mock.randomInt.mockReturnValue(roll);
 
   const result = await runMaintenance.run(request({
@@ -766,10 +776,7 @@ it.each([
 
 it('records a below-threshold Ion Nebula check without drawing damage', async () => {
   setEnvironmentalHistoryAuthority();
-  mock.navigation = {
-    shipGalacticCoordinates: { aegis: '1096' },
-    shipNavigationLogs: { aegis: [] },
-  };
+  mock.navigation = environmentalNavigation('1096');
   mock.randomInt.mockReturnValue(2);
 
   await expect(runMaintenance.run(request({
@@ -798,12 +805,56 @@ it('rejects a maintenance start without protected ship-location authority', asyn
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['duplicate active fleet roster', () => {
+    mock.activeVesselIds = ['aegis', 'aegis'];
+  }],
+  ['rogue active fleet vessel', () => {
+    mock.activeVesselIds = ['aegis', 'rogue'];
+  }],
+  ['malformed navigation log', () => {
+    mock.navigation = environmentalNavigation('1096', {
+      shipNavigationLogs: { aegis: [{ id: 'bad-log' }] },
+    });
+  }],
+  ['duplicate system-history event', () => {
+    const duplicate = { id: 'hazard-1', occurredAt: '2026-09-22T12:00:00.000Z' };
+    mock.navigation = environmentalNavigation('1096', {
+      systemHistory: {
+        aegis: {
+          '1096': {
+            coordinate: '1096',
+            attempts: [],
+            hazards: [duplicate, duplicate],
+            rewards: [],
+            clearedThreats: [],
+            candidateProgress: [],
+          },
+        },
+      },
+    });
+  }],
+  ['missing navigation revision', () => {
+    mock.navigation = environmentalNavigation('1096');
+    delete mock.navigation.revision;
+  }],
+] as const)('rejects %s without normalizing or writing protected state', async (_label, corrupt) => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = environmentalNavigation('1096');
+  corrupt();
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: `maintenance-malformed-${_label.replaceAll(' ', '-')}`,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('commits one environmental draw across transaction retry, duplicate request, and replay', async () => {
   setEnvironmentalHistoryAuthority();
-  mock.navigation = {
-    shipGalacticCoordinates: { aegis: '1096' },
-    shipNavigationLogs: { aegis: [] },
-  };
+  mock.navigation = environmentalNavigation('1096');
   mock.randomInt.mockReturnValue(3);
   const maintenance = {
     session: {

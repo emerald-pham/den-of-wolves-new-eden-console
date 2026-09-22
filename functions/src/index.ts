@@ -10,6 +10,7 @@ import {
 import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
+import { isDeepStrictEqual } from 'node:util';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
   INITIAL_SHIP_SURVIVORS,
@@ -1295,12 +1296,22 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   };
 }
 
-function maintenanceHazardFromAuthoritativeLocation(
+type MaintenanceHazardAuthority =
+  | { readonly hazard: undefined }
+  | {
+      readonly hazard: NonNullable<ReturnType<typeof environmentalMaintenanceHazard>> & { readonly roll: number };
+      readonly activeVesselIds: readonly string[];
+      readonly navigation: NavigationState;
+      readonly revision: number;
+      readonly chart: 'A' | 'B' | 'C';
+    };
+
+function maintenanceHazardAuthority(
   storedNavigation: DocumentSnapshot,
   session: DocumentSnapshot,
   shipId: string,
   roll: number,
-) {
+): MaintenanceHazardAuthority {
   const rawNavigation = storedNavigation.exists &&
     typeof (storedNavigation as unknown as { data?: unknown }).data === 'function'
     ? storedNavigation.data()
@@ -1317,7 +1328,7 @@ function maintenanceHazardFromAuthoritativeLocation(
     );
   }
   const chart = session.get('chartId');
-  if (session.get('chartSelectionLocked') !== true ||
+  if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) ||
       (chart !== 'A' && chart !== 'B' && chart !== 'C')) {
     throw commandError(
       'failed-precondition',
@@ -1326,7 +1337,72 @@ function maintenanceHazardFromAuthoritativeLocation(
     );
   }
   const hazard = environmentalMaintenanceHazard(chart, coordinates[shipId] as string);
-  return hazard ? { ...hazard, roll } : undefined;
+  if (!hazard) return { hazard: undefined };
+
+  const storedActiveVesselIds = session.get('activeVesselIds');
+  if (!Array.isArray(storedActiveVesselIds) || storedActiveVesselIds.length === 0 ||
+      storedActiveVesselIds.some((value) => typeof value !== 'string' || !isResourceShipId(value)) ||
+      new Set(storedActiveVesselIds).size !== storedActiveVesselIds.length ||
+      !storedActiveVesselIds.includes(shipId)) {
+    throw commandError(
+      'failed-precondition',
+      'The protected active-fleet authority is unavailable or malformed.',
+      'malformed-input',
+    );
+  }
+  const activeVesselIds = [...storedActiveVesselIds] as string[];
+  const rawLogs = isRecord(rawNavigation) && isRecord(rawNavigation.shipNavigationLogs)
+    ? rawNavigation.shipNavigationLogs
+    : undefined;
+  const rawPursuitGroups = isRecord(rawNavigation) && isRecord(rawNavigation.pursuitGroups)
+    ? rawNavigation.pursuitGroups
+    : undefined;
+  const revision = isRecord(rawNavigation) ? rawNavigation.revision : undefined;
+  const exactVesselKeys = (value: unknown): value is Record<string, unknown> =>
+    isRecord(value) &&
+    Object.keys(value).length === activeVesselIds.length &&
+    activeVesselIds.every((vesselId) => Object.prototype.hasOwnProperty.call(value, vesselId));
+  if (!exactVesselKeys(coordinates) ||
+      Object.values(coordinates).some((coordinate) =>
+        typeof coordinate !== 'string' || !isStarSystemCoordinate(coordinate)) ||
+      !exactVesselKeys(rawLogs) ||
+      Object.values(rawLogs).some((logs) => !Array.isArray(logs)) ||
+      !rawPursuitGroups || !isValidPursuitAuthority(rawPursuitGroups) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 0) {
+    throw commandError(
+      'failed-precondition',
+      'The protected navigation authority is unavailable or malformed.',
+      'malformed-input',
+    );
+  }
+  if (!isRecord(rawNavigation)) {
+    throw commandError(
+      'failed-precondition',
+      'The protected navigation authority is unavailable or malformed.',
+      'malformed-input',
+    );
+  }
+  const parsedNavigation = navigationState(rawNavigation, activeVesselIds);
+  const rawHistoryPresent = Object.prototype.hasOwnProperty.call(rawNavigation, 'systemHistory');
+  if (!isDeepStrictEqual(parsedNavigation.shipGalacticCoordinates, coordinates) ||
+      !isDeepStrictEqual(parsedNavigation.shipNavigationLogs, rawLogs) ||
+      !isDeepStrictEqual(parsedNavigation.pursuitGroups, rawPursuitGroups) ||
+      (rawHistoryPresent
+        ? !isDeepStrictEqual(parsedNavigation.systemHistory, rawNavigation.systemHistory)
+        : parsedNavigation.systemHistory !== undefined)) {
+    throw commandError(
+      'failed-precondition',
+      'The protected navigation authority is unavailable or malformed.',
+      'malformed-input',
+    );
+  }
+  return {
+    hazard: { ...hazard, roll },
+    activeVesselIds,
+    navigation: parsedNavigation,
+    revision: revision as number,
+    chart,
+  };
 }
 
 interface TurnPursuitAuthority {
@@ -20771,22 +20847,28 @@ export const runMaintenance = onCall<{
     const storedNavigation = data.action === 'begin'
       ? await tx.get(navigationStateRef(data.sessionId))
       : undefined;
-    const environmentalHazard = storedNavigation
-      ? maintenanceHazardFromAuthoritativeLocation(storedNavigation, snapshot, data.shipId, stableRolls[0]!)
+    const environmentalAuthority = storedNavigation
+      ? maintenanceHazardAuthority(storedNavigation, snapshot, data.shipId, stableRolls[0]!)
       : undefined;
-    const environmentalHistoryAuthority = environmentalHazard && storedNavigation
+    const environmentalHazard = environmentalAuthority?.hazard;
+    const environmentalHistoryAuthority = environmentalHazard && environmentalAuthority
       ? await (async () => {
           const [players, groups] = await Promise.all([
             tx.get(db.collection(`sessions/${data.sessionId}/players`)),
             tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)),
           ]);
-          const activeVesselIds = activeVesselIdsForSession(snapshot);
-          const fleetGroups = movementPursuitFleetGroups(activeVesselIds, groups, players);
-          const currentNavigation = navigationStateForSession(storedNavigation, snapshot, activeVesselIds);
-          const revisionValue = storedNavigation.get('revision');
-          const revision = Number.isSafeInteger(revisionValue) && (revisionValue as number) >= 0
-            ? revisionValue as number : 0;
-          return { players: players.docs ?? [], fleetGroups, currentNavigation, revision };
+          const fleetGroups = movementPursuitFleetGroups(
+            environmentalAuthority.activeVesselIds,
+            groups,
+            players,
+          );
+          return {
+            players: players.docs ?? [],
+            fleetGroups,
+            currentNavigation: environmentalAuthority.navigation,
+            revision: environmentalAuthority.revision,
+            chart: environmentalAuthority.chart,
+          };
         })()
       : undefined;
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
@@ -20953,7 +21035,7 @@ export const runMaintenance = onCall<{
         environmentalHistoryAuthority.players,
         nextNavigation,
         nextNavigationRevision,
-        snapshot.get('chartId') as 'A' | 'B' | 'C',
+        environmentalHistoryAuthority.chart,
         environmentalHistoryAuthority.fleetGroups,
       );
     }

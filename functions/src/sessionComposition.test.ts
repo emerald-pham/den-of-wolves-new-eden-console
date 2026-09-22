@@ -118,7 +118,8 @@ const mock = vi.hoisted(() => {
   const get = vi.fn(async (target: Ref | Query) =>
     'query' in target ? querySnapshot(target) : snapshot(target));
   const set = vi.fn((target: Ref, fields: StoredDocument, store = documents,
-    versionStore = versions) => applyFields(target.path, fields, true, store, versionStore));
+    versionStore = versions, options?: { merge?: boolean }) =>
+    applyFields(target.path, fields, options?.merge !== true, store, versionStore));
   const update = vi.fn((target: Ref, fields: StoredDocument, store = documents,
     versionStore = versions) => applyFields(target.path, fields, false, store, versionStore));
   const remove = vi.fn((target: Ref, store = documents, versionStore = versions) => {
@@ -144,7 +145,8 @@ const mock = vi.hoisted(() => {
       };
       const result = await callback({
         get: transactionGet,
-        set: (target: Ref, fields: StoredDocument) => set(target, fields, working, workingVersions),
+        set: (target: Ref, fields: StoredDocument, options?: { merge?: boolean }) =>
+          set(target, fields, working, workingVersions, options),
         update: (target: Ref, fields: StoredDocument) => update(target, fields, working, workingVersions),
         delete: (target: Ref) => remove(target, working, workingVersions),
       });
