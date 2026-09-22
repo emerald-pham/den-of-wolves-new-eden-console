@@ -1850,11 +1850,11 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "272 -> 161;162",
+      "direction": "272 -> 161;162; OWNER-CHEPU-MISSION-PARTICIPATION-BONUS",
       "id": "E-AUDIT-272",
       "language": "Chepu registration preserves its PDF Colonel owner, Refinery 124 dock, security-team cargo, boarding support, and fuelled Boarding Action relocation; the routed shuttle derivative and preserved source inventory leave mission participation and numeric bonus unresolved, requiring OWNER-CHEPU-MISSION-PARTICIPATION-BONUS rather than an invented value.",
       "source": "src/data/vessels/chepu.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Chepu derivative",
-      "type": "hard_prompt"
+      "type": "hard_prompt / decision_owner"
     },
     {
       "direction": "273 -> 161;162;262",
