@@ -12039,11 +12039,11 @@
         "acceptance": "Fighter Bay, Escort Wing, Chepu, boarding, news relay, and mission participation remain role-bound.",
         "title": "Complete the PDF Colonel workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. The existing role-bound P.D.F. Colonel shell presents the Refinery Fighter Bay, registered Chepu and P.D.F. Escort Fighter Wing references, and printed boarding, relay, and mission procedures. Chepu registration is still partial; boarding support, persistent Escort Wing launch/combat, authoritative role-scoped message relay, contribution-linked mission bonuses, and complete away-mission participation remain owned by unfinished downstream prompts. Workspace completion waits for those real actions and projections; no production-path completion is claimed yet.",
       "evidenceIds": "E-AUDIT-233B",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "166;224;273",
+      "hardPromptPrerequisites": "166;224;231;272;273;340;395;398;401;410;422",
       "id": "233b",
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
