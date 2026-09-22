@@ -32,7 +32,7 @@ const mock = vi.hoisted(() => {
   const collection = (path: string) => ({ path, get: async () => querySnapshot(path) });
   const get = vi.fn(async (target: { path: string }) =>
     target.path.endsWith('/fleetGroups') || target.path.endsWith('/players') ||
-      target.path.endsWith('/shuttleDepartures')
+      target.path.endsWith('/shuttleDepartures') || target.path.endsWith('/shuttleTransitChains')
       ? querySnapshot(target.path)
       : snapshot(target.path));
   const update = vi.fn((target: { path: string }, fields: Fields) => {

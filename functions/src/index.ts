@@ -2264,7 +2264,7 @@ function requireWolfAttackParking(
   activeRoleIds: readonly string[],
   fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
   departures: { readonly docs: readonly DocumentSnapshot[] },
-  transitChains: { readonly docs: readonly DocumentSnapshot[] } | undefined,
+  transitChains: { readonly docs: readonly DocumentSnapshot[] },
   cycle: number,
   parkedAt: string,
   requestId: string,
@@ -2319,11 +2319,45 @@ function requireWolfAttackParking(
     });
   }
 
-  const chainByShuttleId = new Map((transitChains?.docs ?? []).map((snapshot) => [snapshot.id, snapshot]));
+  const departureByShuttleId = new Map(departures.docs.map((snapshot) => [snapshot.id, snapshot]));
+  const chainByShuttleId = new Map<string, DocumentSnapshot>();
+  for (const chainSnapshot of transitChains.docs) {
+    const shuttleId = chainSnapshot.id;
+    const departureSnapshot = departureByShuttleId.get(shuttleId);
+    const rawDeparture = departureSnapshot?.data();
+    if (chainByShuttleId.has(shuttleId) || !departureSnapshot?.exists ||
+        !isRecord(rawDeparture) || rawDeparture.status !== 'in-transit' ||
+        !expectedShuttleIds.has(shuttleId) ||
+        chainSnapshot.ref.path !== `${session.ref.path}/shuttleTransitChains/${shuttleId}`) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot resolve an orphaned or mismatched shuttle transit chain.',
+        'conflict',
+      );
+    }
+    const authority = parseShuttleTransitAuthority(rawDeparture, chainSnapshot.data(), shuttleId);
+    if (!authority || authority.transit.shuttleId !== shuttleId ||
+        authority.transit.transitRequestId !== chainSnapshot.get('transitRequestId') ||
+        authority.transit.revision !== chainSnapshot.get('revision')) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot resolve an orphaned or mismatched shuttle transit chain.',
+        'conflict',
+      );
+    }
+    chainByShuttleId.set(shuttleId, chainSnapshot);
+  }
   const transits = departures.docs.flatMap((snapshot) => {
     if (!expectedShuttleIds.has(snapshot.id)) return [];
     const raw = snapshot.data();
     const chainSnapshot = chainByShuttleId.get(snapshot.id);
+    if (chainSnapshot && (!isRecord(raw) || raw.status !== 'in-transit')) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack cannot resolve an orphaned or mismatched shuttle transit chain.',
+        'conflict',
+      );
+    }
     const authority = parseShuttleTransitAuthority(
       raw, chainSnapshot?.exists ? chainSnapshot.data() : undefined, snapshot.id,
     );
@@ -13983,7 +14017,7 @@ function validateWolfAttackDeclaration(
   auditProjection: DocumentSnapshot,
   fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
   departures: { readonly docs: readonly DocumentSnapshot[] },
-  transitChains: { readonly docs: readonly DocumentSnapshot[] } | undefined,
+  transitChains: { readonly docs: readonly DocumentSnapshot[] },
   uid: string,
   expectedRevision: number,
   parkedAt: string,

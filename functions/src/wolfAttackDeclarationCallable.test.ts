@@ -168,6 +168,43 @@ function fleetGroup(id = 'fleet-1', fields: Fields = {}): void {
   });
 }
 
+function inFlightStarlight(): { departedAt: string; arrivesAt: string } {
+  const now = Date.now();
+  const departedAt = new Date(now - 30_000).toISOString();
+  const arrivesAt = new Date(now + 30_000).toISOString();
+  const dockings = initialShuttleDockingsForRoles(activeRoleIds)
+    .filter((docking) => docking.shuttleId !== 'starlight');
+  session({
+    shuttleDockings: dockings,
+    shuttleVisitLog: [{
+      id: 'starlight-departed', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'departed', occurredAt: departedAt,
+    }],
+  });
+  const transit: Fields = {
+    status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+    shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
+    originShipId: 'aegis', destinationShipId: 'dione', cycle: 1, controlRevision: 2,
+    requestedAt: departedAt, revision: 1,
+    originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+    destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
+    velocity: { x: -0.32 / 60, y: 0.18 / 60, z: 0.22 / 60 },
+    departedAt, arrivesAt,
+  };
+  const publicTransit = Object.fromEntries(Object.entries(transit).filter(([key]) =>
+    !['originShipId', 'originDepartedAt', 'routeLegs', 'originPosition'].includes(key)));
+  put('sessions/s1/shuttleDepartures/starlight', publicTransit);
+  put('sessions/s1/shuttleTransitChains/starlight', {
+    status: 'in-transit-chain', shuttleId: 'starlight', transitRequestId: 'transit-1',
+    revision: 1, originShipId: 'aegis', originDepartedAt: departedAt,
+    originPosition: { x: 0, y: 0, z: 0 }, routeLegs: [{
+      fromShipId: 'aegis', toShipId: 'dione', originPosition: { x: 0, y: 0, z: 0 },
+      destinationPosition: { x: -0.32, y: 0.18, z: 0.22 }, departedAt, arrivesAt,
+    }],
+  });
+  return { departedAt, arrivesAt };
+}
+
 function resetFixture(): void {
   mock.documents.clear();
   mock.get.mockClear();
@@ -456,30 +493,9 @@ it('retains each authoritative shuttle host until normal movement reopens', asyn
 });
 
 it('atomically parks an in-flight shuttle at the nearest legal host and clears transit', async () => {
-  const now = Date.now();
   vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(now);
-  const departedAt = new Date(now - 30_000).toISOString();
-  const arrivesAt = new Date(now + 30_000).toISOString();
-  const dockings = initialShuttleDockingsForRoles(activeRoleIds)
-    .filter((docking) => docking.shuttleId !== 'starlight');
-  session({
-    shuttleDockings: dockings,
-    shuttleVisitLog: [{
-      id: 'starlight-departed', shuttleId: 'starlight', shipId: 'aegis',
-      action: 'departed', occurredAt: departedAt,
-    }],
-  });
-  put('sessions/s1/shuttleDepartures/starlight', {
-    status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
-    shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
-    originShipId: 'aegis', destinationShipId: 'dione', cycle: 1, controlRevision: 2,
-    requestedAt: departedAt, revision: 1,
-    originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
-    destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
-    velocity: { x: -0.32 / 60, y: 0.18 / 60, z: 0.22 / 60 },
-    departedAt, arrivesAt,
-  });
+  vi.setSystemTime(Date.now());
+  inFlightStarlight();
 
   await declareWolfAttack.run(request({ ...baseData, requestId: 'park-transit' }));
 
@@ -493,6 +509,7 @@ it('atomically parks an in-flight shuttle at the nearest legal host and clears t
     }),
   ]));
   expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(false);
+  expect(mock.documents.has('sessions/s1/shuttleTransitChains/starlight')).toBe(false);
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     parkingDecisions: expect.arrayContaining([expect.objectContaining({
       craftId: 'starlight', source: 'in-transit', hostShipId: 'aegis',
@@ -503,6 +520,69 @@ it('atomically parks an in-flight shuttle at the nearest legal host and clears t
     ]),
   });
   vi.useRealTimers();
+});
+
+it('rejects an orphan private transit chain before parking or locking airspace', async () => {
+  put('sessions/s1/shuttleTransitChains/starlight', {
+    status: 'in-transit-chain', shuttleId: 'starlight', transitRequestId: 'transit-1',
+    revision: 1,
+  });
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'orphan-chain' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.documents.get('sessions/s1').turnPhase).toMatchObject({
+    airspace: { state: 'lifted' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+});
+
+it('rejects a private chain paired with a pending departure before any declaration write', async () => {
+  put('sessions/s1/shuttleDepartures/starlight', {
+    status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',
+    holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    destinationShipId: 'dione', cycle: 1, controlRevision: 2,
+    requestedAt: new Date().toISOString(),
+  });
+  put('sessions/s1/shuttleTransitChains/starlight', {
+    status: 'in-transit-chain', shuttleId: 'starlight', transitRequestId: 'transit-1',
+    revision: 1,
+  });
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'pending-chain' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+});
+
+it('rejects an extra private chain alongside an otherwise valid paired transit', async () => {
+  inFlightStarlight();
+  put('sessions/s1/shuttleTransitChains/highwall', {
+    status: 'in-transit-chain', shuttleId: 'highwall', transitRequestId: 'extra', revision: 1,
+  });
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'extra-chain' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+});
+
+it('rejects a private chain whose identity mismatches its paired public transit', async () => {
+  inFlightStarlight();
+  mock.documents.get('sessions/s1/shuttleTransitChains/starlight')!.transitRequestId = 'forged';
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'mismatched-chain' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
 });
 
 it('uses only committed private pursuit authority and rejects malformed or changed snapshots', async () => {
