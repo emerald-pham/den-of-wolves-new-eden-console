@@ -339,7 +339,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 222 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-222 | M3;M5 | Audit the Quellon Jump Drive. |
 | 223 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-223;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Quellon Captain workspace. |
 | 223a | NEW | done | 166;216;361 | none | none | none | none | none | none | none | E-AUDIT-223A;E-223A-QUELLON-ENGINEER-WORKSPACE | M3;M5 | Complete the Quellon Engineer workspace. |
-| 223b | NEW | missing | 166;216;269;321 | none | none | none | none | none | none | none | E-AUDIT-223B | M3;M5 | Complete the Explorer workspace. |
+| 223b | NEW | missing | 166;216;269;321;324;328;365;366;367;390;393;401;410;422 | none | none | none | none | none | none | none | E-AUDIT-223B | M3;M5 | Complete the Explorer workspace. |
 | 224 | PRESERVE | done | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-224 | M3;M5 | Complete Refinery 124 identity and maintenance lane. |
 | 225 | PRESERVE | done | 115 | none | none | none | none | none | none | none | E-AUDIT-225;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Refinery 124 Storage. |
 | 226 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-226;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Refinery 124 Reactor. |

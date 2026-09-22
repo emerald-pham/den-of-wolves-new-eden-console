@@ -11750,11 +11750,11 @@
         "acceptance": "Hummingbird scouting, harvesting allocation, route planning, and mission participation are authoritative.",
         "title": "Complete the Explorer workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Planned [NEW] prompt. The existing role-bound Quellon Explorer shell exposes the registered Hummingbird route and its released private harvesting allocation, while transactional private scouting, complete shuttle arrival and route state, contribution-linked Hummingbird mission bonuses, and complete away-mission participation remain owned by unfinished downstream prompts. Workspace completion waits for those server-authoritative actions and projections; no production-path completion is claimed yet.",
       "evidenceIds": "E-AUDIT-223B",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "166;216;269;321",
+      "hardPromptPrerequisites": "166;216;269;321;324;328;365;366;367;390;393;401;410;422",
       "id": "223b",
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
