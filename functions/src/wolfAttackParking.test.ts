@@ -13,6 +13,7 @@ const transit = (fields: Partial<ShuttleTransitState> = {}): ShuttleTransitState
   shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
   originShipId: 'aegis', destinationShipId: 'dione', cycle: 2, controlRevision: 1,
   requestedAt: departedAt, revision: 1,
+  originDepartedAt: departedAt,
   originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
   destinationPosition: { x: -0.32, y: 0.18, z: 0.22 },
   velocity: { x: -0.32 / 60, y: 0.18 / 60, z: 0.22 / 60 },

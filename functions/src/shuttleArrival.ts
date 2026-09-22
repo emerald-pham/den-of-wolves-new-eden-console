@@ -165,7 +165,7 @@ export function completeShuttleArrival(input: Readonly<{
       shuttleId: transit.shuttleId,
       shipId: transit.originShipId,
       action: 'departed' as const,
-      occurredAt: transit.departedAt,
+      occurredAt: transit.originDepartedAt,
     },
     {
       id: dockedId,

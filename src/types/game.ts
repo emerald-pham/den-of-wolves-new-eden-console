@@ -733,6 +733,8 @@ export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 
   readonly status: 'in-transit';
   readonly transitRequestId: string;
   readonly revision: number;
+  /** Immutable timestamp of the original departure from originShipId. */
+  readonly originDepartedAt: Timestamp;
   readonly originPosition: ShuttleWorldPoint;
   readonly currentPosition: ShuttleWorldPoint;
   readonly destinationPosition: ShuttleWorldPoint;

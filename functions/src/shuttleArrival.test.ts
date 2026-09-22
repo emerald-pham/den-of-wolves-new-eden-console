@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { FleetGroupRecord } from './fleetGroups';
 import type { ShuttleControlEntry } from './shuttleControl';
-import { enterShuttleTransit } from './shuttleTransit';
+import { enterShuttleTransit, retargetShuttleTransit } from './shuttleTransit';
 import {
   completeShuttleArrival,
   parseShuttleArrivalVisitLog,
@@ -88,6 +88,43 @@ it('docks at the server destination and appends one departure and arrival visit'
   expect(result.result).toEqual({
     shuttleId, hostShipId: 'icebreaker', arrivedAt: new Date(base.now).toISOString(),
     transitRequestId: 'transit-1', transitRevision: 1,
+  });
+});
+
+it('records the immutable origin departure time after multiple retargets', () => {
+  const widenedGroup = { ...group, vesselIds: ['aegis', 'icebreaker', 'dione'] };
+  const phase = {
+    turn: 2,
+    teamPhaseEndsAt: new Date(departedAt - 300_000).toISOString(),
+    openAirspaceEndsAt: new Date(departedAt + 600_000).toISOString(),
+    airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: true },
+  };
+  const firstRetarget = retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'dione', transit, control,
+    group: widenedGroup, activeVesselIds: widenedGroup.vesselIds, phase,
+    now: departedAt + 30_000,
+  });
+  const secondRetarget = retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'icebreaker', transit: firstRetarget, control,
+    group: widenedGroup, activeVesselIds: widenedGroup.vesselIds, phase,
+    now: departedAt + 45_000,
+  });
+  const result = completeShuttleArrival({
+    ...base,
+    transit: secondRetarget,
+    group: widenedGroup,
+    activeVesselIds: widenedGroup.vesselIds,
+    now: Date.parse(secondRetarget.arrivesAt),
+  });
+
+  expect(secondRetarget.revision).toBe(3);
+  expect(result.visitLog.slice(-2)[0]).toMatchObject({
+    action: 'departed', shipId: 'aegis', occurredAt: transit.originDepartedAt,
+  });
+  expect(result.visitLog.slice(-2)[1]).toMatchObject({
+    action: 'docked', shipId: 'icebreaker',
   });
 });
 

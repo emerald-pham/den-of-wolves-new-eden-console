@@ -1830,7 +1830,7 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementSta
       Object.keys(raw).some((key) => ![
         'status', 'requestId', 'shuttleId', 'holderUid', 'fleetGroupId', 'originShipId',
         'destinationShipId', 'cycle', 'controlRevision', 'requestedAt', 'transitRequestId',
-        'revision', 'originPosition', 'currentPosition', 'destinationPosition', 'velocity',
+        'revision', 'originDepartedAt', 'originPosition', 'currentPosition', 'destinationPosition', 'velocity',
         'departedAt', 'arrivesAt',
       ].includes(key))) return null;
   const base: ShuttleDepartureRequestState = {
@@ -1840,7 +1840,7 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementSta
   };
   if (raw.status === 'requested') {
     if (Object.keys(raw).some((key) => [
-      'transitRequestId', 'revision', 'originPosition', 'currentPosition', 'destinationPosition',
+      'transitRequestId', 'revision', 'originDepartedAt', 'originPosition', 'currentPosition', 'destinationPosition',
       'velocity', 'departedAt', 'arrivesAt',
     ].includes(key))) return null;
     return base;
@@ -1849,17 +1849,22 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementSta
   const currentPosition = shuttlePoint(raw.currentPosition);
   const destinationPosition = shuttlePoint(raw.destinationPosition);
   const velocity = shuttlePoint(raw.velocity);
+  const originDepartedAt = raw.originDepartedAt === undefined && raw.revision === 1
+    ? raw.departedAt : raw.originDepartedAt;
   if (typeof raw.transitRequestId !== 'string' || raw.transitRequestId.length === 0 ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
       !originPosition || !currentPosition || !destinationPosition || !velocity ||
       typeof raw.departedAt !== 'string' || typeof raw.arrivesAt !== 'string' ||
       !Number.isFinite(Date.parse(raw.departedAt)) || !Number.isFinite(Date.parse(raw.arrivesAt)) ||
-      Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000) return null;
+      Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000 ||
+      typeof originDepartedAt !== 'string' || !Number.isFinite(Date.parse(originDepartedAt)) ||
+      Date.parse(originDepartedAt) > Date.parse(raw.departedAt)) return null;
   return {
     ...base,
     status: 'in-transit',
     transitRequestId: raw.transitRequestId,
     revision: raw.revision as number,
+    originDepartedAt,
     originPosition,
     currentPosition,
     destinationPosition,

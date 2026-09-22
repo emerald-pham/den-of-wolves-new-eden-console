@@ -36,6 +36,11 @@ interface ArrivalAttempt {
   readonly checkpoint: SessionAuthorityCheckpoint;
 }
 
+interface RetargetAttempt {
+  readonly key: string;
+  readonly checkpoint: SessionAuthorityCheckpoint;
+}
+
 function arrivalContextKey(
   checkpoint: SessionAuthorityCheckpoint | undefined,
   shuttleId: string,
@@ -71,6 +76,8 @@ export default function ShuttleControl({ control }: Props) {
   const [arrivalStatus, setArrivalStatus] = useState<{ key: string; message: string } | null>(null);
   const arrivalAttemptRef = useRef<ArrivalAttempt | null>(null);
   const arrivalPendingKeyRef = useRef<string | null>(null);
+  const retargetAttemptRef = useRef<RetargetAttempt | null>(null);
+  const retargetPendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
   const [rechargeConsoleId, setRechargeConsoleId] = useState('');
@@ -92,6 +99,15 @@ export default function ShuttleControl({ control }: Props) {
   );
   const currentArrivalKeyRef = useRef(currentArrivalKey);
   currentArrivalKeyRef.current = currentArrivalKey;
+  const retargetContextKey = JSON.stringify([
+    renderAuthority?.sessionId ?? null,
+    renderAuthority?.uid ?? null,
+    renderAuthority?.version ?? null,
+    connection,
+    snapshotFreshness,
+  ]);
+  const retargetContextKeyRef = useRef(retargetContextKey);
+  retargetContextKeyRef.current = retargetContextKey;
   const arrivalReady = arrivalReadyKey === currentArrivalKey;
   const arrivalComplete = arrivalCompleteKey === currentArrivalKey;
   const arrivalPending = arrivalPendingKey === currentArrivalKey;
@@ -196,9 +212,22 @@ export default function ShuttleControl({ control }: Props) {
     control.shuttleId,
     setDeparture,
   ), [control.shuttleId, me.fleetGroupId, session.id]);
+  useEffect(() => {
+    if (!retargetAttemptRef.current) return;
+    retargetAttemptRef.current = null;
+    retargetPendingRef.current = null;
+    setPending(false);
+  }, [retargetContextKey]);
   const isCurrentArrivalAttempt = useCallback((attempt: ArrivalAttempt): boolean => {
     return arrivalAttemptRef.current === attempt &&
       currentArrivalKeyRef.current === attempt.key &&
+      isCurrentSessionAuthority(attempt.checkpoint);
+  }, []);
+
+  const isCurrentRetargetAttempt = useCallback((attempt: RetargetAttempt): boolean => {
+    return retargetAttemptRef.current === attempt &&
+      retargetContextKeyRef.current === attempt.key &&
+      retargetPendingRef.current === attempt.checkpoint &&
       isCurrentSessionAuthority(attempt.checkpoint);
   }, []);
 
@@ -342,23 +371,36 @@ export default function ShuttleControl({ control }: Props) {
 
   async function submitRetarget(): Promise<void> {
     if (busy || !transit || !destinationShipId || !departureWindowOpen) return;
+    const current = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
+    const key = retargetContextKeyRef.current;
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint) ||
+        current.session?.id !== session.id || current.me?.uid !== me.uid) return;
+    const destination = destinationShipId;
+    const attempt: RetargetAttempt = { key, checkpoint };
+    retargetAttemptRef.current = attempt;
+    retargetPendingRef.current = checkpoint;
     setPending(true);
     setStatus('');
-    try {
-      await retargetShuttleTransit(
-        control.shuttleId,
-        transit.transitRequestId,
-        destinationShipId,
-        control.revision,
-        transit.cycle,
-      );
-      setStatus(`Course changed to ${findShip(destinationShipId)?.name ?? destinationShipId}.`);
+    void retargetShuttleTransit(
+      control.shuttleId,
+      transit.transitRequestId,
+      destination,
+      control.revision,
+      transit.cycle,
+    ).then(() => {
+      if (!isCurrentRetargetAttempt(attempt)) return;
+      setStatus(`Course changed to ${findShip(destination)?.name ?? destination}.`);
       setDestinationShipId('');
-    } catch (cause) {
+    }).catch((cause) => {
+      if (!isCurrentRetargetAttempt(attempt)) return;
       setStatus(cause instanceof Error ? cause.message : 'Shuttle course change failed.');
-    } finally {
+    }).finally(() => {
+      if (!isCurrentRetargetAttempt(attempt)) return;
+      retargetPendingRef.current = null;
+      retargetAttemptRef.current = null;
       setPending(false);
-    }
+    });
   }
 
   function submitArrival(): void {

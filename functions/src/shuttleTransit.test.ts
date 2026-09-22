@@ -118,9 +118,44 @@ it('retargets from the server-resolved mid-flight position and increments the le
     destinationShipId: 'dione', currentPosition: { x: 0.13, y: -0.06, z: 0.14 },
   });
   expect(retargeted.originPosition).toEqual(transit.originPosition);
+  expect(retargeted.originDepartedAt).toBe(transit.originDepartedAt);
   expect(shuttlePositionAt(retargeted, now + 30_000)).toEqual(retargeted.currentPosition);
   expect(Date.parse(retargeted.arrivesAt) - Date.parse(retargeted.departedAt))
     .toBe(SHUTTLE_TRANSIT_DURATION_MS);
+
+  const retargetedAgain = retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'icebreaker', transit: retargeted, control: base.control,
+    group: { ...base.group, vesselIds: ['aegis', 'icebreaker', 'dione'] },
+    activeVesselIds: ['aegis', 'icebreaker', 'dione'], phase: base.phase,
+    now: now + 45_000,
+  });
+  expect(retargetedAgain.revision).toBe(3);
+  expect(retargetedAgain.originDepartedAt).toBe(transit.originDepartedAt);
+  expect(retargetedAgain.currentPosition.x).toBeCloseTo(0.0175, 10);
+  expect(retargetedAgain.currentPosition.y).toBeCloseTo(0, 10);
+  expect(retargetedAgain.currentPosition.z).toBeCloseTo(0.16, 10);
+});
+
+it('fails closed when a stored incoming leg has forged motion state', () => {
+  const transit = enterShuttleTransit(base).transit;
+  expect(() => retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'dione',
+    transit: { ...transit, velocity: { x: 0, y: 0, z: 0 } }, control: base.control,
+    group: { ...base.group, vesselIds: ['aegis', 'icebreaker', 'dione'] },
+    activeVesselIds: ['aegis', 'icebreaker', 'dione'], phase: base.phase,
+    now: now + 30_000,
+  })).toThrow(/motion state is malformed/i);
+  expect(() => retargetShuttleTransit({
+    actorUid: 'holder', expectedTransitRequestId: 'transit-1', expectedControlRevision: 4,
+    expectedCycle: 2, destinationShipId: 'dione',
+    transit: { ...transit, originDepartedAt: new Date(now - 30_000).toISOString() },
+    control: base.control,
+    group: { ...base.group, vesselIds: ['aegis', 'icebreaker', 'dione'] },
+    activeVesselIds: ['aegis', 'icebreaker', 'dione'], phase: base.phase,
+    now: now + 30_000,
+  })).toThrow(/motion state is malformed/i);
 });
 
 it.each([

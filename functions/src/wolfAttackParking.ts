@@ -1,7 +1,7 @@
 import { ROLE_OWNED_CRAFT_CATALOG, shuttleHostIsAllowed } from './craftOwnership';
 import {
   fleetWorldPositionForShip,
-  SHUTTLE_TRANSIT_DURATION_MS,
+  isCanonicalShuttleTransitLeg,
   shuttlePositionAt,
   type ShuttleTransitState,
   type ShuttleWorldPoint,
@@ -221,23 +221,16 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
       const departedAtMs = Date.parse(transit.departedAt);
       const originPosition = fleetWorldPositionForShip(transit.originShipId);
       const destinationPosition = fleetWorldPositionForShip(transit.destinationShipId);
-      const durationSeconds = SHUTTLE_TRANSIT_DURATION_MS / 1_000;
-      const expectedVelocity = destinationPosition && isWorldPoint(transit.currentPosition) ? {
-        x: (destinationPosition.x - transit.currentPosition.x) / durationSeconds,
-        y: (destinationPosition.y - transit.currentPosition.y) / durationSeconds,
-        z: (destinationPosition.z - transit.currentPosition.z) / durationSeconds,
-      } : undefined;
       if (!Number.isFinite(departedAtMs) || departedAtMs > parkedAtMs ||
           transit.cycle !== input.cycle || !group ||
           !group.vesselIds.includes(transit.originShipId) ||
           !group.vesselIds.includes(transit.destinationShipId) ||
           !shuttleHostIsAllowed(shuttleId, transit.originShipId) ||
           !shuttleHostIsAllowed(shuttleId, transit.destinationShipId) ||
-          !originPosition || !destinationPosition || !expectedVelocity ||
-          !isWorldPoint(transit.currentPosition) ||
+          !originPosition || !destinationPosition || !isCanonicalShuttleTransitLeg(transit) ||
           !pointsAreEqual(transit.originPosition, originPosition) ||
           !pointsAreEqual(transit.destinationPosition, destinationPosition) ||
-          !pointsAreEqual(transit.velocity, expectedVelocity)) {
+          !isWorldPoint(transit.currentPosition)) {
         throw new Error('A shuttle transit route is stale or illegal for its fleet group.');
       }
       position = shuttlePositionAt(transit, parkedAtMs);
