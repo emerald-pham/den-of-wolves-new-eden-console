@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { advanceMaintenance, MAINTENANCE_ORDERS, MAINTENANCE_RULES, type MaintenanceInput } from './maintenance';
 import { resolveJumpAttempt } from './jumpDrive';
+import { SHIP_DAMAGE_DECKS } from './shipDamage';
 const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => ({
   shipId: 'aegis', cycle: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
   currentTurn: 1, expectedRevision: 0, action: 'begin', resources: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
@@ -62,6 +63,47 @@ it('starts once and rejects stale commands and out-of-order steps', () => {
   });
   expect(() => advanceMaintenance(input({ cycle: started.cycle }))).toThrow(/changed/);
   expect(() => advanceMaintenance(input({ action: 'riot' }))).toThrow(/step/);
+});
+
+it('applies the printed environmental damage check when maintenance begins', () => {
+  const result = advanceMaintenance(input({
+    rolls: [4, 1],
+    entropy: 0,
+    damageDrawId: 'maintenance-hazard',
+    environmentalHazard: { code: 'J', name: 'Unstable Star', threshold: 4, roll: 4 },
+  }));
+
+  expect(result.damageDraw).toBeDefined();
+  expect(result.damage.damagedSystemIds).toHaveLength(1);
+  expect(result.cycle).toMatchObject({
+    step: 1,
+    damageDrawId: 'maintenance-hazard',
+    results: { '0': expect.stringMatching(/Unstable Star.*rolled 4.*4\+ causes damage/) },
+  });
+});
+
+it('records a failed environmental check without drawing damage', () => {
+  const result = advanceMaintenance(input({
+    environmentalHazard: { code: 'I', name: 'Ion Nebula', threshold: 3, roll: 2 },
+  }));
+
+  expect(result.damageDraw).toBeUndefined();
+  expect(result.damage.damagedSystemIds).toEqual([]);
+  expect(result.cycle.results['0']).toMatch(/Ion Nebula.*rolled 2.*no damage/);
+});
+
+it('routes an environmental draw past the exhausted deck into ship destruction', () => {
+  const result = advanceMaintenance(input({
+    damage: {
+      damagedSystemIds: SHIP_DAMAGE_DECKS.aegis!.map((card) => card.systemId),
+      destroyed: false,
+    },
+    environmentalHazard: { code: 'I', name: 'Ion Nebula', threshold: 3, roll: 6 },
+  }));
+
+  expect(result.damageDraw?.destroyed).toBe(true);
+  expect(result.damage.destroyed).toBe(true);
+  expect(result.cycle).toMatchObject({ step: 7, results: { '0': expect.stringContaining('ship destroyed') } });
 });
 
 it('does not carry unknown persisted cycle fields into the next authoritative result', () => {

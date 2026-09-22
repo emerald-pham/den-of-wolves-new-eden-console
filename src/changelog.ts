@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [317],
+    implementationProgress: {
+      completed: 456, total: 751, percentage: '60.72%',
+      done: 456, partial: 13, active: 0, missing: 282,
+    },
+    changes: [
+      'Ships in the Ion Nebula now make its printed 3+ damage check when maintenance begins; ships at the Unstable Star make its printed 4+ check.',
+      'The server uses each ship’s protected location and preserves one result through retries and reconnects.',
+      '456 of 751 planned items are complete (60.72%).',
+    ],
+  },
+  {
+    version: '0.4.89',
     implementationPrompts: [316],
     implementationProgress: {
       completed: 455, total: 751, percentage: '60.59%',

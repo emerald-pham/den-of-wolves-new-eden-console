@@ -20,6 +20,12 @@ export interface MaintenanceInput {
   productionOreAmount?: number;
   upgraded?: readonly string[]; now: string;
   damageDrawId?: string;
+  environmentalHazard?: {
+    readonly code: 'I' | 'J';
+    readonly name: 'Ion Nebula' | 'Unstable Star';
+    readonly threshold: 3 | 4;
+    readonly roll: number;
+  };
 }
 export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water: number[]; reactor: number; damagedPenalty: number }>> = {
   aegis: { food: [0,3,5,8], water: [0,2,3,6], reactor: 5, damagedPenalty: 3 },
@@ -188,6 +194,21 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.startedAt = input.now;
     delete cycle.completedAt;
     delete cycle.damageDrawId;
+    if (input.environmentalHazard) {
+      const hazard = input.environmentalHazard;
+      const damaged = hazard.roll >= hazard.threshold;
+      cycle.results['0'] = `${hazard.name}: rolled ${hazard.roll}; ${damaged ? 'damage check passed' : 'no damage'}.`;
+      if (damaged) {
+        damageDraw = drawShipDamage(shipId, damage, upper => Math.floor(input.entropy * upper));
+        damage = damageDraw.state;
+        if (input.damageDrawId) cycle.damageDrawId = input.damageDrawId;
+        cycle.results['0'] = `${hazard.name}: rolled ${hazard.roll} (${hazard.threshold}+ causes damage); ${
+          damageDraw.destroyed
+            ? 'ship destroyed'
+            : damageDraw.card.systemName + (damageDraw.recycled ? ' absorbed damage' : ' damaged')
+        }.`;
+      }
+    }
   } else if (action === 'storage') {
     if (damage.damagedSystemIds.includes('storage')) {
       const losses: string[] = [];

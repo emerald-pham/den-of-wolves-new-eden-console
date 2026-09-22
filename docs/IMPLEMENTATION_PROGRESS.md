@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**455 / 751 prompts complete (60.59%)**
+**456 / 751 prompts complete (60.72%)**
 
-Status breakdown: **455 done · 13 partial · 283 missing**.
+Status breakdown: **456 done · 13 partial · 282 missing**.
 
 Active prompt: **none**
 
@@ -759,7 +759,7 @@ release classification and evidence.
 | 314 | done | non-feature | — | Destroyed full ships fail closed in authoritative movement and jump callables before any navigation or resource mutation and are omitted from shared DRADIS while surviving contacts remain. The same destruction transition exposes the stable printed pod-capacity catastrophe, preserves survivors, resources, cargo, fuel, and retained shuttles, and gives affected players durable escape state. Prompt 140d's primary-source closure confirms that small, base, and Voyage variants have no source-authorized destruction path or independent capacity to invent. |
 | 315 | done | non-feature | 0.4.86 | Release 0.4.86 creates one deterministic mission opportunity when a fleet group first reaches a printed mission system A-M on the session's locked chart. Existing group positions, durable discovery history, and a strictly validated persisted opportunity suppress repeats or reopening, while malformed stored state blocks movement before writes. Separate fleet groups remain independently eligible at the same coordinate, and origin or New Eden candidate systems never create away-mission opportunities. The server commits the facilitator-only opportunity atomically with movement and denies all client writes. |
 | 316 | done | non-feature | 0.4.89 | Release 0.4.89 closes the arrival idempotency boundary with production-path regression evidence. A forced Firestore transaction retry commits one deterministic mission opportunity, Wolf attack schedule, pressure transition, navigation log, and discovery record. Duplicate persisted event IDs normalize to one attempt, hazard, reward, cleared threat, or candidate-progress entry, and repeated self-jump snapshots still derive one discovery. Request receipts, deterministic document identities, and operational pressure checks compose without adding hazard or reward behavior owned by later prompts. |
-| 317 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 317 | done | non-feature | 0.4.90 | Release 0.4.90 gives every full-size ship at Ion Nebula I or Unstable Star J its printed maintenance-start damage check from protected server navigation and the locked organiser chart. The server owns the roll and damage-card draw, preserves one hazard-history event across retries and replay, republishes only entitled per-ship history, and rejects missing or malformed location, chart, fleet-group, or player authority before writes. Non-hazard coordinates receive no environmental damage. |
 | 318 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 319 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 320 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

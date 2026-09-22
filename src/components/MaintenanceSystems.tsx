@@ -180,6 +180,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           void execute('begin');
         }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Cycle ${currentTurn}`}</button>
       {awaitingMaintenanceStart && <p role="status">Maintenance begins on Cycle 1</p>}
+      {cycle?.results['0'] && <p role="status">{cycle.results['0']}</p>}
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { navigationState, playerDiscoveryProjection } from './navigationProjection';
+import { recordSystemHazard } from './systemHistory';
 
 function player(fields: Record<string, unknown>) {
   return { get: (field: string) => fields[field] };
 }
 
 describe('system history persistence and audience projection', () => {
+  it('records a producer-owned hazard once by event identity', () => {
+    const event = { id: 'maintenance-hazard-1', occurredAt: '2026-09-22T12:00:00.000Z' };
+    const once = recordSystemHazard(undefined, 'aegis', '1096', event);
+    const twice = recordSystemHazard(once, 'aegis', '1096', event);
+
+    expect(twice.aegis?.['1096']?.hazards).toEqual([event]);
+  });
+
   it('derives one durable discovery from the authoritative self-jump log', () => {
     const state = navigationState({
       shipGalacticCoordinates: { aegis: '5143', dione: '0000' },

@@ -136,3 +136,27 @@ export function systemHistoryForShip(
   const entries = history?.[shipId];
   return entries && Object.keys(entries).length > 0 ? entries : undefined;
 }
+
+/** Append one producer-owned hazard outcome without duplicating its identity. */
+export function recordSystemHazard(
+  history: SystemHistory | undefined,
+  shipId: string,
+  coordinate: string,
+  event: SystemHistoryEvent,
+): SystemHistory {
+  if (!isStarSystemCoordinate(coordinate) || !event.id || !event.occurredAt) {
+    throw new Error('System hazard history is malformed.');
+  }
+  const currentShip = history?.[shipId] ?? {};
+  const currentEntry = currentShip[coordinate] ?? emptyEntry(coordinate);
+  const hazards = currentEntry.hazards.some((candidate) => candidate.id === event.id)
+    ? [...currentEntry.hazards]
+    : [...currentEntry.hazards, event];
+  return {
+    ...(history ?? {}),
+    [shipId]: {
+      ...currentShip,
+      [coordinate]: { ...currentEntry, hazards },
+    },
+  };
+}

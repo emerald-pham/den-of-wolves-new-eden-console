@@ -8,6 +8,8 @@ import {
   type PlayerEscapeState,
 } from './escapeState';
 import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
+import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
+import { recordSystemHazard } from './systemHistory';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
   INITIAL_SHIP_SURVIVORS,
@@ -1291,6 +1293,40 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
     pursuitGroups: navigation.pursuitGroups,
     ...(navigation.systemHistory ? { systemHistory: navigation.systemHistory } : {}),
   };
+}
+
+function maintenanceHazardFromAuthoritativeLocation(
+  storedNavigation: DocumentSnapshot,
+  session: DocumentSnapshot,
+  shipId: string,
+  roll: number,
+) {
+  const rawNavigation = storedNavigation.exists &&
+    typeof (storedNavigation as unknown as { data?: unknown }).data === 'function'
+    ? storedNavigation.data()
+    : undefined;
+  const coordinates = isRecord(rawNavigation) && isRecord(rawNavigation.shipGalacticCoordinates)
+    ? rawNavigation.shipGalacticCoordinates
+    : undefined;
+  if (!coordinates || !Object.prototype.hasOwnProperty.call(coordinates, shipId) ||
+      typeof coordinates[shipId] !== 'string' || !isStarSystemCoordinate(coordinates[shipId])) {
+    throw commandError(
+      'failed-precondition',
+      'The protected ship-location authority is unavailable or malformed.',
+      'malformed-input',
+    );
+  }
+  const chart = session.get('chartId');
+  if (session.get('chartSelectionLocked') !== true ||
+      (chart !== 'A' && chart !== 'B' && chart !== 'C')) {
+    throw commandError(
+      'failed-precondition',
+      'The locked organiser chart is unavailable.',
+      'malformed-input',
+    );
+  }
+  const hazard = environmentalMaintenanceHazard(chart, coordinates[shipId] as string);
+  return hazard ? { ...hazard, roll } : undefined;
 }
 
 interface TurnPursuitAuthority {
@@ -20673,7 +20709,7 @@ export const runMaintenance = onCall<{
   // before the mutating transaction, so callback retries cannot reroll or
   // replace the timestamp. Non-random steps intentionally avoid random draws.
   const stableOccurredAt = new Date().toISOString();
-  const randomStep = data.action === 'unrest' || data.action === 'riot';
+  const randomStep = data.action === 'begin' || data.action === 'unrest' || data.action === 'riot';
   const stableEntropy = randomStep
     ? randomInt(0, 0x1_0000_0000) / 0x1_0000_0000 : 0;
   const stableRolls = randomStep ? [randomInt(1, 7), randomInt(1, 7)] : [0, 0];
@@ -20732,6 +20768,27 @@ export const runMaintenance = onCall<{
       });
       return reply;
     }
+    const storedNavigation = data.action === 'begin'
+      ? await tx.get(navigationStateRef(data.sessionId))
+      : undefined;
+    const environmentalHazard = storedNavigation
+      ? maintenanceHazardFromAuthoritativeLocation(storedNavigation, snapshot, data.shipId, stableRolls[0]!)
+      : undefined;
+    const environmentalHistoryAuthority = environmentalHazard && storedNavigation
+      ? await (async () => {
+          const [players, groups] = await Promise.all([
+            tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+            tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)),
+          ]);
+          const activeVesselIds = activeVesselIdsForSession(snapshot);
+          const fleetGroups = movementPursuitFleetGroups(activeVesselIds, groups, players);
+          const currentNavigation = navigationStateForSession(storedNavigation, snapshot, activeVesselIds);
+          const revisionValue = storedNavigation.get('revision');
+          const revision = Number.isSafeInteger(revisionValue) && (revisionValue as number) >= 0
+            ? revisionValue as number : 0;
+          return { players: players.docs ?? [], fleetGroups, currentNavigation, revision };
+        })()
+      : undefined;
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
     const currentDamage = shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? {
@@ -20769,7 +20826,7 @@ export const runMaintenance = onCall<{
         cargo: sanitizeShuttleCargo(snapshot.get('shuttleCargo'), activeRoleIds),
         fuelled: snapshot.get('shuttleFuelled') ?? {},
         upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: stableRolls,
-        entropy: stableEntropy, now: serverTime, damageDrawId: eventId,
+        entropy: stableEntropy, now: serverTime, damageDrawId: eventId, environmentalHazard,
       });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.', 'conflict');
@@ -20874,6 +20931,32 @@ export const runMaintenance = onCall<{
     };
     tx.set(undoRef, { turn: currentTurn, entries });
     tx.update(ref, { ...patch, ...terminalPatch, updatedAt: FieldValue.serverTimestamp() });
+    if (environmentalHazard && environmentalHistoryAuthority) {
+      const nextNavigation = {
+        ...environmentalHistoryAuthority.currentNavigation,
+        systemHistory: recordSystemHazard(
+          environmentalHistoryAuthority.currentNavigation.systemHistory,
+          data.shipId,
+          environmentalHazard.coordinate,
+          { id: eventId, occurredAt: serverTime },
+        ),
+      };
+      const nextNavigationRevision = environmentalHistoryAuthority.revision + 1;
+      tx.set(navigationStateRef(data.sessionId), {
+        ...navigationProjectionFields(nextNavigation),
+        revision: nextNavigationRevision,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      publishDiscoveryProjections(
+        tx,
+        data.sessionId,
+        environmentalHistoryAuthority.players,
+        nextNavigation,
+        nextNavigationRevision,
+        snapshot.get('chartId') as 'A' | 'B' | 'C',
+        environmentalHistoryAuthority.fleetGroups,
+      );
+    }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'maintenance',
       envelope: buildAuthoritativeEventEnvelope({

@@ -5385,6 +5385,13 @@
       "type": "evidence / production-path / transaction-retry / idempotency / deterministic-identity / history-normalization / regression"
     },
     {
+      "direction": "317 -> AUTHORITATIVE ENVIRONMENTAL MAINTENANCE",
+      "id": "E-317-ENVIRONMENTAL-MAINTENANCE",
+      "language": "When a full-size ship begins maintenance, the callable reads that ship’s coordinate only from the denied server navigation document and resolves the session’s locked A, B, or C organiser chart. Ion Nebula I rolls its printed 3+ damage check and Unstable Star J rolls 4+; other coordinates draw no environmental damage. The server fixes the roll, damage entropy, timestamp, and event identity before the mutating transaction, so callback retries, duplicate commands, and receipt replay commit one damage draw and one hazard-history event. Missing or malformed protected location, chart, fleet-group, or entitlement authority fails before writes. The existing ship-damage path owns card application, destruction, retained shuttles, escape state, terminal fleet loss, and irreversible maintenance undo fields. The result is visible at maintenance start, while canonical history and facilitator/member projections preserve only entitled per-ship state.",
+      "source": "functions/src/environmentalMaintenanceHazard.ts; functions/src/environmentalMaintenanceHazard.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts; functions/src/maintenanceCallable.test.ts; functions/src/systemHistory.ts; functions/src/systemHistory.test.ts; functions/src/maintenanceEvent.ts; src/components/MaintenanceSystems.tsx",
+      "type": "evidence / production-path / server-authority / protected-navigation / locked-chart / transaction-retry / idempotency / persistence / privacy / ship-damage / regression"
+    },
+    {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
       "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
@@ -14318,8 +14325,8 @@
         "acceptance": "ships in I or J receive their printed check from authoritative location, not client coordinates.",
         "title": "Resolve environmental maintenance hazards."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-317",
+      "description": "Release 0.4.90 gives every full-size ship at Ion Nebula I or Unstable Star J its printed maintenance-start damage check from protected server navigation and the locked organiser chart. The server owns the roll and damage-card draw, preserves one hazard-history event across retries and replay, republishes only entitled per-ship history, and rejects missing or malformed location, chart, fleet-group, or player authority before writes. Non-hazard coordinates receive no environmental damage.",
+      "evidenceIds": "E-AUDIT-317;E-317-ENVIRONMENTAL-MAINTENANCE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;313",
@@ -14327,10 +14334,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.90"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

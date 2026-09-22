@@ -17,6 +17,8 @@ const mock = vi.hoisted(() => ({
   fleetTicker: undefined as unknown,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   navigation: undefined as Record<string, unknown> | undefined,
+  chartId: 'A' as 'A' | 'B' | 'C' | string,
+  chartSelectionLocked: true,
   legacyPursuitGroups: undefined as unknown,
   fleetGroups: [] as Array<{ id: string; vesselIds: string[]; memberUids: string[] }>,
   discoveryPlayers: [] as Array<{ id: string; fields: Record<string, unknown> }>,
@@ -64,6 +66,9 @@ vi.mock('firebase-admin/firestore', () => ({
             const state = race.maintenance;
             const snapshot = structuredClone({
               ...state.session,
+              chartId: state.session.chartId ?? mock.chartId,
+              chartSelectionLocked: state.session.chartSelectionLocked ?? mock.chartSelectionLocked,
+              activeVesselIds: state.session.activeVesselIds ?? mock.activeVesselIds,
               turnPhase: state.session.turnPhase ?? mock.turnPhase,
             });
             const readSnapshot = (key: string): unknown => key.split('.').reduce<unknown>((value, part) =>
@@ -84,6 +89,14 @@ vi.mock('firebase-admin/firestore', () => ({
               if (path.includes('/commandReceipts/')) {
                 const fields = mock.commandReceipts[path];
                 return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+              }
+              if (path === 'sessions/s1/serverState/navigation') {
+                const fields = mock.navigation;
+                return {
+                  exists: fields !== undefined,
+                  data: fields === undefined ? undefined : () => fields,
+                  get: (key: string) => fields?.[key],
+                };
               }
               if (path.includes('/setupMutationRequests/') ||
                   path.includes('/gmResponsibilityRequests/') ||
@@ -120,6 +133,17 @@ vi.mock('firebase-admin/firestore', () => ({
                     exists: true,
                     data: () => fields,
                     get: (key: string) => fields[key],
+                  })),
+                };
+              }
+              if (path === 'sessions/s1/fleetGroups') {
+                return {
+                  exists: true,
+                  docs: mock.fleetGroups.map((fields) => ({
+                    id: fields.id,
+                    exists: true,
+                    data: () => fields,
+                    get: (key: string) => fields[key as keyof typeof fields],
                   })),
                 };
               }
@@ -398,10 +422,19 @@ beforeEach(() => {
   mock.fleetTicker = undefined;
   mock.wolfAttackState = undefined;
   mock.navigation = undefined;
+  mock.chartId = 'A';
+  mock.chartSelectionLocked = true;
   mock.legacyPursuitGroups = undefined;
   mock.fleetGroups = [];
   mock.discoveryPlayers = [];
   mock.activeVesselIds = undefined;
+  mock.navigation = {
+    shipGalacticCoordinates: Object.fromEntries(
+      ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara']
+        .map((shipId) => [shipId, '0000']),
+    ),
+    shipNavigationLogs: {},
+  };
   mock.shuttleDockings = undefined;
   mock.turnPhase = {
     turn: 1,
@@ -537,6 +570,8 @@ beforeEach(() => {
           pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
+          chartId: mock.chartId,
+          chartSelectionLocked: mock.chartSelectionLocked,
           shuttleDockings: mock.shuttleDockings,
           pursuitGroups: mock.legacyPursuitGroups,
         };
@@ -554,6 +589,18 @@ it('rejects a second maintenance cycle in the same turn', async () => {
 });
 
 const data = { sessionId: 's1', shipId: 'aegis', requestId: 'maintenance-base', instanceId: 'bridge', action: 'begin', expectedRevision: 0 };
+
+function setEnvironmentalHistoryAuthority() {
+  mock.activeVesselIds = ['aegis'];
+  mock.fleetGroups = [{ id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] }];
+  mock.discoveryPlayers = [{
+    id: 'u1',
+    fields: {
+      connected: true, role: 'player', fleetGroupId: 'fleet-1',
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+    },
+  }];
+}
 
 it('rejects oversized canonical maintenance collections before authority preflight', async () => {
   mock.get.mockClear();
@@ -654,6 +701,147 @@ it('begins maintenance atomically with a server-owned revision', async () => {
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'maintenanceCycles.aegis': expect.objectContaining({ step: 1, revision: 1 }),
   }));
+});
+
+it.each([
+  ['A', '1096', 3, 'Ion Nebula'],
+  ['B', '6964', 4, 'Unstable Star'],
+] as const)('applies chart %s environmental damage from protected coordinate %s', async (
+  chartId, coordinate, roll, siteName,
+) => {
+  setEnvironmentalHistoryAuthority();
+  mock.chartId = chartId;
+  mock.navigation = {
+    shipGalacticCoordinates: { aegis: coordinate },
+    shipNavigationLogs: { aegis: [] },
+  };
+  mock.randomInt.mockReturnValue(roll);
+
+  const result = await runMaintenance.run(request({
+    ...data,
+    requestId: `maintenance-${chartId}-${coordinate}`,
+  }));
+
+  expect(result).toMatchObject({
+    status: 'committed',
+    cycle: {
+      step: 1,
+      damageDrawId: `maintenance-maintenance-${chartId}-${coordinate}`,
+      results: { '0': expect.stringMatching(new RegExp(`${siteName}.*rolled ${roll}.*causes damage`)) },
+    },
+    result: { damage: { damagedSystemIds: [expect.any(String)], destroyed: false } },
+  });
+  expect(mock.set).toHaveBeenCalledWith(
+    `sessions/s1/damageDraws/maintenance-maintenance-${chartId}-${coordinate}`,
+    expect.objectContaining({ type: 'ship-damage', shipId: 'aegis' }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({
+      systemHistory: {
+        aegis: {
+          [coordinate]: expect.objectContaining({
+            hazards: [{
+              id: `maintenance-maintenance-${chartId}-${coordinate}`,
+              occurredAt: expect.any(String),
+            }],
+          }),
+        },
+      },
+      revision: 1,
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/gmDiscovery/current',
+    expect.objectContaining({
+      systemHistory: expect.objectContaining({
+        aegis: expect.objectContaining({
+          [coordinate]: expect.objectContaining({ hazards: [expect.any(Object)] }),
+        }),
+      }),
+    }),
+    { merge: true },
+  );
+});
+
+it('records a below-threshold Ion Nebula check without drawing damage', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = {
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipNavigationLogs: { aegis: [] },
+  };
+  mock.randomInt.mockReturnValue(2);
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-ion-safe',
+  }))).resolves.toMatchObject({
+    cycle: { results: { '0': expect.stringMatching(/Ion Nebula.*rolled 2.*no damage/) } },
+    result: { damage: { damagedSystemIds: [], destroyed: false } },
+  });
+  expect(mock.set).not.toHaveBeenCalledWith(
+    'sessions/s1/damageDraws/maintenance-maintenance-ion-safe',
+    expect.anything(),
+  );
+});
+
+it('rejects a maintenance start without protected ship-location authority', async () => {
+  mock.navigation = undefined;
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'maintenance-missing-location',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/protected ship-location authority/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('commits one environmental draw across transaction retry, duplicate request, and replay', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = {
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipNavigationLogs: { aegis: [] },
+  };
+  mock.randomInt.mockReturnValue(3);
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'], activeRoleIds: ['wing-commander'],
+      chartId: 'A', chartSelectionLocked: true, maintenanceCycles: {},
+      shipResources: { aegis: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
+      shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { aegis: 0 }, shipSurvivors: { aegis: 2_500 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => { release = resolve; });
+  mock.race = { attempts: 0, ready, release, version: 0, barrier: true, maintenance };
+  const command = { ...data, requestId: 'environmental-retry' };
+  const callsBefore = mock.randomInt.mock.calls.length;
+
+  const duplicate = await Promise.all([
+    runMaintenance.run(request(command)),
+    runMaintenance.run(request(command)),
+  ]);
+
+  expect(duplicate.map((reply) => (reply as Record<string, unknown>).status).sort())
+    .toEqual(['committed', 'replayed']);
+  expect(mock.randomInt.mock.calls.length - callsBefore).toBe(6);
+  expect(maintenance.session.shipDamage).toMatchObject({
+    aegis: { damagedSystemIds: [expect.any(String)], destroyed: false },
+  });
+  expect(Object.keys(maintenance.damageDraws)).toEqual([
+    'sessions/s1/damageDraws/maintenance-environmental-retry',
+  ]);
+
+  const callsAfterCommit = mock.randomInt.mock.calls.length;
+  await expect(runMaintenance.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.randomInt.mock.calls.length).toBe(callsAfterCommit);
+  expect(Object.keys(maintenance.damageDraws)).toHaveLength(1);
 });
 
 it('creates the stable pod-capacity catastrophe from a riot destruction', async () => {
@@ -1600,11 +1788,14 @@ it('rejects observer authority even if a prior console role remains stored', asy
 it('allows a ship officer and assigned joint engineer, but denies another ship', async () => {
   mock.activeRoleIds = recommendedRoleIds(14);
   mock.get.mockImplementation(async (path: string) => path.includes('/maintenanceRequests/')
-    ? { exists: false, get: () => undefined } : ({
+    ? { exists: false, get: () => undefined }
+    : path === 'sessions/s1/serverState/navigation'
+      ? { exists: true, data: () => mock.navigation, get: (key: string) => mock.navigation?.[key] }
+      : ({
     exists: true,
     get: (key: string) => path.includes('/players/')
       ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key]
-      : ({ activeRoleIds: mock.activeRoleIds, turnPhase: mock.turnPhase } as Record<string, unknown>)[key],
+      : ({ activeRoleIds: mock.activeRoleIds, turnPhase: mock.turnPhase, chartId: 'A', chartSelectionLocked: true } as Record<string, unknown>)[key],
   }));
   await expect(runMaintenance.run(request({ ...data, shipId: 'quellon' }))).resolves.toMatchObject({ step: 1 });
   await expect(runMaintenance.run(request({ ...data, shipId: 'shepherd' }))).rejects.toMatchObject({ code: 'permission-denied' });
@@ -1613,11 +1804,14 @@ it('allows a ship officer and assigned joint engineer, but denies another ship',
 it('accepts the paired Joint Engineering console identity for its maintenance workspace', async () => {
   mock.activeRoleIds = recommendedRoleIds(14);
   mock.get.mockImplementation(async (path: string) => path.includes('/maintenanceRequests/')
-    ? { exists: false, get: () => undefined } : ({
+    ? { exists: false, get: () => undefined }
+    : path === 'sessions/s1/serverState/navigation'
+      ? { exists: true, data: () => mock.navigation, get: (key: string) => mock.navigation?.[key] }
+      : ({
     exists: true,
     get: (key: string) => path.includes('/players/')
       ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key]
-      : ({ activeRoleIds: mock.activeRoleIds, turnPhase: mock.turnPhase } as Record<string, unknown>)[key],
+      : ({ activeRoleIds: mock.activeRoleIds, turnPhase: mock.turnPhase, chartId: 'A', chartSelectionLocked: true } as Record<string, unknown>)[key],
   }));
 
   await expect(runMaintenance.run(request({
@@ -3374,9 +3568,12 @@ it('checks the viewed console against the live crew before maintenance writes', 
   let full = false;
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/maintenanceRequests/')) return { exists: false, get: () => undefined };
+    if (path === 'sessions/s1/serverState/navigation') {
+      return { exists: true, data: () => mock.navigation, get: (key: string) => mock.navigation?.[key] };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { connected: true, role: 'player', activeConsoleRoleId: 'wing-commander' }
-      : { turnPhase: mock.turnPhase };
+      : { turnPhase: mock.turnPhase, chartId: 'A', chartSelectionLocked: true };
     if (path.endsWith('/players')) return { docs: (full ? ['admiral', 'executive-officer', 'wing-commander'] : ['wing-commander']).map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -3411,7 +3608,8 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   const { rollbackMaintenance } = await import('./index');
   mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
   const records: Record<string, Record<string, unknown>> = {
-    'sessions/s1': { currentTurn: 1, turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-09T16:20:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'restricted', tickerActive: true, pressAccess: false } }, maintenanceCycles: { aegis: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] } }, shipResources: { aegis: { food: 20, water: 20, fuel: 3, materials: 0, ore: 0 } }, shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } }, shipSurvivors: { aegis: 2000 }, shipUnrest: { aegis: 1 }, shuttleCargo: {}, shuttleFuelled: {}, unrestAlerts: {}, populationAlerts: {} },
+    'sessions/s1': { currentTurn: 1, chartId: 'A', chartSelectionLocked: true, turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-09T16:20:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'restricted', tickerActive: true, pressAccess: false } }, maintenanceCycles: { aegis: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] } }, shipResources: { aegis: { food: 20, water: 20, fuel: 3, materials: 0, ore: 0 } }, shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } }, shipSurvivors: { aegis: 2000 }, shipUnrest: { aegis: 1 }, shuttleCargo: {}, shuttleFuelled: {}, unrestAlerts: {}, populationAlerts: {} },
+    'sessions/s1/serverState/navigation': { shipGalacticCoordinates: { aegis: '0000' } },
     'sessions/s1/players/u1': { connected: true, role: 'gm' },
     'sessions/s1/gmInstances/bridge': {
       uid: 'u1', connected: true,
@@ -3425,7 +3623,11 @@ it('records and rolls back successive steps while restoring spent supplies', asy
     'sessions/s1/events/pre-existing': { type: 'historical-maintenance', revision: 0 },
   };
   const read = (record: Record<string, unknown> | undefined, key: string): unknown => key.split('.').reduce<unknown>((value, part) => value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, record);
-  mock.get.mockImplementation(async (path: string) => ({ exists: Boolean(records[path]), get: (key: string) => read(records[path], key) }));
+  mock.get.mockImplementation(async (path: string) => ({
+    exists: Boolean(records[path]),
+    ...(path === 'sessions/s1/serverState/navigation' ? { data: () => records[path] } : {}),
+    get: (key: string) => read(records[path], key),
+  }));
   mock.set.mockImplementation((path: string, value: Record<string, unknown>) => {
     if (Array.isArray(value.entries) && value.entries.some(Array.isArray)) throw new Error('Firestore does not support nested arrays.');
     records[path] = structuredClone(value);
