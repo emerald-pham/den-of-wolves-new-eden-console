@@ -1,0 +1,23 @@
+/*
+ * Shuttle actions must work on a phone-sized touch surface as well as with a
+ * keyboard. Keep this contract local to the control so a future console-wide
+ * style change cannot silently shrink a departure, retarget, docking, or
+ * recovery action.
+ */
+.shuttle-control__touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.shuttle-control__check-target {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.shuttle-control__touch-target:focus-visible,
+.shuttle-control__check-target:focus-within {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
