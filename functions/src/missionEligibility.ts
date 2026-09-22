@@ -44,6 +44,7 @@ export function parseStoredMissionOpportunity(
   value: unknown,
   sessionId: string,
   expected: MissionOpportunityEligibility,
+  sourceCyclePolicy: 'expected' | 'any' = expected.siteCode === 'J' ? 'expected' : 'any',
 ): MissionOpportunityEligibility {
   if (!isRecord(value) ||
     value.type !== 'mission-opportunity' ||
@@ -57,7 +58,8 @@ export function parseStoredMissionOpportunity(
     typeof value.sourceShipId !== 'string' ||
     !isFleetShipId(value.sourceShipId) || value.sourceShipId === 'snn-press-shuttle' ||
     !isMissionTransitionId(value.sourceTransitionId) ||
-    !Number.isSafeInteger(value.sourceCycle) || (value.sourceCycle as number) < 0) {
+    !Number.isSafeInteger(value.sourceCycle) || (value.sourceCycle as number) < 0 ||
+    (sourceCyclePolicy === 'expected' && value.sourceCycle !== expected.sourceCycle)) {
     throw new Error('Stored mission opportunity is malformed or belongs to another arrival.');
   }
   return {
@@ -90,10 +92,26 @@ export function missionOpportunityDocumentPath(sessionId: string, opportunityId:
 }
 
 /**
+ * Resolve the unsuffixed J identity written before cycle-scoped repeatability
+ * shipped. Its validated source cycle decides whether it suppresses the
+ * current cycle or represents an older, already-finished opportunity.
+ */
+export function legacyUnstableStarMissionOpportunity(
+  opportunity: MissionOpportunityEligibility,
+): MissionOpportunityEligibility | undefined {
+  if (opportunity.siteCode !== 'J') return undefined;
+  return {
+    ...opportunity,
+    id: `arrival-${opportunity.groupId}-${opportunity.chart}-${opportunity.coordinate}`,
+  };
+}
+
+/**
  * Create the durable opportunity exposed by the first vessel in one canonical
  * fleet group to reach a printed A-M mission system. Existing group position
- * and persisted discovery history both suppress repeat arrivals; another group
- * retains its own first arrival at the same coordinate.
+ * suppresses every duplicate arrival. Persisted discovery suppresses ordinary
+ * systems, while Unstable Star J gets one cycle-scoped opportunity after the
+ * group leaves and returns. Another group retains its own eligibility.
  */
 export function firstArrivalMissionOpportunity(
   input: FirstArrivalMissionOpportunityInput,
@@ -115,12 +133,17 @@ export function firstArrivalMissionOpportunity(
   const mission = siteCode ? missionCardForCode(siteCode) : undefined;
   if (!mission) return undefined;
 
-  const previouslyReached = input.group.vesselIds.some((shipId) =>
-    input.coordinates[shipId] === input.destination ||
-    input.systemHistory?.[shipId]?.[input.destination]?.discovery !== undefined);
-  if (previouslyReached) return undefined;
+  const groupAlreadyPresent = input.group.vesselIds.some((shipId) =>
+    input.coordinates[shipId] === input.destination);
+  if (groupAlreadyPresent) return undefined;
 
-  const id = `arrival-${input.group.id}-${input.chart}-${input.destination}`;
+  const previouslyDiscovered = input.group.vesselIds.some((shipId) =>
+    input.systemHistory?.[shipId]?.[input.destination]?.discovery !== undefined);
+  if (previouslyDiscovered && siteCode !== 'J') return undefined;
+
+  const id = siteCode === 'J'
+    ? `arrival-${input.group.id}-${input.chart}-${input.destination}-cycle-${input.cycle}`
+    : `arrival-${input.group.id}-${input.chart}-${input.destination}`;
   return {
     type: 'mission-opportunity',
     status: 'available',

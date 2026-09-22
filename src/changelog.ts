@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [310],
+    implementationProgress: {
+      completed: 453, total: 751, percentage: '60.32%',
+      done: 453, partial: 13, active: 0, missing: 285,
+    },
+    changes: [
+      'A fleet group can now return to the Unstable Star for one new mission opportunity in each eligible cycle.',
+      'Leaving and returning in the same cycle cannot duplicate the opportunity or its eventual rewards.',
+      '453 of 751 planned items are complete (60.32%).',
+    ],
+  },
+  {
+    version: '0.4.86',
     implementationPrompts: [315],
     implementationProgress: {
       completed: 452, total: 751, percentage: '60.19%',

@@ -2435,7 +2435,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 307
 - [x] Prompt 308
 - [x] Prompt 309
-- [ ] Prompt 310
+- [x] Prompt 310
 - [ ] Prompt 311
 - [x] Prompt 312
 - [x] Prompt 313
@@ -3196,7 +3196,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 307 — [NEW] Isolate pursuit by fleet group.** Acceptance: a split creates independent values and one group's action cannot mutate another's.
 - **Prompt 308 — [NEW] Apply Ion Nebula pursuit behavior.** Acceptance: the system I group suppresses the applicable rise while other groups remain unaffected.
 - **Prompt 309 — [NEW] Apply the Level 5 Planet exception.** Acceptance: system G does not reduce pursuit despite its chart depth.
-- **Prompt 310 — [NEW] Make Unstable Star missions repeatable.** Acceptance: system J can create its printed mission once per eligible turn without duplicate rewards.
+- **Prompt 310 — [NEW] Make Unstable Star missions repeatable.** Acceptance: system J can create its printed mission once per eligible cycle without duplicate rewards.
 - **Prompt 311 — [NEW] Make Abandoned Wolf Supply Outpost missions repeatable.** Acceptance: system K can create its hidden-difficulty mission once per eligible turn.
 - **Prompt 312 — [NEW] Trigger L/M arrival pressure.** Acceptance: entering an operational Outpost or Fortress schedules the required attack and blocks missions.
 - **Prompt 313 — [NEW] Persist system history.** Acceptance: discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive reconnect without revealing other systems.

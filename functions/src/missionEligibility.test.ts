@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FleetGroupRecord } from './fleetGroups';
 import {
   firstArrivalMissionOpportunity,
+  legacyUnstableStarMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
 } from './missionEligibility';
@@ -61,6 +62,54 @@ describe('group first-arrival mission eligibility', () => {
       movedShipId: 'dione',
       coordinates: { aegis: '1413', dione: '0000' },
     })).toBeUndefined();
+  });
+
+  it('creates one Unstable Star opportunity per cycle after the group leaves and returns', () => {
+    const systemHistory: SystemHistory = {
+      dione: {
+        '8378': {
+          coordinate: '8378',
+          discovery: { id: 'navigation-prior-star', occurredAt: '2026-09-21T00:00:00.000Z' },
+          attempts: [{ id: 'attempt-cycle-1', occurredAt: '2026-09-21T00:01:00.000Z' }],
+          hazards: [], rewards: [{ id: 'reward-cycle-1', occurredAt: '2026-09-21T00:02:00.000Z' }],
+          clearedThreats: [], candidateProgress: [],
+        },
+      },
+    };
+
+    const cycleTwo = firstArrivalMissionOpportunity({
+      ...base,
+      destination: '8378',
+      cycle: 2,
+      systemHistory,
+    });
+    expect(cycleTwo).toMatchObject({
+      id: 'arrival-fleet-1-A-8378-cycle-2',
+      siteCode: 'J',
+      sourceCycle: 2,
+    });
+    expect(firstArrivalMissionOpportunity({
+      ...base,
+      destination: '8378',
+      cycle: 3,
+      systemHistory,
+    })).toMatchObject({ id: 'arrival-fleet-1-A-8378-cycle-3', sourceCycle: 3 });
+  });
+
+  it('keeps Unstable Star cycle eligibility group-local and requires the group to leave first', () => {
+    expect(firstArrivalMissionOpportunity({
+      ...base,
+      destination: '8378',
+      coordinates: { aegis: '0000', dione: '8378' },
+    })).toBeUndefined();
+
+    const first = firstArrivalMissionOpportunity({ ...base, destination: '8378' });
+    const duplicateTransition = firstArrivalMissionOpportunity({
+      ...base,
+      destination: '8378',
+      sourceTransitionId: 'jump-another-arrival',
+    });
+    expect(duplicateTransition?.id).toBe(first?.id);
   });
 
   it('keeps first arrival group-local when another fleet has visited the same system', () => {
@@ -123,5 +172,28 @@ describe('group first-arrival mission eligibility', () => {
     ]) {
       expect(() => parseStoredMissionOpportunity(malformed, 's1', opportunity)).toThrow(/stored/i);
     }
+  });
+
+  it('rejects a stored Unstable Star opportunity whose source cycle conflicts with its identity', () => {
+    const opportunity = firstArrivalMissionOpportunity({ ...base, destination: '8378' })!;
+    expect(() => parseStoredMissionOpportunity({
+      ...opportunity,
+      sessionId: 's1',
+      sourceCycle: opportunity.sourceCycle + 1,
+    }, 's1', opportunity)).toThrow(/stored/i);
+  });
+
+  it('validates a legacy Unstable Star identity without treating an older cycle as malformed', () => {
+    const opportunity = firstArrivalMissionOpportunity({ ...base, destination: '8378', cycle: 3 })!;
+    const legacy = legacyUnstableStarMissionOpportunity(opportunity)!;
+    expect(legacy.id).toBe('arrival-fleet-1-A-8378');
+    expect(parseStoredMissionOpportunity({
+      ...legacy,
+      sessionId: 's1',
+      sourceCycle: 2,
+    }, 's1', legacy, 'any')).toMatchObject({
+      id: 'arrival-fleet-1-A-8378',
+      sourceCycle: 2,
+    });
   });
 });

@@ -5364,6 +5364,13 @@
       "type": "evidence / production-path / server-authority / first-arrival / split-fleet / persistence / privacy / malformed-state / regression"
     },
     {
+      "direction": "310 -> UNSTABLE STAR CYCLE ELIGIBILITY",
+      "id": "E-310-UNSTABLE-STAR-REPEAT",
+      "language": "Unstable Star J now creates one deterministic mission opportunity for an arriving fleet group in each eligible cycle. Durable discovery and prior attempts or rewards do not suppress a later cycle after the group leaves and returns, while another vessel already present suppresses a duplicate arrival. The opportunity identity includes the authoritative cycle, so transaction retries and repeated arrivals in the same cycle resolve to the same record. A validated unsuffixed opportunity from the preceding release suppresses a duplicate during its source cycle without blocking a later cycle, and malformed current or legacy state blocks movement before any write. Ordinary mission systems retain first-arrival-only behavior, and each split fleet group remains independent.",
+      "source": "functions/src/missionEligibility.ts; functions/src/missionEligibility.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/missionCards.ts; functions/src/systemHistory.ts",
+      "type": "evidence / production-path / server-authority / cycle-repeatability / idempotency / split-fleet / malformed-state / regression"
+    },
+    {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
       "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
@@ -14123,11 +14130,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "system J can create its printed mission once per eligible turn without duplicate rewards.",
+        "acceptance": "system J can create its printed mission once per eligible cycle without duplicate rewards.",
         "title": "Make Unstable Star missions repeatable."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-310",
+      "description": "Release 0.4.87 gives Unstable Star J one deterministic mission opportunity per eligible cycle for each fleet group. A group must leave before returning can create the cycle's opportunity; its prior discovery, attempts, or rewards no longer block a later cycle. The authoritative cycle is part of the durable identity, so retries and multiple arrivals in one cycle cannot duplicate the opportunity. Valid unsuffixed opportunities created by 0.4.86 suppress a duplicate in their source cycle without blocking a later cycle, while malformed current or legacy state fails before movement writes. Other mission systems remain first-arrival-only.",
+      "evidenceIds": "E-AUDIT-310;E-310-UNSTABLE-STAR-REPEAT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "313;315",
@@ -14135,10 +14142,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.87"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

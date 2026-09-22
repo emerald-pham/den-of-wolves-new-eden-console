@@ -197,6 +197,7 @@ import {
 } from './arrivalPressure';
 import {
   firstArrivalMissionOpportunity,
+  legacyUnstableStarMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
   type MissionOpportunityEligibility,
@@ -1521,6 +1522,30 @@ async function missionOpportunityForMovement(
     );
   }
   if (!opportunity) return undefined;
+  const legacyOpportunity = legacyUnstableStarMissionOpportunity(opportunity);
+  if (legacyOpportunity) {
+    const legacyStored = await tx.get(db.doc(
+      missionOpportunityDocumentPath(sessionId, legacyOpportunity.id),
+    ));
+    if (legacyStored.exists) {
+      let parsedLegacy: MissionOpportunityEligibility;
+      try {
+        parsedLegacy = parseStoredMissionOpportunity(
+          legacyStored.data(),
+          sessionId,
+          legacyOpportunity,
+          'any',
+        );
+      } catch (cause) {
+        throw commandError(
+          'failed-precondition',
+          cause instanceof Error ? cause.message : 'Stored mission opportunity is malformed.',
+          'malformed-input',
+        );
+      }
+      if (parsedLegacy.sourceCycle === opportunity.sourceCycle) return undefined;
+    }
+  }
   const stored = await tx.get(db.doc(missionOpportunityDocumentPath(sessionId, opportunity.id)));
   if (!stored.exists) return opportunity;
   try {

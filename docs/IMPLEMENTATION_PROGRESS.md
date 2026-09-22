@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**452 / 751 prompts complete (60.19%)**
+**453 / 751 prompts complete (60.32%)**
 
-Status breakdown: **452 done · 13 partial · 286 missing**.
+Status breakdown: **453 done · 13 partial · 285 missing**.
 
 Active prompt: **none**
 
@@ -752,7 +752,7 @@ release classification and evidence.
 | 307 | done | non-feature | — | The server-domain pursuit transition now forks one source fleet-group score into two independent canonical group values, preserves unrelated groups, and rejects malformed, missing, duplicate, or colliding authority. Existing movement and cycle transitions consume the independent map without mutating another group. Prompt 336 will invoke this pure transition when partial arrival creates the persisted split. |
 | 308 | done | non-feature | 0.4.29 | The authoritative cycle transition resolves Ion Nebula I from the session’s locked A, B, or C chart and suppresses only a fleet group whose complete vessel set is present there. Every other represented group still rises by two, capped at 10. The same transaction writes the protected navigation map and facilitator projection, while each player receives only the value for that player’s exact canonical group. Focused pure and callable tests prove all three chart coordinates, mixed-group isolation, shared navigation revision, and group-local privacy. |
 | 309 | done | non-feature | 0.4.32 | Authoritative facilitator movement and successful shipboard jumps now resolve the destination against the session’s locked A, B, or C organiser chart. When that printed site is Level 5 Survivable Planet G, the moving fleet group retains its current pursuit despite the coordinate’s graph depth; ordinary destinations still subtract their full server-computed shortest-path depth and other groups remain unchanged. Focused pure tests prove the distinct G coordinate on all three charts, and callable coverage proves production movement consumes the locked chart rather than client input. |
-| 310 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 310 | done | non-feature | 0.4.87 | Release 0.4.87 gives Unstable Star J one deterministic mission opportunity per eligible cycle for each fleet group. A group must leave before returning can create the cycle's opportunity; its prior discovery, attempts, or rewards no longer block a later cycle. The authoritative cycle is part of the durable identity, so retries and multiple arrivals in one cycle cannot duplicate the opportunity. Valid unsuffixed opportunities created by 0.4.86 suppress a duplicate in their source cycle without blocking a later cycle, while malformed current or legacy state fails before movement writes. Other mission systems remain first-arrival-only. |
 | 311 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 312 | done | non-feature | 0.4.85 | Release 0.4.85 derives Active Wolf Outpost and Fortress arrival pressure inside the authoritative relocation and jump transactions. L schedules at least 1 Battlestation plus 20 other damage; M schedules at least 2 plus 25. Each fleet group keeps independent operational-site state, leaving one hostile coordinate cannot erase another, duplicate entry cannot schedule twice, and away-mission dealing rejects the group without consuming cards until every occupied L/M base has been left or cleared. |
 | 313 | done | feature | — | Server-owned navigation persists a typed per-ship history envelope beside the denied navigation state. Discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive setup changes, movement writes, reconnect, and role replacement while players receive only their entitled ship history and the facilitator retains the active-fleet view. Later gameplay prompts own creating their outcomes; this completed persistence contract never invents them. |

@@ -29,6 +29,7 @@ const mock = vi.hoisted(() => ({
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
+  missionOpportunityRecordPath: undefined as string | undefined,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -98,6 +99,7 @@ beforeEach(() => {
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
   mock.missionOpportunityRecord = undefined;
+  mock.missionOpportunityRecordPath = undefined;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -124,10 +126,14 @@ beforeEach(() => {
       };
     }
     if (path.startsWith('sessions/s1/missionOpportunities/')) {
+      const record = mock.missionOpportunityRecordPath === undefined ||
+        mock.missionOpportunityRecordPath === path
+        ? mock.missionOpportunityRecord
+        : undefined;
       return {
-        exists: mock.missionOpportunityRecord !== undefined,
-        data: () => mock.missionOpportunityRecord,
-        get: (key: string) => mock.missionOpportunityRecord?.[key],
+        exists: record !== undefined,
+        data: () => record,
+        get: (key: string) => record?.[key],
       };
     }
     if (path === 'sessions/s1/fleetGroups') {
@@ -334,6 +340,123 @@ it('does not create another opportunity for a system already reached by the grou
   }))).resolves.not.toHaveProperty('missionOpportunityId');
   expect(mock.set.mock.calls.some(([path]) =>
     String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('creates an Unstable Star opportunity again in a later cycle without duplicating that cycle', async () => {
+  mock.currentTurn = 2;
+  mock.systemHistory = {
+    dione: {
+      '8378': {
+        coordinate: '8378',
+        discovery: { id: 'navigation-prior-star', occurredAt: '2026-09-21T00:00:00.000Z' },
+        attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'unstable-star-cycle-2', destination: '8378',
+  }))).resolves.toMatchObject({
+    missionOpportunityId: 'arrival-fleet-1-A-8378-cycle-2',
+  });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-8378-cycle-2',
+    expect.objectContaining({ siteCode: 'J', sourceCycle: 2 }),
+  );
+
+  mock.set.mockClear();
+  mock.update.mockClear();
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-8378-cycle-2', groupId: 'fleet-1', chart: 'A',
+    coordinate: '8378', siteCode: 'J', sourceShipId: 'dione',
+    sourceTransitionId: 'navigation-first-star-arrival', sourceCycle: 2,
+  };
+  mock.missionOpportunityRecordPath =
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-8378-cycle-2';
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'unstable-star-cycle-2-retry', destination: '8378',
+  }))).resolves.not.toHaveProperty('missionOpportunityId');
+  expect(mock.set.mock.calls.some(([path]) =>
+    String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('does not duplicate a legacy Unstable Star opportunity during its deployment cycle', async () => {
+  mock.currentTurn = 2;
+  mock.systemHistory = {
+    dione: {
+      '8378': {
+        coordinate: '8378',
+        discovery: { id: 'navigation-prior-star', occurredAt: '2026-09-21T00:00:00.000Z' },
+        attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-8378', groupId: 'fleet-1', chart: 'A',
+    coordinate: '8378', siteCode: 'J', sourceShipId: 'dione',
+    sourceTransitionId: 'navigation-pre-upgrade-arrival', sourceCycle: 2,
+  };
+  mock.missionOpportunityRecordPath =
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-8378';
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'unstable-star-upgrade-cycle-retry', destination: '8378',
+  }))).resolves.not.toHaveProperty('missionOpportunityId');
+  expect(mock.set.mock.calls.some(([path]) =>
+    String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('allows a new-cycle Unstable Star opportunity after a valid older legacy record', async () => {
+  mock.currentTurn = 3;
+  mock.systemHistory = {
+    dione: {
+      '8378': {
+        coordinate: '8378',
+        discovery: { id: 'navigation-prior-star', occurredAt: '2026-09-21T00:00:00.000Z' },
+        attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-8378', groupId: 'fleet-1', chart: 'A',
+    coordinate: '8378', siteCode: 'J', sourceShipId: 'dione',
+    sourceTransitionId: 'navigation-pre-upgrade-arrival', sourceCycle: 2,
+  };
+  mock.missionOpportunityRecordPath =
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-8378';
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'unstable-star-after-upgrade', destination: '8378',
+  }))).resolves.toMatchObject({
+    missionOpportunityId: 'arrival-fleet-1-A-8378-cycle-3',
+  });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-8378-cycle-3',
+    expect.objectContaining({ siteCode: 'J', sourceCycle: 3 }),
+  );
+});
+
+it('fails closed before movement writes when a legacy Unstable Star opportunity is malformed', async () => {
+  mock.currentTurn = 2;
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-8378', groupId: 'fleet-1', chart: 'A',
+    coordinate: '8378', siteCode: 'J', sourceShipId: 'dione',
+    sourceTransitionId: 'forged-transition', sourceCycle: 2,
+  };
+  mock.missionOpportunityRecordPath =
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-8378';
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'unstable-star-malformed-legacy', destination: '8378',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'malformed-input' },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('does not reopen a previously created opportunity when legacy history is incomplete', async () => {
