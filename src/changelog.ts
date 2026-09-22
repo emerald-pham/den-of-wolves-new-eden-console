@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [319],
+    implementationProgress: {
+      completed: 468, total: 751, percentage: '62.32%',
+      done: 468, partial: 12, active: 0, missing: 271,
+    },
+    changes: [
+      'Facilitators can now mark whether a Cycle 6 plan exists without exposing private plan details.',
+      'The checkpoint is available only to the active game master and clears safely when the authoritative state no longer contains it.',
+      '468 of 751 planned items are complete (62.32%).',
+    ],
+  },
+  {
+    version: '0.5.1',
     implementationPrompts: [368],
     implementationProgress: {
       completed: 467, total: 751, percentage: '62.18%',
