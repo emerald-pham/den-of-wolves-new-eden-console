@@ -1186,6 +1186,62 @@ it('routes every Icebreaker Engineer responsibility to live controls', async () 
   expect(workspace).toHaveTextContent(/repairs fleet consoles.*full cargo load/i);
 });
 
+it('routes every Shepherd Engineer responsibility to live controls', async () => {
+  const state = useSessionStore.getState();
+  const session = state.session;
+  const me = state.me;
+  if (!session || !me) throw new Error('Expected the test identity.');
+  state.setSession({
+    ...session, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['shepherd-engineer'], activeVesselIds: ['shepherd'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    maintenanceCycles: { shepherd: {
+      step: 5, revision: 4, turn: 2, results: {}, charges: [], refuelled: [],
+    } },
+    shipResources: { shepherd: {
+      ore: 0, fuel: 4, food: 18, water: 10, materials: 7, securityTeams: 2,
+    } },
+    shipDamage: { shepherd: { damagedSystemIds: [], destroyed: false } },
+    shuttleDockings: [{ shuttleId: 'black-sheep', shipId: 'shepherd', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({
+    ...me, assignedRoleId: 'shepherd-engineer', seatId: 'shepherd-engineer',
+    activeConsoleRoleId: null,
+  });
+  state.setConnection('live');
+
+  render(<MemoryRouter initialEntries={['/ships/shepherd/roles/shepherd-engineer']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('shepherd-engineer'));
+  const workspace = screen.getByRole('region', { name: 'Shepherd Engineer console' });
+  expect(within(workspace).getByRole('region', { name: 'Shepherd maintenance cycle' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Shepherd resource stores' }))
+    .toHaveTextContent(/food.*18.*water.*10.*materials.*7/i);
+  expect(within(workspace).getByRole('button', { name: 'Power up reactor' })).toBeEnabled();
+  expect(within(workspace).getByRole('link', { name: 'Open Black Sheep shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/black-sheep');
+
+  act(() => state.setSession({
+    ...useSessionStore.getState().session!,
+    maintenanceCycles: { shepherd: {
+      step: 6, revision: 5, turn: 2, results: { '5': 'Reactor powered up.' },
+      charges: ['water-reclamation', 'advanced-hydroponics', 'advanced-hydroponics-ii'],
+      refuelled: [],
+    } },
+  }));
+
+  expect(await within(workspace).findByText(/Live stores: 18 food.*10 water.*7 materials/i)).toBeVisible();
+  expect(within(workspace).getByRole('button', { name: 'Run Water Reclamation' })).toBeEnabled();
+  expect(within(workspace).getByRole('button', { name: 'Run Advanced Hydroponics' })).toBeEnabled();
+  expect(within(workspace).getByRole('button', { name: 'Run Advanced Hydroponics II' })).toBeEnabled();
+});
+
 it.each([
   ['dione', 'Dione', 'dione-captain', 'Hydroponics', '100,000'],
   ['icebreaker', 'Icebreaker', 'icebreaker-captain', 'Mining Drone Control', '40,000'],

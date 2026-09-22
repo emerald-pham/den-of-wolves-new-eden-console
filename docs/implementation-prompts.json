@@ -5936,6 +5936,13 @@
       "language": "A completed canonical Wolf Agent Detector track unlocks a pure revision-bound allowance of three ordinal reservations per cycle. The exact state resets only when a later cycle is supplied, rejects stale, backward, malformed, over-limit, and unreachable histories, and deliberately contains no target or result. This evidence covers only the non-feature allowance contract; Prompt 508 retains target authorization, private server randomness and accuracy, persistence/replay, private delivery, UI, deployment, and playable testing.",
       "source": "functions/src/endeavourWolfAgentDetector.ts; functions/src/endeavourWolfAgentDetector.test.ts; functions/src/endeavourResearch.ts; focused 6-test detector allowance suite; Functions TypeScript build",
       "type": "evidence / server-domain / research-device / cycle-limit / private-boundary / revision / regression"
+    },
+    {
+      "direction": "215a -> 166;204;361",
+      "id": "E-215A-SHEPHERD-ENGINEER-WORKSPACE",
+      "language": "The Shepherd Engineer console routes maintenance, stores, reactor charging, water and food production, and the assigned Black Sheep to live controls; the Black Sheep console routes distribution and charging through production callables.",
+      "source": "src/routes/ShipConsole.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/MaintenanceSystems.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/ShipConsole.test.tsx; src/routes/ShuttleConsole.test.tsx; src/data/vessels/shepherd.ts; src/data/vessels/black-sheep.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/serviceShuttleRechargeCallable.test.ts; focused 193-test workspace/craft matrix",
+      "type": "evidence / workspace / role-binding / maintenance / stores / shuttle / regression"
     }
   ],
   "plan": {
@@ -11479,8 +11486,8 @@
         "acceptance": "maintenance, stores, Black Sheep, charging, and food/water distribution route to real actions.",
         "title": "Complete the Shepherd Engineer workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-215A",
+      "description": "The bound Shepherd Engineer route exposes server-authoritative maintenance, current stores, reactor charging, Water Reclamation, both Advanced Hydroponics production actions, and the assigned Black Sheep. The Black Sheep route uses the production cargo-transfer and service-recharge paths for food/water distribution and console charging. A discriminating role-bound regression now proves these controls remain reachable across the live maintenance phase transition; the focused 193-test workspace, shuttle, cargo, and recharge matrix passed.",
+      "evidenceIds": "E-AUDIT-215A;E-215A-SHEPHERD-ENGINEER-WORKSPACE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;204;361",
@@ -11491,7 +11498,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
