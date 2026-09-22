@@ -5964,6 +5964,13 @@
       "language": "The strict server-domain transition authorizes the printed Gorgoneion Captain once per cycle during Coordination, derives the canonical docked resource host from Gorgoneion state, spends exactly three host materials, and removes exactly one known damaged console while preserving all other host state. Revision, phase, role, docking, resource, damage, and history boundaries fail closed, including unreachable revision/cycle pairs and historical consoles unknown to their recorded host.",
       "source": "functions/src/gorgoneionRepairDrones.ts; functions/src/gorgoneionRepairDrones.test.ts; functions/src/smallShip.ts; functions/src/resources.ts; functions/src/shipDamage.ts; functions/src/replacementRoles.ts; focused 74-test repair/small-ship/phase/authority/resource/damage suite; Functions TypeScript build",
       "type": "evidence / server-domain / small-ship / repair / coordination / host-resources / revision / regression"
+    },
+    {
+      "direction": "241c -> 241;164",
+      "id": "E-241C-BASE-CAPYBARA-CARGO",
+      "language": "The source-verified server-domain transition authorizes the current base Capybara Captain during the current Coordination cycle and moves only the six printed cargo types between the small ship cargo ledger and its one active resource host. Exact persisted base-mode identity, canonical active-vessel allowlisting, docking, role custody, state shape, revision, quantity, overdraw, and overflow checks fail closed; Scrap and the distinct full expansion Capybara are rejected.",
+      "source": "functions/src/baseCapybaraCargoTransfer.ts; functions/src/baseCapybaraCargoTransfer.test.ts; functions/src/smallShip.ts; functions/src/resources.ts; functions/src/maintenanceOrder.ts; functions/src/replacementRoles.ts; authorized routed REFERENCE_ONLY_SHIPS.md; original base v1.1 A4 double-sided component page 25 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86) inspected as a full-page render; focused 85-test cargo/action/role/small-ship/resource/shuttle-transfer suite; Functions TypeScript build",
+      "type": "evidence / source-verified / server-domain / small-ship / cargo / coordination / docking / revision / regression"
     }
   ],
   "plan": {
@@ -12328,8 +12335,8 @@
         "acceptance": "security teams, ore, fuel, food, water, and materials move only between legal docked inventories.",
         "title": "Resolve base Capybara Cargo Transfer."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241C",
+      "description": "The strict server-domain transition gives only the current base Capybara Captain its printed Coordination cargo action. It moves a positive whole amount of exactly security teams, ore, fuel, food, water, or materials between the Capybara cargo ledger and its one authoritative active docked host, while excluding Scrap and the full expansion Capybara. Current cycle and phase, explicit canonical base vessel mode, allowlisted active vessels, role custody, exact small-ship and inventory state, revision, overdraw, and safe-integer overflow boundaries fail closed. The pure transition does not yet add Firestore persistence, a callable, replay receipts, audit events, client projection, controls, deployment, or a playable release; those integration layers are unimplemented and unclaimed.",
+      "evidenceIds": "E-AUDIT-241C;E-241C-BASE-CAPYBARA-CARGO",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;164",
@@ -12340,7 +12347,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
