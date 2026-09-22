@@ -523,7 +523,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 393 | NEW | missing | 401 | none | none | none | none | none | none | none | E-AUDIT-393 | M7 | Apply Hummingbird mission bonuses. |
 | 394 | NEW | missing | 261;466 | none | none | none | none | none | none | none | E-AUDIT-394 | M7 | Resolve Pallas boarding support. |
 | 395 | NEW | missing | 272;466 | none | none | none | none | none | none | none | E-AUDIT-395 | M7 | Resolve Chepu boarding support. |
-| 396 | NEW | missing | 262;182 | none | none | none | none | none | none | none | E-AUDIT-396 | M7 | Resolve Alpha and Bravo fighter state. |
+| 396 | NEW | partial | 262;182 | none | none | none | none | none | none | none | E-WOLF;E-AUDIT-396 | M7 | Resolve Alpha and Bravo fighter state. |
 | 397 | NEW | missing | 264;182 | none | none | none | none | none | none | none | E-AUDIT-397 | M7 | Resolve Maliades state. |
 | 398 | NEW | missing | 273;182 | none | none | none | none | none | none | none | E-AUDIT-398 | M7 | Resolve the PDF Escort Wing state. |
 | 399 | NEW | done | 253;164 | none | none | none | none | none | none | none | E-AUDIT-399;E-399-MACAW-MOVEMENT-CARGO-VERIFIED | M7 | Resolve Macaw movement and cargo. |

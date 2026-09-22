@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **468 / 751 prompts complete (62.32%)**
 
-Status breakdown: **468 done · 12 partial · 271 missing**.
+Status breakdown: **468 done · 13 partial · 270 missing**.
 
 Active prompt: **none**
 
@@ -838,7 +838,7 @@ release classification and evidence.
 | 393 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 394 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 395 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 396 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 396 | partial | non-feature | — | Partial server-only fighter state boundary: Alpha and Bravo now use independent immutable state with their own launch eligibility, per-fighter Medium action limits, printed 1/-1 target-number wrap (0/7 endpoints), server-dice Medium attacks on 5+, Short attacks on 3+, and one-fighter losses on Short dice 1–2. Focused state tests and the Functions build pass. The production callable, attack receipt/persistence, and player-facing wiring remain downstream of Prompts 449–452, so this prompt remains partial until those boundaries consume this state without cross-wing mutation. |
 | 397 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 398 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 399 | done | non-feature | — | Verified the existing production Macaw boundary. The Capybara Captain moves it through the shared authoritative shuttle path, and its exact server/client cargo allowlist includes the full printed resource set plus Scrap without exposing Boa reclamation or combat actions. This is evidence reconciliation with no runtime change. |
