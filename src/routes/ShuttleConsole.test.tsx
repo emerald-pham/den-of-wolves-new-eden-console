@@ -75,6 +75,30 @@ const { repairConsolesFromBlacksmith } = await import('@/lib/blacksmithRepairSer
 const { runHighwallMining } = await import('@/lib/highwallMiningService');
 const { evacuateShuttleSurvivors } = await import('@/lib/shuttleEvacuationService');
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived') {
+  return {
+    status: 'in-transit' as const,
+    requestId: 'departure-1', transitRequestId,
+    shuttleId: 'starlight', holderUid, fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3,
+    requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
+    originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+    destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
+    velocity: { x: 0.004, y: -0.002, z: 0.004 },
+    departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
+  };
+}
+
 beforeEach(() => {
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
@@ -1543,6 +1567,8 @@ it('completes a reached transit automatically and exposes the server-confirmed d
     },
   });
   state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
   vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
     onDeparture({
       status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-arrived',
@@ -1561,5 +1587,139 @@ it('completes a reached transit automatically and exposes the server-confirmed d
   </Routes></MemoryRouter>);
 
   await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledWith('starlight', 'transit-arrived', 3));
+  expect(await screen.findByRole('status')).toHaveTextContent('Shuttle arrived at Icebreaker.');
+});
+
+it.each(['success', 'error'] as const)(
+  'ignores a deferred old-session automatic arrival %s and lets the new identity arrive', async (outcome) => {
+    const oldResponse = deferred<{ hostShipId: string; arrivedAt: string }>();
+    const newResponse = deferred<{ hostShipId: string; arrivedAt: string }>();
+    vi.mocked(completeShuttleArrival).mockReturnValueOnce(oldResponse.promise)
+      .mockReturnValueOnce(newResponse.promise);
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!, phase: 'active', currentTurn: 2,
+      activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+      activeVesselIds: ['aegis', 'icebreaker'], shuttleDockings: [],
+      shuttleControl: {
+        starlight: {
+          shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+          holderUid: 'u1', revision: 3,
+        },
+      },
+    });
+    state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+    state.setConnection('live');
+    state.setSessionSnapshotFreshness('server');
+    vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
+      onDeparture(reachedTransit(sessionId === 's2' ? 'u2' : 'u1'));
+      return vi.fn();
+    });
+    const view = render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+      <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    </Routes></MemoryRouter>);
+
+    await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledTimes(1));
+    const current = useSessionStore.getState();
+    const currentControl = current.session!.shuttleControl?.starlight;
+    if (!currentControl) throw new Error('Expected the active shuttle control.');
+    const nextSession = {
+      ...current.session!, id: 's2',
+      shuttleControl: {
+        ...current.session!.shuttleControl,
+        starlight: { ...currentControl, holderUid: 'u2' },
+      },
+    };
+    const nextMember = { ...current.me!, uid: 'u2', sessionId: 's2', displayName: 'Member two' };
+    act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+    view.rerender(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+      <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    </Routes></MemoryRouter>);
+    await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledTimes(2));
+    const arrival = screen.getByRole('region', { name: 'Shuttle departure' });
+    expect(within(arrival).getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
+
+    await act(async () => {
+      if (outcome === 'success') {
+        oldResponse.resolve({ hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z' });
+      } else {
+        oldResponse.reject(new Error('Old session arrival failed.'));
+      }
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(within(arrival).getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
+
+    await act(async () => newResponse.resolve({
+      hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:01:00.000Z',
+    }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Shuttle arrived at Icebreaker.');
+  },
+);
+
+it('ignores a deferred manual retry after identity changes and preserves the new arrival pending state', async () => {
+  const manualResponse = deferred<{ hostShipId: string; arrivedAt: string }>();
+  const newResponse = deferred<{ hostShipId: string; arrivedAt: string }>();
+  vi.mocked(completeShuttleArrival).mockRejectedValueOnce(new Error('Retry arrival.'))
+    .mockReturnValueOnce(manualResponse.promise)
+    .mockReturnValueOnce(newResponse.promise);
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    activeVesselIds: ['aegis', 'icebreaker'], shuttleDockings: [],
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+        holderUid: 'u1', revision: 3,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
+    onDeparture(reachedTransit(sessionId === 's2' ? 'u2' : 'u1'));
+    return vi.fn();
+  });
+  const view = render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(await screen.findByRole('status')).toHaveTextContent('Retry arrival.');
+  const arrival = screen.getByRole('region', { name: 'Shuttle departure' });
+  await userEvent.setup().click(within(arrival).getByRole('button', { name: 'Retry arrival' }));
+  await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledTimes(2));
+  expect(within(arrival).getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
+
+  const current = useSessionStore.getState();
+  const currentControl = current.session!.shuttleControl?.starlight;
+  if (!currentControl) throw new Error('Expected the active shuttle control.');
+  const nextSession = {
+    ...current.session!, id: 's2',
+    shuttleControl: {
+      ...current.session!.shuttleControl,
+      starlight: { ...currentControl, holderUid: 'u2' },
+    },
+  };
+  const nextMember = { ...current.me!, uid: 'u2', sessionId: 's2', displayName: 'Member two' };
+  act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+  view.rerender(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+  await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledTimes(3));
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Shuttle departure' }))
+    .getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
+
+  await act(async () => manualResponse.resolve({
+    hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z',
+  }));
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Shuttle departure' }))
+    .getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
+
+  await act(async () => newResponse.resolve({
+    hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:01:00.000Z',
+  }));
   expect(await screen.findByRole('status')).toHaveTextContent('Shuttle arrived at Icebreaker.');
 });

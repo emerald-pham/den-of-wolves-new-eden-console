@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/firestore';
 import { transferShuttleControl } from '@/lib/shuttleControlService';
 import {
@@ -20,23 +20,56 @@ import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/
 import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
 import { SERVICE_SHUTTLE_IDS, serviceRechargeConsoleOptions } from '@/data/serviceShuttleRecharge';
 import { repairConsolesFromBlacksmith } from '@/lib/blacksmithRepairService';
+import {
+  captureSessionAuthority,
+  isCurrentSessionAuthority,
+  type SessionAuthorityCheckpoint,
+} from '@/lib/sessionMutationAuthority';
 
 interface Props {
   readonly control: ShuttleControlEntry;
 }
 
+interface ArrivalAttempt {
+  readonly key: string;
+  readonly checkpoint: SessionAuthorityCheckpoint;
+}
+
+function arrivalContextKey(
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+  shuttleId: string,
+  transitRequestId: string | undefined,
+  connection: string,
+  snapshotFreshness: string,
+): string {
+  return JSON.stringify([
+    checkpoint?.sessionId ?? null,
+    checkpoint?.uid ?? null,
+    checkpoint?.version ?? null,
+    connection,
+    snapshotFreshness,
+    shuttleId,
+    transitRequestId ?? null,
+  ]);
+}
+
 export default function ShuttleControl({ control }: Props) {
   const session = useSessionStore((state) => state.session)!;
   const me = useSessionStore((state) => state.me)!;
+  const connection = useSessionStore((state) => state.connection);
+  const snapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const [players, setPlayers] = useState<readonly Player[]>([]);
   const [targetUid, setTargetUid] = useState('');
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState('');
   const [destinationShipId, setDestinationShipId] = useState('');
   const [departure, setDeparture] = useState<ShuttleMovementState | null>(null);
-  const [arrivalReady, setArrivalReady] = useState(false);
-  const [arrivalComplete, setArrivalComplete] = useState(false);
-  const arrivalAttemptedTransitId = useRef<string | null>(null);
+  const [arrivalReadyKey, setArrivalReadyKey] = useState<string | null>(null);
+  const [arrivalCompleteKey, setArrivalCompleteKey] = useState<string | null>(null);
+  const [arrivalPendingKey, setArrivalPendingKey] = useState<string | null>(null);
+  const [arrivalStatus, setArrivalStatus] = useState<{ key: string; message: string } | null>(null);
+  const arrivalAttemptRef = useRef<ArrivalAttempt | null>(null);
+  const arrivalPendingKeyRef = useRef<string | null>(null);
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
   const [rechargeConsoleId, setRechargeConsoleId] = useState('');
@@ -48,6 +81,25 @@ export default function ShuttleControl({ control }: Props) {
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
   const transit = departure?.status === 'in-transit' ? departure : null;
+  const renderAuthority = captureSessionAuthority(session.id, me.uid);
+  const currentArrivalKey = arrivalContextKey(
+    renderAuthority,
+    control.shuttleId,
+    transit?.transitRequestId,
+    connection,
+    snapshotFreshness,
+  );
+  const currentArrivalKeyRef = useRef(currentArrivalKey);
+  currentArrivalKeyRef.current = currentArrivalKey;
+  const arrivalReady = arrivalReadyKey === currentArrivalKey;
+  const arrivalComplete = arrivalCompleteKey === currentArrivalKey;
+  const arrivalPending = arrivalPendingKey === currentArrivalKey;
+  const arrivalAttempt = arrivalAttemptRef.current;
+  const arrivalAttempted = arrivalAttempt?.key === currentArrivalKey &&
+    isCurrentSessionAuthority(arrivalAttempt.checkpoint);
+  const arrivalStatusMessage = arrivalStatus?.key === currentArrivalKey
+    ? arrivalStatus.message : '';
+  const busy = pending || arrivalPending;
   const docking = dockingForShuttle(session, control.shuttleId);
   const cargoTypes = SHUTTLECRAFT.find((shuttle) => shuttle.id === control.shuttleId)
     ?.cargoTransferTypes ?? [];
@@ -140,22 +192,68 @@ export default function ShuttleControl({ control }: Props) {
     control.shuttleId,
     setDeparture,
   ), [control.shuttleId, me.fleetGroupId, session.id]);
-  useEffect(() => {
-    setArrivalReady(false);
-    setArrivalComplete(false);
-  }, [transit?.transitRequestId]);
+  const isCurrentArrivalAttempt = useCallback((attempt: ArrivalAttempt): boolean => {
+    return arrivalAttemptRef.current === attempt &&
+      currentArrivalKeyRef.current === attempt.key &&
+      isCurrentSessionAuthority(attempt.checkpoint);
+  }, []);
+
+  const startArrivalAttempt = useCallback((
+    checkpoint: SessionAuthorityCheckpoint,
+    key: string,
+    automatic: boolean,
+  ): void => {
+    if (key !== currentArrivalKeyRef.current || !isCurrentSessionAuthority(checkpoint) ||
+        arrivalPendingKeyRef.current === key) return;
+    const previousAttempt = arrivalAttemptRef.current;
+    if (automatic && previousAttempt?.key === key &&
+        isCurrentSessionAuthority(previousAttempt.checkpoint)) return;
+    const attempt: ArrivalAttempt = { key, checkpoint };
+    arrivalAttemptRef.current = attempt;
+    arrivalPendingKeyRef.current = key;
+    setArrivalPendingKey(key);
+    setStatus('');
+    setArrivalStatus(null);
+    void completeShuttleArrival(
+      control.shuttleId,
+      transit?.transitRequestId ?? '',
+      control.revision,
+    ).then((result) => {
+      if (!isCurrentArrivalAttempt(attempt)) return;
+      setArrivalCompleteKey(key);
+      setArrivalStatus({
+        key,
+        message: `Shuttle arrived at ${findShip(result.hostShipId)?.name ?? result.hostShipId}.`,
+      });
+    }).catch((cause) => {
+      if (!isCurrentArrivalAttempt(attempt)) return;
+      setArrivalStatus({
+        key,
+        message: cause instanceof Error ? cause.message : 'Shuttle arrival could not be confirmed.',
+      });
+    }).finally(() => {
+      if (!isCurrentArrivalAttempt(attempt)) return;
+      if (arrivalPendingKeyRef.current === key) arrivalPendingKeyRef.current = null;
+      setArrivalPendingKey((current) => current === key ? null : current);
+    });
+  }, [control.revision, control.shuttleId, isCurrentArrivalAttempt, transit?.transitRequestId]);
+
   useEffect(() => {
     if (!transit || !canRequestDeparture || transit.holderUid !== me.uid) {
-      setArrivalReady(false);
       return;
     }
+    const checkpoint = captureSessionAuthority(session.id, me.uid);
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint) ||
+        arrivalContextKey(checkpoint, control.shuttleId, transit.transitRequestId,
+          connection, snapshotFreshness) !== currentArrivalKey) return;
     const arrivesAt = Date.parse(transit.arrivesAt);
     if (!Number.isFinite(arrivesAt)) return;
     let timer: number | undefined;
     const checkArrivalTime = () => {
       const remaining = arrivesAt - Date.now();
       if (remaining <= 0) {
-        setArrivalReady(true);
+        if (currentArrivalKeyRef.current === currentArrivalKey &&
+            isCurrentSessionAuthority(checkpoint)) setArrivalReadyKey(currentArrivalKey);
         return;
       }
       timer = window.setTimeout(checkArrivalTime, Math.min(remaining, 2_147_000_000));
@@ -164,32 +262,24 @@ export default function ShuttleControl({ control }: Props) {
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [canRequestDeparture, me.uid, transit]);
+  }, [canRequestDeparture, connection, control.shuttleId, currentArrivalKey,
+    me.uid, session.id, snapshotFreshness, transit]);
   useEffect(() => {
     if (!arrivalReady || !transit || !canRequestDeparture ||
-        transit.holderUid !== me.uid || arrivalComplete ||
-        arrivalAttemptedTransitId.current === transit.transitRequestId) return;
-    arrivalAttemptedTransitId.current = transit.transitRequestId;
-    setPending(true);
-    setStatus('');
-    void completeShuttleArrival(
-      control.shuttleId,
-      transit.transitRequestId,
-      control.revision,
-    ).then((result) => {
-      setArrivalComplete(true);
-      setStatus(`Shuttle arrived at ${findShip(result.hostShipId)?.name ?? result.hostShipId}.`);
-    }).catch((cause) => {
-      setStatus(cause instanceof Error ? cause.message : 'Shuttle arrival could not be confirmed.');
-    }).finally(() => setPending(false));
-  }, [arrivalComplete, arrivalReady, canRequestDeparture, control.revision, control.shuttleId,
-    me.uid, transit]);
+        transit.holderUid !== me.uid || arrivalComplete || busy) return;
+    const checkpoint = captureSessionAuthority(session.id, me.uid);
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint) ||
+        arrivalContextKey(checkpoint, control.shuttleId, transit.transitRequestId,
+          connection, snapshotFreshness) !== currentArrivalKey) return;
+    startArrivalAttempt(checkpoint, currentArrivalKey, true);
+  }, [arrivalComplete, arrivalReady, busy, canRequestDeparture, connection, control.revision,
+    control.shuttleId, currentArrivalKey, me.uid, session.id, snapshotFreshness, startArrivalAttempt, transit]);
   const holder = players.find((player) => player.uid === control.holderUid);
   const targets = useMemo(() => players.filter((player) =>
     player.role === 'player' && player.uid !== control.holderUid), [control.holderUid, players]);
 
   async function submit(action: 'handoff' | 'reclaim'): Promise<void> {
-    if (pending) return;
+    if (busy) return;
     setPending(true);
     setStatus('');
     try {
@@ -209,7 +299,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitDeparture(): Promise<void> {
-    if (pending || !destinationShipId || !session.turnPhase) return;
+    if (busy || !destinationShipId || !session.turnPhase) return;
     setPending(true);
     setStatus('');
     try {
@@ -228,7 +318,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitTransit(): Promise<void> {
-    if (pending || !departure || departure.status !== 'requested') return;
+    if (busy || !departure || departure.status !== 'requested') return;
     setPending(true);
     setStatus('');
     try {
@@ -246,27 +336,21 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
-  async function submitArrival(): Promise<void> {
-    if (pending || !transit || !arrivalReady || arrivalComplete) return;
-    setPending(true);
-    setStatus('');
-    try {
-      const result = await completeShuttleArrival(
-        control.shuttleId,
-        transit.transitRequestId,
-        control.revision,
-      );
-      setArrivalComplete(true);
-      setStatus(`Shuttle arrived at ${findShip(result.hostShipId)?.name ?? result.hostShipId}.`);
-    } catch (cause) {
-      setStatus(cause instanceof Error ? cause.message : 'Shuttle arrival could not be confirmed.');
-    } finally {
-      setPending(false);
-    }
+  function submitArrival(): void {
+    if (busy || !transit || !arrivalReady || arrivalComplete) return;
+    const current = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
+    const key = currentArrivalKeyRef.current;
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint) ||
+        current.session?.id !== session.id || current.me?.uid !== me.uid ||
+        transit.holderUid !== current.me.uid ||
+        arrivalContextKey(checkpoint, control.shuttleId, transit.transitRequestId,
+          current.connection, current.sessionSnapshotFreshness) !== key) return;
+    startArrivalAttempt(checkpoint, key, false);
   }
 
   async function submitCargo(direction: 'load' | 'unload'): Promise<void> {
-    if (pending || !docking || !cargoResourceId || !Number.isSafeInteger(cargoAmount) || cargoAmount < 1) return;
+    if (busy || !docking || !cargoResourceId || !Number.isSafeInteger(cargoAmount) || cargoAmount < 1) return;
     setPending(true);
     setStatus('');
     try {
@@ -286,7 +370,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitEvacuation(): Promise<void> {
-    if (pending || !evacuationAvailable ||
+    if (busy || !evacuationAvailable ||
         !evacuationDestinations.includes(evacuationDestinationShipId) ||
         !evacuationAmounts.includes(evacuationAmount)) return;
     setPending(true);
@@ -306,7 +390,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitRecharge(): Promise<void> {
-    if (pending || !docking || !rechargeConsoleId || !hostCycle || !session.currentTurn) return;
+    if (busy || !docking || !rechargeConsoleId || !hostCycle || !session.currentTurn) return;
     setPending(true);
     setStatus('');
     try {
@@ -328,7 +412,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitBlacksmithRepair(): Promise<void> {
-    if (pending || !docking || control.shuttleId !== 'blacksmith' || !session.currentTurn ||
+    if (busy || !docking || control.shuttleId !== 'blacksmith' || !session.currentTurn ||
         repairSystemIds.length < 1 || repairSystemIds.length > repairSlotsRemaining) return;
     setPending(true);
     setStatus('');
@@ -353,14 +437,14 @@ export default function ShuttleControl({ control }: Props) {
     {canTransfer && <>
       <label htmlFor={`shuttle-recipient-${control.shuttleId}`}>Hand off to</label>
       <select id={`shuttle-recipient-${control.shuttleId}`} value={targetUid}
-        disabled={pending} onChange={(event) => setTargetUid(event.target.value)}>
+        disabled={busy} onChange={(event) => setTargetUid(event.target.value)}>
         <option value="">Choose connected player</option>
         {targets.map((player) => <option value={player.uid} key={player.uid}>{player.displayName}</option>)}
       </select>
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button" disabled={pending || !targetUid}
+        <button className="cic-action-button" type="button" disabled={busy || !targetUid}
           onClick={() => void submit('handoff')}>Hand off control</button>
-        {control.holderUid !== control.ownerUid && <button className="cic-action-button" type="button" disabled={pending}
+        {control.holderUid !== control.ownerUid && <button className="cic-action-button" type="button" disabled={busy}
           onClick={() => void submit('reclaim')}>Reclaim control</button>}
       </div>
     </>}
@@ -373,9 +457,9 @@ export default function ShuttleControl({ control }: Props) {
           {' '}Arrival will be completed when the shuttle reaches the ship.
         </p>
         {arrivalReady && !arrivalComplete && <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button" disabled={pending}
+          <button className="cic-action-button" type="button" disabled={busy}
             onClick={() => void submitArrival()}>
-            {arrivalAttemptedTransitId.current === transit.transitRequestId ? 'Retry arrival' : 'Complete arrival'}
+            {arrivalAttempted ? 'Retry arrival' : 'Complete arrival'}
           </button>
         </div>}
       </> : departure ? <>
@@ -384,7 +468,7 @@ export default function ShuttleControl({ control }: Props) {
           ready to begin transit.
         </p>
         <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button" disabled={pending || !departureWindowOpen}
+          <button className="cic-action-button" type="button" disabled={busy || !departureWindowOpen}
             onClick={() => void submitTransit()}>Begin transit</button>
         </div>
         {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
@@ -393,7 +477,7 @@ export default function ShuttleControl({ control }: Props) {
       </> : <>
         <label htmlFor={`shuttle-destination-${control.shuttleId}`}>Destination ship</label>
         <select id={`shuttle-destination-${control.shuttleId}`} value={destinationShipId}
-          disabled={pending || !departureWindowOpen}
+          disabled={busy || !departureWindowOpen}
           onChange={(event) => setDestinationShipId(event.target.value)}>
           <option value="">Choose local ship</option>
           {destinations.map((shipId) => <option value={shipId} key={shipId}>
@@ -401,7 +485,7 @@ export default function ShuttleControl({ control }: Props) {
           </option>)}
         </select>
         <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button" disabled={pending || !departureWindowOpen || !destinationShipId}
+          <button className="cic-action-button" type="button" disabled={busy || !departureWindowOpen || !destinationShipId}
             onClick={() => void submitDeparture()}>Request departure</button>
         </div>
         {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
@@ -415,7 +499,7 @@ export default function ShuttleControl({ control }: Props) {
       <p>Docked at {findShip(docking.shipId)?.name ?? docking.shipId}.</p>
       <label htmlFor={`shuttle-cargo-resource-${control.shuttleId}`}>Resource</label>
       <select id={`shuttle-cargo-resource-${control.shuttleId}`} value={cargoResourceId}
-        disabled={pending} onChange={(event) => setCargoResourceId(event.target.value as ResourceId)}>
+        disabled={busy} onChange={(event) => setCargoResourceId(event.target.value as ResourceId)}>
         <option value="">Choose permitted cargo</option>
         {cargoTypes.map((resourceId) => <option value={resourceId} key={resourceId}>
           {RESOURCE_DEFINITIONS.find((resource) => resource.id === resourceId)?.label ?? resourceId}
@@ -423,16 +507,16 @@ export default function ShuttleControl({ control }: Props) {
       </select>
       <label htmlFor={`shuttle-cargo-amount-${control.shuttleId}`}>Amount</label>
       <input id={`shuttle-cargo-amount-${control.shuttleId}`} type="number" min="1" step="1"
-        value={cargoAmount} disabled={pending}
+        value={cargoAmount} disabled={busy}
         onChange={(event) => setCargoAmount(Number(event.target.value))} />
       {cargoResourceId && <p>
         Host // {session.shipResources?.[docking.shipId]?.[cargoResourceId] ?? 0}
         {' // '}Shuttle // {session.shuttleCargo?.[control.shuttleId]?.[cargoResourceId] ?? 0}
       </p>}
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button" disabled={pending || !cargoResourceId || !cargoAmountIsValid}
+        <button className="cic-action-button" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('load')}>Load shuttle</button>
-        <button className="cic-action-button" type="button" disabled={pending || !cargoResourceId || !cargoAmountIsValid}
+        <button className="cic-action-button" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
       </div>
     </section>}
@@ -449,7 +533,7 @@ export default function ShuttleControl({ control }: Props) {
       </p>}
       <label htmlFor={`service-recharge-console-${control.shuttleId}`}>Host console</label>
       <select id={`service-recharge-console-${control.shuttleId}`} value={rechargeConsoleId}
-        disabled={pending || !session.shuttleFuelled?.[control.shuttleId] ||
+        disabled={busy || !session.shuttleFuelled?.[control.shuttleId] ||
           !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || rechargeOptions.length === 0}
         onChange={(event) => {
           setRechargeConsoleId(event.target.value);
@@ -487,7 +571,7 @@ export default function ShuttleControl({ control }: Props) {
       </label>}
       <div className="console-workspace__actions">
         <button className="cic-action-button" type="button"
-          disabled={pending || !rechargeConsoleId || !session.shuttleFuelled?.[control.shuttleId] ||
+          disabled={busy || !rechargeConsoleId || !session.shuttleFuelled?.[control.shuttleId] ||
             !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle ||
             invalidRechargeOre || (rechargeProductionScrap && (hostResources?.scrap ?? 0) < 1)}
           onClick={() => void submitRecharge()}>Recharge console</button>
@@ -501,7 +585,7 @@ export default function ShuttleControl({ control }: Props) {
       {!repairWindowOpen && <p>Blacksmith repairs open during Coordination Phase.</p>}
       {!repairShipAvailable && <p>Fuel Blacksmith before repairing a second ship this cycle.</p>}
       {repairOptions.length === 0 && <p>No damaged consoles are eligible on this ship.</p>}
-      <fieldset disabled={pending || !repairWindowOpen || !repairShipAvailable || repairSlotsRemaining === 0 || hostDamage?.destroyed}>
+      <fieldset disabled={busy || !repairWindowOpen || !repairShipAvailable || repairSlotsRemaining === 0 || hostDamage?.destroyed}>
         <legend>Damaged consoles</legend>
         {repairOptions.map((systemId) => {
           const checked = repairSystemIds.includes(systemId);
@@ -517,7 +601,7 @@ export default function ShuttleControl({ control }: Props) {
       </fieldset>
       <div className="console-workspace__actions">
         <button className="cic-action-button" type="button"
-          disabled={pending || !repairWindowOpen || !repairShipAvailable || repairSystemIds.length < 1 ||
+          disabled={busy || !repairWindowOpen || !repairShipAvailable || repairSystemIds.length < 1 ||
             repairSystemIds.length > repairSlotsRemaining || repairMaterials < repairSystemIds.length * 4 ||
             hostDamage?.destroyed}
           onClick={() => void submitBlacksmithRepair()}>Repair selected consoles</button>
@@ -534,7 +618,7 @@ export default function ShuttleControl({ control }: Props) {
       <label htmlFor={`shuttle-evacuation-destination-${control.shuttleId}`}>Receiving ship</label>
       <select id={`shuttle-evacuation-destination-${control.shuttleId}`}
         value={evacuationDestinationShipId}
-        disabled={pending || !evacuationAvailable || evacuationRemaining === 0}
+        disabled={busy || !evacuationAvailable || evacuationRemaining === 0}
         onChange={(event) => {
           setEvacuationDestinationShipId(event.target.value);
           setEvacuationAmount(0);
@@ -547,7 +631,7 @@ export default function ShuttleControl({ control }: Props) {
       <label htmlFor={`shuttle-evacuation-amount-${control.shuttleId}`}>Survivors</label>
       <select id={`shuttle-evacuation-amount-${control.shuttleId}`}
         value={evacuationAmount || ''}
-        disabled={pending || !evacuationAvailable || evacuationAmounts.length === 0}
+        disabled={busy || !evacuationAvailable || evacuationAmounts.length === 0}
         onChange={(event) => setEvacuationAmount(Number(event.target.value))}>
         <option value="">Choose a printed-track transfer</option>
         {evacuationAmounts.map((amount) => <option value={amount} key={amount}>
@@ -559,12 +643,13 @@ export default function ShuttleControl({ control }: Props) {
       </p>}
       <div className="console-workspace__actions">
         <button className="cic-action-button" type="button"
-          disabled={pending || !evacuationAvailable ||
+          disabled={busy || !evacuationAvailable ||
             !evacuationDestinations.includes(evacuationDestinationShipId) ||
             !evacuationAmounts.includes(evacuationAmount)}
           onClick={() => void submitEvacuation()}>Move survivors</button>
       </div>
     </section>}
+    {arrivalStatusMessage && <p role="status">{arrivalStatusMessage}</p>}
     {status && <p role="status">{status}</p>}
   </section>;
 }
