@@ -3,6 +3,7 @@ import type { FleetGroupRecord } from './fleetGroups';
 import {
   firstArrivalMissionOpportunity,
   missionOpportunityDocumentPath,
+  parseStoredMissionOpportunity,
 } from './missionEligibility';
 import type { SystemHistory } from './systemHistory';
 
@@ -100,5 +101,24 @@ describe('group first-arrival mission eligibility', () => {
     expect(() => firstArrivalMissionOpportunity({ ...base, movedShipId: 'quellon' }))
       .toThrow(/moving ship/i);
     expect(() => firstArrivalMissionOpportunity({ ...base, cycle: -1 })).toThrow(/cycle/i);
+  });
+
+  it('accepts only a stored opportunity bound to the computed arrival identity', () => {
+    const opportunity = firstArrivalMissionOpportunity(base)!;
+    const stored = { ...opportunity, sessionId: 's1', createdAt: 'server-time' };
+
+    expect(parseStoredMissionOpportunity(stored, 's1', opportunity)).toEqual(opportunity);
+    for (const malformed of [
+      { ...stored, sessionId: 's2' },
+      { ...stored, groupId: 'fleet-2' },
+      { ...stored, chart: 'B' },
+      { ...stored, coordinate: '5143' },
+      { ...stored, siteCode: 'L' },
+      { ...stored, sourceShipId: '' },
+      { ...stored, sourceTransitionId: '' },
+      { ...stored, sourceCycle: -1 },
+    ]) {
+      expect(() => parseStoredMissionOpportunity(malformed, 's1', opportunity)).toThrow(/stored/i);
+    }
   });
 });

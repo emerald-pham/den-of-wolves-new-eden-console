@@ -28,7 +28,7 @@ const mock = vi.hoisted(() => ({
   damage: {} as Record<string, unknown>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
-  missionOpportunityExists: false,
+  missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -97,7 +97,7 @@ beforeEach(() => {
   mock.damage = {};
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
-  mock.missionOpportunityExists = false;
+  mock.missionOpportunityRecord = undefined;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -124,7 +124,11 @@ beforeEach(() => {
       };
     }
     if (path.startsWith('sessions/s1/missionOpportunities/')) {
-      return { exists: mock.missionOpportunityExists, get: () => undefined };
+      return {
+        exists: mock.missionOpportunityRecord !== undefined,
+        data: () => mock.missionOpportunityRecord,
+        get: (key: string) => mock.missionOpportunityRecord?.[key],
+      };
     }
     if (path === 'sessions/s1/fleetGroups') {
       return { docs: mock.fleetGroups.map((group) => ({
@@ -333,13 +337,36 @@ it('does not create another opportunity for a system already reached by the grou
 });
 
 it('does not reopen a previously created opportunity when legacy history is incomplete', async () => {
-  mock.missionOpportunityExists = true;
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-1413', groupId: 'fleet-1', chart: 'A',
+    coordinate: '1413', siteCode: 'A', sourceShipId: 'dione',
+    sourceTransitionId: 'navigation-original-arrival', sourceCycle: 0,
+    createdAt: 'server-time',
+  };
 
   await expect(moveShipToLocation.run(request({
     ...data, requestId: 'mission-existing-opportunity', destination: '1413',
   }))).resolves.not.toHaveProperty('missionOpportunityId');
   expect(mock.set.mock.calls.some(([path]) =>
     String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('fails closed without navigation writes when a stored opportunity is malformed', async () => {
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-1413', groupId: 'fleet-2', chart: 'A',
+    coordinate: '1413', siteCode: 'A', sourceShipId: 'dione',
+    sourceTransitionId: 'navigation-corrupt-arrival', sourceCycle: 0,
+  };
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'mission-malformed-opportunity', destination: '1413',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'malformed-input' },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('does not create away-mission opportunities at New Eden candidates', async () => {

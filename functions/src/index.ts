@@ -198,6 +198,7 @@ import {
 import {
   firstArrivalMissionOpportunity,
   missionOpportunityDocumentPath,
+  parseStoredMissionOpportunity,
   type MissionOpportunityEligibility,
 } from './missionEligibility';
 import { expireTurnScopedResources } from './turnTransition';
@@ -1521,7 +1522,17 @@ async function missionOpportunityForMovement(
   }
   if (!opportunity) return undefined;
   const stored = await tx.get(db.doc(missionOpportunityDocumentPath(sessionId, opportunity.id)));
-  return stored.exists ? undefined : opportunity;
+  if (!stored.exists) return opportunity;
+  try {
+    parseStoredMissionOpportunity(stored.data(), sessionId, opportunity);
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Stored mission opportunity is malformed.',
+      'malformed-input',
+    );
+  }
+  return undefined;
 }
 
 function writeMissionOpportunity(

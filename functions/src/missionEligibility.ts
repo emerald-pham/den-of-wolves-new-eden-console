@@ -19,6 +19,48 @@ export interface MissionOpportunityEligibility {
   readonly sourceCycle: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validate the durable record that suppresses a later arrival. Historical
+ * source metadata may differ from the current movement, but the record must
+ * bind to the exact computed session, group, chart, coordinate, and mission.
+ */
+export function parseStoredMissionOpportunity(
+  value: unknown,
+  sessionId: string,
+  expected: MissionOpportunityEligibility,
+): MissionOpportunityEligibility {
+  if (!isRecord(value) ||
+    value.type !== 'mission-opportunity' ||
+    value.status !== 'available' ||
+    value.sessionId !== sessionId ||
+    value.id !== expected.id ||
+    value.groupId !== expected.groupId ||
+    value.chart !== expected.chart ||
+    value.coordinate !== expected.coordinate ||
+    value.siteCode !== expected.siteCode ||
+    typeof value.sourceShipId !== 'string' || value.sourceShipId.length === 0 ||
+    typeof value.sourceTransitionId !== 'string' || value.sourceTransitionId.length === 0 ||
+    !Number.isSafeInteger(value.sourceCycle) || (value.sourceCycle as number) < 0) {
+    throw new Error('Stored mission opportunity is malformed or belongs to another arrival.');
+  }
+  return {
+    type: expected.type,
+    status: expected.status,
+    id: expected.id,
+    groupId: expected.groupId,
+    chart: expected.chart,
+    coordinate: expected.coordinate,
+    siteCode: expected.siteCode,
+    sourceShipId: value.sourceShipId as string,
+    sourceTransitionId: value.sourceTransitionId as string,
+    sourceCycle: value.sourceCycle as number,
+  };
+}
+
 type FirstArrivalMissionOpportunityInput = Readonly<{
   chart: ChartId;
   group: FleetGroupRecord;
