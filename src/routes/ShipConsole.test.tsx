@@ -1242,6 +1242,63 @@ it('routes every Shepherd Engineer responsibility to live controls', async () =>
   expect(within(workspace).getByRole('button', { name: 'Run Advanced Hydroponics II' })).toBeEnabled();
 });
 
+it('routes every Quellon Engineer responsibility to live controls', async () => {
+  const state = useSessionStore.getState();
+  const session = state.session;
+  const me = state.me;
+  if (!session || !me) throw new Error('Expected the test identity.');
+  state.setSession({
+    ...session, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['quellon-engineer'], activeVesselIds: ['quellon'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    maintenanceCycles: { quellon: {
+      step: 5, revision: 4, turn: 2, results: {}, charges: [], refuelled: [],
+    } },
+    shipResources: { quellon: {
+      ore: 0, fuel: 3, food: 10, water: 28, materials: 4, securityTeams: 2,
+    } },
+    shipDamage: { quellon: { damagedSystemIds: [], destroyed: false } },
+    shuttleDockings: [{ shuttleId: 'condor', shipId: 'quellon', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({
+    ...me, assignedRoleId: 'quellon-engineer', seatId: 'quellon-engineer',
+    activeConsoleRoleId: null,
+  });
+  state.setConnection('live');
+
+  render(<MemoryRouter initialEntries={['/ships/quellon/roles/quellon-engineer']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('quellon-engineer'));
+  const workspace = screen.getByRole('region', { name: 'Quellon Engineer console' });
+  expect(within(workspace).getByRole('region', { name: 'Quellon maintenance cycle' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Quellon resource stores' }))
+    .toHaveTextContent(/food.*10.*water.*28.*materials.*4/i);
+  expect(within(workspace).getByRole('button', { name: 'Power up reactor' })).toBeEnabled();
+  expect(within(workspace).getByRole('link', { name: 'Open Condor shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/condor');
+  expect(workspace).toHaveTextContent(/resolve upgrades and repairs at the table/i);
+
+  act(() => state.setSession({
+    ...useSessionStore.getState().session!,
+    maintenanceCycles: { quellon: {
+      step: 6, revision: 5, turn: 2, results: { '5': 'Reactor powered up.' },
+      charges: ['hydroponics', 'water-production', 'water-production-ii'],
+      refuelled: [],
+    } },
+  }));
+
+  expect(await within(workspace).findByText(/Live stores: 10 food.*28 water.*4 materials/i)).toBeVisible();
+  expect(within(workspace).getByRole('button', { name: 'Run Hydroponics' })).toBeEnabled();
+  expect(within(workspace).getByRole('button', { name: 'Run Water Production' })).toBeEnabled();
+  expect(within(workspace).getByRole('button', { name: 'Run Water Production II' })).toBeEnabled();
+});
+
 it.each([
   ['dione', 'Dione', 'dione-captain', 'Hydroponics', '100,000'],
   ['icebreaker', 'Icebreaker', 'icebreaker-captain', 'Mining Drone Control', '40,000'],

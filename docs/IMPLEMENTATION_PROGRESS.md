@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**441 / 751 prompts complete (58.72%)**
+**442 / 751 prompts complete (58.85%)**
 
-Status breakdown: **441 done · 15 partial · 295 missing**.
+Status breakdown: **442 done · 15 partial · 294 missing**.
 
 Active prompt: **none**
 
@@ -653,7 +653,7 @@ release classification and evidence.
 | 221 | done | non-feature | 0.4.42 | Both Quellon Water Production consoles now resolve independently through the authoritative maintenance path. Each charged console produces 12 water, or 16 when that console is upgraded, and consumes only its own charge. Safe resource bounds, replay, CAS, damage, UI controls, and duplicate-console independence are covered. |
 | 222 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 223 | done | non-feature | — | Verified the existing Quellon Captain workspace on the production ship route: an exactly assigned and seated player activates only quellon-captain, receives live Quellon systems and stores including Water Production for water diplomacy, the 30,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change. |
-| 223a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 223a | done | non-feature | — | The bound Quellon Engineer route exposes server-authoritative maintenance, current stores, reactor charging, Hydroponics, both Water Production actions, and the assigned Condor. The Condor route uses the production cargo-transfer and service-recharge paths for water distribution and console charging. Repair support remains explicit coordination guidance and does not misrepresent Condor as a repair craft. A discriminating role-bound regression proves these controls across the live maintenance phase transition; the focused 194-test workspace, shuttle, cargo, and recharge matrix passed. |
 | 223b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 224 | done | non-feature | — | Refinery 124 now derives its 20,000-survivor identity, exact 15,000/5,000 thresholds, printed rations, starting stores, and six-step maintenance presentation from the canonical vessel definition. The server resource, population, and maintenance-order registries match that definition exactly, with cross-layer contract coverage preventing drift. |
 | 225 | done | non-feature | — | The existing Refinery 124 Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed. |

@@ -5943,6 +5943,13 @@
       "language": "The Shepherd Engineer console routes maintenance, stores, reactor charging, water and food production, and the assigned Black Sheep to live controls; the Black Sheep console routes distribution and charging through production callables.",
       "source": "src/routes/ShipConsole.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/MaintenanceSystems.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/ShipConsole.test.tsx; src/routes/ShuttleConsole.test.tsx; src/data/vessels/shepherd.ts; src/data/vessels/black-sheep.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/serviceShuttleRechargeCallable.test.ts; focused 193-test workspace/craft matrix",
       "type": "evidence / workspace / role-binding / maintenance / stores / shuttle / regression"
+    },
+    {
+      "direction": "223a -> 166;216;361",
+      "id": "E-223A-QUELLON-ENGINEER-WORKSPACE",
+      "language": "The Quellon Engineer console routes maintenance, stores, reactor charging, food and water production, and the assigned Condor to live controls; the Condor console routes full-cargo water distribution and console charging through production callables while retaining truthful repair-support guidance.",
+      "source": "src/routes/ShipConsole.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/MaintenanceSystems.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/ShipConsole.test.tsx; src/routes/ShuttleConsole.test.tsx; src/data/vessels/quellon.ts; src/data/vessels/condor.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/serviceShuttleRechargeCallable.test.ts; focused 194-test workspace/craft matrix",
+      "type": "evidence / workspace / role-binding / maintenance / stores / shuttle / regression"
     }
   ],
   "plan": {
@@ -11720,8 +11727,8 @@
         "acceptance": "maintenance, stores, Condor, charging, repair support, and water distribution route to real actions.",
         "title": "Complete the Quellon Engineer workspace."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-223A",
+      "description": "The bound Quellon Engineer route exposes server-authoritative maintenance, current stores, reactor charging, Hydroponics, both Water Production actions, and the assigned Condor. The Condor route uses the production cargo-transfer and service-recharge paths for water distribution and console charging. Repair support remains explicit coordination guidance and does not misrepresent Condor as a repair craft. A discriminating role-bound regression proves these controls across the live maintenance phase transition; the focused 194-test workspace, shuttle, cargo, and recharge matrix passed.",
+      "evidenceIds": "E-AUDIT-223A;E-223A-QUELLON-ENGINEER-WORKSPACE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;216;361",
@@ -11732,7 +11739,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
