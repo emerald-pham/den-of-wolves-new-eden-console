@@ -967,6 +967,7 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run coordination:docs', ['run', 'coordination:docs']],
   ['npm run lint', ['run', 'lint']],
   ['npm run test:all', ['run', 'test:all']],
+  ['npm run test:unit', ['run', 'test:unit']],
   ['npm run test:font-consistency', ['run', 'test:font-consistency']],
   ['npm run test:ticker:browser', ['run', 'test:ticker:browser']],
   ['node scripts/prompt-637-render-performance.mjs', ['scripts/prompt-637-render-performance.mjs']],

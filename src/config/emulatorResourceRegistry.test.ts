@@ -505,6 +505,7 @@ describe('simplified coordination registry', () => {
 
   it('maps generated-roadmap validation to the executable npm script', () => {
     expect(validationCommandArguments('npm run roadmap:check')).toEqual(['run', 'roadmap:check']);
+    expect(validationCommandArguments('npm run test:unit')).toEqual(['run', 'test:unit']);
     expect(validationCommandArguments('node scripts/prompt-637-render-performance.mjs'))
       .toEqual(['scripts/prompt-637-render-performance.mjs']);
     expect(validationCommandArguments('node scripts/check-bundle-size.mjs'))

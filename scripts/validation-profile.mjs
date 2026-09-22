@@ -163,6 +163,7 @@ export function deriveValidationProfile({
     ...(riskGates.render ? ['node scripts/prompt-637-render-performance.mjs'] : []),
     ...(riskGates.bundle ? ['node scripts/check-bundle-size.mjs'] : []),
   ];
+  const focusedUnitCommands = riskGates.unit ? ['npm run test:unit'] : [];
   const roadmapCommands = files.includes('docs/implementation-prompts.json')
     ? ['npm run roadmap:check']
     : [];
@@ -272,6 +273,7 @@ export function deriveValidationProfile({
       commands: [
         'git diff --check',
         ...testCommands(files, discoveredTests, repositoryDirectory),
+        ...focusedUnitCommands,
         'npm run lint',
         'npm run build',
         ...(hasFunctionsTests ? ['npm run build --prefix functions'] : []),

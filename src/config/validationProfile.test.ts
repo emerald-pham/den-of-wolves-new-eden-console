@@ -161,6 +161,20 @@ describe('validation profiles', () => {
     expect(profile.commands).not.toContain('npm run build --prefix functions');
   });
 
+  it('keeps the local unit gate when a UI render range has no colocated test', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['scripts/prompt-603-render.mjs', 'src/index.css'],
+    });
+    expect(profile.kind).toBe('focused');
+    expect(profile.commands).toContain('npm run test:unit');
+    expect(profile.commands).toContain('npm run test:font-consistency');
+    expect(profile.commands).toContain('npm run test:ticker:browser');
+    expect(profile.commands).toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(profile.commands).toContain('node scripts/check-bundle-size.mjs');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run build --prefix functions');
+  });
+
   it('keeps a P611-shaped application chrome release range focused', () => {
     const profile = deriveValidationProfile({
       changedFiles: [
