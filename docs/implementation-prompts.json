@@ -1990,6 +1990,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "287 -> OWNER-JUMP-DISTANCE-BAND-CUTOFFS",
+      "id": "E-287-JUMP-DISTANCE-OWNER",
+      "language": "The authorized jump rules define distance by the shortest route along printed chart edges but do not define which numeric edge counts are Short, Medium, or Long. The current one-edge, two-edge, and three-or-more mapping is retained compatibility behavior rather than source-verified policy. The product owner must approve those three band cutoffs before Prompt 287 can validate; no alternative mapping or gameplay change is inferred.",
+      "source": "authorized routed REFERENCE_ONLY_CORE_RULES.md; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; docs/implementation-prompts.json",
+      "type": "evidence / decision_owner"
+    },
+    {
       "direction": "288 -> 162;287",
       "id": "E-AUDIT-288",
       "language": "Jump cost consumes printed vessel statistics and distance.",
@@ -2044,6 +2051,13 @@
       "language": "Damaged-drive randomness consumes jump authority and the common damage path.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "299 -> OWNER-FAILED-JUMP-DAMAGE-POLICY",
+      "id": "E-299-FAILED-JUMP-DAMAGE-OWNER",
+      "language": "The authorized jump guidance says a facilitator error adjudication may fail the jump, damage the ship, or send it to the wrong system, but it does not define when failed-jump damage applies, how many common damage draws occur, or whether the damaged-drive failure roll itself causes damage. The product owner must select that policy before a server transition can route it through the common draw path and label the adjudication. No damage rule is inferred.",
+      "source": "authorized routed REFERENCE_ONLY_CORE_RULES.md; functions/src/jumpDrive.ts; functions/src/index.ts jump callable; functions/src/shipDamage.ts; docs/implementation-prompts.json",
+      "type": "evidence / decision_owner / missing-policy"
     },
     {
       "direction": "298 -> 289;124",
@@ -2107,6 +2121,13 @@
       "language": "Split pursuit consumes group identity and pursuit transition.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "307 -> INDEPENDENT FLEET-GROUP PURSUIT",
+      "id": "E-307-SPLIT-PURSUIT-ISOLATION",
+      "language": "The server-domain split transition validates the complete protected pursuit map, requires one existing source group plus two distinct canonical resulting group IDs, rejects collisions, and forks the source score into independent values while preserving unrelated groups. The existing movement resolver then changes only the moving result group, leaving both the stationary split group and every unrelated group unchanged. Focused navigation, production jump, and cycle-transition tests cover fork immutability, independent movement, malformed authority, missing sources, collisions, duplicate IDs, per-group cycle changes, projection privacy, and exact group membership. Prompt 336 remains responsible for calling this transition atomically when partial arrival creates the actual fleet partition.",
+      "source": "functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/jumpCallable.test.ts; functions/src/maintenanceCallable.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md and REFERENCE_ONLY_FACILITATION.md split-fleet pursuit guidance; focused 128-test navigation/jump/cycle suite; TypeScript build",
+      "type": "evidence / server-domain / pursuit / fleet-group / split-foundation / isolation / fail-closed / regression"
     },
     {
       "direction": "308 -> 306",
@@ -13535,13 +13556,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-JUMP-DISTANCE-BAND-CUTOFFS",
       "definition": {
         "acceptance": "the server classifies legal routes as short, medium, or long using the selected printed topology.",
         "title": "Calculate jump distance."
       },
       "description": "The server jump classifier now uses the canonical immutable star-chart graph and validates shortest paths for all 22 printed coordinates from 0000 in both directions, while preserving the existing one-edge-short, two-edge-medium, three-or-more-edge-long product policy. The routed CORE_RULES source confirms edge-based measurement but gives no numeric short/medium/long boundaries, so Prompt 287 remains partial pending that owner decision. Unknown 0101 remains outside the printed graph; no jump authorization, fuel profile, fleet-group state, or combat behavior changed.",
-      "evidenceIds": "E-AUDIT-287;E-287-GRAPH-CONSOLIDATION",
+      "evidenceIds": "E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;285",
@@ -13811,13 +13832,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "none",
+      "decisionOwner": "OWNER-FAILED-JUMP-DAMAGE-POLICY",
       "definition": {
         "acceptance": "the chosen facilitator policy routes damage through the common draw path and labels the adjudication.",
         "title": "Apply failed-jump damage."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The source review confirms that failed-jump damage is a facilitator adjudication without a defined trigger or number of common damage draws. A product-owner policy is required before implementation; the existing damaged-drive failure leaves the ship in place and does not invent damage.",
+      "evidenceIds": "E-299-FAILED-JUMP-DAMAGE-OWNER",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -14004,8 +14025,8 @@
         "acceptance": "a split creates independent values and one group's action cannot mutate another's.",
         "title": "Isolate pursuit by fleet group."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-307",
+      "description": "The server-domain pursuit transition now forks one source fleet-group score into two independent canonical group values, preserves unrelated groups, and rejects malformed, missing, duplicate, or colliding authority. Existing movement and cycle transitions consume the independent map without mutating another group. Prompt 336 will invoke this pure transition when partial arrival creates the persisted split.",
+      "evidenceIds": "E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "286;305",
@@ -14016,7 +14037,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

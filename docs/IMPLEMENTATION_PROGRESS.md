@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**447 / 751 prompts complete (59.52%)**
+**448 / 751 prompts complete (59.65%)**
 
-Status breakdown: **447 done · 15 partial · 289 missing**.
+Status breakdown: **448 done · 15 partial · 288 missing**.
 
 Active prompt: **none**
 
@@ -741,7 +741,7 @@ release classification and evidence.
 | 296 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 297 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 298 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 299 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
+| 299 | missing | non-feature | — | The source review confirms that failed-jump damage is a facilitator adjudication without a defined trigger or number of common damage draws. A product-owner policy is required before implementation; the existing damaged-drive failure leaves the ship in place and does not invent damage. |
 | 300 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 301 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 302 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -749,7 +749,7 @@ release classification and evidence.
 | 304 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 305 | done | non-feature | 0.4.29 | Each active fleet group now advances its private server-owned pursuit score by two, capped at 10, in the same transaction that commits the next shared cycle. The transition republishes the full map only to the facilitator projection and replaces each player projection with that player’s group-local value. The server resolves Ion Nebula I through the locked A, B, or C chart and leaves only a group whose vessels are present there unchanged. Raw map validation and exact vessel, member, and player-pointer checks block malformed or mismatched authority instead of guessing. Any legacy member-readable pursuit header is migrated and deleted atomically, the final debrief adds nothing, and competing facilitator attempts serialize behind the cycle revision so only one committed transition can apply the rise. |
 | 306 | done | non-feature | 0.4.31 | Facilitator movement and successful shipboard jumps now reduce only the moving ship fleet group’s private server-owned pursuit by the destination’s printed shortest-path depth from 0000. The transaction validates the raw pursuit map plus the exact canonical vessel and player group partition before any movement write, resolves depth from the immutable server graph, clamps at zero, republishes the full map only to the facilitator projection, and replaces each player projection with that player’s group-local value. Invalid, missing, duplicated, orphaned, or mismatched authority fails closed; failed and integrity-locked jump attempts do not apply pursuit changes. The Level 5 Planet exception remains Prompt 309. |
-| 307 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 307 | done | non-feature | — | The server-domain pursuit transition now forks one source fleet-group score into two independent canonical group values, preserves unrelated groups, and rejects malformed, missing, duplicate, or colliding authority. Existing movement and cycle transitions consume the independent map without mutating another group. Prompt 336 will invoke this pure transition when partial arrival creates the persisted split. |
 | 308 | done | non-feature | 0.4.29 | The authoritative cycle transition resolves Ion Nebula I from the session’s locked A, B, or C chart and suppresses only a fleet group whose complete vessel set is present there. Every other represented group still rises by two, capped at 10. The same transaction writes the protected navigation map and facilitator projection, while each player receives only the value for that player’s exact canonical group. Focused pure and callable tests prove all three chart coordinates, mixed-group isolation, shared navigation revision, and group-local privacy. |
 | 309 | done | non-feature | 0.4.32 | Authoritative facilitator movement and successful shipboard jumps now resolve the destination against the session’s locked A, B, or C organiser chart. When that printed site is Level 5 Survivable Planet G, the moving fleet group retains its current pursuit despite the coordinate’s graph depth; ordinary destinations still subtract their full server-computed shortest-path depth and other groups remain unchanged. Focused pure tests prove the distinct G coordinate on all three charts, and callable coverage proves production movement consumes the locked chart rather than client input. |
 | 310 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

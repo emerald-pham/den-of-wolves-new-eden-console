@@ -155,6 +155,50 @@ export function advancePursuitForCycle(
 }
 
 /**
+ * Fork one authoritative pursuit score when a fleet partition is committed.
+ * Both resulting groups begin from the source score; later movement changes
+ * only the moving group. Existing unrelated groups remain byte-for-byte
+ * equivalent, and malformed or colliding identities fail closed.
+ */
+export function splitPursuitGroup(
+  navigation: NavigationState,
+  sourceGroupId: string,
+  resultingGroupIds: readonly [string, string],
+): NavigationState {
+  if (!isValidPursuitAuthority(navigation.pursuitGroups)) {
+    throw new Error('Fleet pursuit authority is malformed.');
+  }
+  const sourceValue = navigation.pursuitGroups[sourceGroupId];
+  if (sourceValue === undefined) {
+    throw new Error(`Fleet group ${sourceGroupId} has no pursuit authority.`);
+  }
+  if (
+    !Array.isArray(resultingGroupIds) || resultingGroupIds.length !== 2 ||
+    typeof resultingGroupIds[0] !== 'string' || typeof resultingGroupIds[1] !== 'string'
+  ) {
+    throw new Error('A pursuit split requires exactly two canonical fleet-group IDs.');
+  }
+  const [firstGroupId, secondGroupId] = resultingGroupIds;
+  if (
+    firstGroupId === secondGroupId ||
+    !/^fleet-[1-9][0-9]*$/.test(firstGroupId) ||
+    !/^fleet-[1-9][0-9]*$/.test(secondGroupId)
+  ) {
+    throw new Error('A pursuit split requires two distinct canonical fleet-group IDs.');
+  }
+  for (const groupId of resultingGroupIds) {
+    if (groupId !== sourceGroupId && navigation.pursuitGroups[groupId] !== undefined) {
+      throw new Error(`Fleet group ${groupId} already has pursuit authority.`);
+    }
+  }
+  const pursuitGroups = { ...navigation.pursuitGroups };
+  delete pursuitGroups[sourceGroupId];
+  pursuitGroups[firstGroupId] = sourceValue;
+  pursuitGroups[secondGroupId] = sourceValue;
+  return { ...navigation, pursuitGroups };
+}
+
+/**
  * Reduce the moving ship's group by the destination's server-owned printed
  * shortest-path depth from 0000, except at the selected chart's Level 5
  * Planet. The existing bounded score carries prior cycle rises and modifiers;

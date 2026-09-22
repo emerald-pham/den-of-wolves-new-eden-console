@@ -9,6 +9,7 @@ import {
   navigationStateDocumentPath,
   playerDiscoveryProjection,
   pursuitGroups,
+  splitPursuitGroup,
   writePlayerDiscoveryProjection,
 } from './navigationProjection';
 
@@ -156,6 +157,45 @@ it('advances each fleet group once while suppressing only a group in the Ion Neb
     'fleet-3': 10,
     'fleet-4': 10,
   });
+});
+
+it('forks a split fleet score before movement and keeps every group independent', () => {
+  const before = navigationState({
+    shipGalacticCoordinates: { dione: '0000', shepherd: '0000', quellon: '1413' },
+    pursuitGroups: { 'fleet-1': 8, 'fleet-3': 5 },
+  }, ['dione', 'shepherd', 'quellon']);
+  const split = splitPursuitGroup(before, 'fleet-1', ['fleet-1', 'fleet-2']);
+
+  expect(split.pursuitGroups).toEqual({ 'fleet-1': 8, 'fleet-2': 8, 'fleet-3': 5 });
+  expect(before.pursuitGroups).toEqual({ 'fleet-1': 8, 'fleet-3': 5 });
+
+  const moved = adjustPursuitForMovement(split, [
+    { id: 'fleet-1', vesselIds: ['shepherd'] },
+    { id: 'fleet-2', vesselIds: ['dione'] },
+    { id: 'fleet-3', vesselIds: ['quellon'] },
+  ], 'dione', '8378', 'A');
+  expect(moved.pursuitGroups).toEqual({ 'fleet-1': 8, 'fleet-2': 2, 'fleet-3': 5 });
+});
+
+it('rejects missing, colliding, duplicate, and malformed pursuit split authority', () => {
+  const current = navigationState({ pursuitGroups: { 'fleet-1': 4, 'fleet-3': 7 } }, []);
+  expect(() => splitPursuitGroup(current, 'fleet-2', ['fleet-2', 'fleet-4']))
+    .toThrow(/no pursuit authority/i);
+  expect(() => splitPursuitGroup(current, 'fleet-1', ['fleet-1', 'fleet-3']))
+    .toThrow(/already has pursuit authority/i);
+  expect(() => splitPursuitGroup(current, 'fleet-1', ['fleet-2', 'fleet-2']))
+    .toThrow(/two distinct canonical/i);
+  expect(() => splitPursuitGroup(current, 'fleet-1', ['fleet-1', 'intruder']))
+    .toThrow(/two distinct canonical/i);
+  expect(() => splitPursuitGroup(
+    current,
+    'fleet-1',
+    ['fleet-1', 'fleet-2', 'fleet-4'] as unknown as readonly [string, string],
+  )).toThrow(/exactly two canonical/i);
+  expect(() => splitPursuitGroup({
+    ...current,
+    pursuitGroups: { 'fleet-1': 4, 'fleet-3': 11 },
+  }, 'fleet-1', ['fleet-1', 'fleet-2'])).toThrow(/malformed/i);
 });
 
 it.each([

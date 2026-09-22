@@ -414,7 +414,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 284 | NEW | done | 283;006;286 | none | none | none | none | none | none | none | E-AUDIT-284;E-284-GROUP-PRODUCER;E-284-DISCOVERY-BOUNDARY | M4;M5 | Redact unknown systems. |
 | 285 | NEW | done | 281 | none | none | none | none | none | none | none | E-AUDIT-285;E-285-POSITION | M4;M5 | Model per-ship position. |
 | 286 | NEW | done | 285 | none | none | none | none | none | none | none | E-AUDIT-286;E-286-FLEET-GROUP | M4;M5 | Model fleet-group identity. |
-| 287 | PRESERVE | partial | 281;285 | none | none | none | none | none | none | none | E-AUDIT-287;E-287-GRAPH-CONSOLIDATION | M4;M5 | Calculate jump distance. |
+| 287 | PRESERVE | partial | 281;285 | none | none | OWNER-JUMP-DISTANCE-BAND-CUTOFFS | none | none | none | none | E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER | M4;M5 | Calculate jump distance. |
 | 288 | PRESERVE | missing | 162;287 | none | none | none | none | none | none | none | E-AUDIT-288 | M4;M5 | Resolve per-ship jump costs. |
 | 289 | PRESERVE | missing | 177;287 | none | none | none | none | none | none | none | E-AUDIT-289 | M4;M5 | Validate Jump Drive readiness. |
 | 290 | PRESERVE | missing | 287;103 | none | none | none | none | none | none | none | E-AUDIT-290 | M4;M5 | Enforce one jump per ship per turn. |
@@ -426,7 +426,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 296 | PRESERVE | missing | 289;291 | none | none | none | none | none | none | none | E-AUDIT-296 | M4;M5 | Resolve uncharged and fuel-starved attempts. |
 | 297 | EXTEND | missing | 289;294;130 | none | none | none | none | none | none | none | E-AUDIT-297 | M4;M5 | Resolve damaged-drive randomness. |
 | 298 | EXTEND | missing | 289;124 | none | none | none | none | none | none | none | E-AUDIT-298 | M4;M5 | Apply upgraded-drive behavior. |
-| 299 | DECISION | missing | none | none | none | none | none | none | none | none | none | M4;M5 | Apply failed-jump damage. |
+| 299 | DECISION | missing | none | none | none | OWNER-FAILED-JUMP-DAMAGE-POLICY | none | none | none | none | E-299-FAILED-JUMP-DAMAGE-OWNER | M4;M5 | Apply failed-jump damage. |
 | 300 | EXTEND | missing | 289;291 | none | none | none | none | none | none | none | E-AUDIT-300 | M4;M5 | Execute one emergency jump per ship. |
 | 301 | EXTEND | missing | 291;294 | none | none | none | none | none | none | none | E-AUDIT-301 | M4;M5 | Resolve concurrent fleet jumps. |
 | 302 | EXTEND | missing | 294;167 | none | none | none | none | none | none | none | E-AUDIT-302 | M4;M5 | Record every jump transition. |
@@ -434,7 +434,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 304 | EXTEND | missing | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304 | M4;M5 | Reconcile jump retries. |
 | 305 | NEW | done | 103;485 | none | none | none | none | none | none | none | E-AUDIT-305;E-305-GROUP-FOUNDATION;E-305-CYCLE-PURSUIT | M4;M5 | Advance pursuit each cycle. |
 | 306 | NEW | done | 281;285;305 | none | none | none | none | none | none | none | E-AUDIT-306;E-306-CHART-DEPTH-PURSUIT | M4;M5 | Reduce pursuit by chart depth. |
-| 307 | NEW | missing | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307 | M4;M5 | Isolate pursuit by fleet group. |
+| 307 | NEW | done | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION | M4;M5 | Isolate pursuit by fleet group. |
 | 308 | NEW | done | 306 | none | none | none | none | none | none | none | E-AUDIT-308;E-308-ION-PURSUIT | M4;M5 | Apply Ion Nebula pursuit behavior. |
 | 309 | NEW | done | 306 | none | none | none | none | none | none | none | E-AUDIT-309;E-309-LEVEL5-PURSUIT | M4;M5 | Apply the Level 5 Planet exception. |
 | 310 | NEW | missing | 313;315 | none | none | none | none | none | none | none | E-AUDIT-310 | M4;M5 | Make Unstable Star missions repeatable. |
@@ -1151,6 +1151,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-285 | hard_prompt | 285 -> 281 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Per-ship position consumes the canonical graph nodes. |
 | E-AUDIT-286 | hard_prompt | 286 -> 285 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Fleet-group identity is attached to authoritative ship positions. |
 | E-AUDIT-287 | hard_prompt | 287 -> 281;285 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Jump distance consumes graph adjacency and current position. |
+| E-287-JUMP-DISTANCE-OWNER | evidence / decision_owner | 287 -> OWNER-JUMP-DISTANCE-BAND-CUTOFFS | authorized routed REFERENCE_ONLY_CORE_RULES.md; functions/src/jumpDrive.ts; functions/src/jumpDrive.test.ts; docs/implementation-prompts.json | The authorized jump rules define distance by the shortest route along printed chart edges but do not define which numeric edge counts are Short, Medium, or Long. The current one-edge, two-edge, and three-or-more mapping is retained compatibility behavior rather than source-verified policy. The product owner must approve those three band cutoffs before Prompt 287 can validate; no alternative mapping or gameplay change is inferred. |
 | E-AUDIT-288 | hard_prompt | 288 -> 162;287 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Jump cost consumes printed vessel statistics and distance. |
 | E-AUDIT-289 | hard_prompt | 289 -> 177;287 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Jump readiness consumes the existing jump-drive contract and distance. |
 | E-AUDIT-290 | hard_prompt | 290 -> 287;103 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Once-per-turn jump state consumes distance and turn transitions. |
@@ -1159,6 +1160,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-294 | hard_prompt | 294 -> 287-293 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Independent jump execution composes distance, cost, readiness, validation, reachability, and reservation. |
 | E-AUDIT-296 | hard_prompt | 296 -> 289;291 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Denials consume readiness and atomic fuel reservation. |
 | E-AUDIT-297 | hard_prompt | 297 -> 289;294;130 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Damaged-drive randomness consumes jump authority and the common damage path. |
+| E-299-FAILED-JUMP-DAMAGE-OWNER | evidence / decision_owner / missing-policy | 299 -> OWNER-FAILED-JUMP-DAMAGE-POLICY | authorized routed REFERENCE_ONLY_CORE_RULES.md; functions/src/jumpDrive.ts; functions/src/index.ts jump callable; functions/src/shipDamage.ts; docs/implementation-prompts.json | The authorized jump guidance says a facilitator error adjudication may fail the jump, damage the ship, or send it to the wrong system, but it does not define when failed-jump damage applies, how many common damage draws occur, or whether the damaged-drive failure roll itself causes damage. The product owner must select that policy before a server transition can route it through the common draw path and label the adjudication. No damage rule is inferred. |
 | E-AUDIT-298 | hard_prompt | 298 -> 289;124 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Upgrade behavior consumes jump readiness and authoritative upgrades. |
 | E-AUDIT-300 | hard_prompt | 300 -> 289;291 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Emergency jump consumes jump readiness and atomic fuel reservation. |
 | E-AUDIT-301 | hard_prompt | 301 -> 291;294 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Concurrent jumps compose reservation and committed jump execution. |
@@ -1168,6 +1170,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-305 | hard_prompt | 305 -> 103 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Pursuit rise occurs at the committed cycle transition. |
 | E-AUDIT-306 | hard_prompt | 306 -> 281;285;305 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Chart-depth reduction consumes graph distance, ship position, and pursuit timing. |
 | E-AUDIT-307 | hard_prompt | 307 -> 286;305 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Split pursuit consumes group identity and pursuit transition. |
+| E-307-SPLIT-PURSUIT-ISOLATION | evidence / server-domain / pursuit / fleet-group / split-foundation / isolation / fail-closed / regression | 307 -> INDEPENDENT FLEET-GROUP PURSUIT | functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; functions/src/jumpCallable.test.ts; functions/src/maintenanceCallable.test.ts; authorized routed REFERENCE_ONLY_CORE_RULES.md and REFERENCE_ONLY_FACILITATION.md split-fleet pursuit guidance; focused 128-test navigation/jump/cycle suite; TypeScript build | The server-domain split transition validates the complete protected pursuit map, requires one existing source group plus two distinct canonical resulting group IDs, rejects collisions, and forks the source score into independent values while preserving unrelated groups. The existing movement resolver then changes only the moving result group, leaving both the stationary split group and every unrelated group unchanged. Focused navigation, production jump, and cycle-transition tests cover fork immutability, independent movement, malformed authority, missing sources, collisions, duplicate IDs, per-group cycle changes, projection privacy, and exact group membership. Prompt 336 remains responsible for calling this transition atomically when partial arrival creates the actual fleet partition. |
 | E-AUDIT-308 | hard_prompt | 308 -> 306 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Location exceptions consume chart-depth pursuit calculation. |
 | E-AUDIT-309 | hard_prompt | 309 -> 306 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Location exceptions consume chart-depth pursuit calculation. |
 | E-AUDIT-310 | hard_prompt | 310 -> 313;315 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Repeatable system missions consume history and first-arrival eligibility. |
