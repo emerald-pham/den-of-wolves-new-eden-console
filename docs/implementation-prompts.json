@@ -5644,6 +5644,13 @@
       "type": "evidence / accessibility / rendered / listener-dedupe"
     },
     {
+      "direction": "609 -> DEBRIEF-LIVE-REGION",
+      "id": "E-609-DEBRIEF-LIVE-REGION",
+      "language": "The ending/debrief announcement now has a stable screen-reader live region separate from its decorative toast. The region stays quiet when a browser hydrates an already-active finale, announces the first live activation, and remounts on each authoritative revision so identical visible copy is announced once per new ending event rather than being lost to a same-text update. Focused DebriefMode and LiveChangeRegion tests cover hydration silence, first activation, revision reannouncement, and stable identical snapshots; no callable, projection, or server authority contract changes are involved.",
+      "source": "src/components/DebriefMode.tsx; src/components/DebriefMode.test.tsx; src/components/LiveChangeRegion.tsx; src/components/LiveChangeRegion.test.tsx",
+      "type": "evidence / accessibility / listener-dedupe / regression"
+    },
+    {
       "direction": "594 -> DECISION-ATTRIBUTION",
       "id": "E-594-DECISION-ATTRIBUTION",
       "language": "Every production facilitator adjudication surface explicitly labels decision source, actor, and recorded time using authoritative projection data. Religious Zealotry, Civil Unrest, and durable facilitator rule calls retain their existing metadata and privacy rules; selected-player private calls continue to withhold actor identity where required. Replacement eligibility and assignment callables now bind the authenticated facilitator UID and one server-generated ISO timestamp into the committed idempotent result, authoritative records, and audit records. Valid pre-release committed receipts are enriched on replay from their actor-bound fingerprint and persisted server timestamp, preserving idempotent retries across rollout. The GM-only replacement panel renders that returned metadata; stale CAS results clear attribution because they are not decisions, and no player projection receives the facilitator UID. Focused function, service, component, and GM-console tests pass 253/253 with TypeScript checking. Existing real-Chrome attribution geometry evidence remains applicable because this closure changes only authoritative values supplied to the same DecisionAttribution component and adds no layout or CSS; the risk-based font consistency gate verifies the console type system.",
@@ -21969,8 +21976,8 @@
         "acceptance": "phase, attack, parking, denial, threshold, and ending updates use appropriate live regions without listener-repeat noise.",
         "title": "Announce live changes once."
       },
-      "description": "Partial production-path implementation: phase, Wolf attack/parking, and pursuit-threshold updates now use stable keyed live regions that stay quiet for initial hydration and identical listener snapshots, while existing denial and ending status paths retain their alert/revision guards. Real Chrome accessibility proof uses simulated local session-store events; no Firebase/server-path browser claim is made.",
-      "evidenceIds": "E-609-LIVE-REGIONS",
+      "description": "Release 0.4.99 completes stable keyed live regions for phase, Wolf attack/parking, denial, pursuit-threshold, and ending updates while keeping initial hydration and identical listener snapshots quiet. The debrief ending region remounts on each authoritative revision so same-text finale updates are announced once without duplicating the decorative toast. Focused accessibility tests cover all existing live-region paths and the revision-keyed ending repair; prior local Chrome proof remains simulated session-store evidence and makes no Firebase/server-roundtrip claim.",
+      "evidenceIds": "E-609-LIVE-REGIONS;E-609-DEBRIEF-LIVE-REGION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -21979,11 +21986,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.4.4"
+        "0.4.4",
+        "0.4.99"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

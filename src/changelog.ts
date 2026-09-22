@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [609],
+    implementationProgress: {
+      completed: 465, total: 751, percentage: '61.92%',
+      done: 465, partial: 12, active: 0, missing: 274,
+    },
+    changes: [
+      'Finale updates now reach screen readers once per authoritative revision, even when a new update repeats the same words.',
+      'The decorative debrief toast no longer creates a duplicate announcement, and reconnect hydration stays quiet.',
+      '465 of 751 planned items are complete (61.92%).',
+    ],
+  },
+  {
+    version: '0.4.98',
     implementationPrompts: [592],
     implementationProgress: {
       completed: 464, total: 751, percentage: '61.78%',

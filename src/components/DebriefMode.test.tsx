@@ -62,6 +62,32 @@ it('does not replay the enabled toast when a browser opens after finale mode is 
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
 
+it('re-announces a new finale revision even when the visible copy is unchanged', () => {
+  const { rerender } = render(<DebriefMode />);
+
+  act(() => {
+    useSessionStore.getState().setSession({
+      ...session,
+      debriefMode: { active: true, revision: 1 },
+    });
+  });
+  const firstAnnouncement = screen.getByRole('status');
+  expect(firstAnnouncement).toHaveTextContent('Debrief mode enabled. Fleet finale. Blue channel live.');
+
+  act(() => {
+    useSessionStore.getState().setSession({
+      ...session,
+      debriefMode: { active: true, revision: 2 },
+    });
+  });
+  const secondAnnouncement = screen.getByRole('status');
+  expect(secondAnnouncement).not.toBe(firstAnnouncement);
+  expect(secondAnnouncement).toHaveTextContent('Debrief mode enabled. Fleet finale. Blue channel live.');
+
+  rerender(<DebriefMode />);
+  expect(screen.getByRole('status')).toBe(secondAnnouncement);
+});
+
 it('renders the finale ball as a bounded 3D DRADIS light instrument', () => {
   useSessionStore.getState().setSession({
     ...session,

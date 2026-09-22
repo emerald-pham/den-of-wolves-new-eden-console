@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
+import LiveChangeRegion from './LiveChangeRegion';
 
 const TOAST_MS = 6_000;
 const RETRACT_MS = 450;
+
+const LIVE_REGION_STYLE: CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
 
 type FinaleStyle = CSSProperties & Record<`--${string}`, string | number>;
 
@@ -179,10 +192,22 @@ export default function DebriefMode() {
         </div>
       )}
       {toastRevision !== null && (
-        <aside className="debrief-mode__toast cic-frame" role="status" aria-live="polite" aria-atomic="true">
+        <aside className="debrief-mode__toast cic-frame" aria-hidden="true">
           <strong>Debrief mode enabled</strong>
           <span>FLEET FINALE // BLUE CHANNEL LIVE</span>
         </aside>
+      )}
+      {(visible || toastRevision !== null) && (
+        <div style={LIVE_REGION_STYLE}>
+          <LiveChangeRegion
+            key={toastRevision === null ? 'debrief-idle' : `${session?.id ?? 'session'}:${toastRevision}`}
+            as="p"
+            changeKey={toastRevision === null ? null : `${session?.id ?? 'session'}:${toastRevision}`}
+            message={toastRevision === null ? '' : 'Debrief mode enabled. Fleet finale. Blue channel live.'}
+            politeness="polite"
+            announceInitial
+          />
+        </div>
       )}
     </>
   );
