@@ -197,7 +197,7 @@ import {
 } from './arrivalPressure';
 import {
   firstArrivalMissionOpportunity,
-  legacyUnstableStarMissionOpportunity,
+  legacyCycleRepeatableMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
   type MissionOpportunityEligibility,
@@ -1522,7 +1522,7 @@ async function missionOpportunityForMovement(
     );
   }
   if (!opportunity) return undefined;
-  const legacyOpportunity = legacyUnstableStarMissionOpportunity(opportunity);
+  const legacyOpportunity = legacyCycleRepeatableMissionOpportunity(opportunity);
   if (legacyOpportunity) {
     const legacyStored = await tx.get(db.doc(
       missionOpportunityDocumentPath(sessionId, legacyOpportunity.id),

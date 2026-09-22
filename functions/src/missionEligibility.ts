@@ -35,6 +35,10 @@ function isMissionTransitionId(value: unknown): value is string {
   return prefix !== undefined && isCanonicalRequestId(value.slice(prefix.length));
 }
 
+function isCycleRepeatableMission(siteCode: CanonicalMissionCardCode): boolean {
+  return missionCardForCode(siteCode)?.siteRules.repeatability === 'everyTurn';
+}
+
 /**
  * Validate the durable record that suppresses a later arrival. Historical
  * source metadata may differ from the current movement, but the record must
@@ -44,7 +48,9 @@ export function parseStoredMissionOpportunity(
   value: unknown,
   sessionId: string,
   expected: MissionOpportunityEligibility,
-  sourceCyclePolicy: 'expected' | 'any' = expected.siteCode === 'J' ? 'expected' : 'any',
+  sourceCyclePolicy: 'expected' | 'any' = isCycleRepeatableMission(expected.siteCode)
+    ? 'expected'
+    : 'any',
 ): MissionOpportunityEligibility {
   if (!isRecord(value) ||
     value.type !== 'mission-opportunity' ||
@@ -92,14 +98,14 @@ export function missionOpportunityDocumentPath(sessionId: string, opportunityId:
 }
 
 /**
- * Resolve the unsuffixed J identity written before cycle-scoped repeatability
- * shipped. Its validated source cycle decides whether it suppresses the
- * current cycle or represents an older, already-finished opportunity.
+ * Resolve an unsuffixed identity written before a printed repeatable mission
+ * gained cycle-scoped identity. Its validated source cycle decides whether it
+ * suppresses the current cycle or represents an older opportunity.
  */
-export function legacyUnstableStarMissionOpportunity(
+export function legacyCycleRepeatableMissionOpportunity(
   opportunity: MissionOpportunityEligibility,
 ): MissionOpportunityEligibility | undefined {
-  if (opportunity.siteCode !== 'J') return undefined;
+  if (!isCycleRepeatableMission(opportunity.siteCode)) return undefined;
   return {
     ...opportunity,
     id: `arrival-${opportunity.groupId}-${opportunity.chart}-${opportunity.coordinate}`,
@@ -110,8 +116,9 @@ export function legacyUnstableStarMissionOpportunity(
  * Create the durable opportunity exposed by the first vessel in one canonical
  * fleet group to reach a printed A-M mission system. Existing group position
  * suppresses every duplicate arrival. Persisted discovery suppresses ordinary
- * systems, while Unstable Star J gets one cycle-scoped opportunity after the
- * group leaves and returns. Another group retains its own eligibility.
+ * systems, while printed repeatable systems J and K get one cycle-scoped
+ * opportunity after the group leaves and returns. Another group retains its
+ * own eligibility.
  */
 export function firstArrivalMissionOpportunity(
   input: FirstArrivalMissionOpportunityInput,
@@ -132,6 +139,7 @@ export function firstArrivalMissionOpportunity(
   const siteCode = organiserSitesForChart(input.chart)[input.destination]?.code;
   const mission = siteCode ? missionCardForCode(siteCode) : undefined;
   if (!mission) return undefined;
+  const cycleRepeatable = mission.siteRules.repeatability === 'everyTurn';
 
   const groupAlreadyPresent = input.group.vesselIds.some((shipId) =>
     input.coordinates[shipId] === input.destination);
@@ -139,9 +147,9 @@ export function firstArrivalMissionOpportunity(
 
   const previouslyDiscovered = input.group.vesselIds.some((shipId) =>
     input.systemHistory?.[shipId]?.[input.destination]?.discovery !== undefined);
-  if (previouslyDiscovered && siteCode !== 'J') return undefined;
+  if (previouslyDiscovered && !cycleRepeatable) return undefined;
 
-  const id = siteCode === 'J'
+  const id = cycleRepeatable
     ? `arrival-${input.group.id}-${input.chart}-${input.destination}-cycle-${input.cycle}`
     : `arrival-${input.group.id}-${input.chart}-${input.destination}`;
   return {

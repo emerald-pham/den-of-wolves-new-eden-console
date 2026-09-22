@@ -459,6 +459,61 @@ it('fails closed before movement writes when a legacy Unstable Star opportunity 
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('creates one cycle-scoped Wolf Supply Outpost opportunity without exposing secret difficulty', async () => {
+  mock.currentTurn = 2;
+  mock.systemHistory = {
+    dione: {
+      '6943': {
+        coordinate: '6943',
+        discovery: { id: 'navigation-prior-outpost', occurredAt: '2026-09-21T00:00:00.000Z' },
+        attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
+
+  const reply = await moveShipToLocation.run(request({
+    ...data, requestId: 'wolf-outpost-cycle-2', destination: '6943',
+  }));
+  expect(reply).toMatchObject({
+    missionOpportunityId: 'arrival-fleet-1-A-6943-cycle-2',
+  });
+  expect(JSON.stringify(reply)).not.toMatch(/difficulty|secret|multiplier/i);
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-6943-cycle-2',
+    expect.objectContaining({
+      siteCode: 'K', sourceCycle: 2,
+      id: 'arrival-fleet-1-A-6943-cycle-2',
+    }),
+  );
+});
+
+it('does not duplicate a legacy Wolf Supply Outpost opportunity during its deployment cycle', async () => {
+  mock.currentTurn = 2;
+  mock.systemHistory = {
+    dione: {
+      '6943': {
+        coordinate: '6943',
+        discovery: { id: 'navigation-prior-outpost', occurredAt: '2026-09-21T00:00:00.000Z' },
+        attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
+  mock.missionOpportunityRecord = {
+    type: 'mission-opportunity', status: 'available', sessionId: 's1',
+    id: 'arrival-fleet-1-A-6943', groupId: 'fleet-1', chart: 'A',
+    coordinate: '6943', siteCode: 'K', sourceShipId: 'dione',
+    sourceTransitionId: 'navigation-pre-upgrade-outpost', sourceCycle: 2,
+  };
+  mock.missionOpportunityRecordPath =
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-6943';
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'wolf-outpost-upgrade-cycle-retry', destination: '6943',
+  }))).resolves.not.toHaveProperty('missionOpportunityId');
+  expect(mock.set.mock.calls.some(([path]) =>
+    String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
 it('does not reopen a previously created opportunity when legacy history is incomplete', async () => {
   mock.missionOpportunityRecord = {
     type: 'mission-opportunity', status: 'available', sessionId: 's1',

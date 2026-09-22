@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FleetGroupRecord } from './fleetGroups';
 import {
   firstArrivalMissionOpportunity,
-  legacyUnstableStarMissionOpportunity,
+  legacyCycleRepeatableMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
 } from './missionEligibility';
@@ -185,7 +185,7 @@ describe('group first-arrival mission eligibility', () => {
 
   it('validates a legacy Unstable Star identity without treating an older cycle as malformed', () => {
     const opportunity = firstArrivalMissionOpportunity({ ...base, destination: '8378', cycle: 3 })!;
-    const legacy = legacyUnstableStarMissionOpportunity(opportunity)!;
+    const legacy = legacyCycleRepeatableMissionOpportunity(opportunity)!;
     expect(legacy.id).toBe('arrival-fleet-1-A-8378');
     expect(parseStoredMissionOpportunity({
       ...legacy,
@@ -195,5 +195,44 @@ describe('group first-arrival mission eligibility', () => {
       id: 'arrival-fleet-1-A-8378',
       sourceCycle: 2,
     });
+  });
+
+  it('creates one hidden-difficulty Wolf Supply Outpost opportunity per cycle', () => {
+    const systemHistory: SystemHistory = {
+      dione: {
+        '6943': {
+          coordinate: '6943',
+          discovery: { id: 'navigation-prior-outpost', occurredAt: '2026-09-21T00:00:00.000Z' },
+          attempts: [{ id: 'attempt-cycle-1', occurredAt: '2026-09-21T00:01:00.000Z' }],
+          hazards: [], rewards: [{ id: 'reward-cycle-1', occurredAt: '2026-09-21T00:02:00.000Z' }],
+          clearedThreats: [], candidateProgress: [],
+        },
+      },
+    };
+    const opportunity = firstArrivalMissionOpportunity({
+      ...base,
+      destination: '6943',
+      cycle: 2,
+      systemHistory,
+    });
+
+    expect(opportunity).toEqual({
+      type: 'mission-opportunity',
+      status: 'available',
+      id: 'arrival-fleet-1-A-6943-cycle-2',
+      groupId: 'fleet-1',
+      chart: 'A',
+      coordinate: '6943',
+      siteCode: 'K',
+      sourceShipId: 'aegis',
+      sourceTransitionId: 'navigation-arrival-1',
+      sourceCycle: 2,
+    });
+    expect(JSON.stringify(opportunity)).not.toMatch(/difficulty|secret|multiplier/i);
+    expect(() => parseStoredMissionOpportunity({
+      ...opportunity,
+      sessionId: 's1',
+      sourceCycle: 3,
+    }, 's1', opportunity!)).toThrow(/stored/i);
   });
 });

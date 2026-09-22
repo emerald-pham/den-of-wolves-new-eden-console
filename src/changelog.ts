@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [311],
+    implementationProgress: {
+      completed: 454, total: 751, percentage: '60.45%',
+      done: 454, partial: 13, active: 0, missing: 284,
+    },
+    changes: [
+      'A fleet group can now return to an Abandoned Wolf Supply Outpost for one new mission opportunity in each eligible cycle.',
+      'The mission stays hidden until the facilitator reveals it, and returning in the same cycle cannot create a duplicate opportunity.',
+      '454 of 751 planned items are complete (60.45%).',
+    ],
+  },
+  {
+    version: '0.4.87',
     implementationPrompts: [310],
     implementationProgress: {
       completed: 453, total: 751, percentage: '60.32%',

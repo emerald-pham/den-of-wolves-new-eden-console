@@ -5371,6 +5371,13 @@
       "type": "evidence / production-path / server-authority / cycle-repeatability / idempotency / split-fleet / malformed-state / regression"
     },
     {
+      "direction": "311 -> WOLF SUPPLY OUTPOST CYCLE ELIGIBILITY",
+      "id": "E-311-WOLF-OUTPOST-REPEAT",
+      "language": "Abandoned Wolf Supply Outpost K now uses the printed repeatability rule to create one deterministic mission opportunity for an arriving fleet group in each eligible cycle. Prior discovery, attempts, and rewards no longer suppress a later cycle after the group leaves and returns, while a cycle-scoped durable identity suppresses retries and multiple arrivals in the same cycle. A validated unsuffixed opportunity from an earlier release suppresses a duplicate during its source cycle without blocking a later cycle, and malformed current or legacy state blocks movement before any write. The opportunity and callable reply contain no secret difficulty, multiplier, roll, or reward values; those remain facilitator-only for later mission resolution.",
+      "source": "functions/src/missionEligibility.ts; functions/src/missionEligibility.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/missionCards.ts; functions/src/systemHistory.ts",
+      "type": "evidence / production-path / server-authority / cycle-repeatability / idempotency / hidden-information / split-fleet / malformed-state / regression"
+    },
+    {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
       "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
@@ -14155,11 +14162,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "system K can create its hidden-difficulty mission once per eligible turn.",
+        "acceptance": "system K can create its hidden-difficulty mission once per eligible cycle.",
         "title": "Make Abandoned Wolf Supply Outpost missions repeatable."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-311",
+      "description": "Release 0.4.88 gives Abandoned Wolf Supply Outpost K one deterministic mission opportunity per eligible cycle for each fleet group. A group must leave before returning can create the cycle's opportunity; prior discovery, attempts, or rewards no longer block a later cycle. Cycle-scoped identity and legacy-record validation prevent duplicate opportunities during retries or release upgrades, while malformed state fails before movement writes. The opportunity and caller response expose no secret difficulty, roll, multiplier, or reward values.",
+      "evidenceIds": "E-AUDIT-311;E-311-WOLF-OUTPOST-REPEAT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "313;315",
@@ -14167,10 +14174,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.88"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
