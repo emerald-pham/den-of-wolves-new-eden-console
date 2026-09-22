@@ -147,7 +147,7 @@ export default function ShuttleControl({ control }: Props) {
     .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
       shuttleDestinationIsAllowed(control.shuttleId, shipId));
   const retargetDestinations = transit
-    ? destinations.filter((shipId) => shipId !== transit.originShipId && shipId !== transit.destinationShipId)
+    ? destinations.filter((shipId) => shipId !== transit.destinationShipId)
     : [];
   const projectedFleetVesselIds = session.playerDiscovery &&
     session.playerDiscovery.groupId === me.fleetGroupId

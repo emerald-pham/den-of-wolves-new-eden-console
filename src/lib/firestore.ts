@@ -15,7 +15,6 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
-import { FLEET_FORMATION } from '@/data/fleetFormation';
 import type {
   CommissarPurgeAuthority,
   DamageDraw,
@@ -38,9 +37,7 @@ import type {
   SmallShipId,
   SmallShipState,
   ShuttleDocking,
-  ShuttleDepartureRequestState,
   ShuttleMovementState,
-  ShuttleTransitLeg,
   ShuttleTransitState,
   ShuttleVisit,
   ShipNavigationLogEntry,
@@ -1805,106 +1802,13 @@ function quarantineDocking(value: unknown): GameSession['quarantineDocking'] {
   };
 }
 
-function shuttlePoint(value: unknown): ShuttleTransitState['originPosition'] | null {
+function shuttlePoint(value: unknown): ShuttleTransitState['currentPosition'] | null {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['x', 'y', 'z'].includes(key)) ||
       ![raw.x, raw.y, raw.z].every((entry) => typeof entry === 'number' && Number.isFinite(entry))) {
     return null;
   }
   return { x: raw.x as number, y: raw.y as number, z: raw.z as number };
-}
-
-const shuttlePointsMatch = (left: ShuttleTransitState['originPosition'], right: ShuttleTransitState['originPosition']) => {
-  const match = (a: number, b: number) => Math.abs(a - b) <= Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 16;
-  return match(left.x, right.x) && match(left.y, right.y) && match(left.z, right.z);
-};
-
-function shuttleLeg(value: unknown): ShuttleTransitLeg | null {
-  const raw = recordValue(value);
-  const originPosition = raw ? shuttlePoint(raw.originPosition) : null;
-  const destinationPosition = raw ? shuttlePoint(raw.destinationPosition) : null;
-  if (!raw || Object.keys(raw).some((key) => ![
-    'fromShipId', 'toShipId', 'originPosition', 'destinationPosition', 'departedAt', 'arrivesAt',
-  ].includes(key)) || !parseEntityId('vessel', raw.fromShipId) || !parseEntityId('vessel', raw.toShipId) ||
-      !originPosition || !destinationPosition || typeof raw.departedAt !== 'string' ||
-      typeof raw.arrivesAt !== 'string' || !Number.isFinite(Date.parse(raw.departedAt)) ||
-      !Number.isFinite(Date.parse(raw.arrivesAt)) ||
-      Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000) return null;
-  return {
-    fromShipId: parseEntityId('vessel', raw.fromShipId)!,
-    toShipId: parseEntityId('vessel', raw.toShipId)!,
-    originPosition, destinationPosition, departedAt: raw.departedAt, arrivesAt: raw.arrivesAt,
-  };
-}
-
-function shuttlePositionAtLeg(leg: ShuttleTransitLeg, at: number): ShuttleTransitState['originPosition'] {
-  const departedAt = Date.parse(leg.departedAt);
-  const elapsedSeconds = Math.max(0, Math.min(60_000, at - departedAt)) / 1_000;
-  const velocity = {
-    x: (leg.destinationPosition.x - leg.originPosition.x) / 60,
-    y: (leg.destinationPosition.y - leg.originPosition.y) / 60,
-    z: (leg.destinationPosition.z - leg.originPosition.z) / 60,
-  };
-  return {
-    x: leg.originPosition.x + velocity.x * elapsedSeconds,
-    y: leg.originPosition.y + velocity.y * elapsedSeconds,
-    z: leg.originPosition.z + velocity.z * elapsedSeconds,
-  };
-}
-
-function canonicalShuttleRoute(
-  raw: Record<string, unknown>,
-  revision: number,
-  originShipId: string,
-  destinationShipId: string,
-  originDepartedAt: string,
-  originPosition: ShuttleTransitState['originPosition'],
-  currentPosition: ShuttleTransitState['originPosition'],
-  destinationPosition: ShuttleTransitState['originPosition'],
-  velocity: ShuttleTransitState['originPosition'],
-  requestedAt: string,
-  departedAt: string,
-  arrivesAt: string,
-): readonly ShuttleTransitLeg[] | null {
-  const routeLegs = raw.routeLegs === undefined && revision === 1
-    ? [{ fromShipId: originShipId, toShipId: destinationShipId, originPosition,
-      destinationPosition, departedAt, arrivesAt }]
-    : Array.isArray(raw.routeLegs) ? raw.routeLegs.map(shuttleLeg) : null;
-  if (!routeLegs || routeLegs.length !== revision || routeLegs.some((leg) => leg === null)) return null;
-  const legs = routeLegs as ShuttleTransitLeg[];
-  const requestedAtMs = Date.parse(requestedAt);
-  const originDepartedAtMs = Date.parse(originDepartedAt);
-  if (!Number.isFinite(requestedAtMs) || !Number.isFinite(originDepartedAtMs) || requestedAtMs > originDepartedAtMs) return null;
-  let previous: ShuttleTransitLeg | undefined;
-  for (const [index, leg] of legs.entries()) {
-    const fromPosition = FLEET_FORMATION[leg.fromShipId];
-    const toPosition = FLEET_FORMATION[leg.toShipId];
-    const departedMs = Date.parse(leg.departedAt);
-    const arrivesMs = Date.parse(leg.arrivesAt);
-    if (!fromPosition || !toPosition || leg.fromShipId === leg.toShipId ||
-        !shuttlePointsMatch(leg.destinationPosition, toPosition) ||
-        (index === 0 && (leg.fromShipId !== originShipId || departedMs !== originDepartedAtMs ||
-          !shuttlePointsMatch(leg.originPosition, fromPosition))) ||
-        (previous && (leg.fromShipId !== previous.toShipId || departedMs < Date.parse(previous.departedAt) ||
-          departedMs >= Date.parse(previous.arrivesAt) ||
-          !shuttlePointsMatch(leg.originPosition, shuttlePositionAtLeg(previous, departedMs))))) return null;
-    previous = leg;
-    if (!Number.isFinite(arrivesMs) || arrivesMs - departedMs !== 60_000) return null;
-  }
-  const last = previous;
-  const first = legs[0];
-  const lastVelocity = last && {
-    x: (last.destinationPosition.x - last.originPosition.x) / 60,
-    y: (last.destinationPosition.y - last.originPosition.y) / 60,
-    z: (last.destinationPosition.z - last.originPosition.z) / 60,
-  };
-  if (!last || !first || !lastVelocity || originShipId !== first.fromShipId || destinationShipId !== last.toShipId ||
-      !shuttlePointsMatch(originPosition, first.originPosition) ||
-      !shuttlePointsMatch(currentPosition, last.originPosition) ||
-      !shuttlePointsMatch(destinationPosition, last.destinationPosition) ||
-      Date.parse(departedAt) !== Date.parse(last.departedAt) || Date.parse(arrivesAt) !== Date.parse(last.arrivesAt) ||
-      !shuttlePointsMatch(velocity, lastVelocity)) return null;
-  return legs;
 }
 
 function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementState | null {
@@ -1916,63 +1820,47 @@ function shuttleDeparture(value: unknown, shuttleId: string): ShuttleMovementSta
   const destinationShipId = raw ? parseEntityId('vessel', raw.destinationShipId) : undefined;
   if (!raw || !SHUTTLECRAFT.some((shuttle) => shuttle.id === shuttleId) ||
       parsedShuttleId !== shuttleId || !['requested', 'in-transit'].includes(String(raw.status)) ||
-      raw.shuttleId !== shuttleId ||
-      typeof raw.requestId !== 'string' || raw.requestId.length === 0 || !holderUid ||
-      !fleetGroupId || !originShipId || !destinationShipId ||
+      raw.shuttleId !== shuttleId || typeof raw.requestId !== 'string' || raw.requestId.length === 0 ||
+      !holderUid || !fleetGroupId || !destinationShipId ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
       !Number.isSafeInteger(raw.controlRevision) || (raw.controlRevision as number) < 0 ||
       typeof raw.requestedAt !== 'string' || !Number.isFinite(Date.parse(raw.requestedAt)) ||
       Object.keys(raw).some((key) => ![
         'status', 'requestId', 'shuttleId', 'holderUid', 'fleetGroupId', 'originShipId',
         'destinationShipId', 'cycle', 'controlRevision', 'requestedAt', 'transitRequestId',
-        'revision', 'originDepartedAt', 'routeLegs', 'originPosition', 'currentPosition', 'destinationPosition', 'velocity',
-        'departedAt', 'arrivesAt',
+        'revision', 'currentPosition', 'destinationPosition', 'velocity', 'departedAt', 'arrivesAt',
       ].includes(key))) return null;
-  const base: ShuttleDepartureRequestState = {
-    status: 'requested', requestId: raw.requestId, shuttleId: parsedShuttleId, holderUid,
-    fleetGroupId, originShipId, destinationShipId, cycle: raw.cycle as number,
+  const base = {
+    requestId: raw.requestId, shuttleId: parsedShuttleId, holderUid,
+    fleetGroupId, destinationShipId, cycle: raw.cycle as number,
     controlRevision: raw.controlRevision as number, requestedAt: raw.requestedAt,
   };
   if (raw.status === 'requested') {
     if (Object.keys(raw).some((key) => [
-      'transitRequestId', 'revision', 'originDepartedAt', 'routeLegs', 'originPosition', 'currentPosition', 'destinationPosition',
-      'velocity', 'departedAt', 'arrivesAt',
+      'transitRequestId', 'revision', 'currentPosition', 'destinationPosition', 'velocity',
+      'departedAt', 'arrivesAt',
     ].includes(key))) return null;
-    return base;
+    if (!originShipId) return null;
+    return { ...base, status: 'requested' as const, originShipId };
   }
-  const originPosition = shuttlePoint(raw.originPosition);
+  if (Object.hasOwn(raw, 'originShipId')) return null;
   const currentPosition = shuttlePoint(raw.currentPosition);
   const destinationPosition = shuttlePoint(raw.destinationPosition);
   const velocity = shuttlePoint(raw.velocity);
-  const originDepartedAt = raw.originDepartedAt === undefined && raw.revision === 1
-    ? raw.departedAt : raw.originDepartedAt;
   if (typeof raw.transitRequestId !== 'string' || raw.transitRequestId.length === 0 ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-      !originPosition || !currentPosition || !destinationPosition || !velocity ||
+      !currentPosition || !destinationPosition || !velocity ||
       typeof raw.departedAt !== 'string' || typeof raw.arrivesAt !== 'string' ||
       !Number.isFinite(Date.parse(raw.departedAt)) || !Number.isFinite(Date.parse(raw.arrivesAt)) ||
       Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000 ||
-      typeof originDepartedAt !== 'string' || !Number.isFinite(Date.parse(originDepartedAt)) ||
-      Date.parse(originDepartedAt) > Date.parse(raw.departedAt)) return null;
-  const routeLegs = canonicalShuttleRoute(
-    raw, raw.revision as number, originShipId, destinationShipId, originDepartedAt,
-    originPosition, currentPosition, destinationPosition, velocity, raw.requestedAt,
-    raw.departedAt, raw.arrivesAt,
-  );
-  if (!routeLegs) return null;
+      Date.parse(raw.requestedAt) > Date.parse(raw.departedAt)) return null;
   return {
     ...base,
     status: 'in-transit',
     transitRequestId: raw.transitRequestId,
     revision: raw.revision as number,
-    originDepartedAt,
-    routeLegs,
-    originPosition,
-    currentPosition,
-    destinationPosition,
-    velocity,
-    departedAt: raw.departedAt,
-    arrivesAt: raw.arrivesAt,
+    currentPosition, destinationPosition, velocity,
+    departedAt: raw.departedAt, arrivesAt: raw.arrivesAt,
   };
 }
 

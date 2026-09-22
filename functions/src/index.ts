@@ -284,8 +284,12 @@ import {
 } from './shuttleDeparture';
 import {
   enterShuttleTransit,
-  parseShuttleTransit,
+  parseShuttleTransitAuthority,
+  parseShuttleTransitPublic,
   retargetShuttleTransit as retargetTransitState,
+  toPublicShuttleTransit,
+  toShuttleTransitChain,
+  type ShuttleTransitPublicState,
   type ShuttleTransitState,
 } from './shuttleTransit';
 import { createCompleteShuttleArrivalCallable } from './shuttleArrivalCallable';
@@ -2244,6 +2248,7 @@ type WolfAttackParkingSnapshot = Readonly<{
   parkedShuttleDockings: readonly PublicShuttleDocking[];
   parkingDecisions: readonly WolfAttackParkingDecision[];
   clearedTransitIds: readonly string[];
+  transitChainFingerprint: string;
   shuttleVisitLog: readonly PublicShuttleVisit[];
 }>;
 
@@ -2259,6 +2264,7 @@ function requireWolfAttackParking(
   activeRoleIds: readonly string[],
   fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
   departures: { readonly docs: readonly DocumentSnapshot[] },
+  transitChains: { readonly docs: readonly DocumentSnapshot[] } | undefined,
   cycle: number,
   parkedAt: string,
   requestId: string,
@@ -2313,11 +2319,15 @@ function requireWolfAttackParking(
     });
   }
 
+  const chainByShuttleId = new Map((transitChains?.docs ?? []).map((snapshot) => [snapshot.id, snapshot]));
   const transits = departures.docs.flatMap((snapshot) => {
     if (!expectedShuttleIds.has(snapshot.id)) return [];
     const raw = snapshot.data();
-    const transit = parseShuttleTransit(raw, snapshot.id);
-    if (transit) return [transit];
+    const chainSnapshot = chainByShuttleId.get(snapshot.id);
+    const authority = parseShuttleTransitAuthority(
+      raw, chainSnapshot?.exists ? chainSnapshot.data() : undefined, snapshot.id,
+    );
+    if (authority) return [authority.transit];
     const pending = parseShuttleDepartures({ [snapshot.id]: raw });
     if (pending?.[snapshot.id]) return [];
     throw commandError(
@@ -2326,6 +2336,10 @@ function requireWolfAttackParking(
       'conflict',
     );
   });
+  const transitChainFingerprint = JSON.stringify(transits
+    .map((transit) => ({ shuttleId: transit.shuttleId,
+      transitRequestId: transit.transitRequestId, revision: transit.revision }))
+    .sort((left, right) => left.shuttleId.localeCompare(right.shuttleId)));
   const groups = fleetGroups.docs.map((snapshot) => {
     const group = fleetGroupRecord(snapshot.data());
     if (!group || group.id !== snapshot.id) {
@@ -2433,6 +2447,7 @@ function requireWolfAttackParking(
     parkedShuttleDockings: parking.dockings,
     parkingDecisions: parking.decisions,
     clearedTransitIds: parking.clearedTransitIds,
+    transitChainFingerprint,
     shuttleVisitLog,
   };
 }
@@ -6714,7 +6729,7 @@ export const requestShuttleDeparture = onCall<{
   });
 });
 
-type ShuttleTransitReply = Omit<ShuttleTransitState, 'status'> & Readonly<{
+type ShuttleTransitReply = ShuttleTransitPublicState & Readonly<{
   status: 'in-transit' | 'replayed';
   sessionId: string;
 }>;
@@ -6724,7 +6739,7 @@ function isShuttleTransitReply(value: unknown, sessionId: string): value is Shut
   const state = { ...value };
   delete state.sessionId;
   delete state.status;
-  const parsed = parseShuttleTransit({ ...state, status: 'in-transit' }, String(value.shuttleId ?? ''));
+  const parsed = parseShuttleTransitPublic({ ...state, status: 'in-transit' }, String(value.shuttleId ?? ''));
   return value.sessionId === sessionId &&
     (value.status === 'in-transit' || value.status === 'replayed') && parsed !== null;
 }
@@ -6776,9 +6791,11 @@ export const beginShuttleTransit = onCall<{
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
   const transitRef = db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`);
+  const transitChainRef = db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${data.shuttleId}`);
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, attackState, transitSnapshot] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(attackStateRef), tx.get(transitRef),
+    const [session, actor, receipt, attackState, transitSnapshot, transitChainSnapshot] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(attackStateRef),
+      tx.get(transitRef), tx.get(transitChainRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -6826,6 +6843,7 @@ export const beginShuttleTransit = onCall<{
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
         !control || !departures || !departures[data.shuttleId] || !phase ||
+        transitChainSnapshot.exists ||
         session.get('phase') !== 'active' || !Number.isSafeInteger(currentCycle) ||
         currentCycle !== data.expectedCycle || phase.turn !== currentCycle) {
       throw commandError(
@@ -6856,12 +6874,13 @@ export const beginShuttleTransit = onCall<{
         'conflict',
       );
     }
-    const reply: ShuttleTransitReply = { ...result.transit, sessionId: data.sessionId };
+    const reply: ShuttleTransitReply = { ...toPublicShuttleTransit(result.transit), sessionId: data.sessionId };
     tx.update(sessionRef, {
       shuttleDockings: result.dockings,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(transitRef, result.transit);
+    tx.set(transitRef, toPublicShuttleTransit(result.transit));
+    tx.set(transitChainRef, toShuttleTransitChain(result.transit));
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -6916,6 +6935,7 @@ export const retargetShuttleTransit = onCall<{
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
   const transitRef = db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`);
+  const transitChainRef = db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${data.shuttleId}`);
   const proposedEventId = `shuttle-retarget-${randomUUID()}`;
   const isSafeRetargetEvent = (value: unknown): boolean => {
     if (!isRecord(value)) return false;
@@ -6932,8 +6952,9 @@ export const retargetShuttleTransit = onCall<{
       !Object.hasOwn(value, 'fleetGroupId') && !Object.hasOwn(value, 'holderUid');
   };
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, transitSnapshot, attackState] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef), tx.get(attackStateRef),
+    const [session, actor, receipt, transitSnapshot, transitChainSnapshot, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef),
+      tx.get(transitChainRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor)) {
@@ -6956,6 +6977,16 @@ export const retargetShuttleTransit = onCall<{
       'shuttle retarget',
     );
     if (replay) {
+      const replayAuthority = transitSnapshot.exists
+        ? parseShuttleTransitAuthority(
+          transitSnapshot.data(), transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+          data.shuttleId,
+        )
+        : null;
+      if (!replayAuthority || replayAuthority.transit.transitRequestId !== data.transitRequestId ||
+          replayAuthority.transit.revision !== replay.revision) {
+        throw commandError('failed-precondition', 'The shuttle retarget chain is unavailable or stale.', 'conflict');
+      }
       if (!eventSnapshot.exists || !isSafeRetargetEvent(eventSnapshot.data())) {
         throw commandError('failed-precondition', 'The shuttle retarget event is unavailable or unsafe.', 'conflict');
       }
@@ -6972,9 +7003,13 @@ export const retargetShuttleTransit = onCall<{
         'invalid-phase',
       );
     }
-    const transit = transitSnapshot.exists
-      ? parseShuttleTransit(transitSnapshot.data(), data.shuttleId)
+    const authority = transitSnapshot.exists
+      ? parseShuttleTransitAuthority(
+        transitSnapshot.data(), transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+        data.shuttleId,
+      )
       : null;
+    const transit = authority?.transit;
     if (!transit || transit.transitRequestId !== data.transitRequestId) {
       throw commandError('failed-precondition', 'The shuttle transit is no longer available.', 'conflict');
     }
@@ -7024,7 +7059,7 @@ export const retargetShuttleTransit = onCall<{
       );
     }
     const reply: ShuttleTransitReply = {
-      ...result,
+      ...toPublicShuttleTransit(result),
       sessionId: data.sessionId,
     };
     const event = buildPrivacySafeEventRecord({
@@ -7045,7 +7080,8 @@ export const retargetShuttleTransit = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.update(sessionRef, { updatedAt: FieldValue.serverTimestamp() });
-    tx.set(transitRef, result);
+    tx.set(transitRef, toPublicShuttleTransit(result));
+    tx.set(transitChainRef, toShuttleTransitChain(result));
     tx.create(eventRef, event);
     tx.create(receiptRef, {
       fingerprint,
@@ -13841,6 +13877,7 @@ type WolfAttackDeclarationInputs = Readonly<{
   parkedShuttleDockings: readonly PublicShuttleDocking[];
   parkingDecisions: readonly WolfAttackParkingDecision[];
   clearedTransitIds: readonly string[];
+  transitChainFingerprint: string;
   shuttleVisitLog: readonly PublicShuttleVisit[];
   targetRing: WolfTargetRing;
 }>;
@@ -13946,6 +13983,7 @@ function validateWolfAttackDeclaration(
   auditProjection: DocumentSnapshot,
   fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
   departures: { readonly docs: readonly DocumentSnapshot[] },
+  transitChains: { readonly docs: readonly DocumentSnapshot[] } | undefined,
   uid: string,
   expectedRevision: number,
   parkedAt: string,
@@ -14033,6 +14071,7 @@ function validateWolfAttackDeclaration(
     activeRoleIds,
     fleetGroups,
     departures,
+    transitChains,
     currentTurn,
     parkedAt,
     requestId,
@@ -14101,6 +14140,7 @@ export const declareWolfAttack = onCall<{
   const fleetGroupsRef = db.collection(`sessions/${declaration.sessionId}/fleetGroups`);
   const playersRef = db.collection(`sessions/${declaration.sessionId}/players`);
   const departuresRef = db.collection(`sessions/${declaration.sessionId}/shuttleDepartures`);
+  const transitChainsRef = db.collection(`sessions/${declaration.sessionId}/shuttleTransitChains`);
   const stateRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current`);
   const auditRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current/audit/${declaration.requestId}`);
   const receiptRef = commandReceiptRef(declaration.sessionId, declaration.requestId);
@@ -14118,10 +14158,10 @@ export const declareWolfAttack = onCall<{
   const [preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
     preflightWindow, preflightNavigation, preflightState, preflightReceipt,
     preflightAudit, preflightEvent, preflightFleetGroups, preflightPlayers,
-    preflightDepartures] = await Promise.all([
+    preflightDepartures, preflightTransitChains] = await Promise.all([
     sessionRef.get(), playerRef.get(), instanceRef.get(), preparationRef.get(),
     windowRef.get(), navigationRef.get(), stateRef.get(), receiptRef.get(), auditRef.get(), eventRef.get(),
-    fleetGroupsRef.get(), playersRef.get(), departuresRef.get(),
+    fleetGroupsRef.get(), playersRef.get(), departuresRef.get(), transitChainsRef.get(),
   ]);
   if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
@@ -14138,7 +14178,7 @@ export const declareWolfAttack = onCall<{
   const preflight = validateWolfAttackDeclaration(
     preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
     preflightWindow, preflightState, preflightEvent, preflightAudit,
-    preflightFleetGroups, preflightDepartures, uid, declaration.expectedRevision,
+    preflightFleetGroups, preflightDepartures, preflightTransitChains, uid, declaration.expectedRevision,
     declaredAt, declaration.requestId,
   );
   const preflightPursuit = wolfAttackPursuitSnapshot(
@@ -14164,11 +14204,11 @@ export const declareWolfAttack = onCall<{
 
   return db.runTransaction(async tx => {
     const [session, player, instance, preparation, window, navigation,
-      state, receipt, audit, event, fleetGroups, players, departures] = await Promise.all([
+      state, receipt, audit, event, fleetGroups, players, departures, transitChains] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(preparationRef),
       tx.get(windowRef), tx.get(navigationRef), tx.get(stateRef), tx.get(receiptRef),
       tx.get(auditRef), tx.get(eventRef), tx.get(fleetGroupsRef), tx.get(playersRef),
-      tx.get(departuresRef),
+      tx.get(departuresRef), tx.get(transitChainsRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
@@ -14180,7 +14220,7 @@ export const declareWolfAttack = onCall<{
     }
     const inputs = validateWolfAttackDeclaration(
       session, player, instance, preparation, window, state, event, audit,
-      fleetGroups, departures, uid, declaration.expectedRevision, declaredAt,
+      fleetGroups, departures, transitChains, uid, declaration.expectedRevision, declaredAt,
       declaration.requestId,
     );
     const pursuit = wolfAttackPursuitSnapshot(session, navigation, fleetGroups, players);
@@ -14191,6 +14231,7 @@ export const declareWolfAttack = onCall<{
         wolfAttackPursuitFingerprint(pursuit) !== wolfAttackPursuitFingerprint(preflightPursuit) ||
         JSON.stringify(inputs.parkingDecisions) !== JSON.stringify(preflight.parkingDecisions) ||
         JSON.stringify(inputs.parkedShuttleDockings) !== JSON.stringify(preflight.parkedShuttleDockings) ||
+        inputs.transitChainFingerprint !== preflight.transitChainFingerprint ||
         JSON.stringify(inputs.targetRing) !== JSON.stringify(preflight.targetRing)) {
       throw commandError(
         'failed-precondition',
@@ -14253,6 +14294,7 @@ export const declareWolfAttack = onCall<{
     });
     for (const shuttleId of inputs.clearedTransitIds) {
       tx.delete(db.doc(`sessions/${declaration.sessionId}/shuttleDepartures/${shuttleId}`));
+      tx.delete(db.doc(`sessions/${declaration.sessionId}/shuttleTransitChains/${shuttleId}`));
     }
     tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
     tx.set(auditRef, {
@@ -18822,6 +18864,7 @@ export const addShipDamage = onCall<{
       if (!destruction) throw new Error('Missing destruction transition.');
       for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
         tx.delete(db.doc(`sessions/${change.sessionId}/shuttleDepartures/${shuttleId}`));
+        tx.delete(db.doc(`sessions/${change.sessionId}/shuttleTransitChains/${shuttleId}`));
       }
       if (destruction.createEvent) tx.set(db.doc(
         `sessions/${change.sessionId}/damageDraws/${destruction.eventId}`,
@@ -21429,6 +21472,7 @@ export const runMaintenance = onCall<{
       );
       for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
         tx.delete(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`));
+        tx.delete(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`));
       }
     }
     const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'

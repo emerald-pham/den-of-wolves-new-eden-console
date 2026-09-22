@@ -39,6 +39,22 @@ export interface ShuttleTransitState extends Omit<ShuttleDepartureRequestState, 
   readonly arrivesAt: string;
 }
 
+/** The only transit fields that may be placed in the member-readable document. */
+export type ShuttleTransitPublicState = Omit<ShuttleTransitState,
+  'originShipId' | 'originDepartedAt' | 'routeLegs' | 'originPosition'>;
+
+/** Server-only integrity history for an in-flight shuttle. */
+export interface ShuttleTransitChainState {
+  readonly status: 'in-transit-chain';
+  readonly shuttleId: string;
+  readonly transitRequestId: string;
+  readonly revision: number;
+  readonly originShipId: string;
+  readonly originDepartedAt: string;
+  readonly originPosition: ShuttleWorldPoint;
+  readonly routeLegs: readonly ShuttleTransitLeg[];
+}
+
 const FLEET_WORLD_POSITIONS: Readonly<Record<string, ShuttleWorldPoint>> = Object.freeze({
   aegis: Object.freeze({ x: 0, y: 0, z: 0 }),
   dione: Object.freeze({ x: -0.32, y: 0.18, z: 0.22 }),
@@ -262,6 +278,128 @@ export function parseShuttleTransit(value: unknown, shuttleId: string): ShuttleT
     routeLegs: parsedRouteLegs,
   } as unknown as ShuttleTransitState;
   return isCanonicalShuttleTransitLeg(transit) ? transit : null;
+}
+
+/** Project a validated server transit into its member-readable current leg. */
+export function toPublicShuttleTransit(transit: ShuttleTransitState): ShuttleTransitPublicState {
+  const publicTransit = { ...transit } as Record<string, unknown>;
+  delete publicTransit.originShipId;
+  delete publicTransit.originDepartedAt;
+  delete publicTransit.routeLegs;
+  delete publicTransit.originPosition;
+  return publicTransit as unknown as ShuttleTransitPublicState;
+}
+
+/** Project the immutable integrity history into its server-only document. */
+export function toShuttleTransitChain(transit: ShuttleTransitState): ShuttleTransitChainState {
+  return {
+    status: 'in-transit-chain',
+    shuttleId: transit.shuttleId,
+    transitRequestId: transit.transitRequestId,
+    revision: transit.revision,
+    originShipId: transit.originShipId,
+    originDepartedAt: transit.originDepartedAt,
+    originPosition: transit.originPosition,
+    routeLegs: transit.routeLegs,
+  };
+}
+
+function isPublicTransitKey(key: string): boolean {
+  return [
+    'status', 'requestId', 'transitRequestId', 'shuttleId', 'holderUid', 'fleetGroupId',
+    'destinationShipId', 'cycle', 'controlRevision', 'requestedAt',
+    'revision', 'currentPosition', 'destinationPosition', 'velocity', 'departedAt', 'arrivesAt',
+  ].includes(key);
+}
+
+/** Parse only the member-readable current-leg projection. */
+export function parseShuttleTransitPublic(value: unknown, shuttleId: string): ShuttleTransitPublicState | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const currentPosition = point(raw.currentPosition);
+  const destinationPosition = point(raw.destinationPosition);
+  const velocity = point(raw.velocity);
+  const revision = raw.revision as number;
+  if (Object.keys(raw).some((key) => !isPublicTransitKey(key)) || raw.status !== 'in-transit' ||
+      raw.shuttleId !== shuttleId || typeof raw.requestId !== 'string' || raw.requestId.length === 0 ||
+      typeof raw.transitRequestId !== 'string' || raw.transitRequestId.length === 0 ||
+      typeof raw.holderUid !== 'string' || raw.holderUid.length === 0 ||
+      typeof raw.fleetGroupId !== 'string' || raw.fleetGroupId.length === 0 ||
+      typeof raw.destinationShipId !== 'string' ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.controlRevision) || (raw.controlRevision as number) < 0 ||
+      !Number.isSafeInteger(revision) || revision < 1 ||
+      typeof raw.requestedAt !== 'string' || !Number.isFinite(Date.parse(raw.requestedAt)) ||
+      typeof raw.departedAt !== 'string' || typeof raw.arrivesAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.departedAt)) || !Number.isFinite(Date.parse(raw.arrivesAt)) ||
+      Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== SHUTTLE_TRANSIT_DURATION_MS ||
+      !currentPosition || !destinationPosition || !velocity) return null;
+  return {
+    ...raw,
+    currentPosition,
+    destinationPosition,
+    velocity,
+  } as unknown as ShuttleTransitPublicState;
+}
+
+/** Parse the private chain and bind it to the exact public current-leg revision. */
+export function parseShuttleTransitChain(
+  value: unknown,
+  transit: ShuttleTransitPublicState,
+): ShuttleTransitChainState | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => ![
+    'status', 'shuttleId', 'transitRequestId', 'revision', 'originShipId',
+    'originDepartedAt', 'originPosition', 'routeLegs',
+  ].includes(key)) || raw.status !== 'in-transit-chain' || raw.shuttleId !== transit.shuttleId ||
+      raw.transitRequestId !== transit.transitRequestId || raw.revision !== transit.revision ||
+      typeof raw.originShipId !== 'string' || typeof raw.originDepartedAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.originDepartedAt))) return null;
+  const originPosition = point(raw.originPosition);
+  if (!originPosition || !Array.isArray(raw.routeLegs)) return null;
+  const routeLegs = raw.routeLegs.map(parseTransitLeg);
+  if (routeLegs.some((leg) => leg === null)) return null;
+  const combined = parseShuttleTransit({
+    ...transit, status: 'in-transit', originShipId: raw.originShipId as string,
+    originDepartedAt: raw.originDepartedAt, originPosition,
+    routeLegs,
+  }, transit.shuttleId);
+  if (!combined) return null;
+  return {
+    status: 'in-transit-chain', shuttleId: transit.shuttleId,
+    transitRequestId: transit.transitRequestId, revision: transit.revision,
+    originShipId: raw.originShipId as string, originDepartedAt: raw.originDepartedAt as string,
+    originPosition, routeLegs: routeLegs as ShuttleTransitLeg[],
+  };
+}
+
+/**
+ * Hydrate server authority from a public current leg and its private chain.
+ * A revision-one legacy public document may establish its chain on the first
+ * authorized mutation; later revisions fail closed when the chain is absent.
+ */
+export function parseShuttleTransitAuthority(
+  publicValue: unknown,
+  chainValue: unknown,
+  shuttleId: string,
+): Readonly<{ transit: ShuttleTransitState; chain: ShuttleTransitChainState; legacyChain: boolean }> | null {
+  const publicTransit = parseShuttleTransitPublic(publicValue, shuttleId);
+  if (publicTransit) {
+    if (chainValue !== undefined && chainValue !== null) {
+      const chain = parseShuttleTransitChain(chainValue, publicTransit);
+      if (!chain) return null;
+      const transit = parseShuttleTransit({ ...publicTransit, ...chain, status: 'in-transit' }, shuttleId);
+      return transit ? { transit, chain, legacyChain: false } : null;
+    }
+    return null;
+  }
+
+  // Prior releases wrote the private fields directly into the member document.
+  // Accept only a revision-one legacy record so it can be migrated atomically.
+  const legacy = parseShuttleTransit(publicValue, shuttleId);
+  if (!legacy || legacy.revision !== 1 || (chainValue !== undefined && chainValue !== null)) return null;
+  return { transit: legacy, chain: toShuttleTransitChain(legacy), legacyChain: true };
 }
 
 export function enterShuttleTransit(input: Readonly<{

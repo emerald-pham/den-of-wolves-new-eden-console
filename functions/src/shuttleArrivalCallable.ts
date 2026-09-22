@@ -16,7 +16,7 @@ import { ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { parseShuttleArrivalVisitLog, completeShuttleArrival as applyShuttleArrival } from './shuttleArrival';
-import { parseShuttleTransit } from './shuttleTransit';
+import { parseShuttleTransitAuthority } from './shuttleTransit';
 import { turnPhaseState } from './turnZero';
 import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 
@@ -165,12 +165,14 @@ export function createCompleteShuttleArrivalCallable() {
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = db.doc(`sessions/${data.sessionId}/shuttleArrivalReceipts/${data.transitRequestId}`);
   const transitRef = db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`);
+  const transitChainRef = db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${data.shuttleId}`);
   const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
   const proposedEventId = `shuttle-arrival-${randomUUID()}`;
 
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, transitSnapshot, attackState] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef), tx.get(attackStateRef),
+    const [session, actor, receipt, transitSnapshot, transitChainSnapshot, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(transitRef),
+      tx.get(transitChainRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const now = Date.now();
@@ -187,6 +189,17 @@ export function createCompleteShuttleArrivalCallable() {
       receipt, fingerprint, data.sessionId, requestId, data.transitRequestId, data.shuttleId, eventId,
     );
     if (replay) {
+      const replayAuthority = transitSnapshot.exists
+        ? parseShuttleTransitAuthority(
+          transitSnapshot.data(), transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+          data.shuttleId,
+        )
+        : null;
+      if ((transitSnapshot.exists || transitChainSnapshot.exists) &&
+          (!replayAuthority || replayAuthority.transit.transitRequestId !== data.transitRequestId ||
+            replayAuthority.transit.revision !== replay.transitRevision)) {
+        throw commandError('failed-precondition', 'The shuttle arrival chain is unavailable or stale.', 'conflict');
+      }
       if (!eventSnapshot.exists || !isSafeArrivalEvent(eventSnapshot.data(), data.sessionId, requestId, data.shuttleId)) {
         throw commandError('failed-precondition', 'The shuttle arrival event is unavailable or unsafe.', 'conflict');
       }
@@ -201,9 +214,13 @@ export function createCompleteShuttleArrivalCallable() {
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError('failed-precondition', 'Shuttle arrival is locked during the unresolved Wolf attack.', 'invalid-phase');
     }
-    const transit = transitSnapshot.exists
-      ? parseShuttleTransit(transitSnapshot.data(), data.shuttleId)
+    const authority = transitSnapshot.exists
+      ? parseShuttleTransitAuthority(
+        transitSnapshot.data(), transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+        data.shuttleId,
+      )
       : null;
+    const transit = authority?.transit;
     if (!transit || transit.transitRequestId !== data.transitRequestId) {
       throw commandError('failed-precondition', 'The shuttle transit is no longer available.', 'conflict');
     }
@@ -301,6 +318,7 @@ export function createCompleteShuttleArrivalCallable() {
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.delete(transitRef);
+    tx.delete(transitChainRef);
     tx.create(eventRef, event);
     tx.create(receiptRef, {
       fingerprint,

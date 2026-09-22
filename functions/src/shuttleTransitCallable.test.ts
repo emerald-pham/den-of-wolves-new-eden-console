@@ -114,7 +114,7 @@ beforeEach(() => {
 it('atomically enters transit, removes only the departing docking, and replays without writes', async () => {
   const first = await beginShuttleTransit.run(request(command));
   expect(first).toMatchObject({
-    status: 'in-transit', shuttleId: 'starlight', originShipId: 'aegis',
+    status: 'in-transit', shuttleId: 'starlight',
     destinationShipId: 'icebreaker', transitRequestId: 'transit-1', revision: 1,
   });
   const session = mock.documents.get('sessions/s1')!;
@@ -124,6 +124,12 @@ it('atomically enters transit, removes only the departing docking, and replays w
   ]);
   const transit = mock.documents.get('sessions/s1/shuttleDepartures/starlight')!;
   expect(Date.parse(transit.arrivesAt as string) - Date.parse(transit.departedAt as string)).toBe(60_000);
+  expect(transit).not.toHaveProperty('routeLegs');
+  expect(transit).not.toHaveProperty('originDepartedAt');
+  expect(transit).not.toHaveProperty('originPosition');
+  expect(mock.documents.get('sessions/s1/shuttleTransitChains/starlight')).toMatchObject({
+    status: 'in-transit-chain', revision: 1, transitRequestId: 'transit-1',
+  });
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   session.phase = 'debrief';
   await expect(beginShuttleTransit.run(request(command))).resolves.toMatchObject({
@@ -147,7 +153,13 @@ it('retargets the active leg from server time, preserves transit identity, and r
     status: 'in-transit', transitRequestId: 'transit-1', destinationShipId: 'dione', revision: 2,
   });
   const transit = mock.documents.get('sessions/s1/shuttleDepartures/starlight')!;
-  expect(transit.originShipId).toBe('aegis');
+  expect(transit).not.toHaveProperty('originShipId');
+  expect(transit).not.toHaveProperty('routeLegs');
+  expect(transit).not.toHaveProperty('originDepartedAt');
+  expect(transit).not.toHaveProperty('originPosition');
+  expect(mock.documents.get('sessions/s1/shuttleTransitChains/starlight')).toMatchObject({
+    status: 'in-transit-chain', revision: 2, transitRequestId: 'transit-1',
+  });
   expect(transit.currentPosition).toEqual(expect.objectContaining({ x: expect.any(Number) }));
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length;
   await expect(retargetShuttleTransit.run(request(retargetCommand))).resolves.toMatchObject({
@@ -159,6 +171,44 @@ it('retargets the active leg from server time, preserves transit identity, and r
   const event = mock.documents.get(eventPath!);
   expect(event).toMatchObject({ type: 'shuttle-retarget', shuttleId: 'starlight' });
   expect(event).not.toHaveProperty('destinationShipId');
+});
+
+it('fails closed when a revisioned transit has no matching private chain', async () => {
+  await beginShuttleTransit.run(request(command));
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['aegis', 'icebreaker', 'dione'];
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis', 'icebreaker', 'dione'];
+  const retargetCommand = {
+    sessionId: 's1', requestId: 'retarget-missing-chain', shuttleId: 'starlight',
+    transitRequestId: 'transit-1', destinationShipId: 'dione',
+    expectedControlRevision: 0, expectedCycle: 2,
+  };
+  mock.documents.get('sessions/s1/shuttleDepartures/starlight')!.revision = 2;
+  mock.documents.delete('sessions/s1/shuttleTransitChains/starlight');
+  await expect(retargetShuttleTransit.run(request(retargetCommand))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).not.toHaveProperty('routeLegs');
+});
+
+it('fails closed when the private chain identity does not match the public transit', async () => {
+  await beginShuttleTransit.run(request(command));
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['aegis', 'icebreaker', 'dione'];
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis', 'icebreaker', 'dione'];
+  const chain = mock.documents.get('sessions/s1/shuttleTransitChains/starlight')!;
+  chain.transitRequestId = 'forged-transit';
+  const retargetCommand = {
+    sessionId: 's1', requestId: 'retarget-mismatched-chain', shuttleId: 'starlight',
+    transitRequestId: 'transit-1', destinationShipId: 'dione',
+    expectedControlRevision: 0, expectedCycle: 2,
+  };
+  await expect(retargetShuttleTransit.run(request(retargetCommand))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).toMatchObject({
+    revision: 1, transitRequestId: 'transit-1',
+  });
 });
 
 it('enters SNN transit during AEGIS-authorized restricted airspace', async () => {
@@ -185,7 +235,7 @@ it('enters SNN transit during AEGIS-authorized restricted airspace', async () =>
     ...command, requestId: 'press-transit', shuttleId: 'snn-press-shuttle',
     expectedDepartureRequestId: 'press-depart',
   }))).resolves.toMatchObject({
-    status: 'in-transit', shuttleId: 'snn-press-shuttle', originShipId: 'aegis',
+    status: 'in-transit', shuttleId: 'snn-press-shuttle',
     destinationShipId: 'icebreaker',
   });
 });

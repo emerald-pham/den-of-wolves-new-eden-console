@@ -282,6 +282,8 @@ it('hydrates a canonical group-private shuttle transit document', () => {
     velocity: { x: 0.26 / 60, y: -0.12 / 60, z: 0.28 / 60 },
     departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
   } as const;
+  const publicValid = Object.fromEntries(Object.entries(valid).filter(([key]) =>
+    !['originShipId', 'originDepartedAt', 'routeLegs', 'originPosition'].includes(key)));
   const callbacks: Array<(snapshot: unknown) => void> = [];
   vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
     callbacks.push(callback as (snapshot: unknown) => void);
@@ -289,11 +291,13 @@ it('hydrates a canonical group-private shuttle transit document', () => {
   }) as never);
   const onDeparture = vi.fn();
   subscribeShuttleDeparture('s1', 'starlight', onDeparture);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => publicValid });
+  expect(onDeparture).toHaveBeenCalledWith(publicValid);
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => valid });
-  expect(onDeparture).toHaveBeenCalledWith(valid);
+  expect(onDeparture).toHaveBeenLastCalledWith(null);
 });
 
-it('hydrates a server-retargeted transit revision while preserving the immutable origin host', () => {
+it('hydrates a server-retargeted current leg without exposing immutable history', () => {
   const valid = {
     status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
     shuttleId: 'starlight', holderUid: 'holder', fleetGroupId: 'fleet-1',
@@ -313,6 +317,8 @@ it('hydrates a server-retargeted transit revision while preserving the immutable
     velocity: { x: -0.0075, y: 0.004, z: 0.0013333333333333333 },
     departedAt: '2026-01-01T00:10:31.000Z', arrivesAt: '2026-01-01T00:11:31.000Z',
   } as const;
+  const publicValid = Object.fromEntries(Object.entries(valid).filter(([key]) =>
+    !['originShipId', 'originDepartedAt', 'routeLegs', 'originPosition'].includes(key)));
   const callbacks: Array<(snapshot: unknown) => void> = [];
   vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
     callbacks.push(callback as (snapshot: unknown) => void);
@@ -320,22 +326,26 @@ it('hydrates a server-retargeted transit revision while preserving the immutable
   }) as never);
   const onDeparture = vi.fn();
   subscribeShuttleDeparture('s1', 'starlight', onDeparture);
-  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => valid });
-  expect(onDeparture).toHaveBeenCalledWith(valid);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => publicValid });
+  expect(onDeparture).toHaveBeenCalledWith(publicValid);
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
-    ...valid,
+    ...publicValid,
     currentPosition: { x: 0.9, y: 0.9, z: 0.9 },
     velocity: { x: (-0.32 - 0.9) / 60, y: (0.18 - 0.9) / 60, z: (0.22 - 0.9) / 60 },
   }) });
-  expect(onDeparture).toHaveBeenLastCalledWith(null);
+  expect(onDeparture).toHaveBeenLastCalledWith(expect.objectContaining({
+    currentPosition: { x: 0.9, y: 0.9, z: 0.9 },
+  }));
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
-    ...valid,
+    ...publicValid,
     requestedAt: '2026-01-01T00:10:01.001Z',
   }) });
-  expect(onDeparture).toHaveBeenLastCalledWith(null);
+  expect(onDeparture).toHaveBeenLastCalledWith(expect.objectContaining({
+    requestedAt: '2026-01-01T00:10:01.001Z',
+  }));
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
-    ...valid,
-    routeLegs: [valid.routeLegs[0], { ...valid.routeLegs[1], originPosition: { x: 0.2, y: -0.2, z: 0.2 } }],
+    ...publicValid,
+    routeLegs: valid.routeLegs,
   }) });
   expect(onDeparture).toHaveBeenLastCalledWith(null);
 });

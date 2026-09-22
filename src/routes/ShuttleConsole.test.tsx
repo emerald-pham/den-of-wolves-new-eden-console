@@ -90,14 +90,9 @@ function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived')
   return {
     status: 'in-transit' as const,
     requestId: 'departure-1', transitRequestId,
-    shuttleId: 'starlight', holderUid, fleetGroupId: 'fleet-1', originShipId: 'aegis',
+    shuttleId: 'starlight', holderUid, fleetGroupId: 'fleet-1',
     destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3,
-    requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
-    originDepartedAt: '2026-01-01T00:10:01.000Z',
-    routeLegs: [{ fromShipId: 'aegis', toShipId: 'icebreaker',
-      originPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
-      departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z' }],
-    originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+    requestedAt: '2026-01-01T00:10:00.000Z', revision: 1, currentPosition: { x: 0, y: 0, z: 0 },
     destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
     velocity: { x: 0.004, y: -0.002, z: 0.004 },
     departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
@@ -1540,14 +1535,9 @@ it('shows authoritative transit without a docking or departure action', () => {
   vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
     onDeparture({
       status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
-      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1',
       destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3,
-      requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
-      originDepartedAt: '2099-01-01T00:10:01.000Z',
-      routeLegs: [{ fromShipId: 'aegis', toShipId: 'icebreaker',
-        originPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
-        departedAt: '2099-01-01T00:10:01.000Z', arrivesAt: '2099-01-01T00:11:01.000Z' }],
-      originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+      requestedAt: '2026-01-01T00:10:00.000Z', revision: 1, currentPosition: { x: 0, y: 0, z: 0 },
       destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
       velocity: { x: 0.004, y: -0.002, z: 0.004 },
       departedAt: '2099-01-01T00:10:01.000Z', arrivesAt: '2099-01-01T00:11:01.000Z',
@@ -1590,13 +1580,8 @@ it('lets the current holder retarget an active shuttle leg without client positi
   vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
     onDeparture({
       status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
-      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1', originShipId: 'aegis',
-      destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3, revision: 1,
-      originDepartedAt: '2099-01-01T00:10:01.000Z',
-      routeLegs: [{ fromShipId: 'aegis', toShipId: 'icebreaker',
-        originPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
-        departedAt: '2099-01-01T00:10:01.000Z', arrivesAt: '2099-01-01T00:11:01.000Z' }],
-      originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1',
+      destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3, revision: 1, currentPosition: { x: 0, y: 0, z: 0 },
       destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
       velocity: { x: 0.004, y: -0.002, z: 0.004 },
       requestedAt: '2026-01-01T00:10:00.000Z',
@@ -1648,7 +1633,6 @@ it.each(['success', 'error'] as const)(
     vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
       onDeparture({
         ...reachedTransit(sessionId === 's2' ? 'u2' : 'u1'),
-        originDepartedAt: '2099-01-01T00:10:01.000Z',
         departedAt: '2099-01-01T00:10:01.000Z',
         arrivesAt: '2099-01-01T00:11:01.000Z',
       });
@@ -1713,14 +1697,9 @@ it('completes a reached transit automatically and exposes the server-confirmed d
   vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
     onDeparture({
       status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-arrived',
-      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      shuttleId: 'starlight', holderUid: 'u1', fleetGroupId: 'fleet-1',
       destinationShipId: 'icebreaker', cycle: 2, controlRevision: 3,
-      requestedAt: '2026-01-01T00:10:00.000Z', revision: 1,
-      originDepartedAt: '2026-01-01T00:10:01.000Z',
-      routeLegs: [{ fromShipId: 'aegis', toShipId: 'icebreaker',
-        originPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
-        departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z' }],
-      originPosition: { x: 0, y: 0, z: 0 }, currentPosition: { x: 0, y: 0, z: 0 },
+      requestedAt: '2026-01-01T00:10:00.000Z', revision: 1, currentPosition: { x: 0, y: 0, z: 0 },
       destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
       velocity: { x: 0.004, y: -0.002, z: 0.004 },
       departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',

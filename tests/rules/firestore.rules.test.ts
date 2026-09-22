@@ -1820,6 +1820,23 @@ describe('shuttle departure privacy', () => {
     await assertSucceeds(getDoc(doc(as('gm1'), path)));
     await assertFails(getDoc(doc(as('foreign'), path)));
   });
+
+  it('keeps immutable transit history server-only', async () => {
+    const path = `${SESSION}/shuttleTransitChains/starlight`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), {
+        status: 'in-transit-chain', shuttleId: 'starlight', transitRequestId: 'transit-1',
+        revision: 2, originShipId: 'aegis', originDepartedAt: '2026-09-21T05:00:00.000Z',
+        originPosition: { x: 0, y: 0, z: 0 }, routeLegs: [],
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertFails(getDoc(doc(as('gm1'), path)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/shuttleTransitChains`)));
+    await assertFails(setDoc(doc(as('alice'), path), { status: 'forged' }));
+    await assertFails(updateDoc(doc(as('gm1'), path), { revision: 99 }));
+    await assertFails(deleteDoc(doc(as('alice'), path)));
+  });
 });
 
 describe('player authority', () => {

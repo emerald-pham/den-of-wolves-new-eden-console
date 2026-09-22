@@ -316,6 +316,8 @@ it('retains holder-owned shuttles and removes their destroyed AEGIS dock atomica
   expect(mock.delete.mock.calls.map(([path]) => path).sort()).toEqual([
     'sessions/s1/shuttleDepartures/pallas',
     'sessions/s1/shuttleDepartures/starlight',
+    'sessions/s1/shuttleTransitChains/pallas',
+    'sessions/s1/shuttleTransitChains/starlight',
   ]);
 });
 

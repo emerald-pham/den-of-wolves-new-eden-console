@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-import { enterShuttleTransit } from './shuttleTransit';
+import { enterShuttleTransit, toPublicShuttleTransit, toShuttleTransitChain } from './shuttleTransit';
 
 type Fields = Record<string, unknown>;
 
@@ -103,6 +103,13 @@ function seedTransit(overdueByMs = 10_000): Fields {
   }).transit;
 }
 
+function seedStoredTransit(overdueByMs = 10_000): Fields {
+  const transit = seedTransit(overdueByMs);
+  put('sessions/s1/shuttleDepartures/starlight', toPublicShuttleTransit(transit));
+  put('sessions/s1/shuttleTransitChains/starlight', toShuttleTransitChain(transit));
+  return transit;
+}
+
 function baseVisitLog(): Fields[] {
   return [
     { id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis', action: 'docked', occurredAt: 'SESSION START' },
@@ -151,7 +158,8 @@ beforeEach(() => {
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['holder', 'owner'],
   });
-  put('sessions/s1/shuttleDepartures/starlight', transit);
+  put('sessions/s1/shuttleDepartures/starlight', toPublicShuttleTransit(transit));
+  put('sessions/s1/shuttleTransitChains/starlight', toShuttleTransitChain(transit));
 });
 
 it('commits docking, history, event, transit deletion, and one replay receipt atomically', async () => {
@@ -168,6 +176,7 @@ it('commits docking, history, event, transit deletion, and one replay receipt at
     expect.objectContaining({ id: 'shuttle-arrival-transit-1-docked', shipId: 'icebreaker', action: 'docked' }),
   ]));
   expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(false);
+  expect(mock.documents.has('sessions/s1/shuttleTransitChains/starlight')).toBe(false);
   const receiptPath = 'sessions/s1/shuttleArrivalReceipts/transit-1';
   const receipt = mock.documents.get(receiptPath)!;
   const eventId = receipt.eventId as string;
@@ -202,14 +211,23 @@ it('rejects a foreign holder and a same-trip command collision without writes', 
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
 });
 
+it('fails closed when the public revision has no private integrity chain', async () => {
+  mock.documents.get('sessions/s1/shuttleDepartures/starlight')!.revision = 2;
+  mock.documents.delete('sessions/s1/shuttleTransitChains/starlight');
+  await expect(completeShuttleArrival.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(true);
+});
+
 it('rejects early arrival, stale holder control, Wolf lock, and extra client authority fields', async () => {
-  mock.documents.set('sessions/s1/shuttleDepartures/starlight', seedTransit(-50_000));
+  seedStoredTransit(-50_000);
   await expect(completeShuttleArrival.run(request({ ...command, requestId: 'client-chosen' })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
   await expect(completeShuttleArrival.run(request()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
 
-  mock.documents.set('sessions/s1/shuttleDepartures/starlight', seedTransit());
+  seedStoredTransit();
   const session = mock.documents.get('sessions/s1')!;
   session.shuttleControl = {
     starlight: {

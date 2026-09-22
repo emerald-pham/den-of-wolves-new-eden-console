@@ -389,6 +389,12 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // The immutable transit integrity chain contains the shuttle's private
+      // travel history. It is read and written only by trusted Functions.
+      match /shuttleTransitChains/{shuttleId} {
+        allow read, write: if false;
+      }
+
       // Commissar consent and purge state is server-only. The per-UID
       // projection exposes only the current captain's own consent or the
       // active Commissar's sanitized ship map; the role check is evaluated
