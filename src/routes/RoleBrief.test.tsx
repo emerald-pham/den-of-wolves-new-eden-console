@@ -45,6 +45,12 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByText('Coordinate the fleet.')).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Role-owned craft' })).toBeVisible();
   expect(screen.getByText('Fighter Wing Alpha')).toBeVisible();
+  expect(screen.getByText('Printed owner')).toBeVisible();
+  expect(screen.getByText('Wing Commander')).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Phase rules' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Combat rules' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Action rules' })).toBeVisible();
+  expect(screen.queryByText(/fighter count|current docking|holder uid/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Common rules' })).toBeVisible();
   await user.click(screen.getByRole('link', { name: /return to role selection/i }));
   expect(screen.getByText('Role selection')).toBeInTheDocument();

@@ -3,6 +3,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
+import { craftHelpFor, type CraftHelp } from '@/data/craftHelp';
 import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
 import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPanel';
 import DecisionAttribution from '@/components/DecisionAttribution';
@@ -13,6 +14,69 @@ const CRAFT_NAMES = new Map([
   ...AEGIS_ROLE_CONSOLES['wing-commander'].craft.map((craft) => [craft.id, craft.name] as const),
   [PDF_ESCORT_FIGHTER_WING.id, PDF_ESCORT_FIGHTER_WING.name],
 ]);
+
+function CraftHelpPanel({ help }: { readonly help: CraftHelp }) {
+  const idPrefix = `craft-help-${help.id}`;
+  return (
+    <article className="role-brief__craft-help" aria-labelledby={`${idPrefix}-title`}>
+      <h3 id={`${idPrefix}-title`}>{help.name}</h3>
+      <dl>
+        <div>
+          <dt>Printed owner</dt>
+          <dd>{help.owner}</dd>
+        </div>
+        {help.fuelRules && (
+          <div>
+            <dt>Fuel rules</dt>
+            <dd>
+              <ul>
+                {help.fuelRules.map((rule) => <li key={rule}>{rule}</li>)}
+              </ul>
+            </dd>
+          </div>
+        )}
+        {help.cargoRule && (
+          <div>
+            <dt>Cargo</dt>
+            <dd>{help.cargoRule}</dd>
+          </div>
+        )}
+      </dl>
+
+      <section aria-labelledby={`${idPrefix}-phases`}>
+        <h4 id={`${idPrefix}-phases`}>Phase rules</h4>
+        <ul>
+          {help.phaseRules.map((phase) => <li key={phase}>{phase}</li>)}
+        </ul>
+      </section>
+
+      {help.combatRules && (
+        <section aria-labelledby={`${idPrefix}-combat`}>
+          <h4 id={`${idPrefix}-combat`}>Combat rules</h4>
+          <ul>
+            {help.combatRules.map((rule) => <li key={rule}>{rule}</li>)}
+          </ul>
+        </section>
+      )}
+
+      {help.missionRules && (
+        <section aria-labelledby={`${idPrefix}-mission`}>
+          <h4 id={`${idPrefix}-mission`}>Mission rules</h4>
+          <ul>
+            {help.missionRules.map((rule) => <li key={rule}>{rule}</li>)}
+          </ul>
+        </section>
+      )}
+
+      <section aria-labelledby={`${idPrefix}-actions`}>
+        <h4 id={`${idPrefix}-actions`}>Action rules</h4>
+        <ul>
+          {help.actionRules.map((rule) => <li key={rule}>{rule}</li>)}
+        </ul>
+      </section>
+    </article>
+  );
+}
 
 /** The authenticated player's role brief and common rules projection. */
 export default function RoleBrief() {
@@ -79,9 +143,14 @@ export default function RoleBrief() {
           <section className="role-brief__rules" aria-labelledby="role-brief-craft-title">
             <h2 id="role-brief-craft-title">Role-owned craft</h2>
             <ul>
-              {brief.ownedCraftIds?.map((craftId) => (
-                <li key={craftId}>{CRAFT_NAMES.get(craftId) ?? craftId}</li>
-              ))}
+              {brief.ownedCraftIds?.map((craftId) => {
+                const help = craftHelpFor(craftId);
+                return (
+                  <li key={craftId}>
+                    {help ? <CraftHelpPanel help={help} /> : CRAFT_NAMES.get(craftId) ?? craftId}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

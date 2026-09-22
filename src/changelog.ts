@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [592],
+    implementationProgress: {
+      completed: 464, total: 751, percentage: '61.78%',
+      done: 464, partial: 13, active: 0, missing: 274,
+    },
+    changes: [
+      'Role Briefs now explain each shuttle or fighter wing assigned to your role, including its owner, phases, combat, missions, cargo, fuel, and actions.',
+      'Craft help stays private to your assignment and leaves live docking, fuel balance, holder, and fighter-count state out.',
+      '464 of 751 planned items are complete (61.78%).',
+    ],
+  },
+  {
+    version: '0.4.97',
     implementationPrompts: [672],
     implementationProgress: {
       completed: 463, total: 751, percentage: '61.65%',

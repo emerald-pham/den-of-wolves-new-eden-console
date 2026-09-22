@@ -4370,6 +4370,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "592 -> CRAFT-HELP",
+      "id": "E-592-CRAFT-HELP",
+      "language": "The private Role Brief now expands each server-derived craft ID through the canonical shuttle and fighter-wing catalogs. It shows only printed owner, fuelled exceptions, cargo, phases, combat, mission, and action rules; unknown IDs receive no invented guidance, and mutable docking, holder, fuel balance, and fighter-count state never enters the help projection. Focused data and Role Brief tests plus real Chrome proof at 390x844, 844x390, and 1440x900 confirm the content, console monospace typography, and viewport containment.",
+      "source": "src/data/craftHelp.ts; src/data/craftHelp.test.ts; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/index.css; scripts/prompt-592-render.mjs; /tmp/p592-render/role-brief-craft-help-390x844.png; /tmp/p592-render/role-brief-craft-help-844x390.png; /tmp/p592-render/role-brief-craft-help-1440x900.png",
+      "type": "evidence / production-path / privacy / accessibility / content"
+    },
+    {
       "direction": "593 -> 541",
       "id": "E-AUDIT-593",
       "language": "Candidate help consumes candidate state.",
@@ -21478,8 +21485,8 @@
         "acceptance": "each shuttle/fighter shows only its printed owner, fuel, cargo, phase, combat, mission, and action rules.",
         "title": "Show craft-specific help."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-592",
+      "description": "Release 0.4.98 adds private craft-specific help to the Role Brief by expanding each server-derived craft ID through the canonical shuttle and fighter-wing catalogs. Each represented craft shows its printed owner plus only the available printed fuel, cargo, phase, combat, mission, and action rules; unknown IDs receive no invented guidance, and mutable docking, holder, fuel balance, and fighter-count state are excluded. Focused craft-data and Role Brief tests, font consistency, and real Chrome proof at 390x844, 844x390, and 1440x900 pass.",
+      "evidenceIds": "E-AUDIT-592;E-592-CRAFT-HELP",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361",
@@ -21487,10 +21494,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.98"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

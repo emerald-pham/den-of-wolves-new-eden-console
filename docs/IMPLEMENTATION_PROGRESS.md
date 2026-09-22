@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**463 / 751 prompts complete (61.65%)**
+**464 / 751 prompts complete (61.78%)**
 
-Status breakdown: **463 done · 13 partial · 275 missing**.
+Status breakdown: **464 done · 13 partial · 274 missing**.
 
 Active prompt: **none**
 
@@ -1063,7 +1063,7 @@ release classification and evidence.
 | 589b | done | non-feature | 0.3.64 | The authenticated-session waiver now solely owns the exact human-first body Be bold. Remember the human on the other side. Existing title, eyebrow, checkboxes, focus handling, review delay, local 24-hour lifetime and session wiring are preserved. Component and session integration tests pass; actual rendered four-viewport checks confirm complete accessible text, 14px monospaced body, 44px checkbox targets, no horizontal overflow and reduced motion. |
 | 590 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 591 | done | non-feature | 0.4.40 | Every active full-ship maintenance console now presents a vessel-specific reference assembled from the same registered schedule that drives its controls: the exact numbered sequence, printed food and water rations, unrest and damage rolls, live reactor capacity, unused-charge expiry, and shuttle-fuel expiry. The compact reference uses the established display and monospace console typography, stacks safely on phone widths, and remains alongside the existing actionable maintenance sequence. |
-| 592 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 592 | done | non-feature | 0.4.98 | Release 0.4.98 adds private craft-specific help to the Role Brief by expanding each server-derived craft ID through the canonical shuttle and fighter-wing catalogs. Each represented craft shows its printed owner plus only the available printed fuel, cargo, phase, combat, mission, and action rules; unknown IDs receive no invented guidance, and mutable docking, holder, fuel balance, and fighter-count state are excluded. Focused craft-data and Role Brief tests, font consistency, and real Chrome proof at 390x844, 844x390, and 1440x900 pass. |
 | 593 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 594 | done | non-feature | 0.4.5, 0.4.41 | All production facilitator adjudication surfaces now visibly identify their decision source, authoritative actor, and server-recorded time. Existing Religious Zealotry, Civil Unrest, durable facilitator rule-call, and selected-player private-call projections retain their established privacy boundaries. Replacement eligibility and assignment callables now return and persist the authenticated facilitator UID with one server-generated ISO timestamp in the committed idempotent result; the GM console renders that metadata, while stale outcomes remain non-decisions and show no attribution. No player projection receives the facilitator UID. |
 | 595 | done | non-feature | — | Settings renders APP_VERSION from the shared version module, which imports package metadata. Existing version and Settings tests verify the displayed release reference without handwritten version constants. Documentation verification only; no runtime change. |

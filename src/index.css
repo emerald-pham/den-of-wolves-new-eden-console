@@ -1052,6 +1052,67 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.role-brief__craft-help {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  margin-top: 0.35rem;
+  padding: 0.8rem;
+  border: 1px solid var(--cic-rule);
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--cic-mono);
+}
+.role-brief__craft-help h3,
+.role-brief__craft-help h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--cic-cyan);
+  font-family: var(--cic-mono);
+}
+.role-brief__craft-help h3 {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.role-brief__craft-help h4 {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.role-brief__craft-help dl,
+.role-brief__craft-help ul {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.role-brief__craft-help dl div,
+.role-brief__craft-help section {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.role-brief__craft-help dt {
+  color: var(--cic-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.role-brief__craft-help dd,
+.role-brief__craft-help li {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--cic-ink);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+.role-brief__craft-help > section {
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--cic-rule);
+}
 .extra-ship-workspace {
   gap: 0.85rem;
   min-width: 0;
