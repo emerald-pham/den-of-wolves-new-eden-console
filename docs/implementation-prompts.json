@@ -1920,6 +1920,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "278 -> SELECTED EXTRA-SHIP CAPTAIN WORKSPACE",
+      "id": "E-278-EXTRA-SHIP-CAPTAIN-WORKSPACES",
+      "language": "Each authenticated Gorgoneion, base small-ship Capybara, Warrior, or Vulcan Captain receives one typed private workspace containing only that vessel's policy, printed procedures, live host and small-ship telemetry, cycle charge state, and truthful control availability. Base Capybara procedures disappear when the session selects the full expansion or disables that vessel. Vulcan retains its existing server-owned Additional Labour controls while the other unconnected actions remain descriptive rather than becoming privileged client mutations. Focused tests prove exact per-vessel action sets, role isolation, base/expansion separation, charge presentation, and no invented controls. Real-browser review covers 320px and 390px phones, short landscape, desktop, and reduced motion with 16px console typography, visible return navigation, no horizontal overflow, and the persistent Cycle 0 ATC ticker. The risk-based font and complete ticker lifecycle browser gates pass.",
+      "source": "src/data/extraShipCaptainWorkspaces.ts; src/data/extraShipCaptainWorkspaces.test.ts; src/components/ExtraShipCaptainWorkspace.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/index.css; authorized routed REFERENCE_ONLY_SHIPS.md; original base v1.1 A4 double-sided component pages 23, 25, 27, and 29 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86) inspected as full-page renders; focused 30-test role/workspace suite; 58-test font consistency gate; typecheck; lint with five existing warnings; responsive browser proof at 320x844, 390x844, 844x390, and 1440x900; complete ticker browser lifecycle gate",
+      "type": "evidence / production-path / private-role-workspace / vessel-isolation / source-verified / responsive / accessibility / font / ticker / regression"
+    },
+    {
       "direction": "279 -> 166;252",
       "id": "E-AUDIT-279",
       "language": "Expansion role workspaces consume role binding and expansion mode.",
@@ -13299,8 +13306,8 @@
         "acceptance": "Gorgoneion, base Capybara, Warrior, and Vulcan Captains receive only their selected vessel's policy and actions.",
         "title": "Build extra-ship Captain workspaces."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-278",
+      "description": "Implemented one source-verified private workspace for each extra-ship Captain. Gorgoneion, base Capybara, Warrior, and Vulcan show only their own vessel policy, procedures, telemetry, cycle charge state, and truthful control availability; base Capybara stays isolated from the full expansion, and Vulcan's existing Additional Labour control remains server-owned.",
+      "evidenceIds": "E-AUDIT-278;E-278-EXTRA-SHIP-CAPTAIN-WORKSPACES",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;234",
@@ -13308,10 +13315,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.84"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

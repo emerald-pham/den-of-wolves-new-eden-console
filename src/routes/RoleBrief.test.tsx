@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -191,9 +191,10 @@ it('states the Warrior Salvage Drones trigger while the damage ledger is unavail
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('heading', { name: 'Salvage Drones' })).toBeVisible();
-  expect(screen.getByText(/after a wolf attack, a charged salvage drones console rolls once/i)).toBeVisible();
-  expect(screen.getByRole('status')).toHaveTextContent(/attack damage tracking and salvage rolls are not available yet/i);
+  const workspace = screen.getByRole('region', { name: 'Warrior Captain workspace' });
+  expect(within(workspace).getByRole('heading', { name: 'Salvage Drones' })).toBeVisible();
+  expect(within(workspace).getByText(/after an attack, when charged, roll once for each damage/i)).toBeVisible();
+  expect(within(workspace).getByText(/attack damage tracking and salvage rolls are not available yet/i)).toBeVisible();
   expect(screen.queryByRole('button', { name: /roll|salvage|award/i })).not.toBeInTheDocument();
 });
 
@@ -246,8 +247,10 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('heading', { name: 'Additional Labour' })).toBeVisible();
-  expect(screen.queryByText(/at each of medium and short range, roll 2 dice/i)).not.toBeInTheDocument();
+  const workspace = screen.getByRole('region', { name: 'Vulcan Captain workspace' });
+  expect(within(workspace).getByRole('heading', { name: 'Additional Labour' })).toBeVisible();
+  expect(within(workspace).getByText(/roll two dice at Medium and Short range/i)).toBeVisible();
+  expect(within(workspace).getByLabelText('Additional Labour procedure')).toHaveTextContent('Charged');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target ship' }), 'dione');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target console' }), 'hydroponics');
   await user.click(screen.getByRole('button', { name: /use additional labour/i }));
@@ -273,4 +276,64 @@ it('keeps Vulcan Additional Labour guidance readable and outcome-focused', () =>
 
   expect(stylesheet).toMatch(/\.vulcan-labour-panel p\s*\{\s*font-size:\s*0\.875rem;/);
   expect(stylesheet).not.toContain('server checks current revisions before writing');
+});
+
+it.each([
+  ['gorgoneion-captain', 'Gorgoneion', 'Mission Support', 'Bulk Haulage'],
+  ['capybara-small-captain', 'Capybara', 'Bulk Haulage', 'Mission Support'],
+  ['warrior-captain', 'Warrior', 'Reclamator', 'Force Field Projector'],
+  ['vulcan-captain', 'Vulcan', 'Laser Cannon', 'Salvage Drones'],
+] as const)('isolates the %s workspace to its selected vessel', (roleId, vesselName, ownAction, foreignAction) => {
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, assignedRoleId: null, replacementRoleId: roleId,
+  });
+  useSessionStore.getState().setRoleBrief({
+    ...useSessionStore.getState().roleBrief!, roleId, roleName: `${vesselName} Captain`, vesselName,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const workspace = screen.getByRole('region', { name: `${vesselName} Captain workspace` });
+  expect(within(workspace).getByRole('heading', { name: ownAction })).toBeVisible();
+  expect(within(workspace).queryByRole('heading', { name: foreignAction })).not.toBeInTheDocument();
+});
+
+it('withholds base Capybara procedures when the session selects the expansion Capybara', () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, expansion: 'capybara', capybaraEnabled: true,
+  });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, assignedRoleId: null, replacementRoleId: 'capybara-small-captain',
+  });
+  useSessionStore.getState().setRoleBrief({
+    ...useSessionStore.getState().roleBrief!, roleId: 'capybara-small-captain', roleName: 'Capybara Captain', vesselName: 'Capybara',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const workspace = screen.getByRole('region', { name: 'Capybara Captain workspace' });
+  expect(within(workspace).getByRole('alert')).toHaveTextContent(/different Capybara mode/i);
+  expect(within(workspace).queryByRole('heading', { name: 'Cargo Transfer' })).not.toBeInTheDocument();
+});
+
+it('keeps extra-ship workspace copy console-styled and readable at phone size', () => {
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+
+  expect(stylesheet).toMatch(/\.extra-ship-workspace\s*\{[^}]*font-family:\s*var\(--cic-mono\)/s);
+  expect(stylesheet).toMatch(/\.extra-ship-workspace__actions p\s*\{[^}]*font-size:\s*1rem/s);
+  expect(stylesheet).toMatch(/grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*10rem\),\s*1fr\)\)/);
 });

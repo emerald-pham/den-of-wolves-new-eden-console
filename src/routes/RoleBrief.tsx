@@ -6,20 +6,7 @@ import { SHUTTLECRAFT } from '@/data/shuttles';
 import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
 import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPanel';
 import DecisionAttribution from '@/components/DecisionAttribution';
-
-function WarriorSalvageDronesStatus() {
-  return (
-    <section className="role-brief__rules role-brief__rules--warrior-salvage" aria-labelledby="warrior-salvage-drones-title">
-      <h2 id="warrior-salvage-drones-title">Salvage Drones</h2>
-      <p>
-        After a Wolf attack, a charged Salvage Drones console rolls once for each point of damage dealt by either side.
-      </p>
-      <p role="status">
-        Attack damage tracking and salvage rolls are not available yet.
-      </p>
-    </section>
-  );
-}
+import ExtraShipCaptainWorkspace from '@/components/ExtraShipCaptainWorkspace';
 
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
@@ -106,7 +93,7 @@ export default function RoleBrief() {
 
         {me.replacementRoleId === 'wolf-commander' && <WolfCommanderTargetingPanel />}
 
-        {me.replacementRoleId === 'warrior-captain' && <WarriorSalvageDronesStatus />}
+        <ExtraShipCaptainWorkspace roleId={brief.roleId} />
 
         {me.replacementRoleId === 'vulcan-captain' && <VulcanAdditionalLabourPanel />}
 

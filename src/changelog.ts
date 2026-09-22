@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [278],
+    implementationProgress: {
+      completed: 447, total: 751, percentage: '59.52%',
+      done: 447, partial: 15, active: 0, missing: 289,
+    },
+    changes: [
+      'Gorgoneion, base Capybara, Warrior, and Vulcan Captains now receive a private workspace containing only their own vessel policy and procedures.',
+      'Live controls appear only where server authority is connected, while unavailable procedures are labeled clearly without exposing another vessel\'s actions.',
+      '447 of 751 planned items are complete (59.52%).',
+    ],
+  },
+  {
+    version: '0.4.83',
     implementationProgress: {
       completed: 434, total: 751, percentage: '57.79%',
       done: 434, partial: 16, active: 0, missing: 301,

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**446 / 751 prompts complete (59.39%)**
+**447 / 751 prompts complete (59.52%)**
 
-Status breakdown: **446 done · 15 partial · 290 missing**.
+Status breakdown: **447 done · 15 partial · 289 missing**.
 
 Active prompt: **none**
 
@@ -719,7 +719,7 @@ release classification and evidence.
 | 275b | done | feature | 0.3.56 | The SNN Dispatch Desk is restored from the last working history baseline. The enabled, uniquely claimed Press Officer can open, author, publish, dismiss, reconnect to, and audit the existing desk and authoritative fleet ticker; ordinary, foreign, disabled, stale, duplicate, revoked, disconnected, reassigned, and replayed actors remain denied. The Turn Zero exception is preserved only for the independent Press desk, while unrelated phase and authority gates remain intact. Chronological route and callable regressions now cover the restoration and replay revocation boundary; 26/26 focused callable cases, related focused route/component/state/broadcast suites, root and Functions builds, lint, and diff checks passed. A local Chrome fixture covered phone, desktop, short-landscape, keyboard focus, and reduced-motion containment; Terra independently cleared the replay authority repair. No live Firebase deployment or counted-roster claim is included. |
 | 276 | done | non-feature | — | Verified the existing Quellon/Refinery Union assignment. Its active engineer sees and can operate only those two maintenance lanes and Wobbly; server authority and shuttle destination checks preserve the pair during allowed movement. This is evidence reconciliation with no runtime behavior change. |
 | 277 | done | non-feature | — | Verified the existing Shepherd/Icebreaker Union assignment. Its active engineer sees and can operate only those two maintenance lanes and Ally; server authority and shuttle destination checks preserve the pair during allowed movement. This is evidence reconciliation with no runtime behavior change. |
-| 278 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 278 | done | non-feature | 0.4.84 | Implemented one source-verified private workspace for each extra-ship Captain. Gorgoneion, base Capybara, Warrior, and Vulcan show only their own vessel policy, procedures, telemetry, cycle charge state, and truthful control availability; base Capybara stays isolated from the full expansion, and Vulcan's existing Additional Labour control remains server-owned. |
 | 279 | done | non-feature | — | Verified the existing expansion Capybara workspaces. The Captain receives Macaw supply and repair/salvage references without Boa access; the Recycler receives Boa recycling/reclamation and Scrap procedures without Macaw access. Server craft ownership and held-console routing preserve this split and keep the other role read-only. This is evidence reconciliation with no runtime behavior change. |
 | 280 | done | non-feature | 0.4.52 | All seven source-defined replacement roles now receive a dedicated console workspace only when the live player projection carries that exact facilitator reassignment and no stale core-console authority. The shared shell exposes identity and station context while deliberately providing no invented action, target, resource, or outcome; mismatched deep links fail closed to the fleet roster. |
 | 281 | done | non-feature | — | One platform-independent immutable graph now supplies all 22 printed systems and 40 undirected edges to both the browser star chart and server coordinate validation. Every adjacency set was checked against the authorized routed source table. Frozen coordinate/edge arrays and returned neighbor lists resist consumer mutation, and unknown or unprinted coordinates have no entry. Existing topology, overlay presentation and coordinate acceptance are unchanged; no new jump authorization or scouting behavior is claimed. |
