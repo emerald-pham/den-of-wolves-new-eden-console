@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => ({
   damage: {} as Record<string, unknown>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
+  missionOpportunityExists: false,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -96,6 +97,7 @@ beforeEach(() => {
   mock.damage = {};
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
+  mock.missionOpportunityExists = false;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -120,6 +122,9 @@ beforeEach(() => {
         data: fields === undefined ? undefined : () => fields,
         get: (key: string) => fields?.[key],
       };
+    }
+    if (path.startsWith('sessions/s1/missionOpportunities/')) {
+      return { exists: mock.missionOpportunityExists, get: () => undefined };
     }
     if (path === 'sessions/s1/fleetGroups') {
       return { docs: mock.fleetGroups.map((group) => ({
@@ -268,6 +273,81 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pursuitGroups: 'delete-field',
   }));
+});
+
+it('creates one group-scoped mission opportunity on first arrival and exposes its stable identity', async () => {
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'mission-first-arrival', destination: '1413',
+  }))).resolves.toMatchObject({
+    destination: '1413',
+    missionOpportunityId: 'arrival-fleet-1-A-1413',
+  });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-1413',
+    expect.objectContaining({
+      type: 'mission-opportunity', status: 'available', sessionId: 's1',
+      id: 'arrival-fleet-1-A-1413', groupId: 'fleet-1', chart: 'A',
+      coordinate: '1413', siteCode: 'A', sourceShipId: 'aegis',
+      sourceTransitionId: 'navigation-mission-first-arrival', sourceCycle: 1,
+    }),
+  );
+});
+
+it('creates the same first-arrival opportunity through an authoritative ship jump', async () => {
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'mission-jump-arrival', destination: '1413',
+  }))).resolves.toMatchObject({
+    status: 'jumped',
+    destination: '1413',
+    missionOpportunityId: 'arrival-fleet-1-A-1413',
+  });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/missionOpportunities/arrival-fleet-1-A-1413',
+    expect.objectContaining({
+      type: 'mission-opportunity', status: 'available', sessionId: 's1',
+      id: 'arrival-fleet-1-A-1413', groupId: 'fleet-1', chart: 'A',
+      coordinate: '1413', siteCode: 'A', sourceShipId: 'aegis',
+      sourceTransitionId: 'jump-mission-jump-arrival', sourceCycle: 1,
+    }),
+  );
+});
+
+it('does not create another opportunity for a system already reached by the group', async () => {
+  mock.systemHistory = {
+    dione: {
+      '1413': {
+        coordinate: '1413',
+        discovery: { id: 'navigation-prior-0', occurredAt: '2026-09-21T00:00:00.000Z' },
+        attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+      },
+    },
+  };
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'mission-repeat-arrival', destination: '1413',
+  }))).resolves.not.toHaveProperty('missionOpportunityId');
+  expect(mock.set.mock.calls.some(([path]) =>
+    String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('does not reopen a previously created opportunity when legacy history is incomplete', async () => {
+  mock.missionOpportunityExists = true;
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'mission-existing-opportunity', destination: '1413',
+  }))).resolves.not.toHaveProperty('missionOpportunityId');
+  expect(mock.set.mock.calls.some(([path]) =>
+    String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('does not create away-mission opportunities at New Eden candidates', async () => {
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'candidate-arrival', destination: '6798',
+  }))).resolves.not.toHaveProperty('missionOpportunityId');
+  expect(mock.set.mock.calls.some(([path]) =>
+    String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
 });
 
 it('atomically schedules group-local L arrival pressure with the printed attack minimums', async () => {

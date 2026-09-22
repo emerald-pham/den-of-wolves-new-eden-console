@@ -195,6 +195,11 @@ import {
   wolfArrivalPressureBlocksMissions,
   wolfArrivalPressureForMovement,
 } from './arrivalPressure';
+import {
+  firstArrivalMissionOpportunity,
+  missionOpportunityDocumentPath,
+  type MissionOpportunityEligibility,
+} from './missionEligibility';
 import { expireTurnScopedResources } from './turnTransition';
 import {
   DEFAULT_ACTIVE_ROLE_IDS,
@@ -1414,15 +1419,7 @@ async function writeWolfArrivalPressureForMovement(
   cycle: number,
   sourceTransitionId: string,
 ): Promise<void> {
-  const matchingGroups = groups.filter((group) => group.vesselIds.includes(shipId));
-  if (matchingGroups.length !== 1) {
-    throw commandError(
-      'failed-precondition',
-      'The moving ship must belong to exactly one fleet group before arrival pressure can resolve.',
-      'malformed-input',
-    );
-  }
-  const group = matchingGroups[0]!;
+  const group = movementFleetGroup(groups, shipId);
   const stateRef = wolfArrivalPressureStateRef(sessionId, group.id);
   const stored = await tx.get(stateRef);
   const current = stored.exists ? parseWolfArrivalPressureState(stored.data(), chart) : undefined;
@@ -1475,6 +1472,69 @@ async function writeWolfArrivalPressureForMovement(
       createdAt: FieldValue.serverTimestamp(),
     });
   }
+}
+
+function movementFleetGroup(
+  groups: readonly FleetGroupRecord[],
+  shipId: string,
+): FleetGroupRecord {
+  const matchingGroups = groups.filter((group) => group.vesselIds.includes(shipId));
+  if (matchingGroups.length !== 1) {
+    throw commandError(
+      'failed-precondition',
+      'The moving ship must belong to exactly one fleet group before arrival effects can resolve.',
+      'malformed-input',
+    );
+  }
+  return matchingGroups[0]!;
+}
+
+async function missionOpportunityForMovement(
+  tx: Transaction,
+  sessionId: string,
+  groups: readonly FleetGroupRecord[],
+  navigationBeforeMove: NavigationState,
+  shipId: string,
+  destination: string,
+  chart: 'A' | 'B' | 'C',
+  cycle: number,
+  sourceTransitionId: string,
+): Promise<MissionOpportunityEligibility | undefined> {
+  let opportunity: MissionOpportunityEligibility | undefined;
+  try {
+    opportunity = firstArrivalMissionOpportunity({
+      chart,
+      group: movementFleetGroup(groups, shipId),
+      coordinates: navigationBeforeMove.shipGalacticCoordinates,
+      systemHistory: navigationBeforeMove.systemHistory,
+      movedShipId: shipId,
+      destination,
+      sourceTransitionId,
+      cycle,
+    });
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Mission arrival eligibility could not resolve.',
+      'malformed-input',
+    );
+  }
+  if (!opportunity) return undefined;
+  const stored = await tx.get(db.doc(missionOpportunityDocumentPath(sessionId, opportunity.id)));
+  return stored.exists ? undefined : opportunity;
+}
+
+function writeMissionOpportunity(
+  tx: Transaction,
+  sessionId: string,
+  opportunity: MissionOpportunityEligibility | undefined,
+): void {
+  if (!opportunity) return;
+  tx.set(db.doc(missionOpportunityDocumentPath(sessionId, opportunity.id)), {
+    ...opportunity,
+    sessionId,
+    createdAt: FieldValue.serverTimestamp(),
+  });
 }
 
 async function readTurnPursuitAuthority(
@@ -11984,6 +12044,20 @@ export const moveShipToLocation = onCall<{
     }
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+    const chart = session.get('chartId') === 'B' || session.get('chartId') === 'C'
+      ? session.get('chartId') as 'B' | 'C' : 'A';
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const missionOpportunity = await missionOpportunityForMovement(
+      tx,
+      change.sessionId,
+      pursuitFleetGroups,
+      currentNavigation,
+      change.shipId,
+      move.destination,
+      chart,
+      cycle,
+      eventIdPrefix,
+    );
     const movedNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
@@ -11995,7 +12069,7 @@ export const moveShipToLocation = onCall<{
       pursuitFleetGroups,
       change.shipId,
       move.destination,
-      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      chart,
     );
     await writeWolfArrivalPressureForMovement(
       tx,
@@ -12004,10 +12078,11 @@ export const moveShipToLocation = onCall<{
       nextNavigation,
       change.shipId,
       move.destination,
-      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
-      sessionTurn(session.get('currentTurn')),
+      chart,
+      cycle,
       eventIdPrefix,
     );
+    writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
     const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision: nextRevision,
@@ -12023,7 +12098,7 @@ export const moveShipToLocation = onCall<{
       Array.isArray(players?.docs) ? players.docs : [player],
       nextNavigation,
       nextRevision,
-      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      chart,
       pursuitFleetGroups,
     );
     tx.update(sessionRef, {
@@ -12038,6 +12113,7 @@ export const moveShipToLocation = onCall<{
       origin: move.origin,
       destination: move.destination,
       stardate: move.stardate,
+      ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
       ...vesselActionEnvelope(session, player, uid, change.shipId, nextRevision,
         identity.requestId, 'move-ship'),
     };
@@ -12214,6 +12290,19 @@ export const jumpShip = onCall<{
     });
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+    const chart = session.get('chartId') === 'B' || session.get('chartId') === 'C'
+      ? session.get('chartId') as 'B' | 'C' : 'A';
+    const missionOpportunity = await missionOpportunityForMovement(
+      tx,
+      change.sessionId,
+      pursuitFleetGroups,
+      currentNavigation,
+      change.shipId,
+      move.destination,
+      chart,
+      currentTurn,
+      transitionId,
+    );
     const nextCycle = {
       ...currentCycle,
       charges: charges.filter((charge) => charge !== 'jump-drive'),
@@ -12236,7 +12325,7 @@ export const jumpShip = onCall<{
       pursuitFleetGroups,
       change.shipId,
       move.destination,
-      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      chart,
     );
     await writeWolfArrivalPressureForMovement(
       tx,
@@ -12245,10 +12334,11 @@ export const jumpShip = onCall<{
       nextNavigation,
       change.shipId,
       move.destination,
-      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      chart,
       currentTurn,
       transitionId,
     );
+    writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision,
       updatedAt: FieldValue.serverTimestamp(),
@@ -12263,7 +12353,7 @@ export const jumpShip = onCall<{
       Array.isArray(players?.docs) ? players.docs : [player],
       nextNavigation,
       revision,
-      session.get('chartId') === 'B' || session.get('chartId') === 'C' ? session.get('chartId') : 'A',
+      chart,
       pursuitFleetGroups,
     );
     tx.update(sessionRef, {
@@ -12280,6 +12370,7 @@ export const jumpShip = onCall<{
     const reply = {
       ...result,
       shipId: change.shipId,
+      ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
       ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
         identity.requestId, 'jump-ship'),
     };

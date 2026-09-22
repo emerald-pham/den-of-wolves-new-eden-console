@@ -5357,6 +5357,13 @@
       "type": "evidence / production-path / server-authority / mission-lock / split-fleet / malformed-state / regression"
     },
     {
+      "direction": "315 -> FIRST-ARRIVAL MISSION OPPORTUNITY",
+      "id": "E-315-FIRST-ARRIVAL",
+      "language": "Every successful facilitator relocation or shipboard jump now resolves the destination against the session's locked organiser chart and creates one deterministic server-authored mission opportunity when that fleet group first reaches a printed mission system A-M. Current group positions, persisted per-ship discovery history, and an existing durable opportunity all suppress repeats without consuming or reopening another opportunity, while a different fleet group retains its own first-arrival eligibility at the same coordinate. Origin and New Eden candidate systems do not create mission opportunities. The opportunity is committed atomically with navigation, exposed to the caller by stable identity, readable only by the facilitator, and denied to every client write.",
+      "source": "functions/src/missionEligibility.ts; functions/src/missionEligibility.test.ts; functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/systemHistory.ts; functions/src/starChartLookup.ts; functions/src/missionCards.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence / production-path / server-authority / first-arrival / split-fleet / persistence / privacy / regression"
+    },
+    {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
       "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
@@ -14236,8 +14243,8 @@
         "acceptance": "a newly reached mission system produces one opportunity for the arriving group.",
         "title": "Create first-arrival mission eligibility."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-315",
+      "description": "Release 0.4.86 creates one deterministic mission opportunity when a fleet group first reaches a printed mission system A-M on the session's locked chart. Existing group positions, durable discovery history, and the persisted opportunity suppress repeats or reopening, separate fleet groups remain independently eligible at the same coordinate, and origin or New Eden candidate systems never create away-mission opportunities. The server commits the facilitator-only opportunity atomically with movement and denies all client writes.",
+      "evidenceIds": "E-AUDIT-315;E-315-FIRST-ARRIVAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "283;313",
@@ -14245,10 +14252,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.86"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

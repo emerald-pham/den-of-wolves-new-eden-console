@@ -1592,6 +1592,33 @@ describe('Wolf homing beacon pressure schedules', () => {
   });
 });
 
+describe('first-arrival mission opportunities', () => {
+  it('allows facilitator audit and denies every lower audience and client write', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/missionOpportunities/arrival-fleet-1-A-1413`), {
+        type: 'mission-opportunity', status: 'available', sessionId: 's1',
+        id: 'arrival-fleet-1-A-1413', groupId: 'fleet-1', chart: 'A',
+        coordinate: '1413', siteCode: 'A', sourceShipId: 'aegis',
+        sourceTransitionId: 'navigation-mission-first-arrival', sourceCycle: 1,
+      });
+    });
+
+    const path = `${SESSION}/missionOpportunities/arrival-fleet-1-A-1413`;
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/missionOpportunities`)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), path)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/missionOpportunities`)));
+    }
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+    }
+  });
+});
+
 describe('private Wolf suspicion history', () => {
   it('allows facilitators to audit history and denies every lower audience and client write', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

@@ -714,6 +714,15 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // First arrival at a printed mission system creates one immutable,
+      // server-authored opportunity for the arriving fleet group. Its chart,
+      // location, and group eligibility remain facilitator-only until the
+      // mission flow publishes a separate player-safe projection.
+      match /missionOpportunities/{opportunityId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // Only the separately authored player report is member-readable.
       match /crisisReports/{reportId} {
         allow get: if reportId == 'current' && isMember(sessionId);

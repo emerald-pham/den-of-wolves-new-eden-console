@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [315],
+    implementationProgress: {
+      completed: 452, total: 751, percentage: '60.19%',
+      done: 452, partial: 13, active: 0, missing: 286,
+    },
+    changes: [
+      'The first time a fleet group reaches a mission system, the facilitator now receives one mission opportunity for that group.',
+      'Split fleet groups can each discover the same mission system once, while returning to a system no longer creates a duplicate opportunity.',
+      '452 of 751 planned items are complete (60.19%).',
+    ],
+  },
+  {
+    version: '0.4.85',
     implementationPrompts: [312],
     implementationProgress: {
       completed: 450, total: 751, percentage: '59.92%',
