@@ -37,6 +37,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
     'shuttleId', 'sourceShipId', 'destinationShipId', 'amount',
     'sourcePopulation', 'destinationPopulation', 'movedThisCycle',
   ],
+  'shuttle-arrival': ['shuttleId'],
   'service-shuttle-recharge': ['shuttleId', 'hostShipId', 'consoleId', 'immediate', 'message'],
   'blacksmith-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
@@ -62,6 +63,13 @@ const MEMBER_ENVELOPE_FIELDS = [
   'visibility',
   'createdAt',
 ] as const;
+
+// Arrival events tell members that a shuttle completed its trip without
+// exposing the holder identity or the private transit route.
+const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>> = {
+  'shuttle-arrival': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+};
 
 type EventRecord = object;
 
@@ -97,7 +105,7 @@ export function buildPrivacySafeEventRecord(input: PrivacySafeEventInput): Recor
   const payload = input.payload ?? {};
   const fields = MEMBER_EVENT_FIELDS[input.type] ?? [];
   return {
-    ...pick(envelope, MEMBER_ENVELOPE_FIELDS),
+    ...pick(envelope, MEMBER_ENVELOPE_FIELDS_BY_TYPE[input.type] ?? MEMBER_ENVELOPE_FIELDS),
     ...pick(payload, fields),
   };
 }

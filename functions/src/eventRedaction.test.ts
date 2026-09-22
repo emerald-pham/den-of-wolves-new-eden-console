@@ -51,6 +51,27 @@ describe('buildPrivacySafeEventRecord', () => {
     expect(event).not.toHaveProperty('expectedEvacuationRevision');
     expect(event).not.toHaveProperty('fingerprint');
   });
+
+  it('publishes a shuttle arrival without the holder identity or transit route', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'shuttle-arrival',
+      envelope: {
+        sessionId: 's1', actorUid: 'holder-secret', actorRoleId: 'wing-commander',
+        requestId: 'shuttle-arrival-trip-1', turn: 2, phase: 'active', revision: 2,
+        serverTime: '2026-09-22T12:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        shuttleId: 'starlight', holderUid: 'holder-secret', fleetGroupId: 'fleet-1',
+        originShipId: 'aegis', destinationShipId: 'icebreaker', route: ['aegis', 'icebreaker'],
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', requestId: 'shuttle-arrival-trip-1', turn: 2, phase: 'active',
+      revision: 2, serverTime: '2026-09-22T12:00:00.000Z',
+      visibility: EventVisibility.Member, type: 'shuttle-arrival',
+      createdAt: 'server-time', shuttleId: 'starlight',
+    });
+  });
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',
