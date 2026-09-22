@@ -21,6 +21,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 434, total: 751, percentage: '57.79%',
+      done: 434, partial: 16, active: 0, missing: 301,
+    },
+    changes: [
+      'Blacksmith console repair now connects reliably from player browsers after deployment.',
+      '434 of 751 planned items are complete (57.79%).',
+    ],
+  },
+  {
+    version: '0.4.82',
     implementationPrompts: ['203a', 382],
     implementationProgress: {
       completed: 434, total: 751, percentage: '57.79%',

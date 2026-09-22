@@ -5,6 +5,7 @@ const execFileAsync = promisify(execFile);
 export const PUBLIC_FUNCTIONS = Object.freeze([
   'triggerDradisContact',
   'startSinglePlayerDemo',
+  'repairConsolesFromBlacksmith',
 ]);
 // Gen 2 IAM is backed by Cloud Run; only its Cloud Run invoker role proves the
 // deployed callable is publicly reachable.

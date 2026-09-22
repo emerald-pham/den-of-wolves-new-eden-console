@@ -216,6 +216,22 @@ jobs:
             --role="roles/run.invoker" \
             --quiet
 
+      - name: Restore browser access to Blacksmith console repair
+        if: contains(needs.determine-targets.outputs.targets, 'functions')
+        run: |
+          service="$(gcloud functions describe repairConsolesFromBlacksmith \
+            --v2 \
+            --project="${{ vars.FIREBASE_PROJECT_ID }}" \
+            --region="us-central1" \
+            --format='value(serviceConfig.service)')"
+          test -n "$service" || { echo 'Unable to resolve repairConsolesFromBlacksmith Cloud Run service.'; exit 1; }
+          gcloud run services add-iam-policy-binding "$service" \
+            --project="${{ vars.FIREBASE_PROJECT_ID }}" \
+            --region="us-central1" \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --quiet
+
       - name: Verify deployed surfaces
         env:
           DEPLOY_TARGETS: ${{ needs.determine-targets.outputs.targets }}

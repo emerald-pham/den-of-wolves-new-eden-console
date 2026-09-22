@@ -152,6 +152,13 @@ it('verifies Hosting and public Functions through injected production adapters',
               service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
             },
           },
+          {
+            name: 'repairConsolesFromBlacksmith',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
+            },
+          },
         ]);
       }
       if (args[0] === 'firestore') {
@@ -176,6 +183,10 @@ it('verifies Hosting and public Functions through injected production adapters',
     expect.arrayContaining([
       'run', 'services', 'get-iam-policy',
       'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
     ]),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
@@ -240,6 +251,13 @@ it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access'
               service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
             },
           },
+          {
+            name: 'repairConsolesFromBlacksmith',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
+            },
+          },
         ]);
       }
       return JSON.stringify({
@@ -258,6 +276,10 @@ it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access'
     expect.arrayContaining([
       'run', 'services', 'get-iam-policy',
       'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
     ]),
   ]));
   expect(commands).not.toEqual(expect.arrayContaining([

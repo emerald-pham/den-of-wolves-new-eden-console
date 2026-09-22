@@ -1,4 +1,8 @@
-export const PUBLIC_FUNCTIONS: readonly ['triggerDradisContact', 'startSinglePlayerDemo'];
+export const PUBLIC_FUNCTIONS: readonly [
+  'triggerDradisContact',
+  'startSinglePlayerDemo',
+  'repairConsolesFromBlacksmith',
+];
 export const PUBLIC_INVOKER_ROLES: readonly ['roles/run.invoker'];
 
 export interface DeploymentVerificationResult {

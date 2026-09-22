@@ -5,12 +5,13 @@ import { resolve } from 'node:path';
 import { expect, it } from 'vitest';
 import { verifyFunctionsArtifact } from '../../scripts/verify-functions-artifact.mjs';
 
-it('restores public transport access for the browser-callable DRADIS trigger after deploys', () => {
+it('restores public transport access for required browser callables after deploys', () => {
   const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
 
   expect(workflow).toContain('google-github-actions/setup-gcloud@v3');
   expect(workflow).toContain('gcloud run services add-iam-policy-binding "$service"');
   expect(workflow).toMatch(/gcloud functions describe triggerDradisContact \\\n\s+--v2/);
+  expect(workflow).toContain('gcloud functions describe repairConsolesFromBlacksmith');
   expect(workflow).toContain("--format='value(serviceConfig.service)'");
   expect(workflow).toContain('--role="roles/run.invoker"');
   expect(workflow).toContain('--member="allUsers"');
