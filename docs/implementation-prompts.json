@@ -5922,6 +5922,13 @@
       "language": "Each fleet Captain reaches the shared production workspace only through the exact assigned-role and seat binding. The workspace exposes live ship systems and stores, the vessel survivor census, ship-policy guidance, and fleet-diplomacy guidance; ship-specific production systems keep resource, food, water, and fuel bargaining visible. Player-bound routes remain writable without GM observer controls, while Prompt 166 rejects route or payload impersonation.",
       "source": "src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/components/FleetConsoleWorkspace.tsx; src/components/FleetSystemsWorkspace.tsx; src/data/roleProcedures.ts; src/data/vessels/; functions/src/consoleRolePolicy.ts; functions/src/sessionLifecycleCallable.test.ts",
       "type": "evidence / production-path / role-bound / survivor-census / diplomacy / no-impersonation / regression"
+    },
+    {
+      "direction": "213 -> 211",
+      "id": "E-213-ECM-DEVICE",
+      "language": "The completed canonical ECM research track unlocks one revision-bound activation. The server transition derives the owning group from Shepherd fleet membership, validates exact group-local pursuit authority, subtracts three from only that group with a zero floor, and rejects incomplete research, stale state, repeated activation, ambiguous ownership, or malformed pursuit data.",
+      "source": "functions/src/endeavourEcmDevice.ts; functions/src/endeavourEcmDevice.test.ts; functions/src/endeavourResearch.ts; focused 5-test ECM device suite; Functions TypeScript build",
+      "type": "evidence / server-authority / research-device / pursuit / fleet-group / one-shot / regression"
     }
   ],
   "plan": {
@@ -11396,8 +11403,8 @@
         "acceptance": "the completed device reduces the owning group’s pursuit by three exactly once per allowed use.",
         "title": "Build and use the ECM Device."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-213",
+      "description": "The server-owned ECM Device transition requires the canonical five-box research track to be complete, derives ownership from the one fleet group containing Shepherd, and validates the complete private pursuit authority before use. Activation subtracts the fixed printed value of three from only that group, bounded at zero, preserves every other group, and moves the device through a revision-bound one-shot state so stale or repeated use cannot apply the effect twice. Focused domain tests cover exact reduction, low-value bounds, ownership isolation, incomplete research, stale and repeated requests, and malformed authority.",
+      "evidenceIds": "E-AUDIT-213;E-213-ECM-DEVICE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "211",
@@ -11408,7 +11415,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
