@@ -21,6 +21,7 @@ import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/
 import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
 import { SERVICE_SHUTTLE_IDS, serviceRechargeConsoleOptions } from '@/data/serviceShuttleRecharge';
 import { repairConsolesFromBlacksmith } from '@/lib/blacksmithRepairService';
+import './ShuttleControl.css';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
@@ -503,15 +504,15 @@ export default function ShuttleControl({ control }: Props) {
     <p>Current holder // {holder?.displayName ?? (control.holderUid === me.uid ? me.displayName : 'Connected player')}</p>
     {canTransfer && <>
       <label htmlFor={`shuttle-recipient-${control.shuttleId}`}>Hand off to</label>
-      <select id={`shuttle-recipient-${control.shuttleId}`} value={targetUid}
+      <select className="shuttle-control__touch-target" id={`shuttle-recipient-${control.shuttleId}`} value={targetUid}
         disabled={busy} onChange={(event) => setTargetUid(event.target.value)}>
         <option value="">Choose connected player</option>
         {targets.map((player) => <option value={player.uid} key={player.uid}>{player.displayName}</option>)}
       </select>
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button" disabled={busy || !targetUid}
+        <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !targetUid}
           onClick={() => void submit('handoff')}>Hand off control</button>
-        {control.holderUid !== control.ownerUid && <button className="cic-action-button" type="button" disabled={busy}
+        {control.holderUid !== control.ownerUid && <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
           onClick={() => void submit('reclaim')}>Reclaim control</button>}
       </div>
     </>}
@@ -524,7 +525,7 @@ export default function ShuttleControl({ control }: Props) {
           {' '}Arrival will be completed when the shuttle reaches the ship.
         </p>
         <label htmlFor={`shuttle-retarget-destination-${control.shuttleId}`}>New destination ship</label>
-        <select id={`shuttle-retarget-destination-${control.shuttleId}`} value={destinationShipId}
+        <select className="shuttle-control__touch-target" id={`shuttle-retarget-destination-${control.shuttleId}`} value={destinationShipId}
           disabled={busy || !departureWindowOpen}
           onChange={(event) => setDestinationShipId(event.target.value)}>
           <option value="">Keep current course</option>
@@ -533,7 +534,7 @@ export default function ShuttleControl({ control }: Props) {
           </option>)}
         </select>
         <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button"
+          <button className="cic-action-button shuttle-control__touch-target" type="button"
             disabled={busy || !departureWindowOpen || !destinationShipId}
             onClick={() => void submitRetarget()}>Retarget shuttle</button>
         </div>
@@ -541,7 +542,7 @@ export default function ShuttleControl({ control }: Props) {
           ? 'Course changes open when airspace is open or AEGIS grants Press access.'
           : 'Course changes open when airspace is open.'}</p>}
         {arrivalReady && !arrivalComplete && <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button" disabled={busy}
+          <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
             onClick={() => void submitArrival()}>
             {arrivalAttempted ? 'Retry arrival' : 'Complete arrival'}
           </button>
@@ -552,7 +553,7 @@ export default function ShuttleControl({ control }: Props) {
           ready to begin transit.
         </p>
         <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button" disabled={busy || !departureWindowOpen}
+          <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !departureWindowOpen}
             onClick={() => void submitTransit()}>Begin transit</button>
         </div>
         {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
@@ -560,7 +561,7 @@ export default function ShuttleControl({ control }: Props) {
           : 'Transit may begin when airspace is open.'}</p>}
       </> : <>
         <label htmlFor={`shuttle-destination-${control.shuttleId}`}>Destination ship</label>
-        <select id={`shuttle-destination-${control.shuttleId}`} value={destinationShipId}
+        <select className="shuttle-control__touch-target" id={`shuttle-destination-${control.shuttleId}`} value={destinationShipId}
           disabled={busy || !departureWindowOpen}
           onChange={(event) => setDestinationShipId(event.target.value)}>
           <option value="">Choose local ship</option>
@@ -569,7 +570,7 @@ export default function ShuttleControl({ control }: Props) {
           </option>)}
         </select>
         <div className="console-workspace__actions">
-          <button className="cic-action-button" type="button" disabled={busy || !departureWindowOpen || !destinationShipId}
+          <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !departureWindowOpen || !destinationShipId}
             onClick={() => void submitDeparture()}>Request departure</button>
         </div>
         {!departureWindowOpen && <p>{control.shuttleId === 'snn-press-shuttle'
@@ -582,7 +583,7 @@ export default function ShuttleControl({ control }: Props) {
       <h4>Transfer cargo</h4>
       <p>Docked at {findShip(docking.shipId)?.name ?? docking.shipId}.</p>
       <label htmlFor={`shuttle-cargo-resource-${control.shuttleId}`}>Resource</label>
-      <select id={`shuttle-cargo-resource-${control.shuttleId}`} value={cargoResourceId}
+      <select className="shuttle-control__touch-target" id={`shuttle-cargo-resource-${control.shuttleId}`} value={cargoResourceId}
         disabled={busy} onChange={(event) => setCargoResourceId(event.target.value as ResourceId)}>
         <option value="">Choose permitted cargo</option>
         {cargoTypes.map((resourceId) => <option value={resourceId} key={resourceId}>
@@ -590,7 +591,7 @@ export default function ShuttleControl({ control }: Props) {
         </option>)}
       </select>
       <label htmlFor={`shuttle-cargo-amount-${control.shuttleId}`}>Amount</label>
-      <input id={`shuttle-cargo-amount-${control.shuttleId}`} type="number" min="1" step="1"
+      <input className="shuttle-control__touch-target" id={`shuttle-cargo-amount-${control.shuttleId}`} type="number" min="1" step="1"
         value={cargoAmount} disabled={busy}
         onChange={(event) => setCargoAmount(Number(event.target.value))} />
       {cargoResourceId && <p>
@@ -598,9 +599,9 @@ export default function ShuttleControl({ control }: Props) {
         {' // '}Shuttle // {session.shuttleCargo?.[control.shuttleId]?.[cargoResourceId] ?? 0}
       </p>}
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
+        <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('load')}>Load shuttle</button>
-        <button className="cic-action-button" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
+        <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
       </div>
     </section>}
@@ -616,7 +617,7 @@ export default function ShuttleControl({ control }: Props) {
         Recharged {rechargeEntry.consoleId} on {findShip(rechargeEntry.hostShipId)?.name ?? rechargeEntry.hostShipId} this cycle.
       </p>}
       <label htmlFor={`service-recharge-console-${control.shuttleId}`}>Host console</label>
-      <select id={`service-recharge-console-${control.shuttleId}`} value={rechargeConsoleId}
+      <select className="shuttle-control__touch-target" id={`service-recharge-console-${control.shuttleId}`} value={rechargeConsoleId}
         disabled={busy || !session.shuttleFuelled?.[control.shuttleId] ||
           !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || rechargeOptions.length === 0}
         onChange={(event) => {
@@ -632,14 +633,14 @@ export default function ShuttleControl({ control }: Props) {
       </p>}
       {selectedRechargeOption?.capybaraScrapChoice && rechargeConsoleId === 'scrap-refinery' && <label>
         Scrap Refinery outcome
-        <select aria-label="Service recharge Scrap Refinery outcome"
+        <select className="shuttle-control__touch-target" aria-label="Service recharge Scrap Refinery outcome"
           value={rechargeProductionScrap ? 'convert' : 'generate'}
           onChange={(event) => setRechargeProductionScrap(event.target.value === 'convert')}>
           <option value="generate">Generate 1 Scrap</option>
           <option value="convert">Spend 1 Scrap for 3 materials</option>
         </select>
       </label>}
-      {selectedRechargeOption?.capybaraScrapChoice && rechargeConsoleId !== 'scrap-refinery' && <label>
+      {selectedRechargeOption?.capybaraScrapChoice && rechargeConsoleId !== 'scrap-refinery' && <label className="shuttle-control__check-target">
         <input type="checkbox" aria-label={`Spend 1 Scrap on ${selectedRechargeOption.name}`}
           checked={rechargeProductionScrap}
           disabled={rechargeProductionScrap === false && (hostResources?.scrap ?? 0) < 1}
@@ -648,13 +649,13 @@ export default function ShuttleControl({ control }: Props) {
       </label>}
       {selectedRechargeOption?.fuelRefinery && <label>
         Ore to refine
-        <input type="number" min={1} max={refineryMax} aria-label="Service recharge ore to refine"
+        <input className="shuttle-control__touch-target" type="number" min={1} max={refineryMax} aria-label="Service recharge ore to refine"
           value={rechargeProductionOreAmount}
           onChange={(event) => setRechargeProductionOreAmount(Number(event.target.value))} />
         {' '}of {Math.min(hostResources?.ore ?? 0, refineryMax)} available
       </label>}
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button"
+        <button className="cic-action-button shuttle-control__touch-target" type="button"
           disabled={busy || !rechargeConsoleId || !session.shuttleFuelled?.[control.shuttleId] ||
             !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle ||
             invalidRechargeOre || (rechargeProductionScrap && (hostResources?.scrap ?? 0) < 1)}
@@ -676,7 +677,7 @@ export default function ShuttleControl({ control }: Props) {
           const atCapacity = repairSystemIds.length >= repairSlotsRemaining;
           const name = findShip(docking.shipId)?.systems?.find((system) => system.id === systemId)?.name ??
             systemId.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-          return <label key={systemId}>
+          return <label className="shuttle-control__check-target" key={systemId}>
             <input type="checkbox" checked={checked} disabled={!checked && atCapacity}
               onChange={(event) => setRepairSystemIds((current) => event.target.checked
                 ? [...current, systemId] : current.filter((id) => id !== systemId))} /> {name}
@@ -684,7 +685,7 @@ export default function ShuttleControl({ control }: Props) {
         })}
       </fieldset>
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button"
+        <button className="cic-action-button shuttle-control__touch-target" type="button"
           disabled={busy || !repairWindowOpen || !repairShipAvailable || repairSystemIds.length < 1 ||
             repairSystemIds.length > repairSlotsRemaining || repairMaterials < repairSystemIds.length * 4 ||
             hostDamage?.destroyed}
@@ -700,7 +701,7 @@ export default function ShuttleControl({ control }: Props) {
       {!evacuationWindowOpen && <p>Survivor transfers open during Coordination Phase.</p>}
       {sourcePopulationAlertPending && <p>Resolve this ship&apos;s survivor alert before another transfer.</p>}
       <label htmlFor={`shuttle-evacuation-destination-${control.shuttleId}`}>Receiving ship</label>
-      <select id={`shuttle-evacuation-destination-${control.shuttleId}`}
+      <select className="shuttle-control__touch-target" id={`shuttle-evacuation-destination-${control.shuttleId}`}
         value={evacuationDestinationShipId}
         disabled={busy || !evacuationAvailable || evacuationRemaining === 0}
         onChange={(event) => {
@@ -713,7 +714,7 @@ export default function ShuttleControl({ control }: Props) {
         </option>)}
       </select>
       <label htmlFor={`shuttle-evacuation-amount-${control.shuttleId}`}>Survivors</label>
-      <select id={`shuttle-evacuation-amount-${control.shuttleId}`}
+      <select className="shuttle-control__touch-target" id={`shuttle-evacuation-amount-${control.shuttleId}`}
         value={evacuationAmount || ''}
         disabled={busy || !evacuationAvailable || evacuationAmounts.length === 0}
         onChange={(event) => setEvacuationAmount(Number(event.target.value))}>
@@ -726,7 +727,7 @@ export default function ShuttleControl({ control }: Props) {
         No valid printed-track transfer fits both ships and the remaining cycle limit.
       </p>}
       <div className="console-workspace__actions">
-        <button className="cic-action-button" type="button"
+        <button className="cic-action-button shuttle-control__touch-target" type="button"
           disabled={busy || !evacuationAvailable ||
             !evacuationDestinations.includes(evacuationDestinationShipId) ||
             !evacuationAmounts.includes(evacuationAmount)}
