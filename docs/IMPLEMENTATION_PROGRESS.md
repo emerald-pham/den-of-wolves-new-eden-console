@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**448 / 751 prompts complete (59.65%)**
+**449 / 751 prompts complete (59.79%)**
 
-Status breakdown: **448 done · 15 partial · 288 missing**.
+Status breakdown: **449 done · 14 partial · 288 missing**.
 
 Active prompt: **none**
 
@@ -755,7 +755,7 @@ release classification and evidence.
 | 310 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 311 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 312 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 313 | partial | feature | — | Server-owned navigation now persists a typed per-ship system-history envelope beside the denied navigation state. Existing self-jump arrivals become durable discovery events, and setup, join, resume, replacement, relocation, and jump projections round-trip only the entitled ship history while the GM projection retains active-fleet history. Attempts, hazards, rewards, cleared threats, and candidate progress are explicit producer-owned buckets that survive when an authorized producer writes them; no current mission, scout, hazard, reward, threat, or candidate producer exists in this slice, so P313 remains partial and invents no outcomes. |
+| 313 | done | feature | — | Server-owned navigation persists a typed per-ship history envelope beside the denied navigation state. Discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive setup changes, movement writes, reconnect, and role replacement while players receive only their entitled ship history and the facilitator retains the active-fleet view. Later gameplay prompts own creating their outcomes; this completed persistence contract never invents them. |
 | 314 | partial | non-feature | — | Partial production-path implementation for existing full-ship destruction state: moveShipToLocation and jumpShip now fail closed for destroyed ships before any coordinate, fuel, charge, jump-state, or navigation-log mutation, while the shared DRADIS projection excludes destroyed full ships and keeps surviving active contacts visible. The existing P140d catastrophe record continues to expose ship-destroyed pod capacity, survivors, resources, and retained shuttle records through their existing paths. Small/base-vessel destruction producers and pod-capacity state are not present in the authoritative source, so this prompt remains partial and does not invent those mechanics. |
 | 315 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 316 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

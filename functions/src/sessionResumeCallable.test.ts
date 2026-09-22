@@ -254,8 +254,12 @@ it('rebuilds private history from the server navigation snapshot during resume',
         aegis: {
           '5143': {
             coordinate: '5143',
+            discovery: { id: 'aegis-discovery', occurredAt: '2026-09-12T23:59:00.000Z' },
             attempts: [{ id: 'aegis-attempt', occurredAt: '2026-09-13T00:00:00.000Z' }],
-            hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+            hazards: [{ id: 'aegis-hazard', occurredAt: '2026-09-13T00:01:00.000Z' }],
+            rewards: [{ id: 'aegis-reward', occurredAt: '2026-09-13T00:02:00.000Z' }],
+            clearedThreats: [{ id: 'aegis-threat', occurredAt: '2026-09-13T00:03:00.000Z' }],
+            candidateProgress: [{ id: 'aegis-candidate', occurredAt: '2026-09-13T00:04:00.000Z' }],
           },
         },
         dione: {
@@ -276,7 +280,16 @@ it('rebuilds private history from the server navigation snapshot during resume',
     ref.path === 'sessions/s1/playerDiscoveries/u1')?.[1] as Record<string, unknown> | undefined;
   expect(privateProjection).toMatchObject({
     revision: 4,
-    systemHistory: { '5143': { attempts: [{ id: 'aegis-attempt' }] } },
+    systemHistory: {
+      '5143': {
+        discovery: { id: 'aegis-discovery' },
+        attempts: [{ id: 'aegis-attempt' }],
+        hazards: [{ id: 'aegis-hazard' }],
+        rewards: [{ id: 'aegis-reward' }],
+        clearedThreats: [{ id: 'aegis-threat' }],
+        candidateProgress: [{ id: 'aegis-candidate' }],
+      },
+    },
   });
   expect(privateProjection?.systemHistory).not.toHaveProperty('8378');
 

@@ -5345,9 +5345,16 @@
     {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
-      "language": "A server-owned, typed per-ship history envelope now round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; future attempts, hazards, rewards, cleared-threat, and candidate-progress buckets are preserved only as producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. P313 remains partial until later owning producers write the future categories.",
+      "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
       "source": "functions/src/systemHistory.ts; functions/src/navigationProjection.ts; functions/src/index.ts; functions/src/systemHistory.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/jumpCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; src/App.tsx; authorized routed REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md",
-      "type": "evidence / partial / production-path"
+      "type": "evidence / production-path / persistence / reconnect / privacy"
+    },
+    {
+      "direction": "313 -> PERSISTENCE CONTRACT CLOSURE",
+      "id": "E-313-PERSISTENCE-CLOSURE",
+      "language": "Prompt 313 owns durable storage, reconnect, and audience isolation rather than creation of every later gameplay outcome. The canonical protected navigation document already preserves discovery, attempts, hazards, rewards, cleared threats, and candidate progress through setup, join, resume, replacement, relocation, and jump writes. A production resume regression now round-trips every bucket together into only the entitled ship projection while the facilitator projection retains the active-fleet history; other-ship coordinates remain absent. Existing parser tests reject malformed or unprinted rows, deduplicate event identities, and derive discovery only from authoritative self-jump logs. Later mission, hazard, reward, threat, and candidate prompts own writing their outcomes into this completed persistence contract.",
+      "source": "functions/src/systemHistory.ts; functions/src/systemHistory.test.ts; functions/src/navigationProjection.ts; functions/src/index.ts; functions/src/sessionResumeCallable.test.ts; functions/src/joinSessionCallable.test.ts; functions/src/replacementCallable.test.ts; functions/src/jumpCallable.test.ts; focused 84-test persistence/join/resume/replacement/jump suite; TypeScript build",
+      "type": "evidence / production-path / persistence / reconnect / privacy / malformed-state / regression"
     },
     {
       "direction": "657 -> PLAYER-CHANGELOG-COPY",
@@ -14167,8 +14174,8 @@
         "acceptance": "discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive reconnect without revealing other systems.",
         "title": "Persist system history."
       },
-      "description": "Server-owned navigation now persists a typed per-ship system-history envelope beside the denied navigation state. Existing self-jump arrivals become durable discovery events, and setup, join, resume, replacement, relocation, and jump projections round-trip only the entitled ship history while the GM projection retains active-fleet history. Attempts, hazards, rewards, cleared threats, and candidate progress are explicit producer-owned buckets that survive when an authorized producer writes them; no current mission, scout, hazard, reward, threat, or candidate producer exists in this slice, so P313 remains partial and invents no outcomes.",
-      "evidenceIds": "E-AUDIT-313;E-313-HISTORY-PERSISTENCE",
+      "description": "Server-owned navigation persists a typed per-ship history envelope beside the denied navigation state. Discovery, attempts, hazards, rewards, cleared threats, and candidate progress survive setup changes, movement writes, reconnect, and role replacement while players receive only their entitled ship history and the facilitator retains the active-fleet view. Later gameplay prompts own creating their outcomes; this completed persistence contract never invents them.",
+      "evidenceIds": "E-AUDIT-313;E-313-HISTORY-PERSISTENCE;E-313-PERSISTENCE-CLOSURE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;283",
@@ -14179,7 +14186,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
