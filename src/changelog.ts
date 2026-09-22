@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [316],
+    implementationProgress: {
+      completed: 455, total: 751, percentage: '60.59%',
+      done: 455, partial: 13, active: 0, missing: 283,
+    },
+    changes: [
+      'Repeated arrival updates now resolve to one mission, attack, discovery, hazard, or reward record instead of creating duplicates.',
+      'Movement retries reuse the same arrival identities, so reconnects and brief contention cannot repeat an arrival effect.',
+      '455 of 751 planned items are complete (60.59%).',
+    ],
+  },
+  {
+    version: '0.4.88',
     implementationPrompts: [311],
     implementationProgress: {
       completed: 454, total: 751, percentage: '60.45%',

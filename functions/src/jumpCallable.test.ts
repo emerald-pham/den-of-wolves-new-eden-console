@@ -30,6 +30,7 @@ const mock = vi.hoisted(() => ({
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
+  commandReceiptRecord: undefined as Record<string, unknown> | undefined,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -100,6 +101,7 @@ beforeEach(() => {
   mock.arrivalPressureState = undefined;
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
+  mock.commandReceiptRecord = undefined;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -108,7 +110,10 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
-    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path.includes('/commandReceipts/')) return {
+      exists: mock.commandReceiptRecord !== undefined,
+      get: (key: string) => mock.commandReceiptRecord?.[key],
+    };
     if (path === 'sessions/s1/wolfAttackState/current') {
       const fields = mock.wolfAttackState;
       return {
@@ -302,6 +307,68 @@ it('creates one group-scoped mission opportunity on first arrival and exposes it
       sourceTransitionId: 'navigation-mission-first-arrival', sourceCycle: 1,
     }),
   );
+});
+
+it('commits one mission, attack, and discovery when Firestore retries an arrival transaction', async () => {
+  mock.transactionRetries = 1;
+
+  const command = { ...data, requestId: 'retry-arrival-effects', destination: '5143' };
+  const result = await moveShipToLocation.run(request(command));
+  expect(result).toMatchObject({
+    destination: '5143',
+    missionOpportunityId: 'arrival-fleet-1-A-5143',
+  });
+
+  expect(mock.set.mock.calls.filter(([path]) =>
+    path === 'sessions/s1/missionOpportunities/arrival-fleet-1-A-5143')).toHaveLength(1);
+  expect(mock.set.mock.calls.filter(([path]) =>
+    path === 'sessions/s1/wolfAttackPressure/arrival-navigation-retry-arrival-effects'))
+    .toHaveLength(1);
+  expect(mock.set.mock.calls.filter(([path]) =>
+    path === 'sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1')).toHaveLength(1);
+  expect(mock.set.mock.calls.filter(([path]) =>
+    path === 'sessions/s1/serverState/navigation')).toHaveLength(1);
+
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    expect.objectContaining({
+      shipNavigationLogs: expect.objectContaining({
+        aegis: [expect.objectContaining({
+          id: 'navigation-retry-arrival-effects-0',
+          destination: '5143',
+        })],
+      }),
+      systemHistory: {
+        aegis: {
+          '5143': expect.objectContaining({
+            discovery: {
+              id: 'navigation-retry-arrival-effects-0',
+              occurredAt: expect.any(String),
+            },
+            attempts: [],
+            hazards: [],
+            rewards: [],
+            clearedThreats: [],
+            candidateProgress: [],
+          }),
+        },
+      },
+    }),
+  );
+
+  mock.commandReceiptRecord = {
+    fingerprint: {
+      action: 'move-ship', sessionId: 's1', requestId: 'retry-arrival-effects', actorUid: 'u1',
+      instanceId: 'bridge', expectedRevision: null,
+      payload: { shipId: 'aegis', destination: '5143' },
+    },
+    result,
+  };
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await expect(moveShipToLocation.run(request(command))).resolves.toEqual(result);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('creates the same first-arrival opportunity through an authoritative ship jump', async () => {

@@ -62,6 +62,43 @@ describe('system history persistence and audience projection', () => {
     expect(state.systemHistory?.aegis).not.toHaveProperty('9999');
   });
 
+  it('collapses duplicate persisted arrival events to one discovery, hazard, and reward', () => {
+    const repeated = (id: string) => [
+      { id, occurredAt: '2026-09-13T00:01:00.000Z' },
+      { id, occurredAt: '2026-09-13T00:02:00.000Z' },
+    ];
+    const discovery = {
+      id: 'jump-duplicate', shipId: 'aegis', type: 'self-jump' as const,
+      origin: '0000', destination: '5143', occurredAt: '2026-09-13T00:00:00.000Z',
+      stardate: '2026.256.000000',
+    };
+    const state = navigationState({
+      shipGalacticCoordinates: { aegis: '5143' },
+      shipNavigationLogs: { aegis: [discovery, { ...discovery }] },
+      systemHistory: {
+        aegis: {
+          '5143': {
+            coordinate: '5143',
+            attempts: repeated('attempt-duplicate'),
+            hazards: repeated('hazard-duplicate'),
+            rewards: repeated('reward-duplicate'),
+            clearedThreats: repeated('threat-duplicate'),
+            candidateProgress: repeated('candidate-duplicate'),
+          },
+        },
+      },
+    }, ['aegis']);
+
+    expect(state.systemHistory?.aegis?.['5143']).toMatchObject({
+      discovery: { id: 'jump-duplicate' },
+      attempts: [{ id: 'attempt-duplicate' }],
+      hazards: [{ id: 'hazard-duplicate' }],
+      rewards: [{ id: 'reward-duplicate' }],
+      clearedThreats: [{ id: 'threat-duplicate' }],
+      candidateProgress: [{ id: 'candidate-duplicate' }],
+    });
+  });
+
   it('projects only the current player ship history after reconnect or replacement', () => {
     const state = navigationState({
       shipGalacticCoordinates: { dione: '5143', shepherd: '1413' },

@@ -5378,6 +5378,13 @@
       "type": "evidence / production-path / server-authority / cycle-repeatability / idempotency / hidden-information / split-fleet / malformed-state / regression"
     },
     {
+      "direction": "316 -> ARRIVAL EFFECT IDEMPOTENCY",
+      "id": "E-316-ARRIVAL-IDEMPOTENCY",
+      "language": "The authoritative movement transaction binds every arrival effect to stable server identities before committing them atomically. A forced Firestore callback retry commits exactly one mission opportunity, one Wolf attack schedule, one operational pressure transition, one navigation log, and one discovery record; the final navigation state initializes hazard and reward buckets once. Mission opportunities use deterministic group, chart, coordinate, and cycle identities; Wolf pressure suppresses an already-operational group/site entry; request receipts replay committed movement without running effects again. Persisted history normalization collapses repeated event IDs across attempts, hazards, rewards, cleared threats, and candidate progress, while repeated self-jump snapshots still derive one discovery. Focused retry, arrival-pressure, mission-eligibility, and history tests prove the composed boundary without inventing unimplemented hazard or reward resolvers.",
+      "source": "functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/missionEligibility.ts; functions/src/missionEligibility.test.ts; functions/src/arrivalPressure.ts; functions/src/arrivalPressure.test.ts; functions/src/systemHistory.ts; functions/src/systemHistory.test.ts",
+      "type": "evidence / production-path / transaction-retry / idempotency / deterministic-identity / history-normalization / regression"
+    },
+    {
       "direction": "313 -> SYSTEM-HISTORY-PERSISTENCE",
       "id": "E-313-HISTORY-PERSISTENCE",
       "language": "A server-owned, typed per-ship history envelope round-trips through canonical navigation state and the existing setup, join, resume, replacement, relocation, and jump projection writes. Current self-jump logs create durable discovery entries; attempts, hazards, rewards, cleared-threat, and candidate-progress buckets preserve only producer-owned event records and are never inferred from navigation. Player projections expose only the currently entitled ship history, while the GM projection retains active-fleet history; malformed rows and unprinted coordinates fail closed. Focused callable resume, server projection, client hydration, cache-race, and privacy checks cover mutation-to-snapshot-to-reconnect. Later gameplay prompts own producing those outcomes; P313 owns and completes their durable persistence, reconnect, and audience-isolation contract.",
@@ -14286,8 +14293,8 @@
         "acceptance": "retries and duplicate snapshots cannot create a second mission, hazard, attack, discovery, or reward.",
         "title": "Make arrival effects idempotent."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-316",
+      "description": "Release 0.4.89 closes the arrival idempotency boundary with production-path regression evidence. A forced Firestore transaction retry commits one deterministic mission opportunity, Wolf attack schedule, pressure transition, navigation log, and discovery record. Duplicate persisted event IDs normalize to one attempt, hazard, reward, cleared threat, or candidate-progress entry, and repeated self-jump snapshots still derive one discovery. Request receipts, deterministic document identities, and operational pressure checks compose without adding hazard or reward behavior owned by later prompts.",
+      "evidenceIds": "E-AUDIT-316;E-316-ARRIVAL-IDEMPOTENCY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "313;315",
@@ -14295,10 +14302,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.4.89"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
