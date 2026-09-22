@@ -10,7 +10,7 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,702,000 bytes |
+| Complete application JavaScript, raw | 1,711,000 bytes |
 | Complete landing JavaScript, gzip | 460,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
@@ -62,3 +62,11 @@ candidate first removed duplicate repair-ledger parsing and redundant ship-data
 imports, reducing the measured application to 1,700,842 bytes. Gzip remains
 below its existing 460,000-byte ceiling, and the largest-chunk, startup,
 render-update, and mobile-frame budgets are unchanged.
+
+Baseline version 6 raises only the complete raw-JavaScript ceiling from
+1,702,000 to 1,711,000 bytes for the reviewed Chacau repair console. The exact
+P383 candidate measured 1,709,250 raw bytes and 456,914 gzip bytes locally after
+adding its production panel, typed ledger hydration, and callable client. The
+gzip, largest-chunk, startup, render-update, and mobile-frame budgets remain
+unchanged; the raw ceiling retains 1,750 bytes of headroom over that measured
+candidate.
