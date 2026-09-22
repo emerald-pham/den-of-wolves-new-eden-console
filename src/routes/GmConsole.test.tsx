@@ -612,6 +612,9 @@ it('records a durable facilitator rule call for a selected player', async () => 
 
 it('records only the Cycle 6 candidate plan presence marker', async () => {
   const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, phase: 'active', currentTurn: 6,
+  });
   useSessionStore.getState().setGmInstance(local);
   vi.mocked(setCandidatePlanCheckpoint).mockResolvedValue('applied');
   streamInstances([local]);
@@ -623,6 +626,24 @@ it('records only the Cycle 6 candidate plan presence marker', async () => {
   expect(setCandidatePlanCheckpoint).toHaveBeenCalledWith(true);
   expect(await within(panel).findByRole('status')).toHaveTextContent(/cycle 6 plan status applied/i);
   expect(panel).not.toHaveTextContent('hidden plan text');
+});
+
+it.each([undefined, 5, 7])('locks the candidate plan control outside Cycle 6 (%s)', async (currentTurn) => {
+  const user = userEvent.setup();
+  const candidateSession = { ...useSessionStore.getState().session! };
+  if (currentTurn === undefined) delete candidateSession.currentTurn;
+  else candidateSession.currentTurn = currentTurn;
+  useSessionStore.getState().setSession({ ...candidateSession, phase: 'active' });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Cycle 6 candidate plan checkpoint' });
+  expect(within(panel).getByRole('checkbox', { name: 'Candidate plan exists' })).toBeDisabled();
+  expect(within(panel).getByRole('button', { name: 'Save Cycle 6 plan status' })).toBeDisabled();
+  expect(panel).toHaveTextContent(`available during Cycle 6 only`);
+  expect(setCandidatePlanCheckpoint).not.toHaveBeenCalled();
+  await user.click(within(panel).getByRole('button', { name: 'Save Cycle 6 plan status' }));
 });
 
 it('lets the facilitator author and advance a crisis lifecycle from the GM console', async () => {

@@ -165,7 +165,8 @@ function AppRoutes() {
     let arbourVisionBlockReason: 'entitlement' | 'loyalty' | null = null;
     let arbourVisionRevisionFloor = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
-      'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances'> | null = null;
+      'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances' |
+      'candidatePlanCheckpoint'> | null = null;
     let unsubscribe: () => void = () => undefined;
     let unsubscribeLoyaltyCensus: () => void = () => undefined;
     let censusSubscribed = false;
@@ -306,7 +307,11 @@ function AppRoutes() {
             store.setSession(stripGmNavigationProjection(current));
             return;
           }
-          if (store.me?.role === 'gm') store.setSession({ ...current, ...projection });
+          if (store.me?.role === 'gm') {
+            const next = { ...current, ...projection };
+            if (!projection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+            store.setSession(next);
+          }
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
@@ -392,7 +397,11 @@ function AppRoutes() {
             }
           } else if (pendingGmDiscovery) {
             const current = store.session;
-            if (current?.id === sessionId) store.setSession({ ...current, ...pendingGmDiscovery });
+            if (current?.id === sessionId) {
+              const next = { ...current, ...pendingGmDiscovery };
+              if (!pendingGmDiscovery.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+              store.setSession(next);
+            }
           }
         },
         onPlayerFreshness: (fresh) => {

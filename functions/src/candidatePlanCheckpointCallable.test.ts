@@ -61,7 +61,7 @@ function put(path: string, fields: Fields): void {
 }
 
 function provision(): void {
-  put('sessions/s1', { phase: 'active', activeVesselIds: ['aegis'], pursuitGroups: { 'fleet-1': 0 } });
+  put('sessions/s1', { phase: 'active', currentTurn: 6, activeVesselIds: ['aegis'], pursuitGroups: { 'fleet-1': 0 } });
   put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true });
   put('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: true, lastSeenAt: new Date() });
 }
@@ -99,4 +99,21 @@ it('replays exactly and rejects non-facilitators and terminal sessions', async (
   put('sessions/s1', { phase: 'debrief', activeVesselIds: ['aegis'], pursuitGroups: { 'fleet-1': 0 } });
   await expect(setCandidatePlanCheckpoint.run(request({ ...baseData, requestId: 'terminal' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it.each([
+  { label: 'missing current cycle', currentTurn: undefined },
+  { label: 'earlier cycle', currentTurn: 5 },
+  { label: 'later cycle', currentTurn: 7 },
+])('rejects the checkpoint outside authoritative Cycle 6 ($label)', async ({ currentTurn }) => {
+  const session: Fields = {
+    phase: 'active', activeVesselIds: ['aegis'], pursuitGroups: { 'fleet-1': 0 },
+    ...(currentTurn === undefined ? {} : { currentTurn }),
+  };
+  put('sessions/s1', session);
+  await expect(setCandidatePlanCheckpoint.run(request({
+    ...baseData, requestId: `outside-${currentTurn ?? 'missing'}`,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/serverState/navigation')).toBe(false);
+  expect(mock.documents.has('sessions/s1/gmDiscovery/current')).toBe(false);
 });

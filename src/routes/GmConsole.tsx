@@ -546,6 +546,7 @@ export default function GmConsole() {
     : 'Shared Press projection // one active GM is sufficient; additional GMs are optional';
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
+  const candidatePlanCycleEligible = currentTurn === 6;
   const endgameEvaluation = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const canReplayTurnAnnouncement = Boolean(
     session?.turnStartAnnouncement && session.turnStartAnnouncement.turn === currentTurn && currentTurn >= 1,
@@ -4260,7 +4261,7 @@ export default function GmConsole() {
                   type="checkbox"
                   checked={candidatePlanExistsDraft}
                   onChange={(event) => setCandidatePlanExistsDraft(event.target.checked)}
-                  disabled={candidatePlanMutation || endgameEvaluation}
+                  disabled={candidatePlanMutation || endgameEvaluation || !candidatePlanCycleEligible}
                 />
                 {' '}Candidate plan exists
               </label>
@@ -4268,14 +4269,16 @@ export default function GmConsole() {
                 className="gm-census-note__save cic-action-button"
                 type="button"
                 onClick={() => void saveCandidatePlanStatus()}
-                disabled={candidatePlanMutation || endgameEvaluation}
+                disabled={candidatePlanMutation || endgameEvaluation || !candidatePlanCycleEligible}
               >
                 {candidatePlanMutation ? 'Saving Cycle 6 status…' : 'Save Cycle 6 plan status'}
               </button>
               <p className="gm-player-roster__note" role="status" aria-live="polite">
-                {candidatePlanMessage ?? (candidatePlanCheckpoint
-                  ? `Current status // ${candidatePlanCheckpoint.planExists ? 'plan exists' : 'no plan recorded'} // checked ${candidatePlanCheckpoint.checkedAt}`
-                  : 'No Cycle 6 candidate plan status recorded yet.')}
+                {candidatePlanMessage ?? (!candidatePlanCycleEligible
+                  ? `Checkpoint locked // available during Cycle 6 only // current Cycle ${currentTurn}`
+                  : candidatePlanCheckpoint
+                    ? `Current status // ${candidatePlanCheckpoint.planExists ? 'plan exists' : 'no plan recorded'} // checked ${candidatePlanCheckpoint.checkedAt}`
+                    : 'No Cycle 6 candidate plan status recorded yet.')}
               </p>
             </section>
           )}

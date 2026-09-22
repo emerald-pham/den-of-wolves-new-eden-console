@@ -528,6 +528,29 @@ describe('App', () => {
     unmount();
   });
 
+  it('clears a stale Cycle 6 checkpoint when the authoritative GM projection omits it', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 6,
+        candidatePlanCheckpoint: { cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' } },
+      player,
+    );
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onGmDiscovery?.({
+      organiserSystems: { 'system-01': '0000' },
+      candidatePlanCheckpoint: { cycle: 6, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
+    }));
+    expect(useSessionStore.getState().session?.candidatePlanCheckpoint).toBeDefined();
+    act(() => handlers?.onGmDiscovery?.({ organiserSystems: { 'system-01': '0000' } }));
+    expect(useSessionStore.getState().session?.candidatePlanCheckpoint).toBeUndefined();
+    unmount();
+  });
+
   it('keeps the GM fleet projection through own-discovery and public-header updates', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {

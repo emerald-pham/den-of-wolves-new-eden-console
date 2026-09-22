@@ -10892,6 +10892,13 @@ export const setCandidatePlanCheckpoint = onCall<{
     );
     if (replay) return replay;
     requireActiveGameplayPhase(authority.session);
+    if (authority.session.get('currentTurn') !== 6) {
+      throw commandError(
+        'failed-precondition',
+        'The candidate plan checkpoint is available only during Cycle 6.',
+        'invalid-phase',
+      );
+    }
     const activeVesselIds = activeVesselIdsForSession(authority.session);
     const currentNavigation = navigationStateForSession(
       navigationDoc,
