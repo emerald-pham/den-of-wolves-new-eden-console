@@ -62,6 +62,23 @@ it('keeps completed maintenance locked until the GM advances the turn', () => {
   expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 5' })).toBeEnabled();
 });
 
+it('shows the authoritative environmental check at maintenance start', () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    maintenanceCycles: { aegis: {
+      step: 1, revision: 1, turn: 1,
+      results: { '0': 'Ion Nebula: rolled 3 (3+ causes damage); Fighter Bay Alpha damaged.' },
+      charges: [], refuelled: [],
+    } },
+  } });
+
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Ion Nebula: rolled 3 (3+ causes damage); Fighter Bay Alpha damaged.',
+  );
+});
+
 it('holds player maintenance controls during Turn 0 while GM setup is underway', () => {
   useSessionStore.setState({ session: { ...session, currentTurn: 0 } });
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
