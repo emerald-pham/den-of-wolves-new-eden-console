@@ -1262,6 +1262,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "211 -> 165;204;267",
+      "id": "E-211-ENDEAVOUR-RESEARCH-TRACKS",
+      "language": "The immutable server catalog records all fourteen printed Endeavour tracks and their ordered material costs. The transition consumes only a validated crossed-box count, advances exactly the left-most remaining box, returns the cost that box replaced and the next current material cost, preserves other progress, and fails closed on unknown or noncanonical state and completed tracks. Canonical console lookup requires a real Prompt 165 ship/system pair and maps paired consoles such as Advanced Hydroponics I/II, Water Production I/II, and Fuel Refinery I/II to one shared research track. No cadence, persistence, device effect, material payment, or console upgrade mutation is claimed.",
+      "source": "functions/src/endeavourResearch.ts; functions/src/endeavourResearch.test.ts; functions/src/consoleMetadata.ts; functions/src/consoleMetadata.test.ts; src/data/roleProcedures.ts; src/data/vessels/endeavour.ts; focused Endeavour research and console-metadata suites; Functions TypeScript build",
+      "type": "evidence / server-contract / immutable-catalog / exact-costs / left-most-transition / fail-closed / console-mapping / non-feature"
+    },
+    {
       "direction": "212 -> 211",
       "id": "E-AUDIT-212",
       "language": "Research cadence consumes the research-track contract.",
@@ -11329,8 +11336,8 @@
         "acceptance": "each track advances the left-most box and exposes the correct current material cost.",
         "title": "Encode Endeavour console-upgrade research tracks."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-211",
+      "description": "The server research contract now encodes all fourteen Endeavour tracks with their exact ordered material costs, including the four-box Wolf Agent Detector track and the printed Command and Control sequence. One pure transition validates the entire progress record, crosses exactly the left-most remaining box, exposes the prior and next current material costs, preserves unrelated tracks, and rejects unknown, fractional, negative, overrun, or completed progress. Canonical ship-console lookup maps duplicate printed console ids to their shared research track and rejects unknown ship/system pairs. Research cadence, persistence, device effects, and material-spending field upgrades remain owned by Prompts 212–214 and 391.",
+      "evidenceIds": "E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "165;204;267",
@@ -11341,7 +11348,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

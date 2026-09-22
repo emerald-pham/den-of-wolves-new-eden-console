@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**435 / 751 prompts complete (57.92%)**
+**436 / 751 prompts complete (58.06%)**
 
-Status breakdown: **435 done · 16 partial · 300 missing**.
+Status breakdown: **436 done · 16 partial · 299 missing**.
 
 Active prompt: **none**
 
@@ -638,7 +638,7 @@ release classification and evidence.
 | 208 | done | non-feature | 0.4.42 | Shepherd Water Reclamation is now a server-authoritative maintenance production action: charged 4♠ produces two water, or four when upgraded. Authority, phase, charge, damage, revision CAS, replay, safe resource bounds, UI controls, and charge consumption are covered. |
 | 209 | done | non-feature | 0.4.42 | Both Shepherd Advanced Hydroponics consoles now resolve independently through the authoritative maintenance path. Each charged console spends two water for 12 food, or 16 when that console is upgraded, and consumes only its own charge. Atomic resource guards, replay, CAS, damage, UI controls, and duplicate-console independence are covered. |
 | 210 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 211 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 211 | done | non-feature | — | The server research contract now encodes all fourteen Endeavour tracks with their exact ordered material costs, including the four-box Wolf Agent Detector track and the printed Command and Control sequence. One pure transition validates the entire progress record, crosses exactly the left-most remaining box, exposes the prior and next current material costs, preserves unrelated tracks, and rejects unknown, fractional, negative, overrun, or completed progress. Canonical ship-console lookup maps duplicate printed console ids to their shared research track and rejects unknown ship/system pairs. Research cadence, persistence, device effects, and material-spending field upgrades remain owned by Prompts 212–214 and 391. |
 | 212 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 213 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 214 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
