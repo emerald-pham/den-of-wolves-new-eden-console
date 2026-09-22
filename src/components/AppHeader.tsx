@@ -21,6 +21,7 @@ import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
+import PrimaryStatus from './PrimaryStatus';
 import { FleetDirectives } from './AdmiralDirectives';
 import {
   applyServiceWorkerUpdate,
@@ -436,7 +437,10 @@ export default function AppHeader() {
   }
 
   return (
-    <header ref={header} className="app-header">
+    <header
+      ref={header}
+      className={sessionId ? 'app-header app-header--primary-status' : 'app-header'}
+    >
       {joinCode !== undefined && (
         <SessionReadouts
           joinCode={joinCode}
@@ -495,6 +499,7 @@ export default function AppHeader() {
       >
         <span aria-hidden="true">⚙</span>
       </button>
+      <PrimaryStatus />
       {settingsOpen && (
         <div className="settings-backdrop" onMouseDown={closeSettings}>
           <section

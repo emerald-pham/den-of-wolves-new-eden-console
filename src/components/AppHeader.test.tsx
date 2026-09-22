@@ -79,6 +79,26 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
+it('keeps the primary status instrument inside shared app chrome on joined routes', async () => {
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 0,
+  });
+  render(
+    <MemoryRouter initialEntries={['/shuttles/starlight']}>
+      <AppHeader />
+    </MemoryRouter>,
+  );
+  await screen.findByText('2 connected to CIC');
+
+  const header = screen.getByRole('banner');
+  const status = within(header).getByRole('region', { name: 'Primary game status' });
+  expect(status).toBeVisible();
+  expect(within(header).getByText('CYCLE 0')).toBeVisible();
+  expect(within(status).getByText('SHUTTLE // I.C.S.S. Starlight')).toBeVisible();
+});
+
 it('shows pending session authorization while Cycle 0 systems are still booting', async () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });

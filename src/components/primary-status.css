@@ -1,0 +1,94 @@
+.app-header--primary-status {
+  flex-wrap: wrap;
+}
+
+.primary-status {
+  order: 7;
+  flex: 1 0 100%;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 96%, var(--cic-cyan));
+  color: var(--cic-ink);
+  font-family: var(--cic-mono);
+  text-transform: uppercase;
+}
+
+.primary-status__grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.primary-status__field {
+  min-width: 0;
+  padding: 0.15rem 0.5rem;
+  border-inline-start: 1px solid var(--cic-rule);
+}
+
+.primary-status__field:first-child {
+  border-inline-start: 0;
+}
+
+.primary-status__field dt {
+  margin: 0;
+  color: var(--cic-amber);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+}
+
+.primary-status__field dd {
+  margin: 0.15rem 0 0;
+  color: var(--cic-cyan);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.primary-status[data-severity='warning'] .primary-status__field:last-child dd {
+  color: var(--cic-amber-glow);
+}
+
+.primary-status[data-severity='failure'] .primary-status__field:last-child dd {
+  color: var(--cic-scream);
+}
+
+:is(.ship-console__back, .session-mode__back) {
+  scroll-margin-block-start: calc(var(--console-plot-top) + 1rem);
+}
+
+@media (min-width: 42.01rem) and (min-height: 42.01rem) {
+  html:has(.primary-status) .ship-console__identity {
+    max-height: calc(
+      100dvh - var(--console-plot-top) - max(2rem, env(safe-area-inset-bottom)) - 1rem
+    );
+  }
+
+  html:has(.primary-status) :is(.session-mode, .fleet-roster) {
+    padding-block-start: max(9rem, calc(var(--console-plot-top) + 1rem));
+  }
+}
+
+@media (max-width: 48rem) {
+  .primary-status__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 32rem) {
+  .primary-status__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .primary-status__field:nth-child(odd) {
+    border-inline-start: 0;
+  }
+}
+
+@media (max-height: 42rem) and (min-width: 48.01rem) {
+  .primary-status__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
