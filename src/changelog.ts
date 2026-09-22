@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [368],
+    implementationProgress: {
+      completed: 467, total: 751, percentage: '62.18%',
+      done: 467, partial: 12, active: 0, missing: 272,
+    },
+    changes: [
+      'In-flight shuttle holders can now retarget from the shuttle\'s server-resolved current position while cargo and prior host history stay intact.',
+      'Retarget, arrival, reconnect, and Wolf parking recover safely when private transit history is missing, stale, or inconsistent.',
+      '467 of 751 planned items are complete (62.18%).',
+    ],
+  },
+  {
+    version: '0.5.0',
     implementationPrompts: [604],
     implementationProgress: {
       completed: 466, total: 751, percentage: '62.05%',
