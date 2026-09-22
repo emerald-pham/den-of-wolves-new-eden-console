@@ -28,7 +28,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     },
     changes: [
       'Reaching a New Eden candidate now records that discovery from the session’s protected chart without revealing other candidate locations.',
-      'Private scouting can record the same discovery only from a valid candidate result, and each ship sees only its own discovery history.',
+      'Candidate discoveries survive reconnects, and each ship sees only its own discovery history.',
       '457 of 751 planned items are complete (60.85%).',
     ],
   },

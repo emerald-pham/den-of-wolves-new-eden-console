@@ -2768,8 +2768,20 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
       systemHistory: {
         '5143': {
           coordinate: '5143',
+          candidateDiscovery: {
+            id: 'arrival-candidate', occurredAt: '2026-09-13T00:00:00.000Z',
+            code: 'N', title: 'Ancient Jump Ring', source: 'arrival',
+          },
           attempts: [{ id: 'attempt-1', occurredAt: '2026-09-13T00:00:00.000Z' }],
           hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
+        },
+        '6798': {
+          coordinate: '6798',
+          candidateDiscovery: {
+            id: 'forged-candidate', occurredAt: '2026-09-13T00:00:00.000Z',
+            code: 'N', title: 'Ancient Jump Ring', source: 'arrival', chartId: 'A',
+          },
+          attempts: [], hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
         },
       },
     }),
@@ -2786,6 +2798,10 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
         aegis: {
           '5143': {
             coordinate: '5143', attempts: [{ id: 'attempt-1', occurredAt: '2026-09-13T00:00:00.000Z' }],
+            candidateDiscovery: {
+              id: 'arrival-candidate', occurredAt: '2026-09-13T00:00:00.000Z',
+              code: 'N', title: 'Ancient Jump Ring', source: 'arrival',
+            },
             hazards: [], rewards: [], clearedThreats: [], candidateProgress: [],
           },
         },
@@ -2838,16 +2854,19 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
     currentCoordinate: '5143', knownCoordinates: ['0000', '5143'], pursuitValue: 2,
   }));
   expect(onPlayerDiscovery.mock.lastCall?.[0]).not.toHaveProperty('pursuitGroups');
-  const ownProjection = onPlayerDiscovery.mock.lastCall?.[0] as { systemHistory?: Record<string, { attempts: readonly { id: string }[] }> };
+  const ownProjection = onPlayerDiscovery.mock.lastCall?.[0] as { systemHistory?: Record<string, { attempts: readonly { id: string }[]; candidateDiscovery?: { code: string } }> };
   expect(ownProjection.systemHistory?.['5143']?.attempts[0]?.id).toBe('attempt-1');
+  expect(ownProjection.systemHistory?.['5143']?.candidateDiscovery?.code).toBe('N');
+  expect(ownProjection.systemHistory).not.toHaveProperty('6798');
   expect(onGmDiscovery).toHaveBeenCalledTimes(1);
   expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
     shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
   });
-  const gmProjection = onGmDiscovery.mock.lastCall?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[] }>> };
+  const gmProjection = onGmDiscovery.mock.lastCall?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[]; candidateDiscovery?: { code: string } }>> };
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.attempts[0]?.id).toBe('attempt-1');
+  expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.candidateDiscovery?.code).toBe('N');
   expect(gmProjection.organiserSystemHistory?.dione?.['8378']?.attempts[0]?.id).toBe('attempt-2');
 });
 

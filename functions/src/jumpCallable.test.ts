@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   connected: true,
   currentTurn: 1,
   chartId: 'A',
+  chartLocked: true,
   coordinate: '0000',
   fuel: 4,
   charges: ['jump-drive'] as string[],
@@ -83,6 +84,7 @@ beforeEach(() => {
   mock.connected = true;
   mock.currentTurn = 1;
   mock.chartId = 'A';
+  mock.chartLocked = true;
   mock.coordinate = '0000';
   mock.fuel = 4;
   mock.charges = ['jump-drive'];
@@ -173,6 +175,7 @@ beforeEach(() => {
             airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
           },
           chartId: mock.chartId,
+          chartSelectionLocked: mock.chartLocked,
           capybaraEnabled: true,
           dioneEnabled: true,
           shipGalacticCoordinates: {
@@ -330,6 +333,23 @@ it('persists a candidate arrival while keeping it out of another ship projection
     'sessions/s1/playerDiscoveries/u2',
     expect.not.objectContaining({ systemHistory: expect.anything() }),
   );
+});
+
+it.each([
+  ['unlocked chart', 'unlocked-chart', 'A', false],
+  ['missing chart', 'missing-chart', undefined, true],
+  ['invalid chart', 'invalid-chart', 'D', true],
+])('rejects candidate arrival with %s before any write', async (_label, requestId, chartId, chartLocked) => {
+  mock.chartId = chartId as string;
+  mock.chartLocked = chartLocked;
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: `candidate-${requestId}`, destination: '6798',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/locked organiser chart is unavailable/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('creates one group-scoped mission opportunity on first arrival and exposes its stable identity', async () => {

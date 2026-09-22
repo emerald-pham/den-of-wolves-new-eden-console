@@ -122,10 +122,17 @@ export interface SystemHistoryEvent {
   readonly occurredAt: Timestamp;
 }
 
+export interface CandidateDiscovery extends SystemHistoryEvent {
+  readonly code: 'N' | 'O' | 'P';
+  readonly title: string;
+  readonly source: 'arrival' | 'scout';
+}
+
 /** Durable state for one printed system, scoped to the entitled ship. */
 export interface SystemHistoryEntry {
   readonly coordinate: GalacticCoordinate;
   readonly discovery?: SystemHistoryEvent;
+  readonly candidateDiscovery?: CandidateDiscovery;
   readonly attempts: readonly SystemHistoryEvent[];
   readonly hazards: readonly SystemHistoryEvent[];
   readonly rewards: readonly SystemHistoryEvent[];

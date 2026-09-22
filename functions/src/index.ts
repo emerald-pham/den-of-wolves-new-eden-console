@@ -1297,6 +1297,19 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   };
 }
 
+function lockedNavigationChart(session: Pick<DocumentSnapshot, 'get'>): 'A' | 'B' | 'C' {
+  const chart = session.get('chartId');
+  if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) ||
+      (chart !== 'A' && chart !== 'B' && chart !== 'C')) {
+    throw commandError(
+      'failed-precondition',
+      'The locked organiser chart is unavailable.',
+      'malformed-input',
+    );
+  }
+  return chart;
+}
+
 function withCandidateArrival(
   navigation: NavigationState,
   shipId: string,
@@ -12216,8 +12229,7 @@ export const moveShipToLocation = onCall<{
     }
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
-    const chart = session.get('chartId') === 'B' || session.get('chartId') === 'C'
-      ? session.get('chartId') as 'B' | 'C' : 'A';
+    const chart = lockedNavigationChart(session);
     const cycle = sessionTurn(session.get('currentTurn'));
     const missionOpportunity = await missionOpportunityForMovement(
       tx,
@@ -12462,8 +12474,7 @@ export const jumpShip = onCall<{
     });
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
-    const chart = session.get('chartId') === 'B' || session.get('chartId') === 'C'
-      ? session.get('chartId') as 'B' | 'C' : 'A';
+    const chart = lockedNavigationChart(session);
     const missionOpportunity = await missionOpportunityForMovement(
       tx,
       change.sessionId,

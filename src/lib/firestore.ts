@@ -1155,14 +1155,30 @@ function systemHistoryEvents(value: unknown): readonly SystemHistoryEvent[] {
   });
 }
 
+function candidateDiscovery(value: unknown): SystemHistoryEntry['candidateDiscovery'] | undefined {
+  const raw = recordValue(value);
+  const event = systemHistoryEvent(value);
+  if (!raw || !event || Object.keys(raw).length !== 5 ||
+      !['id', 'occurredAt', 'code', 'title', 'source'].every((key) => key in raw) ||
+      (raw.code !== 'N' && raw.code !== 'O' && raw.code !== 'P') ||
+      typeof raw.title !== 'string' || raw.title.length === 0 || raw.title.length > 160 ||
+      raw.title.trim() !== raw.title ||
+      (raw.source !== 'arrival' && raw.source !== 'scout')) return undefined;
+  return { ...event, code: raw.code, title: raw.title, source: raw.source };
+}
+
 function systemHistoryEntry(value: unknown, coordinate: string): SystemHistoryEntry | undefined {
   const raw = recordValue(value);
   if (!raw || raw.coordinate !== coordinate || !/^\d{4}$/.test(coordinate)) return undefined;
   const discovery = raw.discovery === undefined ? undefined : systemHistoryEvent(raw.discovery);
+  const foundCandidate = raw.candidateDiscovery === undefined
+    ? undefined : candidateDiscovery(raw.candidateDiscovery);
   if (raw.discovery !== undefined && !discovery) return undefined;
+  if (raw.candidateDiscovery !== undefined && !foundCandidate) return undefined;
   return {
     coordinate,
     ...(discovery ? { discovery } : {}),
+    ...(foundCandidate ? { candidateDiscovery: foundCandidate } : {}),
     attempts: systemHistoryEvents(raw.attempts),
     hazards: systemHistoryEvents(raw.hazards),
     rewards: systemHistoryEvents(raw.rewards),
