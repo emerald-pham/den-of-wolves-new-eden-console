@@ -5950,6 +5950,13 @@
       "language": "The Quellon Engineer console routes maintenance, stores, reactor charging, food and water production, and the assigned Condor to live controls; the Condor console routes full-cargo water distribution and console charging through production callables while retaining truthful repair-support guidance.",
       "source": "src/routes/ShipConsole.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/MaintenanceSystems.tsx; src/components/AssignedShuttlecraft.tsx; src/routes/ShipConsole.test.tsx; src/routes/ShuttleConsole.test.tsx; src/data/vessels/quellon.ts; src/data/vessels/condor.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/serviceShuttleRechargeCallable.test.ts; focused 194-test workspace/craft matrix",
       "type": "evidence / workspace / role-binding / maintenance / stores / shuttle / regression"
+    },
+    {
+      "direction": "231 -> 182;273",
+      "id": "E-231-REFINERY-FIGHTER-BAY-GATE",
+      "language": "The server-domain gate binds the canonical active role and vessel roster, strict current completed Refinery maintenance authority, and printed 8♦ Fighter Bay charge to the exact canonical P.D.F. Escort Fighter Wing tuple and active P.D.F. Colonel during the Wolf attack targeting window. It fails closed on rogue rosters, lossy or incomplete state, stale, uncharged, damaged, destroyed, foreign, duplicate, and already-launched authority.",
+      "source": "functions/src/refineryFighterBay.ts; functions/src/refineryFighterBay.test.ts; functions/src/maintenance.ts; functions/src/shipDamage.ts; functions/src/craftOwnership.ts; focused 210-test fighter-bay/maintenance/craft/attack suite; Functions TypeScript build",
+      "type": "evidence / server-domain / fighter-bay / role-gate / charge / damage / attack-window / regression"
     }
   ],
   "plan": {
@@ -11940,8 +11947,8 @@
         "acceptance": "charged 8♦ authorizes only the PDF Colonel's wing during an attack.",
         "title": "Gate the Refinery Fighter Bay."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-231",
+      "description": "The pure server-domain Refinery Fighter Bay gate now authorizes only the exact P.D.F. Escort Fighter Wing for the active P.D.F. Colonel during the targeting step of a current Wolf attack. It requires a completed current-cycle Refinery maintenance authority with the 8♦ Fighter Bay charged, an operational undestroyed host, the canonical battle-table registration, and a not-yet-launched wing, while noncanonical rosters, lossy or incomplete maintenance state, malformed battle-table tuples, stale, duplicate, foreign, inactive, uncharged, damaged, and repeated cases fail closed. This closes Prompt 231's non-feature authorization contract only; Prompt 398 retains persistent launch/combat state, attack actions and results, callable integration, client projection, UI, deployment, and playable release.",
+      "evidenceIds": "E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "182;273",
@@ -11952,7 +11959,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

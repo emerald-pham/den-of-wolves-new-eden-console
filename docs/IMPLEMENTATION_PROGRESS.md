@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**442 / 751 prompts complete (58.85%)**
+**443 / 751 prompts complete (58.99%)**
 
-Status breakdown: **442 done · 15 partial · 294 missing**.
+Status breakdown: **443 done · 15 partial · 293 missing**.
 
 Active prompt: **none**
 
@@ -662,7 +662,7 @@ release classification and evidence.
 | 228 | done | non-feature | 0.4.42 | Refinery 124 Hydroponics is now a server-authoritative maintenance production action: charged 4♦ spends one water for three food, or five when upgraded. Authority, phase, charge, damage, revision CAS, replay, UI controls, and charge consumption are covered. |
 | 229 | done | non-feature | 0.4.42 | Refinery 124 Water Reclamation is now a server-authoritative maintenance production action: charged 5♦ produces two water, or four when upgraded. The existing elimination decision remains explicit in the server-only card catalog and architecture contract; the atomic callable covers authority, damage, replay, CAS, safe resource bounds, UI controls, and charge consumption. |
 | 230 | done | non-feature | 0.4.42 | Both Refinery 124 Fuel Refinery consoles now convert a chosen positive amount of ore to fuel one-for-one through one atomic maintenance transaction. Each console independently permits up to 10 ore, or 15 when that console is upgraded, rejects overspend and malformed amounts, binds the amount into replay identity, and consumes only its own charge; the live console exposes bounded numeric controls. |
-| 231 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 231 | done | non-feature | — | The pure server-domain Refinery Fighter Bay gate now authorizes only the exact P.D.F. Escort Fighter Wing for the active P.D.F. Colonel during the targeting step of a current Wolf attack. It requires a completed current-cycle Refinery maintenance authority with the 8♦ Fighter Bay charged, an operational undestroyed host, the canonical battle-table registration, and a not-yet-launched wing, while noncanonical rosters, lossy or incomplete maintenance state, malformed battle-table tuples, stale, duplicate, foreign, inactive, uncharged, damaged, and repeated cases fail closed. This closes Prompt 231's non-feature authorization contract only; Prompt 398 retains persistent launch/combat state, attack actions and results, callable integration, client projection, UI, deployment, and playable release. |
 | 232 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 233 | done | non-feature | — | Verified the existing Refinery 124 Captain workspace on the production ship route: an exactly assigned and seated player activates only refinery-124-captain, receives live Refinery 124 systems and stores including Fuel Refinery for fuel diplomacy, the 20,000-survivor census, ship-policy guidance, and fleet-liaison / survivor-representation guidance without console impersonation. Prompt 166 remains the authoritative assignment/seat and route-binding boundary. This is evidence reconciliation with no runtime change. |
 | 233a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
