@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
 import { repairConsolesFromPhilia, type PhiliaRepairCommand } from '@/lib/philiaRepairService';
+import {
+  captureSessionAuthority,
+  isCurrentSessionAuthority,
+  type SessionAuthorityCheckpoint,
+} from '@/lib/sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PhiliaRepairLedger, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
@@ -38,10 +43,28 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
   const me = useSessionStore((state) => state.me)!;
   const [systemIds, setSystemIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState('');
-  const [error, setError] = useState('');
-  const [retryCommand, setRetryCommand] = useState<PhiliaRepairCommand | null>(null);
-  const pendingRef = useRef(false);
+  const [status, setStatus] = useState<{
+    readonly checkpoint: SessionAuthorityCheckpoint;
+    readonly message: string;
+  } | null>(null);
+  const [error, setError] = useState<{
+    readonly checkpoint: SessionAuthorityCheckpoint;
+    readonly message: string;
+  } | null>(null);
+  const [retry, setRetry] = useState<{
+    readonly command: PhiliaRepairCommand;
+    readonly checkpoint: SessionAuthorityCheckpoint;
+  } | null>(null);
+  const pendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
+  const identity = JSON.stringify([session.id, me.uid]);
+  const retryCommand = retry && isCurrentSessionAuthority(retry.checkpoint)
+    ? retry.command : null;
+  const pendingForCurrentAuthority = pending && pendingRef.current !== null &&
+    isCurrentSessionAuthority(pendingRef.current);
+  const statusMessage = status?.checkpoint.sessionId === session.id &&
+    status.checkpoint.uid === me.uid ? status.message : '';
+  const errorMessage = error?.checkpoint.sessionId === session.id &&
+    error.checkpoint.uid === me.uid ? error.message : '';
 
   const repairHistoryValid = isRepairLedger(session.philiaRepairs);
   const ledger = repairHistoryValid ? session.philiaRepairs : undefined;
@@ -72,20 +95,33 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     systemIds.length <= Math.min(2, repairSlotsRemaining) && materials >= selectedMaterials &&
     damage?.destroyed !== true;
 
-  useEffect(() => setSystemIds([]), [repairRevision, control.revision, docking?.shipId, session.currentTurn]);
+  useEffect(() => setSystemIds([]), [repairRevision, control.revision, docking?.shipId, session.currentTurn, identity]);
+
+  useEffect(() => {
+    pendingRef.current = null;
+    setPending(false);
+    setStatus(null);
+    setError(null);
+    setRetry(null);
+  }, [identity]);
 
   function chooseConsole(systemId: string, checked: boolean): void {
-    setRetryCommand(null);
-    setError('');
-    setStatus('');
+    setRetry(null);
+    setError(null);
+    setStatus(null);
     setSystemIds((current) => checked
       ? current.includes(systemId) ? current : [...current, systemId]
       : current.filter((id) => id !== systemId));
   }
 
   async function submitRepair(): Promise<void> {
-    if (pendingRef.current) return;
-    const command: PhiliaRepairCommand = retryCommand ?? {
+    const current = useSessionStore.getState();
+    const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
+    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
+    const pendingCheckpoint = pendingRef.current;
+    if (pendingCheckpoint && isCurrentSessionAuthority(pendingCheckpoint)) return;
+    const activeRetry = retry && isCurrentSessionAuthority(retry.checkpoint) ? retry : null;
+    const command: PhiliaRepairCommand = activeRetry?.command ?? {
       requestId: window.crypto.randomUUID(),
       systemIds: [...systemIds],
       expectedControlRevision: control.revision,
@@ -93,25 +129,35 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
       expectedCycle: session.currentTurn ?? 0,
       expectedHostShipId: docking?.shipId ?? '',
     };
-    if (!retryCommand && !canSubmit) return;
+    if (!activeRetry && !canSubmit) return;
 
-    pendingRef.current = true;
+    pendingRef.current = checkpoint;
     setPending(true);
-    setStatus('');
-    setError('');
-    setRetryCommand(command);
+    setStatus(null);
+    setError(null);
+    setRetry({ command, checkpoint });
     try {
       const result = await repairConsolesFromPhilia(command);
-      setStatus(result.status === 'replayed'
-        ? `This repair was already recorded // ${result.materialsRemaining} materials remain.`
-        : `Repaired ${result.systemIds.length} console${result.systemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`);
-      setRetryCommand(null);
+      if (!isCurrentSessionAuthority(checkpoint)) return;
+      setStatus({
+        checkpoint,
+        message: result.status === 'replayed'
+          ? `This repair was already recorded // ${result.materialsRemaining} materials remain.`
+          : `Repaired ${result.systemIds.length} console${result.systemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`,
+      });
+      setRetry(null);
       setSystemIds([]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Philia repair failed.');
+      if (!isCurrentSessionAuthority(checkpoint)) return;
+      setError({
+        checkpoint,
+        message: cause instanceof Error ? cause.message : 'Philia repair failed.',
+      });
     } finally {
-      pendingRef.current = false;
-      setPending(false);
+      if (isCurrentSessionAuthority(checkpoint) && pendingRef.current === checkpoint) {
+        pendingRef.current = null;
+        setPending(false);
+      }
     }
   }
 
@@ -133,7 +179,7 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     {systemIds.length > 0 && materials < selectedMaterials &&
       <p>This repair needs {selectedMaterials} materials; the host has {materials}.</p>}
     {!repairHistoryValid && <p>Philia repair history is unavailable. Refresh the live session before repairing.</p>}
-    <fieldset disabled={!repairHistoryValid || pending || !isHolder || !docking || !repairWindowOpen ||
+    <fieldset disabled={!repairHistoryValid || pendingForCurrentAuthority || !isHolder || !docking || !repairWindowOpen ||
       !repairShipAvailable || repairSlotsRemaining === 0 || damage?.destroyed === true}>
       <legend>Damaged consoles</legend>
       {repairOptions.map((systemId) => {
@@ -148,13 +194,13 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
       })}
     </fieldset>
     <div className="console-workspace__actions">
-      <button className="cic-action-button" type="button" disabled={pending || (!retryCommand && !canSubmit)}
+      <button className="cic-action-button" type="button" disabled={pendingForCurrentAuthority || (!retryCommand && !canSubmit)}
         onClick={() => void submitRepair()}>
-        {pending ? 'Repairing consoles…' : retryCommand ? 'Retry exact repair request' : 'Repair selected consoles'}
+        {pendingForCurrentAuthority ? 'Repairing consoles…' : retryCommand ? 'Retry exact repair request' : 'Repair selected consoles'}
       </button>
     </div>
-    {error && <p role="alert">{error}</p>}
-    {retryCommand && !pending && <p>The last request needs confirmation. Retry it safely with the same request id.</p>}
-    {status && <p role="status">{status}</p>}
+    {errorMessage && <p role="alert">{errorMessage}</p>}
+    {retryCommand && !pendingForCurrentAuthority && <p>The last request needs confirmation. Retry it safely with the same request id.</p>}
+    {statusMessage && <p role="status">{statusMessage}</p>}
   </section>;
 }

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SHUTTLECRAFT } from '@/data/shuttles';
+import type { PhiliaRepairResult } from '@/lib/philiaRepairService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
@@ -56,10 +57,24 @@ function installSession(overrides: Partial<GameSession> = {}): void {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 }
 
-function renderPhilia(docking: ShuttleDocking | undefined = dioneDocking, fuelled = false) {
+function renderPhilia(
+  docking: ShuttleDocking | undefined = dioneDocking,
+  fuelled = false,
+  currentControl: ShuttleControlEntry = control,
+) {
   return render(<MemoryRouter><ShuttleConsoleTemplate shuttle={philia}
-    captainName="Dione Engineer" canLeave={false} control={control}
+    captainName="Dione Engineer" canLeave={false} control={currentControl}
     docking={docking} fuelled={fuelled} /></MemoryRouter>);
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -111,7 +126,7 @@ it('requires fuel before choosing a second ship and enables the control after re
   repair = screen.getByRole('region', { name: 'Philia console repair' });
   expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeEnabled();
 
-  useSessionStore.getState().setSession({
+  act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     philiaRepairs: {
       cycle: 3, revision: 2,
@@ -120,7 +135,7 @@ it('requires fuel before choosing a second ship and enables the control after re
         { shipId: 'aegis', systemIds: ['reactor'] },
       ],
     },
-  });
+  }));
   const shepherdDocking = { shuttleId: 'philia', shipId: 'shepherd', dockedAt: 'now' } as ShuttleDocking;
   rerender(<MemoryRouter><ShuttleConsoleTemplate shuttle={philia}
     captainName="Dione Engineer" canLeave={false} control={control}
@@ -154,6 +169,58 @@ it('keeps a failed request id for exact replay and exposes pending and error sta
   expect(await within(repair).findByRole('status'))
     .toHaveTextContent('This repair was already recorded // 8 materials remain.');
 });
+
+it.each(['success', 'error'] as const)(
+  'ignores an old-session %s callback after the member changes identity',
+  async (oldOutcome) => {
+    const first = deferred<PhiliaRepairResult>();
+    const second = deferred<PhiliaRepairResult>();
+    mocks.repair.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const view = renderPhilia();
+    const repair = screen.getByRole('region', { name: 'Philia console repair' });
+    fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+    fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+    expect(within(repair).getByRole('button', { name: 'Repairing consoles…' })).toBeDisabled();
+
+    const current = useSessionStore.getState();
+    const nextSession = { ...current.session!, id: 's2' };
+    const nextMember = { ...current.me!, uid: 'holder-b', sessionId: 's2', displayName: 'Holder B' };
+    act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+    const nextControl = { ...control, holderUid: 'holder-b', revision: 3 };
+    view.rerender(<MemoryRouter><ShuttleConsoleTemplate shuttle={philia}
+      captainName="Dione Engineer" canLeave={false} control={nextControl}
+      docking={dioneDocking} fuelled={false} /></MemoryRouter>);
+    expect(within(repair).queryByRole('button', { name: 'Repairing consoles…' })).not.toBeInTheDocument();
+    expect(within(repair).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(repair).queryByRole('status')).not.toBeInTheDocument();
+
+    fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+    fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+    expect(mocks.repair).toHaveBeenCalledTimes(2);
+    expect(within(repair).getByRole('button', { name: 'Repairing consoles…' })).toBeDisabled();
+
+    await act(async () => {
+      if (oldOutcome === 'success') {
+        first.resolve({
+          status: 'committed', hostShipId: 'dione', systemIds: ['reactor'],
+          materialsRemaining: 8, cycle: 3, repairRevision: 1,
+        });
+      } else {
+        first.reject(new Error('Old session failed.'));
+      }
+    });
+    expect(within(repair).getByRole('button', { name: 'Repairing consoles…' })).toBeDisabled();
+    expect(within(repair).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(repair).queryByRole('status')).not.toBeInTheDocument();
+
+    await act(async () => second.resolve({
+      status: 'committed', hostShipId: 'dione', systemIds: ['reactor'],
+      materialsRemaining: 8, cycle: 3, repairRevision: 1,
+    }));
+    expect(await within(repair).findByRole('status'))
+      .toHaveTextContent('Repaired 1 console // 8 materials remain.');
+  },
+);
 
 it('does not add the repair control to another shuttle workspace', () => {
   const blacksmith = SHUTTLECRAFT.find((craft) => craft.id === 'blacksmith')!;

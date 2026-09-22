@@ -72,6 +72,34 @@ describe('buildPrivacySafeEventRecord', () => {
       createdAt: 'server-time', shuttleId: 'starlight',
     });
   });
+
+  it('allow-lists the member-safe Philia repair outcome', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'philia-repair',
+      envelope: {
+        sessionId: 's1', actorUid: 'engineer', actorRoleId: 'dione-engineer',
+        turn: 3, phase: 'active', requestId: 'repair-1', revision: 2,
+        serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+        commandFingerprint: { materials: 8 }, privateInput: 'omit',
+      },
+      payload: {
+        shuttleId: 'philia', hostShipId: 'dione', systemIds: ['reactor', 'storage'],
+        materialsSpent: 8, materialsRemaining: 4, expectedRevision: 1,
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', actorUid: 'engineer', actorRoleId: 'dione-engineer',
+      turn: 3, phase: 'active', type: 'philia-repair', requestId: 'repair-1',
+      revision: 2, serverTime: '2026-09-22T15:00:00.000Z',
+      visibility: EventVisibility.Member, createdAt: 'server-time',
+      shuttleId: 'philia', hostShipId: 'dione', systemIds: ['reactor', 'storage'],
+      materialsSpent: 8,
+    });
+    expect(memberEventFieldsFor('philia-repair')).toEqual([
+      'shuttleId', 'hostShipId', 'systemIds', 'materialsSpent',
+    ]);
+  });
+
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',

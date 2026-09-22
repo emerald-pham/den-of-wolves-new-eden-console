@@ -40,6 +40,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'shuttle-arrival': ['shuttleId'],
   'service-shuttle-recharge': ['shuttleId', 'hostShipId', 'consoleId', 'immediate', 'message'],
   'blacksmith-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
+  'philia-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };
 

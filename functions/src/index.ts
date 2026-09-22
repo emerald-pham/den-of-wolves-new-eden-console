@@ -312,7 +312,6 @@ import {
   parsePhiliaRepairLedger,
   resolvePhiliaRepair,
 } from './philiaRepair';
-import { buildPhiliaRepairMemberEventRecord } from './philiaRepairEvent';
 import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,
@@ -6350,7 +6349,8 @@ export const repairConsolesFromPhilia = onCall<{
       philiaRepairs: result.ledger,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(eventRef, buildPhiliaRepairMemberEventRecord({
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'philia-repair',
       envelope: buildAuthoritativeEventEnvelope({
         sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
         turn: currentCycle as number, phase: vesselActionPhase(session),
@@ -6359,7 +6359,7 @@ export const repairConsolesFromPhilia = onCall<{
         visibility: EventVisibility.Member,
       }),
       payload: {
-        hostShipId: result.hostShipId, systemIds: result.repairedSystemIds,
+        shuttleId: 'philia', hostShipId: result.hostShipId, systemIds: result.repairedSystemIds,
         materialsSpent: result.repairedSystemIds.length * PHILIA_REPAIR_COST,
       },
       createdAt: FieldValue.serverTimestamp(),
