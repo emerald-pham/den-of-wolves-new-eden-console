@@ -2767,6 +2767,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "384 -> ALLY-REPAIR-TRANSACTION; PLAYABLE-ALLY-CONTROL",
+      "id": "E-384-ALLY-REPAIRS",
+      "language": "Release 0.5.6 makes Ally's Joint Engineering Union repair path playable. The authoritative transaction requires the connected current holder, the Union role and actual Ally control, current fleet-group membership and facilitator-set Shepherd or Icebreaker docking, a live Coordination window, undestroyed host damage, four host materials per console, cycle and control revisions, fuel for a second Union ship, and an actor-bound exact replay receipt before atomically updating damage, materials, ledger, receipt, and one member-safe redacted event. The ledger caps repairs at two consoles per host and two Union ships per cycle; canonical host damage-deck IDs, malformed, stale, foreign, underfunded, undocked, destroyed, copied-craft, unknown-ledger, and direct-client writes fail closed. Typed snapshot hydration, pending/error/exact-retry handling, deferred P385 dismantling suppression in the rendered procedure card, the Ally console panel, and production route tests preserve the same authority boundary.",
+      "source": "functions/src/allyRepair.ts; functions/src/allyRepair.test.ts; functions/src/allyRepairCallable.ts; functions/src/allyRepairCallable.test.ts; functions/src/index.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; src/components/AllyRepairPanel.tsx; src/components/AllyRepairPanel.test.tsx; src/components/ShuttleConsoleTemplate.tsx; src/lib/allyRepairLedger.ts; src/lib/allyRepairLedger.test.ts; src/lib/allyRepairService.ts; src/lib/allyRepairService.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/types/game.ts; tests/rules/firestore.rules.test.ts; src/routes/ShuttleConsole.test.tsx; focused Functions/web/rules/font/build validation",
+      "type": "evidence / production-path / server-authority / transaction / repair / resource-cost / fuel / replay / privacy / stale-session / typed-hydration / playable-ui / direct-write-denial / canonical-deck / regression"
+    },
+    {
       "direction": "385 -> 361;377",
       "id": "E-AUDIT-385",
       "language": "Dismantling consumes manifest and permissioned cargo/action authority.",
@@ -15994,8 +16001,8 @@
         "acceptance": "its actual Union craft ID, not copied Chacau/Philia names, controls all authority.",
         "title": "Resolve Ally repairs."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-384",
+      "description": "Release 0.5.6 makes Ally's Joint Engineering Union repair path playable. The authoritative transaction requires the connected current holder, actual Ally control, Union role, fleet-group membership, facilitator-set Shepherd or Icebreaker docking, live Coordination window, damage, materials, cycle and control revisions, fuel for a second Union ship, and actor-bound exact replay before atomically committing the damage, materials, ledger, receipt, and member-safe event. Server and client hydration reject unknown host damage-deck IDs while retaining canonical IDs such as AEGIS fighter-bay-alpha; direct client ledger writes, copied craft identity, stale or malformed authority, and deferred P385 dismantling copy fail closed. Focused Ally callable, event privacy, panel, route, Firestore hydration, rules, font, typecheck, functions build, production build, and full unit validation pass; deployment is tracked separately.",
+      "evidenceIds": "E-AUDIT-384;E-384-ALLY-REPAIRS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "275;361",
@@ -16003,10 +16010,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.6"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

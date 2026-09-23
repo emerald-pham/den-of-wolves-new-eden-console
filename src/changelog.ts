@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [384],
+    implementationProgress: {
+      completed: 472, total: 751, percentage: '62.85%',
+      done: 472, partial: 12, active: 0, missing: 267,
+    },
+    changes: [
+      'The Joint Engineering Union can now spend four materials per console to repair up to two damaged consoles with Ally.',
+      'Fuelled Ally repairs can reach one second Union ship during the same cycle, with server authority and safe retry handling.',
+      '472 of 751 planned items are complete (62.85%).',
+    ],
+  },
+  {
+    version: '0.5.5',
     implementationPrompts: [606],
     implementationProgress: {
       completed: 471, total: 751, percentage: '62.72%',
