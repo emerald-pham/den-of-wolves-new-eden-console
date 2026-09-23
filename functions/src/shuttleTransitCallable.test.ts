@@ -310,6 +310,39 @@ it('returns the fresh authoritative transit when a competing begin wins without 
   expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).not.toHaveProperty('routeLegs');
 });
 
+it('returns the current docking when arrival wins before a delayed begin, without writing', async () => {
+  await beginShuttleTransit.run(request(command));
+  mock.documents.delete('sessions/s1/shuttleDepartures/starlight');
+  mock.documents.delete('sessions/s1/shuttleTransitChains/starlight');
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleDockings = [
+    ...(session.shuttleDockings as Fields[]),
+    { shuttleId: 'starlight', shipId: 'icebreaker', dockedAt: '2026-09-23T12:00:00.000Z' },
+  ];
+  mock.set.mockClear();
+  mock.update.mockClear();
+  mock.create.mockClear();
+
+  await expect(beginShuttleTransit.run(request({
+    ...command, requestId: 'begin-after-arrival',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'docked',
+          docking: { shuttleId: 'starlight', shipId: 'icebreaker' },
+        },
+      },
+    },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.create).not.toHaveBeenCalled();
+});
+
 it('returns the current transit for a stale retarget identity without writing or creating an event', async () => {
   await beginShuttleTransit.run(request(command));
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length;

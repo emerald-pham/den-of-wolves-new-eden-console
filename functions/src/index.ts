@@ -7399,10 +7399,31 @@ export const beginShuttleTransit = onCall<{
         group.vesselIds.some((shipId) => !activeVesselIds.includes(shipId)) ||
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
-        !control || !departures || !departures[data.shuttleId] || !phase ||
+        !control || !departures || !phase ||
         transitChainSnapshot.exists ||
         session.get('phase') !== 'active' || !Number.isSafeInteger(currentCycle) ||
         currentCycle !== data.expectedCycle || phase.turn !== currentCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative shuttle movement state is unavailable.',
+        'conflict',
+      );
+    }
+    const departure = departures[data.shuttleId];
+    if (!departure) {
+      const currentDocking = rawDockings.find((docking) =>
+        isRecord(docking) && docking.shuttleId === data.shuttleId);
+      if (control[data.shuttleId]?.holderUid === uid && group.memberUids.includes(uid) &&
+          isRecord(currentDocking) && typeof currentDocking.shipId === 'string' &&
+          group.vesselIds.includes(currentDocking.shipId)) {
+        throw shuttleMovementConflictErrorForCurrentState({
+          message: 'The shuttle is no longer awaiting departure.',
+          sessionId: data.sessionId,
+          shuttleId: data.shuttleId,
+          actorFleetGroupId,
+          dockings: rawDockings,
+        });
+      }
       throw commandError(
         'failed-precondition',
         'The authoritative shuttle movement state is unavailable.',
@@ -7417,7 +7438,7 @@ export const beginShuttleTransit = onCall<{
         expectedDepartureRequestId: data.expectedDepartureRequestId,
         expectedControlRevision: data.expectedControlRevision,
         expectedCycle: data.expectedCycle,
-        departure: departures[data.shuttleId]!,
+        departure,
         control: control[data.shuttleId]!,
         dockings: rawDockings,
         group,
