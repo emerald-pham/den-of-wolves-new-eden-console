@@ -699,8 +699,12 @@ export function renderReleaseChangelogEntry(fragment, version = fragment?.versio
 
 export function insertReleaseChangelogEntry(source, fragment, version = fragment?.version) {
   const marker = source.indexOf('CHANGELOG');
-  const open = marker >= 0 ? source.indexOf('[', marker) : -1;
-  if (open < 0) throw new Error('Cannot find the top-level CHANGELOG array.');
+  const assignment = marker >= 0 ? source.indexOf('=', marker) : -1;
+  const open = assignment >= 0 ? source.indexOf('[', assignment + 1) : -1;
+  const declarationEnd = assignment >= 0 ? source.indexOf(';', assignment + 1) : -1;
+  if (open < 0 || (declarationEnd >= 0 && declarationEnd < open)) {
+    throw new Error('Cannot find the top-level CHANGELOG array.');
+  }
   return `${source.slice(0, open + 1)}\n${renderReleaseChangelogEntry(fragment, version)}${source.slice(open + 1)}`;
 }
 

@@ -584,6 +584,22 @@ describe('coordination throughput primitives', () => {
     }
   });
 
+  it('inserts the release entry after the assigned array when CHANGELOG has an array type annotation', () => {
+    const source = `export const CHANGELOG: readonly ChangelogEntry[] = [
+  { version: '0.5.7', changes: ['Previous release.'] },
+];
+`;
+    const inserted = insertReleaseChangelogEntry(source, {
+      changes: ['Boa can now recycle its docked host.'],
+    }, '0.5.8');
+    const arrayStart = inserted.indexOf('= [') + '= ['.length;
+
+    expect(inserted).toContain('CHANGELOG: readonly ChangelogEntry[] = [');
+    expect(inserted.indexOf('version: APP_VERSION')).toBeGreaterThan(arrayStart);
+    expect(inserted).toContain("version: '0.5.7'");
+    expect(inserted).toContain('Boa can now recycle its docked host.');
+  });
+
   it('rejects a release source with more than one current top-level changelog entry', async () => {
     const root = resolve(tmpdir(), `coordination-release-duplicate-${randomUUID()}`);
     const lanePath = resolve(root, 'release-lane.json');
