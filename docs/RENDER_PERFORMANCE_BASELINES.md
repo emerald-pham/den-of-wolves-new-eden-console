@@ -10,8 +10,8 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,754,000 bytes |
-| Complete application JavaScript, gzip | 469,000 bytes |
+| Complete application JavaScript, raw | 1,768,000 bytes |
+| Complete application JavaScript, gzip | 473,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
@@ -120,3 +120,16 @@ The exact version 10 release at `da1077551ddb7c0d818adb63d77be537d4e7c902`
 passed the hosted ticker and render gates in Deploy run `35903792629`. Its
 uploaded render artifact measured the same raw and gzip sizes, a 77.3 ms
 DRADIS update p95, and seven long mobile frames; Hosting reports 0.5.18.
+
+Baseline version 11 raises the complete application JavaScript ceilings to
+1,768,000 raw and 473,000 gzip bytes for Prompt 436's private targeting reroll
+completion and AEGIS Command and Control redirect. The production bundle for
+source candidate `2c5c1d1624d9ce92d4ae974559ae1da0431e7501` measured 1,764,544
+raw bytes, 468,652 gzip bytes, and a 496,263-byte largest chunk across nine
+JavaScript chunks. Its local P637 run at `2026-09-23T22:04:05.164Z` measured
+landing and cached Role Select startup p95 at 121.83 ms and 86.35 ms; DRADIS,
+attack, and mission-hand update p95 at 34.4 ms, 34.5 ms, and 35 ms; and the
+390x844 mobile probe at 16.7 ms p95 with zero long frames. The unchanged
+largest-chunk, startup, render-update, and mobile-frame budgets remain in
+force; the new size ceilings retain 3,456 raw bytes and 4,348 gzip bytes of
+headroom over the measured candidate.
