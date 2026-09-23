@@ -6,7 +6,7 @@ type Fields = Record<string, unknown>;
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
-  const queue = { enqueue: vi.fn(async (_data: unknown, _options: unknown) => undefined) };
+  const queue = { enqueue: vi.fn(async () => undefined) };
   const ref = (path: string, isCollection = false, query: {
     after?: string;
     limit?: number;
@@ -68,7 +68,10 @@ import {
   reconcileAirspaceClosureTaskPage,
   reconcileAirspaceClosureTasks,
 } from './airspaceClosureTaskReconciler';
-import { airspaceClosureTaskPlan } from './airspaceClosureTasks';
+import {
+  airspaceClosureReconcileTaskPlan,
+  airspaceClosureTaskPlan,
+} from './airspaceClosureTasks';
 
 const nowMs = Date.parse('2026-09-23T12:00:00.000Z');
 const deadlineAt = new Date(nowMs + 15 * 60_000).toISOString();
@@ -146,7 +149,7 @@ it('drains active sessions through bounded pages and eventually wraps the backlo
 it('schedules a due unqueued session immediately and skips an already projected close', async () => {
   const dueAt = new Date(nowMs - 60_000).toISOString();
   seedActiveSession('session-due', dueAt);
-  const plan = airspaceClosureTaskPlan('session-due', 2, turnPhase(dueAt), 'active', nowMs)!;
+  const plan = airspaceClosureReconcileTaskPlan('session-due', 2, turnPhase(dueAt), 'active', nowMs)!;
 
   const scheduled = await reconcileAirspaceClosureTaskPage();
   expect(scheduled.enqueued).toBe(1);
@@ -157,7 +160,7 @@ it('schedules a due unqueued session immediately and skips an already projected 
 
   mock.queue.enqueue.mockClear();
   mock.documents.set(`sessions/session-due/events/${airspaceClosureEventId(2, dueAt)}`, {
-    type: 'airspace-closure-parking', turn: 2, serverTime: dueAt,
+    type: 'airspace-closure-parking', turn: 2, serverTime: dueAt, parkedShuttleCount: 0,
   });
   await expect(reconcileAirspaceClosureTaskPage()).resolves.toMatchObject({ scanned: 1, enqueued: 0 });
   expect(mock.queue.enqueue).not.toHaveBeenCalled();

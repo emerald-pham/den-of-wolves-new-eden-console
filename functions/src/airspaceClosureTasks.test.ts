@@ -3,6 +3,7 @@ import {
   AIRSPACE_CLOSURE_MAX_TASK_HORIZON_MS,
   AIRSPACE_CLOSURE_PAUSE_RECHECK_MS,
   airspaceClosurePauseWatchPlan,
+  airspaceClosureReconcileTaskPlan,
   airspaceClosureTaskDecision,
   airspaceClosureTaskPlan,
   enqueueAirspaceClosureTask,
@@ -35,6 +36,22 @@ it('schedules the ordinary closure task at the exact open-airspace deadline', ()
     wakeIndex: 0,
   });
   expect(plan?.taskId).toMatch(/^airspace-close_[a-f0-9]{40}$/);
+});
+
+it('rotates bounded deterministic recovery IDs for due windows after Cloud Tasks retention', () => {
+  const firstScanAt = deadlineMs + 60_000;
+  const first = airspaceClosureReconcileTaskPlan('session-a', cycle, phase(), 'active', firstScanAt)!;
+  const repeated = airspaceClosureReconcileTaskPlan('session-a', cycle, phase(), 'active', firstScanAt + 5 * 60_000)!;
+  const nextDailyScan = airspaceClosureReconcileTaskPlan(
+    'session-a', cycle, phase(), 'active', firstScanAt + 24 * 60 * 60_000,
+  )!;
+
+  expect(first).toMatchObject({ scheduledAtMs: firstScanAt, wakeIndex: expect.any(Number) });
+  expect(repeated.taskId).toBe(first.taskId);
+  expect(nextDailyScan.taskId).not.toBe(first.taskId);
+  expect(airspaceClosureTaskDecision(
+    nextDailyScan, nextDailyScan.taskId, phase(), cycle, 'active', nextDailyScan.scheduledAtMs,
+  )).toEqual({ action: 'park', closedAt: deadlineAt });
 });
 
 it('rolls deadlines beyond the Cloud Tasks horizon forward in bounded wakes', () => {
@@ -127,7 +144,7 @@ it('schedules the pause safety wake from a phase write', () => {
   });
 });
 
-it('requeues an obsolete deadline for the current phase and rejects old-cycle jobs', () => {
+it('requeues an obsolete deadline or cycle for the current live phase', () => {
   const original = airspaceClosureTaskPlan('session-a', cycle, phase(), 'active', deadlineMs - 60_000)!;
   const extendedPhase = phase({ openAirspaceEndsAt: new Date(deadlineMs + 5 * 60_000).toISOString() });
 
@@ -147,9 +164,20 @@ it('requeues an obsolete deadline for the current phase and rejects old-cycle jo
     'active',
     Date.parse(extendedPhase.openAirspaceEndsAt) + 60_000,
   )).toEqual({ action: 'park', closedAt: extendedPhase.openAirspaceEndsAt });
+  const nextCyclePhase = phase({
+    turn: cycle + 1,
+    openAirspaceEndsAt: new Date(deadlineMs + 15 * 60_000).toISOString(),
+  });
   expect(airspaceClosureTaskDecision(
-    original, original.taskId, phase(), cycle + 1, 'active', deadlineMs,
-  )).toEqual({ action: 'stale' });
+    original, original.taskId, nextCyclePhase, cycle + 1, 'active', deadlineMs,
+  )).toMatchObject({
+    action: 'reschedule',
+    plan: {
+      cycle: cycle + 1,
+      deadlineAt: nextCyclePhase.openAirspaceEndsAt,
+      scheduledAtMs: Date.parse(nextCyclePhase.openAirspaceEndsAt),
+    },
+  });
 });
 
 it('re-enqueues a bounded future wake when the current deadline exceeds Cloud Tasks limits', () => {

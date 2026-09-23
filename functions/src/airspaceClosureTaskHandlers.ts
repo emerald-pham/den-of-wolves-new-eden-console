@@ -211,6 +211,7 @@ export async function parkAtOrdinaryAirspaceDeadline(
     const event = priorEvent.data();
     if (!isRecord(event) || event.type !== 'airspace-closure-parking' ||
         event.turn !== currentTurn || event.serverTime !== closedAt ||
+        event.parkedShuttleCount !== closureDockedVisitCount(parking.visitLog, currentTurn, closedAt) ||
         parking.clearedTransitIds.length > 0 ||
         !shuttleDockingsAreParked(parking.dockings, vessels) ||
         !shuttleDockingsMatchRoleOwnedCraft(roles, parking.dockings)) {
@@ -294,6 +295,16 @@ function authoritativeActiveVessels(
 
 function sessionTurn(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : -1;
+}
+
+function closureDockedVisitCount(
+  visits: readonly { readonly id: string; readonly action: string; readonly occurredAt: string }[],
+  cycle: number,
+  closedAt: string,
+): number {
+  const prefix = `airspace-close-${cycle}-`;
+  return visits.filter(visit => visit.id.startsWith(prefix) && visit.id.endsWith('-docked') &&
+    visit.action === 'docked' && visit.occurredAt === closedAt).length;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

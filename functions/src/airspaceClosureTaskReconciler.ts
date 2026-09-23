@@ -5,8 +5,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { turnPhaseState } from './turnZero';
 import {
   airspaceClosureEventId,
-  airspaceClosurePauseWatchPlan,
-  airspaceClosureTaskPlan,
+  airspaceClosureReconcileTaskPlan,
   enqueueAirspaceClosureTask,
 } from './airspaceClosureTasks';
 
@@ -47,8 +46,7 @@ export async function reconcileAirspaceClosureTaskPage(): Promise<Readonly<{
     if (typeof currentTurn !== 'number' || !Number.isSafeInteger(currentTurn) || currentTurn < 1) continue;
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn) continue;
-    const plan = airspaceClosureTaskPlan(session.id, currentTurn, phase, 'active', nowMs) ??
-      airspaceClosurePauseWatchPlan(session.id, currentTurn, phase, 'active', nowMs);
+    const plan = airspaceClosureReconcileTaskPlan(session.id, currentTurn, phase, 'active', nowMs);
     if (!plan) continue;
 
     if (!phase.timerPause && nowMs >= Date.parse(phase.openAirspaceEndsAt)) {
@@ -58,8 +56,13 @@ export async function reconcileAirspaceClosureTaskPage(): Promise<Readonly<{
       const existingEvent = await eventRef.get();
       if (existingEvent.exists) {
         const event = existingEvent.data();
+        const parkedShuttleCount = closureDockedVisitCount(
+          session.get('shuttleVisitLog'), currentTurn, phase.openAirspaceEndsAt,
+        );
         if (!isRecord(event) || event.type !== 'airspace-closure-parking' ||
-            event.turn !== currentTurn || event.serverTime !== phase.openAirspaceEndsAt) {
+            event.turn !== currentTurn || event.serverTime !== phase.openAirspaceEndsAt ||
+            !Number.isSafeInteger(event.parkedShuttleCount) ||
+            event.parkedShuttleCount !== parkedShuttleCount) {
           logger.error('Skipped an active session with conflicting airspace-closure event authority.', {
             sessionId: session.id,
             cycle: currentTurn,
@@ -110,4 +113,19 @@ export const reconcileAirspaceClosureTasks = onSchedule({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function closureDockedVisitCount(value: unknown, cycle: number, closedAt: string): number | undefined {
+  if (value === undefined) return 0;
+  if (!Array.isArray(value)) return undefined;
+  const prefix = `airspace-close-${cycle}-`;
+  let count = 0;
+  for (const visit of value) {
+    if (!isRecord(visit)) return undefined;
+    if (typeof visit.id !== 'string' || !visit.id.startsWith(prefix)) continue;
+    if (typeof visit.shuttleId !== 'string' || typeof visit.shipId !== 'string' ||
+        typeof visit.action !== 'string' || typeof visit.occurredAt !== 'string') return undefined;
+    if (visit.id.endsWith('-docked') && visit.action === 'docked' && visit.occurredAt === closedAt) count += 1;
+  }
+  return count;
 }

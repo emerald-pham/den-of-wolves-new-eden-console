@@ -18,7 +18,7 @@ type Fields = Record<string, unknown>;
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
-  const queue = { enqueue: vi.fn(async (_data: unknown, _options: unknown) => undefined) };
+  const queue = { enqueue: vi.fn(async () => undefined) };
   const ref = (path: string, collection = false) => ({
     path,
     id: path.split('/').at(-1) ?? '',
@@ -319,6 +319,14 @@ it('parks from the authoritative transit route atomically and safely replays the
   expect(mock.documents.size).toBeGreaterThan(0);
   expect(mock.update).toHaveBeenCalledTimes(updates);
   expect([...mock.documents.entries()].filter(([path]) => path.startsWith(`${sessionPath}/events/`))).toHaveLength(1);
+
+  const closureEvent = [...mock.documents.entries()].find(([path]) => path.startsWith(`${sessionPath}/events/`))?.[1];
+  expect(closureEvent).toMatchObject({ parkedShuttleCount: 1 });
+  closureEvent!.parkedShuttleCount = 2;
+  await expect((parkShuttlesAtAirspaceClosure as { run: (request: unknown) => Promise<void> }).run(
+    callableRequest(task.taskId),
+  )).rejects.toThrow(/projection conflicts/i);
+  expect(mock.documents.has(transitPath)).toBe(false);
 });
 
 it('reschedules a stale deadline task for a live extension without waiting for a client', async () => {
@@ -363,7 +371,7 @@ it('recovers the exact resumed deadline from a pause watch if its write trigger 
   expect(mock.documents.has(transitPath)).toBe(false);
 });
 
-it('does not park a Wolf-attack-restricted phase or a new cycle', async () => {
+it('does not park a Wolf-attack-restricted phase and requeues a new lifted cycle', async () => {
   const restricted = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: false } });
   seedSession(restricted);
   seedTransit();
@@ -372,14 +380,19 @@ it('does not park a Wolf-attack-restricted phase or a new cycle', async () => {
     callableRequest(task.taskId),
   );
   expect(mock.documents.has(transitPath)).toBe(true);
+  expect(mock.queue.enqueue).not.toHaveBeenCalled();
   expect([...mock.documents.keys()].some(path => path.startsWith(`${sessionPath}/events/`))).toBe(false);
 
-  seedSession(phase({ turn: 3 }));
+  const newCycleDeadline = new Date(closedAtMs + 5 * 60_000).toISOString();
+  seedSession(phase({ turn: 3, openAirspaceEndsAt: newCycleDeadline }));
   vi.setSystemTime(new Date(closedAtMs + 1));
   await (parkShuttlesAtAirspaceClosure as { run: (request: unknown) => Promise<void> }).run(
     callableRequest(task.taskId),
   );
   expect(mock.documents.has(transitPath)).toBe(true);
+  expect(mock.queue.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+    cycle: 3, deadlineAt: newCycleDeadline,
+  }), expect.objectContaining({ scheduleTime: new Date(newCycleDeadline) }));
 });
 
 it('retries on incomplete transit authority without partially changing the member projection', async () => {

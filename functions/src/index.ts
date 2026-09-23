@@ -426,7 +426,7 @@ import {
   startTurnPhase,
   turnStateForPhaseContext,
   turnStateForPhase,
-  turnStateState,
+  type turnStateState,
   turnPhaseState,
   updateTurnStateForPhase,
 } from './turnZero';
@@ -441,6 +441,12 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
+import {
+  createAirspaceClosureParkingTask,
+  createAirspaceClosureTaskScheduler,
+  parkAtOrdinaryAirspaceDeadline,
+} from './airspaceClosureTaskHandlers';
+import { reconcileAirspaceClosureTasks } from './airspaceClosureTaskReconciler';
 import { parseStoredZealotryResponse, type ZealotryResponseAction } from './zealotryResponse';
 import {
   CIVIL_UNREST_RESOLUTION_SHIP_IDS,
@@ -3112,11 +3118,13 @@ function advanceTurnInTransaction(
   additionalFields: Record<string, unknown> = {},
   transition?: TurnAdvanceEvent,
   pursuitAuthority?: TurnPursuitAuthority,
+  airspaceClosureHandled = false,
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
   const maxTurn = sessionTurnLimit(session);
   if (currentTurn >= 1) requireSmallShipsDockedAtBoundary(session, 'Team');
-  if (currentTurn >= 1 && (maxTurn === undefined || currentTurn < maxTurn)) {
+  if (currentTurn >= 1 && (maxTurn === undefined || currentTurn < maxTurn) &&
+      !airspaceClosureHandled) {
     requireShuttlesDockedAtTeamBoundary(session);
   }
   const nextTurn = currentTurn + 1;
@@ -13822,6 +13830,17 @@ export const advanceTurn = onCall<{
       advance.sessionId,
       session,
     );
+    const ordinaryAirspaceClosed = activePhase.airspace.state === 'lifted' &&
+      activePhase.timerPause === undefined &&
+      Date.now() >= Date.parse(activePhase.openAirspaceEndsAt);
+    if (ordinaryAirspaceClosed) {
+      await parkAtOrdinaryAirspaceDeadline(
+        tx,
+        sessionRef,
+        session,
+        activePhase.openAirspaceEndsAt,
+      );
+    }
     const result = advanceTurnInTransaction(
       tx,
       sessionRef,
@@ -13835,6 +13854,7 @@ export const advanceTurn = onCall<{
         reason: advance.overridePhaseTimer === true ? 'override' : 'expiry',
       },
       pursuitAuthority,
+      ordinaryAirspaceClosed,
     );
     if (result.phase === 'debrief' || result.phase === 'failure') {
       tx.set(receiptRef, {
@@ -13846,6 +13866,15 @@ export const advanceTurn = onCall<{
     return result;
   });
 });
+
+/** Enqueue an authoritative ordinary-airspace deadline task after phase changes. */
+export const scheduleAirspaceClosureParking = createAirspaceClosureTaskScheduler();
+
+/** Park in-transit shuttles at the server-owned ordinary-airspace deadline. */
+export const parkShuttlesAtAirspaceClosure = createAirspaceClosureParkingTask();
+
+/** Backfill due or unqueued active airspace deadlines on a bounded schedule. */
+export { reconcileAirspaceClosureTasks };
 
 /** Allow the sole connected player to enter Turn 1 for a demo session. */
 export const startSinglePlayerDemo = onCall<{

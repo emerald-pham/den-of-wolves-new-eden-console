@@ -127,6 +127,7 @@ const mock = vi.hoisted(() => {
     versionStore.set(target.path, (versionStore.get(target.path) ?? 0) + 1);
   });
   const transactionAttempts = vi.fn();
+  const enqueueTask = vi.fn(async () => undefined);
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       transactionAttempts();
@@ -147,6 +148,10 @@ const mock = vi.hoisted(() => {
         get: transactionGet,
         set: (target: Ref, fields: StoredDocument, options?: { merge?: boolean }) =>
           set(target, fields, working, workingVersions, options),
+        create: (target: Ref, fields: StoredDocument) => {
+          if (working.has(target.path)) throw new Error(`Mock transaction create collision: ${target.path}`);
+          set(target, fields, working, workingVersions);
+        },
         update: (target: Ref, fields: StoredDocument) => update(target, fields, working, workingVersions),
         delete: (target: Ref) => remove(target, working, workingVersions),
       });
@@ -193,6 +198,7 @@ const mock = vi.hoisted(() => {
     },
     runTransaction,
     transactionAttempts,
+    enqueueTask,
     DELETE,
   };
 });
@@ -226,6 +232,15 @@ vi.mock('firebase-functions/v2/https', () => ({
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
+vi.mock('firebase-functions/v2/firestore', () => ({
+  onDocumentWritten: (options: unknown, handler: (event: unknown) => unknown) => ({ options, run: handler }),
+}));
+vi.mock('firebase-functions/v2/tasks', () => ({
+  onTaskDispatched: (options: unknown, handler: (event: unknown) => unknown) => ({ options, run: handler }),
+}));
+vi.mock('firebase-admin/functions', () => ({
+  getFunctions: () => ({ taskQueue: () => ({ enqueue: mock.enqueueTask }) }),
+}));
 
 import {
   advanceTurn,
@@ -233,6 +248,7 @@ import {
   assignLoyalty,
   adjustShipResource,
   beginOpenAirspacePhase,
+  beginShuttleTransit,
   claimGmInstance,
   claimSeat,
   confirmSetup,
@@ -243,6 +259,7 @@ import {
   kickPlayer,
   loginGmAccess,
   refreshPresence,
+  requestShuttleDeparture,
   releaseRole,
   resumeSession,
   runMaintenance,
@@ -251,6 +268,7 @@ import {
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { INITIAL_SHIP_RESOURCES } from './resources';
+import { airspaceClosureEventId } from './airspaceClosureTasks';
 
 type CompositionCount = 8 | 19 | 20;
 
@@ -592,6 +610,86 @@ async function composeProductionSession(
 
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
+
+  it('parks a travelling shuttle atomically when the ordinary airspace deadline catches up at advanceTurn', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T16:00:00.000Z'));
+    try {
+      const composition = await composeProductionSession(8);
+      const sessionPath = `sessions/${composition.sessionId}`;
+      const initial = read(sessionPath) as StoredDocument;
+      const teamPhaseEndsAt = new Date(Date.parse('2026-09-23T16:00:00.000Z') + 2_000).toISOString();
+      const openAirspaceEndsAt = new Date(Date.parse('2026-09-23T16:00:00.000Z') + 22_000).toISOString();
+      const initialPhase = { teamPhaseEndsAt, openAirspaceEndsAt };
+      (initial.turnPhase as StoredDocument).teamPhaseEndsAt = teamPhaseEndsAt;
+      (initial.turnPhase as StoredDocument).openAirspaceEndsAt = openAirspaceEndsAt;
+      const wingCommanderIndex = composition.activeRoleIds.indexOf('wing-commander');
+      const shuttleHolderUid = composition.coreUids[wingCommanderIndex]!;
+
+      vi.setSystemTime(new Date(Date.parse(initialPhase.teamPhaseEndsAt) + 1));
+      await beginOpenAirspacePhase.run(request({
+        sessionId: composition.sessionId,
+        expectedTurn: 1,
+      }, shuttleHolderUid));
+      const opened = read(sessionPath) as StoredDocument;
+      const openPhase = opened.turnPhase as { openAirspaceEndsAt: string };
+
+      await requestShuttleDeparture.run(request({
+        sessionId: composition.sessionId,
+        requestId: 'p371-departure',
+        shuttleId: 'starlight',
+        destinationShipId: 'icebreaker',
+        expectedControlRevision: 0,
+        expectedCycle: 1,
+      }, shuttleHolderUid));
+      await beginShuttleTransit.run(request({
+        sessionId: composition.sessionId,
+        requestId: 'p371-transit',
+        shuttleId: 'starlight',
+        expectedDepartureRequestId: 'p371-departure',
+        expectedControlRevision: 0,
+        expectedCycle: 1,
+      }, shuttleHolderUid));
+
+      const transitPath = `${sessionPath}/shuttleDepartures/starlight`;
+      expect(read(transitPath)).toMatchObject({ status: 'in-transit', destinationShipId: 'icebreaker' });
+      const transit = read(transitPath)!;
+      expect(Date.parse(transit.arrivesAt as string)).toBeGreaterThan(Date.parse(openPhase.openAirspaceEndsAt));
+
+      for (let heartbeatAt = Date.parse(initialPhase.teamPhaseEndsAt) + 30_000;
+        heartbeatAt < Date.parse(openPhase.openAirspaceEndsAt);
+        heartbeatAt += 30_000) {
+        vi.setSystemTime(new Date(heartbeatAt));
+        await refreshPresence.run(request({
+          sessionId: composition.sessionId,
+          instanceId: composition.startRequest.instanceId,
+        }, composition.ownerUid));
+      }
+      vi.setSystemTime(new Date(Date.parse(openPhase.openAirspaceEndsAt) + 1));
+      expect(read(transitPath)).toMatchObject({ status: 'in-transit' });
+
+      await expect(advanceTurn.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+        requestId: 'p371-advance',
+        expectedTurn: 1,
+      }, composition.ownerUid))).resolves.toMatchObject({ currentTurn: 2 });
+
+      const closed = read(sessionPath) as StoredDocument;
+      expect(closed).toMatchObject({
+        currentTurn: 2,
+        shuttleDockings: expect.arrayContaining([
+          { shuttleId: 'starlight', shipId: 'aegis', dockedAt: openPhase.openAirspaceEndsAt },
+        ]),
+      });
+      expect(mock.documents.has(transitPath)).toBe(false);
+      expect(mock.documents.has(`${sessionPath}/shuttleTransitChains/starlight`)).toBe(false);
+      expect(read(`${sessionPath}/events/${airspaceClosureEventId(1, openPhase.openAirspaceEndsAt)}`))
+        .toMatchObject({ type: 'airspace-closure-parking', turn: 1, serverTime: openPhase.openAirspaceEndsAt });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('rejects malformed presence role ids before opening a transaction', async () => {
     await expect(refreshPresence.run(request({

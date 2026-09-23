@@ -6,6 +6,8 @@ import type { TurnPhase } from './turnZero';
 export const AIRSPACE_CLOSURE_MAX_TASK_HORIZON_MS = 24 * 24 * 60 * 60_000;
 export const AIRSPACE_CLOSURE_PAUSE_RECHECK_MS = 5 * 60_000;
 const PAUSE_WAKE_INDEX_START = 1_000_000_000;
+const RECONCILE_RECOVERY_WAKE_INDEX_START = 2_000_000_000;
+const RECONCILE_RECOVERY_ID_WINDOW_MS = 24 * 60 * 60_000;
 
 export type AirspaceClosureTask = Readonly<{
   sessionId: string;
@@ -103,6 +105,38 @@ export function airspaceClosurePauseWatchPlan(
   return { ...payload, taskId: airspaceClosureTaskId(payload), scheduledAtMs };
 }
 
+/**
+ * Schedule missing ordinary tasks found by the periodic scanner. Due windows
+ * use one deterministic recovery ID per day so a task that aged out of Cloud
+ * Tasks' retention can be recreated after task-name deduplication expires.
+ */
+export function airspaceClosureReconcileTaskPlan(
+  sessionId: string,
+  currentTurn: number,
+  phase: TurnPhase | undefined,
+  sessionPhase: string | undefined,
+  nowMs = Date.now(),
+): AirspaceClosureTaskPlan | undefined {
+  const ordinary = airspaceClosureTaskPlan(sessionId, currentTurn, phase, sessionPhase, nowMs);
+  if (!ordinary) {
+    return airspaceClosurePauseWatchPlan(sessionId, currentTurn, phase, sessionPhase, nowMs);
+  }
+  if (Date.parse(ordinary.deadlineAt) > nowMs) return ordinary;
+  const recoveryWakeIndex = RECONCILE_RECOVERY_WAKE_INDEX_START +
+    Math.floor(nowMs / RECONCILE_RECOVERY_ID_WINDOW_MS);
+  const payload: AirspaceClosureTask = {
+    sessionId: ordinary.sessionId,
+    cycle: ordinary.cycle,
+    deadlineAt: ordinary.deadlineAt,
+    wakeIndex: recoveryWakeIndex,
+  };
+  return {
+    ...payload,
+    taskId: airspaceClosureTaskId(payload),
+    scheduledAtMs: nowMs,
+  };
+}
+
 export function parseAirspaceClosureTask(value: unknown): AirspaceClosureTask | undefined {
   if (!isRecord(value) || Object.keys(value).length !== 4 ||
       Object.keys(value).some((key) => !['sessionId', 'cycle', 'deadlineAt', 'wakeIndex'].includes(key)) ||
@@ -134,9 +168,8 @@ export function airspaceClosureTaskDecision(
   nowMs = Date.now(),
 ): AirspaceClosureTaskDecision {
   if (currentTaskId !== airspaceClosureTaskId(task) || !phase ||
-      phase.turn !== currentTurn || currentTurn !== task.cycle ||
-      sessionPhase !== 'active' ||
-      phase.airspace.state !== 'lifted') {
+      phase.turn !== currentTurn || currentTurn < 1 ||
+      sessionPhase !== 'active' || phase.airspace.state !== 'lifted') {
     return { action: 'stale' };
   }
   const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
@@ -146,6 +179,12 @@ export function airspaceClosureTaskDecision(
       new Date(Date.parse(task.deadlineAt)).toISOString() !== task.deadlineAt ||
       !Number.isSafeInteger(nowMs) || nowMs < 0) {
     return { action: 'stale' };
+  }
+  if (task.cycle !== currentTurn) {
+    const successor = phase.timerPause !== undefined
+      ? airspaceClosurePauseWatchPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs)
+      : airspaceClosureTaskPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs);
+    return successor ? { action: 'reschedule', plan: successor } : { action: 'stale' };
   }
   if (phase.timerPause !== undefined) {
     const paused = airspaceClosurePauseWatchPlan(
