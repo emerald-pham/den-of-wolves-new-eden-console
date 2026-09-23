@@ -480,6 +480,20 @@ async function runTickerLifecycleCase() {
     targetId, traversals = 1, requiredExits = 2, handoffId,
   } = {}) => {
     console.log(`Ticker lifecycle capture started: ${label}`);
+    await mkdir(artifactDirectory, { recursive: true });
+    const screenshotPath = path.join(artifactDirectory, 'ticker-lifecycle-stand-down-two-passes.png');
+    const captureScreenshot = handoffId
+      ? page.waitForFunction(() => window.__tickerLifecycleScreenshotSignal ?? false, null, { timeout: 45_000 })
+        .then(async (handle) => {
+          const signal = await handle.jsonValue();
+          await page.locator('#ticker-lifecycle-harness').screenshot({ path: screenshotPath });
+          return signal;
+        })
+        .catch((error) => {
+          console.error(`Ticker lifecycle boundary screenshot was not captured: ${error.message}`);
+          return null;
+        })
+      : Promise.resolve(null);
     const result = await page.evaluate(async ({ name, expectedId, passCount, exitsNeeded, observedId, velocitySampleStride }) => {
       const host = document.querySelector('#ticker-lifecycle-harness');
       const frame = host?.querySelector('.fleet-ticker__window');
@@ -567,7 +581,35 @@ async function runTickerLifecycleCase() {
             }).filter((copy) => copy.id && copy.width > 0),
           };
         }).filter((group) => group.id && group.width > 0);
-        rows.push({ frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
+        if (name === 'stand-down-two-passes' && observedId &&
+            !window.__tickerLifecycleScreenshotSignal) {
+          const visibleCopies = groups.flatMap((group) => group.paintedCopies.map((copy) => ({
+            ...copy,
+            messageId: group.messageId,
+          }))).sort((left, right) => left.left - right.left);
+          const frameCenter = (frameBounds.left + frameBounds.right) / 2;
+          for (let index = 1; index < visibleCopies.length; index += 1) {
+            const previous = visibleCopies[index - 1];
+            const current = visibleCopies[index];
+            const boxGap = current.left - previous.right;
+            const boundary = (previous.right + current.left) / 2;
+            if (previous.messageId !== expectedId || current.messageId !== observedId ||
+                Math.abs(boxGap) > 2 || Math.abs(boundary - frameCenter) > 50 ||
+                previous.right <= frameBounds.left || current.left >= frameBounds.right) continue;
+            window.__tickerLifecycleScreenshotSignal = {
+              elapsedMs: Math.round(frameTime),
+              previousId: previous.id,
+              currentId: current.id,
+              boxGapPx: boxGap,
+              textGapPx: Number.isFinite(previous.textRight) && Number.isFinite(current.textLeft)
+                ? current.textLeft - previous.textRight
+                : null,
+              boundaryPx: boundary,
+            };
+            break;
+          }
+        }
+        rows.push({ elapsed: frameTime, frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
         const completedExits = new Set(endpointEvents
           .filter((event) => !expectedId || event.messageId === expectedId)
           .map((event) => event.id));
@@ -673,13 +715,66 @@ async function runTickerLifecycleCase() {
       exitsNeeded: requiredExits, observedId: handoffId,
       velocitySampleStride: VELOCITY_SAMPLE_STRIDE,
     });
+    const screenshotSignal = await Promise.race([
+      captureScreenshot,
+      new Promise((resolve) => setTimeout(() => resolve(null), 250)),
+    ]);
+    if (!screenshotSignal && label === 'stand-down-two-passes') {
+      await page.locator('#ticker-lifecycle-harness').screenshot({ path: screenshotPath });
+    }
     samples.push(result);
     console.log(`Ticker lifecycle capture sampled: ${label} (${Math.round((result.durationSeconds ?? 0) * 1_000)}ms, ${result.sampleCount} samples)`);
+    if (handoffId) {
+      const adjacentPairs = result.rows.flatMap((row) => {
+        const ordered = row.groups.flatMap((group) => group.paintedCopies.map((copy) => ({
+          ...copy,
+          messageId: group.messageId,
+        }))).sort((left, right) => left.left - right.left);
+        return ordered.slice(1).map((current, index) => {
+          const previous = ordered[index];
+          return {
+            elapsed: row.elapsed,
+            previous,
+            current,
+            boxGap: current.left - previous.right,
+            textGap: Number.isFinite(previous.textRight) && Number.isFinite(current.textLeft)
+              ? current.textLeft - previous.textRight
+              : null,
+          };
+        });
+      });
+      const targetPairs = adjacentPairs.filter(({ previous, current }) =>
+        previous.messageId === targetId && current.messageId === handoffId);
+      const closestBoxPair = [...targetPairs].sort((left, right) => left.boxGap - right.boxGap)[0];
+      const closestTextPair = targetPairs.filter((pair) => pair.textGap !== null)
+        .sort((left, right) => left.textGap - right.textGap)[0];
+      console.log(`Ticker lifecycle geometry: ${JSON.stringify({
+        label,
+        targetPairSamples: targetPairs.length,
+        closestBoxPair: closestBoxPair && {
+          elapsedMs: Math.round(closestBoxPair.elapsed),
+          previousId: closestBoxPair.previous.id,
+          currentId: closestBoxPair.current.id,
+          gapPx: closestBoxPair.boxGap,
+          textGapPx: closestBoxPair.textGap,
+        },
+        closestTextPair: closestTextPair && {
+          elapsedMs: Math.round(closestTextPair.elapsed),
+          previousId: closestTextPair.previous.id,
+          currentId: closestTextPair.current.id,
+          boxGapPx: closestTextPair.boxGap,
+          gapPx: closestTextPair.textGap,
+        },
+      })}`);
+    }
     await mkdir(artifactDirectory, { recursive: true });
     await writeFile(
       path.join(artifactDirectory, `ticker-lifecycle-${label}.json`),
       `${JSON.stringify(result, null, 2)}\n`,
     );
+    if (screenshotSignal) {
+      console.log(`Ticker lifecycle boundary screenshot: ${JSON.stringify(screenshotSignal)}`);
+    }
     if (result.error) throw new Error(`lifecycle/${label}: ${result.error}`);
     if (result.targetSamples < 8 || result.targetInstances.length < result.requiredExits) throw new Error(`lifecycle/${label}: target was not sampled across its full physical instances: ${JSON.stringify(result)}`);
     if (result.targetExitCount < result.requiredExits) throw new Error(`lifecycle/${label}: target did not prove ${result.requiredExits} complete left exits: ${JSON.stringify(result)}`);
@@ -821,8 +916,14 @@ async function runTickerLifecycleCase() {
     console.log(`Ticker lifecycle browser proof passed: ${artifactPath}`);
   } catch (error) {
     await mkdir(artifactDirectory, { recursive: true });
-    await page.locator('#ticker-lifecycle-harness').scrollIntoViewIfNeeded().catch(() => undefined);
-    await page.screenshot({ path: path.join(artifactDirectory, 'ticker-lifecycle-failure.png'), fullPage: false });
+    const failureScreenshotPath = path.join(artifactDirectory, 'ticker-lifecycle-failure.png');
+    const tickerHarness = page.locator('#ticker-lifecycle-harness');
+    if (await tickerHarness.count().catch(() => 0)) {
+      await tickerHarness.screenshot({ path: failureScreenshotPath })
+        .catch(() => page.screenshot({ path: failureScreenshotPath }));
+    } else {
+      await page.screenshot({ path: failureScreenshotPath, fullPage: false });
+    }
     throw error;
   } finally {
     await context.close();

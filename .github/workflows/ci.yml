@@ -229,6 +229,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload isolated ticker geometry diagnostics
+        if: success() && github.ref == 'refs/heads/fix/ticker-standdown-overlap-20260923'
+        uses: actions/upload-artifact@v7
+        with:
+          name: fleet-ticker-smoke-diagnostic
+          path: /tmp/fleet-ticker-smoke
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Check web bundle size
         if: steps.change_scope.outputs.bundle == 'true'
         run: node scripts/check-bundle-size.mjs
