@@ -143,18 +143,10 @@ jobs:
             echo "render=$RENDER_REQUIRED" >> "$GITHUB_OUTPUT"
             echo "bundle=$run_bundle" >> "$GITHUB_OUTPUT"
           else
-            base_sha="$PR_BASE_SHA"
-            if [ -z "$base_sha" ]; then
-              base_sha="$PUSH_BEFORE_SHA"
-            fi
-            if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
-              base_sha=$(git merge-base origin/main "$head_sha" 2>/dev/null || true)
-            fi
-            if [ -n "$base_sha" ] && [ "$base_sha" != "$head_sha" ]; then
-              changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
-            else
-              changed_paths="__unknown_diff__"
-            fi
+            changed_paths=$(node scripts/ci-changed-paths.mjs \
+              --head "$head_sha" \
+              --pr-base "$PR_BASE_SHA" \
+              --push-before "$PUSH_BEFORE_SHA")
             changed_paths_file="$RUNNER_TEMP/ci-changed-paths.txt"
             printf '%s\n' "$changed_paths" > "$changed_paths_file"
             node scripts/risk-gates.mjs --files-file "$changed_paths_file" >> "$GITHUB_OUTPUT"
