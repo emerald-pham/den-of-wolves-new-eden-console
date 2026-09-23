@@ -22,15 +22,30 @@ function functionName(record) {
   return String(record?.name ?? '').split('/').filter(Boolean).at(-1) ?? '';
 }
 
-function cloudRunService(record, name, region) {
+function cloudRunService(record, name, region, projectId) {
   const service = record?.serviceConfig?.service;
   const match = typeof service === 'string'
-    ? /^projects\/[^/\s]+\/locations\/([^/\s]+)\/services\/[^/\s]+$/.exec(service)
+    ? /^projects\/([^/\s]+)\/locations\/([^/\s]+)\/services\/[^/\s]+$/.exec(service)
     : null;
-  if (!match || match[1] !== region) {
+  if (!match || match[2] !== region || match[1] !== projectId) {
     throw new Error(`Function ${name} is missing a valid Cloud Run service resource.`);
   }
   return service;
+}
+
+function listedFunctionName(record, projectId, region) {
+  const resource = record?.name;
+  const match = typeof resource === 'string'
+    ? /^projects\/([^/\s]+)\/locations\/([^/\s]+)\/functions\/([^/\s]+)$/.exec(resource)
+    : null;
+  if (!match) throw new Error('gcloud functions list returned an invalid fully qualified Function resource name.');
+  if (match[1] !== projectId || match[2] !== region) {
+    throw new Error(`Function ${match[3]} inventory row is outside the requested project or region.`);
+  }
+  if (typeof record?.state !== 'string' || !record.state.trim()) {
+    throw new Error(`Function ${match[3]} inventory row is missing its state.`);
+  }
+  return match[3];
 }
 
 function parseJson(output, label) {
@@ -85,7 +100,7 @@ async function verifyFunctions({ projectId, region, runCommand }) {
   for (const name of PUBLIC_FUNCTIONS) {
     const record = byName.get(name);
     if (!record) throw new Error(`Required public Function ${name} is not deployed.`);
-    const service = cloudRunService(record, name, region);
+    const service = cloudRunService(record, name, region, projectId);
     // Cloud Functions v2 exposes callable invoker IAM on its backing Cloud Run
     // service; the v2 function resource policy is not the public endpoint gate.
     const policyOutput = await runCommand('gcloud', [
@@ -116,7 +131,15 @@ export async function captureFunctionRevisions({ functionNames, projectId, regio
   ]);
   const functions = parseJson(listOutput, 'gcloud functions list');
   if (!Array.isArray(functions)) throw new Error('gcloud functions list returned an invalid response.');
-  const byName = new Map(functions.map((record) => [functionName(record), record]));
+  const byName = new Map();
+  for (const record of functions) {
+    const name = listedFunctionName(record, projectId, region);
+    if (byName.has(name)) {
+      throw new Error(`Function ${name} appears more than once in the regional inventory.`);
+    }
+    cloudRunService(record, name, region, projectId);
+    byName.set(name, record);
+  }
   const revisions = {};
   for (const name of names) {
     const functionRecord = byName.get(name);
@@ -126,7 +149,7 @@ export async function captureFunctionRevisions({ functionNames, projectId, regio
       revisions[name] = null;
       continue;
     }
-    const serviceResource = cloudRunService(functionRecord, name, region);
+    const serviceResource = cloudRunService(functionRecord, name, region, projectId);
     const serviceName = serviceResource.split('/').at(-1);
     const serviceState = parseJson(await runCommand('gcloud', [
       'run', 'services', 'describe', serviceName, `--project=${projectId}`, `--region=${region}`, '--format=json',

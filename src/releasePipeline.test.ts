@@ -422,7 +422,7 @@ it('proves every selected Function published a different ready Cloud Run revisio
           'triggerDradisContact', 'startSinglePlayerDemo', 'repairConsolesFromBlacksmith',
           'upgradeEndeavourFieldTargets', 'confirmSetup', 'startGame',
         ].map((name) => ({
-          name,
+          name: `projects/dow-new-eden-console/locations/us-central1/functions/${name}`,
           state: 'ACTIVE',
           serviceConfig: {
             service: `projects/dow-new-eden-console/locations/us-central1/services/${name}`,
@@ -462,20 +462,20 @@ it('verifies the first deployment of a selected Function absent from the pre-dep
   let listCall = 0;
   const publicFunctions = [
     {
-      name: 'triggerDradisContact', state: 'ACTIVE',
+      name: 'projects/dow-new-eden-console/locations/us-central1/functions/triggerDradisContact', state: 'ACTIVE',
       serviceConfig: { service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact' },
     },
     {
-      name: 'startSinglePlayerDemo', state: 'ACTIVE',
+      name: 'projects/dow-new-eden-console/locations/us-central1/functions/startSinglePlayerDemo', state: 'ACTIVE',
       serviceConfig: { service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo' },
     },
     {
-      name: 'repairConsolesFromBlacksmith', state: 'ACTIVE',
+      name: 'projects/dow-new-eden-console/locations/us-central1/functions/repairConsolesFromBlacksmith', state: 'ACTIVE',
       serviceConfig: { service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith' },
     },
   ];
   const endeavourFunction = {
-    name: 'upgradeEndeavourFieldTargets', state: 'ACTIVE',
+    name: 'projects/dow-new-eden-console/locations/us-central1/functions/upgradeEndeavourFieldTargets', state: 'ACTIVE',
     serviceConfig: {
       service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
     },
@@ -524,6 +524,53 @@ it('does not treat a failed regional Function inventory as proof that an export 
   })).rejects.toThrow('permission denied listing Functions');
 });
 
+it('rejects malformed records from a regional Function inventory before inferring absence', async () => {
+  await expect(captureFunctionRevisions({
+    functionNames: 'upgradeEndeavourFieldTargets',
+    projectId: 'dow-new-eden-console',
+    runCommand: async (_command, args) => args[1] === 'list' ? JSON.stringify([{}]) : '{}',
+  })).rejects.toThrow('invalid fully qualified Function resource name');
+});
+
+it('rejects a Function resource name from another project or region before inferring absence', async () => {
+  for (const resourceName of [
+    'projects/other-project/locations/us-central1/functions/upgradeEndeavourFieldTargets',
+    'projects/dow-new-eden-console/locations/europe-west1/functions/upgradeEndeavourFieldTargets',
+  ]) {
+    await expect(captureFunctionRevisions({
+      functionNames: 'upgradeEndeavourFieldTargets',
+      projectId: 'dow-new-eden-console',
+      region: 'us-central1',
+      runCommand: async (_command, args) => args[1] === 'list'
+        ? JSON.stringify([{
+          name: resourceName,
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
+          },
+        }])
+        : JSON.stringify({ status: { latestReadyRevisionName: 'unexpected-revision' } }),
+    })).rejects.toThrow('outside the requested project or region');
+  }
+});
+
+it('rejects duplicate Function identities in a regional inventory', async () => {
+  const duplicate = {
+    name: 'projects/dow-new-eden-console/locations/us-central1/functions/upgradeEndeavourFieldTargets',
+    state: 'ACTIVE',
+    serviceConfig: {
+      service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
+    },
+  };
+  await expect(captureFunctionRevisions({
+    functionNames: 'upgradeEndeavourFieldTargets',
+    projectId: 'dow-new-eden-console',
+    runCommand: async (_command, args) => args[1] === 'list'
+      ? JSON.stringify([duplicate, duplicate])
+      : JSON.stringify({ status: { latestReadyRevisionName: 'unexpected-revision' } }),
+  })).rejects.toThrow('appears more than once in the regional inventory');
+});
+
 it('fails closed when a selected Function inventory record points to a different region', async () => {
   await expect(captureFunctionRevisions({
     functionNames: 'upgradeEndeavourFieldTargets',
@@ -531,7 +578,7 @@ it('fails closed when a selected Function inventory record points to a different
     region: 'us-central1',
     runCommand: async (_command, args) => args[1] === 'list'
       ? JSON.stringify([{
-        name: 'upgradeEndeavourFieldTargets', state: 'ACTIVE',
+        name: 'projects/dow-new-eden-console/locations/us-central1/functions/upgradeEndeavourFieldTargets', state: 'ACTIVE',
         serviceConfig: {
           service: 'projects/dow-new-eden-console/locations/europe-west1/services/upgrade-endeavour-field-targets',
         },
