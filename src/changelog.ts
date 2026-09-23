@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 38, active: 0, missing: 256,
+    },
+    changes: [
+      'Shepherd Scientists can now advance Endeavour research from their console during Team Phase. Each choice crosses the next box in one track; up to two additional choices cost five Shepherd ore each. Research updates future field-upgrade prices, while purchase controls remain under development.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+  },
+
+  {
+    version: '0.5.21',
     implementationPrompts: [436],
     implementationProgress: {
       completed: 474, total: 751, percentage: '63.12%',

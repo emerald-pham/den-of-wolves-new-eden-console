@@ -620,18 +620,23 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'The AEGIS Executive Officer can redirect one Wolf ship to AEGIS after the Wolf Commander finishes targeting rerolls. If the assigned Commander is disconnected, the redirect waits until they reconnect and finish rerolls. This action does not resolve damage.',
+    'Shepherd Scientists can now advance Endeavour research from their console during Team Phase. Each choice crosses the next box in one track; up to two additional choices cost five Shepherd ore each. Research updates future field-upgrade prices, while purchase controls remain under development.',
   )).toBeVisible();
-  expect(within(newestEntry).getByText('474 of 751 planned items are complete (63.12%).')).toBeVisible();
-  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.20' }).closest('article');
+  expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.21' }).closest('article');
   if (!previousEntry) throw new Error('Expected the previous changelog entry.');
   expect(within(previousEntry).getByText(
+    'The AEGIS Executive Officer can redirect one Wolf ship to AEGIS after the Wolf Commander finishes targeting rerolls. If the assigned Commander is disconnected, the redirect waits until they reconnect and finish rerolls. This action does not resolve damage.',
+  )).toBeVisible();
+  const earlierEntry = within(region).getByRole('heading', { name: 'Build 0.5.20' }).closest('article');
+  if (!earlierEntry) throw new Error('Expected the previous P618 release entry.');
+  expect(within(earlierEntry).getByText(
     'After you reconnect or your role or fleet group changes, the connected player list clears until the app confirms your access.',
   )).toBeVisible();
   expect(within(region).getByRole('heading', { name: 'Build 0.5.19' })).toBeVisible();
-  const earlierEntry = within(region).getByRole('heading', { name: 'Build 0.5.19' }).closest('article');
-  if (!earlierEntry) throw new Error('Expected the Endeavour release entry.');
-  expect(within(earlierEntry).getByText(
+  const endeavourEntry = within(region).getByRole('heading', { name: 'Build 0.5.19' }).closest('article');
+  if (!endeavourEntry) throw new Error('Expected the Endeavour release entry.');
+  expect(within(endeavourEntry).getByText(
     "Endeavour upgrades now install the selected consoles using each target ship's current material cost. In-app controls and Team research progression remain under development.",
   )).toBeVisible();
   expect(within(region).getAllByText('217 of 750 planned items are complete (28.93%).').length).toBeGreaterThan(0);

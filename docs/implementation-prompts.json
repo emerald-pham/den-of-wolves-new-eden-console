@@ -1276,6 +1276,13 @@
       "type": "evidence / server-contract / immutable-catalog / exact-costs / left-most-transition / fail-closed / console-mapping / non-feature"
     },
     {
+      "direction": "211 -> 212 -> 391",
+      "id": "E-211-ENDEAVOUR-RESEARCH-WRITER",
+      "language": "The private Team research writer now persists the canonical Prompt 211 left-most track progress that the Prompt 391 upgrade transaction reads to price each target ship. The current Shepherd Scientist can read the private workspace and reach its research controls from the Endeavour route; the server binds the reader and writer to the current assigned core role and seat, Endeavour holder, active Shepherd fleet group, live Team window, cycle, and current revisions. Progress, cadence, and replay receipts remain server-only; additional choices debit five authoritative Shepherd ore. Focused callable, UI, route, replay, stale-authority, privacy-rule, responsive, and build checks pass. No authorized live-game Team research choice and resulting field purchase has been recorded, so Prompt 211 remains partial.",
+      "source": "functions/src/endeavourResearchWriter.ts; functions/src/endeavourResearchWriter.test.ts; functions/src/index.ts; functions/src/endeavourResearch.ts; functions/src/endeavourResearchCadence.ts; functions/src/endeavourFieldUpgradeCallable.test.ts; firestore.rules; tests/rules/endeavourResearchPrivacy.test.ts; src/lib/endeavourResearchService.ts; src/lib/endeavourResearchService.test.ts; src/components/EndeavourResearchPanel.tsx; src/components/EndeavourResearchPanel.test.tsx; src/components/ShuttleConsoleTemplate.tsx; src/routes/ShuttleConsole.test.tsx; focused Functions and UI tests; Functions and app production builds; reduced-motion responsive render checks",
+      "type": "evidence / feature / production-callable / private-state / current-role-and-seat / Team-phase / partial-live-acceptance"
+    },
+    {
       "direction": "212 -> 211",
       "id": "E-AUDIT-212",
       "language": "Research cadence consumes the research-track contract.",
@@ -1288,6 +1295,13 @@
       "language": "The pure server cadence resolver consumes Prompt 211 canonical progress and one current-cycle choice at a time. Canonical state allows no more than three standard and two Shepherd-ore choices, requires every chosen track to be distinct across both funding types, spends exactly five available Shepherd ore for an additional choice, increments one monotonic revision, and resets only the choice history on a later cycle. Exact persisted shapes, safe non-negative integers, current revision, nonfuture cycle, valid funding and track identity, remaining track capacity, available ore, and incomplete left-most progress all fail closed before a new immutable result is returned. The same server action metadata permits research only as the printed Team-phase exception and rejects Coordination, unknown phase, and unauthorized actors. Persistence, transactions, replay, and UI remain downstream.",
       "source": "functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; functions/src/endeavourResearch.ts; functions/src/endeavourResearch.test.ts; functions/src/actionMetadata.ts; functions/src/actionMetadata.test.ts; src/data/roleProcedures.ts; focused research and phase-policy suite; Functions TypeScript build",
       "type": "evidence / server-contract / canonical-cadence / distinct-tracks / exact-ore-cost / cycle-reset / revision / fail-closed / non-feature"
+    },
+    {
+      "direction": "212 -> 211;391",
+      "id": "E-212-ENDEAVOUR-RESEARCH-WRITER",
+      "language": "The cadence resolver is now connected to an authoritative transaction and current Scientist controls. It stores progress, three standard plus two distinct five-ore choices, and revisioned replay receipts in private server state; the current Team phase, deadline, control, role/seat binding, Shepherd membership, ore balance, and expected cycle/revision are rechecked before writes. The Scientist route reads and refreshes its private cost view from the server, and Prompt 391 consumes the persisted shared track. The live cadence and end-to-end field-upgrade purchase still require production gameplay evidence, so Prompt 212 remains partial.",
+      "source": "functions/src/endeavourResearchWriter.ts; functions/src/endeavourResearchWriter.test.ts; functions/src/index.ts; functions/src/endeavourResearchCadence.ts; functions/src/endeavourResearchCadence.test.ts; functions/src/endeavourFieldUpgradeCallable.test.ts; firestore.rules; tests/rules/endeavourResearchPrivacy.test.ts; src/lib/endeavourResearchService.ts; src/components/EndeavourResearchPanel.tsx; src/routes/ShuttleConsole.test.tsx; focused 69-test Functions suite; focused 77-test panel/service/route suite; Functions and app production builds",
+      "type": "evidence / feature / transactional-persistence / private-state / replay-and-CAS / reachable-Scientist-control / partial-live-acceptance"
     },
     {
       "direction": "213 -> 211",
@@ -2856,6 +2870,13 @@
       "language": "Endeavour upgrades consume craft identity, console metadata, and upgrade authority.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "391 -> 211;212",
+      "id": "E-391-ENDEAVOUR-RESEARCH-LINK",
+      "language": "The 0.5.19 field-upgrade callable now reads progress written by the private Team-phase research transaction, so each target ship is priced from its current shared track. Prompt 212 adds the current Scientist reader and reachable research controls, but the field-upgrade purchase controls and authorized live end-to-end game proof are not yet present. Prompt 391 remains partial.",
+      "source": "functions/src/endeavourFieldUpgrades.ts; functions/src/endeavourResearchWriter.ts; functions/src/endeavourFieldUpgradeCallable.test.ts; src/components/EndeavourResearchPanel.tsx; src/routes/ShuttleConsole.test.tsx; focused integration tests; reduced-motion responsive render checks",
+      "type": "evidence / feature / shared-research-price / partial-live-acceptance"
     },
     {
       "direction": "392 -> 401",
@@ -11679,15 +11700,15 @@
       "tag": "PRESERVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "each track advances the left-most box and exposes the correct current material cost.",
         "title": "Encode Endeavour console-upgrade research tracks."
       },
-      "description": "The server research contract now encodes all fourteen Endeavour tracks with their exact ordered material costs, including the four-box Wolf Agent Detector track and the printed Command and Control sequence. One pure transition validates the entire progress record, crosses exactly the left-most remaining box, exposes the prior and next current material costs, preserves unrelated tracks, and rejects unknown, fractional, negative, overrun, or completed progress. Canonical ship-console lookup maps duplicate printed console ids to their shared research track and rejects unknown ship/system pairs. Research cadence, persistence, device effects, and material-spending field upgrades remain owned by Prompts 212–214 and 391. No production Team action yet advances a research box; Prompt 211 remains partial until that transition is reachable and verified through the authoritative game path.",
-      "evidenceIds": "E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS",
+      "description": "The server catalog encodes all fourteen printed Endeavour tracks and their exact ordered material costs; one pure transition validates progress, crosses only the left-most remaining box, and exposes its prior and next current costs. The production Team research writer now persists that shared progress privately, and the reachable Shepherd Scientist workspace reads it from the server. Prompt 391 consumes the same track state when it prices target ships. Callable and route tests cover role/seat and Endeavour-holder authorization, Team window and cycle/revision checks, exact replay, left-most progress, privacy, and current costs. An authorized live-game research choice and a resulting field purchase are not yet evidenced; Prompt 211 remains partial.",
+      "evidenceIds": "E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS;E-211-ENDEAVOUR-RESEARCH-WRITER",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "165;204;267",
@@ -11695,22 +11716,24 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.22"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
       "status": "partial",
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "up to three distinct choices plus no more than two five-ore extras resolve per Team Phase.",
         "title": "Enforce Endeavour research cadence."
       },
-      "description": "The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. The resolver consumes the server phase policy, allowing this printed Team-phase exception while denying Coordination, missing phase, and unauthorized actor scopes. Persistence and client controls remain downstream; this non-feature contract does not mutate a session. Prompt 212 remains partial until the authoritative writer, reachable Scientist control, and live cadence are verified.",
-      "evidenceIds": "E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE",
+      "description": "The cadence resolver is connected to an authoritative transaction and current Scientist controls. It stores progress, three standard plus two distinct five-ore choices, and revisioned replay receipts in private server state; the current Team phase, deadline, control, role/seat binding, Shepherd membership, ore balance, and expected cycle/revision are rechecked before writes. The Scientist route reads and refreshes its private cost view from the server, and Prompt 391 consumes the persisted shared track. The live cadence and end-to-end field-upgrade purchase still require production gameplay evidence, so Prompt 212 remains partial.",
+      "evidenceIds": "E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE;E-212-ENDEAVOUR-RESEARCH-WRITER",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "211",
@@ -11718,7 +11741,9 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.22"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
       "status": "partial",
@@ -16261,8 +16286,8 @@
         "acceptance": "two target consoles, or four when fuelled, use each target ship's current material cost.",
         "title": "Resolve Endeavour field upgrades."
       },
-      "description": "The 0.5.19 server-authoritative callable accepts up to two Endeavour field-upgrade targets, or four when fuelled, prices each target ship from the shared current research track, atomically installs the canonical consoles, and protects the purchase ledger and replay receipts in server-only state. Purchases do not advance research, and replies/events omit private pricing and ledger details. The production Team research-progress writer and in-app upgrade controls are not connected, so the full research-and-purchase flow remains unfinished. Prompt 391 stays partial.",
-      "evidenceIds": "E-AUDIT-391",
+      "description": "The 0.5.19 server-authoritative callable accepts up to two Endeavour field-upgrade targets, or four when fuelled, prices each target ship from the shared current research track, atomically installs the canonical consoles, and protects the purchase ledger and replay receipts in server-only state. Purchases do not advance research, and replies/events omit private pricing and ledger details. Version 0.5.22 connects private Team-phase research progress and reachable current Scientist controls to that price path. In-app field-upgrade purchase controls and authorized live end-to-end game proof remain outstanding; Prompt 391 stays partial.",
+      "evidenceIds": "E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "267;165;124",
@@ -16271,7 +16296,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.19"
+        "0.5.19",
+        "0.5.22"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
