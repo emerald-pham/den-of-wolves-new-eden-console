@@ -21074,8 +21074,8 @@
         "acceptance": "only Team-docked Macaw can consume the single bay choice and unused fuel expires.",
         "title": "Resolve Macaw refuelling."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-574",
+      "description": "Closed by evidence reconciliation with existing production behavior. Capybara's printed single 6♠ Shuttle Bay is server-authoritative during Team Phase: only a role-owned shuttle currently docked at Capybara can be selected, and the Macaw or printed Boa choice spends exactly one host fuel and advances beyond the one-bay step so a second shuttle cannot be refuelled in that cycle. Active ship authority, the complete role-owned docking manifest, co-location, damaged-bay, fuel-balance, revision-CAS, and request-replay guards remain enforced; the numbered-cycle transition clears both the refuelled record and shuttleFuelled flags. Existing pure, callable, cycle-transition, manifest, and shared UI regressions verify the behavior. This is evidence-only closure with no runtime, version, or deployment change.",
+      "evidenceIds": "E-AUDIT-574;E-258-VERIFIED;E-369-ELIGIBLE-DOCKED-FUELLING-VERIFIED;E-370-TURN-BOUNDARY-FUEL-EXPIRY-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "369;399",
@@ -21086,7 +21086,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
