@@ -22408,7 +22408,7 @@
         "acceptance": "conflict responses carry enough fresh nonsecret state to retry safely while preserving local input where appropriate.",
         "title": "Recover from stale revisions."
       },
-      "description": "The GM fighter-wing correction slice validates a stale callable reply against the session, request, wing, and current GM instance, then refreshes the entitled count, per-wing revision, and capacity when no newer snapshot or callable revision has arrived. Older overlapping replies cannot roll back a newer wing revision. The typed target remains in the GM console for an explicit retry. Focused service, callable-contract, and route tests cover fresh-state parsing, malformed replies, authority loss, out-of-order replies, and a newer interleaved snapshot. Other stale-revision callables and production merge/deploy evidence remain open; Prompt 620 stays partial.",
+      "description": "The GM fighter-wing correction slice validates a stale callable reply against the session, request, wing, and current GM instance, then refreshes the entitled count, per-wing revision, and capacity when no newer snapshot or callable revision has arrived. Older overlapping replies cannot roll back a newer wing revision. The typed target remains in the GM console for an explicit retry. Focused service, callable-contract, and route tests cover fresh-state parsing, malformed replies, authority loss, out-of-order replies, and a newer interleaved snapshot. Other stale-revision callables and broader acceptance remain open; Prompt 620 stays partial.",
       "evidenceIds": "E-AUDIT-620",
       "hardContract": "none",
       "hardMilestone": "none",
