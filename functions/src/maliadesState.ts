@@ -203,6 +203,13 @@ export function parseMaliadesState(value: unknown): MaliadesState | null {
   const medium = parseMedium(raw.medium);
   const short = parseShort(raw.short);
   if (medium === undefined || short === undefined || (!launched && (medium || short))) return null;
+  // The launch transition is the only way to leave the immutable initial
+  // state. Reject client-shaped snapshots that skip that transition or claim
+  // extra revisions without a persisted resolution/repair history anchor.
+  if (!launched && (revision !== 0 || damage !== 0 || destroyed)) return null;
+  if (launched && revision < 1) return null;
+  if (revision === 1 && (damage !== 0 || medium || short)) return null;
+  if (revision > 1 && !medium && !short) return null;
   return freezeState({
     revision,
     launched,
