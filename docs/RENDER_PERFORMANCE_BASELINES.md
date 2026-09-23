@@ -10,7 +10,7 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,720,000 bytes |
+| Complete application JavaScript, raw | 1,728,000 bytes |
 | Complete landing JavaScript, gzip | 460,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
@@ -81,3 +81,15 @@ ms, and 33.5 ms, and the 390x844 mobile probe measured a 16.7 ms p95 with zero
 long frames. The gzip, largest-chunk, startup, render-update, and mobile-frame
 budgets remain unchanged; the raw ceiling retains 1,249 bytes of headroom over
 that measured candidate.
+
+Baseline version 8 raises only the complete raw-JavaScript ceiling from
+1,720,000 to 1,728,000 bytes for Prompt 608's focus-managed private-result,
+facilitator-call, and endgame dialogs. The exact 0.5.8 candidate at
+`825737ed14a6df282c75abff2d3284b0262fcfd6` measured 1,725,076 raw bytes and
+459,146 gzip bytes. Its largest chunk was 496,263 bytes; landing and cached
+Role Select startup p95 were 97.35 ms and 92.28 ms; DRADIS, attack, and
+mission-hand update p95 values were 33.4 ms, 33.5 ms, and 33.4 ms; and the
+390x844 mobile probe measured a 16.7 ms p95 with zero long frames. The gzip,
+largest-chunk, startup, render-update, and mobile-frame budgets remain
+unchanged; the raw ceiling retains 2,924 bytes of headroom over this measured
+candidate.
