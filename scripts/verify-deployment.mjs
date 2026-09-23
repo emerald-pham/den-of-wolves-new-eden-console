@@ -6,6 +6,7 @@ export const PUBLIC_FUNCTIONS = Object.freeze([
   'triggerDradisContact',
   'startSinglePlayerDemo',
   'repairConsolesFromBlacksmith',
+  'upgradeEndeavourFieldTargets',
 ]);
 // Gen 2 IAM is backed by Cloud Run; only its Cloud Run invoker role proves the
 // deployed callable is publicly reachable.
@@ -110,20 +111,27 @@ function revisionFromService(service) {
 export async function captureFunctionRevisions({ functionNames, projectId, region = 'us-central1', runCommand = defaultRunCommand } = {}) {
   const names = [...new Set(String(functionNames ?? '').split(',').map((name) => name.trim()).filter(Boolean))];
   if (!names.length) throw new Error('At least one named Function is required for revision capture.');
+  const listOutput = await runCommand('gcloud', [
+    'functions', 'list', '--v2', `--project=${projectId}`, `--regions=${region}`, '--format=json',
+  ]);
+  const functions = parseJson(listOutput, 'gcloud functions list');
+  if (!Array.isArray(functions)) throw new Error('gcloud functions list returned an invalid response.');
+  const byName = new Map(functions.map((record) => [functionName(record), record]));
   const revisions = {};
   for (const name of names) {
-    const functionRecord = parseJson(await runCommand('gcloud', [
-      'functions', 'describe', name, '--v2', `--project=${projectId}`, `--region=${region}`, '--format=json',
-    ]), `Cloud Function ${name}`);
-    const resource = functionRecord?.serviceConfig?.service;
-    const match = typeof resource === 'string'
-      ? /^projects\/[^/]+\/locations\/[^/]+\/services\/([^/]+)$/.exec(resource)
-      : null;
-    if (!match) throw new Error(`Function ${name} has no valid backing Cloud Run service.`);
-    const service = parseJson(await runCommand('gcloud', [
-      'run', 'services', 'describe', match[1], `--project=${projectId}`, `--region=${region}`, '--format=json',
+    const functionRecord = byName.get(name);
+    if (!functionRecord) {
+      // A successful, region-scoped list is the only evidence that a named
+      // Function has not yet been deployed. Command/API failures remain fatal.
+      revisions[name] = null;
+      continue;
+    }
+    const serviceResource = cloudRunService(functionRecord, name, region);
+    const serviceName = serviceResource.split('/').at(-1);
+    const serviceState = parseJson(await runCommand('gcloud', [
+      'run', 'services', 'describe', serviceName, `--project=${projectId}`, `--region=${region}`, '--format=json',
     ]), `Cloud Run service for ${name}`);
-    revisions[name] = revisionFromService(service);
+    revisions[name] = revisionFromService(serviceState);
   }
   return revisions;
 }
@@ -137,10 +145,15 @@ async function verifySelectedFunctionRevisions({ functionNames, previousRevision
   const current = await captureFunctionRevisions({ functionNames: names.join(','), projectId, region, runCommand });
   for (const name of names) {
     const before = previousRevisions[name];
+    const after = current[name];
+    if (typeof after !== 'string' || !after.trim()) {
+      throw new Error(`Function ${name} did not publish a ready revision.`);
+    }
+    if (before === null) continue;
     if (typeof before !== 'string' || !before.trim()) {
       throw new Error(`No pre-deploy ready revision was captured for ${name}.`);
     }
-    if (current[name] === before) {
+    if (after === before) {
       throw new Error(`Function ${name} did not publish a new ready revision; still ${before}.`);
     }
   }

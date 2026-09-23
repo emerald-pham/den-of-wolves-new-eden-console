@@ -365,6 +365,13 @@ it('verifies Hosting and public Functions through injected production adapters',
               service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
             },
           },
+          {
+            name: 'upgradeEndeavourFieldTargets',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
+            },
+          },
         ]);
       }
       if (args[0] === 'firestore') {
@@ -394,6 +401,10 @@ it('verifies Hosting and public Functions through injected production adapters',
       'run', 'services', 'get-iam-policy',
       'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
     ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
+    ]),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
 });
@@ -402,21 +413,20 @@ it('proves every selected Function published a different ready Cloud Run revisio
   const commands: string[][] = [];
   const runCommand = async (_command: string, args: readonly string[]) => {
     commands.push([...args]);
-    if (args[0] === 'functions' && args[1] === 'describe') {
-      return JSON.stringify({
-        serviceConfig: {
-          service: `projects/dow-new-eden-console/locations/us-central1/services/${args[2]}`,
-        },
-      });
-    }
     if (args[0] === 'run' && args[1] === 'services' && args[2] === 'describe') {
       return JSON.stringify({ status: { latestReadyRevisionName: `${args[3]}-rev-2` } });
     }
     if (args[0] === 'functions' && args[1] === 'list') {
       return JSON.stringify([
-        ...['triggerDradisContact', 'startSinglePlayerDemo', 'repairConsolesFromBlacksmith'].map((name) => ({
-          name, state: 'ACTIVE',
-          serviceConfig: { service: `projects/dow-new-eden-console/locations/us-central1/services/${name}` },
+        ...[
+          'triggerDradisContact', 'startSinglePlayerDemo', 'repairConsolesFromBlacksmith',
+          'upgradeEndeavourFieldTargets', 'confirmSetup', 'startGame',
+        ].map((name) => ({
+          name,
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: `projects/dow-new-eden-console/locations/us-central1/services/${name}`,
+          },
         })),
       ]);
     }
@@ -436,8 +446,7 @@ it('proves every selected Function published a different ready Cloud Run revisio
     runCommand,
   })).resolves.toMatchObject({ functions: true });
   expect(commands).toEqual(expect.arrayContaining([
-    expect.arrayContaining(['functions', 'describe', 'confirmSetup']),
-    expect.arrayContaining(['functions', 'describe', 'startGame']),
+    expect.arrayContaining(['functions', 'list', '--v2', '--regions=us-central1']),
     expect.arrayContaining(['run', 'services', 'describe', 'confirmSetup']),
     expect.arrayContaining(['run', 'services', 'describe', 'startGame']),
   ]));
@@ -446,6 +455,89 @@ it('proves every selected Function published a different ready Cloud Run revisio
     functionNames: 'confirmSetup', previousFunctionRevisions: { confirmSetup: 'confirmSetup-rev-2' },
     runCommand,
   })).rejects.toThrow('did not publish a new ready revision');
+});
+
+it('verifies the first deployment of a selected Function absent from the pre-deploy region list', async () => {
+  const commands: string[][] = [];
+  let listCall = 0;
+  const publicFunctions = [
+    {
+      name: 'triggerDradisContact', state: 'ACTIVE',
+      serviceConfig: { service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact' },
+    },
+    {
+      name: 'startSinglePlayerDemo', state: 'ACTIVE',
+      serviceConfig: { service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo' },
+    },
+    {
+      name: 'repairConsolesFromBlacksmith', state: 'ACTIVE',
+      serviceConfig: { service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith' },
+    },
+  ];
+  const endeavourFunction = {
+    name: 'upgradeEndeavourFieldTargets', state: 'ACTIVE',
+    serviceConfig: {
+      service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
+    },
+  };
+  const runCommand = async (_command: string, args: readonly string[]) => {
+    commands.push([...args]);
+    if (args[0] === 'functions' && args[1] === 'list') {
+      listCall += 1;
+      return JSON.stringify(listCall === 1 ? publicFunctions : [...publicFunctions, endeavourFunction]);
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'describe') {
+      return JSON.stringify({ status: { latestReadyRevisionName: 'upgrade-endeavour-field-targets-rev-1' } });
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'get-iam-policy') {
+      return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] });
+    }
+    throw new Error(`Unexpected command: ${args.join(' ')}`);
+  };
+
+  const previousFunctionRevisions = await captureFunctionRevisions({
+    functionNames: 'upgradeEndeavourFieldTargets', projectId: 'dow-new-eden-console', runCommand,
+  });
+  expect(previousFunctionRevisions).toEqual({ upgradeEndeavourFieldTargets: null });
+
+  await expect(verifyDeployment({
+    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.19',
+    functionNames: 'upgradeEndeavourFieldTargets', previousFunctionRevisions, runCommand,
+  })).resolves.toMatchObject({ functions: true });
+  expect(commands).toEqual(expect.arrayContaining([
+    expect.arrayContaining(['functions', 'list', '--v2', '--regions=us-central1']),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'describe', 'upgrade-endeavour-field-targets',
+    ]),
+  ]));
+});
+
+it('does not treat a failed regional Function inventory as proof that an export is new', async () => {
+  await expect(captureFunctionRevisions({
+    functionNames: 'upgradeEndeavourFieldTargets',
+    projectId: 'dow-new-eden-console',
+    runCommand: async () => { throw new Error('permission denied listing Functions'); },
+  })).rejects.toThrow('permission denied listing Functions');
+});
+
+it('fails closed when a selected Function inventory record points to a different region', async () => {
+  await expect(captureFunctionRevisions({
+    functionNames: 'upgradeEndeavourFieldTargets',
+    projectId: 'dow-new-eden-console',
+    region: 'us-central1',
+    runCommand: async (_command, args) => args[1] === 'list'
+      ? JSON.stringify([{
+        name: 'upgradeEndeavourFieldTargets', state: 'ACTIVE',
+        serviceConfig: {
+          service: 'projects/dow-new-eden-console/locations/europe-west1/services/upgrade-endeavour-field-targets',
+        },
+      }])
+      : JSON.stringify({ status: { latestReadyRevisionName: 'wrong-region-rev' } }),
+  })).rejects.toThrow('missing a valid Cloud Run service resource');
 });
 
 it('verifies the exact Firestore Native database resource without an API state field', () => {
@@ -474,6 +566,20 @@ it('rejects the legacy Cloud Functions invoker role for a gen2 public Function',
           state: 'ACTIVE',
           serviceConfig: {
             service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+          },
+        },
+        {
+          name: 'repairConsolesFromBlacksmith',
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
+          },
+        },
+        {
+          name: 'upgradeEndeavourFieldTargets',
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
           },
         },
       ])
@@ -512,6 +618,13 @@ it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access'
             state: 'ACTIVE',
             serviceConfig: {
               service: 'projects/dow-new-eden-console/locations/us-central1/services/repair-consoles-from-blacksmith',
+            },
+          },
+          {
+            name: 'upgradeEndeavourFieldTargets',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/upgrade-endeavour-field-targets',
             },
           },
         ]);
