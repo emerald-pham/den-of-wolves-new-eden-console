@@ -620,13 +620,13 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'On phones, GM counter retry and discard controls are easier to tap, and pursuit details stay inside their ship cards.',
+    "Endeavour upgrades now install the selected consoles using each target ship's current material cost. In-app controls and Team research progression remain under development.",
   )).toBeVisible();
   expect(within(newestEntry).getByText('478 of 751 planned items are complete (63.65%).')).toBeVisible();
-  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.17' }).closest('article');
+  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.18' }).closest('article');
   if (!previousEntry) throw new Error('Expected the previous changelog entry.');
   expect(within(previousEntry).getByText(
-    'After a GM reconnect, the replacement roster waits for current server access and clears if that access is lost.',
+    'On phones, GM counter retry and discard controls are easier to tap, and pursuit details stay inside their ship cards.',
   )).toBeVisible();
   expect(within(region).getAllByText('217 of 750 planned items are complete (28.93%).').length).toBeGreaterThan(0);
 });
