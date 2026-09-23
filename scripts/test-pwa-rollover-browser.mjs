@@ -174,7 +174,7 @@ try {
     throw error;
   }
   await applyButton.click();
-  const reloadButton = page.getByRole('button', { name: 'Reload app' });
+  const reloadButton = page.getByRole('button', { name: 'Reload console' });
   await reloadButton.waitFor({ state: 'visible' });
   const activated = await readProof();
   if (activated.hash !== '#/roles' || activated.pendingCommands !== 1 || !activated.controller) {
@@ -198,7 +198,7 @@ try {
     activated,
     after,
     rendered,
-    controls: 'Apply update -> controllerchange -> Reload app',
+    controls: 'Apply update -> controllerchange -> Reload console',
   };
   if (process.env.P624_EVIDENCE_PATH) {
     fs.writeFileSync(process.env.P624_EVIDENCE_PATH, `${JSON.stringify(result, null, 2)}\n`);
