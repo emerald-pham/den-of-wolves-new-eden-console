@@ -53,6 +53,11 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],
   'warrior-repair-drones': ['smallShipId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'endeavour-field-upgrade': ['shuttleId', 'targets'],
+  'maliades-launched': ['craftId', 'status'],
+  // Range outcomes remain private until an audience-safe attack projection exists.
+  'maliades-medium': ['craftId', 'cycle', 'revision'],
+  'maliades-short': ['craftId', 'cycle', 'revision'],
+  'maliades-repair': ['craftId', 'hostShipId', 'damageRepaired', 'materialsSpent', 'damage', 'destroyed'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };
 
@@ -99,6 +104,14 @@ const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>
   'gorgoneion-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
   'warrior-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'maliades-launched': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'maliades-medium': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'maliades-short': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'maliades-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
 };
 

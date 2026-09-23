@@ -12,6 +12,7 @@ import ChacauRepairPanel from './ChacauRepairPanel';
 import AllyRepairPanel from './AllyRepairPanel';
 import HighwallMining from './HighwallMining';
 import EndeavourResearchPanel from './EndeavourResearchPanel';
+import MaliadesPanel from './MaliadesPanel';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
@@ -129,6 +130,8 @@ export default function ShuttleConsoleTemplate({
             <ChacauRepairPanel control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'ally' && control &&
             <AllyRepairPanel control={control} docking={docking} fuelled={fuelled} />}
+          {shuttle.id === 'maliades' && control &&
+            <MaliadesPanel control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>

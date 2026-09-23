@@ -792,6 +792,31 @@ export interface AllyRepairLedger {
   }>[];
 }
 
+export interface MaliadesStateRecord {
+  readonly revision: number;
+  readonly launched: boolean;
+  readonly damage: 0 | 1 | 2 | 3;
+  readonly destroyed: boolean;
+  readonly medium: Readonly<{
+    readonly targetShift: Readonly<{ readonly targetId: string; readonly shift: -1 | 1 }> | null;
+    readonly attack: Readonly<{
+      readonly targetId: string;
+      readonly die: number;
+      readonly hit: boolean;
+      readonly selfDamage: number;
+    }> | null;
+  }> | null;
+  readonly short: Readonly<{
+    readonly rolls: readonly Readonly<{
+      readonly targetId: string;
+      readonly die: number;
+      readonly hit: boolean;
+      readonly selfDamage: number;
+    }>[];
+    readonly selfDamage: number;
+  }> | null;
+}
+
 /** Server-owned Gorgoneion Repair Drones use and replay revision for one cycle. */
 export interface GorgoneionRepairDronesState {
   readonly cycle: number;
@@ -943,6 +968,7 @@ export interface GameSession {
   readonly gorgoneionRepairDrones?: GorgoneionRepairDronesState | null;
   /** Current or legacy-default Warrior repair history; null means malformed. */
   readonly warriorRepairDrones?: WarriorRepairDronesState | null;
+  readonly maliadesState?: MaliadesStateRecord;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

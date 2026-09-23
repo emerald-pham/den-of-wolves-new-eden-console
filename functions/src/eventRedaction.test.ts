@@ -301,6 +301,33 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('withholds Maliades range rolls and target shifts until attack projections are audience-safe', () => {
+    const event = buildPrivacySafeEventRecord({
+      type: 'maliades-medium',
+      envelope: {
+        sessionId: 's1', actorUid: 'engineer-secret', actorRoleId: 'dione-engineer',
+        turn: 2, phase: 'active', requestId: 'medium-1', revision: 2,
+        visibility: EventVisibility.Member,
+      },
+      payload: {
+        craftId: 'maliades', cycle: 2, revision: 2,
+        targetShift: { targetId: 'wolf-1', shift: 1 },
+        attack: { targetId: 'wolf-2', die: 5, hit: true, selfDamage: 0 },
+        targetNumberShift: { fromDie: 1, toDie: 2, fromTarget: 'aegis', toTarget: 'dione' },
+        targetDamageByTarget: { 'wolf-2': 1 },
+        fingerprint: 'private',
+      },
+      createdAt: 'server-time',
+    });
+    expect(event).toEqual({
+      sessionId: 's1', turn: 2, phase: 'active', type: 'maliades-medium', requestId: 'medium-1',
+      revision: 2, visibility: EventVisibility.Member, createdAt: 'server-time',
+      craftId: 'maliades', cycle: 2,
+    });
+    expect(memberEventFieldsFor('maliades-medium')).toEqual(['craftId', 'cycle', 'revision']);
+    expect(memberEventFieldsFor('maliades-short')).toEqual(['craftId', 'cycle', 'revision']);
+  });
+
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',

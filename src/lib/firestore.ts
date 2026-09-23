@@ -77,6 +77,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPhase,
   AwayMissionHandPointer,
+  MaliadesStateRecord,
   ArrestPosseCalculation,
   VipCard,
   VipCardId,
@@ -111,6 +112,7 @@ import { parseAllyRepairLedger } from './allyRepairLedger';
 import { parseGorgoneionRepairDronesLedger } from './gorgoneionRepairDronesLedger';
 import { parseWarriorRepairDronesLedger } from './warriorRepairDronesLedger';
 import { parseBaseCapybaraCargoState } from './baseCapybaraCargoLedger';
+import { parseMaliadesState } from './maliadesLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -1996,6 +1998,10 @@ function warriorRepairDrones(
   return parseWarriorRepairDronesLedger(value);
 }
 
+function maliadesState(value: unknown): MaliadesStateRecord | undefined {
+  return parseMaliadesState(value);
+}
+
 function highwallMining(value: unknown): GameSession['highwallMining'] {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'operations'].includes(key)) ||
@@ -2577,6 +2583,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentBoaRecycling = boaRecycling(data.boaRecycling, data.shuttleCargo);
   const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
   const currentAllyRepairs = allyRepairs(data.allyRepairs);
+  const currentMaliadesState = maliadesState(data.maliadesState);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2660,6 +2667,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(currentBoaRecycling !== undefined ? { boaRecycling: currentBoaRecycling } : {}),
     ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),
     ...(currentAllyRepairs ? { allyRepairs: currentAllyRepairs } : {}),
+    ...(currentMaliadesState ? { maliadesState: currentMaliadesState } : {}),
     gorgoneionRepairDrones: gorgoneionRepairDrones(data.gorgoneionRepairDrones),
     warriorRepairDrones: warriorRepairDrones(data.warriorRepairDrones),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
