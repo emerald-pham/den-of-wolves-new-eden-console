@@ -1251,6 +1251,12 @@ describe('session header', () => {
   it('cannot change authoritative ship stores, jump state, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));
+    await assertFails(updateDoc(session, {
+      'endeavourResearchProgressByShip.shepherd.reactor': 5,
+    }));
+    await assertFails(updateDoc(session, {
+      endeavourFieldUpgrades: { cycle: 3, revision: 1, targets: [] },
+    }));
     await assertFails(updateDoc(session, { 'shipResources.capybara.food': 99 }));
     await assertFails(updateDoc(session, { 'shuttleCargo.boa.scrap': 99 }));
     await assertFails(updateDoc(session, { boaRecycling: { cycle: 3, revision: 1, exchangesThisCycle: 1 } }));

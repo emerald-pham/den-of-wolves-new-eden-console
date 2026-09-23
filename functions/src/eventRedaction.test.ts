@@ -218,6 +218,34 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('publishes Endeavour upgrade targets without actor identity or research internals', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'endeavour-field-upgrade',
+      envelope: {
+        sessionId: 's1', actorUid: 'holder-secret', actorRoleId: 'shepherd-scientist',
+        turn: 3, phase: 'active', requestId: 'upgrade-1', revision: 1,
+        serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        shuttleId: 'endeavour',
+        targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+        materialsSpentByShip: { shepherd: 7 },
+        crossedBox: 1, researchProgressByShip: { shepherd: { reactor: 2 } },
+        holderUid: 'holder-secret', commandFingerprint: { expectedRevision: 0 },
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 3, phase: 'active', type: 'endeavour-field-upgrade', requestId: 'upgrade-1',
+      revision: 1, serverTime: '2026-09-22T15:00:00.000Z',
+      visibility: EventVisibility.Member, createdAt: 'server-time',
+      shuttleId: 'endeavour', targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+      materialsSpentByShip: { shepherd: 7 },
+    });
+    expect(memberEventFieldsFor('endeavour-field-upgrade')).toEqual([
+      'shuttleId', 'targets', 'materialsSpentByShip',
+    ]);
+  });
+
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',

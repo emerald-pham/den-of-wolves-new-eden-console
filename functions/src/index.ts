@@ -359,6 +359,12 @@ import {
 } from './chacauRepairCallable';
 export { repairConsolesFromAlly } from './allyRepairCallable';
 import {
+  ENDEAVOUR_FUELLED_UPGRADE_LIMIT,
+  resolveEndeavourFieldUpgrades,
+  type EndeavourFieldUpgradeRecord,
+} from './endeavourFieldUpgrades';
+import { endeavourResearchTrackForConsole } from './endeavourResearch';
+import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,
 } from './shuttleEvacuation';
@@ -6967,6 +6973,248 @@ export const repairConsolesFromChacau = onCall(async request => {
     }));
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
+  });
+});
+
+type EndeavourFieldUpgradeReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shuttleId: 'endeavour';
+  cycle: number;
+  upgradeRevision: number;
+  appliedTargets: readonly EndeavourFieldUpgradeRecord[];
+  materialsRemainingByShip: Readonly<Record<string, number>>;
+}>;
+
+function isEndeavourFieldUpgradeReply(
+  value: unknown,
+  fingerprint: CommandFingerprint,
+): value is EndeavourFieldUpgradeReply {
+  if (!isRecord(value) || value.sessionId !== fingerprint.sessionId ||
+      value.requestId !== fingerprint.requestId || value.shuttleId !== 'endeavour' ||
+      (value.status !== 'committed' && value.status !== 'replayed') ||
+      !Number.isSafeInteger(value.cycle) || value.cycle !== fingerprint.payload.expectedCycle ||
+      !Number.isSafeInteger(value.upgradeRevision) ||
+      value.upgradeRevision !== (fingerprint.expectedRevision as number) + 1 ||
+      !Array.isArray(value.appliedTargets) || value.appliedTargets.length < 1 ||
+      value.appliedTargets.length > ENDEAVOUR_FUELLED_UPGRADE_LIMIT ||
+      !isRecord(value.materialsRemainingByShip)) return false;
+  const shipIds = new Set<string>();
+  for (const target of value.appliedTargets) {
+    if (!isRecord(target) || typeof target.shipId !== 'string' ||
+        typeof target.systemId !== 'string' || typeof target.trackId !== 'string' ||
+        endeavourResearchTrackForConsole(target.shipId, target.systemId) !== target.trackId ||
+        !Number.isSafeInteger(target.materialCost) || (target.materialCost as number) < 1 ||
+        !Number.isSafeInteger(target.crossedBox) || (target.crossedBox as number) < 0) return false;
+    shipIds.add(target.shipId);
+  }
+  return Object.keys(value.materialsRemainingByShip).length === shipIds.size &&
+    Object.entries(value.materialsRemainingByShip).every(([shipId, amount]) =>
+      shipIds.has(shipId) && Number.isSafeInteger(amount) && (amount as number) >= 0);
+}
+
+/** Apply Endeavour console upgrades using target-ship materials and server-owned research state. */
+export const upgradeEndeavourFieldTargets = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedControlRevision?: unknown;
+  expectedUpgradeRevision?: unknown;
+  expectedCycle?: unknown;
+  targets?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowedKeys = new Set([
+    'sessionId', 'requestId', 'expectedControlRevision', 'expectedUpgradeRevision',
+    'expectedCycle', 'targets',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowedKeys.has(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedUpgradeRevision) || (raw.expectedUpgradeRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Array.isArray(raw.targets) || raw.targets.length < 1 || raw.targets.length > ENDEAVOUR_FUELLED_UPGRADE_LIMIT ||
+      raw.targets.some((target) => !isRecord(target) ||
+        JSON.stringify(Object.keys(target).sort()) !== JSON.stringify(['shipId', 'systemId']) ||
+        typeof target.shipId !== 'string' || !isResourceShipId(target.shipId) ||
+        typeof target.systemId !== 'string' || !/^[\w-]{1,128}$/.test(target.systemId) ||
+        endeavourResearchTrackForConsole(target.shipId, target.systemId) === null)) {
+    throw new HttpsError('invalid-argument', 'Invalid Endeavour field-upgrade request.');
+  }
+  const data = raw as {
+    sessionId: string;
+    requestId: string;
+    expectedControlRevision: number;
+    expectedUpgradeRevision: number;
+    expectedCycle: number;
+    targets: { shipId: string; systemId: string }[];
+  };
+  const canonicalTargets = [...data.targets].sort((left, right) => {
+    const leftKey = `${left.shipId}:${left.systemId}`;
+    const rightKey = `${right.shipId}:${right.systemId}`;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+  if (new Set(canonicalTargets.map(({ shipId, systemId }) => `${shipId}:${systemId}`)).size !== canonicalTargets.length) {
+    throw new HttpsError('invalid-argument', 'Endeavour targets must be distinct consoles.');
+  }
+  const fingerprint: CommandFingerprint = {
+    action: 'endeavour-field-upgrade',
+    sessionId: data.sessionId,
+    requestId: data.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: data.expectedUpgradeRevision,
+    payload: {
+      expectedControlRevision: data.expectedControlRevision,
+      expectedCycle: data.expectedCycle,
+      targets: canonicalTargets.map(({ shipId, systemId }) => `${shipId}:${systemId}`),
+    },
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/endeavour-field-upgrade-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected Endeavour holder may upgrade consoles.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Endeavour upgrade', []);
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is EndeavourFieldUpgradeReply => isEndeavourFieldUpgradeReply(value, fingerprint),
+      'Endeavour upgrade',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('Endeavour upgrade');
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Endeavour upgrades are available only during active gameplay.', 'invalid-phase');
+    }
+    requireActionPhase(session, 'transfer', 'player');
+    const currentCycle = session.get('currentTurn');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before upgrading.', 'stale-revision');
+    }
+    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+    if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
+        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+      throw commandError(
+        'failed-precondition',
+        'Endeavour upgrades are available only during a live Coordination window.',
+        'invalid-phase',
+      );
+    }
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId.length === 0) {
+      throw new HttpsError('permission-denied', 'The Endeavour holder has no fleet-group authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeRoleIds = configuredRoleIds(session);
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const fuelled = session.get('shuttleFuelled');
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !activeRoleIds.includes('shepherd-scientist') ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        new Set(activeVesselIds).size !== activeVesselIds.length ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
+        !control?.endeavour || control.endeavour.ownerRoleId !== 'shepherd-scientist' ||
+        !isRecord(fuelled)) {
+      throw commandError('failed-precondition', 'The authoritative Endeavour upgrade state is unavailable.', 'conflict');
+    }
+    if (control.endeavour.holderUid !== uid) {
+      throw new HttpsError('permission-denied', 'Only the current Endeavour holder may upgrade consoles.');
+    }
+    if (control.endeavour.revision !== data.expectedControlRevision) {
+      throw commandError('failed-precondition', 'Endeavour control changed; refresh before upgrading.', 'stale-revision');
+    }
+    const docking = rawDockings.find((entry) =>
+      isRecord(entry) && entry.shuttleId === 'endeavour');
+    if (!isRecord(docking) || typeof docking.shipId !== 'string' ||
+        !group.vesselIds.includes(docking.shipId)) {
+      throw commandError('failed-precondition', 'Endeavour must be docked within the holder’s current fleet group.', 'conflict');
+    }
+    if (canonicalTargets.some(({ shipId }) =>
+      !activeVesselIds.includes(shipId) || !group.vesselIds.includes(shipId))) {
+      throw new HttpsError('permission-denied', 'Choose upgrade consoles on ships in the holder’s current fleet group.');
+    }
+
+    const shipResources = session.get('shipResources');
+    const targetShipIds = [...new Set(canonicalTargets.map(({ shipId }) => shipId))];
+    const materialsByShip: Record<string, number> = {};
+    try {
+      for (const shipId of targetShipIds) {
+        const inventory = serviceRechargeResourceState(shipResources, shipId);
+        if (!inventory) throw new Error('The target ship material authority is unavailable.');
+        materialsByShip[shipId] = inventory.materials;
+      }
+      const result = resolveEndeavourFieldUpgrades({
+        currentCycle: currentCycle as number,
+        expectedRevision: data.expectedUpgradeRevision,
+        fuelled: fuelled.endeavour === true,
+        targets: canonicalTargets,
+        materialsByShip,
+        researchByShip: session.get('endeavourResearchProgressByShip') ?? {},
+        state: session.get('endeavourFieldUpgrades'),
+      });
+      const materialsRemainingByShip = Object.fromEntries(targetShipIds.map((shipId) =>
+        [shipId, result.materialsByShip[shipId]!]));
+      const materialsSpentByShip: Record<string, number> = {};
+      for (const target of result.appliedTargets) {
+        materialsSpentByShip[target.shipId] = (materialsSpentByShip[target.shipId] ?? 0) + target.materialCost;
+      }
+      const reply: EndeavourFieldUpgradeReply = {
+        status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+        shuttleId: 'endeavour', cycle: currentCycle as number,
+        upgradeRevision: result.state.revision, appliedTargets: result.appliedTargets,
+        materialsRemainingByShip,
+      };
+      const resourceUpdates = Object.fromEntries(targetShipIds.map((shipId) =>
+        [`shipResources.${shipId}.materials`, result.materialsByShip[shipId]!]));
+      tx.update(sessionRef, {
+        ...resourceUpdates,
+        endeavourResearchProgressByShip: result.researchByShip,
+        endeavourFieldUpgrades: result.state,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(eventRef, buildPrivacySafeEventRecord({
+        type: 'endeavour-field-upgrade',
+        envelope: buildAuthoritativeEventEnvelope({
+          sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+          turn: currentCycle as number, phase: vesselActionPhase(session),
+          type: 'endeavour-field-upgrade', requestId: data.requestId,
+          revision: result.state.revision, serverTime: new Date(),
+          visibility: EventVisibility.Member,
+        }),
+        payload: {
+          shuttleId: 'endeavour',
+          targets: result.appliedTargets.map(({ shipId, systemId }) => ({ shipId, systemId })),
+          materialsSpentByShip,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+      tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Endeavour field upgrades were rejected.',
+        'conflict',
+      );
+    }
   });
 });
 
