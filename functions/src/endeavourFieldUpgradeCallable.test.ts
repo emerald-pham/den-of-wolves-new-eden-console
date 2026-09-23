@@ -154,6 +154,24 @@ it('charges each target ship at shared research cost and installs the upgrades f
     .not.toHaveProperty('materialsSpentByShip');
 });
 
+it('does not reveal the private research cost when a target ship lacks materials', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const resources = session.shipResources as Record<string, Fields>;
+  resources.aegis = { ...resources.aegis, materials: 6 };
+
+  const error = await upgradeEndeavourFieldTargets.run(request({
+    ...command,
+    requestId: 'insufficient-private-cost',
+    targets: targets(['aegis', 'reactor']),
+  })).catch((cause: unknown) => cause);
+
+  expect(error).toMatchObject({ code: 'failed-precondition' });
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).message).not.toContain('7');
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('derives the four-target extension from server fuel and rejects client fuel claims', async () => {
   const threeTargets = {
     ...command,

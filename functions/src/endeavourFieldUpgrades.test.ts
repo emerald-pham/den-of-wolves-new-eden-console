@@ -51,7 +51,7 @@ describe('Endeavour field upgrades', () => {
     expect(() => resolveEndeavourFieldUpgrades({
       ...base,
       materialsByShip: { shepherd: 18, quellon: 17 },
-    })).toThrow(/18 materials/);
+    })).toThrow(/enough materials/);
     expect(base.materialsByShip).toEqual({ shepherd: 18, quellon: 18 });
   });
 

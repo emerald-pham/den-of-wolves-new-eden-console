@@ -212,7 +212,7 @@ export function resolveEndeavourFieldUpgrades(input: Readonly<{
     const materialsAvailable = nextMaterials[target.shipId];
     if (materialsAvailable === undefined) throw new Error('Each target ship needs an authoritative material ledger.');
     if (materialsAvailable < track.currentMaterialCost) {
-      throw new Error(`The target ship needs ${track.currentMaterialCost} materials for this upgrade.`);
+      throw new Error('The target ship does not have enough materials for this upgrade.');
     }
     nextMaterials[target.shipId] = materialsAvailable - track.currentMaterialCost;
     appliedTargets.push(Object.freeze({
