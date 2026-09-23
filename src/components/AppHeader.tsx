@@ -268,6 +268,7 @@ export default function AppHeader() {
   const connection = useSessionStore((state) => state.connection);
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);
+  const playerSessionId = useSessionStore((state) => state.me?.sessionId);
   const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
   const playerRole = useSessionStore((state) => state.me?.role);
   const reconnectDisplayStatus = useConnectionStatusGrace(
@@ -328,7 +329,7 @@ export default function AppHeader() {
       active = false;
       unsubscribe();
     };
-  }, [fleetGroupId, playerRole, sessionId]);
+  }, [fleetGroupId, playerRole, playerSessionId, playerUid, sessionId]);
 
   useEffect(() => subscribeServiceWorkerUpdates(setServiceWorkerUpdate), []);
 

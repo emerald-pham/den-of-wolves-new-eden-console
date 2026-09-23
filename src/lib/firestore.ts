@@ -3507,16 +3507,38 @@ export function subscribeConnectedPlayers(
   let subscribed = true;
   // A new group or role projection invalidates the previous roster before the
   // replacement listener has delivered its first server snapshot.
-  onPlayers([]);
   const viewer = useSessionStore.getState();
   const facilitator = viewer.me?.role === 'gm';
   const fleetGroupId = viewer.me?.fleetGroupId;
+  const entitlementKey = (state: typeof viewer) => JSON.stringify([
+    state.session?.id ?? null,
+    state.me?.sessionId ?? null,
+    state.me?.uid ?? null,
+    state.me?.role ?? null,
+    state.me?.fleetGroupId ?? null,
+  ]);
+  const capturedEntitlementKey = entitlementKey(viewer);
+  const hasCurrentEntitlement = () =>
+    entitlementKey(useSessionStore.getState()) === capturedEntitlementKey;
+  let stopSnapshot: Unsubscribe = () => undefined;
+  let stopStoreWatch: Unsubscribe = () => undefined;
+  const stopForEntitlementChange = () => {
+    if (!subscribed) return;
+    subscribed = false;
+    stopSnapshot();
+    stopStoreWatch();
+    onPlayers([]);
+  };
+  onPlayers([]);
   // A member cannot safely subscribe until the callable projection has
   // supplied its server-owned group pointer. Do not fall back to a fleetwide
   // query while that identity is still loading.
   if (!facilitator && (typeof fleetGroupId !== 'string' || fleetGroupId.length === 0)) {
     return () => { subscribed = false; };
   }
+  stopStoreWatch = useSessionStore.subscribe((state) => {
+    if (entitlementKey(state) !== capturedEntitlementKey) stopForEntitlementChange();
+  });
   const playersQuery = facilitator
     ? query(
       collection(db(), `sessions/${sessionId}/players`),
@@ -3532,6 +3554,10 @@ export function subscribeConnectedPlayers(
     { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
+      if (!hasCurrentEntitlement()) {
+        stopForEntitlementChange();
+        return;
+      }
       const fromCache = snapshot.metadata?.fromCache === true;
       // The session document does not independently reauthorize the current
       // role or fleet-group pointer. A persisted identity can therefore make
@@ -3543,7 +3569,13 @@ export function subscribeConnectedPlayers(
     },
     () => {
       if (!subscribed) return;
+      if (!hasCurrentEntitlement()) {
+        stopForEntitlementChange();
+        return;
+      }
       subscribed = false;
+      stopSnapshot();
+      stopStoreWatch();
       // Group changes, demotion, and session teardown can invalidate the
       // listener. Clear the prior projection before reporting the failure so
       // a stale callback cannot leave old-group data on screen.
@@ -3551,9 +3583,14 @@ export function subscribeConnectedPlayers(
       onError();
     },
   );
+  if (!subscribed) unsubscribe();
+  else stopSnapshot = unsubscribe;
   return () => {
-    subscribed = false;
-    unsubscribe();
+    if (subscribed) {
+      subscribed = false;
+      stopStoreWatch();
+      stopSnapshot();
+    }
   };
 }
 

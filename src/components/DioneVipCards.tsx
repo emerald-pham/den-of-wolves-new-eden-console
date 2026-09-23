@@ -54,7 +54,7 @@ export default function DioneVipCards({
       unsubscribeHand();
       unsubscribePlayers();
     };
-  }, [fleetGroupId, gmInstanceId, me?.uid, role, session?.id]);
+  }, [fleetGroupId, gmInstanceId, me?.sessionId, me?.uid, role, session?.id]);
 
   const currentPhase = session ? phaseForSession(session) : undefined;
   const coordination = currentPhase?.airspace.state === 'lifted';

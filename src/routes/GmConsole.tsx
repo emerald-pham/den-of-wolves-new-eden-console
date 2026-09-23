@@ -1188,7 +1188,7 @@ export default function GmConsole() {
       setWolfAttackState(null);
       setAllPlayers([]);
     };
-  }, [isGm, local?.id, local?.uid, sessionId]);
+  }, [isGm, local?.id, local?.uid, me?.fleetGroupId, me?.role, me?.sessionId, me?.uid, sessionId]);
 
   useEffect(() => {
     setCensusNotes(Object.fromEntries(

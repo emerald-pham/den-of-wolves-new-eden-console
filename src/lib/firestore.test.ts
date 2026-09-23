@@ -3119,7 +3119,7 @@ it('drops delayed cached secondary query snapshots after a server snapshot', asy
   const onDraws = vi.fn();
   mockGmInstanceProjection([]);
   const stopInstances = subscribeGmInstances('secondary-race', onInstances, vi.fn());
-  subscribeConnectedPlayers('secondary-race', onPlayers);
+  const stopPlayers = subscribeConnectedPlayers('secondary-race', onPlayers);
   subscribeSessionEvents('secondary-race', onEvents);
   const stopDraws = subscribeDamageDraws('secondary-race', onDraws);
 
@@ -3135,6 +3135,7 @@ it('drops delayed cached secondary query snapshots after a server snapshot', asy
   expect(onEvents).toHaveBeenCalledTimes(1);
   expect(onDraws).toHaveBeenCalledTimes(1);
   stopDraws();
+  stopPlayers();
   stopInstances();
   useSessionStore.getState().reset();
 });
@@ -3159,10 +3160,11 @@ it('shares accepted session authority with secondary queries before their first 
     return vi.fn();
   }) as never);
   const onPlayers = vi.fn();
-  subscribeConnectedPlayers(sessionId, onPlayers, vi.fn());
+  const stopPlayers = subscribeConnectedPlayers(sessionId, onPlayers, vi.fn());
   callbacks[0]?.({ metadata: { fromCache: true }, docs: [] });
 
   expect(onPlayers).toHaveBeenCalledWith([]);
+  stopPlayers();
   useSessionStore.getState().reset();
 });
 
@@ -3192,7 +3194,7 @@ it('withholds a cached member group roster until the current session reauthorize
 
   const onPlayers = vi.fn();
   const onError = vi.fn();
-  subscribeConnectedPlayers(sessionId, onPlayers, onError);
+  const stop = subscribeConnectedPlayers(sessionId, onPlayers, onError);
 
   const cachedOldGroup = [{
     id: 'former-crewmate',
@@ -3207,6 +3209,7 @@ it('withholds a cached member group roster until the current session reauthorize
 
   expect(onPlayers.mock.calls).toEqual([[[]], [[]]]);
   expect(onError).toHaveBeenCalledTimes(1);
+  stop();
   useSessionStore.getState().reset();
 });
 
@@ -3235,7 +3238,7 @@ it('publishes an unchanged connected-player roster after metadata-only server co
   }) as never);
 
   const onPlayers = vi.fn();
-  subscribeConnectedPlayers(sessionId, onPlayers);
+  const stopPlayers = subscribeConnectedPlayers(sessionId, onPlayers);
   const unchangedCurrentGroup = [{
     id: 'current-crewmate',
     data: () => ({ role: 'player', displayName: 'Current crewmate', fleetGroupId: 'current-group' }),
@@ -3249,6 +3252,69 @@ it('publishes an unchanged connected-player roster after metadata-only server co
   expect(onPlayers).toHaveBeenLastCalledWith([
     expect.objectContaining({ uid: 'current-crewmate', displayName: 'Current crewmate' }),
   ]);
+  stopPlayers();
+  useSessionStore.getState().reset();
+});
+
+it.each([
+  {
+    label: 'role', initialRole: 'gm' as const, nextRole: 'player' as const,
+    initialGroupId: 'fleet-1', nextGroupId: 'fleet-1',
+  },
+  {
+    label: 'group', initialRole: 'player' as const, nextRole: 'player' as const,
+    initialGroupId: 'old-group', nextGroupId: 'new-group',
+  },
+])('clears and ignores an old server roster after the viewer changes $label', ({
+  label, initialRole, nextRole, initialGroupId, nextGroupId,
+}) => {
+  const sessionId = `connected-roster-${label}-change`;
+  const uid = 'connected-roster-viewer';
+  const viewer = {
+    uid, sessionId, displayName: 'Viewer', role: initialRole, seatId: null,
+    fleetGroupId: initialGroupId, joinedAt: '',
+  } as const;
+  const gmInstance = initialRole === 'gm' ? {
+    id: 'current-gm-instance', sessionId, uid, name: 'Facilitator',
+    deviceLabel: 'current device', claimedAt: '',
+  } : null;
+  useSessionStore.setState({
+    session: sessionFrom(sessionId, sessionData(8)),
+    me: viewer,
+    gmInstance,
+  });
+
+  let onSnapshotCallback: ((snapshot: unknown) => void) | undefined;
+  const unsubscribe = vi.fn();
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError?: unknown) => {
+    onSnapshotCallback = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError) as
+      ((snapshot: unknown) => void) | undefined;
+    return unsubscribe;
+  }) as never);
+
+  const onPlayers = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeConnectedPlayers(sessionId, onPlayers, onError);
+  const oldRoster = [{ id: 'old-roster-player', data: () => ({
+    role: 'player', displayName: 'Old roster', fleetGroupId: initialGroupId,
+  }) }];
+  onSnapshotCallback?.({ metadata: { fromCache: false }, docs: oldRoster });
+  expect(onPlayers).toHaveBeenLastCalledWith([
+    expect.objectContaining({ uid: 'old-roster-player', displayName: 'Old roster' }),
+  ]);
+
+  useSessionStore.getState().setMe({ ...viewer, role: nextRole, fleetGroupId: nextGroupId });
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+
+  onSnapshotCallback?.({ metadata: { fromCache: false }, docs: oldRoster });
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
+  expect(onPlayers).toHaveBeenCalledTimes(3);
+  expect(onError).not.toHaveBeenCalled();
+
+  stop();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
   useSessionStore.getState().reset();
 });
 

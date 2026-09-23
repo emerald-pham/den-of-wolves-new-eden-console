@@ -1265,6 +1265,40 @@ it('lets the printed owner hand shuttle control to a connected fleet-group playe
   expect(screen.getByRole('status')).toHaveTextContent('Shuttle control handed off.');
 });
 
+it('rebinds the connected roster when a same-group GM is demoted on shuttle control', async () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+    shuttleControl: {
+      starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+        holderUid: 'u1', revision: 0,
+      },
+    },
+  });
+  state.setMe({
+    ...state.me!, role: 'gm', assignedRoleId: 'wing-commander',
+    activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1',
+  });
+  const stopOldRoster = vi.fn();
+  vi.mocked(subscribeConnectedPlayers)
+    .mockReturnValueOnce(stopOldRoster)
+    .mockReturnValueOnce(vi.fn());
+
+  render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  await waitFor(() => expect(subscribeConnectedPlayers).toHaveBeenCalledTimes(1));
+  act(() => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, role: 'player',
+  }));
+
+  await waitFor(() => expect(subscribeConnectedPlayers).toHaveBeenCalledTimes(2));
+  expect(stopOldRoster).toHaveBeenCalledTimes(1);
+  expect(subscribeConnectedPlayers).toHaveBeenLastCalledWith('s1', expect.any(Function));
+});
+
 it('lets a fuelled service-shuttle holder add one host charge during Coordination', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();

@@ -207,7 +207,9 @@ export default function ShuttleControl({ control }: Props) {
     blacksmithRepairRevision, control.revision, control.shuttleId, docking?.shipId, session.currentTurn,
   ]);
 
-  useEffect(() => subscribeConnectedPlayers(session.id, setPlayers), [session.id, me.fleetGroupId]);
+  useEffect(() => subscribeConnectedPlayers(session.id, setPlayers), [
+    me.fleetGroupId, me.role, me.sessionId, me.uid, session.id,
+  ]);
   useEffect(() => subscribeShuttleDeparture(
     session.id,
     control.shuttleId,

@@ -310,7 +310,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       unsubscribeDamage();
       unsubscribeCrew?.();
     };
-  }, [fleetGroupId, gmInstanceId, playerRole, session?.id, ship]);
+  }, [fleetGroupId, gmInstanceId, me?.sessionId, me?.uid, playerRole, session?.id, ship]);
 
   useEffect(() => {
     if (burst === 0) return;
