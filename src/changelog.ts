@@ -21,6 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 11, active: 0, missing: 262,
+    },
+    changes: [
+      "The console shows how long a reconnect must wait and retries after the interval ends.",
+      "478 of 751 planned items are complete (63.65%).",
+    ],
+  },
+
+  {
+    version: '0.5.9',
     implementationPrompts: [578],
     implementationProgress: {
       completed: 478, total: 751, percentage: '63.65%',
