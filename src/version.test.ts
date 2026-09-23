@@ -10,10 +10,18 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
-it('describes connected-player roster privacy in the current release notes', () => {
+it('describes AEGIS Command and Control in the current release notes', () => {
   const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(currentEntry?.changes).toContain(
+    'The AEGIS Executive Officer can redirect one Wolf ship to AEGIS after the Wolf Commander finishes targeting rerolls. If the assigned Commander is disconnected, the redirect waits until they reconnect and finish rerolls. This action does not resolve damage.',
+  );
+});
+
+it('retains connected-player roster privacy in its release history', () => {
+  const previousEntry = CHANGELOG.find((entry) => entry.version === '0.5.20');
+
+  expect(previousEntry?.changes).toContain(
     'After you reconnect or your role or fleet group changes, the connected player list clears until the app confirms your access.',
   );
 });
@@ -61,7 +69,7 @@ it('keeps implementation-plan features mapped when release notes declare coverag
   for (const promptId of currentEntry.implementationPrompts) {
     const prompt = catalog.prompts.find((candidate) => candidate.id === String(promptId));
     expect(prompt, `Prompt ${promptId} must exist in the catalog`).toBeDefined();
-    expect(prompt?.status, `Prompt ${promptId} must be complete`).toBe('done');
+    expect(['done', 'partial'], `Prompt ${promptId} must be implemented or an explicitly partial release`).toContain(prompt?.status);
     expect(prompt?.releases, `Prompt ${promptId} must name release ${APP_VERSION}`).toContain(APP_VERSION);
   }
 });

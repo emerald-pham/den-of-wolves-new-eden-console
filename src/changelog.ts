@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [436],
+    implementationProgress: {
+      completed: 474, total: 751, percentage: '63.12%',
+      done: 474, partial: 21, active: 0, missing: 256,
+    },
+    changes: [
+      'The AEGIS Executive Officer can redirect one Wolf ship to AEGIS after the Wolf Commander finishes targeting rerolls. If the assigned Commander is disconnected, the redirect waits until they reconnect and finish rerolls. This action does not resolve damage.',
+      '474 of 751 planned items are complete (63.12%).',
+    ],
+  },
+
+  {
+    version: '0.5.20',
     implementationProgress: {
       completed: 478, total: 751, percentage: '63.65%',
       done: 478, partial: 16, active: 0, missing: 257,

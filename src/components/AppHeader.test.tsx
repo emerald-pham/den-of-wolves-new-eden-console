@@ -620,12 +620,18 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'After you reconnect or your role or fleet group changes, the connected player list clears until the app confirms your access.',
+    'The AEGIS Executive Officer can redirect one Wolf ship to AEGIS after the Wolf Commander finishes targeting rerolls. If the assigned Commander is disconnected, the redirect waits until they reconnect and finish rerolls. This action does not resolve damage.',
   )).toBeVisible();
-  expect(within(newestEntry).getByText('478 of 751 planned items are complete (63.65%).')).toBeVisible();
-  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.19' }).closest('article');
+  expect(within(newestEntry).getByText('474 of 751 planned items are complete (63.12%).')).toBeVisible();
+  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.20' }).closest('article');
   if (!previousEntry) throw new Error('Expected the previous changelog entry.');
   expect(within(previousEntry).getByText(
+    'After you reconnect or your role or fleet group changes, the connected player list clears until the app confirms your access.',
+  )).toBeVisible();
+  expect(within(region).getByRole('heading', { name: 'Build 0.5.19' })).toBeVisible();
+  const earlierEntry = within(region).getByRole('heading', { name: 'Build 0.5.19' }).closest('article');
+  if (!earlierEntry) throw new Error('Expected the Endeavour release entry.');
+  expect(within(earlierEntry).getByText(
     "Endeavour upgrades now install the selected consoles using each target ship's current material cost. In-app controls and Team research progression remain under development.",
   )).toBeVisible();
   expect(within(region).getAllByText('217 of 750 planned items are complete (28.93%).').length).toBeGreaterThan(0);

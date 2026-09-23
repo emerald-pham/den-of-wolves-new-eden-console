@@ -6251,6 +6251,13 @@
       "language": "Source inspection found production privacy paths for loyalty, hidden Wolf identity/results, organiser discovery, away-mission hands, and several private roll/result records, with existing callable and Firestore rules regression coverage. A private playerDiscovery projection was also found embedded in the persisted session: synchronous rehydration could render the former UID's chart before the later Firebase resume completed. Source candidate 33dbb5ed4ed5f86af1b9127b47058f8f3a3429f4 strips playerDiscovery and its derived navigation fields from both new persistence and legacy rehydration; the foreign-UID legacy-cache and deferred-App-resume regressions pass. Focused App/store tests pass 89/89; typecheck, client build, and roadmap check pass. Independent Sol xhigh review of that exact source candidate found no actionable findings. Candidate cbb81de7fef511a4c165eb2732ccfb0bbd7a7f01 passes exact-SHA local coordination validation and primary hosted CI. The first hosted release run 35888118669 selected Hosting only, but its separate ticker browser gate failed at lifecycle/stand-down-two-passes with a measured 1.16px overlap at 320px; deployment was skipped. At the first workflow time the live marker still returned 0.5.14. Follow-up workflow 35889556135 passed its exact-SHA browser gate and deployed only Hosting from candidate a6d9c26c36da441b2bf67de34b68dbda22d39111; scripts/verify-deployment.mjs confirmed live build-version.json is 0.5.15. This proves the Hosting bundle rollout, not entitled-reader behavior. The ticker failure is outside this privacy diff and remains a release gate without P629 ticker changes. The source tree has no discovery-notes producer, listener, or rules path; Prompt 330 is parked waiting for its authorized scout-result producer. Complete hidden-roll/bonus coverage and live entitlement proof remain outstanding, so this evidence is partial.",
       "source": "firestore.rules; functions/src/index.ts; functions/src/awayMissionCards.ts; functions/src/wolfAttackPreparation.ts; functions/src/wolfSuspicionClue.ts; functions/src/censusNoteCallable.test.ts; functions/src/loyaltyCallable.test.ts; functions/src/awayMissionCallable.test.ts; functions/src/wolfActionCallable.test.ts; functions/src/wolfCultIntelligenceCallable.test.ts; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/App.tsx; src/App.test.tsx; src/lib/navigationPrivacy.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts",
       "type": "evidence / partial / privacy / source-audit / local-regression / independent-review / live-proof-pending"
+    },
+    {
+      "direction": "436 -> post-reroll AEGIS redirect (partial)",
+      "id": "E-436-COMMAND-AND-CONTROL-PARTIAL",
+      "language": "The AEGIS Executive Officer can redirect one Wolf ship only after the assigned Commander explicitly finishes targeting rerolls; when no player holds Commander authority, the same transaction records an auditable no-Commander completion. Revision checks bind finish, redirect, replay receipts, and the current private targeting calculationReceipt without exposing targeting dice to the Executive Officer. Assigned but disconnected Commanders remain pending until reconnect; no automatic or GM skip is implemented. Focused client and callable regressions, Firebase emulator smoke, responsive local Chrome checks, Functions build, app typecheck, font consistency, and independent Sol xhigh review pass. The authorized A4 v1.1 source, page 34, places Commander targeting rerolls before the Executive Officer redirect. No authorized in-session production Wolf attack and C&C redirect has been exercised, so Prompt 436 remains partial.",
+      "source": "functions/src/index.ts; functions/src/wolfCommandAndControl.ts; functions/src/wolfCommandAndControl.test.ts; functions/src/wolfCommandAndControlCallable.test.ts; functions/src/wolfCommanderRerolls.ts; src/lib/sessionService.ts; src/components/AegisCommandAndControlPanel.tsx; src/components/WolfCommanderTargetingPanel.tsx; src/routes/ShipConsole.test.tsx; src/routes/ShipConsoleNavigation.test.tsx; authorized A4 v1.1 PDF p.34 Executive Officer Briefing; local Firebase emulator smoke; local Chrome responsive and reduced-motion checks; independent gpt-6-sol xhigh review at b6391da4c2f6eb1df6c1d4469259cdafe10a2f19",
+      "type": "evidence / partial / production-path-pending / server-authority / callable / cas / replay / privacy / regression / independent-review / responsive / rendered"
     }
   ],
   "plan": {
@@ -17543,15 +17550,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "charged, undamaged authority may redirect one Wolf ship to AEGIS only after Commander rerolls.",
         "title": "Resolve AEGIS Command and Control."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-436;E-WOLF",
+      "description": "The server-owned AEGIS Command and Control transaction and Commander reroll-finish action are implemented. P436 remains partial until an authorized live game proves the declaration, explicit reroll completion, and redirect path. An assigned but disconnected Commander keeps the window pending until reconnect; no automatic or GM skip is supported.",
+      "evidenceIds": "E-436;E-WOLF;E-436-COMMAND-AND-CONTROL-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -17559,10 +17566,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "435",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.21"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

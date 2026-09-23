@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **474 / 751 prompts complete (63.12%)**
 
-Status breakdown: **474 done · 20 partial · 257 missing**.
+Status breakdown: **474 done · 21 partial · 256 missing**.
 
 Active prompt: **none**
 
@@ -889,7 +889,7 @@ release classification and evidence.
 | 434 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 434a | missing | non-feature | — | Planned [EXTEND] reasoned CAS/idempotent danger-confirmed intervention/recovery/audit prompt; no composed attack override path exists yet. |
 | 435 | partial | non-feature | — | The implemented production path lets the active player with P515's replacementRoleId Wolf Commander authority read a filtered current-dice view and submit selected rerolls against the successful private targeting receipt. The transaction uses shared command fingerprints, cycle/revision CAS, unique consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. P373 has removed parking as a blocker, but this prompt remains partial while its hard P432 prerequisite remains partial behind P428. Printed Capybara 8 rerolls, timeout, auto-advance, Command and Control, range, and damage remain separate prompts. |
-| 436 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 436 | partial | feature | 0.5.21 | The server-owned AEGIS Command and Control transaction and Commander reroll-finish action are implemented. P436 remains partial until an authorized live game proves the declaration, explicit reroll completion, and redirect path. An assigned but disconnected Commander keeps the window pending until reconnect; no automatic or GM skip is supported. |
 | 437 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 438 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 439 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
