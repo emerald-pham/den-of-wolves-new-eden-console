@@ -2,9 +2,25 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import { shuttleMovementConflictError } from './shuttleMovementConflict';
 
 function requestId(): string {
   return window.crypto.randomUUID();
+}
+
+async function callMovement<TPayload, TResult = unknown>(
+  callableName: string,
+  payload: TPayload,
+  sessionId: string,
+  shuttleId: string,
+): Promise<{ readonly data: TResult }> {
+  try {
+    return await httpsCallable<TPayload, TResult>(functions(), callableName)(payload);
+  } catch (cause) {
+    const conflict = shuttleMovementConflictError(cause, sessionId, shuttleId);
+    if (conflict) throw conflict;
+    throw cause;
+  }
 }
 
 export async function requestShuttleDeparture(
@@ -24,7 +40,7 @@ export async function requestShuttleDeparture(
     expectedControlRevision,
     expectedCycle,
   };
-  await httpsCallable<typeof payload, unknown>(functions(), 'requestShuttleDeparture')(payload);
+  await callMovement('requestShuttleDeparture', payload, session.id, shuttleId);
 }
 
 export async function beginShuttleTransit(
@@ -44,7 +60,7 @@ export async function beginShuttleTransit(
     expectedControlRevision,
     expectedCycle,
   };
-  await httpsCallable<typeof payload, unknown>(functions(), 'beginShuttleTransit')(payload);
+  await callMovement('beginShuttleTransit', payload, session.id, shuttleId);
 }
 
 export async function retargetShuttleTransit(
@@ -66,7 +82,7 @@ export async function retargetShuttleTransit(
     expectedControlRevision,
     expectedCycle,
   };
-  await httpsCallable<typeof payload, unknown>(functions(), 'retargetShuttleTransit')(payload);
+  await callMovement('retargetShuttleTransit', payload, session.id, shuttleId);
 }
 
 export async function completeShuttleArrival(
@@ -83,7 +99,9 @@ export async function completeShuttleArrival(
     transitRequestId,
     expectedControlRevision,
   };
-  const response = await httpsCallable<typeof payload, unknown>(functions(), 'completeShuttleArrival')(payload);
+  const response = await callMovement<typeof payload, unknown>(
+    'completeShuttleArrival', payload, session.id, shuttleId,
+  );
   const result = response.data;
   if (typeof result !== 'object' || result === null || Array.isArray(result) ||
       typeof (result as Record<string, unknown>).hostShipId !== 'string' ||

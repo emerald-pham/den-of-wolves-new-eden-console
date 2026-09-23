@@ -11,6 +11,7 @@ import {
   requestShuttleDeparture,
   retargetShuttleTransit,
 } from './shuttleDepartureService';
+import { ShuttleMovementConflictError } from './shuttleMovementConflict';
 
 beforeEach(() => {
   mocks.call.mockReset();
@@ -74,6 +75,33 @@ it('uses a trip-stable arrival command bound to the current custody revision', a
   expect(mocks.call).toHaveBeenCalledWith({
     sessionId: 's1', shuttleId: 'starlight', transitRequestId: 'transit-1', expectedControlRevision: 3,
   });
+});
+
+it('surfaces validated lost-race state and never retries the mutation', async () => {
+  mocks.call.mockRejectedValue({
+    code: 'functions/failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'docked',
+          docking: { shuttleId: 'starlight', shipId: 'icebreaker', dockedAt: '2026-09-22T12:00:00.000Z' },
+        },
+      },
+    },
+  });
+  await expect(requestShuttleDeparture('starlight', 'dione', 3, 2)).rejects.toMatchObject({
+    name: 'ShuttleMovementConflictError',
+    conflict: {
+      sessionId: 's1', shuttleId: 'starlight',
+      current: { status: 'docked', docking: { shipId: 'icebreaker' } },
+    },
+  });
+  expect(mocks.call).toHaveBeenCalledTimes(1);
+  await expect(beginShuttleTransit('starlight', 'departure-1', 3, 2))
+    .rejects.toBeInstanceOf(ShuttleMovementConflictError);
+  expect(mocks.call).toHaveBeenCalledTimes(2);
 });
 
 it('rejects cache-backed arrival completion before contacting the callable', async () => {
