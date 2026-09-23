@@ -4561,9 +4561,9 @@
     {
       "direction": "618 -> GM roster listener (partial)",
       "id": "E-618-GM-ROSTER-RECONNECT",
-      "language": "The GM player roster subscription now discards cached data on reconnect, listens for metadata-only server confirmation even when the roster documents are unchanged, replaces the complete roster only from a current server snapshot, and clears while failing closed after listener error or unsubscribe. Focused regressions cover cache-to-server metadata transitions and late callbacks; Sol xhigh review approved the repair. Hosting deployment and live version verification are pending. Other session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners remain unaudited, so Prompt 618 stays partial.",
-      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; Sol xhigh follow-up review 4539dc4a6bdf42c5732d9bea0e2421ab280df75b; focused candidate validation",
-      "type": "evidence / partial / production-path / reconnect / privacy / listener / independent-review / release-pending"
+      "language": "The GM player roster subscription discards cached data on reconnect, observes metadata-only server confirmation when roster documents are unchanged, replaces the complete roster only from a current server snapshot, and clears before terminal listener errors or unsubscribe so late callbacks cannot restore stale state. Focused listener and changelog tests pass; Sol xhigh review approved the repair. Exact-SHA Hosting workflow 35898710844 passed for main SHA 2b85b40d12800329965882b17924fa2f18124d5a, and the live build-version endpoint reports 0.5.17. This verifies the deployed build marker, not an in-session production reconnect. Other session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners remain unaudited, so Prompt 618 stays partial.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; src/changelog.ts; src/components/AppHeader.test.tsx; Sol xhigh follow-up review 4539dc4a6bdf42c5732d9bea0e2421ab280df75b; exact-SHA Deploy workflow 35898710844 at 2b85b40d12800329965882b17924fa2f18124d5a; live https://dow-new-eden-console.web.app/build-version.json",
+      "type": "evidence / partial / production-path / reconnect / privacy / listener / independent-review / production-deployed"
     },
     {
       "direction": "619 -> 542;612",
@@ -22353,7 +22353,7 @@
         "acceptance": "session, player, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief listeners replace cache correctly.",
         "title": "Reconnect every live projection."
       },
-      "description": "One production GM roster listener slice now clears cached roster data on reconnect, includes metadata-only snapshots so an unchanged server roster can confirm access, replaces the full roster from current server data, and clears permanently on listener error or unsubscribe while rejecting late callbacks. Focused regressions and Sol xhigh follow-up review approve this repair; release verification is pending. The prompt remains partial: session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners have not been verified for cache replacement.",
+      "description": "One production GM roster listener slice now clears cached roster data on reconnect, includes metadata-only snapshots so an unchanged server roster can confirm access, replaces the full roster from current server data, and clears on listener error or unsubscribe while rejecting late callbacks. Focused regressions and Sol xhigh follow-up review approve the repair. Hosting release 0.5.17 is verified by successful exact-SHA Deploy workflow 35898710844 from main SHA 2b85b40d12800329965882b17924fa2f18124d5a; live build-version.json reports 0.5.17. This verifies the deployed build marker, not a live in-session reconnect. Prompt 618 remains partial: session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners have not been verified for cache replacement.",
       "evidenceIds": "E-AUDIT-618;E-618-GM-ROSTER-RECONNECT",
       "hardContract": "none",
       "hardMilestone": "none",
