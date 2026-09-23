@@ -14,6 +14,7 @@ import {
   type EndeavourResearchFunding,
 } from './endeavourResearchCadence';
 import { fleetGroupRecord } from './fleetGroups';
+import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
@@ -215,14 +216,6 @@ function replayReply(
   return { ...stored, status: 'replayed' };
 }
 
-function actualPlayerRole(player: DocumentSnapshot): string | undefined {
-  for (const field of ['replacementRoleId', 'assignedRoleId', 'activeConsoleRoleId']) {
-    const value = player.get(field);
-    if (typeof value === 'string' && value.length > 0) return value;
-  }
-  return undefined;
-}
-
 function activePlayer(player: DocumentSnapshot): boolean {
   if (!player.exists || player.get('connected') !== true || player.get('kickedAt') != null) return false;
   const lastSeenAt = player.get('lastSeenAt');
@@ -237,7 +230,9 @@ async function requireCurrentScientist(
   sessionId: string,
   uid: string,
 ): Promise<Readonly<{ controlRevision: number; shepherdOre: number }>> {
-  if (!activePlayer(actor) || actor.get('role') !== 'player' || actualPlayerRole(actor) !== 'shepherd-scientist') {
+  if (!activePlayer(actor) || actor.get('role') !== 'player' ||
+      actor.get('replacementRoleId') != null ||
+      boundCoreConsoleRole(actor.get('assignedRoleId'), actor.get('seatId')) !== 'shepherd-scientist') {
     throw new HttpsError('permission-denied', 'Only the current connected Shepherd Scientist may resolve Endeavour research.');
   }
   const rawEscape = actor.get('escapeState');

@@ -211,6 +211,26 @@ describe('Endeavour Team research writer', () => {
   });
 
   it.each([
+    ['missing assigned role with a stale Scientist console hint', (actor: Fields) => {
+      delete actor.assignedRoleId;
+      actor.activeConsoleRoleId = 'shepherd-scientist';
+    }],
+    ['a seat that conflicts with the Scientist assignment', (actor: Fields) => {
+      actor.seatId = 'shepherd-engineer';
+    }],
+  ])('denies private reads and writes for %s', async (_label, mutate) => {
+    const actor = mock.documents.get('sessions/s1/players/scientist')!;
+    mutate(actor);
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(advanceEndeavourResearchTrack.run(request(command)))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ['disconnected Scientist', (actor: Fields) => { actor.connected = false; }],
     ['kicked Scientist', (actor: Fields) => { actor.kickedAt = 'removed'; }],
     ['stale Scientist presence', (actor: Fields) => {

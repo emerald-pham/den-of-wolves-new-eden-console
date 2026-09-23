@@ -130,6 +130,34 @@ it('does not show or retain private prices after the active console role changes
   expect(screen.queryByText(/costs 7 materials/i)).not.toBeInTheDocument();
 });
 
+it('hides one session private workspace immediately when an equally entitled Scientist switches sessions', async () => {
+  mocks.read.mockResolvedValueOnce(workspace).mockRejectedValueOnce(new Error('Research is unavailable.'));
+  render(<EndeavourResearchPanel control={control} />);
+  expect(await screen.findByRole('list', { name: 'Research progress' })).toHaveTextContent(
+    'Reactor: 1 of 5 boxes crossed; next field-upgrade cost is 7 materials.',
+  );
+
+  act(() => useSessionStore.getState().setIdentity({
+    id: 's2', name: 'Second Fleet', joinCode: '5678', phase: 'active', ownerUid: 'owner',
+    currentTurn: 3, activeRoleIds: ['shepherd-scientist'],
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    shuttleControl: { endeavour: control }, createdAt: '', updatedAt: '',
+  }, {
+    uid: 'scientist', sessionId: 's2', displayName: 'Scientist', role: 'player', seatId: null,
+    assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist', joinedAt: '',
+  }));
+
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('list', { name: 'Research progress' })).not.toBeInTheDocument();
+  expect(screen.queryAllByText(/next field-upgrade cost is 7 materials/i)).toHaveLength(0);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Research is unavailable.');
+});
+
 it('clears a settled in-flight action after authority loss so a returning Scientist can continue', async () => {
   const user = userEvent.setup();
   let finish!: () => void;

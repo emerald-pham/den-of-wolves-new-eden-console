@@ -9,13 +9,13 @@ import {
 import type { ShuttleControlEntry } from '@/types/game';
 import './EndeavourResearchPanel.css';
 
-function isCurrentScientistHolder(): boolean {
+function isCurrentScientistHolder(expectedSessionId: string, expectedUid: string): boolean {
   const { session, me } = useSessionStore.getState();
   const control = session?.shuttleControl?.endeavour;
-  return session?.phase === 'active' && Boolean(me) && me!.role === 'player' &&
-    me!.activeConsoleRoleId === 'shepherd-scientist' &&
+  return session?.id === expectedSessionId && session.phase === 'active' &&
+    me?.uid === expectedUid && me.role === 'player' && me.activeConsoleRoleId === 'shepherd-scientist' &&
     session.activeRoleIds?.includes('shepherd-scientist') === true &&
-    control?.ownerRoleId === 'shepherd-scientist' && control.holderUid === me!.uid;
+    control?.ownerRoleId === 'shepherd-scientist' && control.holderUid === expectedUid;
 }
 
 function hasLiveTeamPhase(session: ReturnType<typeof useSessionStore.getState>['session'], workspace: EndeavourResearchWorkspace): boolean {
@@ -37,15 +37,29 @@ function errorMessage(cause: unknown): string {
 export default function EndeavourResearchPanel({ control }: { readonly control: ShuttleControlEntry }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
-  const [workspace, setWorkspace] = useState<EndeavourResearchWorkspace | null>(null);
+  const [loadedWorkspace, setLoadedWorkspace] = useState<Readonly<{
+    identityKey: string;
+    value: EndeavourResearchWorkspace;
+  }> | null>(null);
   const [selectedTrackId, setSelectedTrackId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [busyFunding, setBusyFunding] = useState<EndeavourResearchFunding | null>(null);
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [busyAction, setBusyAction] = useState<Readonly<{
+    identityKey: string;
+    funding: EndeavourResearchFunding;
+  }> | null>(null);
+  const [feedback, setFeedback] = useState<Readonly<{
+    identityKey: string;
+    notice: string;
+    error: string;
+  }> | null>(null);
   const requestGeneration = useRef(0);
   const sessionId = session?.id;
   const uid = me?.uid;
+  const identityKey = sessionId && uid ? JSON.stringify([sessionId, uid]) : null;
+  const workspace = loadedWorkspace?.identityKey === identityKey ? loadedWorkspace.value : null;
+  const notice = feedback?.identityKey === identityKey ? feedback.notice : '';
+  const error = feedback?.identityKey === identityKey ? feedback.error : '';
+  const busyFunding = busyAction?.identityKey === identityKey ? busyAction.funding : null;
   const entitled = Boolean(
     session?.phase === 'active' && me?.role === 'player' &&
     me.activeConsoleRoleId === 'shepherd-scientist' &&
@@ -55,14 +69,18 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   );
 
   const reload = useCallback(async () => {
-    if (!entitled || !sessionId || !uid) return;
+    if (!entitled || !sessionId || !uid || !identityKey || !isCurrentScientistHolder(sessionId, uid)) return;
     const generation = ++requestGeneration.current;
     setLoading(true);
-    setError('');
+    setFeedback((current) => ({
+      identityKey,
+      notice: current?.identityKey === identityKey ? current.notice : '',
+      error: '',
+    }));
     try {
       const next = await readEndeavourResearchWorkspace();
-      if (generation !== requestGeneration.current || !isCurrentScientistHolder()) return;
-      setWorkspace(next);
+      if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return;
+      setLoadedWorkspace({ identityKey, value: next });
       setSelectedTrackId((current) => {
         const choices = new Set(next.cadence.choices.map((choice) => choice.trackId));
         return next.tracks.some((track) => track.trackId === current && !track.complete && !choices.has(track.trackId))
@@ -70,19 +88,18 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
           : next.tracks.find((track) => !track.complete && !choices.has(track.trackId))?.trackId ?? '';
       });
     } catch (cause) {
-      if (generation !== requestGeneration.current || !isCurrentScientistHolder()) return;
-      setError(errorMessage(cause));
+      if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return;
+      setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
     } finally {
-      if (generation === requestGeneration.current && isCurrentScientistHolder()) setLoading(false);
+      if (generation === requestGeneration.current && isCurrentScientistHolder(sessionId, uid)) setLoading(false);
     }
-  }, [entitled, sessionId, uid]);
+  }, [entitled, identityKey, sessionId, uid]);
 
   useEffect(() => {
     if (!entitled) {
       requestGeneration.current += 1;
-      setWorkspace(null);
-      setNotice('');
-      setError('');
+      setLoadedWorkspace(null);
+      setFeedback(null);
       return;
     }
     void reload();
@@ -100,20 +117,21 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   const liveTeamPhase = Boolean(workspace && hasLiveTeamPhase(currentSession, workspace));
 
   async function resolveChoice(funding: EndeavourResearchFunding): Promise<void> {
-    if (!workspace || !selectedTrack || !liveTeamPhase || busyFunding !== null) return;
-    setBusyFunding(funding);
-    setNotice('');
-    setError('');
+    if (!workspace || !selectedTrack || !liveTeamPhase || busyFunding !== null || !identityKey || !sessionId || !uid) return;
+    setBusyAction({ identityKey, funding });
+    setFeedback({ identityKey, notice: '', error: '' });
     try {
       await advanceEndeavourResearchTrack({ workspace, trackId: selectedTrack.trackId, funding });
-      if (!isCurrentScientistHolder()) return;
-      setNotice(`${selectedTrack.name} advanced one research box.`);
+      if (!isCurrentScientistHolder(sessionId, uid)) return;
+      setFeedback({ identityKey, notice: `${selectedTrack.name} advanced one research box.`, error: '' });
       await reload();
     } catch (cause) {
-      if (isCurrentScientistHolder()) setError(errorMessage(cause));
+      if (isCurrentScientistHolder(sessionId, uid)) {
+        setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
+      }
       await reload();
     } finally {
-      setBusyFunding(null);
+      setBusyAction((current) => current?.identityKey === identityKey ? null : current);
     }
   }
 
