@@ -252,6 +252,14 @@ export function createCompleteShuttleArrivalCallable() {
         currentCycle !== phase.turn || (currentCycle as number) < transit.cycle) {
       throw commandError('failed-precondition', 'The authoritative shuttle arrival state is unavailable.', 'conflict');
     }
+    if (phase.airspace.state === 'lifted' && phase.timerPause === undefined &&
+        now >= Date.parse(phase.openAirspaceEndsAt)) {
+      throw commandError(
+        'failed-precondition',
+        'The ordinary airspace deadline has passed. Wait for the live shuttle parking update.',
+        'invalid-phase',
+      );
+    }
     const dockings = rawDockings as { shuttleId: string; shipId: string; dockedAt: string }[];
     const visitLog = parseShuttleArrivalVisitLog(session.get('shuttleVisitLog'), dockings, activeVesselIds as string[]);
     if (!visitLog) {

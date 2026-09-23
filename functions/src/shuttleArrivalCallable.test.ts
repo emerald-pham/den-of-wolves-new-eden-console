@@ -262,6 +262,38 @@ it('rejects malformed public history without partial writes', async () => {
   expect(mock.remove).not.toHaveBeenCalled();
 });
 
+it('leaves a post-deadline destination arrival in transit for delayed closure parking', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+  try {
+    const transit = seedStoredTransit();
+    const session = mock.documents.get('sessions/s1')!;
+    session.turnPhase = {
+      turn: 2,
+      teamPhaseEndsAt: new Date(Date.now() - 300_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.parse(transit.arrivesAt) - 1_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    };
+    vi.setSystemTime(new Date(Date.parse(transit.arrivesAt) + 1));
+
+    await expect(completeShuttleArrival.run(request())).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/ordinary airspace deadline has passed/i),
+    });
+
+    expect(mock.documents.has('sessions/s1/shuttleDepartures/starlight')).toBe(true);
+    expect(mock.documents.has('sessions/s1/shuttleTransitChains/starlight')).toBe(true);
+    expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'starlight', shipId: transit.destinationShipId }),
+    ]));
+    expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/transit-1')).toBe(false);
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('does not let a peer preclaim a generic receipt or predictable event id to strand arrival', async () => {
   const sharedRequestId = 'arrival-transit-1';
   const claimedReceiptPath = `sessions/s1/commandReceipts/${sharedRequestId}`;

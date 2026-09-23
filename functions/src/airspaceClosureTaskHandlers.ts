@@ -158,10 +158,13 @@ export async function parkAtOrdinaryAirspaceDeadline(
     if (!isRecord(raw)) throw new Error('Shuttle departure authority is malformed at airspace closure.');
     const chain = chains.get(snapshot.id);
     if (raw.status === 'in-transit') {
-      if (!chain?.exists) throw new Error('The in-transit shuttle is missing its server transit chain.');
-      const authority = parseShuttleTransitAuthority(raw, chain.data(), snapshot.id);
-      if (!authority || authority.transit.transitRequestId !== chain.get('transitRequestId') ||
-          authority.transit.revision !== chain.get('revision')) {
+      const authority = parseShuttleTransitAuthority(
+        raw, chain?.exists ? chain.data() : undefined, snapshot.id,
+      );
+      if (!authority || (!chain?.exists && !authority.legacyChain) ||
+          (!authority.legacyChain &&
+            (authority.transit.transitRequestId !== chain?.get('transitRequestId') ||
+              authority.transit.revision !== chain?.get('revision')))) {
         throw new Error('The in-transit shuttle does not match its authoritative transit chain.');
       }
       transits.push(authority.transit);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import type { TurnPhase } from './turnZero';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -251,6 +252,7 @@ import {
   beginShuttleTransit,
   claimGmInstance,
   claimSeat,
+  completeShuttleArrival,
   confirmSetup,
   createSession,
   disconnectFromSession,
@@ -260,6 +262,7 @@ import {
   loginGmAccess,
   refreshPresence,
   requestShuttleDeparture,
+  parkShuttlesAtAirspaceClosure,
   releaseRole,
   resumeSession,
   runMaintenance,
@@ -268,7 +271,7 @@ import {
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { INITIAL_SHIP_RESOURCES } from './resources';
-import { airspaceClosureEventId } from './airspaceClosureTasks';
+import { airspaceClosureEventId, airspaceClosureTaskPlan } from './airspaceClosureTasks';
 
 type CompositionCount = 8 | 19 | 20;
 
@@ -686,6 +689,92 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       expect(mock.documents.has(`${sessionPath}/shuttleTransitChains/starlight`)).toBe(false);
       expect(read(`${sessionPath}/events/${airspaceClosureEventId(1, openPhase.openAirspaceEndsAt)}`))
         .toMatchObject({ type: 'airspace-closure-parking', turn: 1, serverTime: openPhase.openAirspaceEndsAt });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a late arrival from stealing the deadline host before the delayed parking task runs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T16:00:00.000Z'));
+    try {
+      const composition = await composeProductionSession(8);
+      const sessionPath = `sessions/${composition.sessionId}`;
+      const initial = read(sessionPath) as StoredDocument;
+      const teamPhaseEndsAt = new Date(Date.parse('2026-09-23T16:00:00.000Z') + 2_000).toISOString();
+      const openAirspaceEndsAt = new Date(Date.parse('2026-09-23T16:00:00.000Z') + 22_000).toISOString();
+      (initial.turnPhase as StoredDocument).teamPhaseEndsAt = teamPhaseEndsAt;
+      (initial.turnPhase as StoredDocument).openAirspaceEndsAt = openAirspaceEndsAt;
+      const wingCommanderIndex = composition.activeRoleIds.indexOf('wing-commander');
+      const shuttleHolderUid = composition.coreUids[wingCommanderIndex]!;
+
+      vi.setSystemTime(new Date(Date.parse(teamPhaseEndsAt) + 1));
+      await beginOpenAirspacePhase.run(request({
+        sessionId: composition.sessionId,
+        expectedTurn: 1,
+      }, shuttleHolderUid));
+      const opened = read(sessionPath) as StoredDocument;
+      const openPhase = opened.turnPhase as TurnPhase;
+
+      await requestShuttleDeparture.run(request({
+        sessionId: composition.sessionId,
+        requestId: 'p371-late-departure',
+        shuttleId: 'starlight',
+        destinationShipId: 'icebreaker',
+        expectedControlRevision: 0,
+        expectedCycle: 1,
+      }, shuttleHolderUid));
+      await beginShuttleTransit.run(request({
+        sessionId: composition.sessionId,
+        requestId: 'p371-late-transit',
+        shuttleId: 'starlight',
+        expectedDepartureRequestId: 'p371-late-departure',
+        expectedControlRevision: 0,
+        expectedCycle: 1,
+      }, shuttleHolderUid));
+
+      const transitPath = `${sessionPath}/shuttleDepartures/starlight`;
+      const transit = read(transitPath)!;
+      expect(Date.parse(transit.arrivesAt as string)).toBeGreaterThan(Date.parse(openPhase.openAirspaceEndsAt));
+      vi.setSystemTime(new Date(Date.parse(transit.departedAt as string) + 30_000));
+      await refreshPresence.run(request({ sessionId: composition.sessionId }, shuttleHolderUid));
+      vi.setSystemTime(new Date(Date.parse(transit.arrivesAt as string) + 1));
+
+      await expect(completeShuttleArrival.run(request({
+        sessionId: composition.sessionId,
+        shuttleId: 'starlight',
+        transitRequestId: 'p371-late-transit',
+        expectedControlRevision: 0,
+      }, shuttleHolderUid))).rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(read(transitPath)).toMatchObject({ status: 'in-transit' });
+
+      const task = airspaceClosureTaskPlan(
+        composition.sessionId,
+        1,
+        openPhase,
+        'active',
+        Date.parse(openPhase.openAirspaceEndsAt) - 1,
+      )!;
+      await (parkShuttlesAtAirspaceClosure as { run: (event: unknown) => Promise<void> }).run({
+        id: task.taskId,
+        data: {
+          sessionId: task.sessionId,
+          cycle: task.cycle,
+          deadlineAt: task.deadlineAt,
+          wakeIndex: task.wakeIndex,
+        },
+      });
+
+      const closed = read(sessionPath) as StoredDocument;
+      expect(closed.shuttleDockings).toEqual(expect.arrayContaining([
+        { shuttleId: 'starlight', shipId: 'aegis', dockedAt: openPhase.openAirspaceEndsAt },
+      ]));
+      expect(mock.documents.has(transitPath)).toBe(false);
+      expect(mock.documents.has(`${sessionPath}/shuttleTransitChains/starlight`)).toBe(false);
+      expect(read(`${sessionPath}/events/${airspaceClosureEventId(1, openPhase.openAirspaceEndsAt)}`))
+        .toMatchObject({ type: 'airspace-closure-parking', turn: 1, serverTime: openPhase.openAirspaceEndsAt });
+      expect([...mock.documents.keys()].some(path => path.startsWith(`${sessionPath}/events/shuttle-arrival-`)))
+        .toBe(false);
     } finally {
       vi.useRealTimers();
     }

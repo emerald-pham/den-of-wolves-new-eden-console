@@ -398,15 +398,35 @@ it('does not park a Wolf-attack-restricted phase and requeues a new lifted cycle
 it('retries on incomplete transit authority without partially changing the member projection', async () => {
   vi.setSystemTime(new Date(closedAtMs + 1));
   seedSession();
-  seedTransit();
+  const laterRevision = transit({ revision: 2 });
+  mock.documents.set(transitPath, toPublicShuttleTransit(laterRevision));
   mock.documents.delete(chainPath);
   const beforeSession = mock.documents.get(sessionPath);
   const task = closureTaskPlan();
 
   await expect((parkShuttlesAtAirspaceClosure as { run: (request: unknown) => Promise<void> }).run(
     callableRequest(task.taskId),
-  )).rejects.toThrow('missing its server transit chain');
+  )).rejects.toThrow('does not match its authoritative transit chain');
   expect(mock.documents.get(sessionPath)).toEqual(beforeSession);
   expect(mock.documents.has(transitPath)).toBe(true);
   expect([...mock.documents.keys()].some(path => path.startsWith(`${sessionPath}/events/`))).toBe(false);
+});
+
+it('parks a canonical revision-one legacy transit whose private chain has not been migrated', async () => {
+  vi.setSystemTime(new Date(closedAtMs + 1));
+  seedSession();
+  mock.documents.set(transitPath, transit());
+  mock.documents.delete(chainPath);
+
+  await (parkShuttlesAtAirspaceClosure as { run: (request: unknown) => Promise<void> }).run(
+    callableRequest(closureTaskPlan().taskId),
+  );
+
+  expect(mock.documents.has(transitPath)).toBe(false);
+  expect(mock.documents.has(chainPath)).toBe(false);
+  expect(mock.documents.get(sessionPath)?.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker', dockedAt: closedAt }),
+  ]));
+  expect([...mock.documents.entries()].find(([path]) => path.startsWith(`${sessionPath}/events/`))?.[1])
+    .toMatchObject({ type: 'airspace-closure-parking', parkedShuttleCount: 1 });
 });
