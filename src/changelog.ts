@@ -26,6 +26,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 478, partial: 11, active: 0, missing: 262,
     },
     changes: [
+      "When ordinary airspace closes, travelling shuttles dock at the nearest legal host.",
+      "478 of 751 planned items are complete (63.65%).",
+    ],
+  },
+
+  {
+    version: '0.5.10',
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 11, active: 0, missing: 262,
+    },
+    changes: [
       "The console shows how long a reconnect must wait and retries after the interval ends.",
       "478 of 751 planned items are complete (63.65%).",
     ],

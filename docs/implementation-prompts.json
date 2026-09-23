@@ -15741,7 +15741,7 @@
         "acceptance": "a travelling shuttle resolves to its authoritative nearest legal host and cannot remain in motion.",
         "title": "Park craft when airspace closes."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "Server-side deadline parking, delayed-mutation guards, and bounded task reconciliation are implemented with source tests. Prompt 371 remains open until the deployed runtime proves successful Cloud Tasks enqueue and private worker invocation; source checks and function listings alone do not satisfy this live gate.",
       "evidenceIds": "E-AUDIT-371",
       "hardContract": "none",
       "hardMilestone": "none",
