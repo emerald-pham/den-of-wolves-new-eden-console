@@ -590,6 +590,12 @@ describe('coordination throughput primitives', () => {
 ];
 `;
     const inserted = insertReleaseChangelogEntry(source, {
+      id: 'boa-release-regression',
+      sequence: 1,
+      taskId: 'prompt-578',
+      worktree: '/worktrees/prompt-578',
+      state: 'prepared',
+      preparedAt: '2026-09-23T00:00:00.000Z',
       changes: ['Boa can now recycle its docked host.'],
     }, '0.5.8');
     const arrayStart = inserted.indexOf('= [') + '= ['.length;
