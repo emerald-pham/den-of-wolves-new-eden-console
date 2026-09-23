@@ -4,7 +4,7 @@ import {
   CALLABLE_RATE_LIMIT_POLICIES,
   callableRateLimitDocumentId,
   evaluateCallableRateLimit,
-  type CallableRateLimitIdentity,
+  type ExpensiveCallableName,
 } from './callableRateLimit';
 
 /**
@@ -13,7 +13,11 @@ import {
  */
 export async function enforceExpensiveCallableRateLimit(
   firestore: Firestore,
-  identity: CallableRateLimitIdentity,
+  identity: Readonly<{
+    callableName: ExpensiveCallableName;
+    sessionId: string;
+    uid: string;
+  }>,
   nowMs = Date.now(),
 ): Promise<void> {
   const policy = CALLABLE_RATE_LIMIT_POLICIES[identity.callableName];

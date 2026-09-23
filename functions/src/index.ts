@@ -4328,10 +4328,7 @@ export const confirmSetup = onCall<{
   })();
   if (preflightReply) return preflightReply;
   await enforceExpensiveCallableRateLimit(db, {
-    callableName: 'confirmSetup', sessionId: command.sessionId, uid, requestId: command.requestId,
-    requestFingerprint: JSON.stringify(setupCommandFingerprint(
-      command.configuration, command.activeRoleIds, command.expectedSetupRevision, command.lockChart,
-    )),
+    callableName: 'confirmSetup', sessionId: command.sessionId, uid,
   });
 
   return db.runTransaction(async (tx) => {
@@ -4963,8 +4960,7 @@ export const startGame = onCall<{
   })();
   if (preflightReply) return preflightReply;
   await enforceExpensiveCallableRateLimit(db, {
-    callableName: 'startGame', sessionId: start.sessionId, uid, requestId: start.requestId,
-    requestFingerprint: JSON.stringify(fingerprint),
+    callableName: 'startGame', sessionId: start.sessionId, uid,
   });
   // Keep one candidate for the whole transaction invocation. Firestore may
   // retry a transaction callback; retries must not manufacture a new order.
@@ -14987,8 +14983,7 @@ export const declareWolfAttack = onCall<{
   );
   if (receiptReplay) return receiptReplay;
   await enforceExpensiveCallableRateLimit(db, {
-    callableName: 'declareWolfAttack', sessionId: declaration.sessionId, uid, requestId: declaration.requestId,
-    requestFingerprint: JSON.stringify(fingerprint),
+    callableName: 'declareWolfAttack', sessionId: declaration.sessionId, uid,
   });
 
   const [preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
@@ -22102,8 +22097,7 @@ export const runMaintenance = onCall<{
   });
   if (preflightReply) return preflightReply;
   await enforceExpensiveCallableRateLimit(db, {
-    callableName: 'runMaintenance', sessionId: data.sessionId, uid, requestId: data.requestId,
-    requestFingerprint: JSON.stringify(fingerprint),
+    callableName: 'runMaintenance', sessionId: data.sessionId, uid,
   });
 
   // These server-owned values are fixed after request/authority validation and

@@ -26,6 +26,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 478, partial: 12, active: 0, missing: 261,
     },
     changes: [
+      "Setup, game start, Wolf attacks, and maintenance now limit rapid repeat requests to keep active sessions responsive.",
+      "478 of 751 planned items are complete (63.65%).",
+    ],
+  },
+
+  {
+    version: '0.5.12',
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 12, active: 0, missing: 261,
+    },
+    changes: [
       "Shuttle controls now report when movement changes and the current location is available.",
       "478 of 751 planned items are complete (63.65%).",
     ],

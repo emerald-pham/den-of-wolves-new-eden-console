@@ -43,6 +43,8 @@ export function deploymentSelector(options: {
   readonly cwd?: string;
   readonly manual?: boolean;
   readonly sourceAtRevision?: (revision: string, filePath: string) => string;
+  readonly isAncestor?: (ancestor: string, descendant: string) => boolean;
+  readonly filesSinceBaseline?: readonly string[];
 }): string;
 
 export function formatGitHubOutputs(result: DeploymentTargetClassification): string;

@@ -35,41 +35,6 @@ describe('expensive callable rate limits', () => {
     expect(afterWindow).toMatchObject({ allowed: true, state: { windowStartedAtMs: 61_000, requestCount: 1 } });
   });
 
-  it('deduplicates the same authenticated request ID within a rate window', () => {
-    const requestIdentity = { ...identity, requestId: 'same-request' };
-    const first = evaluateCallableRateLimit(undefined, requestIdentity, policy, 1_000);
-    if (!first.allowed) throw new Error('first request should be allowed');
-
-    const duplicate = evaluateCallableRateLimit(first.state, requestIdentity, policy, 1_001);
-    expect(duplicate).toEqual({ allowed: true, state: first.state });
-    if (!duplicate.allowed) throw new Error('same request must remain eligible for replay');
-
-    const nextRequest = evaluateCallableRateLimit(
-      duplicate.state, { ...requestIdentity, requestId: 'different-request' }, policy, 1_002,
-    );
-    expect(nextRequest).toMatchObject({ allowed: true, state: { requestCount: 2 } });
-    expect(first.state).not.toHaveProperty('requestId');
-  });
-
-  it('does not let a reused request ID with a different payload bypass the request budget', () => {
-    const requestIdentity = { ...identity, requestId: 'same-request', requestFingerprint: 'payload-a' };
-    const first = evaluateCallableRateLimit(undefined, requestIdentity, policy, 1_000);
-    if (!first.allowed) throw new Error('first request should be allowed');
-
-    const exactRetry = evaluateCallableRateLimit(first.state, requestIdentity, policy, 1_001);
-    expect(exactRetry).toEqual({ allowed: true, state: first.state });
-    if (!exactRetry.allowed) throw new Error('exact request retry should remain eligible');
-
-    const differentPayload = evaluateCallableRateLimit(
-      exactRetry.state, { ...requestIdentity, requestFingerprint: 'payload-b' }, policy, 1_002,
-    );
-    expect(differentPayload).toMatchObject({ allowed: true, state: { requestCount: 2 } });
-    if (!differentPayload.allowed) throw new Error('different request tuple should consume a budget slot');
-    expect(evaluateCallableRateLimit(
-      differentPayload.state, { ...requestIdentity, requestFingerprint: 'payload-c' }, policy, 1_003,
-    )).toMatchObject({ allowed: false, reason: 'limit-reached' });
-  });
-
   it('keys buckets by authenticated identity, session, and callable without exposing raw UIDs', () => {
     const ownBucket = callableRateLimitDocumentId(identity);
     expect(ownBucket).toMatch(/^[a-f0-9]{64}$/);

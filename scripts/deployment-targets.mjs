@@ -29,9 +29,10 @@ const TOOLING_ONLY_FILES = new Set([
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
-  'functions/src/callableRateLimit.ts': ['confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance'],
-  // The adapter's request fingerprint extension is exercised by the same four callsites.
-  'functions/src/callableRateLimitFirestore.ts': ['confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance'],
+  'functions/src/callableRateLimitFirestore.ts': [
+    'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
+    'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
+  ],
   'functions/src/shuttleMovementConflict.ts': [
     'requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit', 'completeShuttleArrival',
   ],
@@ -39,6 +40,12 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
   'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
 });
+const VERIFIED_LIVE_FUNCTION_BASELINES = Object.freeze([{
+  sha: '2e413cfb58b56300b6003a57d031686cc776caa8',
+  callables: [
+    'requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit', 'completeShuttleArrival',
+  ],
+}]);
 
 function normalizeFile(file) {
   return String(file).trim().replaceAll('\\', '/').replace(/^\.\//, '');
@@ -138,10 +145,10 @@ function versionMetadataOnlyForRange(before, after, files, cwd = process.cwd()) 
   });
 }
 
-function revisionIsAncestor(before, after) {
+function revisionIsAncestor(before, after, cwd = process.cwd()) {
   try {
     execFileSync('git', ['merge-base', '--is-ancestor', before, after], {
-      stdio: 'ignore',
+      stdio: 'ignore', cwd,
     });
     return true;
   } catch {
@@ -260,10 +267,40 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   return [...names].filter((name) => previous.get(name) !== current.get(name));
 }
 
-export function deploymentSelector({ before, after, files, targets, cwd = process.cwd(), manual = false, sourceAtRevision = null } = {}) {
-  if (!targets?.includes('functions')) return (targets ?? []).join(',');
-  if (manual) throw new Error('Manual deployment with Functions requires an audited named-function selector.');
-  if (!before || !after) throw new Error('Functions deployment requires a known successful deployment baseline.');
+const ALL_RATE_LIMIT_CONSUMERS = [
+  'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
+  'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
+];
+
+function rateLimitCallableImpacts(before, after, cwd, sourceAtRevision) {
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, 'functions/src/callableRateLimit.ts');
+    try {
+      return execFileSync('git', ['show', `${revision}:functions/src/callableRateLimit.ts`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine callable changes at ${revision}:functions/src/callableRateLimit.ts.`);
+    }
+  };
+  const previous = readAt(before);
+  const current = readAt(after);
+  const policyObject = /export const CALLABLE_RATE_LIMIT_POLICIES = \{([\s\S]*?)^\} as const;/m;
+  const previousMatch = policyObject.exec(previous);
+  const currentMatch = policyObject.exec(current);
+  if (!previousMatch || !currentMatch) throw new Error('Cannot safely map changed callable rate-limit policy entries.');
+  const stripPolicyObject = (source) => source.replace(policyObject, '/* callable policies */');
+  if (stripPolicyObject(previous) !== stripPolicyObject(current)) return [...ALL_RATE_LIMIT_CONSUMERS];
+  const entries = (block) => new Map([...block.matchAll(/^\s{2}([A-Za-z_$][\w$]*): \{ windowMs: \d+, maxRequests: \d+ \},?\s*$/gm)]
+    .map((match) => [match[1], match[0].trim()]));
+  const oldEntries = entries(previousMatch[1]);
+  const newEntries = entries(currentMatch[1]);
+  const names = new Set([...oldEntries.keys(), ...newEntries.keys()]);
+  return [...names].filter((name) => oldEntries.get(name) !== newEntries.get(name));
+}
+
+function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
@@ -272,12 +309,43 @@ export function deploymentSelector({ before, after, files, targets, cwd = proces
       for (const name of changedIndexCallables(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
+    if (file === 'functions/src/callableRateLimit.ts') {
+      for (const name of rateLimitCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
     const consumers = CALLABLES_BY_CHANGED_MODULE[file];
     if (!consumers) throw new Error(`No audited callable consumer map exists for changed Functions module ${file}.`);
     for (const name of consumers) selected.add(name);
   }
-  if (selected.size === 0) throw new Error('Functions changed but no named callable deployment could be proven.');
-  const ordered = [...selected];
+  return [...selected];
+}
+
+export function deploymentSelector({ before, after, files, targets, cwd = process.cwd(), manual = false, sourceAtRevision = null, isAncestor = (ancestor, descendant) => revisionIsAncestor(ancestor, descendant, cwd), filesSinceBaseline } = {}) {
+  if (!targets?.includes('functions')) return (targets ?? []).join(',');
+  if (manual) throw new Error('Manual deployment with Functions requires an audited named-function selector.');
+  if (!before || !after) throw new Error('Functions deployment requires a known successful deployment baseline.');
+  let callableBaseline = before;
+  for (const receipt of VERIFIED_LIVE_FUNCTION_BASELINES) {
+    if (receipt.sha === before || !isAncestor(before, receipt.sha) || !isAncestor(receipt.sha, after)) continue;
+    const priorFiles = filesFromGit(before, receipt.sha, cwd);
+    const priorCallables = callablesChangedInRange({
+      before, after: receipt.sha, files: priorFiles, cwd, sourceAtRevision,
+    }).sort();
+    if (priorCallables.join('|') !== [...receipt.callables].sort().join('|')) {
+      throw new Error(`Changes before verified live Function baseline ${receipt.sha} do not match its audited callable receipt.`);
+    }
+    callableBaseline = receipt.sha;
+    break;
+  }
+  const selected = callablesChangedInRange({
+    before: callableBaseline,
+    after,
+    files: callableBaseline === before ? files : filesSinceBaseline ?? filesFromGit(callableBaseline, after, cwd),
+    cwd,
+    sourceAtRevision,
+  });
+  if (selected.length === 0) throw new Error('Functions changed but no named callable deployment could be proven.');
+  const ordered = selected;
   const deployTargets = (targets ?? []).filter((target) => target !== 'functions');
   if (!deployTargets.includes('hosting')) deployTargets.unshift('hosting');
   deployTargets.push(...ordered.map((name) => `functions:${name}`));

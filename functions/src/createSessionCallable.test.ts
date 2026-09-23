@@ -797,6 +797,44 @@ it('records a fresh setup confirmation in the authenticated rate bucket', async 
   expect(mock.rateLimitSet.mock.invocationCallOrder[0]).toBeLessThan(mock.get.mock.invocationCallOrder[scanIndex]!);
 });
 
+it('charges repeated authorized setup failures after collection scans until the budget is exhausted', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  const rateMarkers = new Map<string, Record<string, unknown>>();
+  mock.get.mockImplementation(async ({ path }: { path: string }) => {
+    if (path.includes('/serverState/callableRateLimit-')) {
+      const marker = rateMarkers.get(path);
+      return { ...snapshot(marker, marker !== undefined), data: () => marker };
+    }
+    if (path === 'sessions/s1') {
+      return snapshot({
+        phase: 'active', configurationLocked: false, setupRevision: 0, activeRoleIds,
+        playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: false, capybaraEnabled: true,
+      });
+    }
+    if (path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+  mock.rateLimitSet.mockImplementation((ref: { path: string }, marker: Record<string, unknown>) => {
+    rateMarkers.set(ref.path, marker);
+  });
+  const command = request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'same-failing-request', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  });
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await expect(confirmSetup.run(command)).rejects.toMatchObject({ code: 'failed-precondition' });
+  }
+  await expect(confirmSetup.run(command)).rejects.toMatchObject({
+    code: 'resource-exhausted', details: { commandError: 'rate-limited' },
+  });
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(12);
+  expect(mock.get.mock.calls.filter(([ref]) => (ref as { path?: string }).path === 'sessions/s1/players')).toHaveLength(12);
+});
+
 it('returns a safe stale receipt when setup revision changed before confirmation', async () => {
   const activeRoleIds = recommendedRoleIds(8);
   let currentSetupRevision = 5;

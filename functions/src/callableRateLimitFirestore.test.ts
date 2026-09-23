@@ -70,21 +70,6 @@ describe('Firestore callable rate-limit adapter', () => {
     }, 1_012)).resolves.toBeUndefined();
   });
 
-  it('charges a concurrent same-request retry only once', async () => {
-    const { firestore, documents } = rateLimitFirestore();
-    const identity = {
-      callableName: 'startGame', sessionId: 'session-a', uid: 'gm-a', requestId: 'start-receipt-a',
-    } as const;
-
-    await Promise.all([
-      enforceExpensiveCallableRateLimit(firestore, identity, 1_000),
-      enforceExpensiveCallableRateLimit(firestore, identity, 1_001),
-    ]);
-
-    const markerPath = `sessions/session-a/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
-    expect(documents.get(markerPath)).toMatchObject({ requestCount: 1 });
-  });
-
   it('does not reset a malformed or identity-spoofed private marker', async () => {
     const identity = { callableName: 'rollDice', sessionId: 'session-a', uid: 'auth-uid-a' } as const;
     const markerPath = `sessions/session-a/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;

@@ -54,13 +54,47 @@ it('selects changed callable exports plus audited consumers of changed shared he
   const callable = (name: string, body: string) => `export const ${name} = onCall(async (request) => { ${body} });\n`;
   const before = [callable('confirmSetup', 'return oldSetup();'), callable('startGame', 'return oldStart();'), callable('readSession', 'return read();')].join('');
   const after = [callable('confirmSetup', 'return limitedSetup();'), callable('startGame', 'return limitedStart();'), callable('readSession', 'return read();')].join('');
+  const policy = (extra = '') => `export const CALLABLE_RATE_LIMIT_POLICIES = {\n  resumeSession: { windowMs: 60000, maxRequests: 10 },\n  getSessionPresence: { windowMs: 60000, maxRequests: 12 },\n  listGmInstances: { windowMs: 60000, maxRequests: 60 },\n  rollDice: { windowMs: 60000, maxRequests: 30 },\n${extra}} as const;\nexport function evaluate() { return true; }\n`;
+  const previousPolicy = policy();
+  const currentPolicy = policy('  confirmSetup: { windowMs: 60000, maxRequests: 12 },\n  startGame: { windowMs: 60000, maxRequests: 6 },\n  declareWolfAttack: { windowMs: 60000, maxRequests: 6 },\n  runMaintenance: { windowMs: 60000, maxRequests: 30 },\n');
   const selected = deploymentSelector({
     before: 'base', after: 'candidate', targets: ['hosting', 'functions'],
     files: ['functions/src/index.ts', 'functions/src/callableRateLimit.ts'],
-    sourceAtRevision: (revision) => revision === 'base' ? before : after,
+    sourceAtRevision: (revision, filePath) => filePath.endsWith('/index.ts')
+      ? (revision === 'base' ? before : after)
+      : (revision === 'base' ? previousPolicy : currentPolicy),
+    isAncestor: () => false,
   });
 
   expect(selected).toBe('hosting,functions:confirmSetup,functions:startGame,functions:declareWolfAttack,functions:runMaintenance');
+});
+
+it('selects every current and future callable consumer when shared limiter behavior changes', () => {
+  const before = `export const CALLABLE_RATE_LIMIT_POLICIES = {\n  resumeSession: { windowMs: 60000, maxRequests: 10 },\n} as const;\nexport function evaluate() { return true; }\n`;
+  const after = before.replace('return true', 'return false');
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: ['functions/src/callableRateLimit.ts'],
+    sourceAtRevision: (revision) => revision === 'base' ? before : after,
+    isAncestor: () => false,
+  });
+  expect(selected).toBe([
+    'hosting', 'functions:resumeSession', 'functions:getSessionPresence', 'functions:listGmInstances',
+    'functions:rollDice', 'functions:confirmSetup', 'functions:startGame',
+    'functions:declareWolfAttack', 'functions:runMaintenance',
+  ].join(','));
+});
+
+it('maps Firestore adapter changes to every callable that imports its authority path', () => {
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: ['functions/src/callableRateLimitFirestore.ts'],
+    isAncestor: () => false,
+  });
+  expect(selected).toContain('functions:resumeSession');
+  expect(selected).toContain('functions:rollDice');
+  expect(selected).toContain('functions:runMaintenance');
+  expect(selected).toContain('functions:startGame');
 });
 
 it('fails closed when named callable scope or deployment baseline is unknown', () => {
@@ -317,7 +351,7 @@ it('proves every selected Function published a different ready Cloud Run revisio
   });
 
   await expect(verifyDeployment({
-    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.12',
+    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.13',
     functionNames: 'confirmSetup,startGame',
     previousFunctionRevisions: { confirmSetup: 'confirmSetup-rev-1', startGame: 'startGame-rev-1' },
     runCommand,
@@ -329,7 +363,7 @@ it('proves every selected Function published a different ready Cloud Run revisio
     expect.arrayContaining(['run', 'services', 'describe', 'startGame']),
   ]));
   await expect(verifyDeployment({
-    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.12',
+    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.13',
     functionNames: 'confirmSetup', previousFunctionRevisions: { confirmSetup: 'confirmSetup-rev-2' },
     runCommand,
   })).rejects.toThrow('did not publish a new ready revision');
