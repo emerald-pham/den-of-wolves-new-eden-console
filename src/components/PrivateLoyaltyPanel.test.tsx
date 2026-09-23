@@ -32,6 +32,7 @@ function prepareLivePlayer() {
 
 beforeEach(() => {
   useSessionStore.getState().reset();
+  prepareLivePlayer();
   vi.mocked(revealAndroidProof).mockReset();
   vi.mocked(submitWolfIntelligence).mockReset();
   vi.mocked(submitWolfHomingBeacon).mockReset();
@@ -102,6 +103,42 @@ it('sends a short private Wolf handler message and applies the server suspicion 
   expect(useSessionStore.getState().privateLoyalty).toMatchObject({
     kind: 'wolf-agent', suspicion: 3,
   });
+});
+
+it('announces a private result in a focus-contained dialog and restores its review control', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfIntelligence).mockResolvedValue({
+    status: 'committed', type: 'wolf-intelligence', sessionId: 's1',
+    requestId: 'wolf-intel-focus-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', message: 'Relay quiet.', suspicion: 3,
+  });
+  render(<PrivateLoyaltyPanel />);
+
+  await user.type(screen.getByRole('textbox', { name: 'Short handler message' }), 'Relay quiet.');
+  await user.click(screen.getByRole('button', { name: 'Send private intelligence' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Private result' });
+  expect(dialog).toHaveAccessibleDescription(/visible only to the current player identity/i);
+  expect(dialog).toHaveTextContent('Handler message sent privately. Suspicion // 3.');
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Private result' }));
+
+  await user.tab();
+  const close = screen.getByRole('button', { name: 'Continue' });
+  expect(document.activeElement).toBe(close);
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog', { name: 'Private result' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Review private result' })).toHaveFocus();
+});
+
+it('withholds a private loyalty card and private result surface outside the current player session', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 3 });
+  useSessionStore.getState().setMe({ uid: 'u2', sessionId: 'another-session', role: 'player' } as never);
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.queryByRole('region', { name: 'Private loyalty card' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('dialog', { name: 'Private result' })).not.toBeInTheDocument();
 });
 
 it('does not offer live Wolf intelligence outside an active cycle', () => {
@@ -201,7 +238,9 @@ it('hydrates a prior private investigation without exposing a new action outside
 
   render(<PrivateLoyaltyPanel />);
 
-  expect(screen.getByText(/Cycle 1.*NOT WOLF AGENT/i)).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Private loyalty card' })).toHaveTextContent(
+    /Cycle 1.*NOT WOLF AGENT/i,
+  );
   expect(screen.getByRole('button', { name: 'Run private investigation' })).toBeDisabled();
   expect(screen.getByText(/available during active cycles/i)).toBeVisible();
 });

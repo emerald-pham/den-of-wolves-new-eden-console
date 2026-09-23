@@ -692,6 +692,100 @@ body {
   margin-top: 1.25rem;
 }
 
+.focus-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--cic-void) 96%, transparent);
+}
+
+.focus-dialog {
+  width: min(38rem, 100%);
+  max-height: calc(100dvh - max(2rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  padding: clamp(1rem, 4vw, 1.75rem);
+}
+
+.focus-dialog__header {
+  display: grid;
+  gap: 0.65rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.focus-dialog__header .cic-overline {
+  margin: 0;
+  color: var(--cic-cyan);
+}
+
+.focus-dialog__header h2 {
+  margin: 0;
+  color: var(--cic-amber-glow);
+  font: 500 clamp(1.1rem, 4vw, 1.5rem)/1.25 var(--cic-display);
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
+.focus-dialog__header p:last-child {
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.875rem/1.55 var(--cic-mono);
+}
+
+.focus-dialog__content {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  color: var(--cic-ink);
+  font: 0.875rem/1.6 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.focus-dialog__content > :first-child { margin-top: 0; }
+.focus-dialog__content > :last-child { margin-bottom: 0; }
+.focus-dialog__content h3 {
+  margin: 0;
+  color: var(--cic-cyan-hot);
+  font: 500 0.95rem/1.4 var(--cic-display);
+  letter-spacing: 0.06em;
+}
+.focus-dialog__content p { margin: 0; }
+
+.focus-dialog__close {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 1.25rem;
+  white-space: normal;
+}
+
+.focus-dialog__close:focus-visible,
+.focus-dialog-review:focus-visible {
+  outline: 2px solid var(--cic-cyan-hot);
+  outline-offset: 3px;
+}
+
+.focus-dialog-review {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  z-index: 15;
+  min-height: 44px;
+  max-width: min(21rem, calc(100vw - 1.5rem));
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 42rem), (max-height: 42rem) {
+  .focus-dialog-backdrop { place-items: start center; }
+  .focus-dialog { margin-block: 0; }
+}
+
 
 
 .session-readouts {

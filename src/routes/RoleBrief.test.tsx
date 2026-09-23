@@ -92,7 +92,64 @@ it('renders a facilitator-labeled Universal Arbour call only on the private brie
 
   expect(screen.getByText('FACILITATOR CALL')).toBeVisible();
   expect(screen.getByRole('heading', { name: /Universal Arbour vision/i })).toBeVisible();
-  expect(screen.getByText('There is danger at the outer relay.')).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Universal Arbour vision // danger' })).toHaveTextContent(
+    'There is danger at the outer relay.',
+  );
+});
+
+it('traps focus in a current facilitator call and restores the review control on dismissal', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'universal-arbour', suspicion: 10 });
+  useSessionStore.getState().setArbourVision({
+    sessionId: 's1', recipientUid: 'u1', revision: 1, kind: 'danger',
+    text: 'There is danger at the outer relay.', label: 'FACILITATOR CALL',
+  });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const dialog = screen.getByRole('dialog', { name: 'Facilitator call' });
+  expect(dialog).toHaveAccessibleDescription(/current player identity/i);
+  expect(dialog).toHaveTextContent('There is danger at the outer relay.');
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Facilitator call' }));
+  await user.tab();
+  const close = screen.getByRole('button', { name: 'Continue' });
+  expect(document.activeElement).toBe(close);
+  await user.keyboard('{Escape}');
+
+  expect(screen.queryByRole('dialog', { name: 'Facilitator call' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Review facilitator call' })).toHaveFocus();
+});
+
+it('withholds facilitator content when its session or selected recipient does not match', () => {
+  useSessionStore.getState().setArbourVision({
+    sessionId: 'other-session', recipientUid: 'u1', revision: 1, kind: 'danger',
+    text: 'Private danger detail.', label: 'FACILITATOR CALL',
+  });
+  useSessionStore.getState().setFacilitatorRuleCall({
+    sessionId: 's1', callId: 'call-wrong-reader', revision: 1,
+    ambiguity: 'Private question.', source: 'Private source', decision: 'Private decision.',
+    audience: 'selected-player', recipientUid: 'another-player', label: 'FACILITATOR RULE CALL',
+  });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('dialog', { name: 'Facilitator call' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Review facilitator call' })).not.toBeInTheDocument();
+  expect(screen.queryByText('Private danger detail.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Private question.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Private decision.')).not.toBeInTheDocument();
 });
 
 it('renders a selected facilitator rule call with durable source and decision fields', () => {

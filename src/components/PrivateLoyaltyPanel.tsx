@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { IntelligenceInvestigation, Player, PrivateLoyalty } from '@/types/game';
+import FocusDialog from './FocusDialog';
 import { findConsoleRole } from '@/data/roles';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import { submitWolfHomingBeacon, submitWolfIntelligence } from '@/lib/wolfActionService';
@@ -68,7 +69,11 @@ export default function PrivateLoyaltyPanel() {
   } | null>(null);
   const [wolfMessage, setWolfMessage] = useState('');
   const [wolfPending, setWolfPending] = useState(false);
-  const [wolfResult, setWolfResult] = useState<string | null>(null);
+  const [wolfResult, setWolfResult] = useState<{
+    identity: string; loyaltyKind: string; requestId: string; text: string;
+  } | null>(null);
+  const [dismissedResultKey, setDismissedResultKey] = useState<string | null>(null);
+  const resultReviewRef = useRef<HTMLButtonElement | null>(null);
   const [wolfError, setWolfError] = useState('');
   const [investigationTargets, setInvestigationTargets] = useState<readonly Player[]>([]);
   const [investigationTargetUid, setInvestigationTargetUid] = useState('');
@@ -78,6 +83,23 @@ export default function PrivateLoyaltyPanel() {
   const currentFeedback = feedback?.identity === identity && feedback.card === loyalty ? feedback : null;
   const pending = currentFeedback?.pending ?? false;
   const error = currentFeedback?.error ?? '';
+  const privateReader = Boolean(sessionId && me?.role === 'player' && me.uid && me.sessionId === sessionId);
+  const currentWolfResult = privateReader && wolfResult?.identity === identity &&
+    wolfResult.loyaltyKind === loyalty?.kind ? wolfResult : null;
+  const currentInvestigation = privateReader && investigation && investigation.sessionId === sessionId &&
+    investigation.investigatorUid === me?.uid ? investigation : null;
+  const currentWolfCultIntelligence = privateReader && wolfCultIntelligence &&
+    wolfCultIntelligence.sessionId === sessionId && wolfCultIntelligence.recipientUid === me?.uid
+    ? wolfCultIntelligence : null;
+  const privateResultKey = currentWolfResult || currentInvestigation || currentWolfCultIntelligence
+    ? [
+      identity,
+      currentWolfResult ? `wolf:${currentWolfResult.requestId}` : '',
+      currentInvestigation ? `investigation:${currentInvestigation.requestId}:${currentInvestigation.revision}` : '',
+      currentWolfCultIntelligence ? `cult:${currentWolfCultIntelligence.revision}` : '',
+    ].join('|')
+    : null;
+  const privateResultReviewAvailable = privateResultKey !== null && !endgameEvaluation;
   const wolfActionAvailable = sessionPhase === 'active' && Number.isSafeInteger(currentCycle) &&
     (currentCycle as number) >= 1;
   useEffect(() => { setFeedback(null); }, [identity, loyalty]);
@@ -93,7 +115,8 @@ export default function PrivateLoyaltyPanel() {
     setInvestigation(null);
     setInvestigationPending(false);
     setInvestigationError('');
-    if (loyalty?.kind !== 'intelligence-agent' || !sessionId || !me?.uid) return;
+    if (loyalty?.kind !== 'intelligence-agent' || !sessionId || !me?.uid ||
+        me.role !== 'player' || me.sessionId !== sessionId) return;
     const stopInvestigation = subscribeIntelligenceInvestigation(
       sessionId, me.uid, setInvestigation,
     );
@@ -109,8 +132,8 @@ export default function PrivateLoyaltyPanel() {
       stopTargets();
       stopInvestigation();
     };
-  }, [loyalty?.kind, me?.fleetGroupId, me?.uid, sessionId]);
-  if (!loyalty) return null;
+  }, [loyalty?.kind, me?.fleetGroupId, me?.role, me?.sessionId, me?.uid, sessionId]);
+  if (!loyalty || !privateReader) return null;
 
   const discloseAndroidProof = async () => {
     if (endgameEvaluation || pending || loyalty.kind !== 'android' || loyalty.proofRevealed) return;
@@ -161,7 +184,12 @@ export default function PrivateLoyaltyPanel() {
           (dispatchedCard.kind === 'wolf-agent' || dispatchedCard.kind === 'wolf-cult')) {
         setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
         setWolfMessage('');
-        setWolfResult(`Handler message sent privately. Suspicion // ${result.suspicion}.`);
+        setWolfResult({
+          identity,
+          loyaltyKind: dispatchedCard.kind,
+          requestId: result.requestId,
+          text: `Handler message sent privately. Suspicion // ${result.suspicion}.`,
+        });
       }
     } catch (cause) {
       const current = useSessionStore.getState();
@@ -189,10 +217,13 @@ export default function PrivateLoyaltyPanel() {
       if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
           (dispatchedCard.kind === 'wolf-agent' || dispatchedCard.kind === 'wolf-cult')) {
         setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
-        setWolfResult(
-          `Homing beacon scheduled at ${result.coordinate}. Pressure becomes eligible after ` +
-          `cycle ${result.dueCycle} starts. Suspicion // ${result.suspicion}.`,
-        );
+        setWolfResult({
+          identity,
+          loyaltyKind: dispatchedCard.kind,
+          requestId: result.requestId,
+          text: `Homing beacon scheduled at ${result.coordinate}. Pressure becomes eligible after ` +
+            `cycle ${result.dueCycle} starts. Suspicion // ${result.suspicion}.`,
+        });
       }
     } catch (cause) {
       const current = useSessionStore.getState();
@@ -245,6 +276,16 @@ export default function PrivateLoyaltyPanel() {
           <p className="private-loyalty-panel__partner">
             {loyalty.kind === 'friend' ? 'Friend trust // partner role' : 'Partner assignment'} // {partnerLabel(loyalty)}
           </p>
+        )}
+        {privateResultReviewAvailable && (
+          <button
+            ref={resultReviewRef}
+            className="cic-text-button private-loyalty-panel__review-result"
+            type="button"
+            onClick={() => setDismissedResultKey(null)}
+          >
+            Review private result
+          </button>
         )}
         {loyalty.kind === 'android' && (loyalty.proofRevealed ? (
           <p className="private-loyalty-panel__proof" role="status">
@@ -305,7 +346,7 @@ export default function PrivateLoyaltyPanel() {
                 Private Wolf actions are available during active cycles.
               </p>
             )}
-            {wolfResult && <p role="status">{wolfResult}</p>}
+            {currentWolfResult && <p role="status">{currentWolfResult.text}</p>}
             {wolfError && <p role="alert">{wolfError}</p>}
           </section>
         )}
@@ -348,29 +389,57 @@ export default function PrivateLoyaltyPanel() {
                 No other connected players are available in this fleet group.
               </p>
             )}
-            {investigation && (
+            {currentInvestigation && (
               <p className="private-loyalty-panel__proof-status" role="status">
-                Cycle {investigation.cycle} // {investigation.targetDisplayName} //{' '}
-                {investigation.reportedWolf ? 'WOLF AGENT' : 'NOT WOLF AGENT'}
+                Cycle {currentInvestigation.cycle} // {currentInvestigation.targetDisplayName} //{' '}
+                {currentInvestigation.reportedWolf ? 'WOLF AGENT' : 'NOT WOLF AGENT'}
               </p>
             )}
             {investigationError && <p role="alert">{investigationError}</p>}
           </section>
         )}
-        {loyalty.kind === 'wolf-cult' && wolfCultIntelligence && (
+        {loyalty.kind === 'wolf-cult' && currentWolfCultIntelligence && (
           <section className="role-brief__rules role-brief__rules--wolf-cult-intelligence" aria-labelledby="wolf-cult-intelligence-title">
-            <p className="eyebrow">{wolfCultIntelligence.label}</p>
+            <p className="eyebrow">{currentWolfCultIntelligence.label}</p>
             <h3 id="wolf-cult-intelligence-title">Wolf Cult intelligence</h3>
-            <p>Active Wolf fortress // {wolfCultIntelligence.fortressCoordinate}</p>
-            <p>Abandoned supplies // {wolfCultIntelligence.suppliesCoordinate}</p>
-            <p>Other Wolf agent // {wolfCultIntelligence.agentUid}</p>
-            <p>Code word // {wolfCultIntelligence.codeWord}</p>
+            <p>Active Wolf fortress // {currentWolfCultIntelligence.fortressCoordinate}</p>
+            <p>Abandoned supplies // {currentWolfCultIntelligence.suppliesCoordinate}</p>
+            <p>Other Wolf agent // {currentWolfCultIntelligence.agentUid}</p>
+            <p>Code word // {currentWolfCultIntelligence.codeWord}</p>
           </section>
         )}
         <p className="private-loyalty-panel__note">
           This card belongs to this device identity only. Do not read it aloud on an open channel.
         </p>
       </section>
+      <FocusDialog
+        open={privateResultReviewAvailable && dismissedResultKey !== privateResultKey}
+        title="Private result"
+        description="This result is visible only to the current player identity on this device."
+        dialogKey={privateResultKey}
+        restoreRef={resultReviewRef}
+        onClose={() => setDismissedResultKey(privateResultKey)}
+      >
+        {currentWolfResult && <p>{currentWolfResult.text}</p>}
+        {currentInvestigation && (
+          <section>
+            <h3>Intelligence Bureau result</h3>
+            <p>
+              Cycle {currentInvestigation.cycle} // {currentInvestigation.targetDisplayName} //{' '}
+              {currentInvestigation.reportedWolf ? 'WOLF AGENT' : 'NOT WOLF AGENT'}
+            </p>
+          </section>
+        )}
+        {currentWolfCultIntelligence && (
+          <section>
+            <h3>Wolf Cult intelligence</h3>
+            <p>Active Wolf fortress // {currentWolfCultIntelligence.fortressCoordinate}</p>
+            <p>Abandoned supplies // {currentWolfCultIntelligence.suppliesCoordinate}</p>
+            <p>Other Wolf agent // {currentWolfCultIntelligence.agentUid}</p>
+            <p>Code word // {currentWolfCultIntelligence.codeWord}</p>
+          </section>
+        )}
+      </FocusDialog>
     </div>
   );
 }

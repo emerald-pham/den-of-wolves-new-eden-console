@@ -37,6 +37,7 @@ import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
+import EndgameDialog from '@/components/EndgameDialog';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import EscapeState from '@/routes/EscapeState';
@@ -671,6 +672,7 @@ function AppRoutes() {
         turnPhase={session?.turnPhase}
       />
       <AppHeader />
+      <EndgameDialog />
       <CommunicationError />
       <UnrestAlert />
       <PopulationAlert />

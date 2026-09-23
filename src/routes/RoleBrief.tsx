@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
@@ -8,6 +9,7 @@ import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPane
 import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPanel';
 import DecisionAttribution from '@/components/DecisionAttribution';
 import ExtraShipCaptainWorkspace from '@/components/ExtraShipCaptainWorkspace';
+import FocusDialog from '@/components/FocusDialog';
 
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
@@ -86,9 +88,28 @@ export default function RoleBrief() {
   const privateLoyalty = useSessionStore((state) => state.privateLoyalty);
   const arbourVision = useSessionStore((state) => state.arbourVision);
   const facilitatorRuleCall = useSessionStore((state) => state.facilitatorRuleCall);
+  const [dismissedCallKey, setDismissedCallKey] = useState<string | null>(null);
+  const callReviewRef = useRef<HTMLButtonElement | null>(null);
+
+  const entitledArbourVision = session && me?.role === 'player' &&
+    privateLoyalty?.kind === 'universal-arbour' && arbourVision?.sessionId === session.id &&
+    arbourVision.recipientUid === me.uid ? arbourVision : null;
+  const entitledRuleCall = session && me?.role === 'player' && facilitatorRuleCall?.sessionId === session.id &&
+    facilitatorRuleCall.audience === 'selected-player' && facilitatorRuleCall.recipientUid === me.uid
+    ? facilitatorRuleCall : null;
+  const callKey = entitledArbourVision || entitledRuleCall
+    ? `${session?.id}:${me?.uid}:` + [
+      entitledArbourVision ? `arbour:${entitledArbourVision.revision}` : '',
+      entitledRuleCall ? `rule:${entitledRuleCall.callId}:${entitledRuleCall.revision}` : '',
+    ].join('|')
+    : null;
+  const endgameEvaluation = session && ['success', 'failure', 'debrief', 'closed'].includes(session.phase);
+  const callReviewAvailable = callKey !== null && !endgameEvaluation;
+  const callOpen = callReviewAvailable && dismissedCallKey !== callKey;
 
   if (
     !session || !me || !brief ||
+    me.role !== 'player' ||
     brief.assignmentUid !== me.uid ||
     me.replacementRoleId !== brief.roleId && me.assignedRoleId !== brief.roleId
   ) {
@@ -106,6 +127,17 @@ export default function RoleBrief() {
         <h1 id="role-brief-title">{brief.roleName}</h1>
         <p className="role-brief__copy">{brief.text}</p>
 
+        {callReviewAvailable && (
+          <button
+            ref={callReviewRef}
+            className="cic-text-button role-brief__review-call"
+            type="button"
+            onClick={() => setDismissedCallKey(null)}
+          >
+            Review facilitator call
+          </button>
+        )}
+
         {brief.voyage33Motivation && (
           <section className="role-brief__rules" aria-labelledby="voyage-33-motivation-title">
             <p className="eyebrow">Private arrival priority</p>
@@ -114,27 +146,27 @@ export default function RoleBrief() {
           </section>
         )}
 
-        {privateLoyalty?.kind === 'universal-arbour' && arbourVision && (
+        {entitledArbourVision && (
           <section className="role-brief__rules role-brief__rules--arbour-vision" aria-labelledby="arbour-vision-title">
-            <p className="eyebrow">{arbourVision.label}</p>
-            <h2 id="arbour-vision-title">Universal Arbour vision // {arbourVision.kind}</h2>
-            <p>{arbourVision.text}</p>
+            <p className="eyebrow">{entitledArbourVision.label}</p>
+            <h2 id="arbour-vision-title">Universal Arbour vision // {entitledArbourVision.kind}</h2>
+            <p>{entitledArbourVision.text}</p>
           </section>
         )}
 
-        {facilitatorRuleCall && (
+        {entitledRuleCall && (
           <section className="role-brief__rules role-brief__rules--facilitator-call" aria-labelledby="facilitator-rule-call-title">
-            <p className="eyebrow">{facilitatorRuleCall.label}</p>
+            <p className="eyebrow">{entitledRuleCall.label}</p>
             <h2 id="facilitator-rule-call-title">Facilitator rule call</h2>
             <dl>
-              <div><dt>Question</dt><dd>{facilitatorRuleCall.ambiguity}</dd></div>
-              <div><dt>Source</dt><dd>{facilitatorRuleCall.source}</dd></div>
-              <div><dt>Decision</dt><dd>{facilitatorRuleCall.decision}</dd></div>
+              <div><dt>Question</dt><dd>{entitledRuleCall.ambiguity}</dd></div>
+              <div><dt>Source</dt><dd>{entitledRuleCall.source}</dd></div>
+              <div><dt>Decision</dt><dd>{entitledRuleCall.decision}</dd></div>
             </dl>
             <DecisionAttribution
-              source={facilitatorRuleCall.source}
+              source={entitledRuleCall.source}
               actorVisibility="withheld"
-              recordedAt={facilitatorRuleCall.createdAt}
+              recordedAt={entitledRuleCall.createdAt}
             />
           </section>
         )}
@@ -170,6 +202,34 @@ export default function RoleBrief() {
           Return to role selection
         </Link>
       </article>
+      <FocusDialog
+        open={callOpen}
+        title="Facilitator call"
+        description="New guidance for the role assignment on this current player identity."
+        dialogKey={callKey}
+        restoreRef={callReviewRef}
+        onClose={() => setDismissedCallKey(callKey)}
+      >
+        {entitledArbourVision && (
+          <section>
+            <h3>{entitledArbourVision.label} // Arbour guidance</h3>
+            <p>{entitledArbourVision.text}</p>
+          </section>
+        )}
+        {entitledRuleCall && (
+          <section>
+            <h3>{entitledRuleCall.label}</h3>
+            <p>Question // {entitledRuleCall.ambiguity}</p>
+            <p>Source // {entitledRuleCall.source}</p>
+            <p>Decision // {entitledRuleCall.decision}</p>
+            <DecisionAttribution
+              source={entitledRuleCall.source}
+              actorVisibility="withheld"
+              recordedAt={entitledRuleCall.createdAt}
+            />
+          </section>
+        )}
+      </FocusDialog>
     </main>
   );
 }

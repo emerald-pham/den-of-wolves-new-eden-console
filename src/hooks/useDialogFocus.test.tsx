@@ -4,6 +4,30 @@ import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { useDialogFocus } from './useDialogFocus';
 
+function HeadingFocusFixture() {
+  const dialogRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useDialogFocus({ open: true, dialogRef, initialFocusRef: headingRef });
+  return <main>
+    <button type="button">Underlying action</button>
+    <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Heading focus">
+      <h2 ref={headingRef} tabIndex={-1}>Dialog purpose</h2>
+      <button type="button">Continue</button>
+    </section>
+  </main>;
+}
+
+it('moves Tab from a programmatically focused purpose heading into the dialog controls', async () => {
+  const user = userEvent.setup();
+  render(<HeadingFocusFixture />);
+
+  expect(screen.getByRole('heading', { name: 'Dialog purpose' })).toHaveFocus();
+  await user.tab();
+  expect(screen.getByRole('button', { name: 'Continue' })).toHaveFocus();
+  await user.keyboard('{Shift>}{Tab}{/Shift}');
+  expect(screen.getByRole('button', { name: 'Continue' })).toHaveFocus();
+});
+
 function RemovedDialog({ close }: { readonly close: () => void }) {
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus({ open: true, dialogRef });

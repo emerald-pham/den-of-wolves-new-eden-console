@@ -144,7 +144,11 @@ export function useDialogFocus({
       const currentIndex = focusable.indexOf(current as HTMLElement);
       if (currentIndex < 0) {
         event.preventDefault();
-        focusFirst();
+        if (current instanceof Node && dialog.contains(current) && focusable.length > 0) {
+          focusable[event.shiftKey ? focusable.length - 1 : 0]?.focus();
+        } else {
+          focusFirst();
+        }
         return;
       }
       const nextIndex = event.shiftKey
