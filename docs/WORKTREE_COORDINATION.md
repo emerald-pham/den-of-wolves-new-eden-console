@@ -19,6 +19,8 @@ git worktree list --porcelain
 ```
 
 Use a short-lived, attached non-`main` branch and preserve any existing work.
+Run `npm run storage:status` before adding worktrees or dependencies, and follow
+[local storage and safe cleanup](LOCAL_STORAGE.md) when accumulation is reported.
 Install dependencies only when needed:
 
 ```bash
@@ -166,3 +168,6 @@ After a landed branch is pushed, its worktree may be cleaned up when the task is
 terminal, no live process uses it, no uncommitted or untracked files remain,
 and no unique unmerged work would be lost. No 48-hour retention wait is needed.
 Do not clean another active task or infer that a branch is disposable from age.
+At closeout, deliberately remove eligible worktrees or record the retention
+reason and owner. Include ignored files and live processes in the review; follow
+[the safe cleanup procedure](LOCAL_STORAGE.md). The storage report never deletes.

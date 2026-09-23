@@ -24,7 +24,7 @@ system. Keep the workflow proportionate to the risk of the change.
    branch must be attached and not `main`, and any existing changes must be
    understood and preserved. Never edit a parent checkout or another task's
    worktree.
-2. Install locked dependencies only when needed (`npm ci`, and
+2. Run `npm run storage:status` before adding worktrees or dependencies; follow [local storage cleanup](docs/LOCAL_STORAGE.md). Install locked dependencies only when needed (`npm ci`, and
    `npm ci --prefix functions` when Functions checks are needed). Do not commit
    dependency directories or local Firebase configuration.
 3. For prompt-driven work, read the matching record in the JSON catalog at
@@ -322,7 +322,7 @@ or untracked files remain, and no unique unmerged work would be lost. A fixed
 48-hour retention period is not required. Cleanup is a separate deliberate
 action; this policy does not authorize removing another active task or its
 branch. Preserved work needs a clear destination, and discarded work needs a
-reason.
+reason. At closeout, remove eligible worktrees deliberately or record their retention owner and reason; follow [the storage procedure](docs/LOCAL_STORAGE.md), including ignored-file and live-process review.
 
 ## Private source boundary
 

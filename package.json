@@ -38,6 +38,7 @@
     "test:performance:p637": "npm run build && node scripts/prompt-637-render-performance.mjs",
     "test:all": "npm run test && npm run test:rules",
     "coordination:status": "node scripts/emulator-resource-registry.mjs status",
+    "storage:status": "node scripts/local-storage.mjs",
     "coordination:dependencies": "node scripts/prompt-dependencies.mjs",
     "coordination:dependencies:measure": "node scripts/prompt-dependencies.mjs --measure",
     "roadmap:generate": "node scripts/generate-prompt-views.mjs",
