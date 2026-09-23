@@ -55,7 +55,8 @@ delete one merely because it is old. Review accumulation when the warning fires.
 For a terminal, inactive checkout, its exact root `node_modules` and
 `functions/node_modules` directories can be considered separately after checking
 they contain no locally modified packages, linked development packages, or needed
-artifacts. Keep lockfiles and source. Restore with `npm ci` and
+artifacts. Inspect incoming dependency symlinks from other checkouts too; retain
+shared targets even when their owning task is finished. Keep lockfiles and source. Restore with `npm ci` and
 `npm ci --prefix functions` before resuming work. Do not remove dependencies
 under active processes or another owner's active/parked task without coordination.
 
