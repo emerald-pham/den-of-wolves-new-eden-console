@@ -71,6 +71,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), buildVersionMetadata, serviceWorkerPrecache],
+    ...(process.env.TICKER_SMOKE_CACHE_DIR
+      ? { cacheDir: resolvePath(process.env.TICKER_SMOKE_CACHE_DIR) }
+      : {}),
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
