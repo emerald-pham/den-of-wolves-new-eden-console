@@ -361,7 +361,6 @@ export { repairConsolesFromAlly } from './allyRepairCallable';
 import {
   ENDEAVOUR_FUELLED_UPGRADE_LIMIT,
   resolveEndeavourFieldUpgrades,
-  type EndeavourFieldUpgradeRecord,
 } from './endeavourFieldUpgrades';
 import { endeavourResearchTrackForConsole } from './endeavourResearch';
 import {
@@ -6983,8 +6982,7 @@ type EndeavourFieldUpgradeReply = Readonly<{
   shuttleId: 'endeavour';
   cycle: number;
   upgradeRevision: number;
-  appliedTargets: readonly EndeavourFieldUpgradeRecord[];
-  materialsRemainingByShip: Readonly<Record<string, number>>;
+  appliedTargets: readonly Readonly<{ shipId: string; systemId: string }>[];
 }>;
 
 function isEndeavourFieldUpgradeReply(
@@ -6999,19 +6997,16 @@ function isEndeavourFieldUpgradeReply(
       value.upgradeRevision !== (fingerprint.expectedRevision as number) + 1 ||
       !Array.isArray(value.appliedTargets) || value.appliedTargets.length < 1 ||
       value.appliedTargets.length > ENDEAVOUR_FUELLED_UPGRADE_LIMIT ||
-      !isRecord(value.materialsRemainingByShip)) return false;
-  const shipIds = new Set<string>();
-  for (const target of value.appliedTargets) {
+      !Array.isArray(fingerprint.payload.targets) ||
+      value.appliedTargets.length !== fingerprint.payload.targets.length) return false;
+  for (const [index, target] of value.appliedTargets.entries()) {
     if (!isRecord(target) || typeof target.shipId !== 'string' ||
-        typeof target.systemId !== 'string' || typeof target.trackId !== 'string' ||
-        endeavourResearchTrackForConsole(target.shipId, target.systemId) !== target.trackId ||
-        !Number.isSafeInteger(target.materialCost) || (target.materialCost as number) < 1 ||
-        !Number.isSafeInteger(target.crossedBox) || (target.crossedBox as number) < 0) return false;
-    shipIds.add(target.shipId);
+        typeof target.systemId !== 'string' ||
+        JSON.stringify(Object.keys(target).sort()) !== JSON.stringify(['shipId', 'systemId']) ||
+        endeavourResearchTrackForConsole(target.shipId, target.systemId) === null ||
+        fingerprint.payload.targets[index] !== `${target.shipId}:${target.systemId}`) return false;
   }
-  return Object.keys(value.materialsRemainingByShip).length === shipIds.size &&
-    Object.entries(value.materialsRemainingByShip).every(([shipId, amount]) =>
-      shipIds.has(shipId) && Number.isSafeInteger(amount) && (amount as number) >= 0);
+  return true;
 }
 
 /** Apply Endeavour console upgrades using target-ship materials and server-owned research state. */
@@ -7076,9 +7071,12 @@ export const upgradeEndeavourFieldTargets = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/endeavour-field-upgrade-${data.requestId}`);
+  const researchRef = db.doc(`sessions/${data.sessionId}/serverState/endeavourResearch`);
+  const upgradeStateRef = db.doc(`sessions/${data.sessionId}/serverState/endeavourFieldUpgrades`);
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, research, upgradeState] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(researchRef), tx.get(upgradeStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -7132,7 +7130,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) ||
         !control?.endeavour || control.endeavour.ownerRoleId !== 'shepherd-scientist' ||
-        !isRecord(fuelled)) {
+        !isRecord(fuelled) || typeof fuelled.endeavour !== 'boolean') {
       throw commandError('failed-precondition', 'The authoritative Endeavour upgrade state is unavailable.', 'conflict');
     }
     if (control.endeavour.holderUid !== uid) {
@@ -7155,11 +7153,21 @@ export const upgradeEndeavourFieldTargets = onCall<{
     const shipResources = session.get('shipResources');
     const targetShipIds = [...new Set(canonicalTargets.map(({ shipId }) => shipId))];
     const materialsByShip: Record<string, number> = {};
+    const shipUpgradesByShip: Record<string, readonly string[]> = {};
     try {
       for (const shipId of targetShipIds) {
         const inventory = serviceRechargeResourceState(shipResources, shipId);
         if (!inventory) throw new Error('The target ship material authority is unavailable.');
         materialsByShip[shipId] = inventory.materials;
+        const installed = serviceRechargeUpgradeState(session.get('shipUpgrades'), shipId);
+        if (!installed) throw new Error('The target ship upgrade authority is malformed.');
+        const targetSystemIds = canonicalTargets
+          .filter((target) => target.shipId === shipId)
+          .map((target) => target.systemId);
+        if (targetSystemIds.some((systemId) => installed.includes(systemId))) {
+          throw new Error('A selected console is already upgraded.');
+        }
+        shipUpgradesByShip[shipId] = [...installed, ...targetSystemIds];
       }
       const result = resolveEndeavourFieldUpgrades({
         currentCycle: currentCycle as number,
@@ -7167,29 +7175,25 @@ export const upgradeEndeavourFieldTargets = onCall<{
         fuelled: fuelled.endeavour === true,
         targets: canonicalTargets,
         materialsByShip,
-        researchByShip: session.get('endeavourResearchProgressByShip') ?? {},
-        state: session.get('endeavourFieldUpgrades'),
+        researchProgress: research.exists ? research.data() : {},
+        state: upgradeState.exists ? upgradeState.data() ?? null : undefined,
       });
-      const materialsRemainingByShip = Object.fromEntries(targetShipIds.map((shipId) =>
-        [shipId, result.materialsByShip[shipId]!]));
-      const materialsSpentByShip: Record<string, number> = {};
-      for (const target of result.appliedTargets) {
-        materialsSpentByShip[target.shipId] = (materialsSpentByShip[target.shipId] ?? 0) + target.materialCost;
-      }
       const reply: EndeavourFieldUpgradeReply = {
         status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
         shuttleId: 'endeavour', cycle: currentCycle as number,
-        upgradeRevision: result.state.revision, appliedTargets: result.appliedTargets,
-        materialsRemainingByShip,
+        upgradeRevision: result.state.revision,
+        appliedTargets: result.appliedTargets.map(({ shipId, systemId }) => ({ shipId, systemId })),
       };
       const resourceUpdates = Object.fromEntries(targetShipIds.map((shipId) =>
         [`shipResources.${shipId}.materials`, result.materialsByShip[shipId]!]));
+      const upgradeUpdates = Object.fromEntries(targetShipIds.map((shipId) =>
+        [`shipUpgrades.${shipId}`, shipUpgradesByShip[shipId]!]));
       tx.update(sessionRef, {
         ...resourceUpdates,
-        endeavourResearchProgressByShip: result.researchByShip,
-        endeavourFieldUpgrades: result.state,
+        ...upgradeUpdates,
         updatedAt: FieldValue.serverTimestamp(),
       });
+      tx.set(upgradeStateRef, result.state);
       tx.set(eventRef, buildPrivacySafeEventRecord({
         type: 'endeavour-field-upgrade',
         envelope: buildAuthoritativeEventEnvelope({
@@ -7201,8 +7205,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
         }),
         payload: {
           shuttleId: 'endeavour',
-          targets: result.appliedTargets.map(({ shipId, systemId }) => ({ shipId, systemId })),
-          materialsSpentByShip,
+          targets: reply.appliedTargets,
         },
         createdAt: FieldValue.serverTimestamp(),
       }));

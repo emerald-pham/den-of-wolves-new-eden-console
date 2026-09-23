@@ -230,7 +230,8 @@ describe('buildPrivacySafeEventRecord', () => {
         shuttleId: 'endeavour',
         targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
         materialsSpentByShip: { shepherd: 7 },
-        crossedBox: 1, researchProgressByShip: { shepherd: { reactor: 2 } },
+        materialCost: 7, trackId: 'reactor', crossedBox: 1,
+        researchProgress: { reactor: 1 },
         holderUid: 'holder-secret', commandFingerprint: { expectedRevision: 0 },
       },
       createdAt: 'server-time',
@@ -239,10 +240,9 @@ describe('buildPrivacySafeEventRecord', () => {
       revision: 1, serverTime: '2026-09-22T15:00:00.000Z',
       visibility: EventVisibility.Member, createdAt: 'server-time',
       shuttleId: 'endeavour', targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
-      materialsSpentByShip: { shepherd: 7 },
     });
     expect(memberEventFieldsFor('endeavour-field-upgrade')).toEqual([
-      'shuttleId', 'targets', 'materialsSpentByShip',
+      'shuttleId', 'targets',
     ]);
   });
 

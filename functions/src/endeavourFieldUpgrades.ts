@@ -1,5 +1,4 @@
 import {
-  advanceEndeavourResearch,
   ENDEAVOUR_RESEARCH_TRACKS,
   endeavourResearchTrack,
   endeavourResearchTrackForConsole,
@@ -32,7 +31,6 @@ export interface EndeavourFieldUpgradeResolution {
   readonly state: EndeavourFieldUpgradeState;
   readonly appliedTargets: readonly EndeavourFieldUpgradeRecord[];
   readonly materialsByShip: Readonly<Record<string, number>>;
-  readonly researchByShip: Readonly<Record<string, EndeavourResearchProgress>>;
 }
 
 const record = (value: unknown): Record<string, unknown> | undefined =>
@@ -147,26 +145,16 @@ function canonicalMaterials(value: unknown): Readonly<Record<string, number>> {
   return freezeRecord(result);
 }
 
-function canonicalResearch(value: unknown): Readonly<Record<string, EndeavourResearchProgress>> {
+function canonicalResearchProgress(value: unknown): EndeavourResearchProgress {
   const raw = record(value);
   if (!raw) throw new Error('Endeavour research authority is malformed.');
-  const result: Record<string, EndeavourResearchProgress> = {};
-  for (const [shipId, progress] of Object.entries(raw)) {
-    if (!isResourceShipId(shipId)) throw new Error('Endeavour research authority is malformed.');
-    // The research transition validates each track and count. Calling it for
-    // the empty track is unnecessary, so validate the record through the
-    // public view for every stored track instead.
-    const progressRecord = record(progress);
-    if (!progressRecord) throw new Error('Endeavour research authority is malformed.');
-    for (const [trackId, crossedBox] of Object.entries(progressRecord)) {
-      if (typeof trackId !== 'string' || !Number.isSafeInteger(crossedBox) || (crossedBox as number) < 0) {
-        throw new Error('Endeavour research authority is malformed.');
-      }
-      endeavourResearchTrack(progressRecord, trackId as EndeavourResearchTrackId);
+  for (const [trackId, crossedBox] of Object.entries(raw)) {
+    if (typeof trackId !== 'string' || !Number.isSafeInteger(crossedBox) || (crossedBox as number) < 0) {
+      throw new Error('Endeavour research authority is malformed.');
     }
-    result[shipId] = Object.freeze({ ...progressRecord }) as EndeavourResearchProgress;
+    endeavourResearchTrack(raw, trackId as EndeavourResearchTrackId);
   }
-  return freezeRecord(result);
+  return Object.freeze({ ...raw }) as EndeavourResearchProgress;
 }
 
 /**
@@ -175,8 +163,8 @@ function canonicalResearch(value: unknown): Readonly<Record<string, EndeavourRes
  * This is deliberately a pure authority boundary. It does not decide who
  * holds Endeavour, where it is docked, which phase is active, or how fuel is
  * acquired; those checks belong to the production callable that owns this
- * state later. It only consumes the current authoritative research and
- * material ledgers and returns the complete next state without mutating them.
+ * state later. It consumes shared authoritative research and each target
+ * ship's material ledger. A field purchase never advances private research.
  */
 export function resolveEndeavourFieldUpgrades(input: Readonly<{
   readonly currentCycle: number;
@@ -184,7 +172,7 @@ export function resolveEndeavourFieldUpgrades(input: Readonly<{
   readonly fuelled: boolean;
   readonly targets: readonly EndeavourFieldUpgradeTarget[];
   readonly materialsByShip: unknown;
-  readonly researchByShip: unknown;
+  readonly researchProgress: unknown;
   readonly state: unknown;
 }>): EndeavourFieldUpgradeResolution {
   const currentCycle = requireSafeCounter(input.currentCycle, 'Endeavour cycle', 1);
@@ -210,9 +198,8 @@ export function resolveEndeavourFieldUpgrades(input: Readonly<{
   }
 
   const materials = canonicalMaterials(input.materialsByShip);
-  const research = canonicalResearch(input.researchByShip);
+  const researchProgress = canonicalResearchProgress(input.researchProgress);
   const nextMaterials: Record<string, number> = { ...materials };
-  const nextResearch: Record<string, EndeavourResearchProgress> = { ...research };
   const appliedTargets: EndeavourFieldUpgradeRecord[] = [];
 
   // Resolve every target into local copies before returning anything. A
@@ -220,22 +207,19 @@ export function resolveEndeavourFieldUpgrades(input: Readonly<{
   for (const target of targets) {
     const trackId = endeavourResearchTrackForConsole(target.shipId, target.systemId);
     if (!trackId) throw new Error('Every Endeavour target must be a canonical upgrade console.');
-    const progress = nextResearch[target.shipId] ?? {};
-    const track = endeavourResearchTrack(progress, trackId);
+    const track = endeavourResearchTrack(researchProgress, trackId);
     if (track.currentMaterialCost === null) throw new Error('The selected Endeavour research track is complete.');
     const materialsAvailable = nextMaterials[target.shipId];
     if (materialsAvailable === undefined) throw new Error('Each target ship needs an authoritative material ledger.');
     if (materialsAvailable < track.currentMaterialCost) {
       throw new Error(`The target ship needs ${track.currentMaterialCost} materials for this upgrade.`);
     }
-    const advanced = advanceEndeavourResearch(progress, trackId);
     nextMaterials[target.shipId] = materialsAvailable - track.currentMaterialCost;
-    nextResearch[target.shipId] = Object.freeze(advanced.progress);
     appliedTargets.push(Object.freeze({
       ...target,
       trackId,
       materialCost: track.currentMaterialCost,
-      crossedBox: advanced.crossedBox,
+      crossedBox: track.crossedBoxes,
     }));
   }
 
@@ -251,6 +235,5 @@ export function resolveEndeavourFieldUpgrades(input: Readonly<{
     state: nextState,
     appliedTargets: Object.freeze(appliedTargets),
     materialsByShip: freezeRecord(nextMaterials),
-    researchByShip: freezeRecord(nextResearch),
   });
 }

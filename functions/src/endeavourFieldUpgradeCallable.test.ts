@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { serviceRechargeUpgradeState } from './serviceShuttleRecharge';
 
 type Fields = Record<string, unknown>;
 const mock = vi.hoisted(() => {
@@ -106,11 +107,9 @@ beforeEach(() => {
       aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 8, securityTeams: 9 },
       quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 },
     },
-    endeavourResearchProgressByShip: {
-      shepherd: { reactor: 1 },
-      aegis: { reactor: 0 },
-    },
+    shipUpgrades: { shepherd: [], aegis: ['storage'], quellon: [] },
   });
+  put('sessions/s1/serverState/endeavourResearch', { reactor: 1 });
   put('sessions/s1/players/holder', {
     role: 'player', connected: true, assignedRoleId: 'shepherd-scientist',
     fleetGroupId: 'fleet-1',
@@ -120,30 +119,39 @@ beforeEach(() => {
   });
 });
 
-it('charges each target ship at its current research cost in one authoritative update', async () => {
-  await expect(upgradeEndeavourFieldTargets.run(request(command))).resolves.toMatchObject({
-    status: 'committed', shuttleId: 'endeavour', cycle: 3, upgradeRevision: 1,
+it('charges each target ship at shared research cost and installs the upgrades for downstream consumers', async () => {
+  await expect(upgradeEndeavourFieldTargets.run(request(command))).resolves.toEqual({
+    status: 'committed', sessionId: 's1', requestId: 'upgrade-1',
+    shuttleId: 'endeavour', cycle: 3, upgradeRevision: 1,
     appliedTargets: [
-      { shipId: 'aegis', systemId: 'reactor', materialCost: 8, crossedBox: 0 },
-      { shipId: 'shepherd', systemId: 'reactor', materialCost: 7, crossedBox: 1 },
+      { shipId: 'aegis', systemId: 'reactor' },
+      { shipId: 'shepherd', systemId: 'reactor' },
     ],
-    materialsRemainingByShip: { shepherd: 0, aegis: 0 },
   });
   expect(mock.documents.get('sessions/s1')).toMatchObject({
-    shipResources: { shepherd: { materials: 0 }, aegis: { materials: 0 } },
-    endeavourResearchProgressByShip: { shepherd: { reactor: 2 }, aegis: { reactor: 1 } },
-    endeavourFieldUpgrades: {
-      cycle: 3, revision: 1,
-      targets: expect.arrayContaining([
-        expect.objectContaining({ shipId: 'shepherd', systemId: 'reactor', materialCost: 7 }),
-        expect.objectContaining({ shipId: 'aegis', systemId: 'reactor', materialCost: 8 }),
-      ]),
-    },
+    shipResources: { shepherd: { materials: 0 }, aegis: { materials: 1 } },
+    shipUpgrades: { shepherd: ['reactor'], aegis: ['storage', 'reactor'] },
   });
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('endeavourResearchProgressByShip');
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('endeavourFieldUpgrades');
+  expect(mock.documents.get('sessions/s1/serverState/endeavourResearch')).toEqual({ reactor: 1 });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourFieldUpgrades')).toMatchObject({
+    cycle: 3, revision: 1,
+    targets: expect.arrayContaining([
+      expect.objectContaining({ shipId: 'shepherd', systemId: 'reactor', materialCost: 7 }),
+      expect.objectContaining({ shipId: 'aegis', systemId: 'reactor', materialCost: 7 }),
+    ]),
+  });
+  expect(serviceRechargeUpgradeState(
+    mock.documents.get('sessions/s1')?.shipUpgrades,
+    'aegis',
+  )).toEqual(['storage', 'reactor']);
   expect(mock.documents.get('sessions/s1/events/endeavour-field-upgrade-upgrade-1'))
     .not.toHaveProperty('actorUid');
   expect(mock.documents.get('sessions/s1/events/endeavour-field-upgrade-upgrade-1'))
     .not.toHaveProperty('actorRoleId');
+  expect(mock.documents.get('sessions/s1/events/endeavour-field-upgrade-upgrade-1'))
+    .not.toHaveProperty('materialsSpentByShip');
 });
 
 it('derives the four-target extension from server fuel and rejects client fuel claims', async () => {
@@ -210,6 +218,22 @@ it('rejects a non-holder, a target outside the holder fleet, and a missing docki
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('fails closed when private research or authoritative fuel state is malformed', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleFuelled = { endeavour: 'fuelled' };
+  await expect(upgradeEndeavourFieldTargets.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  session.shuttleFuelled = { endeavour: false };
+  mock.documents.set('sessions/s1/serverState/endeavourResearch', { reactor: -1 });
+  await expect(upgradeEndeavourFieldTargets.run(request({
+    ...command,
+    requestId: 'malformed-private-research',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('requires the live Coordination phase and refuses forged target costs', async () => {
   const session = mock.documents.get('sessions/s1')!;
   (session.turnPhase as Fields).airspace = { state: 'restricted', tickerActive: true, pressAccess: false };
@@ -236,6 +260,30 @@ it('replays the exact command once without charging again', async () => {
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
   await expect(upgradeEndeavourFieldTargets.run(request({
     ...command,
+    targets: targets(['shepherd', 'reactor']),
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('rejects a console that is already installed on a later cycle without charging', async () => {
+  await upgradeEndeavourFieldTargets.run(request({
+    ...command,
+    targets: targets(['shepherd', 'reactor']),
+  }));
+  const session = mock.documents.get('sessions/s1')!;
+  session.currentTurn = 4;
+  session.turnPhase = {
+    turn: 4,
+    teamPhaseEndsAt: '2099-09-21T12:30:00.000Z',
+    openAirspaceEndsAt: '2099-09-21T12:45:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(upgradeEndeavourFieldTargets.run(request({
+    ...command,
+    requestId: 'repeat-installed-console',
+    expectedCycle: 4,
+    expectedUpgradeRevision: 1,
     targets: targets(['shepherd', 'reactor']),
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);

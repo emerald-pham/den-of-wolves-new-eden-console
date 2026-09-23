@@ -1251,12 +1251,6 @@ describe('session header', () => {
   it('cannot change authoritative ship stores, jump state, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));
-    await assertFails(updateDoc(session, {
-      'endeavourResearchProgressByShip.shepherd.reactor': 5,
-    }));
-    await assertFails(updateDoc(session, {
-      endeavourFieldUpgrades: { cycle: 3, revision: 1, targets: [] },
-    }));
     await assertFails(updateDoc(session, { 'shipResources.capybara.food': 99 }));
     await assertFails(updateDoc(session, { 'shuttleCargo.boa.scrap': 99 }));
     await assertFails(updateDoc(session, { boaRecycling: { cycle: 3, revision: 1, exchangesThisCycle: 1 } }));
@@ -1995,8 +1989,14 @@ it('denies connected member reads and listing of the server-owned craft manifest
   await assertFails(getDocs(collection(db, SESSION + '/craftOwnership')));
 });
 
-it('keeps the authoritative mission deck server-only, including from GMs', async () => {
+it('keeps research, upgrade and mission-deck server state private, including from GMs', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/endeavourResearch`), {
+      reactor: 1,
+    });
+    await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/endeavourFieldUpgrades`), {
+      cycle: 3, revision: 1, targets: [],
+    });
     await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/missionDeck`), {
       schemaVersion: 1,
       deckId: 'away-mission-v1',
@@ -2006,6 +2006,8 @@ it('keeps the authoritative mission deck server-only, including from GMs', async
 
   for (const uid of ['alice', 'gm1']) {
     const db = as(uid);
+    await assertFails(getDoc(doc(db, `${SESSION}/serverState/endeavourResearch`)));
+    await assertFails(getDoc(doc(db, `${SESSION}/serverState/endeavourFieldUpgrades`)));
     const deck = doc(db, `${SESSION}/serverState/missionDeck`);
     await assertFails(getDoc(deck));
     await assertFails(setDoc(deck, { forged: true }));

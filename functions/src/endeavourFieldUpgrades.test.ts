@@ -14,12 +14,12 @@ const base = {
   fuelled: false,
   targets: [target('shepherd', 'advanced-hydroponics'), target('quellon', 'water-production-ii')],
   materialsByShip: { shepherd: 18, quellon: 18 },
-  researchByShip: {},
+  researchProgress: {},
   state: undefined,
 } as const;
 
 describe('Endeavour field upgrades', () => {
-  it('charges each target ship at its own current material cost and advances atomically', () => {
+  it('charges each target ship at the shared current cost without advancing private research', () => {
     const result = resolveEndeavourFieldUpgrades(base);
 
     expect(result.appliedTargets).toEqual([
@@ -27,19 +27,24 @@ describe('Endeavour field upgrades', () => {
       { shipId: 'quellon', systemId: 'water-production-ii', trackId: 'water-production', materialCost: 18, crossedBox: 0 },
     ]);
     expect(result.materialsByShip).toEqual({ shepherd: 0, quellon: 0 });
+    expect(result).not.toHaveProperty('researchProgress');
+    expect(base.researchProgress).toEqual({});
   });
 
-  it('uses the current track box rather than a client supplied cost', () => {
+  it('uses shared current research rather than target-ship research or a client cost', () => {
     const result = resolveEndeavourFieldUpgrades({
       ...base,
-      targets: [target('quellon', 'water-production-ii')],
-      materialsByShip: { quellon: 14 },
-      researchByShip: { quellon: { 'water-production': 1 } },
+      targets: [target('shepherd', 'reactor'), target('aegis', 'reactor')],
+      materialsByShip: { shepherd: 7, aegis: 7 },
+      researchProgress: { reactor: 1 },
     });
 
-    expect(result.appliedTargets[0]).toMatchObject({ materialCost: 14, crossedBox: 1 });
-    expect(result.materialsByShip).toEqual({ quellon: 0 });
-    expect(result.researchByShip.quellon).toEqual({ 'water-production': 2 });
+    expect(result.appliedTargets).toEqual([
+      { shipId: 'shepherd', systemId: 'reactor', trackId: 'reactor', materialCost: 7, crossedBox: 1 },
+      { shipId: 'aegis', systemId: 'reactor', trackId: 'reactor', materialCost: 7, crossedBox: 1 },
+    ]);
+    expect(result.materialsByShip).toEqual({ shepherd: 0, aegis: 0 });
+    expect(result).not.toHaveProperty('researchProgress');
   });
 
   it('does not partially spend a prior target when a later target is underfunded', () => {
@@ -70,7 +75,7 @@ describe('Endeavour field upgrades', () => {
     const first = resolveEndeavourFieldUpgrades({
       ...base,
       targets: [target('shepherd', 'advanced-hydroponics')],
-      materialsByShip: { shepherd: 32 },
+      materialsByShip: { shepherd: 36 },
     });
     const second = resolveEndeavourFieldUpgrades({
       currentCycle: 3,
@@ -78,10 +83,10 @@ describe('Endeavour field upgrades', () => {
       fuelled: true,
       targets: [target('shepherd', 'advanced-hydroponics-ii')],
       materialsByShip: first.materialsByShip,
-      researchByShip: first.researchByShip,
+      researchProgress: { 'advanced-hydroponics': 0 },
       state: first.state,
     });
-    expect(second.appliedTargets[0]).toMatchObject({ materialCost: 14, crossedBox: 1 });
+    expect(second.appliedTargets[0]).toMatchObject({ materialCost: 18, crossedBox: 0 });
     expect(second.state.targets).toHaveLength(2);
   });
 
@@ -93,7 +98,7 @@ describe('Endeavour field upgrades', () => {
       ...base, targets: [target('shepherd', 'storage')], materialsByShip: { shepherd: 1 },
     })).toThrow(/canonical/);
     expect(() => resolveEndeavourFieldUpgrades({
-      ...base, researchByShip: { shepherd: { unknown: 1 } },
+      ...base, researchProgress: { unknown: 1 },
     })).toThrow(/unknown.*track/i);
     expect(parseEndeavourFieldUpgradeState({
       cycle: 3, revision: 1, targets: [{ shipId: 'shepherd', systemId: 'storage', trackId: 'storage', materialCost: 1, crossedBox: 0 }],
@@ -137,7 +142,7 @@ describe('Endeavour field upgrades', () => {
       fuelled: false,
       targets: [target('quellon', 'water-production-ii')],
       materialsByShip: { quellon: 18 },
-      researchByShip: {},
+      researchProgress: {},
       state: prior,
     });
     expect(result.state).toMatchObject({ cycle: 3, revision: 8, targets: expect.any(Array) });
