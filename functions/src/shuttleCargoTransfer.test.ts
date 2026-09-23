@@ -40,6 +40,31 @@ it('loads and unloads only between the shuttle and its docked host', () => {
   })).toMatchObject({ shipAmount: 11, shuttleAmount: 0 });
 });
 
+it.each(['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials', 'scrap'] as const)(
+  'moves Macaw %s only between its current docked host and its own ledger', (resourceId) => {
+    const input = {
+      ...base,
+      shuttleId: 'macaw',
+      resourceId,
+      amount: 2,
+      control: { ...base.control, shuttleId: 'macaw', ownerRoleId: 'capybara-captain' },
+      dockings: [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'now' }],
+      shipResources: {
+        capybara: { securityTeams: 4, ore: 4, fuel: 4, food: 4, water: 4, materials: 4, scrap: 4 },
+      },
+      shuttleCargo: {
+        macaw: { securityTeams: 3, ore: 3, fuel: 3, food: 3, water: 3, materials: 3, scrap: 3 },
+      },
+    };
+    const loaded = transferShuttleCargo(input);
+    expect(loaded).toMatchObject({ hostShipId: 'capybara', shipAmount: 2, shuttleAmount: 5 });
+    expect(loaded.shipInventory[resourceId]).toBe(2);
+    expect(loaded.shuttleInventory[resourceId]).toBe(5);
+    const unloaded = transferShuttleCargo({ ...input, direction: 'unload' });
+    expect(unloaded).toMatchObject({ hostShipId: 'capybara', shipAmount: 6, shuttleAmount: 1 });
+  },
+);
+
 it.each([
   ['foreign holder', { actorUid: 'other' }],
   ['stale custody', { expectedControlRevision: 2 }],

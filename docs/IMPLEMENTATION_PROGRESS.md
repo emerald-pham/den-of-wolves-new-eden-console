@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**475 / 751 prompts complete (63.25%)**
+**476 / 751 prompts complete (63.38%)**
 
-Status breakdown: **475 done · 12 partial · 264 missing**.
+Status breakdown: **476 done · 12 partial · 263 missing**.
 
 Active prompt: **none**
 
@@ -1046,7 +1046,7 @@ release classification and evidence.
 | 574 | done | non-feature | — | Closed by evidence reconciliation with existing production behavior. Capybara's printed single 6♠ Shuttle Bay is server-authoritative during Team Phase: only a role-owned shuttle currently docked at Capybara can be selected, and the Macaw or printed Boa choice spends exactly one host fuel and advances beyond the one-bay step so a second shuttle cannot be refuelled in that cycle. Active ship authority, the complete role-owned docking manifest, co-location, damaged-bay, fuel-balance, revision-CAS, and request-replay guards remain enforced; the numbered-cycle transition clears both the refuelled record and shuttleFuelled flags. Existing pure, callable, cycle-transition, manifest, and shared UI regressions verify the behavior. This is evidence-only closure with no runtime, version, or deployment change. |
 | 575 | done | non-feature | 0.5.3 | Completed in the 0.5.3 release. Macaw repairs now run through an authoritative transactional callable: the Capybara Captain spends one Scrap per damaged console, repairs up to two consoles per eligible docked ship, and fuel permits a second ship in the same cycle. Group, docking, role, cycle, damage, Scrap, replay, privacy, hydration, UI, and direct-write denial regressions are covered. |
 | 576 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
-| 577 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 577 | done | non-feature | — | Closed by evidence reconciliation with the released Prompt 113 cargo callable. Macaw's full printed cargo, including Scrap and security teams, transfers only between its own ledger and the current legal docked host through one holder-, revision-, group-, and replay-bound server transaction. Macaw-specific focused tests cover every permitted type and a production-callable Scrap transfer; shared callable tests cover fail-closed transfer boundaries. No runtime, version, or player-facing change is needed. |
 | 578 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 579 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 580 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |

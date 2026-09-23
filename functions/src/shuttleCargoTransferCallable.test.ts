@@ -85,6 +85,34 @@ it('moves cargo across both ledgers once and replays without another write', asy
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('moves Macaw Scrap between the current host and Macaw atomically', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeRoleIds = ['capybara-captain', 'capybara-recycler'];
+  session.activeVesselIds = ['capybara'];
+  session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'now' }];
+  session.shuttleControl = { macaw: {
+    shuttleId: 'macaw', ownerRoleId: 'capybara-captain', ownerUid: 'holder',
+    holderUid: 'holder', revision: 0,
+  } };
+  session.shipResources = { capybara: {
+    ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3,
+  } };
+  session.shuttleCargo = { macaw: { scrap: 1 } };
+  mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'capybara-captain';
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['capybara'];
+
+  const macawCommand = { ...command, requestId: 'macaw-scrap', shuttleId: 'macaw', resourceId: 'scrap', amount: 2 };
+  await expect(transferShuttleCargoCommand.run(request(macawCommand))).resolves.toMatchObject({
+    status: 'committed', hostShipId: 'capybara', shipAmount: 1, shuttleAmount: 3,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipResources: { capybara: expect.objectContaining({ scrap: 1 }) },
+    shuttleCargo: { macaw: expect.objectContaining({ scrap: 3 }) },
+  });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(1);
+});
+
 it.each([
   ['foreign holder', 'owner', command],
   ['forbidden type', 'holder', { ...command, requestId: 'ore', resourceId: 'ore' }],

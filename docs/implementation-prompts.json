@@ -6181,6 +6181,13 @@
       "language": "The production GM damage callable and Team maintenance riot consume the seven-card server-owned Capybara deck with 7♠ Scrap Refinery. An exhausted-deck guard rejects an unruled follow-on draw before any transaction write, rather than applying the generic ship-destruction policy; both affected callables carry a stable ruling reason, and the GM maintenance control renders static facilitator guidance instead of false retry advice. The hidden extracted 5♦ stays outside gameplay. Focused pure, GM callable, and maintenance callable tests prove the printed card, denied exhausted draw, and zero session, event, receipt, or private mutation. The pure Wolf combat resolver also rejects a second draw after the last card; its production callable remains outside this closure.",
       "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/wolfCombatMath.test.ts; functions/src/index.ts; src/lib/commandErrors.ts; src/lib/commandErrors.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; authorized Capybara expansion v1.1 provenance and routed derivative; focused Functions tests",
       "type": "evidence"
+    },
+    {
+      "direction": "577 -> 113;164;377;399",
+      "id": "E-577-MACAW-CARGO-PRODUCTION",
+      "language": "The released Prompt 113 cargo callable supplies Prompt 577's production path. For Macaw, its exact server and client allowlists include security teams, ore, fuel, food, water, materials, and Scrap. The transaction binds the current holder and revision to one authoritative legal dock, an active host in the holder's fleet group, and the stored host and Macaw inventories, then updates both ledgers atomically with a replay receipt. Focused Macaw resource-matrix and callable tests exercise all seven cargo types and a committed Scrap transfer; shared callable regressions reject transit, duplicate docks, stale custody, wrong group, malformed inventory, insufficient stock, unsupported cargo, and replay mutation. No runtime or player-facing change is made by this evidence closure.",
+      "source": "functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/index.ts transferShuttleCargoCommand; src/data/vessels/macaw.ts; src/components/ShuttleControl.tsx; Prompt 113 release 0.4.65; E-164-377-CARGO-AUTHORITY; E-399-MACAW-MOVEMENT-CARGO-VERIFIED",
+      "type": "evidence / production-path / Macaw / exact-cargo-allowlist / docked-host-authority / atomic-transfer / replay"
     }
   ],
   "plan": {
@@ -21161,8 +21168,8 @@
         "acceptance": "ore, fuel, food, water, material, Scrap, and security teams transfer only between legal docked inventories.",
         "title": "Resolve Macaw cargo."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-577",
+      "description": "Closed by evidence reconciliation with the released Prompt 113 cargo callable. Macaw's full printed cargo, including Scrap and security teams, transfers only between its own ledger and the current legal docked host through one holder-, revision-, group-, and replay-bound server transaction. Macaw-specific focused tests cover every permitted type and a production-callable Scrap transfer; shared callable tests cover fail-closed transfer boundaries. No runtime, version, or player-facing change is needed.",
+      "evidenceIds": "E-AUDIT-577;E-577-MACAW-CARGO-PRODUCTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "164;377;399",
@@ -21173,7 +21180,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
