@@ -542,11 +542,27 @@ async function runTickerLifecycleCase() {
               '.fleet-ticker__copy-slot:not([data-committed="false"]) .fleet-ticker__copy',
             )].map((copy) => {
               const copyBounds = copy.getBoundingClientRect();
+              const range = document.createRange();
+              const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
+              const textRects = [];
+              while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const value = node.textContent ?? '';
+                const start = value.search(/\S/);
+                const end = value.trimEnd().length;
+                if (start < 0 || end <= start) continue;
+                range.setStart(node, start);
+                range.setEnd(node, end);
+                textRects.push(...[...range.getClientRects()]
+                  .filter((rect) => rect.width > 0 && rect.height > 0));
+              }
               return {
                 id: copy.getAttribute('data-copy-instance-id') ?? '',
                 left: copyBounds.left,
                 right: copyBounds.right,
                 width: copyBounds.width,
+                textLeft: textRects.length > 0 ? Math.min(...textRects.map((rect) => rect.left)) : null,
+                textRight: textRects.length > 0 ? Math.max(...textRects.map((rect) => rect.right)) : null,
               };
             }).filter((copy) => copy.id && copy.width > 0),
           };
@@ -659,6 +675,11 @@ async function runTickerLifecycleCase() {
     });
     samples.push(result);
     console.log(`Ticker lifecycle capture sampled: ${label} (${Math.round((result.durationSeconds ?? 0) * 1_000)}ms, ${result.sampleCount} samples)`);
+    await mkdir(artifactDirectory, { recursive: true });
+    await writeFile(
+      path.join(artifactDirectory, `ticker-lifecycle-${label}.json`),
+      `${JSON.stringify(result, null, 2)}\n`,
+    );
     if (result.error) throw new Error(`lifecycle/${label}: ${result.error}`);
     if (result.targetSamples < 8 || result.targetInstances.length < result.requiredExits) throw new Error(`lifecycle/${label}: target was not sampled across its full physical instances: ${JSON.stringify(result)}`);
     if (result.targetExitCount < result.requiredExits) throw new Error(`lifecycle/${label}: target did not prove ${result.requiredExits} complete left exits: ${JSON.stringify(result)}`);
@@ -800,6 +821,7 @@ async function runTickerLifecycleCase() {
     console.log(`Ticker lifecycle browser proof passed: ${artifactPath}`);
   } catch (error) {
     await mkdir(artifactDirectory, { recursive: true });
+    await page.locator('#ticker-lifecycle-harness').scrollIntoViewIfNeeded().catch(() => undefined);
     await page.screenshot({ path: path.join(artifactDirectory, 'ticker-lifecycle-failure.png'), fullPage: false });
     throw error;
   } finally {
