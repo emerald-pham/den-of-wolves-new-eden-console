@@ -3624,6 +3624,7 @@ export function subscribeSessionPlayers(
   onPlayers([]);
   const unsubscribe = onSnapshot(
     collection(db(), `sessions/${sessionId}/players`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       if (snapshot.metadata?.fromCache === true) return;
@@ -3631,6 +3632,7 @@ export function subscribeSessionPlayers(
     },
     () => {
       if (!subscribed) return;
+      subscribed = false;
       onPlayers([]);
       onError();
     },

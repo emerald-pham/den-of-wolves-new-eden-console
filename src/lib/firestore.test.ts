@@ -3205,31 +3205,33 @@ it('queries a member roster by its server-owned group and clears stale data on r
   useSessionStore.getState().reset();
 });
 
-it('replaces a cached GM roster only after server authority and clears it on revocation', () => {
+it('publishes an unchanged GM roster when reconnect changes only snapshot metadata', () => {
   const callbacks: Array<(snapshot: unknown) => void> = [];
-  const errors: Array<(error: unknown) => void> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error?: unknown) => {
+  let listenerOptions: unknown;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, options: unknown, callback: unknown) => {
+    listenerOptions = options;
     callbacks.push(callback as (snapshot: unknown) => void);
-    errors.push(error as (error: unknown) => void);
     return vi.fn();
   }) as never);
 
   const onPlayers = vi.fn();
   subscribeSessionPlayers('gm-roster-reconnect', onPlayers, vi.fn());
 
+  expect(listenerOptions).toEqual({ includeMetadataChanges: true });
   expect(onPlayers).toHaveBeenLastCalledWith([]);
+  const unchangedDocs = [
+    { id: 'cached-player', data: () => ({ role: 'player', displayName: 'Cached' }) },
+    { id: 'current-player', data: () => ({ role: 'player', displayName: 'Current' }) },
+  ];
   callbacks[0]?.({
     metadata: { fromCache: true },
-    docs: [{ id: 'cached-player', data: () => ({ role: 'player', displayName: 'Cached' }) }],
+    docs: unchangedDocs,
   });
   expect(onPlayers).toHaveBeenLastCalledWith([]);
 
   callbacks[0]?.({
     metadata: { fromCache: false },
-    docs: [
-      { id: 'cached-player', data: () => ({ role: 'player', displayName: 'Cached' }) },
-      { id: 'current-player', data: () => ({ role: 'player', displayName: 'Current' }) },
-    ],
+    docs: unchangedDocs,
   });
   expect(onPlayers).toHaveBeenLastCalledWith([
     expect.objectContaining({ uid: 'cached-player', displayName: 'Cached' }),
@@ -3247,9 +3249,58 @@ it('replaces a cached GM roster only after server authority and clears it on rev
   expect(onPlayers).toHaveBeenLastCalledWith([
     expect.objectContaining({ uid: 'current-player', displayName: 'Current' }),
   ]);
+});
 
+it('fails closed after GM roster revocation or unsubscribe', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  const errors: Array<(error: unknown) => void> = [];
+  const unsubscribers: Array<ReturnType<typeof vi.fn>> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown, error?: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    errors.push(error as (error: unknown) => void);
+    const unsubscribe = vi.fn();
+    unsubscribers.push(unsubscribe);
+    return unsubscribe;
+  }) as never);
+
+  let injectLateCallbackOnClear = false;
+  const onPlayers = vi.fn((players: readonly unknown[]) => {
+    if (injectLateCallbackOnClear && players.length === 0) {
+      injectLateCallbackOnClear = false;
+      callbacks[0]?.({
+        metadata: { fromCache: false },
+        docs: [{ id: 'late-player', data: () => ({ role: 'player', displayName: 'Late' }) }],
+      });
+    }
+  });
+  subscribeSessionPlayers('revoked-roster', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'authorized-player', data: () => ({ role: 'player', displayName: 'Authorized' }) }],
+  });
+  injectLateCallbackOnClear = true;
   errors[0]?.({ code: 'permission-denied' });
   expect(onPlayers).toHaveBeenLastCalledWith([]);
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'late-player', data: () => ({ role: 'player', displayName: 'Late' }) }],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
+
+  injectLateCallbackOnClear = false;
+  const stopSecond = subscribeSessionPlayers('unsubscribed-roster', onPlayers, vi.fn());
+  callbacks[1]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'second-player', data: () => ({ role: 'player', displayName: 'Second' }) }],
+  });
+  const callsBeforeUnsubscribe = onPlayers.mock.calls.length;
+  stopSecond();
+  expect(unsubscribers[1]).toHaveBeenCalledTimes(1);
+  callbacks[1]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'late-second-player', data: () => ({ role: 'player', displayName: 'Late second' }) }],
+  });
+  expect(onPlayers).toHaveBeenCalledTimes(callsBeforeUnsubscribe);
 });
 
 it('suppresses an earlier airspace phase within the same turn but keeps newer data in the current window', () => {
