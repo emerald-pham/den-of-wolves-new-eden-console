@@ -614,9 +614,14 @@ it('renders plain changelog copy with its progress marker and keyboard stop inta
 
   const region = screen.getByRole('region', { name: /changelog entries/i });
   const renderedChanges = within(region).getAllByRole('listitem').map((item) => item.textContent ?? '');
+  const newestEntry = within(region).getAllByRole('article')[0];
 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
+  expect(within(newestEntry).getByText(
+    'When a different player uses the same browser, the previous player’s private navigation chart no longer appears while reconnecting.',
+  )).toBeVisible();
+  expect(within(newestEntry).getByText('478 of 751 planned items are complete (63.65%).')).toBeVisible();
   expect(within(region).getAllByText('217 of 750 planned items are complete (28.93%).').length).toBeGreaterThan(0);
 });
 
