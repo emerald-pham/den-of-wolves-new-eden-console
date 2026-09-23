@@ -733,7 +733,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 576 | DECISION | missing | 385;575 | none | none | none | none | none | none | none | E-AUDIT-576 | M3;M11 | Resolve Macaw salvage dismantling. |
 | 577 | NEW | done | 164;377;399 | none | none | none | none | none | none | none | E-AUDIT-577;E-577-MACAW-CARGO-PRODUCTION | M3;M11 | Resolve Macaw cargo. |
 | 578 | NEW | done | 400 | none | none | none | none | none | none | none | E-AUDIT-578;E-578-BOA-RECYCLING-PRODUCTION | M3;M11 | Resolve Boa recycling. |
-| 579 | NEW | missing | 578 | none | none | none | none | none | none | none | E-AUDIT-579 | M3;M11 | Resolve Boa reclamation. |
+| 579 | NEW | missing | 401;578 | none | none | none | none | none | none | none | E-AUDIT-579 | M3;M11 | Resolve Boa reclamation. |
 | 580 | DECISION | missing | 459;578 | none | none | none | none | none | none | none | E-AUDIT-580 | M3;M11 | Resolve Boa combat ambiguity. |
 | 581 | NEW | missing | 573;577 | none | none | none | none | none | none | none | E-AUDIT-581 | M3;M11 | Create post-damage Scrap pickups. |
 | 582 | NEW | done | 569;006 | none | none | none | none | none | none | none | E-AUDIT-582;E-582-PRIVATE-OBJECTIVES | M3;M11 | Expose Capybara objectives privately. |
