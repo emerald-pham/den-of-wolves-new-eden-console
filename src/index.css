@@ -6154,6 +6154,15 @@ body {
     overflow: visible;
     white-space: normal;
   }
+  .gm-fleet-resource-ship > .pursuit-tracker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gm-fleet-resource-ship .pursuit-tracker__header,
+  .gm-fleet-resource-ship .pursuit-tracker__countdown,
+  .gm-fleet-resource-ship .pursuit-tracker__metric {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
 }
 
 .fleet-alert-editor { display: grid; gap: 0.5rem; width: 100%; color: var(--cic-amber); font: 0.65rem/1.4 var(--cic-mono); }
