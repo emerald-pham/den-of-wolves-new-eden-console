@@ -1251,6 +1251,9 @@ describe('session header', () => {
   it('cannot change authoritative ship stores, jump state, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));
+    await assertFails(updateDoc(session, { 'shipResources.capybara.food': 99 }));
+    await assertFails(updateDoc(session, { 'shuttleCargo.boa.scrap': 99 }));
+    await assertFails(updateDoc(session, { boaRecycling: { cycle: 3, revision: 1, exchangesThisCycle: 1 } }));
     await assertFails(updateDoc(session, { 'shipJumpStates.aegis': { lastJumpTurn: 99 } }));
     await assertFails(updateDoc(session, {
       'shipJumpTransitions.aegis': {
@@ -2267,7 +2270,7 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
   for (const uid of ['alice', 'gm1']) {
     const db = env.authenticatedContext(uid).firestore();
     await assertSucceeds(getDoc(doc(db, SESSION)));
-    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'chacauRepairs', 'allyRepairs', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
+    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
       await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
     }
   }

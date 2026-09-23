@@ -1,4 +1,7 @@
 import type { ShipResourceInventory } from './resources';
+import { isResourceShipId } from './resources';
+import type { AuthoritativeShuttleDocking } from './shuttleDocking';
+import type { ShuttleControlEntry } from './shuttleControl';
 
 export const BOA_RECYCLING_LIMIT_PER_CYCLE = 2;
 
@@ -11,6 +14,10 @@ const BOA_RECYCLING_RECIPES = {
 } as const;
 
 export type BoaRecyclingRecipeId = keyof typeof BOA_RECYCLING_RECIPES;
+
+export interface BoaScrapCargo {
+  readonly scrap?: number;
+}
 
 export interface BoaRecyclingLedger {
   readonly cycle: number;
@@ -61,23 +68,49 @@ function hasSafeInventory(resources: ShipResourceInventory): boolean {
     (resources.scrap === undefined || safeResourceAmount(resources.scrap));
 }
 
+function hasSafeBoaCargo(cargo: BoaScrapCargo): boolean {
+  return Object.keys(cargo).every((key) => key === 'scrap') &&
+    (cargo.scrap === undefined || safeResourceAmount(cargo.scrap));
+}
+
+/** Absent legacy Boa cargo is empty; a present malformed cargo ledger fails closed. */
+export function parseBoaScrapCargo(value: unknown): BoaScrapCargo | null {
+  if (value === undefined) return {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => key !== 'scrap') ||
+      raw.scrap !== undefined && !safeResourceAmount(raw.scrap)) return null;
+  return raw.scrap === undefined ? {} : { scrap: raw.scrap as number };
+}
+
 /** Resolve one printed Boa trade as a single inventory and cycle-ledger transition. */
 export function resolveBoaRecycling(input: Readonly<{
   currentCycle: number;
   expectedCycle: number;
+  expectedControlRevision: number;
   expectedLedgerRevision: number;
+  expectedHostShipId: string;
+  actorUid: string;
+  actorRoleId: string;
+  control: ShuttleControlEntry;
+  dockings: readonly AuthoritativeShuttleDocking[];
+  fleetGroupVesselIds: readonly string[];
   phase: string;
   fuelled: boolean;
   recipeId: unknown;
   /** The authoritative inventory of the Boa's current docked host. */
   resources: ShipResourceInventory;
+  /** Scrap belongs to the Boa's printed Scrap-only shuttle cargo ledger. */
+  boaCargo: BoaScrapCargo;
   ledger: BoaRecyclingLedger;
 }>): Readonly<{
   recipeId: BoaRecyclingRecipeId;
   resourceId: 'food' | 'water' | 'ore' | 'materials' | 'fuel';
   resourceCost: 3 | 6;
   scrapAwarded: 1;
+  hostShipId: string;
   resources: ShipResourceInventory;
+  boaCargo: BoaScrapCargo;
   ledger: BoaRecyclingLedger;
 }> {
   if (!Number.isSafeInteger(input.currentCycle) || input.currentCycle < 1) {
@@ -85,6 +118,24 @@ export function resolveBoaRecycling(input: Readonly<{
   }
   if (input.expectedCycle !== input.currentCycle) {
     throw new Error('The Coordination cycle changed; refresh before recycling.');
+  }
+  if (!input.actorUid || input.actorRoleId !== 'capybara-recycler' ||
+      input.control.shuttleId !== 'boa' || input.control.ownerRoleId !== 'capybara-recycler' ||
+      input.control.holderUid !== input.actorUid) {
+    throw new Error('Only the current Capybara Recycler holding Boa may recycle resources.');
+  }
+  if (!Number.isSafeInteger(input.expectedControlRevision) || input.expectedControlRevision < 0 ||
+      input.control.revision !== input.expectedControlRevision) {
+    throw new Error('Boa control changed; refresh before recycling.');
+  }
+  const currentDockings = input.dockings.filter((docking) => docking.shuttleId === 'boa');
+  if (currentDockings.length !== 1) {
+    throw new Error('Boa recycling requires one authoritative docked host.');
+  }
+  const hostShipId = currentDockings[0]!.shipId;
+  if (!isResourceShipId(hostShipId) || hostShipId !== input.expectedHostShipId ||
+      !input.fleetGroupVesselIds.includes(hostShipId)) {
+    throw new Error('The expected Boa host is outside the Recycler’s current fleet group.');
   }
   if (input.phase !== 'coordination') {
     throw new Error('Boa recycling is available during the Coordination Phase only.');
@@ -113,7 +164,7 @@ export function resolveBoaRecycling(input: Readonly<{
       !Object.prototype.hasOwnProperty.call(BOA_RECYCLING_RECIPES, input.recipeId)) {
     throw new Error('Choose one printed Boa recycling recipe.');
   }
-  if (!hasSafeInventory(input.resources)) {
+  if (!hasSafeInventory(input.resources) || !hasSafeBoaCargo(input.boaCargo)) {
     throw new Error('Boa recycling requires safe resource balances.');
   }
 
@@ -127,7 +178,7 @@ export function resolveBoaRecycling(input: Readonly<{
   const recipeId = input.recipeId as BoaRecyclingRecipeId;
   const recipe = BOA_RECYCLING_RECIPES[recipeId];
   const balance = input.resources[recipe.resourceId];
-  const scrap = input.resources.scrap ?? 0;
+  const scrap = input.boaCargo.scrap ?? 0;
   if (balance < recipe.cost) {
     throw new Error(`The selected inventory needs ${recipe.cost} ${recipe.resourceId} to recycle.`);
   }
@@ -140,11 +191,12 @@ export function resolveBoaRecycling(input: Readonly<{
     resourceId: recipe.resourceId,
     resourceCost: recipe.cost,
     scrapAwarded: 1,
+    hostShipId,
     resources: {
       ...input.resources,
       [recipe.resourceId]: balance - recipe.cost,
-      scrap: scrap + 1,
     },
+    boaCargo: { ...input.boaCargo, scrap: scrap + 1 },
     ledger: {
       cycle: input.currentCycle,
       revision: input.ledger.revision + 1,

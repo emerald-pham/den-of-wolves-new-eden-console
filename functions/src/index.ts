@@ -278,7 +278,7 @@ import {
   shuttleDockingsMatchActiveRoleOwnedSubset,
   shuttleDockingsMatchRoleOwnedCraft,
 } from './craftOwnership';
-import { resolveHolderBasedDocking } from './shuttleDocking';
+import { resolveHolderBasedDocking, type AuthoritativeShuttleDocking } from './shuttleDocking';
 import {
   authorizeShuttleDeparture,
   parseShuttleDepartures,
@@ -331,6 +331,17 @@ import {
   parseMacawRepairCallableCommand,
   type MacawRepairCallableReply,
 } from './macawRepairCallable';
+import {
+  parseBoaRecyclingLedger,
+  parseBoaScrapCargo,
+  resolveBoaRecycling,
+} from './boaRecycling';
+import {
+  boaRecyclingCommandFingerprint,
+  isBoaRecyclingCallableReply,
+  parseBoaRecyclingCallableCommand,
+  type BoaRecyclingCallableReply,
+} from './boaRecyclingCallable';
 import {
   CHACAU_REPAIR_COST,
   parseChacauRepairLedger,
@@ -6571,6 +6582,153 @@ export const repairConsolesFromMacaw = onCall<{
         shuttleId: 'macaw', hostShipId: result.hostShipId,
         systemIds: result.repairedSystemIds,
         scrapSpent: result.repairedSystemIds.length * MACAW_REPAIR_COST,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+/** Recycle one printed recipe from Boa's current docked host in one server transaction. */
+export const recycleWithBoa = onCall<{
+  sessionId?: unknown; requestId?: unknown; recipeId?: unknown;
+  expectedControlRevision?: unknown; expectedRecyclingRevision?: unknown;
+  expectedCycle?: unknown; expectedHostShipId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const data = parseBoaRecyclingCallableCommand(request.data);
+  if (!data) throw new HttpsError('invalid-argument', 'Invalid Boa recycling request.');
+  const fingerprint = boaRecyclingCommandFingerprint(uid, data);
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/boa-recycling-${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, receipt, event] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected Capybara Recycler may use Boa recycling.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Boa recycling', []);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is BoaRecyclingCallableReply => isBoaRecyclingCallableReply(value, fingerprint),
+      'Boa recycling',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    if (event.exists) rejectLegacyEventReplay('Boa recycling');
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Boa recycling is available only during active gameplay.', 'invalid-phase');
+    }
+    requireActionPhase(session, 'transfer', 'player');
+    const currentCycle = session.get('currentTurn');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+        !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before recycling.', 'stale-revision');
+    }
+    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+    if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
+        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+      throw commandError(
+        'failed-precondition',
+        'Boa recycling is available only during a live Coordination window.',
+        'invalid-phase',
+      );
+    }
+    const groupId = actor.get('fleetGroupId');
+    const actorRoleId = actor.get('assignedRoleId');
+    if (typeof groupId !== 'string' || groupId.length === 0 || actorRoleId !== 'capybara-recycler') {
+      throw new HttpsError('permission-denied', 'The Capybara Recycler has no Boa recycling authority.');
+    }
+    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeRoleIds = configuredRoleIds(session);
+    const activeVesselIds = session.get('activeVesselIds');
+    const rawDockings = session.get('shuttleDockings');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    const fuelled = session.get('shuttleFuelled');
+    const ledger = parseBoaRecyclingLedger(session.get('boaRecycling'));
+    const cargoRoot = session.get('shuttleCargo');
+    const cargo = cargoRoot === undefined ? {} : isRecord(cargoRoot) ? cargoRoot.boa : null;
+    const boaCargo = parseBoaScrapCargo(cargo);
+    if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !activeRoleIds.includes('capybara-captain') || !activeRoleIds.includes('capybara-recycler') ||
+        session.get('capybaraEnabled') === false ||
+        !Array.isArray(activeVesselIds) ||
+        activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !activeVesselIds.includes('capybara') ||
+        !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) || !control ||
+        !control.boa || !isRecord(fuelled) || !ledger || !boaCargo) {
+      throw commandError('failed-precondition', 'The authoritative Boa recycling state is unavailable.', 'conflict');
+    }
+    let result: ReturnType<typeof resolveBoaRecycling>;
+    try {
+      const hostShipId = rawDockings.find((docking) =>
+        isRecord(docking) && docking.shuttleId === 'boa')?.shipId;
+      const resources = typeof hostShipId === 'string'
+        ? serviceRechargeResourceState(session.get('shipResources'), hostShipId) : null;
+      if (!resources || !isRecord(cargoRoot) && cargoRoot !== undefined) {
+        throw new Error('The authoritative docked host or Boa cargo inventory is malformed.');
+      }
+      result = resolveBoaRecycling({
+        actorUid: uid,
+        actorRoleId,
+        currentCycle: currentCycle as number,
+        expectedCycle: data.expectedCycle,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedLedgerRevision: data.expectedRecyclingRevision,
+        expectedHostShipId: data.expectedHostShipId,
+        fleetGroupVesselIds: group.vesselIds,
+        control: control.boa,
+        dockings: rawDockings as AuthoritativeShuttleDocking[],
+        phase: 'coordination',
+        fuelled: fuelled.boa === true,
+        recipeId: data.recipeId,
+        resources,
+        boaCargo,
+        ledger,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Boa recycling was rejected.',
+        'conflict',
+      );
+    }
+    const scrapRemaining = result.boaCargo.scrap ?? 0;
+    const reply: BoaRecyclingCallableReply = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shuttleId: 'boa', hostShipId: result.hostShipId, recipeId: result.recipeId,
+      resourceId: result.resourceId, resourceCost: result.resourceCost,
+      hostResourceRemaining: result.resources[result.resourceId], scrapRemaining,
+      cycle: currentCycle as number, recyclingRevision: result.ledger.revision,
+      exchangesThisCycle: result.ledger.exchangesThisCycle,
+    };
+    tx.update(sessionRef, {
+      [`shipResources.${result.hostShipId}.${result.resourceId}`]: result.resources[result.resourceId],
+      'shuttleCargo.boa': result.boaCargo,
+      boaRecycling: result.ledger,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'boa-recycling',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
+        turn: currentCycle as number, phase: vesselActionPhase(session),
+        type: 'boa-recycling', requestId: data.requestId,
+        revision: result.ledger.revision, serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: 'boa', hostShipId: result.hostShipId, recipeId: result.recipeId,
+        resourceId: result.resourceId, resourceCost: result.resourceCost,
+        scrapAwarded: result.scrapAwarded, exchangesThisCycle: result.ledger.exchangesThisCycle,
       },
       createdAt: FieldValue.serverTimestamp(),
     }));

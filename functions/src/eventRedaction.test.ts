@@ -146,6 +146,33 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('allow-lists the Boa recycling result without actor or receipt details', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'boa-recycling',
+      envelope: {
+        sessionId: 's1', actorUid: 'recycler', actorRoleId: 'capybara-recycler',
+        turn: 3, phase: 'active', requestId: 'boa-recycling-1', revision: 1,
+        serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        shuttleId: 'boa', hostShipId: 'aegis', recipeId: 'food', resourceId: 'food',
+        resourceCost: 6, scrapAwarded: 1, exchangesThisCycle: 1,
+        scrapRemaining: 1, fingerprint: 'private', holderUid: 'private',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 3, phase: 'active', type: 'boa-recycling',
+      requestId: 'boa-recycling-1', revision: 1,
+      serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      createdAt: 'server-time', shuttleId: 'boa', hostShipId: 'aegis', recipeId: 'food',
+      resourceId: 'food', resourceCost: 6, scrapAwarded: 1, exchangesThisCycle: 1,
+    });
+    expect(memberEventFieldsFor('boa-recycling')).toEqual([
+      'shuttleId', 'hostShipId', 'recipeId', 'resourceId', 'resourceCost',
+      'scrapAwarded', 'exchangesThisCycle',
+    ]);
+  });
+
   it('allow-lists the member-safe Ally repair outcome without Union authority details', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'ally-repair',

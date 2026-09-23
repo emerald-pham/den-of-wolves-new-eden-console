@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ShipResourceInventory } from './resources';
 import {
+  parseBoaScrapCargo,
   parseBoaRecyclingLedger,
   resolveBoaRecycling,
 } from './boaRecycling';
@@ -8,7 +8,17 @@ import {
 const base = {
   currentCycle: 2,
   expectedCycle: 2,
+  expectedControlRevision: 1,
   expectedLedgerRevision: 0,
+  expectedHostShipId: 'capybara',
+  actorUid: 'holder',
+  actorRoleId: 'capybara-recycler',
+  control: {
+    shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+    ownerUid: 'holder', holderUid: 'holder', revision: 1,
+  },
+  dockings: [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' }],
+  fleetGroupVesselIds: ['capybara'],
   phase: 'coordination',
   fuelled: true,
   recipeId: 'food',
@@ -19,8 +29,8 @@ const base = {
     water: 12,
     materials: 6,
     securityTeams: 2,
-    scrap: 0,
   },
+  boaCargo: { scrap: 0 },
   ledger: { cycle: 0, revision: 0, exchangesThisCycle: 0 },
 } as const;
 
@@ -39,10 +49,11 @@ describe('Boa recycling', () => {
       resourceId,
       resourceCost: cost,
       scrapAwarded: 1,
+      hostShipId: 'capybara',
       resources: {
         [resourceId]: base.resources[resourceId] - cost,
-        scrap: 1,
       },
+      boaCargo: { scrap: 1 },
       ledger: { cycle: 2, revision: 1, exchangesThisCycle: 1 },
     });
     for (const resource of ['food', 'water', 'ore', 'materials', 'fuel'] as const) {
@@ -51,31 +62,37 @@ describe('Boa recycling', () => {
       }
     }
     expect(result.resources.securityTeams).toBe(base.resources.securityTeams);
+    expect(result.resources).not.toHaveProperty('scrap');
   });
 
   it('applies inventory and cycle usage as one immutable transition', () => {
     const result = resolveBoaRecycling(base);
 
     expect(result.resources).not.toBe(base.resources);
+    expect(result.boaCargo).not.toBe(base.boaCargo);
     expect(result.ledger).not.toBe(base.ledger);
     expect(base.resources).toEqual({
-      ore: 12, fuel: 12, food: 12, water: 12, materials: 6, securityTeams: 2, scrap: 0,
+      ore: 12, fuel: 12, food: 12, water: 12, materials: 6, securityTeams: 2,
     });
+    expect(base.boaCargo).toEqual({ scrap: 0 });
     expect(base.ledger).toEqual({ cycle: 0, revision: 0, exchangesThisCycle: 0 });
   });
 
-  it('adds the first Scrap when an older inventory has no Scrap field', () => {
-    const legacyResources: ShipResourceInventory = {
-      ore: base.resources.ore,
-      fuel: base.resources.fuel,
-      food: base.resources.food,
-      water: base.resources.water,
-      materials: base.resources.materials,
-      securityTeams: base.resources.securityTeams,
-    };
-    const result = resolveBoaRecycling({ ...base, resources: legacyResources });
+  it('adds the first Scrap to Boa cargo when it has no Scrap field', () => {
+    const result = resolveBoaRecycling({ ...base, boaCargo: {} });
 
-    expect(result.resources.scrap).toBe(1);
+    expect(result.boaCargo.scrap).toBe(1);
+  });
+
+  it.each([
+    ['wrong actor role', { actorRoleId: 'capybara-captain' }],
+    ['wrong control holder', { control: { ...base.control, holderUid: 'other' } }],
+    ['stale control', { expectedControlRevision: 0 }],
+    ['wrong docked host', { expectedHostShipId: 'aegis' }],
+    ['host outside fleet group', { fleetGroupVesselIds: ['aegis'] }],
+    ['missing docking', { dockings: [] }],
+  ])('rejects %s without a partial result', (_label, patch) => {
+    expect(() => resolveBoaRecycling({ ...base, ...patch } as never)).toThrow();
   });
 
   it('allows two exchanges per cycle and rejects a third, including repeated recipes', () => {
@@ -84,15 +101,18 @@ describe('Boa recycling', () => {
       ...base,
       expectedLedgerRevision: first.ledger.revision,
       resources: first.resources,
+      boaCargo: first.boaCargo,
       ledger: first.ledger,
     });
 
-    expect(second.resources).toMatchObject({ food: 0, scrap: 2 });
+    expect(second.resources.food).toBe(0);
+    expect(second.boaCargo.scrap).toBe(2);
     expect(second.ledger).toEqual({ cycle: 2, revision: 2, exchangesThisCycle: 2 });
     expect(() => resolveBoaRecycling({
       ...base,
       expectedLedgerRevision: second.ledger.revision,
       resources: second.resources,
+      boaCargo: second.boaCargo,
       ledger: second.ledger,
     })).toThrow(/at most two exchanges per cycle/i);
   });
@@ -103,6 +123,7 @@ describe('Boa recycling', () => {
       ...base,
       expectedLedgerRevision: first.ledger.revision,
       resources: first.resources,
+      boaCargo: first.boaCargo,
       ledger: first.ledger,
     });
     const nextCycle = resolveBoaRecycling({
@@ -112,11 +133,13 @@ describe('Boa recycling', () => {
       expectedLedgerRevision: second.ledger.revision,
       recipeId: 'water',
       resources: second.resources,
+      boaCargo: second.boaCargo,
       ledger: second.ledger,
     });
 
     expect(nextCycle.ledger).toEqual({ cycle: 3, revision: 3, exchangesThisCycle: 1 });
-    expect(nextCycle.resources).toMatchObject({ water: 6, scrap: 3 });
+    expect(nextCycle.resources).toMatchObject({ water: 6 });
+    expect(nextCycle.boaCargo.scrap).toBe(3);
   });
 
   it.each([
@@ -133,7 +156,7 @@ describe('Boa recycling', () => {
   it('rejects unsafe inventory and malformed cycle history', () => {
     expect(() => resolveBoaRecycling({
       ...base,
-      resources: { ...base.resources, scrap: Number.MAX_SAFE_INTEGER },
+      boaCargo: { scrap: Number.MAX_SAFE_INTEGER },
     })).toThrow(/safe resource range/i);
     expect(parseBoaRecyclingLedger({ cycle: 2, revision: 2, exchangesThisCycle: 3 })).toBeNull();
     expect(parseBoaRecyclingLedger({ cycle: 2, revision: -1, exchangesThisCycle: 1 })).toBeNull();
@@ -144,5 +167,12 @@ describe('Boa recycling', () => {
     expect(parseBoaRecyclingLedger(undefined)).toEqual({
       cycle: 0, revision: 0, exchangesThisCycle: 0,
     });
+  });
+
+  it('parses only the printed Scrap cargo field', () => {
+    expect(parseBoaScrapCargo(undefined)).toEqual({});
+    expect(parseBoaScrapCargo({ scrap: 4 })).toEqual({ scrap: 4 });
+    expect(parseBoaScrapCargo({ food: 4 })).toBeNull();
+    expect(parseBoaScrapCargo({ scrap: -1 })).toBeNull();
   });
 });

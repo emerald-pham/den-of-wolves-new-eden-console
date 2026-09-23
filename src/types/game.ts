@@ -693,6 +693,13 @@ export interface MacawRepairLedger {
   }>[];
 }
 
+/** Server-owned Boa exchange count and replay revision for the current cycle. */
+export interface BoaRecyclingLedger {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly exchangesThisCycle: number;
+}
+
 export interface ChacauRepairLedger {
   readonly cycle: number;
   readonly revision: number;
@@ -837,6 +844,7 @@ export interface GameSession {
   readonly blacksmithRepairs?: BlacksmithRepairLedger;
   readonly philiaRepairs?: PhiliaRepairLedger;
   readonly macawRepairs?: MacawRepairLedger;
+  readonly boaRecycling?: BoaRecyclingLedger | null;
   readonly chacauRepairs?: ChacauRepairLedger;
   readonly allyRepairs?: AllyRepairLedger;
   readonly highwallMining?: HighwallMiningState;

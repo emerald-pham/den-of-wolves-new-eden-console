@@ -1702,6 +1702,34 @@ function macawRepairs(value: unknown): GameSession['macawRepairs'] {
   return repairLedger(value, damageSystemIdsForShip);
 }
 
+function boaRecycling(value: unknown, shuttleCargoValue: unknown): GameSession['boaRecycling'] {
+  const cargoRoot = recordValue(shuttleCargoValue);
+  if (shuttleCargoValue !== undefined && !cargoRoot) return null;
+  const rawBoaCargo = cargoRoot?.boa;
+  if (rawBoaCargo !== undefined) {
+    const cargo = recordValue(rawBoaCargo);
+    if (!cargo || Object.keys(cargo).some((key) => key !== 'scrap') ||
+        cargo.scrap !== undefined &&
+          (!Number.isSafeInteger(cargo.scrap) || (cargo.scrap as number) < 0)) return null;
+  }
+  if (value === undefined) return { cycle: 0, revision: 0, exchangesThisCycle: 0 };
+  const raw = recordValue(value);
+  if (!raw || Object.keys(raw).some((key) =>
+    !['cycle', 'revision', 'exchangesThisCycle'].includes(key)) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 0 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+      !Number.isSafeInteger(raw.exchangesThisCycle) ||
+      (raw.exchangesThisCycle as number) < 0 || (raw.exchangesThisCycle as number) > 2) return null;
+  if (raw.cycle === 0 && (raw.revision !== 0 || raw.exchangesThisCycle !== 0) ||
+      (raw.cycle as number) > 0 &&
+        ((raw.revision as number) < 1 || (raw.exchangesThisCycle as number) < 1)) return null;
+  return {
+    cycle: raw.cycle as number,
+    revision: raw.revision as number,
+    exchangesThisCycle: raw.exchangesThisCycle as number,
+  };
+}
+
 function chacauRepairs(value: unknown): GameSession['chacauRepairs'] {
   return parseChacauRepairLedger(value) ?? undefined;
 }
@@ -2274,6 +2302,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentHighwallMining = highwallMining(data.highwallMining);
   const currentBlacksmithRepairs = blacksmithRepairs(data.blacksmithRepairs);
   const currentMacawRepairs = macawRepairs(data.macawRepairs);
+  const currentBoaRecycling = boaRecycling(data.boaRecycling, data.shuttleCargo);
   const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
   const currentAllyRepairs = allyRepairs(data.allyRepairs);
   const shuttleManifest = normalizeShuttleManifest(
@@ -2355,6 +2384,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     serviceShuttleRecharges: serviceShuttleRecharges(data.serviceShuttleRecharges),
     ...(currentBlacksmithRepairs ? { blacksmithRepairs: currentBlacksmithRepairs } : {}),
     ...(currentMacawRepairs ? { macawRepairs: currentMacawRepairs } : {}),
+    ...(currentBoaRecycling !== undefined ? { boaRecycling: currentBoaRecycling } : {}),
     ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),
     ...(currentAllyRepairs ? { allyRepairs: currentAllyRepairs } : {}),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),

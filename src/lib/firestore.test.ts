@@ -96,6 +96,23 @@ it('hydrates only canonical shuttle-control entries from the member session proj
   });
 });
 
+it('hydrates only a safe Boa recycling cycle ledger', () => {
+  expect(sessionFrom('boa-recycling', {
+    ...sessionData(20), boaRecycling: { cycle: 3, revision: 4, exchangesThisCycle: 2 },
+  }).boaRecycling).toEqual({ cycle: 3, revision: 4, exchangesThisCycle: 2 });
+  expect(sessionFrom('legacy-boa-recycling', sessionData(20)).boaRecycling)
+    .toEqual({ cycle: 0, revision: 0, exchangesThisCycle: 0 });
+  expect(sessionFrom('malformed-boa-recycling', {
+    ...sessionData(20), boaRecycling: { cycle: 3, revision: 4, exchangesThisCycle: 3 },
+  }).boaRecycling).toBeNull();
+  expect(sessionFrom('malformed-boa-cargo', {
+    ...sessionData(20), shuttleCargo: { boa: { food: 1 } },
+  }).boaRecycling).toBeNull();
+  expect(sessionFrom('unsafe-boa-cargo', {
+    ...sessionData(20), shuttleCargo: { boa: { scrap: -1 } },
+  }).boaRecycling).toBeNull();
+});
+
 it('hydrates only canonical per-shuttle evacuation accounting', () => {
   const session = sessionFrom('s1', {
     ...sessionData(8),

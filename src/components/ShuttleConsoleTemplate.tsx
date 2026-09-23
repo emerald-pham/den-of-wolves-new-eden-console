@@ -7,6 +7,7 @@ import RoleConsoleTemplate from './RoleConsoleTemplate';
 import HummingbirdHarvest from './HummingbirdHarvest';
 import PhiliaRepairPanel from './PhiliaRepairPanel';
 import MacawRepairPanel from './MacawRepairPanel';
+import BoaRecyclingPanel from './BoaRecyclingPanel';
 import ChacauRepairPanel from './ChacauRepairPanel';
 import AllyRepairPanel from './AllyRepairPanel';
 import HighwallMining from './HighwallMining';
@@ -118,6 +119,9 @@ export default function ShuttleConsoleTemplate({
           {shuttle.id === 'macaw' && control &&
             <MacawRepairPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} hostSystems={host?.systems} />}
+          {shuttle.id === 'boa' && control &&
+            <BoaRecyclingPanel control={control} docking={docking} fuelled={fuelled}
+              hostName={host?.name} />}
           {shuttle.id === 'chacau' && control &&
             <ChacauRepairPanel control={control} docking={docking} fuelled={fuelled} />}
           {shuttle.id === 'ally' && control &&
