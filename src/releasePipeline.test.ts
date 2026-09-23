@@ -69,6 +69,24 @@ it('selects changed callable exports plus audited consumers of changed shared he
   expect(selected).toBe('hosting,functions:confirmSetup,functions:startGame,functions:declareWolfAttack,functions:runMaintenance');
 });
 
+it('selects the Endeavour field-upgrade callable for its authority and event-redaction helpers', () => {
+  const callable = (name: string) => `export const ${name} = onCall(async () => {\n  return true;\n});\n`;
+  const beforeIndex = callable('existingCallable');
+  const afterIndex = `${beforeIndex}${callable('upgradeEndeavourFieldTargets')}`;
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: [
+      'functions/src/index.ts',
+      'functions/src/endeavourFieldUpgrades.ts',
+      'functions/src/eventRedaction.ts',
+    ],
+    sourceAtRevision: (revision) => revision === 'base' ? beforeIndex : afterIndex,
+    isAncestor: () => false,
+  });
+
+  expect(selected).toBe('hosting,functions:upgradeEndeavourFieldTargets');
+});
+
 it('maps a changed existing policy with numeric separators alongside a changed index callable', () => {
   const callable = (name: string, body: string) => `export const ${name} = onCall(async () => { ${body} });\n`;
   const beforeIndex = callable('startGame', 'return start();');

@@ -40,6 +40,8 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/shuttleDepartureCallable.ts': ['requestShuttleDeparture'],
   'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
   'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
+  'functions/src/endeavourFieldUpgrades.ts': ['upgradeEndeavourFieldTargets'],
+  'functions/src/eventRedaction.ts': ['upgradeEndeavourFieldTargets'],
 });
 const VERIFIED_LIVE_FUNCTION_BASELINES = Object.freeze([{
   sha: '2e413cfb58b56300b6003a57d031686cc776caa8',
