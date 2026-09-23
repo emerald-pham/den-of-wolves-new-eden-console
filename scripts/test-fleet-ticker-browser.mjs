@@ -481,6 +481,7 @@ async function runTickerLifecycleCase() {
   } = {}) => {
     console.log(`Ticker lifecycle capture started: ${label}`);
     const result = await page.evaluate(async ({ name, expectedId, passCount, exitsNeeded, observedId, velocitySampleStride }) => {
+      const { paintedTextRangesOverlap } = await import('/src/components/fleetTickerGeometry.ts');
       const host = document.querySelector('#ticker-lifecycle-harness');
       const frame = host?.querySelector('.fleet-ticker__window');
       if (!frame) return { label: name, error: 'frame missing' };
@@ -542,16 +543,34 @@ async function runTickerLifecycleCase() {
               '.fleet-ticker__copy-slot:not([data-committed="false"]) .fleet-ticker__copy',
             )].map((copy) => {
               const copyBounds = copy.getBoundingClientRect();
+              const hasText = (copy.textContent ?? '').trim().length > 0;
+              const range = document.createRange();
+              const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
+              const textRects = [];
+              while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const value = node.textContent ?? '';
+                const start = value.search(/\S/);
+                const end = value.trimEnd().length;
+                if (start < 0 || end <= start) continue;
+                range.setStart(node, start);
+                range.setEnd(node, end);
+                textRects.push(...[...range.getClientRects()]
+                  .filter((rect) => rect.width > 0 && rect.height > 0));
+              }
               return {
                 id: copy.getAttribute('data-copy-instance-id') ?? '',
                 left: copyBounds.left,
                 right: copyBounds.right,
                 width: copyBounds.width,
+                hasText,
+                textLeft: textRects.length > 0 ? Math.min(...textRects.map((rect) => rect.left)) : null,
+                textRight: textRects.length > 0 ? Math.max(...textRects.map((rect) => rect.right)) : null,
               };
             }).filter((copy) => copy.id && copy.width > 0),
           };
         }).filter((group) => group.id && group.width > 0);
-        rows.push({ frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
+        rows.push({ elapsed: frameTime, frameLeft: frameBounds.left, frameRight: frameBounds.right, groups });
         const completedExits = new Set(endpointEvents
           .filter((event) => !expectedId || event.messageId === expectedId)
           .map((event) => event.id));
@@ -560,15 +579,41 @@ async function runTickerLifecycleCase() {
       document.removeEventListener('animationend', endpointListener, true);
       targetGroups.forEach((group) => group.removeEventListener('animationend', endpointListener, { capture: true }));
       const overlap = [];
+      const boxOverlap = [];
+      const textRangeMeasurementFailures = [];
       const velocitySamples = [];
       const tracks = new Map();
       for (const sample of rows) {
-        const ordered = sample.groups.flatMap((group) => group.paintedCopies)
+        const ordered = sample.groups.flatMap((group) => group.paintedCopies.map((copy) => ({
+          ...copy,
+          groupId: group.id,
+        })))
           .sort((left, right) => left.left - right.left);
+        for (const copy of ordered) {
+          if (copy.hasText && (!Number.isFinite(copy.textLeft) || !Number.isFinite(copy.textRight))) {
+            if (textRangeMeasurementFailures.length < 20) {
+              textRangeMeasurementFailures.push({
+                copyId: copy.id,
+                groupId: copy.groupId,
+                left: copy.left,
+                right: copy.right,
+                textLeft: copy.textLeft,
+                textRight: copy.textRight,
+              });
+            }
+          }
+        }
         for (let index = 1; index < ordered.length; index += 1) {
           const previous = ordered[index - 1];
           const current = ordered[index];
-          if (current.left < previous.right - 1) overlap.push({ previous, current });
+          const boxGap = current.left - previous.right;
+          const textGap = Number.isFinite(previous.textRight) && Number.isFinite(current.textLeft)
+            ? current.textLeft - previous.textRight
+            : null;
+          if (boxGap < 0) boxOverlap.push({ previous, current, boxGap, textGap });
+          if (paintedTextRangesOverlap(previous, current)) {
+            overlap.push({ previous, current, boxGap, textGap });
+          }
         }
         for (const group of sample.groups) {
           const track = tracks.get(group.id) ?? [];
@@ -632,6 +677,12 @@ async function runTickerLifecycleCase() {
         sampleCount: rows.length,
         rows,
         overlap,
+        boxOverlap,
+        textRangeMeasurementFailureCount: rows.reduce((count, sample) => count + sample.groups
+          .flatMap((group) => group.paintedCopies)
+          .filter((copy) => copy.hasText &&
+            (!Number.isFinite(copy.textLeft) || !Number.isFinite(copy.textRight))).length, 0),
+        textRangeMeasurementFailures,
         targetSamples: targetRows.length,
         targetInstances,
         targetExitCount,
@@ -659,7 +710,15 @@ async function runTickerLifecycleCase() {
     });
     samples.push(result);
     console.log(`Ticker lifecycle capture sampled: ${label} (${Math.round((result.durationSeconds ?? 0) * 1_000)}ms, ${result.sampleCount} samples)`);
+    await mkdir(artifactDirectory, { recursive: true });
+    await writeFile(
+      path.join(artifactDirectory, `ticker-lifecycle-${label}.json`),
+      `${JSON.stringify(result, null, 2)}\n`,
+    );
     if (result.error) throw new Error(`lifecycle/${label}: ${result.error}`);
+    if (result.textRangeMeasurementFailureCount > 0) {
+      throw new Error(`lifecycle/${label}: could not measure ${result.textRangeMeasurementFailureCount} painted text ranges: ${JSON.stringify(result.textRangeMeasurementFailures)}`);
+    }
     if (result.targetSamples < 8 || result.targetInstances.length < result.requiredExits) throw new Error(`lifecycle/${label}: target was not sampled across its full physical instances: ${JSON.stringify(result)}`);
     if (result.targetExitCount < result.requiredExits) throw new Error(`lifecycle/${label}: target did not prove ${result.requiredExits} complete left exits: ${JSON.stringify(result)}`);
     if (!result.endpointValid) throw new Error(`lifecycle/${label}: target endpoints did not begin beyond the right edge and finish beyond the left edge: ${JSON.stringify(result.targetInstances)}`);
@@ -800,7 +859,14 @@ async function runTickerLifecycleCase() {
     console.log(`Ticker lifecycle browser proof passed: ${artifactPath}`);
   } catch (error) {
     await mkdir(artifactDirectory, { recursive: true });
-    await page.screenshot({ path: path.join(artifactDirectory, 'ticker-lifecycle-failure.png'), fullPage: false });
+    const failureScreenshotPath = path.join(artifactDirectory, 'ticker-lifecycle-failure.png');
+    const tickerHarness = page.locator('#ticker-lifecycle-harness');
+    if (await tickerHarness.count().catch(() => 0)) {
+      await tickerHarness.screenshot({ path: failureScreenshotPath })
+        .catch(() => page.screenshot({ path: failureScreenshotPath }));
+    } else {
+      await page.screenshot({ path: failureScreenshotPath, fullPage: false });
+    }
     throw error;
   } finally {
     await context.close();

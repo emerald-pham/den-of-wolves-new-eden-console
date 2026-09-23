@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import FleetTicker from './FleetTicker';
+import { paintedTextRangesOverlap } from './fleetTickerGeometry';
 import { setMotionOverride } from '@/lib/motionPreference';
 const alert = { id: 'alert-1', text: 'red alert from AEGIS Admiral - wolf attack imminent, all hands to battle stations', tone: 'danger' as const };
 const cancelled = { id: 'cancel-2', text: 'red alert cancelled by AEGIS, stand down, stand down all battlestations. repeat, stand down, stand down all battlestations. red alert cancelled by AEGIS.', tone: 'normal' as const, passes: 2 };
@@ -18,6 +19,19 @@ class TestResizeObserver {
   observe() {}
   disconnect() {}
 }
+it('allows intersecting copy boxes when their painted text ranges stay separated', () => {
+  const previous = { left: 0, right: 100, textLeft: 0, textRight: 80 };
+  const current = { left: 99, right: 160, textLeft: 100, textRight: 150 };
+
+  expect(previous.right).toBeGreaterThan(current.left);
+  expect(paintedTextRangesOverlap(previous, current)).toBe(false);
+});
+it('rejects any actual painted-text range intersection with zero tolerance', () => {
+  const previous = { left: 0, right: 100, textLeft: 0, textRight: 101 };
+  const current = { left: 99, right: 160, textLeft: 100, textRight: 150 };
+
+  expect(paintedTextRangesOverlap(previous, current)).toBe(true);
+});
 beforeEach(() => { sessionStorage.clear(); notifyResize = undefined; setMotionOverride('full'); });
 afterEach(() => {
   vi.useRealTimers();
