@@ -5,11 +5,16 @@ import {
   AEGIS_FIGHTER_WING_COMBAT,
   AEGIS_ROLE_CONSOLES,
   FIGHTER_WING_IDS,
+  isImplementedAegisRole,
 } from './aegisConsoles';
 import { EXECUTIVE_SYSTEMS } from './roleProcedures';
 import { SHUTTLECRAFT } from './shuttles';
 
 describe('AEGIS role console reference', () => {
+  it('keeps the Executive Officer on the shared ship-systems console shell', () => {
+    expect(isImplementedAegisRole('executive-officer')).toBe(false);
+  });
+
   it('assigns every ship-sheet console to the Admiral without client-side cards', () => {
     expect(AEGIS_ROLE_CONSOLES.admiral.systems.map(({ name }) => name)).toEqual([
       'Armoured Hull I', 'Armoured Hull II', 'Storage', 'Reactor',

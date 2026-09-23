@@ -19,6 +19,8 @@ import type {
   DioneMaliadesLaunchResult,
   DioneMaliadesLaunchView,
   WolfCommanderTargetingView,
+  AegisCommandAndControlResult,
+  AegisCommandAndControlView,
   WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
@@ -324,6 +326,16 @@ function wolfCommanderAuthorityCheckpointIsCurrent(
   const store = useSessionStore.getState();
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
     store.me?.replacementRoleId === 'wolf-commander' && authorityCheckpointIsCurrent(checkpoint);
+}
+
+function aegisExecutiveOfficerAuthorityCheckpointIsCurrent(
+  sessionId: string,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+): boolean {
+  const store = useSessionStore.getState();
+  return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+    store.me?.role === 'player' && store.me?.activeConsoleRoleId === 'executive-officer' &&
+    authorityCheckpointIsCurrent(checkpoint);
 }
 
 function facilitatorRuleCallAuthorityCheckpointIsCurrent(
@@ -3765,6 +3777,17 @@ export interface WolfCommanderTargetRerollResult {
   readonly view: WolfCommanderTargetingView;
 }
 
+export interface WolfCommanderTargetingFinishResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-commander-targeting-finish';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly currentStep: 'targeting';
+  readonly view: WolfCommanderTargetingView;
+}
+
 function wolfCommanderTargetingView(value: unknown): WolfCommanderTargetingView | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
@@ -3787,18 +3810,122 @@ function wolfCommanderTargetingView(value: unknown): WolfCommanderTargetingView 
   if (raw.type !== 'wolf-commander-targeting-view' || typeof raw.sessionId !== 'string' ||
       !raw.sessionId || !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 || raw.currentStep !== 'targeting' ||
+      typeof raw.rerollsFinalized !== 'boolean' ||
       !Array.isArray(raw.rolls) || rolls.length !== raw.rolls.length ||
       !Array.isArray(raw.eligibleRerollIndexes) || eligibleRerollIndexes.length !== raw.eligibleRerollIndexes.length ||
-      !Array.isArray(raw.rerolledIndexes) || rerolledIndexes.length !== raw.rerolledIndexes.length) return null;
+      !Array.isArray(raw.rerolledIndexes) || rerolledIndexes.length !== raw.rerolledIndexes.length ||
+      (raw.rerollsFinalized && eligibleRerollIndexes.length > 0)) return null;
   return {
     type: 'wolf-commander-targeting-view',
     sessionId: raw.sessionId,
     turn: raw.turn as number,
     revision: raw.revision as number,
     currentStep: 'targeting',
+    rerollsFinalized: raw.rerollsFinalized,
     rolls,
     eligibleRerollIndexes,
     rerolledIndexes,
+  };
+}
+
+function wolfCommanderTargetingFinishReply(value: unknown): WolfCommanderTargetingFinishResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const view = wolfCommanderTargetingView(reply.view);
+  return reply.status === 'committed' && reply.type === 'wolf-commander-targeting-finish' &&
+    typeof reply.sessionId === 'string' && reply.sessionId.length > 0 &&
+    typeof reply.requestId === 'string' && reply.requestId.length > 0 &&
+    Number.isSafeInteger(reply.turn) && (reply.turn as number) >= 1 &&
+    Number.isSafeInteger(reply.revision) && (reply.revision as number) >= 1 &&
+    reply.currentStep === 'targeting' && view?.rerollsFinalized === true &&
+    view.sessionId === reply.sessionId && view.turn === reply.turn && view.revision === reply.revision
+    ? {
+      status: 'committed', type: 'wolf-commander-targeting-finish',
+      sessionId: reply.sessionId, requestId: reply.requestId,
+      turn: reply.turn as number, revision: reply.revision as number,
+      currentStep: 'targeting', view,
+    }
+    : null;
+}
+
+const AEGIS_CNC_REASONS = new Set([
+  'waiting', 'not-targeting', 'commander-pending', 'uncharged', 'damaged', 'damage-unknown', 'already-used', 'no-targets',
+]);
+
+function aegisCommandAndControlViewReply(value: unknown): AegisCommandAndControlView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'turn', 'revision', 'eligible', 'commanderAssigned',
+    'rerollsFinalized', 'reason', 'targets', 'redirectedShipId',
+  ]);
+  const targets = Array.isArray(raw.targets) ? raw.targets.flatMap((target) => {
+    if (typeof target !== 'object' || target === null || Array.isArray(target)) return [];
+    const candidate = target as Record<string, unknown>;
+    return Number.isSafeInteger(candidate.rosterIndex) && (candidate.rosterIndex as number) >= 0 &&
+      typeof candidate.shipId === 'string' && candidate.shipId.length > 0 &&
+      Object.keys(candidate).every((key) => key === 'rosterIndex' || key === 'shipId')
+      ? [{ rosterIndex: candidate.rosterIndex as number, shipId: candidate.shipId }]
+      : [];
+  }) : [];
+  const validReason = raw.reason === undefined || (typeof raw.reason === 'string' && AEGIS_CNC_REASONS.has(raw.reason));
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'aegis-command-and-control-view' ||
+      typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+      typeof raw.eligible !== 'boolean' || typeof raw.commanderAssigned !== 'boolean' ||
+      typeof raw.rerollsFinalized !== 'boolean' || !validReason ||
+      !Array.isArray(raw.targets) || targets.length !== raw.targets.length ||
+      (raw.redirectedShipId !== undefined && (typeof raw.redirectedShipId !== 'string' || !raw.redirectedShipId)) ||
+      (raw.eligible && raw.reason !== undefined) || (!raw.eligible && !raw.reason) ||
+      (new Set(targets.map((target) => target.rosterIndex)).size !== targets.length) ||
+      targets.some((target, index) => target.rosterIndex !== index) ||
+      (raw.eligible && targets.length === 0) || (!raw.eligible && targets.length !== 0) ||
+      (raw.eligible && raw.commanderAssigned && !raw.rerollsFinalized) ||
+      (raw.reason === 'commander-pending' && (!raw.commanderAssigned || raw.rerollsFinalized)) ||
+      (raw.reason === 'already-used' && !raw.rerollsFinalized) ||
+      ((raw.reason === 'already-used') !== (raw.redirectedShipId !== undefined))) return null;
+  return {
+    type: 'aegis-command-and-control-view',
+    sessionId: raw.sessionId,
+    turn: raw.turn as number,
+    revision: raw.revision as number,
+    eligible: raw.eligible,
+    commanderAssigned: raw.commanderAssigned,
+    rerollsFinalized: raw.rerollsFinalized,
+    ...(raw.reason === undefined
+      ? {}
+      : { reason: raw.reason as NonNullable<AegisCommandAndControlView['reason']> }),
+    targets,
+    ...(raw.redirectedShipId === undefined ? {} : { redirectedShipId: raw.redirectedShipId as string }),
+  };
+}
+
+function aegisCommandAndControlResultReply(value: unknown): AegisCommandAndControlResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'rosterIndex',
+    'shipId', 'commanderCompletion', 'view',
+  ]);
+  const view = aegisCommandAndControlViewReply(raw.view);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.status !== 'committed' ||
+      raw.type !== 'aegis-command-and-control-result' || typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      typeof raw.requestId !== 'string' || !raw.requestId ||
+      !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Number.isSafeInteger(raw.rosterIndex) || (raw.rosterIndex as number) < 0 ||
+      typeof raw.shipId !== 'string' || !raw.shipId ||
+      (raw.commanderCompletion !== 'finished' && raw.commanderCompletion !== 'no-commander') ||
+      !view || view.sessionId !== raw.sessionId || view.turn !== raw.turn || view.revision !== raw.revision ||
+      view.reason !== 'already-used' || view.redirectedShipId !== raw.shipId ||
+      (raw.commanderCompletion === 'no-commander' && view.commanderAssigned)) return null;
+  return {
+    status: 'committed', type: 'aegis-command-and-control-result',
+    sessionId: raw.sessionId, requestId: raw.requestId,
+    turn: raw.turn as number, revision: raw.revision as number,
+    rosterIndex: raw.rosterIndex as number, shipId: raw.shipId,
+    commanderCompletion: raw.commanderCompletion, view,
   };
 }
 
@@ -4122,6 +4249,98 @@ export async function applyWolfCommanderTargetRerolls(
     }
     if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Close the Commander window, including when no targeting dice were rerolled. */
+export async function finishWolfCommanderTargetingRerolls(
+  expectedTurn: number,
+  expectedRevision: number,
+): Promise<WolfCommanderTargetingFinishResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+    throw new Error('Only the active Wolf Commander may finish targeting rerolls.');
+  }
+  requireFreshSessionAuthority('Reconnect before finishing Wolf targeting rerolls.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedTurn, expectedRevision };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'finishWolfCommanderTargetingRerolls');
+  try {
+    const reply = wolfCommanderTargetingFinishReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid Wolf Commander finish receipt.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this response arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read only the target identities required by the active AEGIS Executive Officer. */
+export async function getAegisCommandAndControl(): Promise<AegisCommandAndControlView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may read Command and Control.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading AEGIS Command and Control.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'getAegisCommandAndControl');
+  try {
+    const reply = aegisCommandAndControlViewReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid AEGIS Command and Control view.');
+    }
+    if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The AEGIS Executive Officer session or authority changed before this response arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Redirect exactly one ship with the live private targeting revision. */
+export async function applyAegisCommandAndControl(
+  expectedTurn: number,
+  expectedRevision: number,
+  rosterIndex: number,
+): Promise<AegisCommandAndControlResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may use Command and Control.');
+  }
+  requireFreshSessionAuthority('Reconnect before redirecting a Wolf ship.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId, requestId: commandId(), expectedTurn, expectedRevision, rosterIndex,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'applyAegisCommandAndControl');
+  try {
+    const reply = aegisCommandAndControlResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid AEGIS Command and Control receipt.');
+    }
+    if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The AEGIS Executive Officer session or authority changed before this response arrived.');
     }
     return reply;
   } catch (cause) {

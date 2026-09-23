@@ -9,16 +9,18 @@ import type { WolfCommanderTargetRerollResult } from '@/lib/sessionService';
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   apply: vi.fn(),
+  finish: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionService', () => ({
   getWolfCommanderTargeting: mocks.get,
   applyWolfCommanderTargetRerolls: mocks.apply,
+  finishWolfCommanderTargetingRerolls: mocks.finish,
 }));
 
 const view: WolfCommanderTargetingView = {
   type: 'wolf-commander-targeting-view', sessionId: 's1', turn: 1, revision: 2,
-  currentStep: 'targeting',
+  currentStep: 'targeting', rerollsFinalized: false,
   rolls: [
     { rosterIndex: 0, shipId: 'wolf-fighter-wing', die: 2, target: 'dione' },
     { rosterIndex: 1, shipId: 'wolf-assault-transport', die: 5, target: 'shepherd' },
@@ -30,6 +32,7 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   mocks.get.mockClear();
   mocks.apply.mockClear();
+  mocks.finish.mockClear();
   useSessionStore.getState().setIdentity(
     { id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'gm1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { uid: 'u1', sessionId: 's1', displayName: 'Commander', role: 'player', seatId: null, assignedRoleId: null, replacementRoleId: 'wolf-commander', joinedAt: '2026-01-01T00:00:00.000Z' },
@@ -58,6 +61,39 @@ it('shows current dice, keeps used dice disabled, and submits only selected inde
   await user.click(screen.getByRole('button', { name: /reroll selected dice/i }));
   await waitFor(() => expect(mocks.apply).toHaveBeenCalledWith(1, 2, [0]));
   expect(screen.getByText(/selected dice rerolled/i)).toBeVisible();
+});
+
+it('lets the Commander explicitly finish an empty reroll window', async () => {
+  const user = userEvent.setup();
+  mocks.finish.mockResolvedValue({
+    status: 'committed', type: 'wolf-commander-targeting-finish', sessionId: 's1', requestId: 'f1',
+    turn: 1, revision: 3, currentStep: 'targeting', view: {
+      ...view, revision: 3, rerollsFinalized: true,
+    },
+  });
+  render(<WolfCommanderTargetingPanel />);
+
+  await screen.findByText('Die 2 // Dione');
+  await user.click(screen.getByRole('button', { name: /finish rerolls/i }));
+
+  await waitFor(() => expect(mocks.finish).toHaveBeenCalledWith(1, 2));
+  expect(screen.getByText(/reroll window is closed/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: /finish rerolls/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /reroll selected dice/i })).toBeDisabled();
+});
+
+it('drops a stale targeting view after finish is rejected until refreshed', async () => {
+  const user = userEvent.setup();
+  mocks.finish.mockRejectedValueOnce(new Error('stale revision'));
+  render(<WolfCommanderTargetingPanel />);
+
+  await screen.findByText('Die 2 // Dione');
+  await user.click(screen.getByRole('button', { name: /finish rerolls/i }));
+
+  expect(await screen.findByText(/finish rejected.*refresh/i)).toBeVisible();
+  expect(screen.queryByText('Die 2 // Dione')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /finish rerolls/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /refresh targeting/i })).toBeEnabled();
 });
 
 it('does not render for a historical role without the active replacement authority', () => {

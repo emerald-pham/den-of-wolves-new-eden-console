@@ -7,10 +7,32 @@ import FleetSystemsWorkspace from './FleetSystemsWorkspace';
 import FleetConsoleWorkspace from './FleetConsoleWorkspace';
 import { SHIPS } from '@/data/ships';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
+import { useSessionStore } from '@/store/useSessionStore';
 
 const renderWorkspace = (children: ReactNode) => render(<MemoryRouter>{children}</MemoryRouter>);
 
 describe('fleet system reference workspaces', () => {
+  it('adds live C&C to the Executive Officer console while retaining its systems and maintenance shell', () => {
+    const ship = SHIPS.find(candidate => candidate.id === 'aegis')!;
+    const role = ship.roles.find(candidate => candidate.id === 'executive-officer')!;
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { id: 's1', name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'gm1', createdAt: '', updatedAt: '' },
+      { uid: 'xo1', sessionId: 's1', displayName: 'Executive Officer', role: 'player', seatId: null,
+        assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', joinedAt: '' },
+    );
+    useSessionStore.getState().setConnection('offline');
+
+    renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
+
+    expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
+    expect(screen.getAllByRole('heading', { name: 'Command and Control' })).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /redirect selected ship/i })).toBeDisabled();
+    expect(screen.getByText(/reconnect to the live executive officer authority/i)).toBeVisible();
+    expect(screen.getByRole('article', { name: /fighter bay alpha system/i })).toBeVisible();
+    expect(screen.getByRole('link', { name: /open pallas shuttle console/i })).toBeVisible();
+  });
+
   it('uses the selected vessel projection instead of legacy cross-session props', () => {
     const ship = SHIPS.find(candidate => candidate.id === 'dione')!;
     const role = ship.roles[0]!;

@@ -15,6 +15,7 @@ export type WolfCommanderTargetingView = Readonly<{
   turn: number;
   revision: number;
   currentStep: 'targeting';
+  rerollsFinalized: boolean;
   rolls: readonly {
     readonly rosterIndex: number;
     readonly shipId: WolfShipId;
@@ -185,6 +186,7 @@ export function commanderTargetingView(
   turn: number,
   revision: number,
   receipt: WolfTargetingReceipt,
+  rerollsFinalized = false,
 ): WolfCommanderTargetingView {
   const rerolledIndexes = commanderRerollIndexesFromReceipt(receipt);
   const rerolled = new Set(rerolledIndexes);
@@ -194,13 +196,16 @@ export function commanderTargetingView(
     turn,
     revision,
     currentStep: 'targeting',
+    rerollsFinalized,
     rolls: receipt.rolls.map((roll) => ({
       rosterIndex: roll.rosterIndex,
       shipId: roll.shipId,
       die: roll.finalDie,
       target: roll.target,
     })),
-    eligibleRerollIndexes: receipt.rolls.flatMap((roll) => rerolled.has(roll.rosterIndex) ? [] : [roll.rosterIndex]),
+    eligibleRerollIndexes: rerollsFinalized
+      ? []
+      : receipt.rolls.flatMap((roll) => rerolled.has(roll.rosterIndex) ? [] : [roll.rosterIndex]),
     rerolledIndexes,
   };
 }

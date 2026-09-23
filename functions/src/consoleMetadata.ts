@@ -19,6 +19,7 @@ export type ImplementedConsoleResolverId =
   | 'maintenance.production'
   | 'fighter.build'
   | 'wolf-attack.maliades-launch'
+  | 'wolf-attack.command-and-control'
   | 'vip-card.draw'
   | 'jump.resolve';
 
@@ -167,7 +168,7 @@ const BLUEPRINTS: Readonly<Record<string, ConsoleBlueprint>> = {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be used when damaged.'),
     upgrade: printed('At the end of the attack, choose up to one ship to take 1 less damage.'),
     effect: 'After targeting, redirect one Wolf ship to AEGIS.',
-    resolver: unavailable('Command and Control is unavailable until the AEGIS attack resolver lands.', ['182']),
+    resolver: implemented('wolf-attack.command-and-control'),
   },
   'aegis:missile-launchers': {
     phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Unusable when damaged.'),

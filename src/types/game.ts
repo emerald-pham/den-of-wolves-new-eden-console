@@ -501,9 +501,52 @@ export interface WolfCommanderTargetingView {
   readonly turn: number;
   readonly revision: number;
   readonly currentStep: 'targeting';
+  readonly rerollsFinalized: boolean;
   readonly rolls: readonly WolfCommanderTargetingViewRoll[];
   readonly eligibleRerollIndexes: readonly number[];
   readonly rerolledIndexes: readonly number[];
+}
+
+export type AegisCommandAndControlReason =
+  | 'waiting'
+  | 'not-targeting'
+  | 'commander-pending'
+  | 'uncharged'
+  | 'damaged'
+  | 'damage-unknown'
+  | 'already-used'
+  | 'no-targets';
+
+export interface AegisCommandAndControlTarget {
+  readonly rosterIndex: number;
+  readonly shipId: string;
+}
+
+/** Executive Officer safe view; server dice and current Wolf targets stay private. */
+export interface AegisCommandAndControlView {
+  readonly type: 'aegis-command-and-control-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly eligible: boolean;
+  readonly commanderAssigned: boolean;
+  readonly rerollsFinalized: boolean;
+  readonly reason?: AegisCommandAndControlReason;
+  readonly targets: readonly AegisCommandAndControlTarget[];
+  readonly redirectedShipId?: string;
+}
+
+export interface AegisCommandAndControlResult {
+  readonly status: 'committed';
+  readonly type: 'aegis-command-and-control-result';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly rosterIndex: number;
+  readonly shipId: string;
+  readonly commanderCompletion: 'finished' | 'no-commander';
+  readonly view: AegisCommandAndControlView;
 }
 
 /** The shared real-time window that starts with every numbered turn. */

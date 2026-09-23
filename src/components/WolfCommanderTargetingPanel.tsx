@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   applyWolfCommanderTargetRerolls,
+  finishWolfCommanderTargetingRerolls,
   getWolfCommanderTargeting,
   type WolfCommanderTargetingReadResult,
 } from '@/lib/sessionService';
@@ -13,6 +14,7 @@ type WolfCommanderTargetingPanelProps = Readonly<{
   sessionId?: string;
   readTargeting?: typeof getWolfCommanderTargeting;
   rerollTargeting?: typeof applyWolfCommanderTargetRerolls;
+  finishTargeting?: typeof finishWolfCommanderTargetingRerolls;
 }>;
 
 function displayName(value: string): string {
@@ -29,6 +31,7 @@ export default function WolfCommanderTargetingPanel({
   sessionId: suppliedSessionId,
   readTargeting = getWolfCommanderTargeting,
   rerollTargeting = applyWolfCommanderTargetRerolls,
+  finishTargeting = finishWolfCommanderTargetingRerolls,
 }: WolfCommanderTargetingPanelProps = {}) {
   const storeSessionId = useSessionStore((state) => state.session?.id);
   const storeIsCommander = useSessionStore((state) => state.me?.replacementRoleId === 'wolf-commander');
@@ -60,7 +63,9 @@ export default function WolfCommanderTargetingPanel({
       setView(next);
       setSelected([]);
       setStatus(next
-        ? 'Select any remaining dice, then reroll the selected dice.'
+        ? next.rerollsFinalized
+          ? 'Reroll window is closed. AEGIS Command and Control may now act.'
+          : 'Select any remaining dice, then reroll the selected dice or finish rerolls.'
         : result.type === 'wolf-commander-targeting-unavailable' && result.reason === 'waiting'
           ? 'No targeting window is open yet.'
           : 'Targeting is no longer the active Wolf-attack step.');
@@ -79,7 +84,7 @@ export default function WolfCommanderTargetingPanel({
   if (!isCommander) return null;
 
   async function rerollSelected(): Promise<void> {
-    if (!view || selected.length === 0 || busy) return;
+    if (!view || view.rerollsFinalized || selected.length === 0 || busy) return;
     const generation = requestGeneration.current;
     const requestSessionId = sessionId;
     setBusy(true);
@@ -92,6 +97,27 @@ export default function WolfCommanderTargetingPanel({
     } catch {
       if (requestGeneration.current !== generation || sessionId !== requestSessionId || !isCommander) return;
       setStatus('Reroll rejected // refresh the current targeting view and try again.');
+    } finally {
+      if (requestGeneration.current === generation) setBusy(false);
+    }
+  }
+
+  async function finishRerolls(): Promise<void> {
+    if (!view || view.rerollsFinalized || selected.length > 0 || busy) return;
+    const generation = requestGeneration.current;
+    const requestSessionId = sessionId;
+    setBusy(true);
+    try {
+      const result = await finishTargeting(view.turn, view.revision);
+      if (requestGeneration.current !== generation || sessionId !== requestSessionId || !isCommander) return;
+      setView(result.view);
+      setSelected([]);
+      setStatus('Reroll window is closed. AEGIS Command and Control may now act.');
+    } catch {
+      if (requestGeneration.current !== generation || sessionId !== requestSessionId || !isCommander) return;
+      setView(null);
+      setSelected([]);
+      setStatus('Finish rejected // refresh the current targeting view and try again.');
     } finally {
       if (requestGeneration.current === generation) setBusy(false);
     }
@@ -122,7 +148,7 @@ export default function WolfCommanderTargetingPanel({
           <legend>Choose targeting dice to reroll</legend>
           <ul>
             {view.rolls.map((roll) => {
-              const canSelect = eligible.has(roll.rosterIndex);
+              const canSelect = !view.rerollsFinalized && eligible.has(roll.rosterIndex);
               return (
                 <li key={roll.rosterIndex} className="wolf-commander-panel__die">
                   <label>
@@ -150,10 +176,18 @@ export default function WolfCommanderTargetingPanel({
         <button
           className="cic-action-button cic-action-button--confirm"
           type="button"
-          disabled={!view || selected.length === 0 || busy}
+          disabled={!view || view.rerollsFinalized || selected.length === 0 || busy}
           onClick={() => void rerollSelected()}
         >
           {busy ? 'Rerolling…' : 'Reroll selected dice'}
+        </button>
+        <button
+          className="cic-text-button"
+          type="button"
+          disabled={!view || view.rerollsFinalized || selected.length > 0 || busy}
+          onClick={() => void finishRerolls()}
+        >
+          {busy ? 'Finishing…' : 'Finish rerolls'}
         </button>
         <button className="cic-text-button" type="button" disabled={loading || busy} onClick={() => void refresh()}>
           {loading ? 'Refreshing…' : 'Refresh targeting'}

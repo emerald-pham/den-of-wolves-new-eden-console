@@ -17,7 +17,13 @@ vi.mock('./firebase', () => ({
 
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority } = await import('./sessionSnapshotAuthority');
-const { applyWolfCommanderTargetRerolls, getWolfCommanderTargeting } = await import('./sessionService');
+const {
+  applyWolfCommanderTargetRerolls,
+  applyAegisCommandAndControl,
+  finishWolfCommanderTargetingRerolls,
+  getAegisCommandAndControl,
+  getWolfCommanderTargeting,
+} = await import('./sessionService');
 
 let fixtureNumber = 0;
 
@@ -50,7 +56,7 @@ function fixture(): { session: GameSession; player: Player } {
 function currentView(sessionId: string): WolfCommanderTargetingView {
   return {
     type: 'wolf-commander-targeting-view', sessionId, turn: 1, revision: 1,
-    currentStep: 'targeting',
+    currentStep: 'targeting', rerollsFinalized: false,
     rolls: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing', die: 1, target: 'aegis' }],
     eligibleRerollIndexes: [0], rerolledIndexes: [],
   };
@@ -106,6 +112,113 @@ it('rejects a delayed reroll after Commander authority is removed', async () => 
   finish({ data: committed(session.id) });
 
   await expect(rerolling).rejects.toThrow(/session or authority changed/i);
+});
+
+it('commits explicit no-dice finish through the fresh Commander authority checkpoint', async () => {
+  const { session } = setFreshIdentity();
+  const view = {
+    ...currentView(session.id), revision: 2, rerollsFinalized: true, eligibleRerollIndexes: [],
+  };
+  const call = Object.assign(vi.fn().mockResolvedValue({ data: {
+    status: 'committed', type: 'wolf-commander-targeting-finish', sessionId: session.id,
+    requestId: 'finish-1', turn: 1, revision: 2, currentStep: 'targeting', view,
+  } }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(finishWolfCommanderTargetingRerolls(1, 1)).resolves.toMatchObject({
+    type: 'wolf-commander-targeting-finish', revision: 2, view: { rerollsFinalized: true },
+  });
+  expect(call).toHaveBeenCalledWith({
+    sessionId: session.id, requestId: expect.any(String), expectedTurn: 1, expectedRevision: 1,
+  });
+
+  call.mockResolvedValueOnce({ data: {
+    ...currentView(session.id), rerollsFinalized: true,
+  } });
+  await expect(getWolfCommanderTargeting()).rejects.toThrow(/invalid Wolf Commander targeting view/i);
+});
+
+it('returns only ship identities from the Executive Officer view and rejects leaked dice or targets', async () => {
+  const values = fixture();
+  const officer: Player = {
+    ...values.player, replacementRoleId: null,
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+  };
+  useSessionStore.getState().setIdentity(values.session, officer);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  acceptCallableSessionAuthority(values.session, officer.uid);
+  const call = Object.assign(vi.fn().mockResolvedValue({ data: {
+    type: 'aegis-command-and-control-view', sessionId: values.session.id, turn: 1, revision: 2,
+    eligible: true, commanderAssigned: true, rerollsFinalized: true,
+    targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing' }],
+  } }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(getAegisCommandAndControl()).resolves.toMatchObject({
+    eligible: true, targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing' }],
+  });
+  expect(call).toHaveBeenCalledWith({ sessionId: values.session.id });
+
+  call.mockResolvedValueOnce({ data: {
+    type: 'aegis-command-and-control-view', sessionId: values.session.id, turn: 1, revision: 2,
+    eligible: false, commanderAssigned: false, rerollsFinalized: false,
+    reason: 'damage-unknown', targets: [],
+  } });
+  await expect(getAegisCommandAndControl()).resolves.toMatchObject({ reason: 'damage-unknown' });
+
+  call.mockResolvedValueOnce({ data: {
+    type: 'aegis-command-and-control-view', sessionId: values.session.id, turn: 1, revision: 2,
+    eligible: true, commanderAssigned: true, rerollsFinalized: false,
+    targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing' }],
+  } });
+  await expect(getAegisCommandAndControl()).rejects.toThrow(/invalid AEGIS Command and Control view/i);
+
+  call.mockResolvedValueOnce({ data: {
+    type: 'aegis-command-and-control-view', sessionId: values.session.id, turn: 1, revision: 2,
+    eligible: true, commanderAssigned: true, rerollsFinalized: true,
+    targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing', die: 4, target: 'dione' }],
+  } });
+  await expect(getAegisCommandAndControl()).rejects.toThrow(/invalid AEGIS Command and Control view/i);
+});
+
+it('accepts only a privacy-safe committed redirect bound to current Executive Officer authority', async () => {
+  const values = fixture();
+  const officer: Player = {
+    ...values.player, replacementRoleId: null,
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+  };
+  useSessionStore.getState().setIdentity(values.session, officer);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  acceptCallableSessionAuthority(values.session, officer.uid);
+  const result = {
+    status: 'committed', type: 'aegis-command-and-control-result', sessionId: values.session.id,
+    requestId: 'redirect-1', turn: 1, revision: 3, rosterIndex: 1, shipId: 'wolf-cruiser',
+    commanderCompletion: 'finished',
+    view: {
+      type: 'aegis-command-and-control-view', sessionId: values.session.id, turn: 1, revision: 3,
+      eligible: false, commanderAssigned: true, rerollsFinalized: true,
+      reason: 'already-used', targets: [], redirectedShipId: 'wolf-cruiser',
+    },
+  };
+  const call = Object.assign(vi.fn().mockResolvedValue({ data: result }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(applyAegisCommandAndControl(1, 2, 1)).resolves.toMatchObject({
+    revision: 3, rosterIndex: 1, shipId: 'wolf-cruiser', commanderCompletion: 'finished',
+  });
+  expect(call).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: values.session.id, requestId: expect.any(String),
+    expectedTurn: 1, expectedRevision: 2, rosterIndex: 1,
+  }));
+
+  call.mockResolvedValueOnce({ data: {
+    ...result,
+    targetingReceipt: { rolls: [{ die: 4, target: 'dione' }] },
+  } });
+  await expect(applyAegisCommandAndControl(1, 2, 1))
+    .rejects.toThrow(/invalid AEGIS Command and Control receipt/i);
 });
 
 it('rejects a callable reply bound to another session', async () => {

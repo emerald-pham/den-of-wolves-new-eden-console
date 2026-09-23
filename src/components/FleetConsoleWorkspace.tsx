@@ -5,6 +5,7 @@ import type { Ship } from '@/data/ships';
 import { isImplementedAegisRole } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
+import AegisCommandAndControlPanel from './AegisCommandAndControlPanel';
 
 interface Props {
   readonly ship: Ship;
@@ -42,6 +43,25 @@ export default function FleetConsoleWorkspace({
   const projectedDamage = shipState ? shipState.damage : damage;
   const projectedNavigationLogs = shipState ? shipState.navigationLogs : navigationLogs;
   const projectedConsoleLock = shipState ? shipState.consoleLocked : consoleLocked;
+  if (ship.workspace === 'aegis' && role.id === 'executive-officer') {
+    return <>
+      <FleetSystemsWorkspace
+        ship={ship}
+        role={role}
+        galacticCoordinate={projectedCoordinate}
+        fuel={projectedFuel}
+        damage={projectedDamage}
+        damageDraws={damageDraws}
+        navigationLogs={projectedNavigationLogs}
+        knownCoordinates={knownCoordinates}
+        knownSystems={knownSystems}
+        consoleLocked={projectedConsoleLock}
+        writable={writable}
+        shipState={shipState}
+      />
+      <AegisCommandAndControlPanel consoleLocked={projectedConsoleLock} />
+    </>;
+  }
   if (ship.workspace === 'aegis' && isImplementedAegisRole(role.id)) {
     return (
       <AegisConsoleWorkspace

@@ -61,7 +61,7 @@ describe('server-only console metadata', () => {
     });
   });
 
-  it('registers every AEGIS combat console as unavailable until its attack resolver lands', () => {
+  it('routes Command and Control while keeping the remaining AEGIS combat consoles fail closed', () => {
     const combatConsoles = [
       { consoleId: 'aegis:command-and-control', name: 'Command and Control' },
       { consoleId: 'aegis:fighter-bay-alpha', name: 'Fighter Bay Alpha' },
@@ -70,17 +70,28 @@ describe('server-only console metadata', () => {
       { consoleId: 'aegis:point-defence-lasers', name: 'Point Defence Lasers' },
     ] as const;
 
-    const promptOwned = Object.values(CONSOLE_METADATA)
+    expect(consoleMetadataFor('aegis', 'command-and-control')?.resolver)
+      .toEqual({ status: 'implemented', id: 'wolf-attack.command-and-control' });
+
+    const stillPromptOwned = Object.values(CONSOLE_METADATA)
       .filter((metadata) => metadata.shipId === 'aegis' && metadata.phase === 'Wolf attack' &&
         metadata.resolver.status === 'unavailable' && metadata.resolver.followOnPrompts.includes('182'))
       .map(({ consoleId, name }) => ({ consoleId, name }))
       .sort((left, right) => left.consoleId.localeCompare(right.consoleId));
-    expect(promptOwned).toEqual(
-      [...combatConsoles].sort((left, right) => left.consoleId.localeCompare(right.consoleId)),
+    expect(stillPromptOwned).toEqual(
+      combatConsoles.filter(({ consoleId }) => consoleId !== 'aegis:command-and-control')
+        .sort((left, right) => left.consoleId.localeCompare(right.consoleId)),
     );
 
     expect(combatConsoles.map(({ consoleId }) => consoleMetadataFor('aegis', consoleId.split(':')[1]!)))
-      .toEqual(combatConsoles.map(({ consoleId }) => expect.objectContaining({
+      .toEqual(combatConsoles.map(({ consoleId }) => consoleId === 'aegis:command-and-control'
+        ? expect.objectContaining({
+          consoleId,
+          shipId: 'aegis',
+          phase: 'Wolf attack',
+          resolver: { status: 'implemented', id: 'wolf-attack.command-and-control' },
+        })
+        : expect.objectContaining({
         consoleId,
         shipId: 'aegis',
         phase: 'Wolf attack',

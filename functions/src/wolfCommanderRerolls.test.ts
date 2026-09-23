@@ -5,7 +5,11 @@ import {
   EXPANDED_WOLF_TARGET_RING,
   resolveWolfTargeting,
 } from './wolfCombatMath';
-import { applyWolfCommanderRerolls, parseWolfTargetingReceipt } from './wolfCommanderRerolls';
+import {
+  applyWolfCommanderRerolls,
+  commanderTargetingView,
+  parseWolfTargetingReceipt,
+} from './wolfCommanderRerolls';
 
 it('patches only selected rolls and keeps printed Capybara 8 rerolls separate', () => {
   const initial = resolveWolfTargeting(
@@ -55,4 +59,16 @@ it('rejects resolved Capybara d8 values and preserves legitimate C&C redirects',
       modifiers: ['command-and-control-redirect'],
     }],
   })).toBeDefined();
+});
+
+it('exposes a closed reroll window without re-publishing any reroll choices', () => {
+  const receipt = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, CORE_WOLF_TARGET_RING, () => 1);
+  const view = commanderTargetingView('s1', 2, 4, receipt, true);
+
+  expect(view).toMatchObject({
+    rerollsFinalized: true,
+    eligibleRerollIndexes: [],
+    rerolledIndexes: [],
+  });
+  expect(JSON.stringify(view)).not.toMatch(/initialDie|finalDie|modifierOrder|damage|private/i);
 });
