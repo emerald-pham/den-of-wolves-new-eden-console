@@ -20,6 +20,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'seat-claim': ['actorUid', 'seatId', 'revision', 'requestId'],
   'seat-release': ['actorUid', 'seatId', 'revision', 'requestId', 'reason'],
   'airspace-opened': ['transition'],
+  'airspace-closure-parking': ['parkedShuttleCount'],
   'turn-advanced': ['transition', 'fromTurn', 'toTurn', 'reason'],
   'fleet-ticker': ['action', 'messageId', 'revision', 'sequence', 'serverTime'],
   'admiral-directive': ['kind', 'revision', 'cycle', 'serverTime'],

@@ -73,6 +73,27 @@ describe('buildPrivacySafeEventRecord', () => {
     });
   });
 
+  it('publishes ordinary airspace closure parking without exposing shuttle routes or holders', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'airspace-closure-parking',
+      envelope: {
+        sessionId: 's1', turn: 2, phase: 'active', requestId: 'airspace-close-2-abcd',
+        revision: 1, serverTime: '2026-09-22T12:15:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        parkedShuttleCount: 1, originShipId: 'aegis', destinationShipId: 'dione',
+        holderUid: 'private', transitRequestId: 'private',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 2, phase: 'active', requestId: 'airspace-close-2-abcd',
+      revision: 1, serverTime: '2026-09-22T12:15:00.000Z', visibility: EventVisibility.Member,
+      type: 'airspace-closure-parking', createdAt: 'server-time', parkedShuttleCount: 1,
+    });
+    expect(memberEventFieldsFor('airspace-closure-parking')).not.toContain('transitRequestId');
+    expect(memberEventFieldsFor('airspace-closure-parking')).toEqual(['parkedShuttleCount']);
+  });
+
   it('publishes a retarget marker without disclosing its private route', () => {
     const event = buildPrivacySafeEventRecord({
       type: 'shuttle-retarget',
