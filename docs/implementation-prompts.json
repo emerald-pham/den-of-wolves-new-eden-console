@@ -6188,6 +6188,20 @@
       "language": "The released Prompt 113 cargo callable supplies Prompt 577's production path. For Macaw, its exact server and client allowlists include security teams, ore, fuel, food, water, materials, and Scrap. The transaction binds the current holder and revision to one authoritative legal dock, an active host in the holder's fleet group, and the stored host and Macaw inventories, then updates both ledgers atomically with a replay receipt. Focused Macaw resource-matrix and callable tests exercise all seven cargo types and a committed Scrap transfer; shared callable regressions reject transit, duplicate docks, stale custody, wrong group, malformed inventory, insufficient stock, unsupported cargo, and replay mutation. No runtime or player-facing change is made by this evidence closure.",
       "source": "functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/index.ts transferShuttleCargoCommand; src/data/vessels/macaw.ts; src/components/ShuttleControl.tsx; Prompt 113 release 0.4.65; E-164-377-CARGO-AUTHORITY; E-399-MACAW-MOVEMENT-CARGO-VERIFIED",
       "type": "evidence / production-path / Macaw / exact-cargo-allowlist / docked-host-authority / atomic-transfer / replay"
+    },
+    {
+      "direction": "608",
+      "id": "E-608-DIALOG-FLOWS",
+      "language": "The new FocusDialog announces its purpose through aria-labelledby and aria-describedby, focuses its purpose heading, contains Tab and Shift+Tab, dismisses with Escape, and returns focus to its persistent review control. Private results require the current player identity and matching session; investigation records and Wolf intelligence must also match the current investigator or recipient, and local action results are tied to the current assignment and request. Facilitator calls are shown only to their current intended player. Endgame dialogs read public terminal session outcomes and do not infer a result. Existing settings and danger confirmations retain the established shared focus hook. Six focused suites pass 121 tests; no session store, callable, rules, or server projection behavior changed.",
+      "source": "src/components/FocusDialog.tsx; src/components/FocusDialog.test.tsx; src/components/PrivateLoyaltyPanel.tsx; src/components/PrivateLoyaltyPanel.test.tsx; src/routes/RoleBrief.tsx; src/routes/RoleBrief.test.tsx; src/components/EndgameDialog.tsx; src/components/EndgameDialog.test.tsx; src/hooks/useDialogFocus.ts; src/hooks/useDialogFocus.test.tsx; src/App.tsx; src/App.test.tsx; npx vitest run --project unit src/hooks/useDialogFocus.test.tsx src/components/FocusDialog.test.tsx src/components/PrivateLoyaltyPanel.test.tsx src/components/EndgameDialog.test.tsx src/routes/RoleBrief.test.tsx src/App.test.tsx",
+      "type": "evidence / accessibility / privacy / regression"
+    },
+    {
+      "direction": "608",
+      "id": "E-608-DIALOG-RENDERED",
+      "language": "The real App and dialog components render in local Chrome with deterministic client fixtures. Facilitator call, private Wolf Cult result, and server-shaped pursuit-limit endgame screens pass at 320x740, 390x844, 844x390, and 1440x900 under full and reduced motion. The run verifies visible purpose and content, aria-describedby, initial heading focus, Escape restoration, in-viewport modal bounds, no document or modal horizontal overflow, 44px close controls, and the console display font; 24 screenshots and measurements are saved. This uses the production App route and components but does not claim Firebase roundtrip or deployed behavior.",
+      "source": "scripts/prompt-608-render.mjs; node scripts/prompt-608-render.mjs; /tmp/p608-dialog-render-20260923/evidence.json; /tmp/p608-dialog-render-20260923/*.png",
+      "type": "evidence / accessibility / privacy / responsive / rendered"
     }
   ],
   "plan": {
@@ -22030,8 +22044,8 @@
         "acceptance": "settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.",
         "title": "Own dialog focus correctly."
       },
-      "description": "Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists. Unmounted dialog components now restore the interrupted control after removal and inert-state updates, with StrictMode replay protection; the motion-safety renewal flow verifies this in real browsers.",
-      "evidenceIds": "E-608-DIALOG-FOCUS;E-608-UNMOUNT-FOCUS",
+      "description": "Candidate implementation keeps the existing settings, danger-confirmation, stale-seat, observer-write, and GM alert dialogs focus-managed. Private investigation and Wolf results, entitled Arbour and selected-player facilitator calls, and public server-reported endgame outcomes now open named dialogs with purpose descriptions, a contained focus cycle, Escape handling, and focus restoration to a persistent review control. Private projections are shown only for the current player and matching session/recipient; endgame text uses only the public outcome cause already reported by the server. Focused unit tests and local full-App Chrome rendering pass; production deployment verification remains pending.",
+      "evidenceIds": "E-608-DIALOG-FOCUS;E-608-UNMOUNT-FOCUS;E-608-DIALOG-FLOWS;E-608-DIALOG-RENDERED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",

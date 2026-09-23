@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [608],
+    implementationProgress: {
+      completed: 477, total: 751, percentage: '63.52%',
+      done: 477, partial: 11, active: 0, missing: 263,
+    },
+    changes: [
+      'Private results, facilitator calls, and endgame updates now open clear dialogs for the current player or whole session as appropriate.',
+      'You can read and revisit each notice with the keyboard, and focus returns to the control that opened it.',
+      '477 of 751 planned items are complete (63.52%).',
+    ],
+  },
+  {
+    version: '0.5.7',
     implementationPrompts: [573],
     implementationProgress: {
       completed: 475, total: 751, percentage: '63.25%',
