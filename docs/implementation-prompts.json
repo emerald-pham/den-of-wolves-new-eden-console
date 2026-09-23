@@ -6220,9 +6220,9 @@
     {
       "direction": "380 -> SERVER-AUTHORITATIVE-MOVEMENT-CONFLICTS",
       "id": "E-380-SHUTTLE-MOVEMENT-CONFLICT",
-      "language": "Server request, begin, retarget, and arrival conflicts return validated docked, pending, or in-transit state only for authorized fleet members. Client parsing accepts only the matching session and shuttle with an exact public projection. Request replay and lost-race callable tests prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; live production-path evidence remains pending.",
+      "language": "Server request, begin, retarget, and arrival conflicts return validated docked, pending, or in-transit state. Docking details follow session-member visibility; pending request and transit details are restricted to the actor’s fleet group. Client parsing accepts only the matching session and shuttle with an exact public projection. Request replay and lost-race callable tests prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; live production-path evidence remains pending.",
       "source": "functions/src/index.ts; functions/src/shuttleArrivalCallable.ts; functions/src/shuttleMovementConflict.ts; functions/src/shuttleDepartureCallable.test.ts; functions/src/shuttleTransitCallable.test.ts; functions/src/shuttleArrivalCallable.test.ts; functions/src/shuttleMovementConflict.test.ts; src/lib/shuttleMovementConflict.ts; src/lib/shuttleDepartureService.ts; src/lib/shuttleMovementConflict.test.ts; src/lib/shuttleDepartureService.test.ts; 53 focused server tests; 15 focused client tests; Functions and web builds; targeted ESLint; independent gpt-6-sol xhigh review at b3b1c2cbdf42235835c028c3eca6930a0279647c",
-      "type": "evidence / server-authority / callable-conflict / fleet-audience / privacy / replay / no-write / independent-review / live-proof-pending"
+      "type": "evidence / server-authority / callable-conflict / session-member-docking / group-scoped-pending-transit / privacy / replay / no-write / independent-review / live-proof-pending"
     }
   ],
   "plan": {
@@ -15959,7 +15959,7 @@
         "acceptance": "a lost race returns the authoritative host/transit state without duplicating cargo, fuel, or visits.",
         "title": "Reconcile movement conflicts."
       },
-      "description": "The 0.5.12 candidate adds validated, audience-safe current docked, requested, and in-transit state to movement conflicts from departure request, begin, retarget, and arrival. Strict client parsing rejects malformed or unrelated details, and lost-race regressions prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; focused server/client tests, Functions and web builds, and targeted ESLint passed. Live production-path evidence is still pending.",
+      "description": "The 0.5.12 candidate adds validated current docked, requested, and in-transit state to movement conflicts from departure request, begin, retarget, and arrival. Docking details follow session-member visibility, while pending request and transit details remain fleet-group restricted. The strict client parser accepts only the matching session/shuttle and exact public shapes, and lost-race regressions prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; focused server/client tests, Functions and web builds, and targeted ESLint passed. Live production-path evidence is still pending.",
       "evidenceIds": "E-AUDIT-380;E-380-SHUTTLE-MOVEMENT-CONFLICT",
       "hardContract": "none",
       "hardMilestone": "none",

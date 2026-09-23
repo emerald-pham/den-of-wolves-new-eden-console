@@ -26,7 +26,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 478, partial: 12, active: 0, missing: 261,
     },
     changes: [
-      "The shuttle console now catches up to the current dock or trip when another movement finishes first.",
+      "Shuttle controls now report when movement changes and the current location is available.",
       "478 of 751 planned items are complete (63.65%).",
     ],
   },
