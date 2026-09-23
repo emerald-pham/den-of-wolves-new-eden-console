@@ -258,6 +258,60 @@ it('commits docking, history, event, transit deletion, and one replay receipt at
     mock.create.mock.calls.length + mock.remove.mock.calls.length).toBe(writes);
 });
 
+it('returns the fresh current transit for a stale arrival identity without side effects', async () => {
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length +
+    mock.create.mock.calls.length + mock.remove.mock.calls.length;
+  const beforeVisits = structuredClone(mock.documents.get('sessions/s1')!.shuttleVisitLog);
+
+  await expect(completeShuttleArrival.run(request({
+    ...command, transitRequestId: 'older-transit',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'in-transit',
+          transit: { transitRequestId: 'transit-1', revision: 1 },
+        },
+      },
+    },
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length +
+    mock.create.mock.calls.length + mock.remove.mock.calls.length).toBe(writes);
+  expect(mock.documents.get('sessions/s1')!.shuttleVisitLog).toEqual(beforeVisits);
+  expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/older-transit')).toBe(false);
+});
+
+it('returns the current host after arrival wins, without duplicating visit history', async () => {
+  await completeShuttleArrival.run(request());
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length +
+    mock.create.mock.calls.length + mock.remove.mock.calls.length;
+  const session = mock.documents.get('sessions/s1')!;
+  const beforeVisits = structuredClone(session.shuttleVisitLog);
+
+  await expect(completeShuttleArrival.run(request({
+    ...command, transitRequestId: 'older-transit',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'docked',
+          docking: { shuttleId: 'starlight', shipId: 'icebreaker' },
+        },
+      },
+    },
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length +
+    mock.create.mock.calls.length + mock.remove.mock.calls.length).toBe(writes);
+  expect(session.shuttleVisitLog).toEqual(beforeVisits);
+  expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/older-transit')).toBe(false);
+});
+
 it('rejects a foreign holder and a same-trip command collision without writes', async () => {
   await completeShuttleArrival.run(request());
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length;

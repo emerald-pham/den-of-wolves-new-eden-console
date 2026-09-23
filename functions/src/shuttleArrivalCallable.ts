@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { commandError } from './commandErrors';
+import {
+  shuttleMovementConflictDetails,
+  shuttleMovementConflictForCurrentState,
+} from './shuttleMovementConflict';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
@@ -100,6 +104,21 @@ function isSafeArrivalEvent(
     !Object.hasOwn(value, 'actorUid') && !Object.hasOwn(value, 'originShipId') &&
     !Object.hasOwn(value, 'destinationShipId') && !Object.hasOwn(value, 'fleetGroupId') &&
     !Object.hasOwn(value, 'holderUid');
+}
+
+function shuttleMovementConflictErrorForArrival(input: Readonly<{
+  message: string;
+  sessionId: string;
+  shuttleId: string;
+  actorFleetGroupId: unknown;
+  dockings: unknown;
+  movement?: unknown;
+  transitChain?: unknown;
+}>): HttpsError {
+  const conflict = shuttleMovementConflictForCurrentState(input);
+  return conflict
+    ? new HttpsError('failed-precondition', input.message, shuttleMovementConflictDetails(conflict))
+    : commandError('failed-precondition', input.message, 'conflict');
 }
 
 function replayArrival(
@@ -222,13 +241,21 @@ export function createCompleteShuttleArrivalCallable() {
       )
       : null;
     const transit = authority?.transit;
+    const actorGroupId = actor.get('fleetGroupId');
     if (!transit || transit.transitRequestId !== data.transitRequestId) {
-      throw commandError('failed-precondition', 'The shuttle transit is no longer available.', 'conflict');
+      throw shuttleMovementConflictErrorForArrival({
+        message: 'The shuttle transit is no longer available.',
+        sessionId: data.sessionId,
+        shuttleId: data.shuttleId,
+        actorFleetGroupId: actorGroupId,
+        dockings: session.get('shuttleDockings'),
+        movement: transitSnapshot.exists ? transitSnapshot.data() : undefined,
+        transitChain: transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+      });
     }
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
-    const actorGroupId = actor.get('fleetGroupId');
     if (typeof actorGroupId !== 'string' || actorGroupId !== transit.fleetGroupId) {
       throw new HttpsError('permission-denied', 'The shuttle holder no longer belongs to the transit fleet group.');
     }

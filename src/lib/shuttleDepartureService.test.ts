@@ -102,6 +102,12 @@ it('surfaces validated lost-race state and never retries the mutation', async ()
   await expect(beginShuttleTransit('starlight', 'departure-1', 3, 2))
     .rejects.toBeInstanceOf(ShuttleMovementConflictError);
   expect(mocks.call).toHaveBeenCalledTimes(2);
+  await expect(retargetShuttleTransit('starlight', 'transit-1', 'dione', 3, 2))
+    .rejects.toBeInstanceOf(ShuttleMovementConflictError);
+  expect(mocks.call).toHaveBeenCalledTimes(3);
+  await expect(completeShuttleArrival('starlight', 'transit-1', 3))
+    .rejects.toBeInstanceOf(ShuttleMovementConflictError);
+  expect(mocks.call).toHaveBeenCalledTimes(4);
 });
 
 it('rejects cache-backed arrival completion before contacting the callable', async () => {
