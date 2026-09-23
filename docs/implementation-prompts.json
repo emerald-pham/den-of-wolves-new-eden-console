@@ -6216,6 +6216,13 @@
       "language": "Candidate 566bce53ceee52b2b880a0be0bfb4f8c0f0d6b31 adds independent 60-second limits keyed from the server-derived Firebase UID, callable name, and session ID: resumeSession 10/min, getSessionPresence 12/min, listGmInstances 60/min, and rollDice 30/min. Two authenticated GMs sharing one rawRequest network value receive independent listGmInstances buckets. The marker is written only below sessions/{sessionId}/serverState, fails closed when malformed, and is never selected from client identity or bypass fields. Explicit rate denials return retryAfterSeconds, surface the wait in the client, and pause automatic resume attempts for that session/UID until expiry; command work is not automatically replayed. The source audit confirms joinSession already uses its Firebase-UID attempt limiter, while refreshPresence has the existing five-second full-reconciliation coalescing marker. Fixed-document targeting reads remain role-gated and user-triggered; explicit state-changing callables that scan player, GM, secret, or fleet-group collections remain outside this slice (including confirmSetup, startGame, declareWolfAttack, and runMaintenance), so this evidence is partial. Exact-candidate Sol review found no actionable findings. Focused checks pass 316 tests across eight callable/session/client files; Functions build, client build, focused lint, and diff check pass. Release candidate 9c9e984bac2b1e1ba07f51a050f0e5c448107b3d deployed to hosting and functions by workflow run 35835120522; its authenticated deployment verifier passed, confirming live Hosting version 0.5.10, all listed second-generation Functions ACTIVE, and required public invoker policies.",
       "source": "functions/src/callableRateLimit.ts; functions/src/callableRateLimitFirestore.ts; functions/src/index.ts; functions/src/callableRateLimit.test.ts; functions/src/callableRateLimitFirestore.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/sessionLifecycleCallable.test.ts; functions/src/gmSessionCallable.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/lib/commandErrors.ts; src/lib/commandErrors.test.ts; src/components/CommunicationError.test.tsx; src/App.tsx; src/App.test.tsx; src/routes/Landing.test.tsx; tests/rules/nonmember-reads.rules.test.ts; Sol review 566bce53ceee52b2b880a0be0bfb4f8c0f0d6b31; focused candidate validation",
       "type": "evidence / partial / production-path / security / performance"
+    },
+    {
+      "direction": "380 -> SERVER-AUTHORITATIVE-MOVEMENT-CONFLICTS",
+      "id": "E-380-SHUTTLE-MOVEMENT-CONFLICT",
+      "language": "Server request, begin, retarget, and arrival conflicts return validated docked, pending, or in-transit state only for authorized fleet members. Client parsing accepts only the matching session and shuttle with an exact public projection. Request replay and lost-race callable tests prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; live production-path evidence remains pending.",
+      "source": "functions/src/index.ts; functions/src/shuttleArrivalCallable.ts; functions/src/shuttleMovementConflict.ts; functions/src/shuttleDepartureCallable.test.ts; functions/src/shuttleTransitCallable.test.ts; functions/src/shuttleArrivalCallable.test.ts; functions/src/shuttleMovementConflict.test.ts; src/lib/shuttleMovementConflict.ts; src/lib/shuttleDepartureService.ts; src/lib/shuttleMovementConflict.test.ts; src/lib/shuttleDepartureService.test.ts; 53 focused server tests; 15 focused client tests; Functions and web builds; targeted ESLint; independent gpt-6-sol xhigh review at b3b1c2cbdf42235835c028c3eca6930a0279647c",
+      "type": "evidence / server-authority / callable-conflict / fleet-audience / privacy / replay / no-write / independent-review / live-proof-pending"
     }
   ],
   "plan": {
@@ -15952,8 +15959,8 @@
         "acceptance": "a lost race returns the authoritative host/transit state without duplicating cargo, fuel, or visits.",
         "title": "Reconcile movement conflicts."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-380",
+      "description": "The 0.5.12 candidate adds validated, audience-safe current docked, requested, and in-transit state to movement conflicts from departure request, begin, retarget, and arrival. Strict client parsing rejects malformed or unrelated details, and lost-race regressions prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; focused server/client tests, Functions and web builds, and targeted ESLint passed. Live production-path evidence is still pending.",
+      "evidenceIds": "E-AUDIT-380;E-380-SHUTTLE-MOVEMENT-CONFLICT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "365;366;367",
@@ -15964,7 +15971,7 @@
       "releases": [],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
