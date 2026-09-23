@@ -3451,4 +3451,64 @@ describe('GM fighter-wing stale recovery', () => {
     expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(initialWingCounts);
     expect(useSessionStore.getState().session?.shipUpgrades).toEqual({ aegis: ['targeting-computer'] });
   });
+
+  it.each(['stale', 'committed'] as const)(
+    'does not let an older %s reply roll back a newer local wing revision',
+    async (olderStatus) => {
+      const requests: Array<{ requestId: string; expectedRevision: number; count: number }> = [];
+      const finishes: Array<(value: { data: unknown }) => void> = [];
+      const callable = Object.assign(vi.fn((request: typeof requests[number]) => {
+        requests.push(request);
+        return new Promise<{ data: unknown }>((resolve) => { finishes.push(resolve); });
+      }), { stream: vi.fn() });
+      vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+      const older = setFighterWingCount('fighter-wing-alpha', 3);
+      await vi.waitFor(() => expect(callable).toHaveBeenCalledTimes(1));
+
+      const current = useSessionStore.getState().session;
+      if (!current) throw new Error('Expected the GM session.');
+      useSessionStore.getState().setSession({
+        ...current,
+        fighterWingCounts: {
+          ...current.fighterWingCounts,
+          'fighter-wing-alpha': { count: 3, revision: 1 },
+        },
+      });
+
+      const newer = setFighterWingCount('fighter-wing-alpha', 2);
+      await vi.waitFor(() => expect(callable).toHaveBeenCalledTimes(2));
+      expect(requests.map(({ expectedRevision }) => expectedRevision)).toEqual([0, 1]);
+      const olderRequest = requests[0];
+      const newerRequest = requests[1];
+      const finishOlder = finishes[0];
+      const finishNewer = finishes[1];
+      if (!olderRequest || !newerRequest || !finishOlder || !finishNewer) {
+        throw new Error('Expected both fighter-wing requests to be pending.');
+      }
+
+      finishNewer({
+        data: {
+          status: 'committed', sessionId: 's1', requestId: newerRequest.requestId,
+          wingId: 'fighter-wing-alpha', count: 2, revision: 2, capacity: 4,
+          actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+          idempotencyKey: newerRequest.requestId, auditId: `fighter-count-${newerRequest.requestId}`,
+        },
+      });
+      await expect(newer).resolves.toMatchObject({ status: 'committed', count: 2, revision: 2 });
+
+      finishOlder({
+        data: {
+          status: olderStatus, sessionId: 's1', requestId: olderRequest.requestId,
+          wingId: 'fighter-wing-alpha', count: 3, revision: 1, capacity: 4,
+          ...(olderStatus === 'stale' ? { currentRevision: 1 } : {}),
+          actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+          idempotencyKey: olderRequest.requestId, auditId: `fighter-count-${olderRequest.requestId}`,
+        },
+      });
+      await expect(older).resolves.toMatchObject({ status: olderStatus, count: 3, revision: 1 });
+      expect(useSessionStore.getState().session?.fighterWingCounts?.['fighter-wing-alpha'])
+        .toEqual({ count: 2, revision: 2 });
+    },
+  );
 });

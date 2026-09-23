@@ -1391,12 +1391,14 @@ export async function setFighterWingCount(
     const latest = useSessionStore.getState();
     const current = latest.session;
     const gm = latest.gmInstance;
+    const currentWingRevision = current?.fighterWingCounts?.[wingId]?.revision ?? 0;
     const stillSameGm = latest.me?.sessionId === sessionId && latest.me.role === 'gm' &&
       latest.me.uid === actorUid && gm?.id === instanceId &&
       gm.sessionId === sessionId && gm.uid === actorUid;
     if (reply.status === 'stale') {
       if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
-        !stillSameGm || reply.count === undefined || reply.currentRevision === undefined) return reply;
+        !stillSameGm || reply.count === undefined || reply.currentRevision === undefined ||
+        currentWingRevision >= reply.currentRevision) return reply;
       const aegisUpgrades = current.shipUpgrades?.aegis ?? [];
       const hasConstructionBay = aegisUpgrades.includes('construction-bay');
       const currentCapacity = hasConstructionBay
@@ -1420,7 +1422,8 @@ export async function setFighterWingCount(
       return reply;
     }
     if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
-      !stillSameGm || reply.count === undefined || reply.revision === undefined) return reply;
+      !stillSameGm || reply.count === undefined || reply.revision === undefined ||
+      currentWingRevision >= reply.revision) return reply;
     useSessionStore.getState().setSession({
       ...current,
       fighterWingCounts: {
