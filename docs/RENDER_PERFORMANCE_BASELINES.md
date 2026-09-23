@@ -133,3 +133,15 @@ attack, and mission-hand update p95 at 34.4 ms, 34.5 ms, and 35 ms; and the
 largest-chunk, startup, render-update, and mobile-frame budgets remain in
 force; the new size ceilings retain 3,456 raw bytes and 4,348 gzip bytes of
 headroom over the measured candidate.
+
+Baseline version 12 raises only the complete application JavaScript raw ceiling
+from 1,768,000 to 1,778,000 bytes for Prompt 212's private Endeavour research
+writer and reachable Scientist controls. The exact 0.5.22 candidate at
+`9b44b32adb6ef90c521d9836fc3674a849072c7d` measured 1,774,570 raw bytes,
+471,583 gzip bytes, and a 496,263-byte largest chunk across nine JavaScript
+chunks. Its local P637 run measured landing and cached Role Select startup p95
+at 84.18 ms and 80.28 ms; DRADIS, attack, and mission-hand update p95 at 35 ms,
+35 ms, and 34.9 ms; and the 390x844 mobile probe at 16.8 ms p95 with zero long
+frames. The existing 473,000-byte gzip ceiling, largest-chunk, startup,
+render-update, and mobile-frame budgets remain unchanged; the raw ceiling
+retains 3,430 bytes of headroom over this measured candidate.
