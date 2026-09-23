@@ -1857,7 +1857,7 @@ it('keeps stale GM counter steps for an explicit retry against the refreshed val
         vesselActionRevisions: { ...current.vesselActionRevisions, dione: 2 },
         shipResources: {
           ...current.shipResources,
-          dione: { ...current.shipResources?.dione, fuel: 7 },
+          dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 7 },
         },
       });
       return { status: 'stale', amount: 7, alertRaised: false, revision: 2, currentRevision: 2 } as never;
@@ -1869,12 +1869,12 @@ it('keeps stale GM counter steps for an explicit retry against the refreshed val
         vesselActionRevisions: { ...current.vesselActionRevisions, dione: 3 },
         shipResources: {
           ...current.shipResources,
-          dione: { ...current.shipResources?.dione, fuel: 8 },
+          dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 8 },
         },
       });
       return { amount: 8, alertRaised: false, revision: 3 } as never;
     });
-  renderConsole();
+  const view = renderConsole();
   const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
 
   vi.useFakeTimers();
@@ -1888,12 +1888,22 @@ it('keeps stale GM counter steps for an explicit retry against the refreshed val
       await Promise.resolve();
     });
 
-    expect(within(dione).getByLabelText('Strytium Fuel: 8, stale changes ready to retry')).toBeInTheDocument();
+    expect(within(dione).getByLabelText('Strytium Fuel: current 7, proposed 8, stale changes ready to retry')).toBeInTheDocument();
+    expect(within(dione).getByText('Current amount: 7; proposed after steps: 8')).toBeInTheDocument();
     expect(within(dione).getByRole('status')).toHaveTextContent(/counter changed while these steps were pending/i);
     expect(within(dione).getByRole('button', { name: /retry.*fuel/i })).toBeEnabled();
     expect(applyShipCounterSteps).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(within(dione).getByRole('button', { name: /retry.*fuel/i }));
+    view.unmount();
+    expect(applyShipCounterSteps).toHaveBeenCalledTimes(1);
+    renderConsole();
+    const restoredFleet = screen.getByRole('region', { name: /fleet resource controls/i });
+    const restoredDione = within(restoredFleet).getByRole('group', { name: 'Dione resource controls' });
+    fireEvent.click(within(restoredFleet).getByRole('button', { name: /ship numbers write mode/i }));
+    expect(within(restoredDione).getByRole('button', { name: /retry.*fuel/i })).toBeEnabled();
+    expect(within(restoredDione).getByRole('button', { name: /discard.*fuel/i })).toBeEnabled();
+
+    fireEvent.click(within(restoredDione).getByRole('button', { name: /retry.*fuel/i }));
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
@@ -1902,9 +1912,84 @@ it('keeps stale GM counter steps for an explicit retry against the refreshed val
     expect(applyShipCounterSteps).toHaveBeenLastCalledWith(
       'dione', { counter: 'resource', resourceId: 'fuel' }, [1],
     );
-    expect(within(dione).getByLabelText('Strytium Fuel: 8')).toBeInTheDocument();
-    expect(within(dione).queryByRole('button', { name: /retry.*fuel/i })).not.toBeInTheDocument();
+    expect(within(restoredDione).getByLabelText('Strytium Fuel: 8')).toBeInTheDocument();
+    expect(within(restoredDione).queryByRole('button', { name: /retry.*fuel/i })).not.toBeInTheDocument();
   } finally {
+    vi.useRealTimers();
+    vi.mocked(applyShipCounterSteps).mockReset();
+  }
+});
+
+it('keeps stale counter input when an alert blocks retry until a fresh snapshot', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    vesselActionRevisions: { dione: 0 },
+    shipUnrest: { dione: 7 },
+  });
+  vi.mocked(applyShipCounterSteps)
+    .mockImplementationOnce(async () => {
+      const current = useSessionStore.getState().session;
+      if (current) useSessionStore.getState().setSession({
+        ...current,
+        vesselActionRevisions: { ...current.vesselActionRevisions, dione: 2 },
+        shipUnrest: { ...current.shipUnrest, dione: 8 },
+      });
+      return {
+        status: 'stale', amount: 8, alertRaised: false, revision: 2,
+        currentRevision: 2, retryBlockedByAlert: true,
+      } as never;
+    })
+    .mockRejectedValueOnce(new Error('The current unrest alert must be dismissed first.'));
+  const view = renderConsole();
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+
+  vi.useFakeTimers();
+  try {
+    const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+    fireEvent.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+    fireEvent.click(within(dione).getByRole('button', { name: /decrease civil unrest/i }));
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const retry = within(dione).getByRole('button', { name: /retry.*unrest/i });
+    expect(within(dione).getByText('Current amount: 8; proposed after steps: 7')).toBeInTheDocument();
+    expect(retry).toBeDisabled();
+
+    const beforeRetry = useSessionStore.getState().session!;
+    await act(async () => useSessionStore.getState().setSession({
+      ...beforeRetry,
+      vesselActionRevisions: { ...beforeRetry.vesselActionRevisions, dione: 3 },
+      unrestAlerts: {},
+    }));
+    expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeEnabled();
+
+    await act(async () => {
+      fireEvent.click(within(dione).getByRole('button', { name: /retry.*unrest/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(within(dione).getByRole('status')).toHaveTextContent(/retry is paused/i);
+    expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeDisabled();
+    expect(applyShipCounterSteps).toHaveBeenCalledTimes(2);
+
+    const afterRejection = useSessionStore.getState().session!;
+    await act(async () => useSessionStore.getState().setSession({
+      ...afterRejection,
+      vesselActionRevisions: { ...afterRejection.vesselActionRevisions, dione: 4 },
+      unrestAlerts: {},
+    }));
+    expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeEnabled();
+    fireEvent.click(within(dione).getByRole('button', { name: /discard.*unrest/i }));
+    expect(within(dione).queryByRole('button', { name: /retry.*unrest/i })).not.toBeInTheDocument();
+  } finally {
+    view.unmount();
     vi.useRealTimers();
     vi.mocked(applyShipCounterSteps).mockReset();
   }

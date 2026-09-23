@@ -179,6 +179,64 @@ interface StagedCounter {
   readonly steps: readonly CounterStep[];
   readonly sending: boolean;
   readonly stale?: boolean;
+  readonly staleRevision?: number | undefined;
+  readonly retryBlock?: 'alert' | 'refresh' | undefined;
+}
+
+interface CounterDraftOwner {
+  readonly sessionId: string;
+  readonly uid: string;
+  readonly instanceId: string;
+}
+
+interface DetachedCounterDraft {
+  readonly ownerKey: string;
+  readonly counterKey: string;
+  readonly staged: StagedCounter;
+}
+
+const detachedStaleCounterDrafts = new Map<string, DetachedCounterDraft>();
+
+function counterDraftOwnerKey(owner: CounterDraftOwner): string {
+  return JSON.stringify([owner.sessionId, owner.uid, owner.instanceId]);
+}
+
+function counterDraftRegistryKey(owner: CounterDraftOwner, key: string): string {
+  return JSON.stringify([counterDraftOwnerKey(owner), key]);
+}
+
+function activeCounterDraftOwner(
+  session: GameSession | null | undefined,
+  me: Player | null | undefined,
+  instance: GmInstance | null | undefined,
+): CounterDraftOwner | null {
+  if (!session || !me || me.role !== 'gm' || !instance ||
+      instance.sessionId !== session.id || instance.uid !== me.uid) return null;
+  return { sessionId: session.id, uid: me.uid, instanceId: instance.id };
+}
+
+function restoreDetachedCounterDrafts(owner: CounterDraftOwner): Readonly<Record<string, StagedCounter>> {
+  const ownerKey = counterDraftOwnerKey(owner);
+  const restored: Record<string, StagedCounter> = {};
+  for (const [registryKey, draft] of detachedStaleCounterDrafts) {
+    if (draft.ownerKey !== ownerKey) continue;
+    restored[draft.counterKey] = { ...draft.staged, sending: false };
+    detachedStaleCounterDrafts.delete(registryKey);
+  }
+  return restored;
+}
+
+function saveDetachedCounterDraft(owner: CounterDraftOwner, key: string, staged: StagedCounter): void {
+  if (!staged.stale) return;
+  detachedStaleCounterDrafts.set(counterDraftRegistryKey(owner, key), {
+    ownerKey: counterDraftOwnerKey(owner),
+    counterKey: key,
+    staged: { ...staged, sending: false },
+  });
+}
+
+function removeDetachedCounterDraft(owner: CounterDraftOwner | null, key: string): void {
+  if (owner) detachedStaleCounterDrafts.delete(counterDraftRegistryKey(owner, key));
 }
 
 function counterKey(target: CounterTarget): string {
@@ -473,8 +531,10 @@ export default function GmConsole() {
   const [fighterWingDrafts, setFighterWingDrafts] = useState<Readonly<Record<string, string>>>({});
   const [fighterWingMessages, setFighterWingMessages] = useState<Readonly<Record<string, string>>>({});
   const [fighterWingMutation, setFighterWingMutation] = useState<string | null>(null);
-  const [stagedCounters, setStagedCounters] = useState<Readonly<Record<string, StagedCounter>>>({});
-  const stagedCountersRef = useRef<Readonly<Record<string, StagedCounter>>>({});
+  const initialCounterDraftOwner = activeCounterDraftOwner(session, me, local);
+  const [stagedCounters, setStagedCounters] = useState<Readonly<Record<string, StagedCounter>>>(() =>
+    initialCounterDraftOwner ? restoreDetachedCounterDrafts(initialCounterDraftOwner) : {});
+  const stagedCountersRef = useRef<Readonly<Record<string, StagedCounter>>>(stagedCounters);
   const counterTimers = useRef(new Map<string, number>());
   const [thresholdHolds, setThresholdHolds] = useState<Readonly<Record<string, CounterTarget>>>({});
   const [setupOpen, setSetupOpen] = useState(false);
@@ -1279,13 +1339,55 @@ export default function GmConsole() {
     });
   }, [session, thresholdHolds]);
 
+  useEffect(() => {
+    const owner = activeCounterDraftOwner(session, me, local);
+    if (!owner) return;
+    const restored = restoreDetachedCounterDrafts(owner);
+    if (Object.keys(restored).length === 0) return;
+    replaceStagedCounters({ ...stagedCountersRef.current, ...restored });
+  }, [sessionId, me?.uid, me?.role, local?.id]);
+
+  useEffect(() => {
+    if (!session) return;
+    const current = stagedCountersRef.current;
+    let next = current;
+    for (const [key, staged] of Object.entries(current)) {
+      if (!staged.stale || staged.sending) continue;
+      const currentRevision = session.vesselActionRevisions?.[staged.target.shipId] ?? 0;
+      const amount = counterAmountFromSession(session, staged.target);
+      const hasAlert = hasAuthoritativeCounterAlert(session, staged.target);
+      const hasNewerSnapshot = Number.isSafeInteger(currentRevision) &&
+        currentRevision > (staged.staleRevision ?? -1);
+      const retryBlock = hasAlert
+        ? 'alert'
+        : hasNewerSnapshot ? undefined : staged.retryBlock;
+      const baseAmount = hasNewerSnapshot && amount !== undefined ? amount : staged.baseAmount;
+      const staleRevision = hasNewerSnapshot ? currentRevision : staged.staleRevision;
+      if (retryBlock === staged.retryBlock && baseAmount === staged.baseAmount &&
+          staleRevision === staged.staleRevision) continue;
+      if (next === current) next = { ...current };
+      (next as Record<string, StagedCounter>)[key] = {
+        ...staged, retryBlock, baseAmount, staleRevision,
+      };
+    }
+    if (next !== current) replaceStagedCounters(next);
+  }, [session]);
+
   useEffect(() => () => {
     for (const timer of counterTimers.current.values()) window.clearTimeout(timer);
     counterTimers.current.clear();
-    const outstanding = Object.values(stagedCountersRef.current)
-      .filter((staged) => !staged.sending);
+    const store = useSessionStore.getState();
+    const owner = activeCounterDraftOwner(store.session, store.me, store.gmInstance);
+    const outstanding = Object.entries(stagedCountersRef.current)
+      .filter(([, staged]) => !staged.sending);
     stagedCountersRef.current = {};
-    for (const staged of outstanding) void sendStagedCounter(staged);
+    for (const [key, staged] of outstanding) {
+      if (staged.stale) {
+        if (owner) saveDetachedCounterDraft(owner, key, staged);
+      } else {
+        void sendStagedCounter(staged);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -1452,6 +1554,7 @@ export default function GmConsole() {
     const queued = stagedCountersRef.current[key];
     if (!queued || queued.sending) return;
     const started = useSessionStore.getState();
+    const submittedOwner = activeCounterDraftOwner(started.session, started.me, started.gmInstance);
     const submittedSessionId = started.session?.id;
     const submittedInstanceId = started.gmInstance?.id;
     const submittedUid = started.me?.uid;
@@ -1459,6 +1562,7 @@ export default function GmConsole() {
     if (timer !== undefined) window.clearTimeout(timer);
     counterTimers.current.delete(key);
     const sending = { ...queued, sending: true };
+    removeDetachedCounterDraft(submittedOwner, key);
     replaceStagedCounters({ ...stagedCountersRef.current, [key]: sending });
     void (async () => {
       try {
@@ -1471,19 +1575,51 @@ export default function GmConsole() {
           const currentAmount = latest.session
             ? counterAmountFromSession(latest.session, sending.target)
             : undefined;
+          const latestOwner = activeCounterDraftOwner(latest.session, latest.me, latest.gmInstance);
           if (submittedSessionId && submittedInstanceId && submittedUid &&
               latest.session?.id === submittedSessionId && latest.me?.uid === submittedUid &&
               latest.me.role === 'gm' && latest.gmInstance?.id === submittedInstanceId &&
               latest.gmInstance.sessionId === submittedSessionId &&
               latest.gmInstance.uid === submittedUid && currentAmount !== undefined &&
-              stagedCountersRef.current[key] === sending) {
-            replaceStagedCounters({
-              ...stagedCountersRef.current,
-              [key]: { ...sending, baseAmount: currentAmount, sending: false, stale: true },
-            });
+              latestOwner && stagedCountersRef.current[key] === sending) {
+            const currentRevision = latest.session?.vesselActionRevisions?.[sending.target.shipId] ?? result.revision;
+            const retryBlock = result.retryBlockedByAlert ||
+              hasAuthoritativeCounterAlert(latest.session, sending.target) ? 'alert' : undefined;
+            const stale = {
+              ...sending,
+              baseAmount: currentAmount,
+              sending: false,
+              stale: true,
+              staleRevision: Math.max(result.revision, currentRevision),
+              retryBlock,
+            } satisfies StagedCounter;
+            replaceStagedCounters({ ...stagedCountersRef.current, [key]: stale });
           }
         }
       } catch {
+        if (sending.stale) {
+          const latest = useSessionStore.getState();
+          const currentAmount = latest.session
+            ? counterAmountFromSession(latest.session, sending.target)
+            : undefined;
+          const latestOwner = activeCounterDraftOwner(latest.session, latest.me, latest.gmInstance);
+          if (latestOwner && latestOwner.sessionId === submittedSessionId &&
+              latestOwner.uid === submittedUid && latestOwner.instanceId === submittedInstanceId &&
+              currentAmount !== undefined && stagedCountersRef.current[key] === sending) {
+            const currentRevision = latest.session?.vesselActionRevisions?.[sending.target.shipId] ?? 0;
+            replaceStagedCounters({
+              ...stagedCountersRef.current,
+              [key]: {
+                ...sending,
+                baseAmount: currentAmount,
+                sending: false,
+                stale: true,
+                staleRevision: Math.max(sending.staleRevision ?? 0, currentRevision),
+                retryBlock: 'refresh',
+              },
+            });
+          }
+        }
         // The shared interception notice reports the server rejection.
       } finally {
         if (stagedCountersRef.current[key] === sending) {
@@ -1498,7 +1634,7 @@ export default function GmConsole() {
   function stageCounterChange(target: CounterTarget, amount: number, step: CounterStep): void {
     const key = counterKey(target);
     const existing = stagedCountersRef.current[key];
-    if (thresholdHolds[key] || existing?.sending || existing?.steps.length === 12) return;
+    if (thresholdHolds[key] || existing?.sending || existing?.stale || existing?.steps.length === 12) return;
     const baseAmount = existing?.baseAmount ?? amount;
     const previous = previewCounter(target, baseAmount, existing?.steps ?? []);
     if (previous.alertRaised) return;
@@ -1532,6 +1668,20 @@ export default function GmConsole() {
         ? previewCounter(target, staged.baseAmount, staged.steps)
         : { amount, appliedSteps: [], alertRaised: false },
     };
+  }
+
+  function discardStagedCounter(key: string): void {
+    const timer = counterTimers.current.get(key);
+    if (timer !== undefined) window.clearTimeout(timer);
+    counterTimers.current.delete(key);
+    removeDetachedCounterDraft(
+      activeCounterDraftOwner(useSessionStore.getState().session,
+        useSessionStore.getState().me, useSessionStore.getState().gmInstance),
+      key,
+    );
+    const remaining = { ...stagedCountersRef.current };
+    delete remaining[key];
+    replaceStagedCounters(remaining);
   }
 
   async function changeFacilitatorResponsibility(
@@ -3076,14 +3226,15 @@ export default function GmConsole() {
                 const populationBlocked = Boolean(session.populationAlerts?.[ship.id]) ||
                   Boolean(thresholdHolds[counterKey(populationTarget)]) ||
                   populationCounter?.preview.alertRaised === true ||
-                  populationCounter?.staged?.sending === true;
+                  populationCounter?.staged?.sending === true || populationCounter?.staged?.stale === true;
                 const unrestAmount = session.shipUnrest?.[ship.id] ?? 0;
                 const unrestTarget: CounterTarget = { counter: 'unrest', shipId: ship.id };
                 const unrestCounter = stagedCounterPreview(unrestTarget, unrestAmount);
                 const visibleUnrest = unrestCounter.preview.amount;
                 const unrestBlocked = Boolean(session.unrestAlerts?.[ship.id]) ||
                   Boolean(thresholdHolds[counterKey(unrestTarget)]) ||
-                  unrestCounter.preview.alertRaised || unrestCounter.staged?.sending === true;
+                  unrestCounter.preview.alertRaised || unrestCounter.staged?.sending === true ||
+                  unrestCounter.staged?.stale === true;
                 if (!resources) return null;
                 const destroyed = session.shipDamage?.[ship.id]?.destroyed === true;
                 const retainedStoreCount = RESOURCE_DEFINITIONS.reduce(
@@ -3126,9 +3277,9 @@ export default function GmConsole() {
                         return amount === undefined ? null : (
                           <li
                             key={resource.id}
-                            aria-label={`${resource.label}: ${visibleAmount}${counter.staged?.stale
-                              ? ', stale changes ready to retry'
-                              : counter.staged ? ', pending transmission' : ''}`}
+                            aria-label={counter.staged?.stale
+                              ? `${resource.label}: current ${amount.toLocaleString('en-US')}, proposed ${visibleAmount.toLocaleString('en-US')}, stale changes ready to retry`
+                              : `${resource.label}: ${visibleAmount}${counter.staged ? ', pending transmission' : ''}`}
                           >
                             <span className="resource-label">
                               <ResourceIcon id={resource.id} label={resource.label} />
@@ -3138,28 +3289,39 @@ export default function GmConsole() {
                               <button
                                 type="button"
                                 aria-label={`Decrease ${resource.label}`}
-                                disabled={!shipNumberWrite || counter.staged?.sending === true || visibleAmount === 0}
+                                disabled={!shipNumberWrite || counter.staged?.sending === true || counter.staged?.stale === true || visibleAmount === 0}
                                 onClick={() => stageCounterChange(target, amount, -1)}
                               >−</button>
                               <strong>{visibleAmount}</strong>
                               <button
                                 type="button"
                                 aria-label={`Increase ${resource.label}`}
-                                disabled={!shipNumberWrite || counter.staged?.sending === true}
+                                disabled={!shipNumberWrite || counter.staged?.sending === true || counter.staged?.stale === true}
                                 onClick={() => stageCounterChange(target, amount, 1)}
                               >+</button>
                             </div>
                             {counter.staged?.stale && (
                               <>
                                 <p role="status">
-                                  Counter changed while these steps were pending // review the current amount, then retry.
+                                  {counter.staged.retryBlock === 'alert'
+                                    ? 'Retry is paused // dismiss the current counter alert first.'
+                                    : counter.staged.retryBlock === 'refresh'
+                                      ? 'Retry is paused // waiting for a newer live counter snapshot.'
+                                      : 'Counter changed while these steps were pending // review the current amount, then retry.'}
                                 </p>
+                                <p>Current amount: {amount.toLocaleString('en-US')}; proposed after steps: {visibleAmount.toLocaleString('en-US')}</p>
                                 <button
                                   type="button"
-                                  disabled={!shipNumberWrite || counter.staged.sending}
+                                  disabled={!shipNumberWrite || counter.staged.sending || counter.staged.retryBlock !== undefined}
                                   aria-label={`Retry ${counterLabel} changes for ${ship.name}`}
                                   onClick={() => flushStagedCounter(counterKey(target))}
                                 >Retry staged counter changes</button>
+                                <button
+                                  type="button"
+                                  disabled={counter.staged.sending}
+                                  aria-label={`Discard ${counterLabel} changes for ${ship.name}`}
+                                  onClick={() => discardStagedCounter(counterKey(target))}
+                                >Discard staged counter changes</button>
                               </>
                             )}
                           </li>
@@ -3214,9 +3376,9 @@ export default function GmConsole() {
                     <ul>
                       {population !== undefined && (
                         <li
-                          aria-label={`Survivor Population: ${visiblePopulation}${populationCounter?.staged?.stale
-                            ? ', stale changes ready to retry'
-                            : populationCounter?.staged ? ', pending transmission' : ''}`}
+                          aria-label={populationCounter?.staged?.stale
+                            ? `Survivor Population: current ${population.toLocaleString('en-US')}, proposed ${visiblePopulation.toLocaleString('en-US')}, stale changes ready to retry`
+                            : `Survivor Population: ${visiblePopulation}${populationCounter?.staged ? ', pending transmission' : ''}`}
                         >
                           <span className="resource-label">Survivor Population</span>
                           <div className="ship-counter__controls" aria-busy={populationCounter?.staged?.sending === true}>
@@ -3231,21 +3393,32 @@ export default function GmConsole() {
                           {populationCounter?.staged?.stale && (
                             <>
                               <p role="status">
-                                Counter changed while these steps were pending // review the current amount, then retry.
+                                {populationCounter.staged.retryBlock === 'alert'
+                                  ? 'Retry is paused // dismiss the current counter alert first.'
+                                  : populationCounter.staged.retryBlock === 'refresh'
+                                    ? 'Retry is paused // waiting for a newer live counter snapshot.'
+                                    : 'Counter changed while these steps were pending // review the current amount, then retry.'}
                               </p>
+                              <p>Current amount: {population.toLocaleString('en-US')}; proposed after steps: {visiblePopulation.toLocaleString('en-US')}</p>
                               <button
                                 type="button"
-                                disabled={!shipNumberWrite || populationCounter.staged.sending}
+                                disabled={!shipNumberWrite || populationCounter.staged.sending || populationCounter.staged.retryBlock !== undefined || hasAuthoritativeCounterAlert(session, populationTarget)}
                                 aria-label={`Retry ${counterTargetLabel(populationTarget)} changes for ${ship.name}`}
                                 onClick={() => flushStagedCounter(counterKey(populationTarget))}
                               >Retry staged counter changes</button>
+                              <button
+                                type="button"
+                                disabled={populationCounter.staged.sending}
+                                aria-label={`Discard ${counterTargetLabel(populationTarget)} changes for ${ship.name}`}
+                                onClick={() => discardStagedCounter(counterKey(populationTarget))}
+                              >Discard staged counter changes</button>
                             </>
                           )}
                         </li>
                       )}
-                      <li aria-label={`Civil Unrest: ${visibleUnrest}${unrestCounter.staged?.stale
-                        ? ', stale changes ready to retry'
-                        : unrestCounter.staged ? ', pending transmission' : ''}`}>
+                      <li aria-label={unrestCounter.staged?.stale
+                        ? `Civil Unrest: current ${unrestAmount}, proposed ${visibleUnrest}, stale changes ready to retry`
+                        : `Civil Unrest: ${visibleUnrest}${unrestCounter.staged ? ', pending transmission' : ''}`}>
                         <span className="resource-label">
                           <ResourceIcon id="unrest" label="Civil Unrest" />
                           <span>Civil Unrest</span>
@@ -3268,14 +3441,25 @@ export default function GmConsole() {
                         {unrestCounter.staged?.stale && (
                           <>
                             <p role="status">
-                              Counter changed while these steps were pending // review the current amount, then retry.
+                              {unrestCounter.staged.retryBlock === 'alert'
+                                ? 'Retry is paused // dismiss the current counter alert first.'
+                                : unrestCounter.staged.retryBlock === 'refresh'
+                                  ? 'Retry is paused // waiting for a newer live counter snapshot.'
+                                  : 'Counter changed while these steps were pending // review the current amount, then retry.'}
                             </p>
+                            <p>Current amount: {unrestAmount}; proposed after steps: {visibleUnrest}</p>
                             <button
                               type="button"
-                              disabled={!shipNumberWrite || unrestCounter.staged.sending}
+                              disabled={!shipNumberWrite || unrestCounter.staged.sending || unrestCounter.staged.retryBlock !== undefined || hasAuthoritativeCounterAlert(session, unrestTarget)}
                               aria-label={`Retry ${counterTargetLabel(unrestTarget)} changes for ${ship.name}`}
                               onClick={() => flushStagedCounter(counterKey(unrestTarget))}
                             >Retry staged counter changes</button>
+                            <button
+                              type="button"
+                              disabled={unrestCounter.staged.sending}
+                              aria-label={`Discard ${counterTargetLabel(unrestTarget)} changes for ${ship.name}`}
+                              onClick={() => discardStagedCounter(counterKey(unrestTarget))}
+                            >Discard staged counter changes</button>
                           </>
                         )}
                       </li>

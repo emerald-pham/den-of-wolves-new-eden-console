@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import type { SetupReceipt } from '@/types/game';
+import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 
 vi.mock('firebase/auth', () => ({
   signInAnonymously: vi.fn().mockResolvedValue(undefined),
@@ -140,6 +141,7 @@ function counterBatchResponse(
     amount: 8,
     ...(values.status === 'stale' ? {} : { appliedSteps: values.appliedSteps ?? payload.steps }),
     alertRaised: false,
+    ...(values.status === 'stale' ? { retryBlockedByAlert: false } : {}),
     actorUid: 'u1', actorRoleId: null, vesselId: payload.shipId,
     turn: 1, phase: 'active', revision,
     idempotencyKey: requestId,
@@ -3023,7 +3025,7 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
   });
   const call = Object.assign(vi.fn(async (payload: Record<string, unknown>) =>
     counterBatchResponse(payload, { amount: 8, appliedSteps: [1, 1] })), { stream: vi.fn() });
-  vi.mocked(httpsCallable).mockReturnValue(call);
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
 
   const result = await applyShipCounterSteps(
     'dione', { counter: 'resource', resourceId: 'fuel' }, [1, 1],
@@ -3099,6 +3101,7 @@ it.each([
   ['actor', { actorUid: 'u2' }],
   ['expected revision', { expectedRevision: 1 }],
   ['current revision', { currentRevision: 1 }],
+  ['alert disposition', { retryBlockedByAlert: 'yes' }],
 ] as const)('rejects a stale reply with a mismatched %s binding without patching local state', async (_field, mismatch) => {
   useSessionStore.getState().setIdentity({
     ...session,
@@ -3169,7 +3172,7 @@ it.each([
     const current = useSessionStore.getState().session!;
     useSessionStore.getState().setSession({
       ...current,
-      shipResources: { ...current.shipResources, dione: { ...current.shipResources?.dione, fuel: 14 } },
+      shipResources: { ...current.shipResources, dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 14 } },
       vesselActionRevisions: { dione: 4 },
     });
     return counterBatchResponse(payload, {
@@ -3210,9 +3213,12 @@ it.each([
   });
   expect(acceptCallableSessionAuthority(initialSession, 'u1')).toBe(true);
   let finish!: (value: { data: Record<string, unknown> }) => void;
-  const call = Object.assign(vi.fn((payload: Record<string, unknown>) => new Promise<{ data: Record<string, unknown> }>((resolve) => {
+  const call = Object.assign(vi.fn((payload: Record<string, unknown>) => {
+    void payload;
+    return new Promise<{ data: Record<string, unknown> }>((resolve) => {
     finish = (value) => resolve(value);
-  })), { stream: vi.fn() });
+    });
+  }), { stream: vi.fn() });
   vi.mocked(httpsCallable).mockReturnValue(call as never);
   const pending = applyShipCounterSteps('dione', { counter: 'resource', resourceId: 'fuel' }, [1]);
   await vi.waitFor(() => expect(call).toHaveBeenCalled());
@@ -3220,7 +3226,7 @@ it.each([
   const newerSession = {
     ...initialSession,
     updatedAt: '2026-09-23T10:01:00.000Z',
-    shipResources: { dione: { ...initialSession.shipResources.dione, fuel: 14 } },
+    shipResources: { dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 14 } },
     vesselActionRevisions: { dione: 4 },
   };
   expect(acceptCallableSessionAuthority(newerSession, 'u1')).toBe(true);
@@ -3232,7 +3238,11 @@ it.each([
     revision: responseRevision,
   }));
 
-  await expect(pending).resolves.toBeNull();
+  if (status === 'stale') {
+    await expect(pending).resolves.toMatchObject({ status: 'stale', amount: 7, revision: responseRevision });
+  } else {
+    await expect(pending).resolves.toBeNull();
+  }
   expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(14);
   expect(useSessionStore.getState().session?.vesselActionRevisions?.dione).toBe(4);
 });

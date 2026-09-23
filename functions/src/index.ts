@@ -19881,7 +19881,7 @@ export const applyShipCounterSteps = onCall<{
   resourceId?: string;
   steps: number[];
   requestId?: string;
-  expectedRevision?: number;
+  expectedRevision: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterBatchRequest(request.data ?? {});
@@ -19940,11 +19940,19 @@ export const applyShipCounterSteps = onCall<{
       }
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
         identity.requestId, 'counter-batch');
+      const unrestAlerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
+      const populationAlerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+      const retryBlockedByAlert = change.counter === 'unrest'
+        ? Boolean(unrestAlerts[change.shipId])
+        : change.counter === 'population'
+          ? Boolean(populationAlerts[change.shipId])
+          : false;
       const stale = {
         status: 'stale' as const,
         ...batchContext,
         amount: currentAmount as number,
         alertRaised: false,
+        retryBlockedByAlert,
         currentRevision,
         ...envelope,
       };

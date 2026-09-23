@@ -1206,6 +1206,7 @@ export interface ShipCounterBatchResult extends Partial<VesselActionEnvelope> {
   readonly revision: number;
   readonly status?: 'stale';
   readonly currentRevision?: number;
+  readonly retryBlockedByAlert?: boolean;
 }
 
 interface CounterBatchReplyContext {
@@ -1240,12 +1241,14 @@ function counterBatchReply(value: unknown, expected: CounterBatchReplyContext): 
       typeof raw.auditId !== 'string' || raw.auditId.length === 0) return null;
 
   if (raw.status === 'stale') {
-    if (raw.alertRaised !== false || raw.currentRevision !== revision ||
+    if (raw.alertRaised !== false || typeof raw.retryBlockedByAlert !== 'boolean' ||
+        raw.currentRevision !== revision ||
         !Number.isSafeInteger(raw.currentRevision) ||
         (raw.currentRevision as number) <= expected.expectedRevision ||
         Object.prototype.hasOwnProperty.call(raw, 'appliedSteps')) return null;
     return {
       status: 'stale', amount: raw.amount as number, alertRaised: false,
+      retryBlockedByAlert: raw.retryBlockedByAlert,
       currentRevision: raw.currentRevision as number,
       revision: revision as number,
       idempotencyKey: expected.requestId,
@@ -1332,8 +1335,8 @@ export async function applyShipCounterSteps(
     const current = currentStore.session;
     if (!current || current.id !== sessionId || currentStore.me?.uid !== actorUid ||
         currentStore.me.role !== 'gm' || currentStore.gmInstance?.id !== instanceId ||
-        currentStore.gmInstance.sessionId !== sessionId || currentStore.gmInstance.uid !== actorUid ||
-        !authorityCheckpointIsCurrent(checkpoint)) return null;
+        currentStore.gmInstance.sessionId !== sessionId || currentStore.gmInstance.uid !== actorUid) return null;
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply.status === 'stale' ? reply : null;
     const currentRevision = current.vesselActionRevisions?.[shipId] ?? 0;
     if (!Number.isSafeInteger(currentRevision) || currentRevision < 0 || reply.revision <= currentRevision) {
       return reply;

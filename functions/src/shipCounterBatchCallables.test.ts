@@ -124,7 +124,7 @@ it.each([
   }));
 
   expect(result).toMatchObject({
-    status: 'stale', amount, alertRaised: false,
+    status: 'stale', amount, alertRaised: false, retryBlockedByAlert: false,
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter,
     requestId: `stale-${counter}`, expectedRevision: 1, currentRevision: 3,
     actorUid: 'u1', vesselId: 'dione', revision: 3,
@@ -133,7 +133,7 @@ it.each([
   expect(Object.keys(result).sort()).toEqual([
     'actorRoleId', 'actorUid', 'alertRaised', 'amount', 'auditId', 'counter',
     'currentRevision', 'expectedRevision', 'idempotencyKey', 'instanceId',
-    'phase', 'requestId', 'revision', 'sessionId', 'shipId', 'status', 'turn',
+    'phase', 'requestId', 'retryBlockedByAlert', 'revision', 'sessionId', 'shipId', 'status', 'turn',
     'vesselId', ...(resourceId === undefined ? [] : ['resourceId']),
   ].sort());
   expect(mock.set).toHaveBeenCalledWith(
@@ -147,6 +147,28 @@ it.each([
   }))).resolves.toEqual(result);
   expect(mock.set).toHaveBeenCalledTimes(1);
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['unrest', 'unrestAlerts'],
+  ['population', 'populationAlerts'],
+] as const)('reports only whether the stale %s retry is blocked by a pending GM alert', async (counter, alertField) => {
+  mock.revision = 3;
+  mock[alertField] = {
+    dione: {
+      shipId: 'dione', shipName: 'Dione', targetGmInstanceIds: ['gm1'], createdAt: 'server-time',
+    },
+  };
+
+  const result = await applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter,
+    steps: [-1], expectedRevision: 1, requestId: `stale-alert-${counter}`,
+  }));
+
+  expect(result).toMatchObject({ status: 'stale', retryBlockedByAlert: true });
+  expect(Object.keys(result)).not.toContain('unrestAlerts');
+  expect(Object.keys(result)).not.toContain('populationAlerts');
+  expect(JSON.stringify(result)).not.toContain('targetGmInstanceIds');
 });
 
 it('fails closed when a stale population reply cannot project a value on the printed track', async () => {
