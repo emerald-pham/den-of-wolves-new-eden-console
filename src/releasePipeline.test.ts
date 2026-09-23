@@ -352,7 +352,7 @@ it('verifies Hosting and public Functions through injected production adapters',
 
 it('proves every selected Function published a different ready Cloud Run revision', async () => {
   const commands: string[][] = [];
-  const runCommand = async (_command: string, args: string[]) => {
+  const runCommand = async (_command: string, args: readonly string[]) => {
     commands.push([...args]);
     if (args[0] === 'functions' && args[1] === 'describe') {
       return JSON.stringify({

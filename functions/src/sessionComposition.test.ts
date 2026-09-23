@@ -272,6 +272,7 @@ import {
 import { recommendedRoleIds } from './roleConfiguration';
 import { INITIAL_SHIP_RESOURCES } from './resources';
 import { airspaceClosureEventId, airspaceClosureTaskPlan } from './airspaceClosureTasks';
+import { callableRateLimitDocumentId } from './callableRateLimit';
 
 type CompositionCount = 8 | 19 | 20;
 
@@ -1165,10 +1166,15 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     };
     const staleReceiptPath = `sessionStartRequests/${sessionId}_${staleRequest.requestId}`;
     const staleMarkerPath = `sessions/${sessionId}/commandReceipts/${staleRequest.requestId}`;
-    const beforeStale = stateSnapshot([staleReceiptPath, staleMarkerPath]);
+    const startRateLimitPath = `sessions/${sessionId}/serverState/callableRateLimit-${callableRateLimitDocumentId({
+      callableName: 'startGame', sessionId, uid: ownerUid,
+    })}`;
+    const priorRateLimit = read(startRateLimitPath) as { requestCount?: number } | undefined;
+    const beforeStale = stateSnapshot([staleReceiptPath, staleMarkerPath, startRateLimitPath]);
     const stale = await startGame.run(request(staleRequest, ownerUid));
     expect(stale).toMatchObject({ status: 'stale', currentSetupRevision: started.setupRevision });
-    expect(stateSnapshot([staleReceiptPath, staleMarkerPath])).toBe(beforeStale);
+    expect(stateSnapshot([staleReceiptPath, staleMarkerPath, startRateLimitPath])).toBe(beforeStale);
+    expect(read(startRateLimitPath)).toMatchObject({ requestCount: (priorRateLimit?.requestCount ?? 0) + 1 });
     expect(read(staleReceiptPath)).toMatchObject({
       requestId: staleRequest.requestId,
       reply: { status: 'stale', currentSetupRevision: started.setupRevision },
