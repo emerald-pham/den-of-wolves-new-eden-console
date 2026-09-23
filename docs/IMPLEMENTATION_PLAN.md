@@ -2730,7 +2730,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 575
 - [ ] Prompt 576
 - [x] Prompt 577
-- [ ] Prompt 578
+- [x] Prompt 578
 - [ ] Prompt 579
 - [ ] Prompt 580
 - [ ] Prompt 581
@@ -3499,7 +3499,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 575 — [NEW] Resolve Macaw repairs.** Acceptance: one Scrap repairs each of up to two consoles, with fuel permitting a second eligible ship.
 - **Prompt 576 — [DECISION] Resolve Macaw salvage dismantling.** Acceptance: target permission and the recorded self-dismantling policy govern deliberate damage and Scrap gain.
 - **Prompt 577 — [NEW] Resolve Macaw cargo.** Acceptance: ore, fuel, food, water, material, Scrap, and security teams transfer only between legal docked inventories.
-- **Prompt 578 — [NEW] Resolve Boa recycling.** Acceptance: each of the five printed exchange recipes yields one Scrap, no more than twice per turn, atomically.
+- **Prompt 578 — [NEW] Resolve Boa recycling.** Acceptance: six food, six water, six ore, three materials, or six fuel from Boa's currently docked host ship each yields one Scrap, at most twice per fuelled Coordination cycle, atomically.
 - **Prompt 579 — [NEW] Resolve Boa reclamation.** Acceptance: one pre-deal opportunity halves difficulty, replaces reward with one Scrap, and grants no critical bonus.
 - **Prompt 580 — [DECISION] Resolve Boa combat ambiguity.** Acceptance: each range Scrap attack follows the recorded policy for destroyed/invalid targets and never spends on denial.
 - **Prompt 581 — [NEW] Create post-damage Scrap pickups.** Acceptance: each ship taking at least three attack damage yields exactly one collectible Scrap per attack.

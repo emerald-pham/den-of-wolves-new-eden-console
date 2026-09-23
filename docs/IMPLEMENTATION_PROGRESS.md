@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**477 / 751 prompts complete (63.52%)**
+**478 / 751 prompts complete (63.65%)**
 
-Status breakdown: **477 done · 11 partial · 263 missing**.
+Status breakdown: **478 done · 11 partial · 262 missing**.
 
 Active prompt: **none**
 
@@ -1047,7 +1047,7 @@ release classification and evidence.
 | 575 | done | non-feature | 0.5.3 | Completed in the 0.5.3 release. Macaw repairs now run through an authoritative transactional callable: the Capybara Captain spends one Scrap per damaged console, repairs up to two consoles per eligible docked ship, and fuel permits a second ship in the same cycle. Group, docking, role, cycle, damage, Scrap, replay, privacy, hydration, UI, and direct-write denial regressions are covered. |
 | 576 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 577 | done | non-feature | — | Closed by evidence reconciliation with the released Prompt 113 cargo callable. Macaw's full printed cargo, including Scrap and security teams, transfers only between its own ledger and the current legal docked host through one holder-, revision-, group-, and replay-bound server transaction. Macaw-specific focused tests cover every permitted type and a production-callable Scrap transfer; shared callable tests cover fail-closed transfer boundaries. No runtime, version, or player-facing change is needed. |
-| 578 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 578 | done | feature | 0.5.9 | Boa recycling uses the currently docked host ship's authoritative inventory: six food, six water, six ore, three materials, or six fuel buys one Scrap, with at most two exchanges per fuelled Coordination cycle. The transactional production client/server path binds the current Capybara Recycler, Boa control, legal active fleet dock, live Coordination window, fuel, cycle quota, exact host balances, and replay identity before atomically debiting the host, crediting only Boa's Scrap cargo, and writing a privacy-safe event. Focused callable, projection, service, panel, and Firestore-denial tests plus real Chrome review of phone, landscape, desktop, and reduced-motion states provide candidate-local production-path evidence. No live Firebase claim is made here. |
 | 579 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 580 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 581 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

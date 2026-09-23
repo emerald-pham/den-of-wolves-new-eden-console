@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [578],
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 11, active: 0, missing: 262,
+    },
+    changes: [
+      "Boa trades one printed amount (6 food / 6 water / 6 ore / 3 materials / 6 fuel) from its docked host for 1 Scrap up to twice per fuelled Coordination cycle.",
+      "478 of 751 planned items are complete (63.65%).",
+    ],
+  },
+
+  {
+    version: '0.5.8',
     implementationPrompts: [608],
     implementationProgress: {
       completed: 477, total: 751, percentage: '63.52%',

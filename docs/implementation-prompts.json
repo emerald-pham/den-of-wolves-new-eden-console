@@ -4314,6 +4314,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "578",
+      "id": "E-578-BOA-RECYCLING-CANDIDATE",
+      "language": "The current Capybara Recycler can atomically trade one printed recipe from Boa's currently docked host ship for one Scrap, at most twice per fuelled Coordination cycle. Focused authoritative callable, projection, service, panel, and rules-denial coverage plus real Chrome responsive review exercise the production client and server paths. This is candidate-local evidence; it does not claim a live Firebase deployment.",
+      "source": "src/data/vessels/boa.ts; functions/src/boaRecycling.ts; functions/src/boaRecyclingCallable.ts; functions/src/index.ts recycleWithBoa transaction; functions/src/boaRecycling.test.ts; functions/src/boaRecyclingCallable.test.ts; functions/src/eventRedaction.test.ts; src/lib/boaRecyclingService.test.ts; src/lib/firestore.test.ts; src/components/BoaRecyclingPanel.test.tsx; src/components/ShuttleConsoleTemplate.test.tsx; tests/rules/firestore.rules.test.ts; Chrome renders at 390x844, 844x390, and 1440x900 with reduced-motion coverage",
+      "type": "production-path / docked-host authority / atomic exchange / privacy / rules-denial / responsive render"
+    },
+    {
       "direction": "579 -> 578",
       "id": "E-AUDIT-579",
       "language": "Boa reclamation consumes recycling state.",
@@ -21198,15 +21205,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "each of the five printed exchange recipes yields one Scrap, no more than twice per turn, atomically.",
+        "acceptance": "six food, six water, six ore, three materials, or six fuel from Boa's currently docked host ship each yields one Scrap, at most twice per fuelled Coordination cycle, atomically.",
         "title": "Resolve Boa recycling."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-578",
+      "description": "Boa recycling uses the currently docked host ship's authoritative inventory: six food, six water, six ore, three materials, or six fuel buys one Scrap, with at most two exchanges per fuelled Coordination cycle. The transactional production client/server path binds the current Capybara Recycler, Boa control, legal active fleet dock, live Coordination window, fuel, cycle quota, exact host balances, and replay identity before atomically debiting the host, crediting only Boa's Scrap cargo, and writing a privacy-safe event. Focused callable, projection, service, panel, and Firestore-denial tests plus real Chrome review of phone, landscape, desktop, and reduced-motion states provide candidate-local production-path evidence. No live Firebase claim is made here.",
+      "evidenceIds": "E-AUDIT-578;E-578-BOA-RECYCLING-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "400",
@@ -21214,10 +21221,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.9"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
