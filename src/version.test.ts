@@ -10,6 +10,14 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
+it('describes connected-player roster privacy in the current release notes', () => {
+  const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+
+  expect(currentEntry?.changes).toContain(
+    'After you reconnect or your role or fleet group changes, the connected player list clears until the app confirms your access.',
+  );
+});
+
 it('retains the reconnection grace in player-facing release notes', () => {
   expect(CHANGELOG.some((entry) => entry.changes.includes(
     'Connection indicators now keep the connected state through the first 30 seconds of a disconnect and only reveal the disconnected icon after that window when the player had been continuously interacting for more than 30 seconds before the outage.',

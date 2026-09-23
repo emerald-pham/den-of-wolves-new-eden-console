@@ -26,6 +26,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 478, partial: 16, active: 0, missing: 257,
     },
     changes: [
+      'After you reconnect or your role or fleet group changes, the connected player list clears until the app confirms your access.',
+      '478 of 751 planned items are complete (63.65%).',
+    ],
+  },
+
+  {
+    version: '0.5.19',
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 16, active: 0, missing: 257,
+    },
+    changes: [
       "Endeavour upgrades now install the selected consoles using each target ship's current material cost. In-app controls and Team research progression remain under development.",
       "478 of 751 planned items are complete (63.65%).",
     ],

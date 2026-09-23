@@ -4566,6 +4566,13 @@
       "type": "evidence / partial / production-path / reconnect / privacy / listener / independent-review / production-deployed"
     },
     {
+      "direction": "618 -> connected-player roster listener (partial)",
+      "id": "E-618-CONNECTED-ROSTER-PRIVACY",
+      "language": "The 0.5.20 candidate protects the connected-player roster from cached group exposure and stale listener callbacks after a viewer session, UID, role, or fleet-group change. The listener suppresses cache until metadata-confirmed server data, clears and stops on entitlement changes, and rejects delayed callbacks from its old query; all six current consumers rebind on their entitlement tuple. Zustand persists the viewer identity and group pointer but not the roster. Focused listener regressions, rendered role-only ShuttleConsole rebind, and AppHeader output tests pass. Sol xhigh follow-up review of source SHA aaaf32e66d1085d909f6052920f3fc8589a7a3b6 found no actionable findings. These are local tests and review only; Hosting and live reconnect proof are pending, so Prompt 618 remains partial.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; src/store/useSessionStore.ts; src/components/AppHeader.tsx; src/components/ShuttleControl.tsx; src/components/DioneVipCards.tsx; src/components/PrivateLoyaltyPanel.tsx; src/routes/ShipConsole.tsx; src/routes/GmConsole.tsx; src/routes/ShuttleConsole.test.tsx; Sol xhigh follow-up review aaaf32e66d1085d909f6052920f3fc8589a7a3b6",
+      "type": "evidence / partial / production-path / reconnect / privacy / listener / rendered / independent-review"
+    },
+    {
       "direction": "619 -> 542;612",
       "id": "E-AUDIT-619",
       "language": "Candidate retry reconnect consumes candidate retry and hydration.",
@@ -22355,8 +22362,8 @@
         "acceptance": "session, player, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief listeners replace cache correctly.",
         "title": "Reconnect every live projection."
       },
-      "description": "One production GM roster listener slice now clears cached roster data on reconnect, includes metadata-only snapshots so an unchanged server roster can confirm access, replaces the full roster from current server data, and clears on listener error or unsubscribe while rejecting late callbacks. Focused regressions and Sol xhigh follow-up review approve the repair. Hosting release 0.5.17 is verified by successful exact-SHA Deploy workflow 35898710844 from main SHA 2b85b40d12800329965882b17924fa2f18124d5a; live build-version.json reports 0.5.17. This verifies the deployed build marker, not a live in-session reconnect. Prompt 618 remains partial: session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners have not been verified for cache replacement.",
-      "evidenceIds": "E-AUDIT-618;E-618-GM-ROSTER-RECONNECT",
+      "description": "One production GM roster listener slice now clears cached roster data on reconnect, includes metadata-only snapshots so an unchanged server roster can confirm access, replaces the full roster from current server data, and clears on listener error or unsubscribe while rejecting late callbacks. Hosting release 0.5.17 is verified by successful exact-SHA Deploy workflow 35898710844 from main SHA 2b85b40d12800329965882b17924fa2f18124d5a; live build-version.json reports 0.5.17. This verifies the deployed build marker, not a live in-session reconnect. The 0.5.20 candidate extends reconnect protection to connected-player rosters: cached query snapshots stay hidden until server-confirmed data arrives, and changes to session identity, member identity, UID, role, or fleet group clear and stop the old query so delayed callbacks cannot republish its roster. The six current roster consumers rebind when their entitlement fields change. Persistence review confirms the roster is not stored, while the viewer identity and group pointer are. Local Firestore regressions cover cached group data, metadata-only confirmation, and delayed old server snapshots after GM demotion or group change; a rendered ShuttleConsole regression covers role-only rebind. Sol xhigh follow-up on source SHA aaaf32e66d1085d909f6052920f3fc8589a7a3b6 found no actionable findings. These are local tests and review only; 0.5.20 Hosting and live reconnect proof are pending. Prompt 618 remains partial: session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners have not been verified for cache replacement.",
+      "evidenceIds": "E-AUDIT-618;E-618-GM-ROSTER-RECONNECT;E-618-CONNECTED-ROSTER-PRIVACY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "084;085;086;612",
@@ -22365,7 +22372,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.17"
+        "0.5.17",
+        "0.5.20"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
