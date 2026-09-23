@@ -10,8 +10,8 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,736,000 bytes |
-| Complete landing JavaScript, gzip | 463,000 bytes |
+| Complete application JavaScript, raw | 1,754,000 bytes |
+| Complete application JavaScript, gzip | 469,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
@@ -105,3 +105,14 @@ mission-hand update p95 values were 33.4 ms, 33.4 ms, and 34.6 ms; and the
 chunk, startup, render-update, and mobile-frame budgets remain unchanged; the
 new ceilings retain 3,062 raw bytes and 2,127 gzip bytes of headroom over this
 measured candidate.
+
+Baseline version 10 raises the complete application JavaScript ceilings to
+1,754,000 raw and 469,000 gzip bytes after several production features landed
+since version 9. GitHub Actions run `35901421680` measured 1,751,133 raw and
+466,468 gzip bytes for the 0.5.18 candidate, including its existing release
+history. The unchanged largest chunk measured 496,263 bytes. On that CI host,
+landing and cached Role Select startup p95 were 269.6 ms and 215.45 ms;
+DRADIS, attack, and mission-hand update p95 values were 134.2 ms, 33.4 ms, and
+33.5 ms; the 390x844 mobile probe measured a 66.7 ms p95 with 43 long frames.
+All remain within their unchanged runtime budgets. The new size ceilings leave
+2,867 raw bytes and 2,532 gzip bytes of headroom over this measured candidate.
