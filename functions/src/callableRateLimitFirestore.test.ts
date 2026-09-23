@@ -6,18 +6,29 @@ import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore'
 function rateLimitFirestore(initial: ReadonlyMap<string, unknown> = new Map()) {
   const documents = new Map(initial);
   const paths: string[] = [];
+  let transactionTail = Promise.resolve();
   const firestore = {
     doc: vi.fn((path: string) => {
       paths.push(path);
       return { path };
     }),
-    runTransaction: vi.fn(async <T>(callback: (transaction: unknown) => Promise<T>) => callback({
-      get: async (reference: { path: string }) => ({
-        exists: documents.has(reference.path),
-        data: () => documents.get(reference.path),
-      }),
-      set: (reference: { path: string }, value: unknown) => documents.set(reference.path, value),
-    })),
+    runTransaction: vi.fn(async <T>(callback: (transaction: unknown) => Promise<T>) => {
+      const previous = transactionTail;
+      let release!: () => void;
+      transactionTail = new Promise<void>(resolve => { release = resolve; });
+      await previous;
+      try {
+        return await callback({
+          get: async (reference: { path: string }) => ({
+            exists: documents.has(reference.path),
+            data: () => documents.get(reference.path),
+          }),
+          set: (reference: { path: string }, value: unknown) => documents.set(reference.path, value),
+        });
+      } finally {
+        release();
+      }
+    }),
   } as unknown as Firestore;
   return { firestore, documents, paths };
 }
@@ -76,5 +87,23 @@ describe('Firestore callable rate-limit adapter', () => {
       details: { commandError: 'rate-limit-state-invalid' },
     });
     expect(documents.get(markerPath)).toMatchObject({ identityHash: 'different-user' });
+  });
+
+  it('serializes concurrent same-table mutations against one member budget', async () => {
+    const { firestore, documents } = rateLimitFirestore();
+    const identity = { callableName: 'confirmSetup', sessionId: 'session-a', uid: 'gm-a' } as const;
+    const attempts = await Promise.allSettled(Array.from({ length: 20 }, (_, index) =>
+      enforceExpensiveCallableRateLimit(firestore, identity, 10_000 + index),
+    ));
+    const accepted = attempts.filter(attempt => attempt.status === 'fulfilled');
+    const rejected = attempts.filter(attempt => attempt.status === 'rejected');
+    expect(accepted).toHaveLength(12);
+    expect(rejected).toHaveLength(8);
+    const markerPath = `sessions/session-a/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
+    expect(documents.get(markerPath)).toMatchObject({ requestCount: 12 });
+
+    await expect(enforceExpensiveCallableRateLimit(firestore, {
+      ...identity, uid: 'gm-b',
+    }, 10_021)).resolves.toBeUndefined();
   });
 });

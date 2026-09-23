@@ -62,6 +62,10 @@ describe('expensive callable rate limits', () => {
       getSessionPresence: { windowMs: 60_000, maxRequests: 12 },
       listGmInstances: { windowMs: 60_000, maxRequests: 60 },
       rollDice: { windowMs: 60_000, maxRequests: 30 },
+      confirmSetup: { windowMs: 60_000, maxRequests: 12 },
+      startGame: { windowMs: 60_000, maxRequests: 6 },
+      declareWolfAttack: { windowMs: 60_000, maxRequests: 6 },
+      runMaintenance: { windowMs: 60_000, maxRequests: 30 },
     });
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('uid');
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('ip');
@@ -86,5 +90,20 @@ describe('expensive callable rate limits', () => {
 
     expect(marker).toMatchObject({ requestCount: 28 });
     expect(gmPolicy.maxRequests - cadenceTimes.length).toBe(32);
+  });
+
+  it('allows independent burst budgets for different authenticated members at one table', () => {
+    for (const uid of ['gm-a', 'gm-b', 'player-c']) {
+      const memberIdentity = { callableName: 'runMaintenance', sessionId: 'session-a', uid } as const;
+      let marker: unknown;
+      for (let index = 0; index < 30; index += 1) {
+        const decision = evaluateCallableRateLimit(
+          marker, memberIdentity, CALLABLE_RATE_LIMIT_POLICIES.runMaintenance, 5_000 + index,
+        );
+        expect(decision.allowed).toBe(true);
+        if (decision.allowed) marker = decision.state;
+      }
+      expect(marker).toMatchObject({ requestCount: 30 });
+    }
   });
 });

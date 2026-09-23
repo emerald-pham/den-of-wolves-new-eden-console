@@ -10,6 +10,18 @@ export const CALLABLE_RATE_LIMIT_POLICIES = {
   listGmInstances: { windowMs: 60_000, maxRequests: 60 },
   // Dice remain interactive; the higher budget limits event growth from tight automated loops.
   rollDice: { windowMs: 60_000, maxRequests: 30 },
+  // Setup confirmations are deliberate facilitator actions, but configuration iteration can burst.
+  // Twelve per minute allows one confirmation every five seconds; exact completed replays bypass the gate.
+  confirmSetup: { windowMs: 60_000, maxRequests: 12 },
+  // Starting is a one-time phase transition. Six attempts allow quick correction/retry bursts.
+  // Exact completed replays bypass the gate before the collection reads.
+  startGame: { windowMs: 60_000, maxRequests: 6 },
+  // Attack declaration is a one-time prepared transition; allow six distinct attempts per minute.
+  // Exact completed replays bypass the gate before the collection reads.
+  declareWolfAttack: { windowMs: 60_000, maxRequests: 6 },
+  // Maintenance remains interactive across allowed actions; 30/min permits a two-second burst cadence.
+  // Exact completed replays bypass the gate before the conditional fleet scans.
+  runMaintenance: { windowMs: 60_000, maxRequests: 30 },
 } as const;
 
 export type ExpensiveCallableName = keyof typeof CALLABLE_RATE_LIMIT_POLICIES;
