@@ -1364,6 +1364,51 @@ it('routes every Quellon Engineer responsibility to live controls', async () => 
   expect(within(workspace).getByRole('button', { name: 'Run Water Production II' })).toBeEnabled();
 });
 
+it('routes every Refinery 124 Engineer responsibility to live controls', async () => {
+  const state = useSessionStore.getState();
+  const session = state.session;
+  const me = state.me;
+  if (!session || !me) throw new Error('Expected the test identity.');
+  state.setSession({
+    ...session, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['refinery-124-engineer'], activeVesselIds: ['refinery-124'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    maintenanceCycles: { 'refinery-124': {
+      turn: 2, step: 6, revision: 5,
+      results: { '5': 'Reactor powered up.' },
+      charges: ['fuel-refinery', 'fuel-refinery-ii'], refuelled: [],
+    } },
+    shipResources: { 'refinery-124': {
+      ore: 20, fuel: 4, food: 9, water: 4, materials: 4, securityTeams: 6,
+    } },
+    shipDamage: { 'refinery-124': { damagedSystemIds: [], destroyed: false } },
+    shuttleDockings: [{ shuttleId: 'chacau', shipId: 'refinery-124', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({
+    ...me, assignedRoleId: 'refinery-124-engineer', seatId: 'refinery-124-engineer',
+    activeConsoleRoleId: null,
+  });
+  state.setConnection('live');
+
+  render(<MemoryRouter initialEntries={['/ships/refinery-124/roles/refinery-124-engineer']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('refinery-124-engineer'));
+  const workspace = screen.getByRole('region', { name: 'Refinery 124 Engineer console' });
+  expect(within(workspace).getByRole('region', { name: 'Refinery 124 maintenance cycle' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Refinery 124 resource stores' }))
+    .toHaveTextContent(/ore.*20.*fuel.*4.*food.*9.*water.*4.*materials.*4/i);
+  expect(within(workspace).getByRole('button', { name: 'Run Fuel Refinery' })).toBeEnabled();
+  expect(within(workspace).getByRole('button', { name: 'Run Fuel Refinery II' })).toBeEnabled();
+  expect(within(workspace).getByRole('link', { name: 'Open Chacau shuttle console' }))
+    .toHaveAttribute('href', '/shuttles/chacau');
+});
+
 it.each([
   ['dione', 'Dione', 'dione-captain', 'Hydroponics', '100,000'],
   ['icebreaker', 'Icebreaker', 'icebreaker-captain', 'Mining Drone Control', '40,000'],

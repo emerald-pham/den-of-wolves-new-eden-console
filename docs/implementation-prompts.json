@@ -2760,6 +2760,13 @@
       "type": "evidence / production-path / server-authority / transaction / repair / resource-cost / fuel / replay / privacy / stale-session / typed-hydration / playable-ui / direct-write-denial / regression"
     },
     {
+      "direction": "233a -> REFINERY-ENGINEER-WORKSPACE",
+      "id": "E-233A-REFINERY-ENGINEER-WORKSPACE",
+      "language": "Prompt 233a is closed as production-path evidence reconciliation. The assigned Refinery 124 Engineer route activates the server-authoritative six-step maintenance cycle, live ore/fuel/material/food/water/security stores, both Fuel Refinery run/skip controls, and the Chacau shuttle route. The Chacau console exposes the full permitted cargo-transfer controls and released Prompt 383 repair transaction/panel; focused route tests activate the Engineer workspace and exercise a Chacau ore transfer while existing maintenance, cargo, and Chacau transaction suites prove authority, replay, resource cost, fuel, and stale-session boundaries. No runtime or application-version change is introduced.",
+      "source": "src/routes/ShipConsole.tsx; src/routes/ShipConsole.test.tsx; src/components/FleetConsoleWorkspace.tsx; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; functions/src/maintenance.ts; functions/src/maintenanceCallable.test.ts; src/lib/maintenanceService.ts; src/components/ShuttleConsoleTemplate.tsx; src/components/ShuttleControl.tsx; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; functions/src/shuttleCargoTransfer.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/chacauRepair.ts; functions/src/chacauRepairCallable.ts; src/components/ChacauRepairPanel.tsx; src/lib/chacauRepairService.ts",
+      "type": "evidence / production-path / server-authority / role-bound / route / maintenance / resources / refining / cargo / repair / regression"
+    },
+    {
       "direction": "384 -> 275;361",
       "id": "E-AUDIT-384",
       "language": "Ally repair consumes craft registration and manifest authority.",
@@ -12226,8 +12233,8 @@
         "acceptance": "maintenance, ore/fuel stores, Chacau, refining, repair, and distribution route to real actions.",
         "title": "Complete the Refinery Engineer workspace."
       },
-      "description": "Planned [NEW] prompt. The existing role-bound Refinery Engineer shell exposes server-authoritative maintenance, ore and fuel stores, both Fuel Refinery actions, the registered Chacau route, and released cargo distribution. Completed Prompt 383 now supplies the real Chacau repair action through the production callable and panel; this workspace prompt remains open for its own complete role-bound acceptance audit.",
-      "evidenceIds": "E-AUDIT-233A",
+      "description": "Closed as production-path evidence reconciliation. The assigned Refinery 124 Engineer route activates only the bound role and exposes the server-authoritative six-step maintenance cycle, live ore/fuel/material/food/water/security stores, both Fuel Refinery controls, and the Chacau route. The Chacau console provides the full permitted cargo-transfer controls and released Prompt 383 repair transaction/panel, with focused route tests proving the Engineer workspace controls and Chacau ore distribution action. Existing callable and UI evidence covers authority, revision/replay, resource costs, fuelled second-ship repair, and stale-session handling. No runtime, player-facing wording, or application-version change was required.",
+      "evidenceIds": "E-233A-REFINERY-ENGINEER-WORKSPACE;E-198-230-PRODUCTION;E-164-377-CARGO-AUTHORITY;E-383-CHACAU-REPAIRS;E-AUDIT-224;E-AUDIT-271;E-AUDIT-233A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;224;230;271;361;377;383",
@@ -12238,7 +12245,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
