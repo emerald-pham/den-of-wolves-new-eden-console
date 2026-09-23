@@ -97,15 +97,15 @@ self-review and validation, merge, push, and deployment verification when
 applicable. A sidecar is optional and there is no minimum-agent count. Parallelize
 independent deliverables only when the concrete benefit exceeds coordination,
 context, and integration cost, and give every extra agent a bounded deliverable.
-Delegated workers default to `gpt-6-luna` with `xhigh` reasoning. Luna with
-`xhigh` is the economical default for delegated work. Select `max` only for
-difficult bounded work with a brief reason; there is no automatic max
-escalation.
+Delegated workers default to `gpt-6-luna`. Use `medium` for straightforward
+documentation, evidence, or copy work; `high` for focused implementation; and
+`xhigh` for complex authority or cross-cutting work. Use `max` only for difficult
+bounded work with a brief reason. Adjust effort to the actual task.
 
-Use `gpt-6-sol` with `xhigh` for an independent review when a behavior
-change touches shared session state, callable behavior (including authorization
-and rules), Firestore rules, deployment/authentication infrastructure, or the
-truthfulness of release and capacity evidence.
+Use `gpt-6-sol` for independent review of shared session state, callable behavior
+(including authorization and rules), Firestore rules, deployment/auth
+infrastructure, or release and capacity evidence. Use `medium` or `high` for a
+narrow, well-tested review and `xhigh` for complex authority or privacy risk. Exact threat-model receipts still require `xhigh`.
 Editing comments or copy and routinely deploying an ordinary feature do not by
 themselves trigger review. Keep meaningful security and authority tests and final validation. Send all
 actionable findings together; the owner repairs them, with follow-up limited to
