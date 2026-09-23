@@ -615,6 +615,7 @@ it('renders plain changelog copy with its progress marker and keyboard stop inta
   const region = screen.getByRole('region', { name: /changelog entries/i });
   const renderedChanges = within(region).getAllByRole('listitem').map((item) => item.textContent ?? '');
   const newestEntry = within(region).getAllByRole('article')[0];
+  if (!newestEntry) throw new Error('Expected the current changelog entry.');
 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
