@@ -16240,14 +16240,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "two target consoles, or four when fuelled, use each target ship's current material cost.",
         "title": "Resolve Endeavour field upgrades."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
+      "description": "The 0.5.19 server-authoritative callable accepts up to two Endeavour field-upgrade targets, or four when fuelled, prices each target ship from the shared current research track, atomically installs the canonical consoles, and protects the purchase ledger and replay receipts in server-only state. Purchases do not advance research, and replies/events omit private pricing and ledger details. The production Team research-progress writer and in-app upgrade controls are not connected, so the full research-and-purchase flow remains unfinished. Prompt 391 stays partial.",
       "evidenceIds": "E-AUDIT-391",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -16256,10 +16256,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.19"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

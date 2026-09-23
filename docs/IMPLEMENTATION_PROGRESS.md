@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **478 / 751 prompts complete (63.65%)**
 
-Status breakdown: **478 done · 15 partial · 258 missing**.
+Status breakdown: **478 done · 16 partial · 257 missing**.
 
 Active prompt: **none**
 
@@ -833,7 +833,7 @@ release classification and evidence.
 | 388 | done | feature | 0.4.78 | Release 0.4.78 established Highwall mining during a live, unpaused Coordination window: the current holder chooses materials or strytium ore for two standard operations and a third only while fuelled. The callable verifies active lifecycle, matching cycle and phase clock, unexpired deadline, live custody, fleet-group docking, control and mining revisions, canonical history, cargo, fuel, collision-free request ownership, and exact typed replay before server dice atomically add the precise result to Highwall cargo. The routed console mirrors the live-window gate and shows remaining operations and authoritative results. |
 | 389 | missing | non-feature | — | Planned [NEW] prompt. Production execution depends on the member-safe attack projection and the authoritative Medium and Short range stages; the prior dependency row exposed only craft identity and attack composition, which cannot safely authorize a target or range action. |
 | 390 | done | non-feature | — | Production path implemented: the active Quellon Explorer player rolls Hummingbird's two server dice once per active turn, privately chooses which die becomes food, and credits the other as water to Hummingbird's current shuttleCargo record. Current docking, fuelled state, role authority, active phase, turn, and revision are rechecked in the transaction; exact retries replay without another sample, malformed or stale state fails closed, and the host ship resource ledger is unchanged. The owner-only projection and shared player workspace expose pending dice, the two allocation choices, and the resolved cargo result. Focused server/pure coverage (8 tests), the 29-test player/route suite, the 76-test Firestore rules suite, Functions build, app typecheck, and reduced-motion 320x844/1440x900/844x390 render checks passed. |
-| 391 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 391 | partial | feature | 0.5.19 | The 0.5.19 server-authoritative callable accepts up to two Endeavour field-upgrade targets, or four when fuelled, prices each target ship from the shared current research track, atomically installs the canonical consoles, and protects the purchase ledger and replay receipts in server-only state. Purchases do not advance research, and replies/events omit private pricing and ledger details. The production Team research-progress writer and in-app upgrade controls are not connected, so the full research-and-purchase flow remains unfinished. Prompt 391 stays partial. |
 | 392 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 393 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 394 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

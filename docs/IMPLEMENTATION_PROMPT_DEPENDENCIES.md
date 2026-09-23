@@ -518,7 +518,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 388 | NEW | done | 265;111 | none | none | none | none | none | none | none | E-AUDIT-388;E-388-HIGHWALL-MINING | M7 | Resolve Highwall mining. |
 | 389 | NEW | missing | 265;426;433;439;440 | none | none | none | none | none | none | none | E-AUDIT-389 | M7 | Resolve Highwall combat. |
 | 390 | NEW | done | 269;111 | none | none | none | none | none | none | none | E-AUDIT-390;E-390-IMPLEMENTED | M7 | Resolve Hummingbird harvesting. |
-| 391 | NEW | missing | 267;165;124 | none | none | none | none | none | none | none | E-AUDIT-391 | M7 | Resolve Endeavour field upgrades. |
+| 391 | NEW | partial | 267;165;124 | none | none | none | none | none | none | none | E-AUDIT-391 | M7 | Resolve Endeavour field upgrades. |
 | 392 | NEW | missing | 401 | none | none | none | none | none | none | none | E-AUDIT-392 | M7 | Apply Starlight mission bonuses. |
 | 393 | NEW | missing | 401 | none | none | none | none | none | none | none | E-AUDIT-393 | M7 | Apply Hummingbird mission bonuses. |
 | 394 | NEW | missing | 261;466 | none | none | none | none | none | none | none | E-AUDIT-394 | M7 | Resolve Pallas boarding support. |
