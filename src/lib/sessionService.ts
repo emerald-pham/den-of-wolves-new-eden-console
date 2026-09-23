@@ -151,7 +151,7 @@ function rememberConnectRateLimit(
   const authenticatedUid = auth().currentUser?.uid;
   if (
     requestGeneration !== latestConnectAttemptGeneration ||
-    !sessionId || !uid || state.session?.id !== sessionId || state.me?.uid !== uid || authenticatedUid !== uid
+    !sessionId || !uid || state.session?.id !== sessionId || authenticatedUid !== uid
   ) return false;
   const retryAfterSeconds = normalizeCommandError(cause).retryAfterSeconds ?? 60;
   resumeRateLimitHold = {

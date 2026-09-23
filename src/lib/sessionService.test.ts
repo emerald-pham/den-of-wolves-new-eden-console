@@ -189,11 +189,11 @@ describe('connect', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
-  it('suppresses the App two-second reconnect loop until the server wait expires, then resumes once', async () => {
+  it('suppresses the App reconnect loop for a cached session without a player projection', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
     useSessionStore.getState().setSession(session);
-    useSessionStore.getState().setMe(player);
+    expect(useSessionStore.getState().me).toBeNull();
     const resume = Object.assign(vi.fn()
       .mockRejectedValueOnce({
         code: 'functions/resource-exhausted',

@@ -275,7 +275,7 @@ describe('Landing', () => {
     const user = userEvent.setup();
     vi.mocked(joinSession).mockRejectedValue({
       code: 'functions/resource-exhausted',
-      details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+      details: { commandError: 'unavailable-service', retryAfterSeconds: 600 },
       message: 'private limiter details',
     });
     renderLanding();
@@ -285,10 +285,10 @@ describe('Landing', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'This session is receiving too many requests. Wait for the displayed interval, then retry.',
+        'The fleet service is temporarily unavailable. Reconnect and retry.',
       );
     });
-    expect(screen.getByRole('alert')).toHaveTextContent('Try again in about 60 seconds.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Try again in about 600 seconds.');
     expect(screen.getByRole('alert')).not.toHaveTextContent('private limiter details');
   });
 
