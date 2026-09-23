@@ -19886,9 +19886,21 @@ export const applyShipCounterSteps = onCall<{
   const uid = requireUid(request.auth);
   const change = requireShipCounterBatchRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
+  if (identity.expectedRevision === undefined) {
+    throw new HttpsError('invalid-argument', 'expectedRevision is required for a counter batch.');
+  }
   if (change.counter === 'population' && !populationTrackForShip(change.shipId)) {
     throw new HttpsError('invalid-argument', 'This ship has no survivor track.');
   }
+  const batchContext = {
+    sessionId: change.sessionId,
+    instanceId: change.instanceId,
+    shipId: change.shipId,
+    counter: change.counter,
+    ...(change.counter === 'resource' ? { resourceId: change.resourceId } : {}),
+    requestId: identity.requestId,
+    expectedRevision: identity.expectedRevision,
+  };
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
@@ -19909,9 +19921,33 @@ export const applyShipCounterSteps = onCall<{
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const currentAmount = change.counter === 'resource'
+        ? shipResources(session.get('shipResources'))[change.shipId]?.[change.resourceId]
+        : change.counter === 'unrest'
+          ? shipUnrest(session.get('shipUnrest'))[change.shipId]
+          : populationForShip(change.shipId, session.get('shipSurvivors'));
+      const populationTrack = change.counter === 'population'
+        ? populationTrackForShip(change.shipId)
+        : undefined;
+      if (!Number.isSafeInteger(currentAmount) || (currentAmount as number) < 0 ||
+          (change.counter === 'unrest' && (currentAmount as number) > 10) ||
+          (populationTrack && !populationTrack.steps.includes(currentAmount as number))) {
+        throw commandError(
+          'failed-precondition',
+          'The current ship counter is unavailable; refresh the live session before retrying.',
+          'malformed-input',
+        );
+      }
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
         identity.requestId, 'counter-batch');
-      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      const stale = {
+        status: 'stale' as const,
+        ...batchContext,
+        amount: currentAmount as number,
+        alertRaised: false,
+        currentRevision,
+        ...envelope,
+      };
       txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
     }
@@ -19930,7 +19966,7 @@ export const applyShipCounterSteps = onCall<{
         ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
-      const reply = { ...result, ...vesselActionEnvelope(session, player, uid, change.shipId,
+      const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
         revision, identity.requestId, 'counter-batch') };
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
@@ -19969,7 +20005,7 @@ export const applyShipCounterSteps = onCall<{
         ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
-      const reply = { ...result, ...vesselActionEnvelope(session, player, uid, change.shipId,
+      const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
         revision, identity.requestId, 'counter-batch') };
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
@@ -20023,7 +20059,7 @@ export const applyShipCounterSteps = onCall<{
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    const reply = { ...result, ...vesselActionEnvelope(session, player, uid, change.shipId,
+    const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
       revision, identity.requestId, 'counter-batch') };
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;

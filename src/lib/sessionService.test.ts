@@ -122,6 +122,32 @@ function callableReturning(value: unknown) {
   return Object.assign(vi.fn().mockResolvedValue(value), { stream: vi.fn() });
 }
 
+function counterBatchResponse(
+  payload: Record<string, unknown>,
+  values: Readonly<Record<string, unknown>> = {},
+): { data: Record<string, unknown> } {
+  const requestId = String(payload.requestId);
+  const expectedRevision = Number(payload.expectedRevision);
+  const revision = Number(values.revision ?? expectedRevision + 1);
+  return { data: {
+    sessionId: payload.sessionId,
+    instanceId: payload.instanceId,
+    shipId: payload.shipId,
+    counter: payload.counter,
+    ...(payload.resourceId === undefined ? {} : { resourceId: payload.resourceId }),
+    requestId,
+    expectedRevision,
+    amount: 8,
+    ...(values.status === 'stale' ? {} : { appliedSteps: values.appliedSteps ?? payload.steps }),
+    alertRaised: false,
+    actorUid: 'u1', actorRoleId: null, vesselId: payload.shipId,
+    turn: 1, phase: 'active', revision,
+    idempotencyKey: requestId,
+    auditId: `counter-batch-${requestId}`,
+    ...values,
+  } };
+}
+
 function callableRejecting(value: unknown) {
   return Object.assign(vi.fn().mockRejectedValue(value), { stream: vi.fn() });
 }
@@ -2989,13 +3015,14 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
   useSessionStore.getState().setIdentity({
     ...session,
     shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
-  }, player);
+  }, { ...player, role: 'gm' });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance({
     id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
   });
-  const call = callableReturning({ data: { amount: 8, appliedSteps: [1, 1], alertRaised: false } });
+  const call = Object.assign(vi.fn(async (payload: Record<string, unknown>) =>
+    counterBatchResponse(payload, { amount: 8, appliedSteps: [1, 1] })), { stream: vi.fn() });
   vi.mocked(httpsCallable).mockReturnValue(call);
 
   const result = await applyShipCounterSteps(
@@ -3008,7 +3035,206 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
     resourceId: 'fuel', steps: [1, 1], requestId: expect.any(String), expectedRevision: 0,
   }));
   expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(8);
-  expect(result).toEqual({ amount: 8, alertRaised: false });
+  expect(result).toMatchObject({ amount: 8, alertRaised: false, revision: 1, idempotencyKey: expect.any(String) });
+});
+
+it.each([
+  ['resource', { counter: 'resource', resourceId: 'fuel' } as const, 7],
+  ['unrest', { counter: 'unrest' } as const, 8],
+  ['population', { counter: 'population' } as const, 15_000],
+] as const)('refreshes only the GM-authorized current %s value for explicit retry', async (_counter, target, currentAmount) => {
+  useSessionStore.getState().setIdentity({
+    ...session,
+    phase: 'active',
+    shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+    shipUnrest: { dione: 7 },
+    shipSurvivors: { dione: 16_000 },
+    vesselActionRevisions: { dione: 0 },
+  }, { ...player, role: 'gm' });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  const call = Object.assign(vi.fn(async (payload: Record<string, unknown>) => counterBatchResponse(payload, {
+    status: 'stale', amount: currentAmount, alertRaised: false,
+    expectedRevision: 0, revision: 2, currentRevision: 2,
+    privatePlayerDetails: { uid: 'u2', loyalty: 'hidden' },
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  const result = await applyShipCounterSteps('dione', target, [1]);
+
+  expect(result).toMatchObject({ status: 'stale', amount: currentAmount, currentRevision: 2, revision: 2 });
+  expect(result).not.toHaveProperty('privatePlayerDetails');
+  const current = useSessionStore.getState().session;
+  if (target.counter === 'resource') {
+    expect(current?.shipResources?.dione?.fuel).toBe(currentAmount);
+    expect(current?.shipUnrest?.dione).toBe(7);
+    expect(current?.shipSurvivors?.dione).toBe(16_000);
+  } else if (target.counter === 'unrest') {
+    expect(current?.shipResources?.dione?.fuel).toBe(6);
+    expect(current?.shipUnrest?.dione).toBe(currentAmount);
+    expect(current?.shipSurvivors?.dione).toBe(16_000);
+  } else {
+    expect(current?.shipResources?.dione?.fuel).toBe(6);
+    expect(current?.shipUnrest?.dione).toBe(7);
+    expect(current?.shipSurvivors?.dione).toBe(currentAmount);
+  }
+  expect(useSessionStore.getState().session?.vesselActionRevisions?.dione).toBe(2);
+  expect(call).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: target.counter,
+    ...(target.counter === 'resource' ? { resourceId: target.resourceId } : {}),
+    expectedRevision: 0,
+  }));
+});
+
+it.each([
+  ['session', { sessionId: 's2' }],
+  ['instance', { instanceId: 'gm2' }],
+  ['ship', { shipId: 'aegis', vesselId: 'aegis' }],
+  ['counter', { counter: 'unrest' }],
+  ['resource', { resourceId: 'ore' }],
+  ['request', { requestId: 'different', idempotencyKey: 'different' }],
+  ['actor', { actorUid: 'u2' }],
+  ['expected revision', { expectedRevision: 1 }],
+  ['current revision', { currentRevision: 1 }],
+] as const)('rejects a stale reply with a mismatched %s binding without patching local state', async (_field, mismatch) => {
+  useSessionStore.getState().setIdentity({
+    ...session,
+    phase: 'active',
+    shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+    vesselActionRevisions: { dione: 0 },
+  }, { ...player, role: 'gm' });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  const call = Object.assign(vi.fn(async (payload: Record<string, unknown>) => counterBatchResponse(payload, {
+    status: 'stale', amount: 7,
+    expectedRevision: 0, revision: 2, currentRevision: 2,
+    ...mismatch,
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(applyShipCounterSteps('dione', { counter: 'resource', resourceId: 'fuel' }, [1]))
+    .resolves.toBeNull();
+
+  expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(6);
+  expect(useSessionStore.getState().session?.vesselActionRevisions?.dione).toBe(0);
+});
+
+it('withholds a stale GM counter reply when the local GM instance is revoked mid-request', async () => {
+  useSessionStore.getState().setIdentity({
+    ...session,
+    phase: 'active',
+    shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+  }, { ...player, role: 'gm' });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  const call = Object.assign(vi.fn(async (payload: Record<string, unknown>) => {
+    useSessionStore.getState().setGmInstance(null);
+    return counterBatchResponse(payload, {
+      status: 'stale', amount: 7, expectedRevision: 0, revision: 2, currentRevision: 2,
+    });
+  }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(applyShipCounterSteps('dione', { counter: 'resource', resourceId: 'fuel' }, [1]))
+    .resolves.toBeNull();
+
+  expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(6);
+});
+
+it.each([
+  ['stale', 'stale' as const],
+  ['committed', undefined],
+] as const)('does not let a delayed %s counter response roll back a newer local revision', async (_name, status) => {
+  useSessionStore.getState().setIdentity({
+    ...session,
+    phase: 'active',
+    shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+    vesselActionRevisions: { dione: 0 },
+  }, { ...player, role: 'gm' });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  const call = Object.assign(vi.fn(async (payload: Record<string, unknown>) => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({
+      ...current,
+      shipResources: { ...current.shipResources, dione: { ...current.shipResources?.dione, fuel: 14 } },
+      vesselActionRevisions: { dione: 4 },
+    });
+    return counterBatchResponse(payload, {
+      ...(status === undefined ? {} : { status }),
+      amount: 7, ...(status === undefined ? { appliedSteps: [1] } : {}),
+      expectedRevision: 0, revision: status === undefined ? 1 : 2,
+      ...(status === undefined ? {} : { currentRevision: 2 }),
+    });
+  }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await applyShipCounterSteps('dione', { counter: 'resource', resourceId: 'fuel' }, [1]);
+
+  expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(14);
+  expect(useSessionStore.getState().session?.vesselActionRevisions?.dione).toBe(4);
+});
+
+it.each([
+  ['stale', 'stale' as const, 2],
+  ['committed', undefined, 1],
+] as const)('preserves a newer Firestore snapshot over a delayed %s counter response', async (_name, status, responseRevision) => {
+  const sessionId = `counter-batch-snapshot-${_name}`;
+  const playerForRequest = { ...player, sessionId, role: 'gm' as const };
+  const initialSession = {
+    ...session,
+    id: sessionId,
+    phase: 'active' as const,
+    currentTurn: 1,
+    updatedAt: '2026-09-23T10:00:00.000Z',
+    shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+    vesselActionRevisions: { dione: 0 },
+  };
+  useSessionStore.getState().setIdentity(initialSession, playerForRequest);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId, uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  expect(acceptCallableSessionAuthority(initialSession, 'u1')).toBe(true);
+  let finish!: (value: { data: Record<string, unknown> }) => void;
+  const call = Object.assign(vi.fn((payload: Record<string, unknown>) => new Promise<{ data: Record<string, unknown> }>((resolve) => {
+    finish = (value) => resolve(value);
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const pending = applyShipCounterSteps('dione', { counter: 'resource', resourceId: 'fuel' }, [1]);
+  await vi.waitFor(() => expect(call).toHaveBeenCalled());
+  const payload = call.mock.calls[0]?.[0] as Record<string, unknown>;
+  const newerSession = {
+    ...initialSession,
+    updatedAt: '2026-09-23T10:01:00.000Z',
+    shipResources: { dione: { ...initialSession.shipResources.dione, fuel: 14 } },
+    vesselActionRevisions: { dione: 4 },
+  };
+  expect(acceptCallableSessionAuthority(newerSession, 'u1')).toBe(true);
+  useSessionStore.getState().setSession(newerSession);
+  finish(counterBatchResponse(payload, {
+    ...(status === undefined ? {} : { status }),
+    amount: 7,
+    ...(status === undefined ? { appliedSteps: [1] } : { currentRevision: responseRevision }),
+    revision: responseRevision,
+  }));
+
+  await expect(pending).resolves.toBeNull();
+  expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(14);
+  expect(useSessionStore.getState().session?.vesselActionRevisions?.dione).toBe(4);
 });
 
 it('sends destroyed-ship stores through the GM callable and applies confirmed ledgers', async () => {

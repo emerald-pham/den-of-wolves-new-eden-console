@@ -1203,31 +1203,78 @@ export type ShipCounterBatchTarget =
 export interface ShipCounterBatchResult extends Partial<VesselActionEnvelope> {
   readonly amount: number;
   readonly alertRaised: boolean;
+  readonly revision: number;
   readonly status?: 'stale';
   readonly currentRevision?: number;
 }
 
-function counterBatchReply(value: unknown): ShipCounterBatchResult | null {
-  if (typeof value !== 'object' || value === null || !('amount' in value)) return null;
+interface CounterBatchReplyContext {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly shipId: string;
+  readonly counter: ShipCounterBatchTarget['counter'];
+  readonly resourceId?: ResourceId;
+  readonly requestId: string;
+  readonly actorUid: string;
+  readonly expectedRevision: number;
+  readonly steps: readonly CounterStep[];
+}
+
+function counterBatchReply(value: unknown, expected: CounterBatchReplyContext): ShipCounterBatchResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   const phase = sessionPhase(raw.phase);
-  return typeof raw.amount === 'number' && Number.isFinite(raw.amount) &&
-    'alertRaised' in raw && typeof raw.alertRaised === 'boolean'
-    ? {
-      amount: raw.amount, alertRaised: raw.alertRaised,
-      ...(raw.status === 'stale' ? { status: 'stale' as const } : {}),
-      ...(typeof raw.currentRevision === 'number' ? { currentRevision: raw.currentRevision } : {}),
-      ...(typeof raw.revision === 'number' ? { revision: raw.revision } : {}),
-      ...(typeof raw.idempotencyKey === 'string' ? { idempotencyKey: raw.idempotencyKey } : {}),
-      ...(typeof raw.auditId === 'string' ? { auditId: raw.auditId } : {}),
-      ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
-      ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null
-        ? { actorRoleId: raw.actorRoleId } : {}),
-      ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
-      ...(typeof raw.turn === 'number' ? { turn: raw.turn } : {}),
-      ...(phase === undefined ? {} : { phase }),
-    }
-    : null;
+  const revision = raw.revision;
+  if (raw.sessionId !== expected.sessionId || raw.instanceId !== expected.instanceId ||
+      raw.shipId !== expected.shipId || raw.counter !== expected.counter ||
+      (expected.counter === 'resource'
+        ? raw.resourceId !== expected.resourceId
+        : Object.prototype.hasOwnProperty.call(raw, 'resourceId')) ||
+      raw.requestId !== expected.requestId || raw.expectedRevision !== expected.expectedRevision ||
+      raw.idempotencyKey !== expected.requestId || raw.actorUid !== expected.actorUid ||
+      raw.vesselId !== expected.shipId || !Number.isSafeInteger(raw.amount) ||
+      (raw.amount as number) < 0 || typeof raw.alertRaised !== 'boolean' ||
+      !Number.isSafeInteger(revision) || (revision as number) < 0 ||
+      !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 0 || phase === undefined ||
+      !(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null) ||
+      typeof raw.auditId !== 'string' || raw.auditId.length === 0) return null;
+
+  if (raw.status === 'stale') {
+    if (raw.alertRaised !== false || raw.currentRevision !== revision ||
+        !Number.isSafeInteger(raw.currentRevision) ||
+        (raw.currentRevision as number) <= expected.expectedRevision ||
+        Object.prototype.hasOwnProperty.call(raw, 'appliedSteps')) return null;
+    return {
+      status: 'stale', amount: raw.amount as number, alertRaised: false,
+      currentRevision: raw.currentRevision as number,
+      revision: revision as number,
+      idempotencyKey: expected.requestId,
+      auditId: raw.auditId,
+      actorUid: expected.actorUid,
+      actorRoleId: raw.actorRoleId,
+      vesselId: expected.shipId,
+      turn: raw.turn as number,
+      phase,
+    };
+  }
+
+  if (raw.status !== undefined || revision !== expected.expectedRevision + 1 ||
+      !Array.isArray(raw.appliedSteps) || raw.appliedSteps.length === 0 ||
+      raw.appliedSteps.length > expected.steps.length ||
+      raw.appliedSteps.some((step, index) => step !== expected.steps[index]) ||
+      (!raw.alertRaised && raw.appliedSteps.length !== expected.steps.length)) return null;
+  return {
+    amount: raw.amount as number,
+    alertRaised: raw.alertRaised,
+    revision: revision as number,
+    idempotencyKey: expected.requestId,
+    auditId: raw.auditId,
+    actorUid: expected.actorUid,
+    actorRoleId: raw.actorRoleId,
+    vesselId: expected.shipId,
+    turn: raw.turn as number,
+    phase,
+  };
 }
 
 /**
@@ -1240,33 +1287,57 @@ export async function applyShipCounterSteps(
   steps: readonly CounterStep[],
 ): Promise<ShipCounterBatchResult | null> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) {
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
+      store.gmInstance.sessionId !== store.session.id || store.gmInstance.uid !== store.me.uid) {
     throw new Error('An active GM instance is required.');
   }
   requireFreshSessionAuthority();
   const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const actorUid = store.me.uid;
   const checkpoint = sessionAuthorityCheckpoint(
     sessionId,
-    sessionAuthorityUid(store),
+    actorUid,
   );
+  const expectedRevision = store.session.vesselActionRevisions?.[shipId] ?? 0;
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error('The current ship counter revision is invalid.');
+  }
   const payload = {
     sessionId,
-    instanceId: store.gmInstance.id,
+    instanceId,
     shipId,
     counter: target.counter,
     steps: [...steps],
     requestId: commandId(),
-    expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
+    expectedRevision,
     ...(target.counter === 'resource' ? { resourceId: target.resourceId } : {}),
+  };
+  const expected: CounterBatchReplyContext = {
+    sessionId, instanceId, shipId,
+    counter: target.counter,
+    ...(target.counter === 'resource' ? { resourceId: target.resourceId } : {}),
+    requestId: payload.requestId,
+    actorUid,
+    expectedRevision,
+    steps: payload.steps,
   };
   try {
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, unknown>(functions(), 'applyShipCounterSteps');
-    const reply = counterBatchReply((await call(payload)).data);
+    const reply = counterBatchReply((await call(payload)).data, expected);
     if (!reply) throw new Error('The server returned an invalid counter amount.');
 
-    const current = useSessionStore.getState().session;
-    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint)) return reply;
+    const currentStore = useSessionStore.getState();
+    const current = currentStore.session;
+    if (!current || current.id !== sessionId || currentStore.me?.uid !== actorUid ||
+        currentStore.me.role !== 'gm' || currentStore.gmInstance?.id !== instanceId ||
+        currentStore.gmInstance.sessionId !== sessionId || currentStore.gmInstance.uid !== actorUid ||
+        !authorityCheckpointIsCurrent(checkpoint)) return null;
+    const currentRevision = current.vesselActionRevisions?.[shipId] ?? 0;
+    if (!Number.isSafeInteger(currentRevision) || currentRevision < 0 || reply.revision <= currentRevision) {
+      return reply;
+    }
     if (target.counter === 'resource') {
       const inventory = current.shipResources?.[shipId];
       if (!inventory) return reply;

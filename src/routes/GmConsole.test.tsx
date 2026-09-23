@@ -1837,6 +1837,79 @@ it('updates a GM counter immediately and sends rapid changes in one ordered batc
   }
 });
 
+it('keeps stale GM counter steps for an explicit retry against the refreshed value', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession,
+    vesselActionRevisions: { dione: 0 },
+    shipResources: {
+      ...INITIAL_SHIP_RESOURCES,
+      dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 6 },
+    },
+  });
+  vi.mocked(applyShipCounterSteps)
+    .mockImplementationOnce(async () => {
+      const current = useSessionStore.getState().session;
+      if (current) useSessionStore.getState().setSession({
+        ...current,
+        vesselActionRevisions: { ...current.vesselActionRevisions, dione: 2 },
+        shipResources: {
+          ...current.shipResources,
+          dione: { ...current.shipResources?.dione, fuel: 7 },
+        },
+      });
+      return { status: 'stale', amount: 7, alertRaised: false, revision: 2, currentRevision: 2 } as never;
+    })
+    .mockImplementationOnce(async () => {
+      const current = useSessionStore.getState().session;
+      if (current) useSessionStore.getState().setSession({
+        ...current,
+        vesselActionRevisions: { ...current.vesselActionRevisions, dione: 3 },
+        shipResources: {
+          ...current.shipResources,
+          dione: { ...current.shipResources?.dione, fuel: 8 },
+        },
+      });
+      return { amount: 8, alertRaised: false, revision: 3 } as never;
+    });
+  renderConsole();
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+
+  vi.useFakeTimers();
+  try {
+    const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+    fireEvent.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+    fireEvent.click(within(dione).getByRole('button', { name: /increase strytium fuel/i }));
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(within(dione).getByLabelText('Strytium Fuel: 8, stale changes ready to retry')).toBeInTheDocument();
+    expect(within(dione).getByRole('status')).toHaveTextContent(/counter changed while these steps were pending/i);
+    expect(within(dione).getByRole('button', { name: /retry.*fuel/i })).toBeEnabled();
+    expect(applyShipCounterSteps).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(dione).getByRole('button', { name: /retry.*fuel/i }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(applyShipCounterSteps).toHaveBeenCalledTimes(2);
+    expect(applyShipCounterSteps).toHaveBeenLastCalledWith(
+      'dione', { counter: 'resource', resourceId: 'fuel' }, [1],
+    );
+    expect(within(dione).getByLabelText('Strytium Fuel: 8')).toBeInTheDocument();
+    expect(within(dione).queryByRole('button', { name: /retry.*fuel/i })).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+    vi.mocked(applyShipCounterSteps).mockReset();
+  }
+});
+
 it('keeps a locally crossed threshold locked until its alert reaches the session snapshot', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
