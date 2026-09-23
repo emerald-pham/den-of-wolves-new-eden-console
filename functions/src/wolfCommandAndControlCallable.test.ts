@@ -395,6 +395,13 @@ it('rejects a malformed Commander finish replay with extra private receipt field
 
   await expect(finishWolfCommanderTargetingRerolls.run(request(data, 'commander-1')))
     .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  mock.documents.set(receiptPath, {
+    ...stored,
+    result: { ...(first as Fields), calculationReceipt: { targeting: [{ finalDie: 6 }] } },
+  });
+  await expect(finishWolfCommanderTargetingRerolls.run(request(data, 'commander-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ revision: 2 });
 });
 

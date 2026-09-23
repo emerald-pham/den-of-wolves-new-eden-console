@@ -15646,8 +15646,12 @@ function isSafeWolfCommanderTargetingView(value: unknown): value is WolfCommande
 
 function isWolfCommanderTargetingFinishResult(value: unknown): value is WolfCommanderTargetingFinishResult {
   if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'currentStep', 'view',
+  ]);
   const view = value.view;
-  return value.status === 'committed' && value.type === 'wolf-commander-targeting-finish' &&
+  return Object.keys(value).every((key) => allowed.has(key)) &&
+    value.status === 'committed' && value.type === 'wolf-commander-targeting-finish' &&
     typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
     typeof value.requestId === 'string' && isCanonicalRequestId(value.requestId) &&
     Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
