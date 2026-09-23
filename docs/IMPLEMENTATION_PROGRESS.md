@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**470 / 751 prompts complete (62.58%)**
+**471 / 751 prompts complete (62.72%)**
 
-Status breakdown: **470 done · 12 partial · 269 missing**.
+Status breakdown: **471 done · 12 partial · 268 missing**.
 
 Active prompt: **none**
 
@@ -1080,7 +1080,7 @@ release classification and evidence.
 | 604 | done | non-feature | 0.5.0 | Release 0.5.0 keeps the FleetBroadcast ticker pinned on short-landscape ship consoles while status, maintenance steps/results, stores, damage, and critical actions remain reachable through intentional scrolling with no obscured controls. Focused responsive and reduced-motion browser proof covers narrow phone, phone, short landscape, and desktop. |
 | 605 | partial | feature | 0.3.10 | Prompt 275a's focused geometry tests now prove intrinsic complete-name containment and two-axis clamping at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605. |
 | 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |
-| 606 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 606 | done | non-feature | 0.5.5 | Release 0.5.5 makes shuttle travel touch-operable across departure, destination, retarget, dock, park, and denial controls. Every actionable control uses the scoped 44px keyboard and touch target contract with visible focus treatment, no hover dependency, and no precision-drag requirement. Focused ShuttleControl and route tests pass 65/65; the real Chrome proof covers 320x844 narrow phone, 1440x900 desktop, and 844x390 short landscape in the joined shuttle route, checking containment, console typography, keyboard focus, and touch-action. The full FleetBroadcast browser gate passes its normal/reduced lifecycle matrix as a joined-route regression check; no ticker behavior change is claimed. |
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 608 | partial | non-feature | 0.4.3 | Partial production-path implementation: existing settings, danger-confirmation, stale-seat, observer-write, and GM alert/confirmation dialogs now announce purpose, trap focus, and restore focus. Persistent private-result, facilitator-call, and endgame status/region surfaces have no existing modal dialog to update, so those acceptance surfaces remain unclaimed until a real modal exists. Unmounted dialog components now restore the interrupted control after removal and inert-state updates, with StrictMode replay protection; the motion-safety renewal flow verifies this in real browsers. |
 | 609 | done | non-feature | 0.4.4, 0.4.99 | Release 0.4.99 completes stable keyed live regions for phase, Wolf attack/parking, denial, pursuit-threshold, and ending updates while keeping initial hydration and identical listener snapshots quiet. The debrief ending region remounts on each authoritative revision so same-text finale updates are announced once without duplicating the decorative toast. Focused accessibility tests cover all existing live-region paths and the revision-keyed ending repair; prior local Chrome proof remains simulated session-store evidence and makes no Firebase/server-roundtrip claim. |

@@ -4482,6 +4482,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "606 -> SHUTTLE-TOUCH-TARGETS",
+      "id": "E-606-TOUCH",
+      "language": "Release 0.5.5 adds the scoped shuttle-control touch and keyboard target contract. Departure, destination, retarget, dock, park, and denial controls receive a minimum 44px target, touch-action: manipulation, and visible keyboard focus treatment without hover or precision-drag dependence. Focused ShuttleControl and ShuttleConsole route tests pass 65/65; the font-consistency gate passes 61/61; typecheck, lint, and production build pass. Real Chrome evidence at 320x844, 1440x900, and 844x390 confirms in-bounds controls, keyboard focus, console typography, and no overflow. The FleetBroadcast browser gate passes the joined-route normal and reduced-motion lifecycle matrix as a regression check; deployment is not claimed.",
+      "source": "src/components/ShuttleControl.tsx; src/components/ShuttleControl.css; src/components/ShuttleControl.touch.test.tsx; src/routes/ShuttleConsole.test.tsx; npm run test:unit -- src/components/ShuttleControl.touch.test.tsx src/routes/ShuttleConsole.test.tsx (65/65); npm run test:font-consistency (61/61); npm run typecheck; npm run lint; npm run build; /tmp/p606-render/evidence.json; /tmp/fleet-ticker-smoke/ticker-lifecycle-normal.json; /tmp/fleet-ticker-smoke/ticker-lifecycle-reduced.json",
+      "type": "evidence / accessibility / responsive / touch / keyboard / font / ticker / reduced-motion / rendered review / regression"
+    },
+    {
       "direction": "611 -> 601",
       "id": "E-AUDIT-611",
       "language": "Non-color status extends universal status semantics.",
@@ -21943,8 +21950,8 @@
         "acceptance": "departure, destination, retarget, dock, park, and denial use 44px targets without hover or precision drag.",
         "title": "Make shuttle travel touch-operable."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-606",
+      "description": "Release 0.5.5 makes shuttle travel touch-operable across departure, destination, retarget, dock, park, and denial controls. Every actionable control uses the scoped 44px keyboard and touch target contract with visible focus treatment, no hover dependency, and no precision-drag requirement. Focused ShuttleControl and route tests pass 65/65; the real Chrome proof covers 320x844 narrow phone, 1440x900 desktop, and 844x390 short landscape in the joined shuttle route, checking containment, console typography, keyboard focus, and touch-action. The full FleetBroadcast browser gate passes its normal/reduced lifecycle matrix as a joined-route regression check; no ticker behavior change is claimed.",
+      "evidenceIds": "E-AUDIT-606;E-606-TOUCH",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;365;367",
@@ -21952,10 +21959,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.5"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [606],
+    implementationProgress: {
+      completed: 471, total: 751, percentage: '62.72%',
+      done: 471, partial: 12, active: 0, missing: 268,
+    },
+    changes: [
+      'Shuttle travel controls now use large, keyboard-focusable touch targets for departure, destination, retarget, docking, parking, and denial states.',
+      'The controls keep their readable console styling, work without hover or precision dragging, and remain usable on phones, desktop, and short landscape screens.',
+      '471 of 751 planned items are complete (62.72%).',
+    ],
+  },
+  {
+    version: '0.5.4',
     implementationPrompts: [383],
     implementationProgress: {
       completed: 470, total: 751, percentage: '62.58%',
