@@ -128,6 +128,9 @@ describe('authoritative Maliades state', () => {
 
   it('rejects malformed persisted state and accepts the canonical immutable state', () => {
     expect(parseMaliadesState({ ...initialMaliadesState(), damage: 3, destroyed: false })).toBeNull();
+    expect(parseMaliadesState({ ...initialMaliadesState(), launched: true })).toBeNull();
+    expect(parseMaliadesState({ ...initialMaliadesState(), revision: 1 })).toBeNull();
+    expect(parseMaliadesState({ ...initialMaliadesState(), revision: 4 })).toBeNull();
     expect(parseMaliadesState({ ...launched(), revision: 1, medium: { attack: {
       targetId: 'wolf-1', die: 1, hit: true, selfDamage: 0,
     }, targetShift: null } })).toBeNull();
