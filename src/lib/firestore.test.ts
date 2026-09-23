@@ -31,6 +31,7 @@ const {
   sessionSnapshotAuthorityFor,
   subscribeGmInstances,
   subscribeConnectedPlayers,
+  subscribeSessionPlayers,
   subscribeShuttleDeparture,
   subscribeIntelligenceInvestigation,
   subscribeDamageDraws,
@@ -3202,6 +3203,53 @@ it('queries a member roster by its server-owned group and clears stale data on r
   expect(onError).toHaveBeenCalledTimes(1);
   stopPlayers();
   useSessionStore.getState().reset();
+});
+
+it('replaces a cached GM roster only after server authority and clears it on revocation', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  const errors: Array<(error: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error?: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    errors.push(error as (error: unknown) => void);
+    return vi.fn();
+  }) as never);
+
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('gm-roster-reconnect', onPlayers, vi.fn());
+
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    docs: [{ id: 'cached-player', data: () => ({ role: 'player', displayName: 'Cached' }) }],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [
+      { id: 'cached-player', data: () => ({ role: 'player', displayName: 'Cached' }) },
+      { id: 'current-player', data: () => ({ role: 'player', displayName: 'Current' }) },
+    ],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([
+    expect.objectContaining({ uid: 'cached-player', displayName: 'Cached' }),
+    expect.objectContaining({ uid: 'current-player', displayName: 'Current' }),
+  ]);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'current-player', data: () => ({ role: 'player', displayName: 'Current' }) }],
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    docs: [{ id: 'cached-player', data: () => ({ role: 'player', displayName: 'Cached' }) }],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([
+    expect.objectContaining({ uid: 'current-player', displayName: 'Current' }),
+  ]);
+
+  errors[0]?.({ code: 'permission-denied' });
+  expect(onPlayers).toHaveBeenLastCalledWith([]);
 });
 
 it('suppresses an earlier airspace phase within the same turn but keeps newer data in the current window', () => {

@@ -3619,17 +3619,21 @@ export function subscribeSessionPlayers(
   onError: () => void = () => undefined,
 ): Unsubscribe {
   let subscribed = true;
-  let hasServerSnapshot = false;
+  // This GM-only roster must be reauthorized after every listener start. The
+  // local Firestore cache can outlive the GM assignment that allowed its read.
+  onPlayers([]);
   const unsubscribe = onSnapshot(
     collection(db(), `sessions/${sessionId}/players`),
     (snapshot) => {
       if (!subscribed) return;
-      const fromCache = snapshot.metadata?.fromCache === true;
-      if (fromCache && hasServerSnapshot) return;
-      if (!fromCache) hasServerSnapshot = true;
+      if (snapshot.metadata?.fromCache === true) return;
       onPlayers(snapshot.docs.map((player) => playerFrom(sessionId, player.id, player.data())));
     },
-    () => { if (subscribed) onError(); },
+    () => {
+      if (!subscribed) return;
+      onPlayers([]);
+      onError();
+    },
   );
   return () => {
     subscribed = false;
