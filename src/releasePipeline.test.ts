@@ -73,6 +73,10 @@ it('selects the Endeavour field-upgrade callable for its authority and event-red
   const callable = (name: string) => `export const ${name} = onCall(async () => {\n  return true;\n});\n`;
   const beforeIndex = callable('existingCallable');
   const afterIndex = `${beforeIndex}${callable('upgradeEndeavourFieldTargets')}`;
+  const beforeRedaction = `const MEMBER_EVENT_FIELDS = {\n  'existing': ['type'],\n};\nconst MEMBER_ENVELOPE_FIELDS = ['actorUid', 'actorRoleId'];\nconst MEMBER_ENVELOPE_FIELDS_BY_TYPE = {\n  'existing': ['public'],\n};\n`;
+  const afterRedaction = beforeRedaction
+    .replace("  'existing': ['type'],\n", `  'existing': ['type'],\n${"  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n"}`)
+    .replace("  'existing': ['public'],\n", `  'existing': ['public'],\n  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n`);
   const selected = deploymentSelector({
     before: 'base', after: 'candidate', targets: ['functions'],
     files: [
@@ -80,11 +84,29 @@ it('selects the Endeavour field-upgrade callable for its authority and event-red
       'functions/src/endeavourFieldUpgrades.ts',
       'functions/src/eventRedaction.ts',
     ],
-    sourceAtRevision: (revision) => revision === 'base' ? beforeIndex : afterIndex,
+    sourceAtRevision: (revision, file) => {
+      if (file === 'functions/src/index.ts') return revision === 'base' ? beforeIndex : afterIndex;
+      return revision === 'base' ? beforeRedaction : afterRedaction;
+    },
     isAncestor: () => false,
   });
 
   expect(selected).toBe('hosting,functions:upgradeEndeavourFieldTargets');
+});
+
+it('fails closed when other event-redaction entries change alongside Endeavour allowlists', () => {
+  const before = `const MEMBER_EVENT_FIELDS = {\n  'existing': ['type'],\n};\nconst MEMBER_ENVELOPE_FIELDS = ['actorUid', 'actorRoleId'];\nconst MEMBER_ENVELOPE_FIELDS_BY_TYPE = {\n  'existing': ['public'],\n};\n`;
+  const after = before
+    .replace("  'existing': ['type'],\n", "  'existing': ['type'],\n  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n")
+    .replace("  'existing': ['public'],\n", "  'existing': ['public'],\n  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n");
+  const unrelated = after.replace("  'existing': ['type'],", "  'existing': ['type', 'changed']");
+
+  expect(() => deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: ['functions/src/eventRedaction.ts'],
+    sourceAtRevision: (revision) => revision === 'base' ? before : unrelated,
+    isAncestor: () => false,
+  })).toThrow('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
 });
 
 it('maps a changed existing policy with numeric separators alongside a changed index callable', () => {

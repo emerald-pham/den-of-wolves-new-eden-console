@@ -41,7 +41,6 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
   'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
   'functions/src/endeavourFieldUpgrades.ts': ['upgradeEndeavourFieldTargets'],
-  'functions/src/eventRedaction.ts': ['upgradeEndeavourFieldTargets'],
 });
 const VERIFIED_LIVE_FUNCTION_BASELINES = Object.freeze([{
   sha: '2e413cfb58b56300b6003a57d031686cc776caa8',
@@ -270,6 +269,38 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   return [...names].filter((name) => previous.get(name) !== current.get(name));
 }
 
+const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
+const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = "  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+
+function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/eventRedaction.ts';
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, file);
+    try {
+      return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine callable changes at ${revision}:${file}.`);
+    }
+  };
+  const previous = readAt(before);
+  const current = readAt(after);
+  const additions = [ENDEAVOUR_EVENT_FIELD_ENTRY, ENDEAVOUR_ENVELOPE_FIELD_ENTRY];
+  for (const addition of additions) {
+    const count = (source) => source.split(addition).length - 1;
+    if (count(previous) !== 0 || count(current) !== 1) {
+      throw new Error('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
+    }
+  }
+  const stripEndeavourAllowlist = (source) => additions.reduce((result, addition) => result.replace(addition, ''), source);
+  if (stripEndeavourAllowlist(previous) !== stripEndeavourAllowlist(current)) {
+    throw new Error('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
+  }
+  return ['upgradeEndeavourFieldTargets'];
+}
+
 const ALL_RATE_LIMIT_CONSUMERS = [
   'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
   'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
@@ -326,6 +357,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/callableRateLimit.ts') {
       for (const name of rateLimitCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/eventRedaction.ts') {
+      for (const name of endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     const consumers = CALLABLES_BY_CHANGED_MODULE[file];
