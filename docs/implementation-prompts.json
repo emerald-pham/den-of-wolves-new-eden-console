@@ -6201,7 +6201,7 @@
       "id": "E-608-DIALOG-RENDERED",
       "language": "The real App and dialog components render in local Chrome with deterministic client fixtures. Facilitator call, private Wolf Cult result, and server-shaped pursuit-limit endgame screens pass at 320x740, 390x844, 844x390, and 1440x900 under full and reduced motion. The run verifies visible purpose and content, aria-describedby, initial heading focus, Escape restoration, in-viewport modal bounds, no document or modal horizontal overflow, 44px close controls, and the console display font; 24 screenshots and measurements are saved. This uses the production App route and components but does not claim Firebase roundtrip or deployed behavior.",
       "source": "scripts/prompt-608-render.mjs; node scripts/prompt-608-render.mjs; /tmp/p608-dialog-render-20260923/evidence.json; /tmp/p608-dialog-render-20260923/*.png",
-      "type": "evidence / accessibility / privacy / responsive / rendered"
+      "type": "evidence / accessibility / privacy / responsive / rendered / production-path"
     }
   ],
   "plan": {
@@ -22044,7 +22044,7 @@
         "acceptance": "settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.",
         "title": "Own dialog focus correctly."
       },
-      "description": "Candidate implementation keeps the existing settings, danger-confirmation, stale-seat, observer-write, and GM alert dialogs focus-managed. Private investigation and Wolf results, entitled Arbour and selected-player facilitator calls, and public server-reported endgame outcomes now open named dialogs with purpose descriptions, a contained focus cycle, Escape handling, and focus restoration to a persistent review control. Private projections are shown only for the current player and matching session/recipient; endgame text uses only the public outcome cause already reported by the server. Focused unit tests and local full-App Chrome rendering pass; production deployment verification remains pending.",
+      "description": "Completed production client paths keep settings, danger confirmations, stale-seat, observer-write, and GM alert dialogs focus-managed. Private investigation and Wolf results, entitled Arbour and selected-player facilitator calls, and public server-reported endgame outcomes open named dialogs with purpose descriptions, a contained focus cycle, Escape handling, and focus restoration to a persistent review control. Private projections are shown only for the current player and matching session/recipient; endgame text uses only the public outcome cause already reported by the server. Focused tests and local Chrome rendering of the real App and route components with deterministic client fixtures pass. This verifies the production UI path, not a Firebase roundtrip or deployed behavior.",
       "evidenceIds": "E-608-DIALOG-FOCUS;E-608-UNMOUNT-FOCUS;E-608-DIALOG-FLOWS;E-608-DIALOG-RENDERED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22054,11 +22054,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.4.3"
+        "0.4.3",
+        "0.5.8"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
