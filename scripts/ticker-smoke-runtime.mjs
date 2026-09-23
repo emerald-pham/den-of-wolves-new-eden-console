@@ -57,4 +57,3 @@ export async function createTickerSmokeRuntime(env = process.env) {
     },
   };
 }
-
