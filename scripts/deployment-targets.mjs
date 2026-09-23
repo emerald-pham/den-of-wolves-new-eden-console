@@ -41,9 +41,6 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
   'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
   'functions/src/endeavourFieldUpgrades.ts': ['upgradeEndeavourFieldTargets'],
-  'functions/src/consoleMetadata.ts': [
-    'rechargeHostConsoleFromShuttle', 'runVulcanAdditionalLabour', 'upgradeEndeavourFieldTargets',
-  ],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
     'finishWolfCommanderTargetingRerolls', 'getAegisCommandAndControl', 'getWolfCommanderTargeting',
@@ -282,6 +279,19 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
 
 const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
 const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = "  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const P436_CONSOLE_RESOLVER_ID = "  | 'wolf-attack.command-and-control';\n";
+const P436_COMMAND_AND_CONTROL_BLUEPRINT_BEFORE = [
+  "  'aegis:command-and-control': {\n",
+  "    phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be used when damaged.'),\n",
+  "    upgrade: printed('At the end of the attack, choose up to one ship to take 1 less damage.'),\n",
+  "    effect: 'After targeting, redirect one Wolf ship to AEGIS.',\n",
+  "    resolver: unavailable('Command and Control is unavailable until the AEGIS attack resolver lands.', ['182']),\n",
+  "  },\n",
+].join('');
+const P436_COMMAND_AND_CONTROL_BLUEPRINT_AFTER = P436_COMMAND_AND_CONTROL_BLUEPRINT_BEFORE.replace(
+  "    resolver: unavailable('Command and Control is unavailable until the AEGIS attack resolver lands.', ['182']),\n",
+  "    resolver: implemented('wolf-attack.command-and-control'),\n",
+);
 
 function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = null) {
   const file = 'functions/src/eventRedaction.ts';
@@ -310,6 +320,39 @@ function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = n
     throw new Error('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
   }
   return ['upgradeEndeavourFieldTargets'];
+}
+
+function commandAndControlConsoleMetadataImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/consoleMetadata.ts';
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, file);
+    try {
+      return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine callable changes at ${revision}:${file}.`);
+    }
+  };
+  const previous = readAt(before);
+  const current = readAt(after);
+  const count = (source, snippet) => source.split(snippet).length - 1;
+  if (
+    count(previous, P436_CONSOLE_RESOLVER_ID) !== 0
+    || count(current, P436_CONSOLE_RESOLVER_ID) !== 1
+    || count(previous, P436_COMMAND_AND_CONTROL_BLUEPRINT_BEFORE) !== 1
+    || count(current, P436_COMMAND_AND_CONTROL_BLUEPRINT_AFTER) !== 1
+  ) {
+    throw new Error('Cannot safely map console metadata changes outside the additive Command and Control resolver allowlist.');
+  }
+  const normalizedCurrent = current
+    .replace(P436_CONSOLE_RESOLVER_ID, '')
+    .replace(P436_COMMAND_AND_CONTROL_BLUEPRINT_AFTER, P436_COMMAND_AND_CONTROL_BLUEPRINT_BEFORE);
+  if (normalizedCurrent !== previous) {
+    throw new Error('Cannot safely map console metadata changes outside the additive Command and Control resolver allowlist.');
+  }
+  return ['rechargeHostConsoleFromShuttle', 'runVulcanAdditionalLabour', 'upgradeEndeavourFieldTargets'];
 }
 
 const ALL_RATE_LIMIT_CONSUMERS = [
@@ -372,6 +415,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/eventRedaction.ts') {
       for (const name of endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/consoleMetadata.ts') {
+      for (const name of commandAndControlConsoleMetadataImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     const consumers = CALLABLES_BY_CHANGED_MODULE[file];
