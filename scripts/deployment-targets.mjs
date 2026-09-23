@@ -279,7 +279,7 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
 
 const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
 const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = "  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
-const P436_CONSOLE_RESOLVER_ID = "  | 'wolf-attack.command-and-control';\n";
+const P436_CONSOLE_RESOLVER_ID = "  | 'wolf-attack.command-and-control'\n";
 const P436_COMMAND_AND_CONTROL_BLUEPRINT_BEFORE = [
   "  'aegis:command-and-control': {\n",
   "    phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be used when damaged.'),\n",

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { deploymentSelector } from './deployment-targets.mjs';
 
@@ -16,7 +17,7 @@ const CONSOLE_METADATA_CALLABLES = [
 ];
 const P436_EXPORTS = [...COMMAND_AND_CONTROL_CALLABLES, ...CONSOLE_METADATA_CALLABLES];
 
-const RESOLVER_ID_ADDITION = "  | 'wolf-attack.command-and-control';\n";
+const P436_RESOLVER_ID_ADDITION = "  | 'wolf-attack.command-and-control'\n";
 const COMMAND_AND_CONTROL_BLUEPRINT_BEFORE = [
   "  'aegis:command-and-control': {\n",
   "    phase: 'Wolf attack', step: null, charge: reactorCharge, damage: printed('Cannot be used when damaged.'),\n",
@@ -29,15 +30,12 @@ const COMMAND_AND_CONTROL_BLUEPRINT_AFTER = COMMAND_AND_CONTROL_BLUEPRINT_BEFORE
   "    resolver: unavailable('Command and Control is unavailable until the AEGIS attack resolver lands.', ['182']),\n",
   "    resolver: implemented('wolf-attack.command-and-control'),\n",
 );
-const CONSOLE_METADATA_BEFORE = [
-  "export type ImplementedConsoleResolverId =\n  | 'jump.resolve';\n",
-  'const BLUEPRINTS = {\n',
-  COMMAND_AND_CONTROL_BLUEPRINT_BEFORE,
-  '};\n',
-].join('');
-const CONSOLE_METADATA_AFTER = CONSOLE_METADATA_BEFORE
-  .replace("  | 'jump.resolve';\n", `${RESOLVER_ID_ADDITION}  | 'jump.resolve';\n`)
-  .replace(COMMAND_AND_CONTROL_BLUEPRINT_BEFORE, COMMAND_AND_CONTROL_BLUEPRINT_AFTER);
+const CONSOLE_METADATA_AFTER = readFileSync(new URL('../functions/src/consoleMetadata.ts', import.meta.url), 'utf8');
+assert.equal(CONSOLE_METADATA_AFTER.split(P436_RESOLVER_ID_ADDITION).length - 1, 1);
+assert.equal(CONSOLE_METADATA_AFTER.split(COMMAND_AND_CONTROL_BLUEPRINT_AFTER).length - 1, 1);
+const CONSOLE_METADATA_BEFORE = CONSOLE_METADATA_AFTER
+  .replace(P436_RESOLVER_ID_ADDITION, '')
+  .replace(COMMAND_AND_CONTROL_BLUEPRINT_AFTER, COMMAND_AND_CONTROL_BLUEPRINT_BEFORE);
 const INDEX_SOURCE = P436_EXPORTS.map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
 
 function selectorFor(files, {
@@ -90,6 +88,10 @@ test('deduplicates callables selected through both Wolf helper modules', () => {
 test('maps the exact additive Command and Control console metadata delta to its current consumers', () => {
   const selected = selectorFor(['functions/src/consoleMetadata.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(CONSOLE_METADATA_CALLABLES));
+});
+
+test('matches the resolver ID addition in the real console metadata source', () => {
+  assert.equal(CONSOLE_METADATA_AFTER.split(P436_RESOLVER_ID_ADDITION).length - 1, 1);
 });
 
 test('deduplicates the full Command and Control deployment callable set', () => {
