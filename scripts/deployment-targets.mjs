@@ -41,6 +41,15 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
   'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
   'functions/src/endeavourFieldUpgrades.ts': ['upgradeEndeavourFieldTargets'],
+  'functions/src/endeavourResearch.ts': [
+    'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace', 'upgradeEndeavourFieldTargets',
+  ],
+  'functions/src/endeavourResearchCadence.ts': [
+    'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
+  ],
+  'functions/src/endeavourResearchWriter.ts': [
+    'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
+  ],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
     'finishWolfCommanderTargetingRerolls', 'getAegisCommandAndControl', 'getWolfCommanderTargeting',

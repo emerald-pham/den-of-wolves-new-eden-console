@@ -15,6 +15,10 @@ const CONSOLE_METADATA_CALLABLES = [
   'runVulcanAdditionalLabour',
   'upgradeEndeavourFieldTargets',
 ];
+const ENDEAVOUR_RESEARCH_CALLABLES = [
+  'advanceEndeavourResearchTrack',
+  'readEndeavourResearchWorkspace',
+];
 const P436_EXPORTS = [...COMMAND_AND_CONTROL_CALLABLES, ...CONSOLE_METADATA_CALLABLES];
 
 const P436_RESOLVER_ID_ADDITION = "  | 'wolf-attack.command-and-control'\n";
@@ -70,6 +74,25 @@ test('maps Command and Control helpers without relying on index changes', () => 
   const selected = selectorFor(['functions/src/wolfCommandAndControl.ts']);
   assert.equal(selected.split(',')[0], 'hosting');
   assert.deepEqual(selectedFunctions(selected), functionTargets(COMMAND_AND_CONTROL_CALLABLES));
+});
+
+test('maps the private Endeavour research writer to both production callables', () => {
+  const selected = selectorFor(['functions/src/endeavourResearchWriter.ts']);
+  assert.equal(selected.split(',')[0], 'hosting');
+  assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));
+});
+
+test('maps the canonical Endeavour research resolver to its writer and P391 consumer', () => {
+  const selected = selectorFor(['functions/src/endeavourResearch.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    ...ENDEAVOUR_RESEARCH_CALLABLES,
+    'upgradeEndeavourFieldTargets',
+  ]));
+});
+
+test('maps cadence policy changes to both private research callables', () => {
+  const selected = selectorFor(['functions/src/endeavourResearchCadence.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));
 });
 
 test('maps Commander reroll helpers without relying on index changes', () => {

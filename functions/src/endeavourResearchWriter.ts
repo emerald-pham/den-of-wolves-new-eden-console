@@ -396,7 +396,9 @@ export const advanceEndeavourResearchTrack = onCall<{
       if (!authorization.allowed) {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during Team Phase.');
       }
-      if (phase.airspace.state !== 'restricted') {
+      const teamPhaseEndsAt = Date.parse(phase.teamPhaseEndsAt);
+      if (phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+          !Number.isFinite(teamPhaseEndsAt) || Date.now() >= teamPhaseEndsAt) {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during Team Phase.');
       }
 

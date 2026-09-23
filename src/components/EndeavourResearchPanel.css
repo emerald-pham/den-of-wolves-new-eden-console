@@ -1,0 +1,29 @@
+.endeavour-research-panel {
+  min-width: 0;
+}
+
+.endeavour-research-panel select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.endeavour-research-panel .console-workspace__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.endeavour-research-panel .cic-action-button {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 42rem), (max-height: 42rem) {
+  .shuttle-console > :where(.ship-console__identity, .ship-console__instruments) {
+    min-width: 0;
+  }
+}

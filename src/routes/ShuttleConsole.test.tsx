@@ -11,6 +11,11 @@ import type * as FirestoreModule from '@/lib/firestore';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import ShuttleConsole from './ShuttleConsole';
 
+const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
+vi.mock('@/lib/endeavourResearchService', () => ({
+  readEndeavourResearchWorkspace: endeavourResearchMocks.read,
+  advanceEndeavourResearchTrack: endeavourResearchMocks.advance,
+}));
 vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
   releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
@@ -100,6 +105,15 @@ function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived')
 }
 
 beforeEach(() => {
+  endeavourResearchMocks.read.mockReset();
+  endeavourResearchMocks.advance.mockReset();
+  endeavourResearchMocks.read.mockResolvedValue({
+    status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
+    cadence: { cycle: 3, revision: 0, choices: [] }, progress: {},
+    tracks: [{ trackId: 'reactor', name: 'Reactor', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 8, complete: false }],
+    shepherdOre: 10,
+  });
+  endeavourResearchMocks.advance.mockResolvedValue(undefined);
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   vi.mocked(releaseConsoleRole).mockReset();
@@ -677,8 +691,20 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!,
+    phase: 'active', currentTurn: 3,
     activeRoleIds: ['shepherd-scientist'],
+    activeVesselIds: ['shepherd', 'aegis'],
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
     shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'SESSION START' }],
+    shuttleControl: { endeavour: {
+      shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'u1',
+      holderUid: 'u1', revision: 4,
+    } },
   });
   state.setMe({ ...state.me!, activeConsoleRoleId: 'shepherd-scientist' });
 
@@ -700,6 +726,12 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   expect(screen.getByText(/up to 2 consoles per cycle.*target ship.*material cost.*fuelled.*2 additional/i)).toBeInTheDocument();
   expect(screen.getByText(/\+3 to science checks/i)).toBeInTheDocument();
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
+  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
+    'Reactor: 0 of 5 boxes crossed; next field-upgrade cost is 8 materials.',
+  );
+  expect(endeavourResearchMocks.read).toHaveBeenCalledTimes(1);
 
   const back = screen.getByRole('link', { name: /back to shepherd scientist console/i });
   expect(back).toHaveAttribute('href', '/ships/shepherd/roles/shepherd-scientist');

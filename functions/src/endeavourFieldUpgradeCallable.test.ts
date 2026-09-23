@@ -56,13 +56,19 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({
+    run: maybeHandler ?? optionsOrHandler,
+  }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { upgradeEndeavourFieldTargets } from './index';
+import {
+  advanceEndeavourResearchTrack,
+  readEndeavourResearchWorkspace,
+  upgradeEndeavourFieldTargets,
+} from './index';
 
 const targets = (...pairs: readonly [string, string][]) =>
   pairs.map(([shipId, systemId]) => ({ shipId, systemId }));
@@ -117,6 +123,38 @@ beforeEach(() => {
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['shepherd', 'aegis', 'quellon'], memberUids: ['holder'],
   });
+});
+
+it('exports the Team research writer and private Scientist workspace from production Functions', async () => {
+  const researchSession = mock.documents.get('sessions/s1')!;
+  researchSession.turnPhase = {
+    turn: 3,
+    teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+    openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' })))
+    .resolves.toMatchObject({
+      status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
+      progress: { reactor: 1 },
+      tracks: expect.arrayContaining([
+        expect.objectContaining({ trackId: 'reactor', crossedBoxes: 1, currentMaterialCost: 7 }),
+      ]),
+    });
+
+  await expect(advanceEndeavourResearchTrack.run(request({
+    sessionId: 's1', requestId: 'research-callable-1',
+    expectedControlRevision: 3, expectedResearchRevision: 0,
+    expectedCycle: 3, trackId: 'reactor', funding: 'standard',
+  }))).resolves.toMatchObject({
+    status: 'committed', cycle: 3, researchRevision: 1,
+    previousMaterialCost: 7, currentMaterialCost: 6, progress: { reactor: 2 },
+  });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourResearch')).toEqual({ reactor: 2 });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourResearchCadence'))
+    .toMatchObject({ cycle: 3, revision: 1 });
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('endeavourResearch');
 });
 
 it('charges each target ship at shared research cost and installs the upgrades for downstream consumers', async () => {

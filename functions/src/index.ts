@@ -358,6 +358,7 @@ import {
   parseChacauRepairCallableCommand,
 } from './chacauRepairCallable';
 export { repairConsolesFromAlly } from './allyRepairCallable';
+export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
 import {
   ENDEAVOUR_FUELLED_UPGRADE_LIMIT,
   resolveEndeavourFieldUpgrades,

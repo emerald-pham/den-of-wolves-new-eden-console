@@ -11,6 +11,7 @@ import BoaRecyclingPanel from './BoaRecyclingPanel';
 import ChacauRepairPanel from './ChacauRepairPanel';
 import AllyRepairPanel from './AllyRepairPanel';
 import HighwallMining from './HighwallMining';
+import EndeavourResearchPanel from './EndeavourResearchPanel';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
@@ -113,6 +114,8 @@ export default function ShuttleConsoleTemplate({
             </div>
           </section>}
           {workspaceCapabilities.map(renderCapability)}
+          {shuttle.id === 'endeavour' && control?.shuttleId === 'endeavour' &&
+            <EndeavourResearchPanel control={control} />}
           {control && <ShuttleControl control={control} />}
           {shuttle.id === 'philia' && control &&
             <PhiliaRepairPanel control={control} docking={docking} fuelled={fuelled} />}

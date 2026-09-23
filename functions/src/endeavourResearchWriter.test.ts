@@ -290,6 +290,25 @@ describe('Endeavour Team research writer', () => {
     expect(mock.update).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['expired Team window', (phase: Fields) => {
+      phase.teamPhaseEndsAt = new Date(Date.now() - 60_000).toISOString();
+    }],
+    ['paused Team window', (phase: Fields) => {
+      phase.timerPause = {
+        window: 'restricted', remainingMs: 10_000,
+        pausedAt: '2026-09-23T12:00:00.000Z',
+      };
+    }],
+  ])('denies a fresh choice during an %s without writes', async (_label, mutate) => {
+    const session = mock.documents.get('sessions/s1')!;
+    mutate(session.turnPhase as Fields);
+    await expect(advanceEndeavourResearchTrack.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
   it('debits Shepherd ore only from the server-held inventory and rejects insufficient stock atomically', async () => {
     const session = mock.documents.get('sessions/s1')!;
     (session.shipResources as Fields).shepherd = { ore: 4 };
