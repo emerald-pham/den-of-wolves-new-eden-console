@@ -2166,6 +2166,11 @@ body {
 
 .gm-fleet-resource-ship li:last-child { border-bottom: 0; }
 
+.gm-fleet-resource-ship li > button {
+  min-height: 44px;
+  white-space: normal;
+}
+
 .gm-fleet-resource-ship li > span {
   overflow: hidden;
   color: var(--cic-ink);
