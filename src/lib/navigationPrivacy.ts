@@ -1,5 +1,7 @@
 import type { GameSession } from '@/types/game';
 
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
+
 /** Discard the organiser chart while preserving only an entitled ship projection. */
 export function stripGmNavigationProjection(session: GameSession): GameSession {
   const next = { ...session };
@@ -17,5 +19,14 @@ export function stripGmNavigationProjection(session: GameSession): GameSession {
     if (own.currentCoordinate) next.shipGalacticCoordinates = { [own.shipId]: own.currentCoordinate };
     next.shipNavigationLogs = { [own.shipId]: own.navigationLogs };
   }
+  return next;
+}
+
+/** A private player chart is safe in memory but cannot be bound to the next Firebase UID after reload. */
+export function stripPersistedNavigationProjection(session: GameSession): GameSession {
+  const next = stripGmNavigationProjection(session) as Mutable<GameSession>;
+  delete next.playerDiscovery;
+  delete next.shipGalacticCoordinates;
+  delete next.shipNavigationLogs;
   return next;
 }

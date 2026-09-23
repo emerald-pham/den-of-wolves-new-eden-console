@@ -6230,6 +6230,13 @@
       "language": "Server request, begin, retarget, and arrival conflicts return validated docked, pending, or in-transit state. Docking details follow session-member visibility; pending request and transit details are restricted to the actor’s fleet group. Client parsing accepts only the matching session and shuttle with an exact public projection. Request replay and lost-race callable tests prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; live production-path evidence remains pending.",
       "source": "functions/src/index.ts; functions/src/shuttleArrivalCallable.ts; functions/src/shuttleMovementConflict.ts; functions/src/shuttleDepartureCallable.test.ts; functions/src/shuttleTransitCallable.test.ts; functions/src/shuttleArrivalCallable.test.ts; functions/src/shuttleMovementConflict.test.ts; src/lib/shuttleMovementConflict.ts; src/lib/shuttleDepartureService.ts; src/lib/shuttleMovementConflict.test.ts; src/lib/shuttleDepartureService.test.ts; 53 focused server tests; 15 focused client tests; Functions and web builds; targeted ESLint; independent gpt-6-sol xhigh review at b3b1c2cbdf42235835c028c3eca6930a0279647c",
       "type": "evidence / server-authority / callable-conflict / session-member-docking / group-scoped-pending-transit / privacy / replay / no-write / independent-review / live-proof-pending"
+    },
+    {
+      "direction": "629 -> private projection and persisted-cache audit (partial)",
+      "id": "E-AUDIT-629",
+      "language": "Source inspection found production privacy paths for loyalty, hidden Wolf identity/results, organiser discovery, away-mission hands, and several private roll/result records, with existing callable and Firestore rules regression coverage. A private playerDiscovery projection was also found embedded in the persisted session: synchronous rehydration could render the former UID's chart before the later Firebase resume completed. This candidate strips playerDiscovery and its derived navigation fields from both new persistence and legacy rehydration; the discriminating legacy-cache and deferred-App-resume tests pass. The source tree has no discovery-notes producer, listener, or rules path; Prompt 330 is parked waiting for its authorized scout-result producer. Complete hidden-roll/bonus coverage and live entitlement/deployment verification remain outstanding, so this evidence is partial.",
+      "source": "firestore.rules; functions/src/index.ts; functions/src/awayMissionCards.ts; functions/src/wolfAttackPreparation.ts; functions/src/wolfSuspicionClue.ts; functions/src/censusNoteCallable.test.ts; functions/src/loyaltyCallable.test.ts; functions/src/awayMissionCallable.test.ts; functions/src/wolfActionCallable.test.ts; functions/src/wolfCultIntelligenceCallable.test.ts; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/App.tsx; src/App.test.tsx; src/lib/navigationPrivacy.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts",
+      "type": "evidence / partial / privacy / source-audit / local-regression / live-proof-pending"
     }
   ],
   "plan": {
@@ -22627,8 +22634,8 @@
         "acceptance": "loyalty, Wolf identity, organiser chart, mission hands, hidden rolls/bonuses, and notes reach only entitled readers.",
         "title": "Protect private projections comprehensively."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Partial: source inspection confirms current loyalty, Wolf, organiser-chart, and mission-hand paths with focused rules/callable tests; a cached private-navigation leak was reproduced and fixed by stripping the projection from new and legacy persisted sessions. Discovery notes have no production producer, and coverage of all hidden rolls/bonuses plus live entitlement paths remains incomplete.",
+      "evidenceIds": "E-AUDIT-629",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -22639,7 +22646,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {

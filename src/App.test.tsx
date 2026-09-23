@@ -164,6 +164,51 @@ describe('App', () => {
     expect(useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
   });
 
+  it('keeps a legacy private chart hidden when a different UID arrives before resume returns', async () => {
+    const previousSession: GameSession = {
+      ...session,
+      playerDiscovery: {
+        groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '8378',
+        knownCoordinates: ['0000', '8378'], knownSystems: { 'system-17': '8378' },
+        navigationLogs: [], pursuitDistance: 3, revision: 8,
+      },
+      shipGalacticCoordinates: { aegis: '8378' },
+      shipNavigationLogs: { aegis: [] },
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      state: {
+        session: previousSession,
+        me: { ...player, uid: 'previous-uid', role: 'player' },
+        gmInstance: null,
+        mode: 'console',
+        lastRoute: '/console',
+      },
+    }));
+    await useSessionStore.persist.rehydrate();
+    // Model Firebase restoring a different account while the old session cache
+    // is still present and before its automatic resume has returned.
+    useSessionStore.getState().setMe({ ...player, uid: 'foreign-uid', role: 'player' });
+
+    let resolveResume: (() => void) | undefined;
+    vi.mocked(connectAutomatically).mockImplementation(() => new Promise((resolve) => {
+      resolveResume = resolve;
+    }));
+    const { unmount } = render(<App />);
+
+    await waitFor(() => expect(connectAutomatically).toHaveBeenCalledOnce());
+    // The app has rendered the legacy cache before its Firebase resume reply;
+    // a different UID cannot inherit the previous player's discovery.
+    expect(useSessionStore.getState().me?.uid).toBe('foreign-uid');
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipNavigationLogs).toBeUndefined();
+
+    await act(async () => resolveResume?.());
+    vi.mocked(connectAutomatically).mockResolvedValue(undefined);
+    unmount();
+  });
+
   it.each([
     '/roles',
     '/gm',

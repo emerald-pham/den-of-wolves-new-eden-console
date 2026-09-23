@@ -20,7 +20,7 @@ import type {
 } from '@/types/game';
 import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection, ZealotryResponse, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
-import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
+import { stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
@@ -570,7 +570,7 @@ function normalizePersistedSession(session: GameSession | null | undefined): Gam
     Object.keys(session.retainedShuttles ?? {}),
   );
   return {
-    ...stripGmNavigationProjection(session),
+    ...stripPersistedNavigationProjection(session),
     shuttleDockings: manifest.dockings,
     shuttleVisitLog: manifest.visits,
   };
@@ -687,7 +687,7 @@ export const useSessionStore = create<SessionState>()(
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: ({ session, me, gmInstance, gmAccessAuthenticatedAt, pendingCommands, mode, lastRoute }) => ({
-        session: session ? stripGmNavigationProjection(session) : null,
+        session: session ? stripPersistedNavigationProjection(session) : null,
         me,
         gmInstance,
         gmAccessAuthenticatedAt,

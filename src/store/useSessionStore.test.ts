@@ -80,40 +80,51 @@ describe('useSessionStore', () => {
     expect(saved.state).not.toHaveProperty('persistedSessionSnapshot');
   });
 
-  it.each([false, true])('keeps privileged GM chart data out of saved and restored sessions (own ship: %s)', async (hasOwn) => {
+  it.each([false, true])('does not persist private navigation state from a previous UID (own ship: %s)', async (hasOwn) => {
     const own = {
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '0000',
       knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
       navigationLogs: [], pursuitDistance: 0, revision: 1,
     };
-    const privileged = {
+    const privateSession = {
       ...session,
       ...(hasOwn ? { playerDiscovery: own } : {}),
       organiserSystems: { 'system-17': '8378' },
       organiserSites: { '8378': { code: 'J', name: 'Private site', candidate: false, summary: 'Secret' } },
       organiserSystemHistory: {}, pursuitDistances: { dione: 6 },
+      pursuitGroups: { 'fleet-2': 7 }, shipFleetGroupIds: { dione: 'fleet-2' },
       shipGalacticCoordinates: { aegis: '0000', dione: '8378' },
       shipNavigationLogs: { aegis: [], dione: [] },
       candidatePlanCheckpoint: { cycle: 6 as const, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
     };
-    useSessionStore.getState().setIdentity(privileged, { ...player, role: 'gm' });
-    const assertOwnOnly = (value: GameSession) => {
-      expect(JSON.stringify(value)).not.toContain('8378');
-      for (const key of ['organiserSystems', 'organiserSites', 'organiserSystemHistory', 'pursuitDistances', 'candidatePlanCheckpoint']) {
+    useSessionStore.getState().setIdentity(privateSession, { ...player, uid: 'previous-uid', role: 'player' });
+    const assertNoPrivateNavigation = (value: GameSession) => {
+      for (const key of [
+        'playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'organiserSystems',
+        'organiserSites', 'organiserSystemHistory', 'pursuitDistances', 'pursuitGroups',
+        'shipFleetGroupIds', 'candidatePlanCheckpoint',
+      ]) {
         expect(value).not.toHaveProperty(key);
       }
-      expect(value.shipGalacticCoordinates).toEqual(hasOwn ? { aegis: '0000' } : undefined);
-      expect(value.shipNavigationLogs).toEqual(hasOwn ? { aegis: [] } : undefined);
-      expect(value.playerDiscovery).toEqual(hasOwn ? own : undefined);
+      expect(JSON.stringify(value)).not.toContain('8378');
     };
-    assertOwnOnly(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state.session);
-    expect(useSessionStore.getState().session?.organiserSystems).toEqual(privileged.organiserSystems);
-    // A pre-fix cache must also be sanitized, even if it remembers GM identity.
+    // Rehydration happens synchronously before AppRuntime asks Firebase to
+    // resume the cached identity. Do not persist the previous UID's private
+    // chart while that later authority check is pending.
+    assertNoPrivateNavigation(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state.session);
+    expect(useSessionStore.getState().session?.playerDiscovery).toEqual(hasOwn ? own : undefined);
+    expect(useSessionStore.getState().session?.organiserSystems).toEqual(privateSession.organiserSystems);
+
+    // A legacy cache created before the privacy boundary must be stripped too.
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: 1, state: {
-      session: privileged, me: { ...player, role: 'gm' }, gmInstance, lastRoute: '/gm',
+      session: privateSession,
+      me: { ...player, uid: 'previous-uid', role: 'player' },
+      gmInstance: null,
+      mode: 'console',
+      lastRoute: '/console',
     } }));
     await useSessionStore.persist.rehydrate();
-    assertOwnOnly(useSessionStore.getState().session!);
+    assertNoPrivateNavigation(useSessionStore.getState().session!);
   });
 
   it('persists GM login status without persisting the password', () => {
