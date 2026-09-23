@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [618],
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 15, active: 0, missing: 258,
+    },
+    changes: [
+      'After a GM reconnect, the replacement roster waits for current server access and clears if that access is lost.',
+      '478 of 751 planned items are complete (63.65%).',
+    ],
+  },
+
+  {
+    version: '0.5.16',
     implementationProgress: {
       completed: 478, total: 751, percentage: '63.65%',
       done: 478, partial: 14, active: 0, missing: 259,

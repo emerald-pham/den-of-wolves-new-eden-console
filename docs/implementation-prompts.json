@@ -4559,6 +4559,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "618 -> GM roster listener (partial)",
+      "id": "E-618-GM-ROSTER-RECONNECT",
+      "language": "The GM player roster subscription now discards cached data on reconnect, listens for metadata-only server confirmation even when the roster documents are unchanged, replaces the complete roster only from a current server snapshot, and clears while failing closed after listener error or unsubscribe. Focused regressions cover cache-to-server metadata transitions and late callbacks; Sol xhigh review approved the repair. Hosting deployment and live version verification are pending. Other session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners remain unaudited, so Prompt 618 stays partial.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; Sol xhigh follow-up review 4539dc4a6bdf42c5732d9bea0e2421ab280df75b; focused candidate validation",
+      "type": "evidence / partial / production-path / reconnect / privacy / listener / independent-review / release-pending"
+    },
+    {
       "direction": "619 -> 542;612",
       "id": "E-AUDIT-619",
       "language": "Candidate retry reconnect consumes candidate retry and hydration.",
@@ -22346,8 +22353,8 @@
         "acceptance": "session, player, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief listeners replace cache correctly.",
         "title": "Reconnect every live projection."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-618",
+      "description": "One production GM roster listener slice now clears cached roster data on reconnect, includes metadata-only snapshots so an unchanged server roster can confirm access, replaces the full roster from current server data, and clears permanently on listener error or unsubscribe while rejecting late callbacks. Focused regressions and Sol xhigh follow-up review approve this repair; release verification is pending. The prompt remains partial: session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners have not been verified for cache replacement.",
+      "evidenceIds": "E-AUDIT-618;E-618-GM-ROSTER-RECONNECT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "084;085;086;612",
@@ -22355,10 +22362,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.17"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
