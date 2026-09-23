@@ -26,14 +26,10 @@ there is no minimum-agent count.
 ## Model and review choices
 
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
-`gpt-6-luna` as the economical default delegated worker model, and choose effort
-for each bounded assignment: `medium` for straightforward documentation,
-evidence, copy, or a narrow review; `high` for focused implementation or a
-review that needs more depth; and `xhigh` for complex authority, privacy, or
-cross-cutting work. Use `max`
-for difficult bounded work with a brief reason. Adjust effort when the task's
-actual difficulty warrants it; no one effort level is the default for every
-Luna or Sol assignment. Use `gpt-6-sol` for independent review of risky changes
+`gpt-6-luna` as the default delegated worker model. Use `max` for every
+`gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`, `high`, or `xhigh`,
+selected for the bounded review or assignment. Use `gpt-6-sol` for independent
+review of risky changes
 touching shared session state, callable authorization, Firestore rules,
 deployment, or authentication infrastructure. An exact security review receipt
 still requires `xhigh` when the validator says so.

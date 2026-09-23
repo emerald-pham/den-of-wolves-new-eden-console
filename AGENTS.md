@@ -7,9 +7,8 @@ changelog policy, and truthful merge/deploy closeout.
 
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
 `gpt-6-sol` for the independent risk reviews specified in `CLAUDE.md`.
-Choose each Luna or Sol subagent's reasoning effort for the bounded task and
-adjust it when the actual difficulty changes; no single effort level is the
-default for every assignment.
+Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
+`high`, or `xhigh`, selected for the bounded task.
 
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with

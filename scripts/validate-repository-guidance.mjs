@@ -68,6 +68,13 @@ export function validateAgentModelEscalation({ sources, errors }) {
   const agentPolicy = sourceFor(sources, 'AGENTS.md', errors);
   requireText('AGENTS.md', agentPolicy, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6-sol[\s\S]{0,80}(?:subagents|delegated)/i,
     'must allow only GPT-6 Luna and GPT-6 Sol subagents', errors);
+  for (const filePath of ['AGENTS.md', 'CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+    const source = sourceFor(sources, filePath, errors);
+    requireText(filePath, source, /use\s+max\s+for\s+every\s+gpt-6-luna\s+subagent/i,
+      'must require max effort for every GPT-6 Luna subagent', errors);
+    requireText(filePath, source, /gpt-6-sol\s+may\s+use\s+only\s+medium,\s+high,\s+or\s+xhigh/i,
+      'must limit GPT-6 Sol effort to medium, high, or xhigh', errors);
+  }
   for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
     requireText(filePath, source, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6-sol[\s\S]{0,80}(?:subagents|delegated)/i,

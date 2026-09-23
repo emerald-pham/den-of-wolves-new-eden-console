@@ -97,10 +97,9 @@ self-review and validation, merge, push, and deployment verification when
 applicable. A sidecar is optional and there is no minimum-agent count. Parallelize
 independent deliverables only when the concrete benefit exceeds coordination,
 context, and integration cost, and give every extra agent a bounded deliverable.
-Delegated workers default to `gpt-6-luna`. Use `medium` for straightforward
-documentation, evidence, or copy work; `high` for focused implementation; and
-`xhigh` for complex authority or cross-cutting work. Use `max` only for difficult
-bounded work with a brief reason. Adjust effort to the actual task.
+Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
+subagent. `gpt-6-sol` may use only `medium`, `high`, or `xhigh`, selected for the
+bounded task.
 
 Use `gpt-6-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth

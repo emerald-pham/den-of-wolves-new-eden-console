@@ -122,6 +122,17 @@ describe('repository guidance', () => {
     expect(weakErrors).toEqual(expect.arrayContaining([
       expect.stringContaining('must not authorize older or Terra subagent models'),
     ]));
+
+    const wrongEffort = new Map(sources);
+    wrongEffort.set('CLAUDE.md', readGuidance('CLAUDE.md')
+      .replace('Use `max` for every `gpt-6-luna`', 'Use `high` for every `gpt-6-luna`')
+      .replace('may use only `medium`, `high`, or `xhigh`', 'may use any effort'));
+    const effortErrors: string[] = [];
+    validateAgentModelEscalation({ sources: wrongEffort, errors: effortErrors });
+    expect(effortErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('must require max effort for every GPT-6 Luna subagent'),
+      expect.stringContaining('must limit GPT-6 Sol effort to medium, high, or xhigh'),
+    ]));
   });
 
   it('requires lightweight ownership, parking, optional goals, and no polling loop', () => {
