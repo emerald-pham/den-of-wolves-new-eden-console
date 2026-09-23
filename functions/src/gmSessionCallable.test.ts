@@ -164,7 +164,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
-    constructor(readonly code: string, message: string) {
+    constructor(readonly code: string, message: string, readonly details?: unknown) {
       super(message);
     }
   },
@@ -526,30 +526,36 @@ describe('GM instance ownership', () => {
     expect(forTablet.instances[0]).not.toHaveProperty('shipConsoleWriteGrant');
   });
 
-  it('limits GM-instance roster scans per authenticated member and ignores spoofed identity fields', async () => {
+  it('budgets overlapping roster cadence and isolates two GMs behind one network by authenticated UID', async () => {
     session();
-    player('u1');
-    player('u2');
-    const identity = { callableName: 'listGmInstances', sessionId: 's1', uid: 'u1' } as const;
-    const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
-    const spoofedRequest = () => request({
-      sessionId: 's1', uid: 'u2', skipRateLimit: true, rateLimitIdentity: 'u2',
-    }, 'u1');
+    player('u1', { role: 'gm' });
+    player('u2', { role: 'gm' });
+    const requestForGm = (uid: string) => ({
+      data: { sessionId: 's1', uid: uid === 'u1' ? 'u2' : 'u1', skipRateLimit: true },
+      auth: { uid },
+      rawRequest: { ip: '198.51.100.25' },
+    }) as unknown as CallableRequest<{ sessionId: string }>;
+    const markerPathFor = (uid: string) => `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
+      callableName: 'listGmInstances', sessionId: 's1', uid,
+    })}`;
+    const cadenceCalls = 22;
 
-    for (let index = 0; index < 12; index += 1) {
-      await expect(listGmInstances.run(spoofedRequest())).resolves.toEqual({ instances: [] });
+    for (let index = 0; index < cadenceCalls; index += 1) {
+      await expect(listGmInstances.run(requestForGm('u1'))).resolves.toEqual({ instances: [] });
     }
-    await expect(listGmInstances.run(spoofedRequest())).rejects.toMatchObject({ code: 'resource-exhausted' });
-
-    expect(read(markerPath)).toMatchObject({
-      type: 'callable-rate-limit', callableName: 'listGmInstances', requestCount: 12,
+    expect(read(markerPathFor('u1'))).toMatchObject({
+      type: 'callable-rate-limit', callableName: 'listGmInstances', requestCount: cadenceCalls,
     });
-    await expect(listGmInstances.run(request({
-      sessionId: 's1', uid: 'u1', skipRateLimit: true,
-    }, 'u2'))).resolves.toEqual({ instances: [] });
-    expect(read(`sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
-      ...identity, uid: 'u2',
-    })}`)).toMatchObject({ requestCount: 1 });
+
+    for (let index = 0; index < 60; index += 1) {
+      await expect(listGmInstances.run(requestForGm('u2'))).resolves.toEqual({ instances: [] });
+    }
+    await expect(listGmInstances.run(requestForGm('u2'))).rejects.toMatchObject({ code: 'resource-exhausted' });
+
+    expect(read(markerPathFor('u2'))).toMatchObject({
+      type: 'callable-rate-limit', callableName: 'listGmInstances', requestCount: 60,
+    });
+    expect(read(markerPathFor('u1'))).toMatchObject({ requestCount: cadenceCalls });
   });
 
   it('returns a safe stale receipt when facilitator revision changed before saving', async () => {

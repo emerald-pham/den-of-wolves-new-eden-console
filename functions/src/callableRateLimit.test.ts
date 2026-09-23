@@ -60,10 +60,30 @@ describe('expensive callable rate limits', () => {
     expect(CALLABLE_RATE_LIMIT_POLICIES).toEqual({
       resumeSession: { windowMs: 60_000, maxRequests: 10 },
       getSessionPresence: { windowMs: 60_000, maxRequests: 12 },
-      listGmInstances: { windowMs: 60_000, maxRequests: 12 },
+      listGmInstances: { windowMs: 60_000, maxRequests: 60 },
       rollDice: { windowMs: 60_000, maxRequests: 30 },
     });
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('uid');
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('ip');
+  });
+
+  it('allows the observed overlapping GM roster cadence with a 38-call margin', () => {
+    const gmIdentity = { callableName: 'listGmInstances', sessionId: 'session-a', uid: 'gm-a' } as const;
+    const gmPolicy = CALLABLE_RATE_LIMIT_POLICIES.listGmInstances;
+    const cadenceTimes = [
+      ...Array.from({ length: 12 }, (_, index) => index * 5_000),
+      ...Array.from({ length: 6 }, (_, index) => index * 10_000),
+      ...Array.from({ length: 4 }, (_, index) => index * 15_000),
+    ].sort((left, right) => left - right);
+    let marker: unknown;
+
+    for (const nowMs of cadenceTimes) {
+      const decision = evaluateCallableRateLimit(marker, gmIdentity, gmPolicy, nowMs);
+      expect(decision.allowed).toBe(true);
+      if (decision.allowed) marker = decision.state;
+    }
+
+    expect(marker).toMatchObject({ requestCount: 22 });
+    expect(gmPolicy.maxRequests - cadenceTimes.length).toBe(38);
   });
 });

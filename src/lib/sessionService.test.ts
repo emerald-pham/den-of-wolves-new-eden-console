@@ -129,6 +129,7 @@ describe('connect', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -151,6 +152,39 @@ describe('connect', () => {
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resumeSession');
     expect(callable).toHaveBeenCalledWith({ sessionId: 's1' });
     expect(useSessionStore.getState().connection).toBe('live');
+  });
+
+  it('shows the limiter wait and reconnects after the interval without queueing a duplicate command', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe(player);
+    const resume = Object.assign(vi.fn()
+      .mockRejectedValueOnce({
+        code: 'functions/resource-exhausted',
+        details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+        message: 'private limiter detail',
+      })
+      .mockResolvedValue({ data: { session, player } }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume : callableReturning({ data: {} }));
+
+    await connect();
+
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toMatchObject({
+      kind: 'rate-limited', code: 'resource-exhausted', retryAfterSeconds: 60,
+      message: 'This session is receiving too many requests. Wait for the displayed interval, then retry.',
+    });
+    expect(useSessionStore.getState().communicationError?.message).not.toContain('private limiter detail');
+
+    vi.advanceTimersByTime(60_000);
+    await connect();
+
+    expect(resume).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().connection).toBe('live');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
   it('does not promote a cache-marked offline connection before authority is accepted', async () => {
@@ -410,6 +444,26 @@ describe('connect', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([
       expect.objectContaining({ kind: 'claimGmInstance' }),
     ]);
+  });
+
+  it('does not queue an explicit rate-limit rejection and preserves its wait hint', async () => {
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'gm' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/resource-exhausted',
+      details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+      message: 'private limiter details',
+    }));
+
+    await expect(claimGmInstance('Bridge')).rejects.toMatchObject({ code: 'functions/resource-exhausted' });
+
+    expect(useSessionStore.getState().connection).toBe('live');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toMatchObject({
+      kind: 'rate-limited', retryAfterSeconds: 60,
+      message: 'This session is receiving too many requests. Wait for the displayed interval, then retry.',
+    });
   });
 
   it('does not restore a session after a local disconnect races a resume reply', async () => {

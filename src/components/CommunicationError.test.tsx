@@ -41,17 +41,17 @@ it('shows a dismissible Wolf Communications Interception Code and expires', () =
 
 it('shows a bounded retry wait without rendering the server message', () => {
   useSessionStore.getState().setCommunicationError({
-    kind: 'unavailable-service',
+    kind: 'rate-limited',
     code: 'resource-exhausted',
     message: 'private limiter details',
-    retryAfterSeconds: 600,
+    retryAfterSeconds: 60,
   });
 
   render(<CommunicationError />);
 
   expect(screen.getByRole('alert')).toHaveTextContent(
-    'The fleet service is temporarily unavailable. Reconnect and retry.',
+    'This session is receiving too many requests. Wait for the displayed interval, then retry.',
   );
-  expect(screen.getByRole('alert')).toHaveTextContent('Try again in about 600 seconds.');
+  expect(screen.getByRole('alert')).toHaveTextContent('Try again in about 60 seconds.');
   expect(screen.getByRole('alert')).not.toHaveTextContent('private limiter details');
 });

@@ -44,7 +44,7 @@ export async function enforceExpensiveCallableRateLimit(
   if (rejection) {
     const invalidMarker = rejection.reason === 'invalid-marker';
     const details = rejection.reason === 'limit-reached'
-      ? { commandError: 'rate-limited', retryAfterMs: rejection.retryAfterMs }
+      ? { commandError: 'rate-limited', retryAfterSeconds: Math.max(1, Math.ceil(rejection.retryAfterMs / 1_000)) }
       : { commandError: 'rate-limit-state-invalid' };
     throw new HttpsError(
       'resource-exhausted',

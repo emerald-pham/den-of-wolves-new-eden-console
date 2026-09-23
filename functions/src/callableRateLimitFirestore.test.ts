@@ -49,7 +49,7 @@ describe('Firestore callable rate-limit adapter', () => {
     }
     await expect(enforceExpensiveCallableRateLimit(firestore, identity, 1_010)).rejects.toMatchObject({
       code: 'resource-exhausted',
-      details: { commandError: 'rate-limited', retryAfterMs: 59_990 },
+      details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
     });
     await expect(enforceExpensiveCallableRateLimit(firestore, {
       ...identity, uid: 'auth-uid-b',

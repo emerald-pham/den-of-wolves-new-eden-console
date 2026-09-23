@@ -53,6 +53,7 @@ import {
 import type { AirspaceWindow } from '@/types/game';
 import {
   commandErrorCode,
+  isRateLimitedCommandError,
   normalizeCommandError,
 } from './commandErrors';
 
@@ -171,6 +172,10 @@ function errorCode(cause: unknown): string | undefined {
 
 function interception(cause: unknown) {
   return normalizeCommandError(cause);
+}
+
+function isTransientCommandError(cause: unknown): boolean {
+  return !isRateLimitedCommandError(cause) && TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '');
 }
 
 function deviceLabel(): string {
@@ -868,7 +873,7 @@ async function sendOrQueue(
     ) return 'awaiting-officer';
     return 'applied';
   } catch (cause) {
-    if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
+    if (isTransientCommandError(cause)) {
       if (cleanupCommand || isReplaySafeCommand(command)) {
         if (cleanupCommand) queue(command);
         else queueFromServerAuthority(command);
@@ -926,7 +931,7 @@ async function flushPendingCommands(): Promise<boolean> {
       else applyCommandResult(command, result, checkpoint, true);
       store.removeCommand(command.id);
     } catch (cause) {
-      if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return false;
+      if (isTransientCommandError(cause)) return false;
       store.removeCommand(command.id);
       store.setCommunicationError(interception(cause));
     }
@@ -1028,7 +1033,7 @@ export async function connect(): Promise<void> {
       try {
         await reconcileGmAuthority();
       } catch (cause) {
-        if (!TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) throw cause;
+        if (!isTransientCommandError(cause)) throw cause;
       }
     }
     // A cached snapshot may have marked the local state offline while the
@@ -1046,8 +1051,9 @@ export async function connect(): Promise<void> {
         latest.setConnection('live');
       }
     }
-  } catch {
+  } catch (cause) {
     store.setConnection('offline');
+    if (isRateLimitedCommandError(cause)) store.setCommunicationError(interception(cause));
   }
 }
 
@@ -3081,7 +3087,7 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     useSessionStore.getState().setGmSetupReceipt(reply.setupReceipt);
     return reply;
   } catch (cause) {
-    if (!TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
+    if (!isTransientCommandError(cause)) {
       if (sameStartAttempt(
         pendingStartRequest,
         payload.sessionId,

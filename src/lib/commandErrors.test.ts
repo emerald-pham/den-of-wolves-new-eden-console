@@ -84,6 +84,19 @@ describe('normalizeCommandError', () => {
     });
   });
 
+  it('classifies limiter rejections with safe guidance and the server retry interval', () => {
+    expect(normalizeCommandError({
+      code: 'functions/resource-exhausted',
+      details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+      message: 'private limiter details',
+    })).toEqual({
+      kind: 'rate-limited',
+      code: 'resource-exhausted',
+      message: 'This session is receiving too many requests. Wait for the displayed interval, then retry.',
+      retryAfterSeconds: 60,
+    });
+  });
+
   it.each([0, -1, 3601, 1.5, '600'])('drops an invalid retry hint (%s)', (retryAfterSeconds) => {
     expect(normalizeCommandError({
       code: 'functions/resource-exhausted',

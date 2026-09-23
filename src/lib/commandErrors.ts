@@ -12,6 +12,7 @@ export const COMMAND_ERROR_KINDS = [
   'stale-revision',
   'conflict',
   'malformed-input',
+  'rate-limited',
   'unavailable-service',
   'terminal-session',
   'unknown',
@@ -45,6 +46,7 @@ const GUIDANCE: Readonly<Record<CommandErrorKind, string>> = {
   'stale-revision': 'The live session changed before this command committed. Refresh the live state and retry.',
   conflict: 'Another command won this update. Refresh the live state and retry.',
   'malformed-input': 'The command could not be understood. Check the entered values and try again.',
+  'rate-limited': 'This session is receiving too many requests. Wait for the displayed interval, then retry.',
   'unavailable-service': 'The fleet service is temporarily unavailable. Reconnect and retry.',
   'terminal-session': 'This session is no longer available. Return to the landing screen to join another table.',
   unknown: 'The command could not be completed. Refresh the live state and try again.',
@@ -92,6 +94,11 @@ function details(cause: unknown): CommandErrorDetails | undefined {
   const value = direct ?? nested;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   return value as CommandErrorDetails;
+}
+
+/** A server-declared limiter rejection is safe to retry after its wait hint, not as an ambiguous transport failure. */
+export function isRateLimitedCommandError(cause: unknown): boolean {
+  return details(cause)?.commandError === 'rate-limited';
 }
 
 function detailKind(cause: unknown): CommandErrorKind | undefined {
