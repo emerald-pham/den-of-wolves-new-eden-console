@@ -10,10 +10,10 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
-it('describes AEGIS Command and Control in the current release notes', () => {
-  const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+it('retains AEGIS Command and Control in the 0.5.21 release notes', () => {
+  const previousEntry = CHANGELOG.find((entry) => entry.version === '0.5.21');
 
-  expect(currentEntry?.changes).toContain(
+  expect(previousEntry?.changes).toContain(
     'The AEGIS Executive Officer can redirect one Wolf ship to AEGIS after the Wolf Commander finishes targeting rerolls. If the assigned Commander is disconnected, the redirect waits until they reconnect and finish rerolls. This action does not resolve damage.',
   );
 });
