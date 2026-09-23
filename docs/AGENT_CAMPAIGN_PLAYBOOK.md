@@ -25,11 +25,17 @@ there is no minimum-agent count.
 
 ## Model and review choices
 
-Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Luna 6 with
-`xhigh` reasoning is the economical default; reserve `max` for difficult
-bounded work with a brief reason. Sol 6 is the independent
-review option for risky changes touching shared session state, callable
-authorization, Firestore rules, deployment, or authentication infrastructure.
+Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Choose effort
+for each bounded assignment: `medium` for straightforward documentation,
+evidence, copy, or a narrow review; `high` for focused implementation or a
+review that needs more depth; and `xhigh` for complex authority, privacy, or
+cross-cutting work. Use `max`
+for difficult bounded work with a brief reason. Adjust effort when the task's
+actual difficulty warrants it; no one level is the default for every Luna or
+Sol assignment. Sol 6 is the independent review option for risky changes
+touching shared session state, callable authorization, Firestore rules,
+deployment, or authentication infrastructure. An exact security review receipt
+still requires `xhigh` when the validator says so.
 Ask the reviewer for all findings in one pass. Escalate only after actual lack
 of progress or a material failed attempt; a typo, copy change, or test-count
 correction does not require a handoff. Do not force a Luna → Sol → Luna loop.
