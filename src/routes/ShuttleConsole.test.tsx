@@ -939,8 +939,9 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
     } },
     shipDamage: { 'refinery-124': { damagedSystemIds: ['reactor'], destroyed: false } },
     shipResources: { 'refinery-124': {
-      ore: 0, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2,
+      ore: 2, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2,
     } },
+    shuttleCargo: { chacau: { ore: 1 } },
   });
   state.setMe({ ...state.me!, activeConsoleRoleId: 'refinery-124-engineer' });
 
@@ -968,6 +969,14 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
   expect(screen.getByRole('region', { name: 'Chacau console repair' })).toBeInTheDocument();
   expect(screen.queryByText(/fuelled.*repair or scrap/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'ore');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '1');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  expect(transferShuttleCargo).toHaveBeenCalledWith('chacau', 'ore', 'load', 1, 1);
+  expect(await screen.findByRole('status')).toHaveTextContent('Loaded 1 Strytium Ore.');
 
   const back = screen.getByRole('link', { name: /back to refinery 124 engineer console/i });
   back.focus();
