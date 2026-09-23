@@ -14,7 +14,8 @@ import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import { recommendedRoleIds } from '@/data/rolePresets';
 
 vi.mock('@/lib/sessionService', () => ({
-  connect: vi.fn().mockResolvedValue(undefined),
+  CONNECT_RETRY_INTERVAL_MS: 2_000,
+  connectAutomatically: vi.fn().mockResolvedValue(undefined),
   beginOpenAirspacePhase: vi.fn().mockResolvedValue(undefined),
   createSession: vi.fn(),
   disconnectFromSession: vi.fn(),
@@ -64,7 +65,7 @@ vi.mock('@/lib/versionUpgrade', () => ({
 }));
 
 const {
-  connect,
+  connectAutomatically,
   createSession,
   disconnectFromSession,
   joinSession,
@@ -121,7 +122,7 @@ describe('App', () => {
   });
 
   afterEach(() => {
-    vi.mocked(connect).mockClear();
+    vi.mocked(connectAutomatically).mockClear();
     vi.useRealTimers();
   });
 
@@ -141,13 +142,13 @@ describe('App', () => {
       name: /Den of Wolves: New Eden/i,
       hidden: true,
     }).closest('[aria-hidden="true"]')).not.toBeNull();
-    expect(connect).not.toHaveBeenCalled();
+    expect(connectAutomatically).not.toHaveBeenCalled();
 
     await userEvent.setup().click(screen.getByRole('button', { name: /normal motion/i }));
 
     expect(screen.queryByRole('dialog', { name: /motion safety check/i })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Den of Wolves: New Eden/i })).toBeVisible();
-    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
+    await waitFor(() => expect(connectAutomatically).toHaveBeenCalledOnce());
   });
 
   it('automatically logs out GM access after the safety timeout', async () => {
@@ -254,7 +255,7 @@ describe('App', () => {
   it('reaches for Firebase as soon as it mounts, so the light can leave red', async () => {
     render(<App />);
     await waitFor(() => {
-      expect(connect).toHaveBeenCalledOnce();
+      expect(connectAutomatically).toHaveBeenCalledOnce();
     });
   });
 
@@ -276,18 +277,18 @@ describe('App', () => {
 
     await vi.advanceTimersByTimeAsync(2_000);
 
-    expect(connect).toHaveBeenCalledTimes(2);
+    expect(connectAutomatically).toHaveBeenCalledTimes(2);
   });
 
   it('retries Firebase as soon as a background tab becomes visible', async () => {
     render(<App />);
-    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
-    vi.mocked(connect).mockClear();
+    await waitFor(() => expect(connectAutomatically).toHaveBeenCalledOnce());
+    vi.mocked(connectAutomatically).mockClear();
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
 
     act(() => document.dispatchEvent(new Event('visibilitychange')));
 
-    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
+    await waitFor(() => expect(connectAutomatically).toHaveBeenCalledOnce());
     Reflect.deleteProperty(document, 'visibilityState');
   });
 
@@ -324,7 +325,7 @@ describe('App', () => {
   it.each(['connect', 'heartbeat', 'reconcile'] as const)(
     'keeps slow %s checks to one pending request and resumes after settlement', async (kind) => {
       vi.useFakeTimers();
-      const check = kind === 'connect' ? connect
+      const check = kind === 'connect' ? connectAutomatically
         : kind === 'heartbeat' ? refreshPresence : reconcileGmAuthority;
       vi.mocked(check).mockClear();
       let finish: () => void = () => undefined;

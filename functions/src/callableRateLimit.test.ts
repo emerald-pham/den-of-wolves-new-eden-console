@@ -67,11 +67,12 @@ describe('expensive callable rate limits', () => {
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('ip');
   });
 
-  it('allows the observed overlapping GM roster cadence with a 38-call margin', () => {
+  it('allows the observed overlapping two-GM roster cadence with a 32-call margin', () => {
     const gmIdentity = { callableName: 'listGmInstances', sessionId: 'session-a', uid: 'gm-a' } as const;
     const gmPolicy = CALLABLE_RATE_LIMIT_POLICIES.listGmInstances;
     const cadenceTimes = [
       ...Array.from({ length: 12 }, (_, index) => index * 5_000),
+      ...Array.from({ length: 6 }, (_, index) => index * 10_000),
       ...Array.from({ length: 6 }, (_, index) => index * 10_000),
       ...Array.from({ length: 4 }, (_, index) => index * 15_000),
     ].sort((left, right) => left - right);
@@ -83,7 +84,7 @@ describe('expensive callable rate limits', () => {
       if (decision.allowed) marker = decision.state;
     }
 
-    expect(marker).toMatchObject({ requestCount: 22 });
-    expect(gmPolicy.maxRequests - cadenceTimes.length).toBe(38);
+    expect(marker).toMatchObject({ requestCount: 28 });
+    expect(gmPolicy.maxRequests - cadenceTimes.length).toBe(32);
   });
 });

@@ -538,7 +538,7 @@ describe('GM instance ownership', () => {
     const markerPathFor = (uid: string) => `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
       callableName: 'listGmInstances', sessionId: 's1', uid,
     })}`;
-    const cadenceCalls = 22;
+    const cadenceCalls = 28;
 
     for (let index = 0; index < cadenceCalls; index += 1) {
       await expect(listGmInstances.run(requestForGm('u1'))).resolves.toEqual({ instances: [] });

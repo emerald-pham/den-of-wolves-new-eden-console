@@ -125,6 +125,66 @@ const TRANSIENT_COMMAND_ERRORS = new Set([
   'functions/internal',
   'functions/unknown',
 ]);
+export const CONNECT_RETRY_INTERVAL_MS = 2_000;
+
+interface ResumeRateLimitHold {
+  readonly sessionId: string;
+  readonly uid: string;
+  readonly retryAtMs: number;
+  readonly requestGeneration: number;
+}
+
+let latestConnectAttemptGeneration = 0;
+let resumeRateLimitHold: ResumeRateLimitHold | null = null;
+
+function rateLimitHoldMatches(hold: ResumeRateLimitHold, sessionId: string, uid: string): boolean {
+  return hold.sessionId === sessionId && hold.uid === uid;
+}
+
+function rememberConnectRateLimit(
+  sessionId: string | undefined,
+  uid: string | undefined,
+  requestGeneration: number,
+  cause: unknown,
+): boolean {
+  const state = useSessionStore.getState();
+  const authenticatedUid = auth().currentUser?.uid;
+  if (
+    requestGeneration !== latestConnectAttemptGeneration ||
+    !sessionId || !uid || state.session?.id !== sessionId || state.me?.uid !== uid || authenticatedUid !== uid
+  ) return false;
+  const retryAfterSeconds = normalizeCommandError(cause).retryAfterSeconds ?? 60;
+  resumeRateLimitHold = {
+    sessionId,
+    uid,
+    retryAtMs: Date.now() + retryAfterSeconds * 1_000,
+    requestGeneration,
+  };
+  return true;
+}
+
+function clearConnectRateLimitAfterAuthority(sessionId: string, uid: string, requestGeneration: number): void {
+  const hold = resumeRateLimitHold;
+  const state = useSessionStore.getState();
+  if (
+    requestGeneration === latestConnectAttemptGeneration &&
+    state.session?.id === sessionId && state.me?.uid === uid &&
+    state.sessionSnapshotFreshness === 'server' && auth().currentUser?.uid === uid
+  ) {
+    if (hold && rateLimitHoldMatches(hold, sessionId, uid) && hold.requestGeneration < requestGeneration) {
+      resumeRateLimitHold = null;
+    }
+    if (state.communicationError?.kind === 'rate-limited') state.setCommunicationError(null);
+  }
+}
+
+function setConnectRateLimitWait(seconds: number): void {
+  useSessionStore.getState().setCommunicationError(normalizeCommandError({
+    code: 'functions/resource-exhausted',
+    details: { commandError: 'rate-limited', retryAfterSeconds: seconds },
+  }));
+}
+
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
 export type CommandDisposition = 'applied' | 'queued' | 'stale' | 'awaiting-officer';
 export type TurnStartReplayAudience = 'gm' | 'everyone';
@@ -997,13 +1057,37 @@ async function ensureSignedIn(): Promise<void> {
  * again if it throws.
  */
 export async function connect(): Promise<void> {
-  const store = useSessionStore.getState();
-  store.setConnection('connecting');
+  return connectWithRetryPolicy(false);
+}
+
+/** App-driven retry triggers honor a server retryAfterSeconds for the same session and Firebase UID. */
+export async function connectAutomatically(): Promise<void> {
+  return connectWithRetryPolicy(true);
+}
+
+async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<void> {
+  const requestGeneration = ++latestConnectAttemptGeneration;
+  let attemptedSessionId: string | undefined;
+  let attemptedUid: string | undefined;
   try {
     if (!window.navigator.onLine) {
       throw new Error('Browser is offline.');
     }
     await ensureSignedIn();
+    const store = useSessionStore.getState();
+    attemptedSessionId = store.session?.id;
+    attemptedUid = auth().currentUser?.uid;
+    const hold = resumeRateLimitHold;
+    if (
+      respectRateLimitWait && attemptedSessionId && attemptedUid && hold &&
+      rateLimitHoldMatches(hold, attemptedSessionId, attemptedUid) && Date.now() < hold.retryAtMs
+    ) {
+      const remainingSeconds = Math.max(1, Math.ceil((hold.retryAtMs - Date.now()) / 1_000));
+      store.setConnection('offline');
+      setConnectRateLimitWait(remainingSeconds);
+      return;
+    }
+    store.setConnection('connecting');
     const rememberedSession = store.session;
     if (rememberedSession) {
       // The persisted projection is useful for the first render, but every
@@ -1015,6 +1099,9 @@ export async function connect(): Promise<void> {
         const resumed = await resumeSession(rememberedSession.id);
         if (!resumed && useSessionStore.getState().session?.id === rememberedSession.id) {
           throw new Error('The server returned a mismatched session identity.');
+        }
+        if (resumed && attemptedUid) {
+          clearConnectRateLimitAfterAuthority(rememberedSession.id, attemptedUid, requestGeneration);
         }
       } catch (cause) {
         if (!TERMINAL_RESUME_ERRORS.has(errorCode(cause) ?? '')) throw cause;
@@ -1052,8 +1139,13 @@ export async function connect(): Promise<void> {
       }
     }
   } catch (cause) {
+    if (requestGeneration !== latestConnectAttemptGeneration) return;
+    const store = useSessionStore.getState();
     store.setConnection('offline');
-    if (isRateLimitedCommandError(cause)) store.setCommunicationError(interception(cause));
+    if (
+      isRateLimitedCommandError(cause) &&
+      rememberConnectRateLimit(attemptedSessionId, attemptedUid, requestGeneration, cause)
+    ) store.setCommunicationError(interception(cause));
   }
 }
 

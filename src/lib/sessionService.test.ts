@@ -18,6 +18,8 @@ vi.mock('./firebase', () => ({
 
 const {
   claimGmInstance,
+  CONNECT_RETRY_INTERVAL_MS,
+  connectAutomatically,
   connect,
   createSession,
   disconnectFromSession,
@@ -154,7 +156,7 @@ describe('connect', () => {
     expect(useSessionStore.getState().connection).toBe('live');
   });
 
-  it('shows the limiter wait and reconnects after the interval without queueing a duplicate command', async () => {
+  it('shows the limiter wait and keeps explicit manual recovery available after the interval', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
     useSessionStore.getState().setSession(session);
@@ -169,7 +171,7 @@ describe('connect', () => {
     vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
       ? resume : callableReturning({ data: {} }));
 
-    await connect();
+    await connectAutomatically();
 
     expect(useSessionStore.getState().connection).toBe('offline');
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
@@ -185,6 +187,102 @@ describe('connect', () => {
     expect(resume).toHaveBeenCalledTimes(2);
     expect(useSessionStore.getState().connection).toBe('live');
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  });
+
+  it('suppresses the App two-second reconnect loop until the server wait expires, then resumes once', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe(player);
+    const resume = Object.assign(vi.fn()
+      .mockRejectedValueOnce({
+        code: 'functions/resource-exhausted',
+        details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+      })
+      .mockResolvedValue({ data: { session, player } }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume : callableReturning({ data: {} }));
+
+    await connectAutomatically();
+    expect(resume).toHaveBeenCalledTimes(1);
+
+    const appReconnectLoop = window.setInterval(() => { void connectAutomatically(); }, CONNECT_RETRY_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(58_000);
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().communicationError).toMatchObject({
+      kind: 'rate-limited', retryAfterSeconds: 2,
+    });
+
+    await vi.advanceTimersByTimeAsync(CONNECT_RETRY_INTERVAL_MS);
+    window.clearInterval(appReconnectLoop);
+
+    expect(resume).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().connection).toBe('live');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  });
+
+  it('lets a changed session reconnect immediately while an older session hold remains identity-bound', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe(player);
+    const nextSession = { ...session, id: 's2' };
+    const nextPlayer = { ...player, sessionId: 's2' };
+    const resume = Object.assign(vi.fn()
+      .mockRejectedValueOnce({
+        code: 'functions/resource-exhausted',
+        details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+      })
+      .mockResolvedValueOnce({ data: { session: nextSession, player: nextPlayer } }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume : callableReturning({ data: {} }));
+
+    await connectAutomatically();
+    useSessionStore.getState().setIdentity(nextSession, nextPlayer);
+    await connectAutomatically();
+
+    expect(resume).toHaveBeenCalledTimes(2);
+    expect(resume).toHaveBeenLastCalledWith({ sessionId: 's2' });
+    expect(useSessionStore.getState().connection).toBe('live');
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it('does not let a stale resume callback clear a newer identity-bound hold', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+    const staleSession = { ...session, id: 'stale-a' };
+    const stalePlayer = { ...player, sessionId: 'stale-a' };
+    useSessionStore.getState().setSession(staleSession);
+    useSessionStore.getState().setMe(stalePlayer);
+    const nextSession = { ...session, id: 'stale-b' };
+    const nextPlayer = { ...player, sessionId: 'stale-b' };
+    let finishOldResume!: (value: { data: { session: typeof staleSession; player: typeof stalePlayer } }) => void;
+    const oldResume = new Promise<{ data: { session: typeof staleSession; player: typeof stalePlayer } }>((resolve) => {
+      finishOldResume = resolve;
+    });
+    const resume = Object.assign(vi.fn()
+      .mockReturnValueOnce(oldResume)
+      .mockRejectedValueOnce({
+        code: 'functions/resource-exhausted',
+        details: { commandError: 'rate-limited', retryAfterSeconds: 60 },
+      }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume : callableReturning({ data: {} }));
+
+    const oldAttempt = connectAutomatically();
+    await vi.waitFor(() => expect(resume).toHaveBeenCalledTimes(1));
+    useSessionStore.getState().setIdentity(nextSession, nextPlayer);
+    await connectAutomatically();
+    finishOldResume({ data: { session: staleSession, player: stalePlayer } });
+    await oldAttempt;
+
+    await connectAutomatically();
+
+    expect(resume).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().communicationError).toMatchObject({
+      kind: 'rate-limited', retryAfterSeconds: 60,
+    });
   });
 
   it('does not promote a cache-marked offline connection before authority is accepted', async () => {

@@ -11,7 +11,8 @@ import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import {
-  connect,
+  CONNECT_RETRY_INTERVAL_MS,
+  connectAutomatically,
   logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
@@ -46,7 +47,6 @@ import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus,
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 
-const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const hasConsoleDradis = (path: string): boolean =>
@@ -743,14 +743,14 @@ function AppRuntime() {
       useSessionStore.getState().setConnection('offline');
     });
     const stopVersionMonitor = startVersionUpgradeMonitor({
-      reconnect: () => run(connect),
+      reconnect: () => run(connectAutomatically),
       onUpdateAvailable: markServiceWorkerUpdateAvailable,
     });
-    run(connect);
+    run(connectAutomatically);
 
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') run(connect);
-    }, RECONNECT_INTERVAL_MS);
+      if (useSessionStore.getState().connection !== 'live') run(connectAutomatically);
+    }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
       if (state.connection === 'live' && state.gmInstance) {
@@ -768,10 +768,10 @@ function AppRuntime() {
       useSessionStore.getState().setConnection('offline');
     };
     const reconnectNow = () => {
-      run(connect);
+      run(connectAutomatically);
     };
     const reconnectWhenVisible = () => {
-      if (document.visibilityState === 'visible') run(connect);
+      if (document.visibilityState === 'visible') run(connectAutomatically);
     };
 
     window.addEventListener('offline', markOffline);

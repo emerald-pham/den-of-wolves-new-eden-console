@@ -4,9 +4,9 @@ export const CALLABLE_RATE_LIMIT_POLICIES = {
   // These budgets absorb duplicate reconnect/bootstrap calls while bounding repeated full roster work.
   resumeSession: { windowMs: 60_000, maxRequests: 10 },
   getSessionPresence: { windowMs: 60_000, maxRequests: 12 },
-  // Normal GM use can overlap 12 five-second reconciles, 6 ten-second presence
-  // heartbeats, and 4 fifteen-second roster polls (22/min). A 60/min budget
-  // leaves 38 calls for focus changes, reconnects, and listener refresh bursts.
+  // Two live GM consoles can overlap 12 five-second reconciles, 12 ten-second
+  // heartbeat-triggered roster updates, and 4 fifteen-second polls (28/min).
+  // A 60/min budget leaves 32 calls for focus changes, reconnects, and bursts.
   listGmInstances: { windowMs: 60_000, maxRequests: 60 },
   // Dice remain interactive; the higher budget limits event growth from tight automated loops.
   rollDice: { windowMs: 60_000, maxRequests: 30 },
