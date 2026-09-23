@@ -70,3 +70,14 @@ adding its production panel, typed ledger hydration, and callable client. The
 gzip, largest-chunk, startup, render-update, and mobile-frame budgets remain
 unchanged; the raw ceiling retains 1,750 bytes of headroom over that measured
 candidate.
+
+Baseline version 7 raises only the complete raw-JavaScript ceiling from
+1,711,000 to 1,720,000 bytes for the reviewed Ally repair console. The exact
+P384 candidate measured 1,718,751 raw bytes and 457,459 gzip bytes locally after
+adding its production panel, typed ledger hydration, and callable client. Its
+landing startup p95 was 116.83 ms, cached Role Select startup p95 was 94.5 ms,
+DRADIS, hostile-attack, and mission-hand update p95 values were 33.5 ms, 33.5
+ms, and 33.5 ms, and the 390x844 mobile probe measured a 16.7 ms p95 with zero
+long frames. The gzip, largest-chunk, startup, render-update, and mobile-frame
+budgets remain unchanged; the raw ceiling retains 1,249 bytes of headroom over
+that measured candidate.
