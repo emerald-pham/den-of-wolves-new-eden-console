@@ -86,3 +86,10 @@ it('keeps Capybara 7♠ authoritative for the Scrap Refinery', () => {
     card: { card: '7♠', systemId: 'scrap-refinery', systemName: 'Scrap Refinery' },
   });
 });
+
+it('leaves Capybara damage unresolved when its printed deck is exhausted', () => {
+  expect(() => drawShipDamage('capybara', {
+    damagedSystemIds: SHIP_DAMAGE_DECKS.capybara.map(({ systemId }) => systemId),
+    destroyed: false,
+  }, () => 0)).toThrow('facilitator ruling required');
+});

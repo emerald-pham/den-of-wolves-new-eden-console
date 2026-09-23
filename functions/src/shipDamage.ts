@@ -126,6 +126,12 @@ export type DamageDrawResult =
     readonly recycled: boolean;
   };
 
+export class CapybaraDamageDeckExhaustedError extends Error {
+  constructor() {
+    super('Capybara damage deck exhausted; facilitator ruling required.');
+  }
+}
+
 /** Draw a remaining damage card; the injected index keeps the rules deterministic in tests. */
 export function drawShipDamage(
   shipId: string,
@@ -139,6 +145,11 @@ export function drawShipDamage(
   const damaged = new Set(state.damagedSystemIds);
   const remaining = deck.filter(({ systemId }) => !damaged.has(systemId));
   if (remaining.length === 0) {
+    // The expansion does not define an outcome for Capybara's exhausted deck.
+    // Leave the authoritative state untouched until that ruling is recorded.
+    if (shipId === 'capybara') {
+      throw new CapybaraDamageDeckExhaustedError();
+    }
     return { state: { ...state, destroyed: true }, destroyed: true };
   }
   const index = randomIndex(remaining.length);

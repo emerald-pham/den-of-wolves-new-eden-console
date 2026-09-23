@@ -32,6 +32,7 @@ export interface NormalizedCommandError {
 export interface CommandErrorDetails {
   readonly commandError?: unknown;
   readonly kind?: unknown;
+  readonly reason?: unknown;
   readonly retryAfterSeconds?: unknown;
 }
 
@@ -150,7 +151,10 @@ export function normalizeCommandError(cause: unknown): NormalizedCommandError {
     'status' in cause && cause.status === 'stale';
   const kind = explicit ?? (structured ? 'stale-revision' : codeKind(code));
   const isFirebaseCode = FIREBASE_CODES.has(code) || code.startsWith('functions/');
-  const message = kind === 'unknown' && !isFirebaseCode &&
+  const message = code === 'failed-precondition' &&
+    details(cause)?.reason === 'capybara-damage-deck-exhausted'
+    ? 'Capybara’s damage deck is exhausted. Ask the facilitator to rule on the next damage result.'
+    : kind === 'unknown' && !isFirebaseCode &&
     typeof cause === 'object' && cause !== null && 'message' in cause &&
     typeof cause.message === 'string'
     ? cause.message.slice(0, 240)

@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [573],
+    implementationProgress: {
+      completed: 475, total: 751, percentage: '63.25%',
+      done: 475, partial: 12, active: 0, missing: 264,
+    },
+    changes: [
+      'Capybara damage uses its own printed cards, including the Scrap Refinery card.',
+      'If every Capybara damage card is spent, the game pauses that damage result for a facilitator ruling.',
+      '475 of 751 planned items are complete (63.25%).',
+    ],
+  },
+  {
+    version: '0.5.6',
     implementationPrompts: [384],
     implementationProgress: {
       completed: 472, total: 751, percentage: '62.85%',

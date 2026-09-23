@@ -97,6 +97,42 @@ beforeEach(() => {
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' };
 
+it('draws the printed Capybara Scrap Refinery card through the GM transaction', async () => {
+  mock.grantShip = 'capybara';
+  mock.randomInt.mockReturnValue(0xffff_ffff);
+
+  await expect(addShipDamage.run(request({ ...data, shipId: 'capybara' })))
+    .resolves.toMatchObject({
+      card: { card: '7♠', systemId: 'scrap-refinery' },
+      destroyed: false,
+    });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipDamage.capybara': { damagedSystemIds: ['scrap-refinery'], destroyed: false },
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-test-damage',
+    expect.objectContaining({ shipId: 'capybara', card: '7♠', systemId: 'scrap-refinery' }));
+});
+
+it('does not write a Capybara result when its damage deck is exhausted', async () => {
+  mock.grantShip = 'capybara';
+  mock.damage = {
+    capybara: {
+      damagedSystemIds: SHIP_DAMAGE_DECKS.capybara.map(({ systemId }) => systemId),
+      destroyed: false,
+    },
+  };
+
+  await expect(addShipDamage.run(request({ ...data, shipId: 'capybara' })))
+    .rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringContaining('facilitator ruling required'),
+      details: { commandError: 'conflict', reason: 'capybara-damage-deck-exhausted' },
+    });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 const aegisHullCases = [
   {
     name: 'recycles 6♥ while another damage card remains',
@@ -239,7 +275,7 @@ it.each(ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map
 
 it.each([
   ['aegis', 3100], ['dione', 16000], ['icebreaker', 10100],
-  ['shepherd', 8000], ['quellon', 6510], ['refinery-124', 5000], ['capybara', 5500],
+  ['shepherd', 8000], ['quellon', 6510], ['refinery-124', 5000],
 ] as const)('exposes only the printed pod capacity when %s is destroyed', async (shipId, podCapacity) => {
   mock.grantShip = shipId;
   mock.survivors = { [shipId]: 1000 };

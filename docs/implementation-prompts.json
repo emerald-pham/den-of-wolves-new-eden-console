@@ -6174,6 +6174,13 @@
       "language": "The facilitator-only checkpoint records only cycle 6, boolean planExists, and a server timestamp. The callable requires the authoritative Cycle 6 session and owned active GM instance, exact parsing rejects malformed or extra fields, protected GM projection excludes the marker from member reads, and the client clears stale state when an authoritative GM projection omits or rejects it. The GM console keeps the checkpoint region visible, but shows it locked and disables its controls outside Cycle 6, including when the authoritative cycle is missing, earlier, or later. Focused callable, projection, privacy, App reconnect, store, and rendered-console tests plus typecheck, Functions build, lint, and Firestore rules validation cover the contract. Independent Terra xhigh review approved the pre-reconciliation implementation at SHA 7ce8c7b1e16f5d53b55b1d21f20f03d801cbd503 after the Cycle 6 server/UI and fail-closed stale-projection findings were repaired; the reconciled candidate remains pending a fresh exact-SHA review and carries no release or deployment claim.",
       "source": "functions/src/candidatePlanCheckpoint.ts; functions/src/candidatePlanCheckpoint.test.ts; functions/src/candidatePlanCheckpointProjection.ts; functions/src/candidatePlanCheckpointProjection.test.ts; functions/src/requestGuards.ts; functions/src/requestGuards.test.ts; functions/src/index.ts; functions/src/candidatePlanCheckpointCallable.test.ts; functions/src/navigationProjection.ts; functions/src/navigationProjection.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/navigationPrivacy.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts; src/lib/sessionService.ts; src/App.tsx; src/App.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence / authority / callable / privacy / malformed-state / reconnect / rendered / terra-reviewed-pre-reconciliation"
+    },
+    {
+      "direction": "573 -> 571;130;257",
+      "id": "E-573-CAPYBARA-DAMAGE",
+      "language": "The production GM damage callable and Team maintenance riot consume the seven-card server-owned Capybara deck with 7♠ Scrap Refinery. An exhausted-deck guard rejects an unruled follow-on draw before any transaction write, rather than applying the generic ship-destruction policy; both affected callables carry a stable ruling reason, and the GM maintenance control renders static facilitator guidance instead of false retry advice. The hidden extracted 5♦ stays outside gameplay. Focused pure, GM callable, and maintenance callable tests prove the printed card, denied exhausted draw, and zero session, event, receipt, or private mutation. The pure Wolf combat resolver also rejects a second draw after the last card; its production callable remains outside this closure.",
+      "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/wolfCombatMath.test.ts; functions/src/index.ts; src/lib/commandErrors.ts; src/lib/commandErrors.test.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; authorized Capybara expansion v1.1 provenance and routed derivative; focused Functions tests",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -21051,15 +21058,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "its own deck and rendered-authority 7♠ Scrap Refinery decision remain authoritative; only the empty-deck behavior remains a recorded ambiguity, with the hidden extracted 5♦ excluded from gameplay.",
         "title": "Resolve Capybara damage cards."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-573",
+      "description": "The Capybara expansion uses its own seven-card server damage deck, including the rendered 7♠ Scrap Refinery. The production GM damage callable and maintenance riot consume this deck. An exhausted Capybara deck has no printed outcome, so the shared resolver rejects the next draw before a transaction can persist damage, destruction, casualties, or audit events; it awaits an explicit facilitator ruling, with static GM guidance instead of retry advice. The pure Wolf combat resolver shares this guard, but its later production callable is outside this closure. The hidden extracted 5♦ remains provenance only. Focused pure, GM callable, maintenance callable, and combat resolver tests cover these boundaries.",
+      "evidenceIds": "E-AUDIT-573;E-573-CAPYBARA-DAMAGE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "571;130",
@@ -21067,10 +21074,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.7"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {

@@ -1062,6 +1062,44 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
   ]);
 });
 
+it('holds an exhausted Capybara riot draw without maintenance or audit writes', async () => {
+  mock.grantShip = 'capybara';
+  const damage = { damagedSystemIds: [
+    'storage', 'advanced-hydroponics', 'reactor', 'water-production',
+    'jump-drive', 'shuttle-bay', 'scrap-refinery',
+  ], destroyed: false };
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['capybara'],
+      maintenanceCycles: { capybara: { step: 4, revision: 4, results: {}, charges: [], refuelled: [] } },
+      shipDamage: { capybara: damage },
+      shipResources: { capybara: { ore: 0, fuel: 3, food: 8, water: 6, materials: 0, securityTeams: 2, scrap: 0 } },
+      shipUnrest: { capybara: 10 }, shipSurvivors: { capybara: 20_000 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  mock.randomInt.mockReturnValue(1);
+
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'capybara', action: 'riot', expectedRevision: 4,
+    requestId: 'capybara-exhausted',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringContaining('facilitator ruling required'),
+    details: { commandError: 'conflict', reason: 'capybara-damage-deck-exhausted' },
+  });
+  expect(maintenance.session.shipDamage).toEqual({ capybara: damage });
+  expect(maintenance.receipts).toEqual({});
+  expect(maintenance.undo).toEqual({});
+  expect(maintenance.events).toEqual({});
+  expect(maintenance.damageDraws).toEqual({});
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('resolves Dione production atomically with authoritative resources, charge consumption, replay, and stale CAS', async () => {
   mock.grantShip = 'dione';
   const maintenance = {

@@ -571,6 +571,25 @@ it('notes the drawn card beside the GM control that applied damage', async () =>
   expect(await screen.findByRole('status')).toHaveTextContent('Damage applied // card 10♥ // Reactor damaged.');
 });
 
+it('asks for a facilitator ruling when Capybara has no damage cards left', async () => {
+  assign.mockRejectedValueOnce({
+    code: 'functions/failed-precondition',
+    message: 'server-only detail',
+    details: { commandError: 'conflict', reason: 'capybara-damage-deck-exhausted' },
+  });
+  useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  });
+  render(<MaintenanceSystems name="Capybara" shipId="capybara" systems={[]} renderSystem={() => null} rations={null} />);
+
+  await userEvent.click(screen.getByRole('button', { name: 'Assign damage' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Capybara’s damage deck is exhausted. Ask the facilitator to rule on the next damage result.',
+  );
+  expect(screen.getByRole('alert')).not.toHaveTextContent('Refresh the live state and retry');
+});
+
 it('stacks GM-assigned damage outcomes without clearing the current log line', async () => {
   assign
     .mockResolvedValueOnce({

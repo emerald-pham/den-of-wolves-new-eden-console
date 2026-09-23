@@ -170,6 +170,19 @@ describe('central Wolf combat math', () => {
     expect(result.population).toBeLessThan(INITIAL_SHIP_SURVIVORS.aegis!);
   });
 
+  it('rejects an unruled second Capybara draw after its last card', () => {
+    const damagedSystemIds = [
+      'storage', 'advanced-hydroponics', 'reactor', 'water-production',
+      'jump-drive', 'shuttle-bay',
+    ];
+    const damage = { damagedSystemIds, destroyed: false };
+    expect(() => applyWolfFleetDamage('capybara', 2, {
+      damage,
+      population: INITIAL_SHIP_SURVIVORS.capybara!,
+    }, () => 0)).toThrow('facilitator ruling required');
+    expect(damage).toEqual({ damagedSystemIds, destroyed: false });
+  });
+
   it('returns one immutable receipt with server time, deadline, rolls, damage, and casualties', () => {
     const phase = startTurnPhase(1, 1_000);
     const receipt = calculateWolfAttack({

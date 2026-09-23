@@ -57,6 +57,21 @@ describe('normalizeCommandError', () => {
     }).message).not.toContain('session-token');
   });
 
+  it('gives the Capybara exhausted-deck ruling its own static guidance', () => {
+    expect(normalizeCommandError({
+      code: 'functions/failed-precondition',
+      message: 'private server text',
+      details: { commandError: 'conflict', reason: 'capybara-damage-deck-exhausted' },
+    })).toMatchObject({
+      kind: 'conflict',
+      message: 'Capybara’s damage deck is exhausted. Ask the facilitator to rule on the next damage result.',
+    });
+    expect(normalizeCommandError({
+      code: 'functions/failed-precondition',
+      details: { commandError: 'conflict', reason: 'unknown-reason' },
+    }).message).toBe('Another command won this update. Refresh the live state and retry.');
+  });
+
   it('preserves a bounded structured retry hint without exposing server text', () => {
     expect(normalizeCommandError({
       code: 'functions/resource-exhausted',

@@ -353,7 +353,7 @@ import {
   isPresenceStale,
   PRESENCE_RECONCILIATION_INTERVAL_MS,
 } from './sessionLifecycle';
-import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import { CapybaraDamageDeckExhaustedError, SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { destructionTransition, escapePodCapacityForShip } from './shipDestruction';
 import { totalFleetLossOutcome } from './totalFleetLoss';
 import { aggregateSurvivorOutcome, type SurvivorOutcome } from './survivorOutcome';
@@ -19209,11 +19209,21 @@ export const addShipDamage = onCall<{
     stableOccurredAt ??= new Date().toISOString();
     const storedDamage = shipDamage(session.get('shipDamage'));
     const current = storedDamage[change.shipId] ?? { damagedSystemIds: [], destroyed: false };
-    const result = drawShipDamage(
-      change.shipId,
-      current,
-      (upperBound) => Math.floor(((drawEntropy ?? 0) / entropyRange) * upperBound),
-    );
+    let result: ReturnType<typeof drawShipDamage>;
+    try {
+      result = drawShipDamage(
+        change.shipId,
+        current,
+        (upperBound) => Math.floor(((drawEntropy ?? 0) / entropyRange) * upperBound),
+      );
+    } catch (cause) {
+      if (cause instanceof CapybaraDamageDeckExhaustedError) {
+        throw new HttpsError('failed-precondition', cause.message, {
+          commandError: 'conflict', reason: 'capybara-damage-deck-exhausted',
+        });
+      }
+      throw cause;
+    }
     let catastropheEventExists = false;
     if (result.destroyed && current.destroyed) {
       catastropheEventExists = (await tx.get(
@@ -21827,6 +21837,11 @@ export const runMaintenance = onCall<{
         entropy: stableEntropy, now: serverTime, damageDrawId: eventId, environmentalHazard,
       });
     } catch (cause) {
+      if (cause instanceof CapybaraDamageDeckExhaustedError) {
+        throw new HttpsError('failed-precondition', cause.message, {
+          commandError: 'conflict', reason: 'capybara-damage-deck-exhausted',
+        });
+      }
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.', 'conflict');
     }
     result = { ...result, cargo: sanitizeShuttleCargo(result.cargo, activeRoleIds) };
