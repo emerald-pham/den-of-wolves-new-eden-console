@@ -3502,7 +3502,6 @@ export function subscribeConnectedPlayers(
   sessionId: string,
   onPlayers: (players: readonly Player[]) => void,
   onError: () => void = () => undefined,
-  _suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
   let subscribed = true;
   // A new group or role projection invalidates the previous roster before the
