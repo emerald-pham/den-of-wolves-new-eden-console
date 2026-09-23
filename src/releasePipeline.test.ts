@@ -54,9 +54,9 @@ it('selects changed callable exports plus audited consumers of changed shared he
   const callable = (name: string, body: string) => `export const ${name} = onCall(async (request) => { ${body} });\n`;
   const before = [callable('confirmSetup', 'return oldSetup();'), callable('startGame', 'return oldStart();'), callable('readSession', 'return read();')].join('');
   const after = [callable('confirmSetup', 'return limitedSetup();'), callable('startGame', 'return limitedStart();'), callable('readSession', 'return read();')].join('');
-  const policy = (extra = '') => `export const CALLABLE_RATE_LIMIT_POLICIES = {\n  resumeSession: { windowMs: 60000, maxRequests: 10 },\n  getSessionPresence: { windowMs: 60000, maxRequests: 12 },\n  listGmInstances: { windowMs: 60000, maxRequests: 60 },\n  rollDice: { windowMs: 60000, maxRequests: 30 },\n${extra}} as const;\nexport function evaluate() { return true; }\n`;
+  const policy = (extra = '') => `export const CALLABLE_RATE_LIMIT_POLICIES = {\n  resumeSession: { windowMs: 60_000, maxRequests: 10 },\n  getSessionPresence: { windowMs: 60_000, maxRequests: 12 },\n  listGmInstances: { windowMs: 60_000, maxRequests: 60 },\n  rollDice: { windowMs: 60_000, maxRequests: 30 },\n${extra}} as const;\nexport function evaluate() { return true; }\n`;
   const previousPolicy = policy();
-  const currentPolicy = policy('  confirmSetup: { windowMs: 60000, maxRequests: 12 },\n  startGame: { windowMs: 60000, maxRequests: 6 },\n  declareWolfAttack: { windowMs: 60000, maxRequests: 6 },\n  runMaintenance: { windowMs: 60000, maxRequests: 30 },\n');
+  const currentPolicy = policy('  confirmSetup: { windowMs: 60_000, maxRequests: 12 },\n  startGame: { windowMs: 60_000, maxRequests: 6 },\n  declareWolfAttack: { windowMs: 60_000, maxRequests: 6 },\n  runMaintenance: { windowMs: 60_000, maxRequests: 30 },\n');
   const selected = deploymentSelector({
     before: 'base', after: 'candidate', targets: ['hosting', 'functions'],
     files: ['functions/src/index.ts', 'functions/src/callableRateLimit.ts'],
@@ -67,6 +67,37 @@ it('selects changed callable exports plus audited consumers of changed shared he
   });
 
   expect(selected).toBe('hosting,functions:confirmSetup,functions:startGame,functions:declareWolfAttack,functions:runMaintenance');
+});
+
+it('maps a changed existing policy with numeric separators alongside a changed index callable', () => {
+  const callable = (name: string, body: string) => `export const ${name} = onCall(async () => { ${body} });\n`;
+  const beforeIndex = callable('startGame', 'return start();');
+  const afterIndex = callable('startGame', 'return limitedStart();');
+  const policy = (resumeMax: number) => `export const CALLABLE_RATE_LIMIT_POLICIES = {\n  resumeSession: { windowMs: 60_000, maxRequests: ${resumeMax} },\n  getSessionPresence: { windowMs: 60_000, maxRequests: 12 },\n  listGmInstances: { windowMs: 60_000, maxRequests: 60 },\n  rollDice: { windowMs: 60_000, maxRequests: 30 },\n} as const;\nexport function evaluate() { return true; }\n`;
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: ['functions/src/index.ts', 'functions/src/callableRateLimit.ts'],
+    sourceAtRevision: (revision, filePath) => filePath.endsWith('/index.ts')
+      ? (revision === 'base' ? beforeIndex : afterIndex)
+      : policy(revision === 'base' ? 10 : 11),
+    isAncestor: () => false,
+  });
+
+  expect(selected).toBe('hosting,functions:startGame,functions:resumeSession');
+});
+
+it('fails closed when any callable rate-limit policy entry cannot be parsed', () => {
+  const malformed = `export const CALLABLE_RATE_LIMIT_POLICIES = {\n  resumeSession: { windowMs: 60_000, maxRequests: Number.MAX_SAFE_INTEGER },\n} as const;\n`;
+  const selected = () => deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: ['functions/src/callableRateLimit.ts'],
+    sourceAtRevision: (revision) => revision === 'base'
+      ? malformed
+      : malformed.replace('Number.MAX_SAFE_INTEGER', '20'),
+    isAncestor: () => false,
+  });
+
+  expect(selected).toThrow('Cannot safely parse callable rate-limit policy entries.');
 });
 
 it('selects every current and future callable consumer when shared limiter behavior changes', () => {

@@ -292,8 +292,20 @@ function rateLimitCallableImpacts(before, after, cwd, sourceAtRevision) {
   if (!previousMatch || !currentMatch) throw new Error('Cannot safely map changed callable rate-limit policy entries.');
   const stripPolicyObject = (source) => source.replace(policyObject, '/* callable policies */');
   if (stripPolicyObject(previous) !== stripPolicyObject(current)) return [...ALL_RATE_LIMIT_CONSUMERS];
-  const entries = (block) => new Map([...block.matchAll(/^\s{2}([A-Za-z_$][\w$]*): \{ windowMs: \d+, maxRequests: \d+ \},?\s*$/gm)]
-    .map((match) => [match[1], match[0].trim()]));
+  const entries = (block) => {
+    const parsed = new Map();
+    for (const rawLine of block.split('\n')) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('//')) continue;
+      const match = /^([A-Za-z_$][\w$]*): \{ windowMs: (\d(?:_?\d)*), maxRequests: (\d(?:_?\d)*) \},?$/.exec(line);
+      if (!match || parsed.has(match[1])) {
+        throw new Error('Cannot safely parse callable rate-limit policy entries.');
+      }
+      parsed.set(match[1], `${match[2].replaceAll('_', '')}:${match[3].replaceAll('_', '')}`);
+    }
+    if (parsed.size === 0) throw new Error('Cannot safely parse an empty callable rate-limit policy.');
+    return parsed;
+  };
   const oldEntries = entries(previousMatch[1]);
   const newEntries = entries(currentMatch[1]);
   const names = new Set([...oldEntries.keys(), ...newEntries.keys()]);
