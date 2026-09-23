@@ -54,7 +54,7 @@ const baseSession = () => ({
   shuttleDockings: [{ shuttleId: 'maliades', shipId: 'dione', dockedAt: 'SESSION START' }],
   shuttleControl: { maliades: { shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'holder', revision: 2 } },
   shuttleFuelled: { maliades: true },
-  maliadesState: { revision: 1, launched: true, damage: 0, destroyed: false, medium: null, short: null },
+  maliadesState: { revision: 1, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0, destroyed: false, medium: null, short: null },
   shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
   shipResources: { dione: { ore: 0, fuel: 4, food: 10, water: 8, materials: 4, securityTeams: 2 } },
 });
@@ -69,14 +69,25 @@ beforeEach(() => {
   });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['dione'], memberUids: ['holder'] });
   put('sessions/s1/wolfAttackState/current', {
-    type: 'wolf-attack-state', status: 'declared', turn: 2, revision: 1, currentStep: 'targeting', airspaceLocked: true,
+    type: 'wolf-attack-state', status: 'declared', attackId: 'attack-2', announcementId: 'attack-2', turn: 2, revision: 1, currentStep: 'medium-range', airspaceLocked: true,
     launchedCraftIds: ['maliades'], parkedCraftIds: [],
-    calculationReceipt: { targeting: { ring: ['wolf-1', 'wolf-2', 'wolf-3'] } },
+    calculationReceipt: {
+      targeting: {
+        ring: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+        modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
+        rolls: [0, 1, 2].map((rosterIndex) => ({
+          rosterIndex, shipId: 'wolf-fighter-wing', initialDie: rosterIndex + 1,
+          finalDie: rosterIndex + 1,
+          target: ['aegis', 'dione', 'icebreaker'][rosterIndex], modifiers: [],
+        })),
+      },
+    },
+    maliadesRangeEffects: { attackId: 'attack-2', cycle: 2, medium: null, short: null },
   });
 });
 
 const medium = { sessionId: 's1', requestId: 'medium-1', expectedCycle: 2, expectedRevision: 1,
-  choices: [{ kind: 'target-shift', targetId: 'wolf-1', shift: 1 }, { kind: 'attack', targetId: 'wolf-2' }] };
+  choices: [{ kind: 'target-shift', targetId: 'aegis', shift: 1 }, { kind: 'attack', targetId: 'dione' }] };
 
 it('commits Medium server dice, redacts actor identity, and replays without rolling again', async () => {
   await expect(resolveMaliadesMedium.run(request(medium))).resolves.toMatchObject({
@@ -84,6 +95,15 @@ it('commits Medium server dice, redacts actor identity, and replays without roll
     resolution: { attack: { die: 4, hit: true, selfDamage: 0 } },
   });
   expect(cryptoMock.randomInt).toHaveBeenCalledTimes(1);
+  const wolfAfterMedium = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
+  expect(wolfAfterMedium.revision).toBe(2);
+  const targetingAfterMedium = (wolfAfterMedium.calculationReceipt as Fields).targeting as Fields;
+  expect((targetingAfterMedium.rolls as Fields[])[0]).toMatchObject({
+    rosterIndex: 0, finalDie: 2, shiftedDie: 2, target: 'dione', modifiers: ['target-shift'],
+  });
+  expect(wolfAfterMedium.maliadesRangeEffects).toEqual(expect.objectContaining({
+    medium: { targetShifts: [{ rosterIndex: 0, fromTarget: 'aegis', toTarget: 'dione', shift: 1, fromDie: 1, toDie: 2 }], damageByTarget: { dione: 1 } },
+  }));
   expect(mock.documents.get('sessions/s1/events/maliades-medium-medium-1')).not.toHaveProperty('actorUid');
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   cryptoMock.randomInt.mockClear();
@@ -95,10 +115,14 @@ it('commits Medium server dice, redacts actor identity, and replays without roll
 
 it('resolves Short risk, then repairs one damage only with fuelled Team Phase docking', async () => {
   await resolveMaliadesMedium.run(request(medium));
-  cryptoMock.randomInt.mockReturnValue(0);
+  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'short-range';
+  cryptoMock.randomInt.mockReturnValueOnce(0).mockReturnValueOnce(1);
   await expect(resolveMaliadesShort.run(request({
-    sessionId: 's1', requestId: 'short-1', expectedCycle: 2, expectedRevision: 2, targetIds: ['wolf-3'],
+    sessionId: 's1', requestId: 'short-1', expectedCycle: 2, expectedRevision: 2, targetIds: ['icebreaker', 'quellon'],
   }))).resolves.toMatchObject({ revision: 3, state: { damage: 1, short: { selfDamage: 1 } } });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    revision: 3, maliadesRangeEffects: { short: { damageByTarget: { quellon: 1 } } },
+  });
   await expect(repairMaliades.run(request({
     sessionId: 's1', requestId: 'repair-1', expectedCycle: 2, expectedRevision: 3,
     expectedHostShipId: 'dione', damageToRepair: 1,
@@ -111,5 +135,17 @@ it('resolves Short risk, then repairs one damage only with fuelled Team Phase do
 it('rejects stale or foreign authority before server dice', async () => {
   await expect(resolveMaliadesMedium.run(request({ ...medium, expectedRevision: 0 }))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(resolveMaliadesMedium.run(request(medium, 'owner'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('rejects a range command outside the current Wolf step or attack identity before rolling', async () => {
+  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'targeting';
+  await expect(resolveMaliadesMedium.run(request(medium))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+
+  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'medium-range';
+  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).attackId = 'different-attack';
+  await expect(resolveMaliadesMedium.run(request({ ...medium, requestId: 'foreign-attack' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });

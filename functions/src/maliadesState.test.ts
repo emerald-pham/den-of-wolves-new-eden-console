@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  beginMaliadesAttack,
   initialMaliadesState,
   launchMaliades,
   parseMaliadesState,
@@ -19,30 +20,47 @@ function dice(...values: number[]): (upperBound: number) => number {
 }
 
 function launched() {
-  return launchMaliades(initialMaliadesState(), { expectedRevision: 0, launchAllowed: true });
+  return launchMaliades(initialMaliadesState(), {
+    expectedRevision: 0, launchAllowed: true, attackId: 'attack-2', attackCycle: 2,
+  });
 }
+
+const attack = { attackId: 'attack-2', attackCycle: 2 } as const;
 
 describe('authoritative Maliades state', () => {
   it('starts immutable and admits one authorized launch', () => {
     const initial = initialMaliadesState();
     expect(initial).toMatchObject({ revision: 0, launched: false, damage: 0, destroyed: false, medium: null, short: null });
     expect(Object.isFrozen(initial)).toBe(true);
-    expect(launchMaliades(initial, { expectedRevision: 0, launchAllowed: true })).toMatchObject({
-      revision: 1, launched: true, damage: 0, destroyed: false,
+    expect(launchMaliades(initial, { expectedRevision: 0, launchAllowed: true, ...attack })).toMatchObject({
+      revision: 1, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0, destroyed: false,
     });
-    expect(() => launchMaliades(initial, { expectedRevision: 0, launchAllowed: false })).toThrow(/launch check/i);
+    expect(() => launchMaliades(initial, { expectedRevision: 0, launchAllowed: false, ...attack })).toThrow(/launch check/i);
   });
 
   it('rejects stale and replayed launch transitions without changing state', () => {
     const state = launched();
-    expect(() => launchMaliades(state, { expectedRevision: 0, launchAllowed: true })).toThrow(/changed/i);
-    expect(() => launchMaliades(state, { expectedRevision: 1, launchAllowed: true })).toThrow(/already launched/i);
+    expect(() => launchMaliades(state, { expectedRevision: 0, launchAllowed: true, ...attack })).toThrow(/changed/i);
+    expect(() => launchMaliades(state, { expectedRevision: 1, launchAllowed: true, ...attack })).toThrow(/already launched/i);
+  });
+
+  it('starts a new attack identity by clearing only per-attack actions', () => {
+    const resolved = resolveMaliadesShort(launched(), {
+      expectedRevision: 1, ...attack, targetIds: ['wolf-a'], random: dice(1),
+    }).state;
+    const nextAttack = beginMaliadesAttack(resolved, {
+      expectedRevision: 2, attackId: 'attack-3', attackCycle: 3,
+    });
+    expect(nextAttack).toMatchObject({
+      revision: 3, attackId: 'attack-3', attackCycle: 3, launched: false,
+      damage: 1, medium: null, short: null,
+    });
   });
 
   it('persists the Medium choice and only takes printed self-risk on a failed attack die', () => {
     const state = launched();
     const result = resolveMaliadesMedium(state, {
-      expectedRevision: 1,
+      expectedRevision: 1, ...attack,
       choices: [
         { kind: 'target-shift', targetId: 'wolf-1', shift: -1 },
         { kind: 'attack', targetId: 'wolf-2' },
@@ -56,13 +74,13 @@ describe('authoritative Maliades state', () => {
     expect(result.state).toMatchObject({ revision: 2, launched: true, damage: 0, destroyed: false });
     expect(Object.isFrozen(result.state.medium)).toBe(true);
     expect(() => resolveMaliadesMedium(result.state, {
-      expectedRevision: 2, choices: [{ kind: 'attack', targetId: 'wolf-3' }], random: dice(1),
+      expectedRevision: 2, ...attack, choices: [{ kind: 'attack', targetId: 'wolf-3' }], random: dice(1),
     })).toThrow(/already resolved/i);
   });
 
   it('round-trips a target-shift-only Medium choice through the canonical state shape', () => {
     const result = resolveMaliadesMedium(launched(), {
-      expectedRevision: 1,
+      expectedRevision: 1, ...attack,
       choices: [{ kind: 'target-shift', targetId: 'wolf-1', shift: 1 }],
       random: dice(),
     });
@@ -76,14 +94,14 @@ describe('authoritative Maliades state', () => {
   it('allows one printed Medium attack to add one damage risk and destroys at three', () => {
     let state = launched();
     state = resolveMaliadesShort(state, {
-      expectedRevision: 1, targetIds: ['wolf-a', 'wolf-b'], random: dice(1, 1),
+      expectedRevision: 1, ...attack, targetIds: ['wolf-a', 'wolf-b'], random: dice(1, 1),
     }).state;
     expect(state).toMatchObject({ revision: 2, damage: 2, destroyed: false, short: { selfDamage: 2 } });
     state = resolveMaliadesMedium(state, {
-      expectedRevision: 2, choices: [{ kind: 'attack', targetId: 'wolf-c' }], random: dice(2),
+      expectedRevision: 2, ...attack, choices: [{ kind: 'attack', targetId: 'wolf-c' }], random: dice(2),
     }).state;
     expect(state).toMatchObject({ revision: 3, damage: 3, destroyed: true });
-    expect(() => resolveMaliadesShort(state, { expectedRevision: 3, targetIds: ['wolf-d'], random: dice(2) })).toThrow(/destroyed/i);
+    expect(() => resolveMaliadesShort(state, { expectedRevision: 3, ...attack, targetIds: ['wolf-d'], random: dice(2) })).toThrow(/destroyed/i);
     expect(() => repairMaliades(state, {
       expectedRevision: 3, fuelled: true, damageToRepair: 1, materialsAvailable: 1,
     })).toThrow(/destroyed/i);
@@ -92,7 +110,7 @@ describe('authoritative Maliades state', () => {
   it('repairs only selected existing damage when fuel and materials are authoritative', () => {
     let state = launched();
     state = resolveMaliadesShort(state, {
-      expectedRevision: 1, targetIds: ['wolf-a', 'wolf-b'], random: dice(1, 3),
+      expectedRevision: 1, ...attack, targetIds: ['wolf-a', 'wolf-b'], random: dice(1, 3),
     }).state;
     const repaired = repairMaliades(state, {
       expectedRevision: 2, fuelled: true, damageToRepair: 1, materialsAvailable: 4,
@@ -108,7 +126,7 @@ describe('authoritative Maliades state', () => {
 
   it('keeps Short risk independent and enforces its two-target limit and thresholds', () => {
     const result = resolveMaliadesShort(launched(), {
-      expectedRevision: 1, targetIds: ['wolf-a', 'wolf-b'], random: dice(1, 2),
+      expectedRevision: 1, ...attack, targetIds: ['wolf-a', 'wolf-b'], random: dice(1, 2),
     });
     expect(result.resolution).toEqual({
       rolls: [
@@ -119,10 +137,10 @@ describe('authoritative Maliades state', () => {
     });
     expect(result.state).toMatchObject({ revision: 2, damage: 1, short: result.resolution });
     expect(() => resolveMaliadesShort(launched(), {
-      expectedRevision: 1, targetIds: ['wolf-a', 'wolf-a'], random: dice(2),
+      expectedRevision: 1, ...attack, targetIds: ['wolf-a', 'wolf-a'], random: dice(2),
     })).toThrow(/distinct/i);
     expect(() => resolveMaliadesShort(launched(), {
-      expectedRevision: 1, targetIds: ['a', 'b', 'c'], random: dice(2, 2),
+      expectedRevision: 1, ...attack, targetIds: ['a', 'b', 'c'], random: dice(2, 2),
     })).toThrow(/two targets/i);
   });
 

@@ -6,7 +6,7 @@ import { parseMaliadesState } from './maliadesLedger';
 import type { MaliadesStateRecord } from '@/types/game';
 
 export type MaliadesMediumChoice =
-  | Readonly<{ kind: 'target-shift'; targetId: string; shift: -1 | 1 }>
+  | Readonly<{ kind: 'target-shift'; targetId: string; shift: -1 | 1; wolfRosterIndex?: number }>
   | Readonly<{ kind: 'attack'; targetId: string }>;
 
 export interface MaliadesActionReply {

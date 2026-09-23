@@ -78,23 +78,34 @@ function parseShort(value: unknown): MaliadesStateRecord['short'] | undefined {
 /** Parse the public Maliades projection and fail closed on client-shaped state. */
 export function parseMaliadesState(value: unknown): MaliadesStateRecord | undefined {
   if (value === undefined) return {
-    revision: 0, launched: false, damage: 0, destroyed: false, medium: null, short: null,
+    revision: 0, attackId: null, attackCycle: null,
+    launched: false, damage: 0, destroyed: false, medium: null, short: null,
   };
   const raw = record(value);
-  if (!raw || !exactKeys(raw, ['damage', 'destroyed', 'launched', 'medium', 'revision', 'short']) ||
+  const legacyShape = raw && exactKeys(raw, ['damage', 'destroyed', 'launched', 'medium', 'revision', 'short']);
+  const currentShape = raw && exactKeys(raw, ['attackCycle', 'attackId', 'damage', 'destroyed', 'launched', 'medium', 'revision', 'short']);
+  if (!raw || (!legacyShape && !currentShape) ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
       !Number.isSafeInteger(raw.damage) || (raw.damage as number) < 0 || (raw.damage as number) > 3 ||
       typeof raw.launched !== 'boolean' || typeof raw.destroyed !== 'boolean' ||
       raw.destroyed !== ((raw.damage as number) === 3)) return undefined;
+  const attackId = currentShape ? raw.attackId : null;
+  const attackCycle = currentShape ? raw.attackCycle : null;
+  if (attackId !== null && (typeof attackId !== 'string' || !safeTarget(attackId))) return undefined;
+  if (attackCycle !== null && (!Number.isSafeInteger(attackCycle) || (attackCycle as number) < 1)) return undefined;
+  if ((attackId === null) !== (attackCycle === null)) return undefined;
   const medium = parseMedium(raw.medium);
   const short = parseShort(raw.short);
   if (medium === undefined || short === undefined ||
-      (!raw.launched && (raw.revision !== 0 || raw.damage !== 0 || raw.destroyed || medium || short)) ||
-      (raw.launched && (raw.revision as number) < 1) ||
+      (!raw.launched && attackId === null && (raw.revision !== 0 || raw.damage !== 0 || raw.destroyed || medium || short)) ||
+      (!raw.launched && attackId !== null && (medium || short)) ||
+      (raw.launched && (attackId === null || attackCycle === null || (raw.revision as number) < 1)) ||
       (raw.revision === 1 && (raw.damage !== 0 || medium || short)) ||
-      ((raw.revision as number) > 1 && !medium && !short)) return undefined;
+      ((raw.revision as number) > 1 && !medium && !short && attackId === null)) return undefined;
   return {
     revision: raw.revision as number,
+    attackId: attackId as string | null,
+    attackCycle: attackCycle as number | null,
     launched: raw.launched,
     damage: raw.damage as 0 | 1 | 2 | 3,
     destroyed: raw.destroyed,

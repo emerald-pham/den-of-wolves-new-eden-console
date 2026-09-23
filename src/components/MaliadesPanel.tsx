@@ -99,8 +99,8 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
 
     <fieldset disabled={!canOperate}>
       <legend>Medium range // choose up to one shift and one attack</legend>
-      <label>Target for +1 / −1 shift
-        <input value={shiftTarget} onChange={(event) => setShiftTarget(event.target.value)} placeholder="Wolf target ID" />
+      <label>Current Wolf target for +1 / −1 shift
+        <input value={shiftTarget} onChange={(event) => setShiftTarget(event.target.value)} placeholder="Current target ID" />
       </label>
       <label>Shift
         <select value={shift} onChange={(event) => setShift(Number(event.target.value) === -1 ? -1 : 1)}>

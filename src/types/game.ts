@@ -794,6 +794,8 @@ export interface AllyRepairLedger {
 
 export interface MaliadesStateRecord {
   readonly revision: number;
+  readonly attackId: string | null;
+  readonly attackCycle: number | null;
   readonly launched: boolean;
   readonly damage: 0 | 1 | 2 | 3;
   readonly destroyed: boolean;

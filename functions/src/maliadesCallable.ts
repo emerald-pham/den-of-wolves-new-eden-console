@@ -16,6 +16,12 @@ import { serviceRechargeDamageState, serviceRechargeResourceState } from './serv
 import { isResourceShipId } from './resources';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 import {
+  shiftWolfTargetDie,
+  wolfTargetForDie,
+  type WolfTargetingReceipt,
+} from './wolfCombatMath';
+import { parseWolfTargetingReceipt } from './wolfCommanderRerolls';
+import {
   parseMaliadesState,
   repairMaliades as repairMaliadesState,
   resolveMaliadesMedium as resolveMaliadesMediumState,
@@ -75,7 +81,10 @@ function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'):
           if (!isRecord(value) || (value.kind !== 'attack' && value.kind !== 'target-shift') ||
               typeof value.targetId !== 'string' || !/^[\w-]{1,128}$/.test(value.targetId)) return true;
           return value.kind === 'target-shift'
-            ? (value.shift !== -1 && value.shift !== 1) || Object.keys(value).length !== 3
+            ? (value.shift !== -1 && value.shift !== 1) ||
+              (Object.keys(value).length !== 2 && Object.keys(value).length !== 3) ||
+              (value.wolfRosterIndex !== undefined &&
+                (!Number.isSafeInteger(value.wolfRosterIndex) || (value.wolfRosterIndex as number) < 0))
             : Object.keys(value).length !== 2;
         })) throw new HttpsError('invalid-argument', 'Invalid Maliades Medium choice.');
     const choices = [...raw.choices as MaliadesMediumChoice[]].sort((left, right) =>
@@ -116,7 +125,7 @@ function fingerprintFor(
   const payload: Record<string, string | number | readonly string[]> = { expectedCycle: request.expectedCycle };
   if (request.choices) payload.choices = request.choices.map(choice =>
     choice.kind === 'target-shift'
-      ? `target-shift:${choice.targetId}:${choice.shift}`
+      ? `target-shift:${choice.targetId}:${choice.shift}:${choice.wolfRosterIndex ?? ''}`
       : `attack:${choice.targetId}`);
   if (request.targetIds) payload.targetIds = request.targetIds;
   if (request.expectedHostShipId) payload.hostShipId = request.expectedHostShipId;
@@ -137,7 +146,142 @@ function replay<T>(receipt: DocumentSnapshot, fingerprint: CommandFingerprint, l
   return result;
 }
 
-function requireLiveWolfAction(session: DocumentSnapshot, state: DocumentSnapshot, cycle: number): readonly string[] {
+type MaliadesWolfTargetShift = Readonly<{
+  rosterIndex: number;
+  shift: -1 | 1;
+  fromDie: number;
+  toDie: number;
+  fromTarget: string;
+  toTarget: string;
+}>;
+
+type MaliadesWolfRangeEffects = Readonly<{
+  attackId: string;
+  cycle: number;
+  medium: Readonly<{
+    targetShifts: readonly MaliadesWolfTargetShift[];
+    damageByTarget: Readonly<Record<string, number>>;
+  }> | null;
+  short: Readonly<{
+    damageByTarget: Readonly<Record<string, number>>;
+  }> | null;
+}>;
+
+function parseRangeDamage(value: unknown): Readonly<Record<string, number>> | undefined {
+  if (!isRecord(value)) return undefined;
+  const entries = Object.entries(value);
+  if (entries.some(([target, amount]) => !/^[\w-]{1,128}$/.test(target) ||
+      !Number.isSafeInteger(amount) || (amount as number) < 1)) return undefined;
+  return Object.fromEntries(entries.map(([target, amount]) => [target, amount as number]));
+}
+
+function parseWolfRangeEffects(value: unknown, attackId: string, cycle: number): MaliadesWolfRangeEffects | undefined {
+  if (!isRecord(value) || value.attackId !== attackId || value.cycle !== cycle ||
+      !('medium' in value) || !('short' in value)) return undefined;
+  let medium: MaliadesWolfRangeEffects['medium'] = null;
+  if (value.medium !== null) {
+    const raw = isRecord(value.medium) ? value.medium : undefined;
+    if (!raw || !Array.isArray(raw.targetShifts)) return undefined;
+    const targetShifts = raw.targetShifts.map((item): MaliadesWolfTargetShift | undefined => {
+      if (!isRecord(item) || !Number.isSafeInteger(item.rosterIndex) || (item.rosterIndex as number) < 0 ||
+          (item.shift !== -1 && item.shift !== 1) ||
+          !Number.isSafeInteger(item.fromDie) || !Number.isSafeInteger(item.toDie) ||
+          typeof item.fromTarget !== 'string' || typeof item.toTarget !== 'string') return undefined;
+      return {
+        rosterIndex: item.rosterIndex as number,
+        shift: item.shift,
+        fromDie: item.fromDie as number,
+        toDie: item.toDie as number,
+        fromTarget: item.fromTarget,
+        toTarget: item.toTarget,
+      };
+    });
+    const damageByTarget = parseRangeDamage(raw.damageByTarget);
+    if (targetShifts.some((shift): shift is undefined => shift === undefined) ||
+        new Set(targetShifts.map((shift) => shift?.rosterIndex)).size !== targetShifts.length ||
+        !damageByTarget) return undefined;
+    medium = { targetShifts: targetShifts as MaliadesWolfTargetShift[], damageByTarget };
+  }
+  let short: MaliadesWolfRangeEffects['short'] = null;
+  if (value.short !== null) {
+    const raw = isRecord(value.short) ? value.short : undefined;
+    const damageByTarget = raw && parseRangeDamage(raw.damageByTarget);
+    if (!raw || !damageByTarget) return undefined;
+    short = { damageByTarget };
+  }
+  return { attackId, cycle, medium, short };
+}
+
+function attackIdentity(state: DocumentSnapshot, cycle: number): string {
+  const attackId = state.get('attackId') ?? state.get('announcementId');
+  if (typeof attackId !== 'string' || !/^[\w-]{1,128}$/.test(attackId)) {
+    throw commandError('failed-precondition', 'The active Wolf attack identity is unavailable.', 'conflict');
+  }
+  const stateTurn = state.get('turn');
+  if (stateTurn !== cycle) {
+    throw commandError('failed-precondition', 'The active Wolf attack belongs to a different cycle.', 'stale-revision');
+  }
+  return attackId;
+}
+
+function addRangeDamage(
+  existing: Readonly<Record<string, number>>,
+  targetIds: readonly string[],
+): Readonly<Record<string, number>> {
+  const next: Record<string, number> = { ...existing };
+  targetIds.forEach((targetId) => { next[targetId] = (next[targetId] ?? 0) + 1; });
+  return next;
+}
+
+function applyMaliadesTargetShift(
+  targeting: WolfTargetingReceipt,
+  choice: Extract<MaliadesMediumChoice, { kind: 'target-shift' }>,
+): Readonly<{ targeting: WolfTargetingReceipt; effect: MaliadesWolfTargetShift }> {
+  const candidates = targeting.rolls.filter((roll) =>
+    roll.target === choice.targetId && !roll.modifiers.includes('target-shift') &&
+    !roll.modifiers.includes('command-and-control-redirect') &&
+    (choice.wolfRosterIndex === undefined || roll.rosterIndex === choice.wolfRosterIndex));
+  if (candidates.length !== 1) {
+    throw new Error(candidates.length === 0
+      ? 'The selected Wolf target number is unavailable for this attack.'
+      : 'Select one Wolf target number; the submitted target is ambiguous.');
+  }
+  const selected = candidates[0]!;
+  const toDie = shiftWolfTargetDie(selected.finalDie, choice.shift, targeting.ring);
+  const toTarget = wolfTargetForDie(toDie, targeting.ring);
+  const nextRolls = targeting.rolls.map((roll) => roll.rosterIndex !== selected.rosterIndex
+    ? roll
+    : {
+      ...roll,
+      shiftedDie: toDie,
+      finalDie: toDie,
+      target: toTarget,
+      modifiers: [...roll.modifiers, 'target-shift'] as typeof roll.modifiers,
+    });
+  return {
+    targeting: { ...targeting, rolls: nextRolls },
+    effect: {
+      rosterIndex: selected.rosterIndex,
+      shift: choice.shift,
+      fromDie: selected.finalDie,
+      toDie,
+      fromTarget: selected.target,
+      toTarget,
+    },
+  };
+}
+
+function requireLiveWolfAction(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  cycle: number,
+  kind: 'medium' | 'short',
+): Readonly<{
+  attackId: string;
+  targetRing: readonly string[];
+  targeting: WolfTargetingReceipt;
+  effects: MaliadesWolfRangeEffects;
+}> {
   if (!session.exists || session.get('phase') !== 'active') {
     throw commandError('failed-precondition', 'Maliades is available only during active gameplay.', 'invalid-phase');
   }
@@ -147,19 +291,32 @@ function requireLiveWolfAction(session: DocumentSnapshot, state: DocumentSnapsho
   }
   const turn = state.get('turn');
   const launched = state.get('launchedCraftIds');
+  const expectedStep = kind === 'medium' ? 'medium-range' : 'short-range';
   if (!state.exists || state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
-      state.get('currentStep') !== 'targeting' || state.get('airspaceLocked') !== true || turn !== cycle ||
+      state.get('currentStep') !== expectedStep || state.get('airspaceLocked') !== true || turn !== cycle ||
       !Number.isSafeInteger(state.get('revision')) || !Array.isArray(launched) || !launched.includes('maliades')) {
     throw commandError('failed-precondition', 'The active Wolf attack cannot accept this Maliades action.', 'conflict');
   }
+  const attackId = attackIdentity(state, cycle);
   const receipt = isRecord(state.get('calculationReceipt')) ? state.get('calculationReceipt') as RecordValue : undefined;
-  const targeting = receipt && isRecord(receipt.targeting) ? receipt.targeting : undefined;
-  const ring = targeting?.ring;
-  if (!Array.isArray(ring) || ring.length < 1 || ring.some((target) => typeof target !== 'string') ||
-      new Set(ring).size !== ring.length) {
+  const targeting = receipt ? parseWolfTargetingReceipt(receipt.targeting) : undefined;
+  const effects = parseWolfRangeEffects(state.get('maliadesRangeEffects'), attackId, cycle);
+  const ring: Set<string> | undefined = targeting ? new Set<string>(targeting.ring) : undefined;
+  const effectDamageTargets = effects
+    ? [
+      ...(effects.medium ? Object.keys(effects.medium.damageByTarget) : []),
+      ...(effects.short ? Object.keys(effects.short.damageByTarget) : []),
+    ]
+    : [];
+  const shifts = effects?.medium?.targetShifts ?? [];
+  if (!targeting || !effects || !ring || effectDamageTargets.some((target) => !ring.has(target)) ||
+      shifts.some((shift) => !ring.has(shift.fromTarget) || !ring.has(shift.toTarget) ||
+        shift.rosterIndex >= targeting.rolls.length || shift.fromDie < 1 || shift.fromDie > targeting.ring.length ||
+        shift.toDie < 1 || shift.toDie > targeting.ring.length ||
+        targeting.rolls[shift.rosterIndex]?.target !== shift.toTarget)) {
     throw commandError('failed-precondition', 'The authoritative Wolf target ring is unavailable.', 'conflict');
   }
-  return ring as string[];
+  return { attackId, targetRing: targeting.ring, targeting, effects };
 }
 
 function requireMaliadesControl(session: DocumentSnapshot, uid: string): void {
@@ -203,22 +360,37 @@ async function runMaliadesRangeAction(
     const prior = replay(receipt, fingerprint, `Maliades ${kind}`, (value): value is RecordValue => isActionReply(value, fingerprint));
     if (prior) return resultWithReplay(prior);
     if (event.exists) throw new HttpsError('failed-precondition', `This Maliades ${kind} request already has an event receipt.`);
-    const targetRing = requireLiveWolfAction(session, wolfState, command.expectedCycle);
+    const liveWolf = requireLiveWolfAction(session, wolfState, command.expectedCycle, kind);
     requireMaliadesControl(session, uid);
     const state = parseMaliadesState(session.get('maliadesState'));
     if (!state || !state.launched) throw commandError('failed-precondition', 'Maliades launch state is unavailable; refresh the current Wolf attack.', 'conflict');
+    if (state.attackId !== liveWolf.attackId || state.attackCycle !== command.expectedCycle) {
+      throw commandError('failed-precondition', 'Maliades is not launched for the current Wolf attack.', 'stale-revision');
+    }
     if (state.revision !== command.expectedRevision) throw commandError('failed-precondition', 'Maliades state changed; refresh before acting.', 'stale-revision');
     const requestedTargets = kind === 'medium'
       ? command.choices!.map((choice) => choice.targetId)
       : [...command.targetIds!];
-    if (requestedTargets.some((targetId) => !targetRing.includes(targetId))) {
+    if (requestedTargets.some((targetId) => !liveWolf.targetRing.includes(targetId))) {
       throw commandError('failed-precondition', 'Choose only targets in the authoritative Wolf target ring.', 'conflict');
     }
     let next: ReturnType<typeof resolveMaliadesMediumState> | ReturnType<typeof resolveMaliadesShortState>;
     try {
       next = kind === 'medium'
-        ? resolveMaliadesMediumState(state, { expectedRevision: command.expectedRevision, choices: command.choices!, random: (upperBound) => randomInt(upperBound) })
-        : resolveMaliadesShortState(state, { expectedRevision: command.expectedRevision, targetIds: command.targetIds!, random: (upperBound) => randomInt(upperBound) });
+        ? resolveMaliadesMediumState(state, {
+          expectedRevision: command.expectedRevision,
+          attackId: liveWolf.attackId,
+          attackCycle: command.expectedCycle,
+          choices: command.choices!,
+          random: (upperBound) => randomInt(upperBound),
+        })
+        : resolveMaliadesShortState(state, {
+          expectedRevision: command.expectedRevision,
+          attackId: liveWolf.attackId,
+          attackCycle: command.expectedCycle,
+          targetIds: command.targetIds!,
+          random: (upperBound) => randomInt(upperBound),
+        });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : `Maliades ${kind} was rejected.`, 'conflict');
     }
@@ -227,7 +399,71 @@ async function runMaliadesRangeAction(
       craftId: 'maliades', cycle: command.expectedCycle, revision: next.state.revision,
       state: next.state, resolution: next.resolution,
     };
+    const currentReceipt = isRecord(wolfState.get('calculationReceipt'))
+      ? wolfState.get('calculationReceipt') as RecordValue : undefined;
+    const currentEffects = liveWolf.effects;
+    let nextTargeting = liveWolf.targeting;
+    let mediumEffects = currentEffects.medium;
+    let shortEffects = currentEffects.short;
+    let shiftEffectForEventValue: MaliadesWolfTargetShift | null = null;
+    if (kind === 'medium') {
+      const targetShift = command.choices!.find((choice) => choice.kind === 'target-shift');
+      let shiftEffect: MaliadesWolfTargetShift | undefined;
+      if (targetShift) {
+        try {
+          const shifted = applyMaliadesTargetShift(nextTargeting, targetShift);
+          nextTargeting = shifted.targeting;
+          shiftEffect = shifted.effect;
+        } catch (cause) {
+          throw commandError(
+            'failed-precondition',
+            cause instanceof Error ? cause.message : 'The Wolf target-number shift was rejected.',
+            'conflict',
+          );
+        }
+        shiftEffectForEventValue = shiftEffect ?? null;
+      }
+      const mediumResolution = next.resolution as ReturnType<typeof resolveMaliadesMediumState>['resolution'];
+      const attackTarget = mediumResolution.attack?.targetId;
+      const damageByTarget = attackTarget && mediumResolution.attack?.hit
+        ? addRangeDamage(currentEffects.medium?.damageByTarget ?? {}, [attackTarget])
+        : { ...(currentEffects.medium?.damageByTarget ?? {}) };
+      mediumEffects = {
+        targetShifts: shiftEffect ? [shiftEffect] : [],
+        damageByTarget,
+      };
+    } else {
+      const shortResolution = next.resolution as ReturnType<typeof resolveMaliadesShortState>['resolution'];
+      const hitTargets = shortResolution.rolls
+        .filter((roll) => roll.hit)
+        .map((roll) => roll.targetId);
+      shortEffects = {
+        damageByTarget: addRangeDamage(currentEffects.short?.damageByTarget ?? {}, hitTargets),
+      };
+    }
+    if (!currentReceipt) {
+      throw commandError('failed-precondition', 'The authoritative Wolf calculation receipt is unavailable.', 'conflict');
+    }
+    const nextWolfRevision = wolfState.get('revision');
+    if (!Number.isSafeInteger(nextWolfRevision) || (nextWolfRevision as number) >= Number.MAX_SAFE_INTEGER) {
+      throw commandError('failed-precondition', 'The authoritative Wolf attack revision is malformed.', 'conflict');
+    }
+    const nextEffects: MaliadesWolfRangeEffects = {
+      attackId: liveWolf.attackId,
+      cycle: command.expectedCycle,
+      medium: mediumEffects,
+      short: shortEffects,
+    };
+    const nextWolfState = {
+      revision: (nextWolfRevision as number) + 1,
+      calculationReceipt: kind === 'medium'
+        ? { ...currentReceipt, targeting: nextTargeting }
+        : currentReceipt,
+      maliadesRangeEffects: nextEffects,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
     tx.update(sessionRef, { maliadesState: next.state, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(stateRef, nextWolfState);
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: `maliades-${kind}`,
       envelope: buildAuthoritativeEventEnvelope({
@@ -236,8 +472,18 @@ async function runMaliadesRangeAction(
         revision: next.state.revision, serverTime: new Date(), visibility: EventVisibility.Member,
       }),
       payload: kind === 'medium'
-        ? { craftId: 'maliades', cycle: command.expectedCycle, revision: next.state.revision, ...next.resolution }
-        : { craftId: 'maliades', cycle: command.expectedCycle, revision: next.state.revision, ...next.resolution, damage: next.state.damage, destroyed: next.state.destroyed },
+        ? {
+          craftId: 'maliades', cycle: command.expectedCycle, revision: next.state.revision,
+          ...next.resolution,
+          targetDamageByTarget: mediumEffects?.damageByTarget ?? {},
+          targetNumberShift: shiftEffectForEventValue,
+        }
+        : {
+          craftId: 'maliades', cycle: command.expectedCycle, revision: next.state.revision,
+          ...next.resolution,
+          targetDamageByTarget: shortEffects?.damageByTarget ?? {},
+          damage: next.state.damage, destroyed: next.state.destroyed,
+        },
       createdAt: FieldValue.serverTimestamp(),
     }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
