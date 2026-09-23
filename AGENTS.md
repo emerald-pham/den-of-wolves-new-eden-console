@@ -20,3 +20,12 @@ shared session/callable/rules, deploy/auth, release, or emulator resources may
 overlap, and preserve other tasks' reservations. Coordination is optional and
 does not require a universal implementation-prompt registration or commit
 trailer. Keep accepted scope frozen except for directly blocking defects.
+
+Worktree cleanup is part of task ownership. Run `npm run storage:status` before
+adding checkouts or dependencies. At completion, follow
+[`docs/LOCAL_STORAGE.md`](docs/LOCAL_STORAGE.md): remove eligible worktrees after
+the task is terminal, or record the exact preservation reason and owner. Workers
+must give their coordinator the absolute checkout path and cleanup disposition;
+the coordinator performs cleanup at that completion boundary. Preserve active
+or parked work, unique commits, local files, and dependencies shared by other
+checkouts. Do not use force deletion or leave finished worktrees indefinitely.

@@ -21,6 +21,15 @@ who owns the next action. Parked work is retained with its concrete resume path.
 Do not leave a finished checkout indefinitely merely as a precaution, and do not
 delete one merely because it is old. Review accumulation when the warning fires.
 
+Every delegated worker's final handoff includes its absolute worktree path,
+landed commit, required local-file preservation, and either cleanup eligibility
+or a concrete retention reason and owner. Once the worker is terminal, its
+coordinator carries out eligible cleanup at that boundary. A task cannot remove
+its own working directory while it still needs it; give the cleanup handoff to
+the owning coordinator instead. Retention is for specific work or evidence,
+not an indefinite default. These instructions apply to current workers as well
+as newly started tasks.
+
 ## Review before any deletion
 
 1. Inspect `git worktree list --porcelain`, current task status, and
