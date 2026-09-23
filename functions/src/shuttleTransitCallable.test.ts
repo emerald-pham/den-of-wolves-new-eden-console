@@ -173,6 +173,95 @@ it('retargets the active leg from server time, preserves transit identity, and r
   expect(event).not.toHaveProperty('destinationShipId');
 });
 
+it('rejects SNN begin at the restricted Press deadline while the parking task is delayed', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+  try {
+    const session = mock.documents.get('sessions/s1')!;
+    session.pressEnabled = true;
+    session.turnPhase = {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-23T11:59:00.000Z',
+      openAirspaceEndsAt: '2026-09-23T12:00:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+    };
+    session.shuttleControl = {
+      ...(session.shuttleControl as Fields),
+      'snn-press-shuttle': {
+        shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+        holderUid: 'holder', revision: 0,
+      },
+    };
+    mock.documents.set('sessions/s1/shuttleDepartures/snn-press-shuttle', {
+      status: 'requested', requestId: 'press-departure-1', shuttleId: 'snn-press-shuttle',
+      holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
+      requestedAt: '2026-09-23T11:59:00.000Z',
+    });
+    const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+
+    await expect(beginShuttleTransit.run(request({
+      ...command, requestId: 'press-begin-at-deadline', shuttleId: 'snn-press-shuttle',
+      expectedDepartureRequestId: 'press-departure-1',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(mock.documents.get('sessions/s1/shuttleDepartures/snn-press-shuttle'))
+      .toMatchObject({ status: 'requested', requestId: 'press-departure-1' });
+    expect(mock.documents.get('sessions/s1/shuttleTransitChains/snn-press-shuttle')).toBeUndefined();
+    expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('rejects Press retarget at the restricted deadline while a shuttle is in transit', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+  try {
+    const session = mock.documents.get('sessions/s1')!;
+    session.pressEnabled = true;
+    session.turnPhase = {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-23T11:59:00.000Z',
+      openAirspaceEndsAt: '2026-09-23T12:00:30.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+    };
+    session.shuttleControl = {
+      ...(session.shuttleControl as Fields),
+      'snn-press-shuttle': {
+        shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+        holderUid: 'holder', revision: 0,
+      },
+    };
+    mock.documents.set('sessions/s1/shuttleDepartures/snn-press-shuttle', {
+      status: 'requested', requestId: 'press-departure-1', shuttleId: 'snn-press-shuttle',
+      holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId: 'aegis',
+      destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
+      requestedAt: '2026-09-23T11:59:00.000Z',
+    });
+    await expect(beginShuttleTransit.run(request({
+      ...command, requestId: 'press-begin-before-deadline', shuttleId: 'snn-press-shuttle',
+      expectedDepartureRequestId: 'press-departure-1',
+    }))).resolves.toMatchObject({ status: 'in-transit', shuttleId: 'snn-press-shuttle' });
+    session.activeVesselIds = ['aegis', 'icebreaker', 'dione'];
+    mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis', 'icebreaker', 'dione'];
+    const transitBefore = structuredClone(mock.documents.get('sessions/s1/shuttleDepartures/snn-press-shuttle'));
+    const writes = mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length;
+    vi.setSystemTime(new Date('2026-09-23T12:00:30.000Z'));
+
+    await expect(retargetShuttleTransit.run(request({
+      sessionId: 's1', requestId: 'press-retarget-at-deadline', shuttleId: 'snn-press-shuttle',
+      transitRequestId: 'transit-1', destinationShipId: 'dione',
+      expectedControlRevision: 0, expectedCycle: 2,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(mock.documents.get('sessions/s1/shuttleDepartures/snn-press-shuttle')).toEqual(transitBefore);
+    expect(mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('fails closed when a revisioned transit has no matching private chain', async () => {
   await beginShuttleTransit.run(request(command));
   const session = mock.documents.get('sessions/s1')!;

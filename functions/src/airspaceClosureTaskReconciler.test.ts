@@ -76,20 +76,28 @@ import {
 const nowMs = Date.parse('2026-09-23T12:00:00.000Z');
 const deadlineAt = new Date(nowMs + 15 * 60_000).toISOString();
 
-function turnPhase(openAirspaceEndsAt = deadlineAt) {
+function turnPhase(
+  openAirspaceEndsAt = deadlineAt,
+  airspace: { state: 'lifted' | 'restricted'; tickerActive: boolean; pressAccess: boolean } =
+    { state: 'lifted', tickerActive: true, pressAccess: true },
+) {
   return {
     turn: 2,
     teamPhaseEndsAt: new Date(nowMs - 5 * 60_000).toISOString(),
     openAirspaceEndsAt,
-    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    airspace,
   };
 }
 
-function seedActiveSession(sessionId: string, openAirspaceEndsAt = deadlineAt) {
+function seedActiveSession(
+  sessionId: string,
+  openAirspaceEndsAt = deadlineAt,
+  airspace?: { state: 'lifted' | 'restricted'; tickerActive: boolean; pressAccess: boolean },
+) {
   mock.documents.set(`sessions/${sessionId}`, {
     phase: 'active',
     currentTurn: 2,
-    turnPhase: turnPhase(openAirspaceEndsAt),
+    turnPhase: turnPhase(openAirspaceEndsAt, airspace),
   });
 }
 
@@ -111,6 +119,35 @@ it('backfills an unchanged active window without waiting for a session write or 
   expect(mock.queue.enqueue).toHaveBeenCalledWith({
     sessionId: 'session-live', cycle: 2, deadlineAt, wakeIndex: expected.wakeIndex,
   }, { id: expected.taskId, scheduleTime: new Date(expected.scheduledAtMs) });
+});
+
+it('backfills an unchanged restricted Press window after deployment', async () => {
+  const pressWindow = { state: 'restricted' as const, tickerActive: true, pressAccess: true };
+  seedActiveSession('session-press', deadlineAt, pressWindow);
+  const expected = airspaceClosureTaskPlan(
+    'session-press', 2, turnPhase(deadlineAt, pressWindow), 'active', nowMs,
+  )!;
+
+  const result = await reconcileAirspaceClosureTaskPage();
+
+  expect(result).toMatchObject({ scanned: 1, enqueued: 1, nextSessionId: null });
+  expect(mock.queue.enqueue).toHaveBeenCalledWith({
+    sessionId: 'session-press', cycle: 2, deadlineAt, wakeIndex: expected.wakeIndex,
+  }, { id: expected.taskId, scheduleTime: new Date(expected.scheduledAtMs) });
+});
+
+it('does not backfill the ordinary Press window while the Wolf attack owns the lock', async () => {
+  const pressWindow = { state: 'restricted' as const, tickerActive: true, pressAccess: true };
+  seedActiveSession('session-press', deadlineAt, pressWindow);
+  mock.documents.set('sessions/session-press/wolfAttackState/current', {
+    status: 'declared', airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  });
+
+  await expect(reconcileAirspaceClosureTaskPage()).resolves.toMatchObject({
+    scanned: 1, enqueued: 0, nextSessionId: null,
+  });
+  expect(mock.queue.enqueue).not.toHaveBeenCalled();
 });
 
 it('uses deterministic task IDs so repeated scans are idempotent', async () => {

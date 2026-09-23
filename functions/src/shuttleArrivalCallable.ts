@@ -19,6 +19,7 @@ import { parseShuttleArrivalVisitLog, completeShuttleArrival as applyShuttleArri
 import { parseShuttleTransitAuthority } from './shuttleTransit';
 import { turnPhaseState } from './turnZero';
 import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
+import { ordinaryAirspaceClosureWindow } from './airspaceClosureTasks';
 
 type ShuttleArrivalReply = Readonly<{
   status: 'arrived' | 'replayed';
@@ -252,7 +253,7 @@ export function createCompleteShuttleArrivalCallable() {
         currentCycle !== phase.turn || (currentCycle as number) < transit.cycle) {
       throw commandError('failed-precondition', 'The authoritative shuttle arrival state is unavailable.', 'conflict');
     }
-    if (phase.airspace.state === 'lifted' && phase.timerPause === undefined &&
+    if (ordinaryAirspaceClosureWindow(phase) && phase.timerPause === undefined &&
         now >= Date.parse(phase.openAirspaceEndsAt)) {
       throw commandError(
         'failed-precondition',

@@ -447,6 +447,7 @@ import {
   parkAtOrdinaryAirspaceDeadline,
 } from './airspaceClosureTaskHandlers';
 import { reconcileAirspaceClosureTasks } from './airspaceClosureTaskReconciler';
+import { ordinaryAirspaceClosureWindow } from './airspaceClosureTasks';
 import { parseStoredZealotryResponse, type ZealotryResponseAction } from './zealotryResponse';
 import {
   CIVIL_UNREST_RESOLUTION_SHIP_IDS,
@@ -13757,6 +13758,7 @@ export const advanceTurn = onCall<{
   const sessionRef = db.doc(`sessions/${advance.sessionId}`);
   const playerRef = db.doc(`sessions/${advance.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${advance.sessionId}/gmInstances/${advance.instanceId}`);
+  const attackStateRef = db.doc(`sessions/${advance.sessionId}/wolfAttackState/current`);
   const receiptRef = commandReceiptRef(advance.sessionId, advance.requestId);
   const fingerprint: CommandFingerprint = {
     action: 'advance-turn',
@@ -13773,9 +13775,9 @@ export const advanceTurn = onCall<{
   const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async (tx) => {
-    const [session, player, instance, receipt] = await Promise.all([
+    const [session, player, instance, attackState, receipt] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-      tx.get(receiptRef),
+      tx.get(attackStateRef), tx.get(receiptRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isLiveGmInstance(instance, player, uid)) {
@@ -13830,8 +13832,9 @@ export const advanceTurn = onCall<{
       advance.sessionId,
       session,
     );
-    const ordinaryAirspaceClosed = activePhase.airspace.state === 'lifted' &&
+    const ordinaryAirspaceClosed = ordinaryAirspaceClosureWindow(activePhase) &&
       activePhase.timerPause === undefined &&
+      (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data())) &&
       Date.now() >= Date.parse(activePhase.openAirspaceEndsAt);
     if (ordinaryAirspaceClosed) {
       await parkAtOrdinaryAirspaceDeadline(

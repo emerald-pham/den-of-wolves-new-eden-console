@@ -3,10 +3,12 @@ import { getFunctions } from 'firebase-admin/functions';
 import { logger } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { turnPhaseState } from './turnZero';
+import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 import {
   airspaceClosureEventId,
   airspaceClosureReconcileTaskPlan,
   enqueueAirspaceClosureTask,
+  ordinaryAirspaceClosureWindow,
 } from './airspaceClosureTasks';
 
 export const AIRSPACE_CLOSURE_RECONCILE_PAGE_SIZE = 50;
@@ -46,10 +48,16 @@ export async function reconcileAirspaceClosureTaskPage(): Promise<Readonly<{
     if (typeof currentTurn !== 'number' || !Number.isSafeInteger(currentTurn) || currentTurn < 1) continue;
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn) continue;
-    const plan = airspaceClosureReconcileTaskPlan(session.id, currentTurn, phase, 'active', nowMs);
+    const attackState = await db.doc(`${session.ref.path}/wolfAttackState/current`).get();
+    const wolfAttackLocked = attackState?.exists === true &&
+      wolfAttackBlocksNormalMovement(attackState.data());
+    const plan = airspaceClosureReconcileTaskPlan(
+      session.id, currentTurn, phase, 'active', nowMs, wolfAttackLocked,
+    );
     if (!plan) continue;
 
-    if (!phase.timerPause && nowMs >= Date.parse(phase.openAirspaceEndsAt)) {
+    if (ordinaryAirspaceClosureWindow(phase) && !wolfAttackLocked &&
+        !phase.timerPause && nowMs >= Date.parse(phase.openAirspaceEndsAt)) {
       const eventRef = db.doc(
         `${session.ref.path}/events/${airspaceClosureEventId(currentTurn, phase.openAirspaceEndsAt)}`,
       );

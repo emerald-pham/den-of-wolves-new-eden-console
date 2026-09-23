@@ -2696,6 +2696,52 @@ it('commits one server-owned Coordination completion announcement with the next-
   );
 });
 
+it('catches up restricted Press parking when advancing after the ordinary window deadline', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:30:01.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-23T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-23T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, overridePhaseTimer: true,
+  }))).resolves.toMatchObject({ currentTurn: 3 });
+
+  expect(mock.create).toHaveBeenCalledWith(
+    expect.stringMatching(/\/events\/airspace-close-/),
+    expect.objectContaining({ type: 'airspace-closure-parking', turn: 2, serverTime: '2026-09-23T12:30:00.000Z' }),
+  );
+});
+
+it('keeps the P373 Wolf-attack parking lane separate during restricted Press catch-up', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:30:01.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-23T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-23T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+  };
+  mock.wolfAttackState = {
+    status: 'declared', airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, overridePhaseTimer: true,
+  }))).resolves.toMatchObject({ currentTurn: 3 });
+
+  expect(mock.create).not.toHaveBeenCalledWith(
+    expect.stringMatching(/\/events\/airspace-close-/),
+    expect.anything(),
+  );
+});
+
 it('freezes the configured final turn in debrief and replays the terminal receipt', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));

@@ -110,6 +110,63 @@ function seedStoredTransit(overdueByMs = 10_000): Fields {
   return transit;
 }
 
+function seedPressStoredTransit(): Fields {
+  const now = Date.now();
+  const departure = {
+    status: 'requested' as const,
+    requestId: 'press-departure-1',
+    shuttleId: 'snn-press-shuttle',
+    holderUid: 'holder',
+    fleetGroupId: 'fleet-1',
+    originShipId: 'aegis',
+    destinationShipId: 'icebreaker',
+    cycle: 2,
+    controlRevision: 2,
+    requestedAt: new Date(now - 120_000).toISOString(),
+  };
+  const phase = {
+    turn: 2,
+    teamPhaseEndsAt: new Date(now - 60_000).toISOString(),
+    openAirspaceEndsAt: new Date(now - 30_000).toISOString(),
+    airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: true },
+  };
+  const entered = enterShuttleTransit({
+    transitRequestId: 'press-transit-1',
+    actorUid: 'holder',
+    expectedDepartureRequestId: departure.requestId,
+    expectedControlRevision: 2,
+    expectedCycle: 2,
+    departure,
+    control: {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 2,
+    },
+    dockings: [
+      { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+      { shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'SESSION START' },
+    ],
+    group: { id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['holder', 'owner'] },
+    phase,
+    now: now - 59_000,
+  }).transit;
+  put('sessions/s1/shuttleDepartures/snn-press-shuttle', toPublicShuttleTransit(entered));
+  put('sessions/s1/shuttleTransitChains/snn-press-shuttle', toShuttleTransitChain(entered));
+  const session = mock.documents.get('sessions/s1')!;
+  session.turnPhase = phase;
+  session.shuttleDockings = [
+    { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
+    { shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'SESSION START' },
+  ];
+  session.shuttleControl = {
+    'snn-press-shuttle': {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 2,
+    },
+  };
+  return entered;
+}
+
 function baseVisitLog(): Fields[] {
   return [
     { id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis', action: 'docked', occurredAt: 'SESSION START' },
@@ -287,6 +344,36 @@ it('leaves a post-deadline destination arrival in transit for delayed closure pa
       expect.objectContaining({ shuttleId: 'starlight', shipId: transit.destinationShipId }),
     ]));
     expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/transit-1')).toBe(false);
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('rejects delayed arrival for an SNN shuttle in the restricted Press window after its deadline', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+  try {
+    const transit = seedPressStoredTransit();
+    vi.setSystemTime(new Date(Date.parse(transit.arrivesAt) + 1));
+    const session = mock.documents.get('sessions/s1')!;
+
+    await expect(completeShuttleArrival.run(request({
+      ...command,
+      shuttleId: 'snn-press-shuttle',
+      transitRequestId: 'press-transit-1',
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/ordinary airspace deadline has passed/i),
+    });
+
+    expect(mock.documents.has('sessions/s1/shuttleDepartures/snn-press-shuttle')).toBe(true);
+    expect(mock.documents.has('sessions/s1/shuttleTransitChains/snn-press-shuttle')).toBe(true);
+    expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'icebreaker' }),
+    ]));
+    expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/press-transit-1')).toBe(false);
     expect(mock.create).not.toHaveBeenCalled();
     expect(mock.remove).not.toHaveBeenCalled();
   } finally {

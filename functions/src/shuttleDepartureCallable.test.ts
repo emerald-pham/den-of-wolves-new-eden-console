@@ -174,6 +174,38 @@ it('rejects SNN departure when the Press station is disabled without writes', as
   expect(mock.documents.has('sessions/s1/shuttleDepartures/snn-press-shuttle')).toBe(false);
 });
 
+it('rejects an SNN departure request at the restricted Press deadline while parking is delayed', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
+  try {
+    const session = mock.documents.get('sessions/s1')!;
+    session.pressEnabled = true;
+    session.turnPhase = {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-23T11:59:00.000Z',
+      openAirspaceEndsAt: '2026-09-23T12:00:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+    };
+    session.shuttleControl = {
+      ...(session.shuttleControl as Fields),
+      'snn-press-shuttle': {
+        shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+        holderUid: 'holder', revision: 0,
+      },
+    };
+    const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+
+    await expect(requestShuttleDeparture.run(request({
+      ...command, requestId: 'press-at-deadline', shuttleId: 'snn-press-shuttle',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(mock.documents.has('sessions/s1/shuttleDepartures/snn-press-shuttle')).toBe(false);
+    expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('allows only one pending Coordination move for the current holder and cycle', async () => {
   await expect(requestShuttleDeparture.run(request(command))).resolves.toMatchObject({
     status: 'requested', holderUid: 'holder', originShipId: 'aegis',

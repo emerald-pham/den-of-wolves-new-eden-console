@@ -38,6 +38,30 @@ it('schedules the ordinary closure task at the exact open-airspace deadline', ()
   expect(plan?.taskId).toMatch(/^airspace-close_[a-f0-9]{40}$/);
 });
 
+it('schedules the restricted Press exception and parks it at the same authoritative deadline', () => {
+  const pressPhase = phase({
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+  });
+  const plan = airspaceClosureTaskPlan('session-a', cycle, pressPhase, 'active', deadlineMs - 20 * 60_000)!;
+
+  expect(plan).toMatchObject({ deadlineAt, scheduledAtMs: deadlineMs, cycle });
+  expect(airspaceClosureTaskDecision(
+    plan, plan.taskId, pressPhase, cycle, 'active', deadlineMs,
+  )).toEqual({ action: 'park', closedAt: deadlineAt });
+});
+
+it('does not schedule or execute an ordinary Press close under the Wolf-attack lock', () => {
+  const pressPhase = phase({
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+  });
+  expect(airspaceClosureTaskPlan('session-a', cycle, pressPhase, 'active', deadlineMs, true))
+    .toBeUndefined();
+  const previouslyQueued = airspaceClosureTaskPlan('session-a', cycle, pressPhase, 'active', deadlineMs - 60_000)!;
+  expect(airspaceClosureTaskDecision(
+    previouslyQueued, previouslyQueued.taskId, pressPhase, cycle, 'active', deadlineMs, true,
+  )).toEqual({ action: 'stale' });
+});
+
 it('rotates bounded deterministic recovery IDs for due windows after Cloud Tasks retention', () => {
   const firstScanAt = deadlineMs + 60_000;
   const first = airspaceClosureReconcileTaskPlan('session-a', cycle, phase(), 'active', firstScanAt)!;

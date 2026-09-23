@@ -126,6 +126,33 @@ function transit(): ReturnType<typeof enterShuttleTransit>['transit'] {
   }).transit;
 }
 
+function pressTransit(): ReturnType<typeof enterShuttleTransit> {
+  const dockings = initialShuttleDockingsForRoles(roles);
+  const originShipId = dockings.find(docking => docking.shuttleId === 'snn-press-shuttle')!.shipId;
+  const destinationShipId = vessels.find(shipId => shipId !== originShipId)!;
+  const requestedAt = new Date(closedAtMs - 3 * 60_000).toISOString();
+  return enterShuttleTransit({
+    transitRequestId: 'press-transit-1',
+    actorUid: 'holder',
+    expectedDepartureRequestId: 'press-departure-1',
+    expectedControlRevision: 4,
+    expectedCycle: 2,
+    departure: {
+      status: 'requested', requestId: 'press-departure-1', shuttleId: 'snn-press-shuttle',
+      holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId, destinationShipId,
+      cycle: 2, controlRevision: 4, requestedAt,
+    },
+    control: {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 4,
+    },
+    dockings,
+    group,
+    phase: phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: true } }),
+    now: closedAtMs - 2 * 60_000,
+  });
+}
+
 function seedSession(currentPhase: TurnPhase = phase()) {
   const dockings = initialShuttleDockingsForRoles(roles)
     .filter(docking => docking.shuttleId !== 'starlight');
@@ -188,6 +215,100 @@ it('schedules the current due time when the ordinary airspace phase opens', asyn
     id: closureTaskPlan().taskId,
     scheduleTime: new Date(closedAtMs),
   });
+});
+
+it('schedules the restricted Press window when its server-owned access is granted', async () => {
+  const restricted = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: false } });
+  const pressWindow = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: true } });
+  seedSession(pressWindow);
+
+  await (scheduleAirspaceClosureParking as { run: (event: unknown) => Promise<void> }).run(
+    firestoreEvent(
+      { phase: 'active', currentTurn: 2, turnPhase: restricted },
+      mock.documents.get(sessionPath),
+    ),
+  );
+
+  const plan = airspaceClosureTaskPlan(sessionId, 2, pressWindow, 'active', closedAtMs - 60_000)!;
+  expect(mock.queue.enqueue).toHaveBeenCalledWith(taskRequest, {
+    id: plan.taskId,
+    scheduleTime: new Date(closedAtMs),
+  });
+});
+
+it('does not schedule the ordinary Press close when the Wolf-attack state is locked', async () => {
+  const restricted = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: false } });
+  const pressWindow = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: true } });
+  seedSession(pressWindow);
+  mock.documents.set(`${sessionPath}/wolfAttackState/current`, {
+    status: 'declared', airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  });
+
+  await (scheduleAirspaceClosureParking as { run: (event: unknown) => Promise<void> }).run(
+    firestoreEvent(
+      { phase: 'active', currentTurn: 2, turnPhase: restricted },
+      mock.documents.get(sessionPath),
+    ),
+  );
+
+  expect(mock.queue.enqueue).not.toHaveBeenCalled();
+});
+
+it('parks an SNN shuttle that used restricted Press access when the deadline task runs', async () => {
+  const pressWindow = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: true } });
+  seedSession(pressWindow);
+  const entered = pressTransit();
+  mock.documents.set(sessionPath, {
+    ...mock.documents.get(sessionPath)!,
+    shuttleDockings: entered.dockings,
+  });
+  const pressTransitPath = `${sessionPath}/shuttleDepartures/snn-press-shuttle`;
+  const pressChainPath = `${sessionPath}/shuttleTransitChains/snn-press-shuttle`;
+  mock.documents.set(pressTransitPath, toPublicShuttleTransit(entered.transit));
+  mock.documents.set(pressChainPath, toShuttleTransitChain(entered.transit));
+  const plan = airspaceClosureTaskPlan(sessionId, 2, pressWindow, 'active', closedAtMs - 60_000)!;
+  vi.setSystemTime(new Date(closedAtMs));
+
+  await (parkShuttlesAtAirspaceClosure as { run: (request: unknown) => Promise<void> }).run(
+    callableRequest(plan.taskId),
+  );
+
+  const session = mock.documents.get(sessionPath)!;
+  expect(session.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle', dockedAt: closedAt }),
+  ]));
+  expect(session.shuttleVisitLog).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      shuttleId: 'snn-press-shuttle', action: 'docked', occurredAt: closedAt,
+    }),
+  ]));
+  expect(mock.documents.has(pressTransitPath)).toBe(false);
+  expect(mock.documents.has(pressChainPath)).toBe(false);
+});
+
+it('rejects an old ordinary deadline task while a Wolf attack owns the restricted Press lock', async () => {
+  const pressWindow = phase({ airspace: { state: 'restricted', tickerActive: true, pressAccess: true } });
+  seedSession(pressWindow);
+  seedTransit();
+  mock.documents.set(`${sessionPath}/wolfAttackState/current`, {
+    status: 'declared', airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  });
+  const task = airspaceClosureTaskPlan(sessionId, 2, pressWindow, 'active', closedAtMs - 60_000)!;
+  vi.setSystemTime(new Date(closedAtMs));
+
+  await (parkShuttlesAtAirspaceClosure as { run: (request: unknown) => Promise<void> }).run(
+    callableRequest(task.taskId),
+  );
+
+  expect(mock.documents.has(transitPath)).toBe(true);
+  expect(mock.documents.has(chainPath)).toBe(true);
+  expect(mock.documents.get(sessionPath)?.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', dockedAt: closedAt }),
+  ]));
+  expect([...mock.documents.keys()].some(path => path.startsWith(`${sessionPath}/events/`))).toBe(false);
+  expect(mock.queue.enqueue).not.toHaveBeenCalled();
 });
 
 it('keeps failed server deadline tasks retryable through Cloud Tasks retention', () => {

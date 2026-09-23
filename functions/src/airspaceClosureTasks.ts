@@ -27,6 +27,12 @@ export type AirspaceClosureTaskDecision =
   | Readonly<{ action: 'retry' }>
   | Readonly<{ action: 'reschedule'; plan: AirspaceClosureTaskPlan }>;
 
+/** Ordinary deadlines apply to lifted airspace and the restricted Press window. */
+export function ordinaryAirspaceClosureWindow(phase: TurnPhase | undefined): boolean {
+  return phase?.airspace.state === 'lifted' ||
+    (phase?.airspace.state === 'restricted' && phase.airspace.pressAccess);
+}
+
 /**
  * Return the next bounded wake for an ordinary lifted-airspace deadline.
  * A long GM extension advances through bounded 24-day wakes, with the final task
@@ -38,12 +44,13 @@ export function airspaceClosureTaskPlan(
   phase: TurnPhase | undefined,
   sessionPhase: string | undefined,
   nowMs = Date.now(),
+  wolfAttackLocked = false,
 ): AirspaceClosureTaskPlan | undefined {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId) ||
       !Number.isSafeInteger(currentTurn) || currentTurn < 1 ||
       !Number.isSafeInteger(nowMs) || nowMs < 0 ||
       sessionPhase !== 'active' || !phase || phase.turn !== currentTurn ||
-      phase.airspace.state !== 'lifted' || phase.timerPause !== undefined) {
+      !ordinaryAirspaceClosureWindow(phase) || wolfAttackLocked || phase.timerPause !== undefined) {
     return undefined;
   }
   const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
@@ -79,12 +86,13 @@ export function airspaceClosurePauseWatchPlan(
   sessionPhase: string | undefined,
   nowMs = Date.now(),
   previousWakeIndex?: number,
+  wolfAttackLocked = false,
 ): AirspaceClosureTaskPlan | undefined {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId) ||
       !Number.isSafeInteger(currentTurn) || currentTurn < 1 ||
       !Number.isSafeInteger(nowMs) || nowMs < 0 ||
       sessionPhase !== 'active' || !phase || phase.turn !== currentTurn ||
-      phase.airspace.state !== 'lifted' || phase.timerPause === undefined) {
+      !ordinaryAirspaceClosureWindow(phase) || wolfAttackLocked || phase.timerPause === undefined) {
     return undefined;
   }
   const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
@@ -116,10 +124,15 @@ export function airspaceClosureReconcileTaskPlan(
   phase: TurnPhase | undefined,
   sessionPhase: string | undefined,
   nowMs = Date.now(),
+  wolfAttackLocked = false,
 ): AirspaceClosureTaskPlan | undefined {
-  const ordinary = airspaceClosureTaskPlan(sessionId, currentTurn, phase, sessionPhase, nowMs);
+  const ordinary = airspaceClosureTaskPlan(
+    sessionId, currentTurn, phase, sessionPhase, nowMs, wolfAttackLocked,
+  );
   if (!ordinary) {
-    return airspaceClosurePauseWatchPlan(sessionId, currentTurn, phase, sessionPhase, nowMs);
+    return airspaceClosurePauseWatchPlan(
+      sessionId, currentTurn, phase, sessionPhase, nowMs, undefined, wolfAttackLocked,
+    );
   }
   if (Date.parse(ordinary.deadlineAt) > nowMs) return ordinary;
   const recoveryWakeIndex = RECONCILE_RECOVERY_WAKE_INDEX_START +
@@ -166,10 +179,11 @@ export function airspaceClosureTaskDecision(
   currentTurn: number,
   sessionPhase: string | undefined,
   nowMs = Date.now(),
+  wolfAttackLocked = false,
 ): AirspaceClosureTaskDecision {
   if (currentTaskId !== airspaceClosureTaskId(task) || !phase ||
       phase.turn !== currentTurn || currentTurn < 1 ||
-      sessionPhase !== 'active' || phase.airspace.state !== 'lifted') {
+      sessionPhase !== 'active' || !ordinaryAirspaceClosureWindow(phase) || wolfAttackLocked) {
     return { action: 'stale' };
   }
   const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
@@ -182,19 +196,22 @@ export function airspaceClosureTaskDecision(
   }
   if (task.cycle !== currentTurn) {
     const successor = phase.timerPause !== undefined
-      ? airspaceClosurePauseWatchPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs)
-      : airspaceClosureTaskPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs);
+      ? airspaceClosurePauseWatchPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs, undefined, wolfAttackLocked)
+      : airspaceClosureTaskPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs, wolfAttackLocked);
     return successor ? { action: 'reschedule', plan: successor } : { action: 'stale' };
   }
   if (phase.timerPause !== undefined) {
     const paused = airspaceClosurePauseWatchPlan(
       task.sessionId, currentTurn, phase, sessionPhase, nowMs, task.wakeIndex,
+      wolfAttackLocked,
     );
     return paused ? { action: 'reschedule', plan: paused } : { action: 'stale' };
   }
   if (nowMs >= deadlineMs) return { action: 'park', closedAt: phase.openAirspaceEndsAt };
 
-  const next = airspaceClosureTaskPlan(task.sessionId, currentTurn, phase, sessionPhase, nowMs);
+  const next = airspaceClosureTaskPlan(
+    task.sessionId, currentTurn, phase, sessionPhase, nowMs, wolfAttackLocked,
+  );
   if (!next) return { action: 'stale' };
   if (next.taskId === currentTaskId) return { action: 'retry' };
   return { action: 'reschedule', plan: next };

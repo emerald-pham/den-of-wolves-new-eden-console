@@ -15,6 +15,7 @@ import { initialShuttleDockingsForRoles } from './shuttlecraft';
 import { parseShuttleDepartures } from './shuttleDeparture';
 import { parseShuttleTransitAuthority } from './shuttleTransit';
 import { turnPhaseState } from './turnZero';
+import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 import { resolveAirspaceClosureShuttleParking } from './airspaceClosureParking';
 import {
   airspaceClosureEventId,
@@ -22,6 +23,7 @@ import {
   airspaceClosurePauseWatchPlan,
   airspaceClosureTaskPlan,
   enqueueAirspaceClosureTask,
+  ordinaryAirspaceClosureWindow,
   parseAirspaceClosureTask,
   type AirspaceClosureTask,
   type AirspaceClosureTaskPlan,
@@ -66,8 +68,14 @@ export function createAirspaceClosureTaskScheduler() {
     if (!session.exists) return;
     const turn = sessionTurn(session.get('currentTurn'));
     const phase = turnPhaseState(session.get('turnPhase'));
-    const plan = airspaceClosureTaskPlan(sessionId, turn, phase, session.get('phase')) ??
-      airspaceClosurePauseWatchPlan(sessionId, turn, phase, session.get('phase'));
+    const attackState = await getFirestore().doc(`sessions/${sessionId}/wolfAttackState/current`).get();
+    const wolfAttackLocked = attackState?.exists === true &&
+      wolfAttackBlocksNormalMovement(attackState.data());
+    const plan = airspaceClosureTaskPlan(
+      sessionId, turn, phase, session.get('phase'), Date.now(), wolfAttackLocked,
+    ) ?? airspaceClosurePauseWatchPlan(
+      sessionId, turn, phase, session.get('phase'), Date.now(), undefined, wolfAttackLocked,
+    );
     if (!plan) return;
     await enqueueAirspaceClosureTask(
       getFunctions().taskQueue(TASK_FUNCTION_NAME),
@@ -86,11 +94,15 @@ export function createAirspaceClosureParkingTask() {
     const task = parseAirspaceClosureTask(request.data);
     if (!task) throw new Error('The airspace-closure task payload is malformed.');
     const sessionRef = getFirestore().doc(`sessions/${task.sessionId}`);
+    const attackStateRef = getFirestore().doc(`sessions/${task.sessionId}/wolfAttackState/current`);
     const result = await getFirestore().runTransaction(async tx => {
       const session = await tx.get(sessionRef);
       if (!session.exists) return { action: 'stale' } as const;
       const currentTurn = sessionTurn(session.get('currentTurn'));
       const phase = turnPhaseState(session.get('turnPhase'));
+      const attackState = await tx.get(attackStateRef);
+      const wolfAttackLocked = attackState?.exists === true &&
+        wolfAttackBlocksNormalMovement(attackState.data());
       const decision = airspaceClosureTaskDecision(
         task,
         request.id,
@@ -98,6 +110,7 @@ export function createAirspaceClosureParkingTask() {
         currentTurn,
         session.get('phase'),
         Date.now(),
+        wolfAttackLocked,
       );
       if (decision.action === 'stale' || decision.action === 'retry') return decision;
       if (decision.action === 'reschedule') return decision;
@@ -131,7 +144,7 @@ export async function parkAtOrdinaryAirspaceDeadline(
   const currentTurn = sessionTurn(session.get('currentTurn'));
   const phase = turnPhaseState(session.get('turnPhase'));
   if (!session.exists || session.get('phase') !== 'active' || !phase ||
-      phase.turn !== currentTurn || phase.airspace.state !== 'lifted' || phase.timerPause ||
+      phase.turn !== currentTurn || !ordinaryAirspaceClosureWindow(phase) || phase.timerPause ||
       phase.openAirspaceEndsAt !== closedAt || Date.now() < Date.parse(closedAt)) {
     throw new Error('The ordinary airspace closure no longer matches current server phase authority.');
   }
@@ -259,6 +272,7 @@ function closureScheduleKey(session: DocumentSnapshot): string {
     turn: phase?.turn,
     deadline: phase?.openAirspaceEndsAt,
     airspace: phase?.airspace.state,
+    pressAccess: phase?.airspace.pressAccess,
     pause: phase?.timerPause ? [
       phase.timerPause.window,
       phase.timerPause.pausedAt,
