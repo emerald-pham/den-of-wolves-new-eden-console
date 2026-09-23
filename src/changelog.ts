@@ -23,6 +23,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 14, active: 0, missing: 259,
+    },
+    changes: [
+      'When a different player uses the same browser, the previous player’s private navigation chart no longer appears while reconnecting.',
+      '478 of 751 planned items are complete (63.65%).',
+    ],
+  },
+
+  {
+    version: '0.5.14',
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
       done: 478, partial: 13, active: 0, missing: 260,
     },
     changes: [
