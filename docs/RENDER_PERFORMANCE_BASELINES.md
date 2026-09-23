@@ -116,3 +116,7 @@ DRADIS, attack, and mission-hand update p95 values were 134.2 ms, 33.4 ms, and
 33.5 ms; the 390x844 mobile probe measured a 66.7 ms p95 with 43 long frames.
 All remain within their unchanged runtime budgets. The new size ceilings leave
 2,867 raw bytes and 2,532 gzip bytes of headroom over this measured candidate.
+The exact version 10 release at `da1077551ddb7c0d818adb63d77be537d4e7c902`
+passed the hosted ticker and render gates in Deploy run `35903792629`. Its
+uploaded render artifact measured the same raw and gzip sizes, a 77.3 ms
+DRADIS update p95, and seven long mobile frames; Hosting reports 0.5.18.
