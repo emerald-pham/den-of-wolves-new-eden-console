@@ -3107,8 +3107,10 @@ it('drops delayed cached secondary query snapshots after a server snapshot', asy
     gmInstance: null,
   });
   const callbacks: Array<(snapshot: unknown) => void> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
-    callbacks.push(callback as (snapshot: unknown) => void);
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callback?: unknown) => {
+    callbacks.push((typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as
+      (snapshot: unknown) => void);
     return vi.fn();
   }) as never);
   const onInstances = vi.fn();
@@ -3150,8 +3152,10 @@ it('shares accepted session authority with secondary queries before their first 
   });
 
   const callbacks: Array<(snapshot: unknown) => void> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
-    callbacks.push(callback as (snapshot: unknown) => void);
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callback?: unknown) => {
+    callbacks.push((typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as
+      (snapshot: unknown) => void);
     return vi.fn();
   }) as never);
   const onPlayers = vi.fn();
@@ -3159,6 +3163,92 @@ it('shares accepted session authority with secondary queries before their first 
   callbacks[0]?.({ metadata: { fromCache: true }, docs: [] });
 
   expect(onPlayers).toHaveBeenCalledWith([]);
+  useSessionStore.getState().reset();
+});
+
+it('withholds a cached member group roster until the current session reauthorizes it', () => {
+  const sessionId = 'persisted-group-cache';
+  const uid = 'persisted-group-player';
+  useSessionStore.setState({
+    sessionSnapshotFreshness: 'cache',
+    persistedSessionSnapshot: true,
+    me: {
+      uid, sessionId, displayName: 'Player', role: 'player', seatId: null,
+      fleetGroupId: 'old-group', joinedAt: '',
+    },
+    gmInstance: null,
+  });
+
+  let onSnapshotCallback: ((snapshot: unknown) => void) | undefined;
+  let onSnapshotError: ((error: unknown) => void) | undefined;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError?: unknown, error?: unknown) => {
+    const hasOptions = typeof optionsOrCallback !== 'function';
+    onSnapshotCallback = (hasOptions ? callbackOrError : optionsOrCallback) as
+      ((snapshot: unknown) => void) | undefined;
+    onSnapshotError = (hasOptions ? error : callbackOrError) as ((error: unknown) => void) | undefined;
+    return vi.fn();
+  }) as never);
+
+  const onPlayers = vi.fn();
+  const onError = vi.fn();
+  subscribeConnectedPlayers(sessionId, onPlayers, onError);
+
+  const cachedOldGroup = [{
+    id: 'former-crewmate',
+    data: () => ({ role: 'player', displayName: 'Former crewmate', fleetGroupId: 'old-group' }),
+  }];
+  onSnapshotCallback?.({ metadata: { fromCache: true }, docs: cachedOldGroup });
+
+  expect(onPlayers.mock.calls).toEqual([[[]]]);
+
+  onSnapshotError?.({ code: 'permission-denied' });
+  onSnapshotCallback?.({ metadata: { fromCache: false }, docs: cachedOldGroup });
+
+  expect(onPlayers.mock.calls).toEqual([[[]], [[]]]);
+  expect(onError).toHaveBeenCalledTimes(1);
+  useSessionStore.getState().reset();
+});
+
+it('publishes an unchanged connected-player roster after metadata-only server confirmation', () => {
+  const sessionId = 'connected-player-metadata-reconnect';
+  const uid = 'connected-player-viewer';
+  useSessionStore.setState({
+    me: {
+      uid, sessionId, displayName: 'Player', role: 'player', seatId: null,
+      fleetGroupId: 'current-group', joinedAt: '',
+    },
+    gmInstance: null,
+  });
+  expect(acceptCallableSessionAuthority(sessionFrom(sessionId, {
+    ...sessionData(8), updatedAt: '2026-09-23T12:00:00.000Z',
+  }), uid)).toBe(true);
+
+  let listenerOptions: unknown;
+  let onSnapshotCallback: ((snapshot: unknown) => void) | undefined;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError?: unknown) => {
+    listenerOptions = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
+    onSnapshotCallback = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError) as
+      ((snapshot: unknown) => void) | undefined;
+    return vi.fn();
+  }) as never);
+
+  const onPlayers = vi.fn();
+  subscribeConnectedPlayers(sessionId, onPlayers);
+  const unchangedCurrentGroup = [{
+    id: 'current-crewmate',
+    data: () => ({ role: 'player', displayName: 'Current crewmate', fleetGroupId: 'current-group' }),
+  }];
+  onSnapshotCallback?.({ metadata: { fromCache: true }, docs: unchangedCurrentGroup });
+
+  expect(listenerOptions).toEqual({ includeMetadataChanges: true });
+  expect(onPlayers.mock.calls).toEqual([[[]]]);
+
+  onSnapshotCallback?.({ metadata: { fromCache: false }, docs: unchangedCurrentGroup });
+  expect(onPlayers).toHaveBeenLastCalledWith([
+    expect.objectContaining({ uid: 'current-crewmate', displayName: 'Current crewmate' }),
+  ]);
   useSessionStore.getState().reset();
 });
 
@@ -3176,9 +3266,12 @@ it('queries a member roster by its server-owned group and clears stale data on r
   });
   let onSnapshotCallback: ((snapshot: unknown) => void) | undefined;
   let onSnapshotError: (() => void) | undefined;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error?: unknown) => {
-    onSnapshotCallback = callback as (snapshot: unknown) => void;
-    onSnapshotError = error as (() => void) | undefined;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError?: unknown, error?: unknown) => {
+    const hasOptions = typeof optionsOrCallback !== 'function';
+    onSnapshotCallback = (hasOptions ? callbackOrError : optionsOrCallback) as
+      ((snapshot: unknown) => void) | undefined;
+    onSnapshotError = (hasOptions ? error : callbackOrError) as (() => void) | undefined;
     return vi.fn();
   }) as never);
 

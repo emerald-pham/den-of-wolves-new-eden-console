@@ -3502,10 +3502,9 @@ export function subscribeConnectedPlayers(
   sessionId: string,
   onPlayers: (players: readonly Player[]) => void,
   onError: () => void = () => undefined,
-  suppliedAuthority?: SessionSnapshotAuthority,
+  _suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
   let subscribed = true;
-  let hasServerSnapshot = false;
   // A new group or role projection invalidates the previous roster before the
   // replacement listener has delivered its first server snapshot.
   onPlayers([]);
@@ -3530,19 +3529,21 @@ export function subscribeConnectedPlayers(
     );
   const unsubscribe = onSnapshot(
     playersQuery,
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
-      if (fromCache && (
-        hasServerSnapshot ||
-        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
-      )) return;
-      if (!fromCache) hasServerSnapshot = true;
+      // The session document does not independently reauthorize the current
+      // role or fleet-group pointer. A persisted identity can therefore make
+      // this query broader than the server currently allows. Rebuild this
+      // roster only from the query's own server snapshot.
+      if (fromCache) return;
       onPlayers(snapshot.docs.map((player) =>
         playerFrom(sessionId, player.id, player.data())));
     },
     () => {
       if (!subscribed) return;
+      subscribed = false;
       // Group changes, demotion, and session teardown can invalidate the
       // listener. Clear the prior projection before reporting the failure so
       // a stale callback cannot leave old-group data on screen.
