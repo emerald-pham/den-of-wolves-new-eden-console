@@ -103,7 +103,7 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
         setError(cause instanceof Error ? cause.message : 'Boa recycling failed.');
       }
     } finally {
-      if (isCurrentSessionAuthority(checkpoint) && pendingRef.current === checkpoint) {
+      if (pendingRef.current === checkpoint) {
         pendingRef.current = null;
         setPending(false);
       }

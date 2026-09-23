@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import type { BoaRecyclingResult } from '@/lib/boaRecyclingService';
 import { useSessionStore } from '@/store/useSessionStore';
+import { acceptCallableSessionAuthority } from '@/lib/sessionSnapshotAuthority';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
 const mocks = vi.hoisted(() => ({ recycle: vi.fn() }));
@@ -113,6 +114,31 @@ it('fails closed when the live Boa recycling projection is malformed', () => {
   const panel = screen.getByRole('region', { name: 'Boa recycling' });
   expect(within(panel).getByText(/recycling history is unavailable/i)).toBeInTheDocument();
   expect(within(panel).getByRole('button', { name: 'Recycle 6 Food for 1 Scrap' })).toBeDisabled();
+});
+
+it('ignores an overtaken reply and releases only its own pending state', async () => {
+  let resolveExchange!: (result: BoaRecyclingResult) => void;
+  mocks.recycle.mockReturnValueOnce(new Promise<BoaRecyclingResult>((resolve) => {
+    resolveExchange = resolve;
+  }));
+  renderBoa();
+  const panel = screen.getByRole('region', { name: 'Boa recycling' });
+  const button = within(panel).getByRole('button', { name: 'Recycle 6 Food for 1 Scrap' });
+  fireEvent.click(button);
+  expect(button).toBeDisabled();
+
+  const current = useSessionStore.getState().session!;
+  expect(acceptCallableSessionAuthority({ ...current, updatedAt: new Date().toISOString() }, 'holder')).toBe(true);
+  await act(async () => {
+    resolveExchange({
+      status: 'committed', hostShipId: 'aegis', recipeId: 'food', resourceId: 'food',
+      resourceCost: 6, hostResourceRemaining: 2, scrapRemaining: 4,
+      cycle: 3, recyclingRevision: 1, exchangesThisCycle: 1,
+    });
+  });
+
+  expect(within(panel).queryByRole('status')).not.toBeInTheDocument();
+  await waitFor(() => expect(button).not.toBeDisabled());
 });
 
 it('retries the exact command id after an uncertain response', async () => {
