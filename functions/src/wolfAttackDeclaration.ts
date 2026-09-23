@@ -10,6 +10,8 @@ export const WOLF_ATTACK_PARKING_RELEASE = 'normal-movement-reopened' as const;
 export interface WolfAttackStageState {
   readonly type: 'wolf-attack-state';
   readonly status: 'declared';
+  /** Stable identity for this declared attack; range actions bind to it. */
+  readonly attackId: string;
   readonly turn: number;
   readonly revision: number;
   readonly preparationRevision: number;
@@ -36,6 +38,8 @@ export interface WolfAttackStageState {
   readonly parkingDecisions: readonly WolfAttackParkingDecision[];
   /** Hidden GM state: targeting rolls remain outside member-readable events. */
   readonly calculationReceipt: unknown;
+  /** Hidden Maliades effects committed against this exact attack. */
+  readonly maliadesRangeEffects: unknown;
   /** Server-owned consumed roster indexes; each may be used at most once. */
   readonly commanderRerollIndexes: readonly number[];
   readonly preparation: WolfAttackPreparation;

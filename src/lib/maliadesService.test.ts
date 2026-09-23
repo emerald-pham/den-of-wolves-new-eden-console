@@ -8,7 +8,7 @@ vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 import { repairMaliades, resolveMaliadesMedium } from './maliadesService';
 
 const state = {
-  revision: 2, launched: true, damage: 0 as const, destroyed: false,
+  revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0 as const, destroyed: false,
   medium: { targetShift: { targetId: 'wolf-1', shift: 1 as const }, attack: null }, short: null,
 };
 
@@ -51,7 +51,7 @@ it('validates the repair host, damage amount, and authoritative response', async
   mocks.call.mockImplementation(async (payload: { requestId: string }) => ({ data: {
     status: 'committed', sessionId: 's1', requestId: payload.requestId, craftId: 'maliades', cycle: 2,
     revision: 2, hostShipId: 'dione', damageRepaired: 1, materialsRemaining: 3,
-    state: { revision: 2, launched: true, damage: 0, destroyed: false, medium: null,
+    state: { revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0, destroyed: false, medium: null,
       short: { rolls: [{ targetId: 'wolf-1', die: 2, hit: true, selfDamage: 0 }], selfDamage: 0 } },
   } }));
   await expect(repairMaliades(2, 1, 'dione', 1)).resolves.toMatchObject({ hostShipId: 'dione', damageRepaired: 1 });

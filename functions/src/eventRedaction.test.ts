@@ -193,7 +193,9 @@ describe('buildPrivacySafeEventRecord', () => {
       targetShift: { targetId: 'wolf-1', shift: 1 },
       attack: { targetId: 'wolf-2', die: 5, hit: true, selfDamage: 0 },
     });
-    expect(memberEventFieldsFor('maliades-medium')).toEqual(['craftId', 'cycle', 'revision', 'targetShift', 'attack']);
+    expect(memberEventFieldsFor('maliades-medium')).toEqual([
+      'craftId', 'cycle', 'revision', 'targetShift', 'attack', 'targetDamageByTarget', 'targetNumberShift',
+    ]);
   });
 
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {

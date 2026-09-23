@@ -58,13 +58,17 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({
+    run: maybeHandler ?? optionsOrHandler,
+  }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
 import { declareWolfAttack, getDioneMaliadesLaunch, launchDioneMaliades } from './index';
+import { resolveMaliadesMedium } from './maliadesCallable';
+import { parseMaliadesState } from './maliadesState';
 import { initialFighterWingCounts } from './fighterWings';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
@@ -331,6 +335,99 @@ it('lets only the active Dione Engineer launch Maliades from a charged operation
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('resets only per-attack Maliades actions across two declarations while preserving durability', async () => {
+  await declareThenSeatDioneEngineer({
+    shuttleControl: {
+      maliades: {
+        shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'u1', holderUid: 'u1', revision: 1,
+      },
+    },
+  });
+  await expect(launchDioneMaliades.run(request({
+    sessionId: 's1', requestId: 'lifecycle-launch-1', expectedTurn: 1, expectedRevision: 1,
+  }))).resolves.toMatchObject({ status: 'committed', maliadesRevision: 2 });
+  patchSession({
+    phase: 'active',
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  put('sessions/s1/wolfAttackState/current', {
+    ...mock.documents.get('sessions/s1/wolfAttackState/current'), currentStep: 'medium-range',
+  });
+  expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({ launched: true, attackId: 'wolf-attack-wolf-declare-1' });
+  expect(parseMaliadesState(mock.documents.get('sessions/s1').maliadesState)).not.toBeNull();
+  await expect(resolveMaliadesMedium.run(request({
+    sessionId: 's1', requestId: 'lifecycle-medium-1', expectedCycle: 1, expectedRevision: 2,
+    choices: [{ kind: 'attack', targetId: 'aegis' }],
+  }))).resolves.toMatchObject({ status: 'committed', revision: 3 });
+  const firstState = mock.documents.get('sessions/s1').maliadesState as Fields;
+  expect(firstState).toMatchObject({ attackId: 'wolf-attack-wolf-declare-1', launched: true, medium: { attack: { targetId: 'aegis' } } });
+
+  // The lifecycle owner removes the resolved declaration before the next cycle;
+  // the new declaration transaction is responsible for resetting Maliades' per-attack fields.
+  mock.documents.delete('sessions/s1/wolfAttackState/current');
+  gm();
+  patchSession({
+    currentTurn: 2,
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'due', turn: 2, revision: 3 });
+  put('sessions/s1/wolfAttackPreparation/current', {
+    turn: 2, revision: 2, shipIds: firstTurnCards, targetMode: 'pre-rolled',
+    targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }], modifiers: ['aegis-command-and-control'], notes: 'second attack',
+  });
+  await expect(declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-declare-2', expectedRevision: 2,
+  }))).resolves.toMatchObject({ status: 'committed', turn: 2 });
+  expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({
+    attackId: 'wolf-attack-wolf-declare-2', attackCycle: 2, launched: false,
+    damage: firstState.damage, medium: null, short: null,
+  });
+
+  put('sessions/s1', {
+    ...mock.documents.get('sessions/s1'),
+    maintenanceCycles: {
+      dione: {
+        turn: 2, step: 7, revision: 4,
+        results: { '5': 'Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.' },
+        charges: ['fighter-bay'], refuelled: [],
+      },
+    },
+    shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+  });
+  put('sessions/s1/players/u1', {
+    uid: 'u1', role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    assignedRoleId: 'dione-engineer', seatId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  const secondWolfState = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
+  const secondDeclarationState = mock.documents.get('sessions/s1').maliadesState as Fields;
+  expect(secondDeclarationState).toMatchObject({
+    attackId: 'wolf-attack-wolf-declare-2', attackCycle: 2, launched: false,
+    damage: firstState.damage, medium: null, short: null,
+  });
+  await expect(launchDioneMaliades.run(request({
+    sessionId: 's1', requestId: 'lifecycle-launch-2', expectedTurn: 2,
+    expectedRevision: secondWolfState.revision as number,
+  }))).resolves.toMatchObject({ status: 'committed', maliadesRevision: 5 });
+  const wolfAfterSecondLaunch = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
+  wolfAfterSecondLaunch.currentStep = 'medium-range';
+  await expect(resolveMaliadesMedium.run(request({
+    sessionId: 's1', requestId: 'lifecycle-medium-2', expectedCycle: 2, expectedRevision: 5,
+    choices: [{ kind: 'attack', targetId: 'aegis' }],
+  }))).resolves.toMatchObject({ status: 'committed', revision: 6 });
+  expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({
+    attackId: 'wolf-attack-wolf-declare-2', launched: true, damage: (firstState.damage as number) + 1,
+    medium: { attack: { targetId: 'aegis' } },
+  });
 });
 
 it('denies stale, uncharged, damaged, malformed, and non-Engineer Maliades launches without writes', async () => {

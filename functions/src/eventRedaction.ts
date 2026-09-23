@@ -46,8 +46,8 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'chacau-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'ally-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'maliades-launched': ['craftId', 'status'],
-  'maliades-medium': ['craftId', 'cycle', 'revision', 'targetShift', 'attack'],
-  'maliades-short': ['craftId', 'cycle', 'revision', 'rolls', 'selfDamage', 'damage', 'destroyed'],
+  'maliades-medium': ['craftId', 'cycle', 'revision', 'targetShift', 'attack', 'targetDamageByTarget', 'targetNumberShift'],
+  'maliades-short': ['craftId', 'cycle', 'revision', 'rolls', 'selfDamage', 'damage', 'destroyed', 'targetDamageByTarget'],
   'maliades-repair': ['craftId', 'hostShipId', 'damageRepaired', 'materialsSpent', 'damage', 'destroyed'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };

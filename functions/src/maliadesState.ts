@@ -10,8 +10,13 @@
 export type MaliadesRandomInt = (upperBound: number) => number;
 
 export type MaliadesMediumChoice =
-  | Readonly<{ kind: 'target-shift'; targetId: string; shift: -1 | 1 }>
+  | Readonly<{ kind: 'target-shift'; targetId: string; shift: -1 | 1; wolfRosterIndex?: number }>
   | Readonly<{ kind: 'attack'; targetId: string }>;
+
+export interface MaliadesAttackIdentity {
+  readonly attackId: string;
+  readonly cycle: number;
+}
 
 export interface MaliadesMediumAttack {
   readonly targetId: string;
@@ -39,6 +44,9 @@ export interface MaliadesShortResolution {
 
 export interface MaliadesState {
   readonly revision: number;
+  /** The current Wolf attack identity; damage survives across identities. */
+  readonly attackId: string | null;
+  readonly attackCycle: number | null;
   readonly launched: boolean;
   readonly damage: 0 | 1 | 2 | 3;
   readonly destroyed: boolean;
@@ -48,6 +56,8 @@ export interface MaliadesState {
 
 export interface MaliadesTransitionInput {
   readonly expectedRevision: unknown;
+  readonly attackId?: unknown;
+  readonly attackCycle?: unknown;
 }
 
 const MAX_DAMAGE = 3 as const;
@@ -82,6 +92,21 @@ function requireTargetId(value: unknown): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error('A Maliades target is required.');
   }
+}
+
+function requireAttackIdentity(input: MaliadesTransitionInput): MaliadesAttackIdentity {
+  requireTargetId(input.attackId);
+  requireSafeInteger(input.attackCycle, 'Maliades attack cycle');
+  if (input.attackCycle < 1) throw new Error('Maliades attack cycle must be positive.');
+  return { attackId: input.attackId, cycle: input.attackCycle };
+}
+
+function requireCurrentAttack(state: MaliadesState, input: MaliadesTransitionInput): MaliadesAttackIdentity {
+  const identity = requireAttackIdentity(input);
+  if (state.attackId !== identity.attackId || state.attackCycle !== identity.cycle) {
+    throw new Error('The Maliades state belongs to a different Wolf attack.');
+  }
+  return identity;
 }
 
 function requireRandomDie(random: MaliadesRandomInt): number {
@@ -192,13 +217,20 @@ function parseShort(value: unknown): MaliadesShortResolution | null | undefined 
 export function parseMaliadesState(value: unknown): MaliadesState | null {
   if (value === undefined) return initialMaliadesState();
   const raw = record(value);
-  if (!raw || !exactKeys(raw, ['damage', 'destroyed', 'launched', 'medium', 'revision', 'short']) ||
+  const legacyShape = raw && exactKeys(raw, ['damage', 'destroyed', 'launched', 'medium', 'revision', 'short']);
+  const currentShape = raw && exactKeys(raw, ['attackCycle', 'attackId', 'damage', 'destroyed', 'launched', 'medium', 'revision', 'short']);
+  if (!raw || (!legacyShape && !currentShape) ||
       !Number.isSafeInteger(raw.revision) || !Number.isSafeInteger(raw.damage) ||
       typeof raw.launched !== 'boolean' || typeof raw.destroyed !== 'boolean') return null;
   const revision = raw.revision as number;
   const launched = raw.launched as boolean;
   const damage = raw.damage as 0 | 1 | 2 | 3;
   const destroyed = raw.destroyed as boolean;
+  const attackId = currentShape ? raw.attackId : null;
+  const attackCycle = currentShape ? raw.attackCycle : null;
+  if (attackId !== null && (typeof attackId !== 'string' || !/^[\w-]{1,128}$/.test(attackId))) return null;
+  if (attackCycle !== null && (!Number.isSafeInteger(attackCycle) || (attackCycle as number) < 1)) return null;
+  if ((attackId === null) !== (attackCycle === null)) return null;
   if (revision < 0 || damage < 0 || damage > MAX_DAMAGE || destroyed !== (damage === MAX_DAMAGE)) return null;
   const medium = parseMedium(raw.medium);
   const short = parseShort(raw.short);
@@ -206,12 +238,15 @@ export function parseMaliadesState(value: unknown): MaliadesState | null {
   // The launch transition is the only way to leave the immutable initial
   // state. Reject client-shaped snapshots that skip that transition or claim
   // extra revisions without a persisted resolution/repair history anchor.
-  if (!launched && (revision !== 0 || damage !== 0 || destroyed)) return null;
-  if (launched && revision < 1) return null;
+  if (!launched && attackId === null && (revision !== 0 || damage !== 0 || destroyed)) return null;
+  if (!launched && attackId !== null && (medium || short)) return null;
+  if (launched && (attackId === null || attackCycle === null || revision < 1)) return null;
   if (revision === 1 && (damage !== 0 || medium || short)) return null;
-  if (revision > 1 && !medium && !short) return null;
+  if (revision > 1 && !medium && !short && attackId === null) return null;
   return freezeState({
     revision,
+    attackId: attackId as string | null,
+    attackCycle: attackCycle as number | null,
     launched,
     damage,
     destroyed,
@@ -224,6 +259,8 @@ export function parseMaliadesState(value: unknown): MaliadesState | null {
 export function initialMaliadesState(): MaliadesState {
   return freezeState({
     revision: 0,
+    attackId: null,
+    attackCycle: null,
     launched: false,
     damage: 0,
     destroyed: false,
@@ -232,13 +269,48 @@ export function initialMaliadesState(): MaliadesState {
   });
 }
 
+/** Start a new declared Wolf attack while preserving accumulated durability. */
+export function beginMaliadesAttack(
+  state: MaliadesState,
+  input: MaliadesTransitionInput & Readonly<{ attackId: string; attackCycle: number }>,
+): MaliadesState {
+  requireExpectedRevision(input, state);
+  const identity = requireAttackIdentity(input);
+  if (state.attackId === identity.attackId && state.attackCycle === identity.cycle) {
+    throw new Error('The Maliades Wolf attack is already current.');
+  }
+  return freezeState({
+    ...state,
+    revision: state.revision + 1,
+    attackId: identity.attackId,
+    attackCycle: identity.cycle,
+    launched: false,
+    medium: null,
+    short: null,
+  });
+}
+
 /** Admit the craft after the caller has proved the registered launch authority. */
 export function launchMaliades(
   state: MaliadesState,
-  input: MaliadesTransitionInput & Readonly<{ launchAllowed: boolean }>,
+  input: MaliadesTransitionInput & Readonly<{ launchAllowed: boolean; attackId: string; attackCycle: number }>,
 ): MaliadesState {
   requireExpectedRevision(input, state);
-  if (state.launched) throw new Error('Maliades is already launched.');
+  const identity = requireAttackIdentity(input);
+  if (state.attackId !== identity.attackId || state.attackCycle !== identity.cycle) {
+    if (state.launched && state.attackId === null) {
+      throw new Error('The previous Maliades attack identity is unavailable.');
+    }
+    state = freezeState({
+      ...state,
+      attackId: identity.attackId,
+      attackCycle: identity.cycle,
+      launched: false,
+      medium: null,
+      short: null,
+    });
+  }
+  if (state.launched) throw new Error('Maliades is already launched for this Wolf attack.');
   if (state.destroyed) throw new Error('A destroyed Maliades cannot launch.');
   if (input.launchAllowed !== true) throw new Error('The authoritative Maliades launch check failed.');
   return freezeState({ ...state, revision: state.revision + 1, launched: true });
@@ -274,9 +346,13 @@ export function repairMaliades(
 /** Resolve one printed Medium choice, using only server-provided randomness for the optional attack die. */
 export function resolveMaliadesMedium(
   state: MaliadesState,
-  input: MaliadesTransitionInput & Readonly<{ choices: readonly MaliadesMediumChoice[]; random: MaliadesRandomInt }>,
+  input: MaliadesTransitionInput & Readonly<{
+    attackId: string; attackCycle: number;
+    choices: readonly MaliadesMediumChoice[]; random: MaliadesRandomInt;
+  }>,
 ): Readonly<{ state: MaliadesState; resolution: MaliadesMediumResolution }> {
   requireExpectedRevision(input, state);
+  requireCurrentAttack(state, input);
   if (!state.launched) throw new Error('Launch Maliades before resolving Medium Range.');
   if (state.destroyed) throw new Error('A destroyed Maliades cannot resolve Medium Range.');
   if (state.medium) throw new Error('Maliades Medium Range has already resolved.');
@@ -325,9 +401,13 @@ export function resolveMaliadesMedium(
 /** Resolve the printed Short attack, including its server-owned self-risk. */
 export function resolveMaliadesShort(
   state: MaliadesState,
-  input: MaliadesTransitionInput & Readonly<{ targetIds: readonly string[]; random: MaliadesRandomInt }>,
+  input: MaliadesTransitionInput & Readonly<{
+    attackId: string; attackCycle: number;
+    targetIds: readonly string[]; random: MaliadesRandomInt;
+  }>,
 ): Readonly<{ state: MaliadesState; resolution: MaliadesShortResolution }> {
   requireExpectedRevision(input, state);
+  requireCurrentAttack(state, input);
   if (!state.launched) throw new Error('Launch Maliades before resolving Short Range.');
   if (state.destroyed) throw new Error('A destroyed Maliades cannot resolve Short Range.');
   if (state.short) throw new Error('Maliades Short Range has already resolved.');

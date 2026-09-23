@@ -553,6 +553,7 @@ export {
   resolveMaliadesShort,
 } from './maliadesCallable';
 import {
+  beginMaliadesAttack,
   launchMaliades,
   parseMaliadesState,
 } from './maliadesState';
@@ -14686,6 +14687,28 @@ export const declareWolfAttack = onCall<{
       airspace: { ...inputs.phase.airspace, state: 'restricted' as const, tickerActive: true },
     };
     const turnState = phaseTransitionTurnState(session, lockedPhase);
+    const currentMaliadesState = parseMaliadesState(session.get('maliadesState'));
+    if (!currentMaliadesState) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative Maliades durability state is malformed; the Wolf attack cannot begin.',
+        'conflict',
+      );
+    }
+    let nextMaliadesState: ReturnType<typeof beginMaliadesAttack>;
+    try {
+      nextMaliadesState = beginMaliadesAttack(currentMaliadesState, {
+        expectedRevision: currentMaliadesState.revision,
+        attackId: announcementId,
+        attackCycle: inputs.phase.turn,
+      });
+    } catch (error) {
+      throw commandError(
+        'failed-precondition',
+        error instanceof Error ? error.message : 'The Maliades attack identity could not be advanced.',
+        'conflict',
+      );
+    }
     const fleetTicker = publishSessionFleetTicker(declaration.sessionId, session, {
       source: 'automatic',
       priority: FLEET_TICKER_PRIORITIES.airspace,
@@ -14698,6 +14721,7 @@ export const declareWolfAttack = onCall<{
     const stageState: WolfAttackStageState = {
       type: 'wolf-attack-state',
       status: 'declared',
+      attackId: announcementId,
       turn: inputs.phase.turn,
       revision: 1,
       preparationRevision: inputs.preparation.revision,
@@ -14714,6 +14738,12 @@ export const declareWolfAttack = onCall<{
         tiedHostIds: [...decision.tiedHostIds],
       })),
       calculationReceipt,
+      maliadesRangeEffects: {
+        attackId: announcementId,
+        cycle: inputs.phase.turn,
+        medium: null,
+        short: null,
+      },
       commanderRerollIndexes: [],
       preparation: inputs.preparation,
       actorUid: uid,
@@ -14731,6 +14761,7 @@ export const declareWolfAttack = onCall<{
       fleetTicker,
       shuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       shuttleVisitLog: inputs.shuttleVisitLog.map((visit) => ({ ...visit })),
+      maliadesState: nextMaliadesState,
       updatedAt: FieldValue.serverTimestamp(),
     });
     for (const shuttleId of inputs.clearedTransitIds) {
@@ -15287,6 +15318,12 @@ export const launchDioneMaliades = onCall<{
     const nextMaliadesState = launchMaliades(currentMaliadesState, {
       expectedRevision: currentMaliadesState.revision,
       launchAllowed: true,
+      attackId: typeof state.get('attackId') === 'string'
+        ? state.get('attackId') as string
+        : typeof state.get('announcementId') === 'string'
+          ? state.get('announcementId') as string
+          : (() => { throw commandError('failed-precondition', 'The active Wolf attack identity is malformed.', 'conflict'); })(),
+      attackCycle: view.turn,
     });
     const revision = view.revision + 1;
     const launchedCraftIds = state.get('launchedCraftIds');

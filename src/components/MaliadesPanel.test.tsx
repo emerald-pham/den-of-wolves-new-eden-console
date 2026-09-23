@@ -13,7 +13,7 @@ vi.mock('@/lib/maliadesService', () => ({
 
 const control = { shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'u1', revision: 2 } as const;
 const docking = { shuttleId: 'maliades', shipId: 'dione', dockedAt: 'SESSION START' } as const;
-const state = { revision: 1, launched: true, damage: 0 as const, destroyed: false, medium: null, short: null };
+const state = { revision: 1, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0 as const, destroyed: false, medium: null, short: null };
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -41,7 +41,7 @@ it('keeps the Maliades controls cycle-based and submits selected Medium choices'
   const user = userEvent.setup();
   render(<MaliadesPanel control={control} docking={docking} fuelled />);
   expect(screen.getByRole('heading', { name: 'Maliades operations' })).toBeVisible();
-  await user.type(screen.getByLabelText('Target for +1 / −1 shift'), 'wolf-1');
+  await user.type(screen.getByLabelText('Current Wolf target for +1 / −1 shift'), 'wolf-1');
   await user.type(screen.getByLabelText('Attack target'), 'wolf-2');
   await user.click(screen.getByRole('button', { name: /resolve medium range/i }));
   await waitFor(() => expect(mocks.medium).toHaveBeenCalledWith(2, 1, [
