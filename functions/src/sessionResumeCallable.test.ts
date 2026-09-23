@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => {
     update: vi.fn(),
     delete: vi.fn(),
     enforceReadOrder: false,
+    rateLimitMarkers: new Map<string, unknown>(),
     Timestamp: MockTimestamp,
   };
 });
@@ -49,6 +50,14 @@ vi.mock('firebase-admin/firestore', () => ({
         get: (...args: unknown[]) => {
           if (mock.enforceReadOrder && writeStarted) {
             throw new Error('Firestore transactions require all reads to be executed before all writes.');
+          }
+          const reference = args[0] as { path?: string } | undefined;
+          if (reference?.path?.startsWith('sessions/s1/serverState/callableRateLimit-')) {
+            const marker = mock.rateLimitMarkers.get(reference.path);
+            return {
+              exists: marker !== undefined,
+              data: () => marker,
+            };
           }
           return mock.get(...args);
         },
@@ -73,6 +82,7 @@ vi.mock('firebase-admin/firestore', () => ({
 
 import { resumeSession } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
+import { callableRateLimitDocumentId } from './callableRateLimit';
 
 function request(sessionId: string) {
   return {
@@ -83,6 +93,11 @@ function request(sessionId: string) {
 
 function snapshot(fields: Readonly<Record<string, unknown>>, exists = true) {
   return { exists, docs: [], get: (field: string) => fields[field] };
+}
+
+function nonRateLimitSetCalls() {
+  return mock.set.mock.calls.filter(([reference]) =>
+    !(reference as { path: string }).path.startsWith('sessions/s1/serverState/callableRateLimit-'));
 }
 
 function prepareResume(
@@ -143,17 +158,47 @@ function prepareResume(
       const navigation = snapshot(navigationFields, navigationExists);
       return navigationExists ? { ...navigation, data: () => navigationFields } : navigation;
     }
+    if (path.startsWith('sessions/s1/serverState/callableRateLimit-')) {
+      const marker = mock.rateLimitMarkers.get(path);
+      return snapshot(marker && typeof marker === 'object' ? marker as Record<string, unknown> : {}, marker !== undefined);
+    }
     throw new Error('Unexpected read: ' + path);
   });
   return { playerData, sessionData };
 }
 
 beforeEach(() => {
+  mock.rateLimitMarkers.clear();
   mock.get.mockReset();
   mock.set.mockReset();
   mock.update.mockReset();
   mock.delete.mockReset();
   mock.enforceReadOrder = false;
+  mock.set.mockImplementation((ref: { path: string }, value: unknown) => {
+    if (ref.path.startsWith('sessions/s1/serverState/callableRateLimit-')) {
+      mock.rateLimitMarkers.set(ref.path, value);
+    }
+  });
+});
+
+it('allows normal resume retries by the authenticated member and ignores spoofed rate-limit fields', async () => {
+  prepareResume({ status: 'open', holderUid: null });
+  const identity = { callableName: 'resumeSession', sessionId: 's1', uid: 'u1' } as const;
+  const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
+  const spoofedRequest = () => ({
+    data: { sessionId: 's1', uid: 'u2', skipRateLimit: true, rateLimitIdentity: 'u2' },
+    auth: { uid: 'u1' },
+  }) as CallableRequest<{ sessionId: string; uid: string; skipRateLimit: boolean; rateLimitIdentity: string }>;
+
+  for (let index = 0; index < 10; index += 1) await resumeSession.run(spoofedRequest());
+  await expect(resumeSession.run(spoofedRequest())).rejects.toMatchObject({ code: 'resource-exhausted' });
+
+  expect(mock.rateLimitMarkers.get(markerPath)).toMatchObject({
+    type: 'callable-rate-limit', callableName: 'resumeSession', requestCount: 10,
+  });
+  expect(mock.rateLimitMarkers.has(`sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
+    ...identity, uid: 'u2',
+  })}`)).toBe(false);
 });
 
 it('lets a player return after two idle hours, clearing only an occupied old seat', async () => {
@@ -474,7 +519,7 @@ it('returns a typed setup error before seat writes for a malformed persisted mod
     details: { commandError: 'malformed-input' },
   });
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
 it('clears stale Press authority on disabled resume while preserving dispatch history', async () => {
@@ -516,8 +561,9 @@ it('rejects a kicked browser before restoring its session', async () => {
     code: 'failed-precondition',
     message: 'This browser was kicked from that session and cannot rejoin.',
   });
+  expect(mock.rateLimitMarkers.size).toBe(0);
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
 it('keeps the old seat when the returning player still holds it', async () => {
@@ -592,7 +638,7 @@ it.each([Number.MAX_SAFE_INTEGER, 0, 'corrupt'])('fails closed for an unsafe sto
     code: 'failed-precondition',
   });
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
 it('reclaims an open old seat before resuming the player after two idle hours', async () => {

@@ -38,6 +38,7 @@ const mock = vi.hoisted(() => {
     id: string;
     get: () => Promise<unknown>;
     collection: (name: string) => Collection;
+    set: (fields: StoredDocument) => Promise<void>;
     delete: () => Promise<void>;
   };
   type Query = {
@@ -137,6 +138,7 @@ const mock = vi.hoisted(() => {
     id: documentId(path),
     get: async () => snapshot(ref(path)),
     collection: (name) => collection(path + '/' + name),
+    set: async (fields) => { documents.set(path, { ...fields }); },
     delete: async () => { documents.delete(path); },
   });
 
@@ -221,9 +223,12 @@ import {
   deleteInactiveSessions,
   disconnectFromSession,
   expireStalePlayers,
+  getSessionPresence,
   refreshPresence,
+  rollDice,
   resumeSession,
 } from './index';
+import { callableRateLimitDocumentId } from './callableRateLimit';
 
 const NOW = new Date('2026-09-06T20:00:00.000Z');
 
@@ -298,6 +303,65 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.useRealTimers());
+
+describe('expensive session callable rate limits', () => {
+  it('limits roster reads per authenticated player and ignores client-supplied identity or bypass markers', async () => {
+    session();
+    player();
+    put('sessions/s1/players/u2', {
+      uid: 'u2', sessionId: 's1', role: 'player', connected: true,
+    });
+    const identity = { callableName: 'getSessionPresence', sessionId: 's1', uid: 'u1' } as const;
+    const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
+    const forgedRequest = () => legacyRequest({
+      sessionId: 's1', uid: 'u2', skipRateLimit: true, rateLimitIdentity: 'u2',
+    }, 'u1');
+
+    for (let index = 0; index < 12; index += 1) {
+      await expect(getSessionPresence.run(forgedRequest())).resolves.toEqual({ connectedPlayers: 2 });
+    }
+    await expect(getSessionPresence.run(forgedRequest())).rejects.toMatchObject({
+      code: 'resource-exhausted',
+    });
+
+    expect(read(markerPath)).toMatchObject({
+      type: 'callable-rate-limit', callableName: 'getSessionPresence', requestCount: 12,
+    });
+    expect(read(`sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
+      ...identity, uid: 'u2',
+    })}`)).toBeUndefined();
+  });
+
+  it('does not create a rate-limit bucket before session membership is established', async () => {
+    session();
+    await expect(getSessionPresence.run(legacyRequest({ sessionId: 's1' }, 'outsider')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect([...mock.documents.keys()].some((path) => path.includes('callableRateLimit-'))).toBe(false);
+  });
+
+  it('bounds repeated dice event writes while allowing the same player a normal retry burst', async () => {
+    session({ phase: 'active' });
+    player();
+    const identity = { callableName: 'rollDice', sessionId: 's1', uid: 'u1' } as const;
+    const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
+    const forgedRequest = () => legacyRequest({
+      sessionId: 's1', sides: 6, count: 1, uid: 'u2', bypassRateLimit: true,
+    }, 'u1');
+
+    for (let index = 0; index < 30; index += 1) {
+      await expect(rollDice.run(forgedRequest())).resolves.toMatchObject({ rolls: [expect.any(Number)] });
+    }
+    await expect(rollDice.run(forgedRequest())).rejects.toMatchObject({ code: 'resource-exhausted' });
+
+    expect(read(markerPath)).toMatchObject({
+      type: 'callable-rate-limit', callableName: 'rollDice', requestCount: 30,
+    });
+    expect([...mock.documents.keys()].filter(path => path.startsWith('sessions/s1/events/'))).toHaveLength(30);
+    expect(read(`sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
+      ...identity, uid: 'u2',
+    })}`)).toBeUndefined();
+  });
+});
 
 describe('presence lease', () => {
   it('denies a player exactly at lease expiry instead of letting a heartbeat revive authority', async () => {

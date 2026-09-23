@@ -193,6 +193,7 @@ import {
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
+import { callableRateLimitDocumentId } from './callableRateLimit';
 
 function put(path: string, fields: StoredDocument) {
   mock.documents.set(path, { ...fields });
@@ -523,6 +524,32 @@ describe('GM instance ownership', () => {
       expect.objectContaining({ id: 'tablet', shipConsoleWriteGrant: expect.objectContaining({ shipId: 'dione' }) }),
     ]);
     expect(forTablet.instances[0]).not.toHaveProperty('shipConsoleWriteGrant');
+  });
+
+  it('limits GM-instance roster scans per authenticated member and ignores spoofed identity fields', async () => {
+    session();
+    player('u1');
+    player('u2');
+    const identity = { callableName: 'listGmInstances', sessionId: 's1', uid: 'u1' } as const;
+    const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
+    const spoofedRequest = () => request({
+      sessionId: 's1', uid: 'u2', skipRateLimit: true, rateLimitIdentity: 'u2',
+    }, 'u1');
+
+    for (let index = 0; index < 12; index += 1) {
+      await expect(listGmInstances.run(spoofedRequest())).resolves.toEqual({ instances: [] });
+    }
+    await expect(listGmInstances.run(spoofedRequest())).rejects.toMatchObject({ code: 'resource-exhausted' });
+
+    expect(read(markerPath)).toMatchObject({
+      type: 'callable-rate-limit', callableName: 'listGmInstances', requestCount: 12,
+    });
+    await expect(listGmInstances.run(request({
+      sessionId: 's1', uid: 'u1', skipRateLimit: true,
+    }, 'u2'))).resolves.toEqual({ instances: [] });
+    expect(read(`sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
+      ...identity, uid: 'u2',
+    })}`)).toMatchObject({ requestCount: 1 });
   });
 
   it('returns a safe stale receipt when facilitator revision changed before saving', async () => {

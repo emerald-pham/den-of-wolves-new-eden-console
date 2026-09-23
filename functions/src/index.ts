@@ -35,6 +35,7 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
+import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import {
   ADMIRAL_DIRECTIVE_KINDS,
   admiralDirectiveState,
@@ -12169,6 +12170,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
   }
 
+  await enforceExpensiveCallableRateLimit(db, { callableName: 'resumeSession', sessionId, uid });
+
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const resumeResult = await db.runTransaction(async (tx) => {
     const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players] = await Promise.all([
@@ -12717,6 +12720,7 @@ export const listGmInstances = onCall<{ sessionId?: string }>(async (request) =>
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const player = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+  await enforceExpensiveCallableRateLimit(db, { callableName: 'listGmInstances', sessionId, uid });
   const instances = await db.collection(`sessions/${sessionId}/gmInstances`)
     .orderBy('claimedAt', 'asc')
     .get();
@@ -17371,6 +17375,7 @@ export const getSessionPresence = onCall<{ sessionId?: string }>(async (request)
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const member = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
   if (!isActivePlayer(member)) throw new HttpsError('permission-denied', 'Join the session first.');
+  await enforceExpensiveCallableRateLimit(db, { callableName: 'getSessionPresence', sessionId, uid });
   const connected = await db.collection(`sessions/${sessionId}/players`)
     .where('connected', '==', true)
     .get();
@@ -19518,6 +19523,7 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireActiveGameplayPhase(session);
 
+    await enforceExpensiveCallableRateLimit(db, { callableName: 'rollDice', sessionId, uid });
 
     const rolls = Array.from({ length: count }, () => randomInt(1, sides + 1));
     const id = randomUUID();

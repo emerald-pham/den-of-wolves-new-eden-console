@@ -30,6 +30,7 @@ const records = [
   'civilUnrestResolutions/current', 'civilUnrestResolutions/history-request',
   'civilUnrestResolutions/audit-request',
   'serverState/current/private/hidden', 'playerDiscoveries/outsider',
+  'serverState/callableRateLimit-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   'gmDiscovery/current', 'events/event', 'loyaltyAssignmentRequests/request',
   'commandReceipts/request', 'maintenanceRequests/request',
   'maintenanceRollbackRequests/request', 'smallShipRequests/request',
@@ -108,10 +109,17 @@ it.each(['member', 'gm'] as const)('denies direct gameplay mutations even to a c
 
 it.each(['member', 'gm'] as const)('denies connected %s reads of the server-only presence marker', async (uid) => {
   const db = env.authenticatedContext(uid).firestore();
-  const marker = `${sessionPath}/presenceReconciliations/u1`;
-  await expect(getDoc(doc(db, marker))).rejects.toMatchObject({ code: 'permission-denied' });
-  await expect(getDocs(collection(db, `${sessionPath}/presenceReconciliations`)))
-    .rejects.toMatchObject({ code: 'permission-denied' });
+  for (const [marker, collectionPath] of [
+    [`${sessionPath}/presenceReconciliations/u1`, `${sessionPath}/presenceReconciliations`],
+    [
+      `${sessionPath}/serverState/callableRateLimit-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`,
+      `${sessionPath}/serverState`,
+    ],
+  ]) {
+    await expect(getDoc(doc(db, marker))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(getDocs(collection(db, collectionPath)))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+  }
 });
 
 it('allows a connected player to edit their own display name but not gameplay authority', async () => {
