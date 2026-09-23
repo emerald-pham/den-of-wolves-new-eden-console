@@ -2,12 +2,12 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { createTickerSmokeRuntime } from './ticker-smoke-runtime.mjs';
 
 const host = '127.0.0.1';
-const port = Number(process.env.TICKER_SMOKE_PORT ?? 4179);
+const runtime = await createTickerSmokeRuntime();
+const { port, artifactDirectory, cacheDirectory } = runtime;
 const appUrl = `http://${host}:${port}/`;
-const artifactDirectory = process.env.TICKER_SMOKE_ARTIFACT_DIR
-  ?? path.join('/tmp', 'fleet-ticker-smoke');
 const AWAITING_DISPATCH_TEXT = 'AIRSPACE CONTROL // AWAITING DISPATCH';
 const PRESS_TEXT = 'SNN // CURRENT SERVER BROADCAST';
 const AIRSPACE_OPEN_TEXT = 'AIRSPACE CONTROL // AIRSPACE OPEN';
@@ -200,11 +200,27 @@ function startVite() {
   const child = spawn(
     process.execPath,
     [path.join(process.cwd(), 'node_modules/vite/bin/vite.js'), '--host', host, '--port', String(port), '--strictPort'],
-    { cwd: process.cwd(), env: { ...process.env, CI: 'true' }, stdio: ['ignore', 'pipe', 'pipe'] },
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, CI: 'true', TICKER_SMOKE_CACHE_DIR: cacheDirectory },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
   );
   child.stdout?.on('data', (chunk) => output.push(chunk.toString()));
   child.stderr?.on('data', (chunk) => output.push(chunk.toString()));
   return { child, output: () => output.join('').slice(-4000) };
+}
+
+async function stopVite(child) {
+  if (child.exitCode !== null) return;
+  await new Promise((resolve) => {
+    const timeout = setTimeout(resolve, 2_000);
+    child.once('exit', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    child.kill('SIGTERM');
+  });
 }
 
 async function waitForServer(child, output) {
@@ -215,7 +231,19 @@ async function waitForServer(child, output) {
     }
     try {
       const response = await fetch(appUrl);
-      if (response.ok) return;
+      if (!response.ok) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        continue;
+      }
+      // A fresh, isolated Vite cache may still be optimizing the modules used
+      // by the lifecycle harness after the index request becomes available.
+      // Warm those exact dependency URLs before launching Chromium so two
+      // concurrent smoke runs cannot race the optimizer into a transient 504.
+      const dependencyResponses = await Promise.all([
+        fetch(`${appUrl}node_modules/.vite/deps/react.js`),
+        fetch(`${appUrl}node_modules/.vite/deps/react-dom_client.js`),
+      ]);
+      if (dependencyResponses.every((dependencyResponse) => dependencyResponse.ok)) return;
     } catch {
       // Vite is still starting.
     }
@@ -413,7 +441,16 @@ async function runTickerLifecycleCase() {
     serviceWorkers: 'block',
     viewport: { width: 320, height: 844 },
   });
+  await context.addInitScript(() => {
+    localStorage.setItem('new-eden-motion-override', 'full');
+    localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({
+      acknowledgedAt: Date.now(),
+      choice: 'full',
+    }));
+    localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+  });
   const page = await context.newPage();
+  page.on('pageerror', (error) => console.error(`Normal lifecycle page error: ${error.message}`));
   const artifactPath = path.join(artifactDirectory, 'ticker-lifecycle-normal.json');
   const lifecycle = {
     pressOne: { id: 'lifecycle-press-1', source: 'press', text: 'SNN // ONE', tone: 'normal', gap: 'long' },
@@ -637,16 +674,11 @@ async function runTickerLifecycleCase() {
   try {
     await page.goto(`${appUrl}#/ships/aegis`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
-      const [{ default: FleetTicker }, { default: React }, { default: ReactDOM }] = await Promise.all([
-        import('/src/components/FleetTicker.tsx'),
-        import('/node_modules/.vite/deps/react.js'),
-        import('/node_modules/.vite/deps/react-dom_client.js'),
-      ]);
       const host = document.createElement('div');
       host.id = 'ticker-lifecycle-harness';
       document.body.append(host);
-      const root = ReactDOM.createRoot(host);
-      window.__tickerLifecycleSet = (props) => root.render(React.createElement(FleetTicker, props));
+      const { mountTickerLifecycleHarness } = await import('/scripts/ticker-lifecycle-harness.tsx');
+      window.__tickerLifecycleSet = mountTickerLifecycleHarness(host.id);
     });
     await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
     const committedBeforeAlert = await page.waitForFunction((outgoingId) => {
@@ -783,7 +815,16 @@ async function runReducedTickerLifecycleCase() {
     serviceWorkers: 'block',
     viewport: { width: 320, height: 844 },
   });
+  await context.addInitScript(() => {
+    localStorage.setItem('new-eden-motion-override', 'reduce');
+    localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({
+      acknowledgedAt: Date.now(),
+      choice: 'reduce',
+    }));
+    localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+  });
   const page = await context.newPage();
+  page.on('pageerror', (error) => console.error(`Reduced lifecycle page error: ${error.message}`));
   const artifactPath = path.join(artifactDirectory, 'ticker-lifecycle-reduced.json');
   const lifecycle = {
     pressOne: { id: 'reduced-lifecycle-press-1', source: 'press', text: 'SNN // ONE', tone: 'normal', gap: 'long' },
@@ -802,27 +843,36 @@ async function runReducedTickerLifecycleCase() {
     }, { nextMessage: message, nextQueue: queue, nextFallback: fallback });
   };
   const waitForAnnouncement = async (text, copy) => {
-    await page.waitForFunction(({ expectedText, expectedCopy }) => {
-      const status = document.querySelector('#ticker-lifecycle-reduced-harness [role="status"]');
-      const label = status?.getAttribute('aria-label') ?? '';
-      return label.includes(expectedText) && (expectedCopy === undefined || label.includes(`copy ${expectedCopy} of 2`));
-    }, { expectedText: text, expectedCopy: copy }, { timeout: 30_000 });
+    try {
+      await page.waitForFunction(({ expectedText, expectedCopy }) => {
+        const status = document.querySelector('#ticker-lifecycle-reduced-harness [role="status"]');
+        const label = status?.getAttribute('aria-label') ?? '';
+        return label.includes(expectedText) && (expectedCopy === undefined || label.includes(`copy ${expectedCopy} of 2`));
+      }, { expectedText: text, expectedCopy: copy }, { timeout: 30_000 });
+    } catch (error) {
+      const debug = await page.evaluate(() => {
+        const host = document.querySelector('#ticker-lifecycle-reduced-harness');
+        const status = host?.querySelector('[role="status"]');
+        return {
+          hostExists: Boolean(host),
+          hostText: host?.textContent?.trim() ?? '',
+          statusLabel: status?.getAttribute('aria-label') ?? null,
+          hostHtml: host?.innerHTML.slice(0, 2_000) ?? '',
+        };
+      });
+      throw new Error(`${error instanceof Error ? error.message : String(error)}; lifecycle debug=${JSON.stringify(debug)}`);
+    }
     labels.push(await page.locator('#ticker-lifecycle-reduced-harness [role="status"]').getAttribute('aria-label'));
   };
 
   try {
     await page.goto(`${appUrl}#/ships/aegis`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
-      const [{ default: FleetTicker }, { default: React }, { default: ReactDOM }] = await Promise.all([
-        import('/src/components/FleetTicker.tsx'),
-        import('/node_modules/.vite/deps/react.js'),
-        import('/node_modules/.vite/deps/react-dom_client.js'),
-      ]);
       const host = document.createElement('div');
       host.id = 'ticker-lifecycle-reduced-harness';
       document.body.append(host);
-      const root = ReactDOM.createRoot(host);
-      window.__tickerLifecycleSet = (props) => root.render(React.createElement(FleetTicker, props));
+      const { mountTickerLifecycleHarness } = await import('/scripts/ticker-lifecycle-harness.tsx');
+      window.__tickerLifecycleSet = mountTickerLifecycleHarness(host.id);
     });
     await setTicker(lifecycle.pressOne, [lifecycle.pressTwo]);
     await waitForAnnouncement(lifecycle.pressOne.text);
@@ -1009,5 +1059,6 @@ try {
     await runReducedTickerLifecycleCase();
   }
 } finally {
-  if (vite.exitCode === null) vite.kill('SIGTERM');
+  await stopVite(vite);
+  await runtime.cleanup();
 }
