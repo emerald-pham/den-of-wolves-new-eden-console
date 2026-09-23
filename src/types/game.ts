@@ -711,6 +711,31 @@ export interface AllyRepairLedger {
   }>[];
 }
 
+export interface MaliadesStateRecord {
+  readonly revision: number;
+  readonly launched: boolean;
+  readonly damage: 0 | 1 | 2 | 3;
+  readonly destroyed: boolean;
+  readonly medium: Readonly<{
+    readonly targetShift: Readonly<{ readonly targetId: string; readonly shift: -1 | 1 }> | null;
+    readonly attack: Readonly<{
+      readonly targetId: string;
+      readonly die: number;
+      readonly hit: boolean;
+      readonly selfDamage: number;
+    }> | null;
+  }> | null;
+  readonly short: Readonly<{
+    readonly rolls: readonly Readonly<{
+      readonly targetId: string;
+      readonly die: number;
+      readonly hit: boolean;
+      readonly selfDamage: number;
+    }>[];
+    readonly selfDamage: number;
+  }> | null;
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -839,6 +864,7 @@ export interface GameSession {
   readonly macawRepairs?: MacawRepairLedger;
   readonly chacauRepairs?: ChacauRepairLedger;
   readonly allyRepairs?: AllyRepairLedger;
+  readonly maliadesState?: MaliadesStateRecord;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

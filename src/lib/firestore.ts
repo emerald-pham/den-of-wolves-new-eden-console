@@ -72,6 +72,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPhase,
   AwayMissionHandPointer,
+  MaliadesStateRecord,
   VipCard,
   VipCardId,
   VipCardName,
@@ -102,6 +103,7 @@ import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { damageSystemIdsForShip, parseChacauRepairLedger } from './chacauRepairLedger';
 import { parseAllyRepairLedger } from './allyRepairLedger';
+import { parseMaliadesState } from './maliadesLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -1710,6 +1712,10 @@ function allyRepairs(value: unknown): GameSession['allyRepairs'] {
   return parseAllyRepairLedger(value) ?? undefined;
 }
 
+function maliadesState(value: unknown): MaliadesStateRecord | undefined {
+  return parseMaliadesState(value);
+}
+
 function highwallMining(value: unknown): GameSession['highwallMining'] {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'operations'].includes(key)) ||
@@ -2276,6 +2282,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentMacawRepairs = macawRepairs(data.macawRepairs);
   const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
   const currentAllyRepairs = allyRepairs(data.allyRepairs);
+  const currentMaliadesState = maliadesState(data.maliadesState);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2357,6 +2364,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(currentMacawRepairs ? { macawRepairs: currentMacawRepairs } : {}),
     ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),
     ...(currentAllyRepairs ? { allyRepairs: currentAllyRepairs } : {}),
+    ...(currentMaliadesState ? { maliadesState: currentMaliadesState } : {}),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),

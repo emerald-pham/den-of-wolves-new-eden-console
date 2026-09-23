@@ -320,7 +320,9 @@ it('lets only the active Dione Engineer launch Maliades from a charged operation
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/launch-maliades-1'))
     .toMatchObject({ craftId: 'maliades', actorRoleId: 'dione-engineer', revision: 2 });
   expect(mock.documents.get('sessions/s1/events/maliades-launch-launch-maliades-1'))
-    .toMatchObject({ type: 'maliades-launched', actorRoleId: 'dione-engineer', revision: 2 });
+    .toMatchObject({ type: 'maliades-launched', craftId: 'maliades', status: 'launched', revision: 2 });
+  expect(mock.documents.get('sessions/s1/events/maliades-launch-launch-maliades-1'))
+    .not.toHaveProperty('actorRoleId');
 
   mock.update.mockClear();
   mock.set.mockClear();

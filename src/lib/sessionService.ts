@@ -3513,9 +3513,14 @@ function dioneMaliadesLaunchResultReply(value: unknown): DioneMaliadesLaunchResu
   const view = dioneMaliadesLaunchViewReply(value);
   if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
+  if (reply.maliadesRevision !== undefined &&
+      (!Number.isSafeInteger(reply.maliadesRevision) || (reply.maliadesRevision as number) < 1)) return null;
   return (reply.status === 'committed' || reply.status === 'replayed') &&
     typeof reply.requestId === 'string' && reply.requestId.length > 0
-    ? { ...view, status: reply.status, requestId: reply.requestId }
+    ? {
+      ...view, status: reply.status, requestId: reply.requestId,
+      ...(reply.maliadesRevision === undefined ? {} : { maliadesRevision: reply.maliadesRevision as number }),
+    }
     : null;
 }
 

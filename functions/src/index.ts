@@ -547,6 +547,15 @@ import {
   type HighwallMiningResource,
   type HighwallMiningState,
 } from './highwallMining';
+export {
+  repairMaliades,
+  resolveMaliadesMedium,
+  resolveMaliadesShort,
+} from './maliadesCallable';
+import {
+  launchMaliades,
+  parseMaliadesState,
+} from './maliadesState';
 
 /**
  * Server-side authority for the companion console.
@@ -15040,6 +15049,7 @@ type DioneMaliadesLaunchView = Readonly<{
 type DioneMaliadesLaunchResult = DioneMaliadesLaunchView & Readonly<{
   status: 'committed' | 'replayed';
   requestId: string;
+  maliadesRevision?: number;
 }>;
 
 function isDioneMaliadesLaunchResult(value: unknown): value is DioneMaliadesLaunchResult {
@@ -15266,11 +15276,24 @@ export const launchDioneMaliades = onCall<{
             : 'No active Wolf attack is accepting the Maliades launch.';
       throw commandError('failed-precondition', message, 'invalid-phase');
     }
+    const currentMaliadesState = parseMaliadesState(session.get('maliadesState'));
+    if (!currentMaliadesState || currentMaliadesState.launched) {
+      throw commandError(
+        'failed-precondition',
+        'The authoritative Maliades state is missing or already launched.',
+        'conflict',
+      );
+    }
+    const nextMaliadesState = launchMaliades(currentMaliadesState, {
+      expectedRevision: currentMaliadesState.revision,
+      launchAllowed: true,
+    });
     const revision = view.revision + 1;
     const launchedCraftIds = state.get('launchedCraftIds');
     const result: DioneMaliadesLaunchResult = {
       status: 'committed', type: 'dione-maliades-launch-view', sessionId, requestId,
       turn: view.turn, revision, launched: true, eligible: false, reason: 'already-launched',
+      maliadesRevision: nextMaliadesState.revision,
     };
     tx.update(stateRef, {
       revision,
@@ -15278,6 +15301,10 @@ export const launchDioneMaliades = onCall<{
         ...(Array.isArray(launchedCraftIds) ? launchedCraftIds : []),
         'maliades',
       ],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(sessionRef, {
+      maliadesState: nextMaliadesState,
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(auditRef, {

@@ -1300,6 +1300,14 @@ describe('session header', () => {
           revision: 1,
           hosts: [{ shipId: 'shepherd', systemIds: ['reactor'] }],
         },
+        maliadesState: {
+          revision: 2,
+          launched: true,
+          damage: 1,
+          destroyed: false,
+          medium: null,
+          short: null,
+        },
       }));
     }
   });
@@ -2267,7 +2275,7 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
   for (const uid of ['alice', 'gm1']) {
     const db = env.authenticatedContext(uid).firestore();
     await assertSucceeds(getDoc(doc(db, SESSION)));
-    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'chacauRepairs', 'allyRepairs', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
+    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
       await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
     }
   }
