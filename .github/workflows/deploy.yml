@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 10
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
+      deploy_only: ${{ steps.targets.outputs.deploy_only }}
+      function_names: ${{ steps.targets.outputs.function_names }}
       has_targets: ${{ steps.targets.outputs.has_targets }}
       current_tip: ${{ steps.targets.outputs.current_tip }}
       ticker_required: ${{ steps.targets.outputs.ticker }}
@@ -172,13 +174,27 @@ jobs:
             exit 1
           }
 
+      - name: Capture selected Function revisions
+        if: contains(needs.determine-targets.outputs.targets, 'functions') && needs.determine-targets.outputs.function_names != ''
+        env:
+          FUNCTION_NAMES: ${{ needs.determine-targets.outputs.function_names }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          REVISION_FILE: ${{ runner.temp }}/predeploy-functions.json
+        run: |
+          test -n "$FUNCTION_NAMES" || { echo 'Function deployment has no audited named selector.'; exit 1; }
+          node scripts/verify-deployment.mjs \
+            --capture-functions "$FUNCTION_NAMES" \
+            --project "$FIREBASE_PROJECT_ID" \
+            --output "$REVISION_FILE"
+
       - name: Deploy affected Firebase surfaces
         env:
           CI_VERIFIED_ARTIFACTS: '1'
+          DEPLOY_ONLY: ${{ needs.determine-targets.outputs.deploy_only }}
         run: |
           npx --yes firebase-tools@15.29.0 deploy \
             --project "${{ vars.FIREBASE_PROJECT_ID }}" \
-            --only "${{ needs.determine-targets.outputs.targets }}" \
+            --only "$DEPLOY_ONLY" \
             --non-interactive \
             --force
 
@@ -235,9 +251,16 @@ jobs:
       - name: Verify deployed surfaces
         env:
           DEPLOY_TARGETS: ${{ needs.determine-targets.outputs.targets }}
+          FUNCTION_NAMES: ${{ needs.determine-targets.outputs.function_names }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FUNCTION_REVISION_FILE: ${{ runner.temp }}/predeploy-functions.json
         run: |
-          node scripts/verify-deployment.mjs \
-            --targets "$DEPLOY_TARGETS" \
-            --project "$FIREBASE_PROJECT_ID" \
+          verify_args=(
+            --targets "$DEPLOY_TARGETS"
+            --project "$FIREBASE_PROJECT_ID"
             --version "$(node -p "require('./package.json').version")"
+          )
+          if [[ -n "$FUNCTION_NAMES" ]]; then
+            verify_args+=(--function-names "$FUNCTION_NAMES" --function-revisions-file "$FUNCTION_REVISION_FILE")
+          fi
+          node scripts/verify-deployment.mjs "${verify_args[@]}"

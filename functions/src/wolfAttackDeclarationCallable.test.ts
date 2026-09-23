@@ -2,7 +2,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...await importOriginal(),
+  ...cryptoMock,
+}));
 
 type Fields = Record<string, unknown>;
 
@@ -41,10 +44,13 @@ const mock = vi.hoisted(() => {
   const set = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...fields });
   });
+  const rateLimitSet = vi.fn();
   const remove = vi.fn((target: { path: string }) => documents.delete(target.path));
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback({ get, update, set, delete: remove }));
-  return { documents, get, update, set, remove, runTransaction, db: { doc: ref, collection, runTransaction } };
+    callback({ get, update, set: (target: { path: string }, ...args: unknown[]) =>
+      target.path.includes('/serverState/callableRateLimit-')
+        ? rateLimitSet(target, ...args) : set(target, ...args), delete: remove }));
+  return { documents, get, update, set, rateLimitSet, remove, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -210,10 +216,13 @@ function resetFixture(): void {
   mock.get.mockClear();
   mock.update.mockClear();
   mock.set.mockClear();
+  mock.rateLimitSet.mockClear();
   mock.remove.mockClear();
   mock.runTransaction.mockClear();
   mock.runTransaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
-    callback({ get: mock.get, update: mock.update, set: mock.set, delete: mock.remove }));
+    callback({ get: mock.get, update: mock.update, set: (target: { path: string }, fields: Fields) =>
+      target.path.includes('/serverState/callableRateLimit-')
+        ? mock.rateLimitSet(target, fields) : mock.set(target, fields), delete: mock.remove }));
   cryptoMock.randomInt.mockImplementation(() => 0);
   session();
   gm();
@@ -630,9 +639,17 @@ it('uses only committed private pursuit authority and rejects malformed or chang
   splitFleet();
   mock.update.mockClear();
   mock.set.mockClear();
-  mock.runTransaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => {
-    navigation({ revision: 9, pursuitGroups: { 'fleet-1': 8, 'fleet-2': 8 } });
-    return callback({ get: mock.get, update: mock.update, set: mock.set });
+  let transactionCount = 0;
+  mock.runTransaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
+    transactionCount += 1;
+    if (transactionCount === 2) navigation({ revision: 9, pursuitGroups: { 'fleet-1': 8, 'fleet-2': 8 } });
+    return callback({
+      get: mock.get,
+      update: mock.update,
+      set: (target: { path: string }, ...args: unknown[]) => target.path.includes('/serverState/callableRateLimit-')
+        ? mock.rateLimitSet(target, ...args) : mock.set(target, ...args),
+      delete: mock.remove,
+    });
   });
   await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'changed-pursuit' })))
     .rejects.toMatchObject({
@@ -681,16 +698,20 @@ it('rejects noncanonical fleet membership before any declaration write', async (
 it('rejects a canonical group partition changed during declaration', async () => {
   navigation({ revision: 5, pursuitGroups: { 'fleet-1': 4, 'fleet-2': 4 } });
   splitFleet();
-  mock.runTransaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => {
-    fleetGroup('fleet-1', {
-      vesselIds: ['aegis', 'dione', 'quellon'],
-      memberUids: ['u1'],
+  let transactionCount = 0;
+  mock.runTransaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
+    transactionCount += 1;
+    if (transactionCount === 2) {
+      fleetGroup('fleet-1', { vesselIds: ['aegis', 'dione', 'quellon'], memberUids: ['u1'] });
+      fleetGroup('fleet-2', { vesselIds: ['icebreaker', 'shepherd', 'refinery-124'], memberUids: ['u2'] });
+    }
+    return callback({
+      get: mock.get,
+      update: mock.update,
+      set: (target: { path: string }, ...args: unknown[]) => target.path.includes('/serverState/callableRateLimit-')
+        ? mock.rateLimitSet(target, ...args) : mock.set(target, ...args),
+      delete: mock.remove,
     });
-    fleetGroup('fleet-2', {
-      vesselIds: ['icebreaker', 'shepherd', 'refinery-124'],
-      memberUids: ['u2'],
-    });
-    return callback({ get: mock.get, update: mock.update, set: mock.set });
   });
   await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'changed-groups' })))
     .rejects.toMatchObject({
@@ -702,8 +723,19 @@ it('rejects a canonical group partition changed during declaration', async () =>
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('records a fresh declaration in the authenticated rate bucket before fleet scans', async () => {
+  await declareWolfAttack.run(request());
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
+  const scanIndex = mock.get.mock.calls.findIndex(([target]) =>
+    ['sessions/s1/fleetGroups', 'sessions/s1/players', 'sessions/s1/shuttleDepartures',
+      'sessions/s1/shuttleTransitChains'].includes((target as { path?: string }).path ?? ''));
+  expect(scanIndex).toBeGreaterThanOrEqual(0);
+  expect(mock.rateLimitSet.mock.invocationCallOrder[0]).toBeLessThan(mock.get.mock.invocationCallOrder[scanIndex]!);
+});
+
 it('replays an exact request without a second transaction write', async () => {
   const first = await declareWolfAttack.run(request());
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
   const generatedSamples = cryptoMock.randomInt.mock.calls.length;
   mock.update.mockClear();
   mock.set.mockClear();
@@ -711,6 +743,7 @@ it('replays an exact request without a second transaction write', async () => {
   expect(cryptoMock.randomInt).toHaveBeenCalledTimes(generatedSamples);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
 });
 
 it('rejects stale preparation, wrong actor, client outcomes, and malformed phase without writes', async () => {

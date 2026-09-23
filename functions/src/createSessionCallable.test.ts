@@ -5,19 +5,21 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  rateLimitSet: vi.fn(),
   delete: vi.fn(),
   randomInt: vi.fn(() => 1234),
   sessionId: 'generated-session',
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
-vi.mock('node:crypto', () => ({
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...await importOriginal(),
   randomInt: mock.randomInt,
   randomUUID: vi.fn(() => 'session-event'),
 }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
-    doc: (path: string) => ({ path, id: path.split('/').at(-1) }),
+    doc: (path: string) => ({ path, id: path.split('/').at(-1), get: () => mock.get({ path }) }),
     collection: (path: string) => ({
       path,
       doc: () => ({ path: `${path}/${mock.sessionId}`, id: mock.sessionId }),
@@ -25,7 +27,8 @@ vi.mock('firebase-admin/firestore', () => ({
     runTransaction: (callback: (tx: unknown) => unknown) => callback({
       get: mock.get,
       update: mock.update,
-      set: mock.set,
+      set: (ref: { path: string }, ...args: unknown[]) => ref.path.includes('/serverState/callableRateLimit-')
+        ? mock.rateLimitSet(ref, ...args) : mock.set(ref, ...args),
       delete: mock.delete,
     }),
   }),
@@ -74,6 +77,7 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.rateLimitSet.mockReset();
   mock.delete.mockReset();
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(1234);
@@ -762,9 +766,35 @@ it('replays a same-mode setup retry after casting without applying another write
     dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
   });
   await expect(confirmSetup.run(command)).resolves.toMatchObject({ status: 'committed' });
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
   const writesAfterCommit = mock.update.mock.calls.length + mock.set.mock.calls.length;
   await expect(confirmSetup.run(command)).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
   expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesAfterCommit);
+});
+
+it('records a fresh setup confirmation in the authenticated rate bucket', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot({
+      phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds,
+      playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+      dioneEnabled: false, capybaraEnabled: true,
+    });
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    return snapshot({}, false);
+  });
+  await confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'setup-rate-limit', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  }));
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
+  const scanIndex = mock.get.mock.calls.findIndex(([ref]) =>
+    (ref as { path?: string }).path === 'sessions/s1/players');
+  expect(scanIndex).toBeGreaterThanOrEqual(0);
+  expect(mock.rateLimitSet.mock.invocationCallOrder[0]).toBeLessThan(mock.get.mock.invocationCallOrder[scanIndex]!);
 });
 
 it('returns a safe stale receipt when setup revision changed before confirmation', async () => {

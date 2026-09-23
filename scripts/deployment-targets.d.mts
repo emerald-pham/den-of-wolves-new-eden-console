@@ -6,6 +6,7 @@ export type DeploymentTarget = (typeof ALL_DEPLOYMENT_TARGETS)[number];
 
 export interface DeploymentTargetClassification {
   readonly targets: readonly DeploymentTarget[];
+  readonly deployOnly?: string;
   readonly unknownFiles: readonly string[];
   readonly ignoredFiles: readonly string[];
   readonly riskGates: RiskGateProfile;
@@ -15,6 +16,7 @@ export interface DeploymentRangeClassification extends DeploymentTargetClassific
   readonly currentTip: boolean;
   readonly staleRun: boolean;
   readonly baselineAncestry: boolean;
+  readonly deployOnly?: string;
 }
 
 export function classifyChangedFiles(
@@ -32,5 +34,15 @@ export function classifyDeploymentRange(options: {
   readonly cwd?: string;
   readonly isAncestor?: (before: string, after: string) => boolean;
 }): DeploymentRangeClassification;
+
+export function deploymentSelector(options: {
+  readonly before?: string;
+  readonly after?: string;
+  readonly files?: readonly string[];
+  readonly targets?: readonly string[];
+  readonly cwd?: string;
+  readonly manual?: boolean;
+  readonly sourceAtRevision?: (revision: string, filePath: string) => string;
+}): string;
 
 export function formatGitHubOutputs(result: DeploymentTargetClassification): string;

@@ -13,9 +13,10 @@ import {
 import {
   ALL_DEPLOYMENT_TARGETS,
   classifyChangedFiles,
+  deploymentSelector,
   formatGitHubOutputs,
 } from '../scripts/deployment-targets.mjs';
-import { verifyDeployment } from '../scripts/verify-deployment.mjs';
+import { captureFunctionRevisions, verifyDeployment } from '../scripts/verify-deployment.mjs';
 import { classifyDeploymentRange } from '../scripts/deployment-targets.mjs';
 
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
@@ -47,6 +48,29 @@ it('classifies changed files into affected deployment surfaces', () => {
     .toMatchObject({ ticker: true, font: true, webBuild: true });
   expect(classifyChangedFiles(['functions/src/index.ts']).riskGates)
     .toMatchObject({ ticker: false, font: false, functions: true });
+});
+
+it('selects changed callable exports plus audited consumers of changed shared helpers', () => {
+  const callable = (name: string, body: string) => `export const ${name} = onCall(async (request) => { ${body} });\n`;
+  const before = [callable('confirmSetup', 'return oldSetup();'), callable('startGame', 'return oldStart();'), callable('readSession', 'return read();')].join('');
+  const after = [callable('confirmSetup', 'return limitedSetup();'), callable('startGame', 'return limitedStart();'), callable('readSession', 'return read();')].join('');
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['hosting', 'functions'],
+    files: ['functions/src/index.ts', 'functions/src/callableRateLimit.ts'],
+    sourceAtRevision: (revision) => revision === 'base' ? before : after,
+  });
+
+  expect(selected).toBe('hosting,functions:confirmSetup,functions:startGame,functions:declareWolfAttack,functions:runMaintenance');
+});
+
+it('fails closed when named callable scope or deployment baseline is unknown', () => {
+  expect(() => deploymentSelector({
+    before: 'base', after: 'candidate', targets: ['functions'],
+    files: ['functions/src/newSharedAuthorization.ts'],
+  })).toThrow('No audited callable consumer map');
+  expect(() => deploymentSelector({
+    targets: ['functions'], files: ['functions/src/index.ts'],
+  })).toThrow('known successful deployment baseline');
 });
 it('classifies the cumulative range from the last successful deployment', () => {
   // A queued main run must include every surface changed since the deployed
@@ -88,7 +112,7 @@ it('keeps a real server release out of web gates when package files only bump ve
       packages: { '': { name: 'console', version: '0.4.90', dependencies: { react: '1' } } },
     }));
     await writeFile(resolve(repositoryDirectory, 'src/changelog.ts'), 'export const version = "0.4.90";\n');
-    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), 'export const value = 1;\n');
+    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), "export const value = onCall(async () => { return 1; });\n");
     await writeFile(resolve(repositoryDirectory, 'docs', 'implementation-prompts.json'), '{}\n');
     await git(['add', '.']);
     await git(['commit', '--quiet', '-m', 'baseline']);
@@ -101,7 +125,7 @@ it('keeps a real server release out of web gates when package files only bump ve
     lockDocument.packages[''].version = '0.4.91';
     await writeFile(resolve(repositoryDirectory, 'package-lock.json'), JSON.stringify(lockDocument));
     await writeFile(resolve(repositoryDirectory, 'src/changelog.ts'), 'export const version = "0.4.91";\n');
-    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), 'export const value = 2;\n');
+    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), "export const value = onCall(async () => { return 2; });\n");
     await writeFile(resolve(repositoryDirectory, 'docs', 'implementation-prompts.json'), '{"done":true}\n');
     await git(['add', '.']);
     await git(['commit', '--quiet', '-m', 'release']);
@@ -259,6 +283,56 @@ it('verifies Hosting and public Functions through injected production adapters',
     ]),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
+});
+
+it('proves every selected Function published a different ready Cloud Run revision', async () => {
+  const commands: string[][] = [];
+  const runCommand = async (_command: string, args: string[]) => {
+    commands.push([...args]);
+    if (args[0] === 'functions' && args[1] === 'describe') {
+      return JSON.stringify({
+        serviceConfig: {
+          service: `projects/dow-new-eden-console/locations/us-central1/services/${args[2]}`,
+        },
+      });
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'describe') {
+      return JSON.stringify({ status: { latestReadyRevisionName: `${args[3]}-rev-2` } });
+    }
+    if (args[0] === 'functions' && args[1] === 'list') {
+      return JSON.stringify([
+        ...['triggerDradisContact', 'startSinglePlayerDemo', 'repairConsolesFromBlacksmith'].map((name) => ({
+          name, state: 'ACTIVE',
+          serviceConfig: { service: `projects/dow-new-eden-console/locations/us-central1/services/${name}` },
+        })),
+      ]);
+    }
+    return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] });
+  };
+  const previousFunctionRevisions = await captureFunctionRevisions({
+    functionNames: 'confirmSetup,startGame', projectId: 'dow-new-eden-console', runCommand,
+  });
+  expect(previousFunctionRevisions).toEqual({
+    confirmSetup: 'confirmSetup-rev-2', startGame: 'startGame-rev-2',
+  });
+
+  await expect(verifyDeployment({
+    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.12',
+    functionNames: 'confirmSetup,startGame',
+    previousFunctionRevisions: { confirmSetup: 'confirmSetup-rev-1', startGame: 'startGame-rev-1' },
+    runCommand,
+  })).resolves.toMatchObject({ functions: true });
+  expect(commands).toEqual(expect.arrayContaining([
+    expect.arrayContaining(['functions', 'describe', 'confirmSetup']),
+    expect.arrayContaining(['functions', 'describe', 'startGame']),
+    expect.arrayContaining(['run', 'services', 'describe', 'confirmSetup']),
+    expect.arrayContaining(['run', 'services', 'describe', 'startGame']),
+  ]));
+  await expect(verifyDeployment({
+    targets: 'functions', projectId: 'dow-new-eden-console', expectedVersion: '0.5.12',
+    functionNames: 'confirmSetup', previousFunctionRevisions: { confirmSetup: 'confirmSetup-rev-2' },
+    runCommand,
+  })).rejects.toThrow('did not publish a new ready revision');
 });
 
 it('verifies the exact Firestore Native database resource without an API state field', () => {
@@ -446,13 +520,15 @@ it('executes target decisions against real Git ancestry and current-tip guards',
     await git(['commit', '--quiet', '-m', 'hosting']);
     const hostingSha = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
     await mkdir(resolve(repositoryDirectory, 'functions', 'src'), { recursive: true });
-    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), 'export {}\n');
+    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), "export const createThing = onCall(async () => { return 'candidate'; });\n");
     await git(['add', '.']);
     await git(['commit', '--quiet', '-m', 'functions']);
     const currentSha = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
 
     const cumulative = await runTargets(baselineSha, currentSha, currentSha);
     expect(cumulative).toContain('targets=hosting,functions');
+    expect(cumulative).toContain('deploy_only=hosting,functions:createThing');
+    expect(cumulative).toContain('function_names=createThing');
     expect(cumulative).toContain('current_tip=true');
     expect(cumulative).toContain('baseline_ancestry=true');
 
@@ -572,7 +648,10 @@ it('preflights deploy runtime dependencies and scopes deployment credentials', (
 
 it('deploys only the Firebase surfaces affected by a push', () => {
   expect(deploy).toContain('scripts/deployment-targets.mjs');
-  expect(deploy).toContain('--only "${{ needs.determine-targets.outputs.targets }}"');
+  expect(deploy).toContain('--only "$DEPLOY_ONLY"');
+  expect(deploy).toContain('targets: ${{ steps.targets.outputs.targets }}');
+  expect(deploy).toContain('deploy_only: ${{ steps.targets.outputs.deploy_only }}');
+  expect(deploy).toContain('needs.determine-targets.outputs.function_names');
   expect(deploy).not.toContain('--only hosting,firestore,functions');
 });
 

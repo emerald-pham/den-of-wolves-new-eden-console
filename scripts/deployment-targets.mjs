@@ -26,6 +26,20 @@ const TOOLING_ONLY_FILES = new Set([
   'docs/implementation-prompts.json',
 ]);
 
+// Keep this dependency map explicit. When a shared helper changes, deploy every
+// callable known to consume it; unknown production modules fail closed below.
+const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
+  'functions/src/callableRateLimit.ts': ['confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance'],
+  // The adapter's request fingerprint extension is exercised by the same four callsites.
+  'functions/src/callableRateLimitFirestore.ts': ['confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance'],
+  'functions/src/shuttleMovementConflict.ts': [
+    'requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit', 'completeShuttleArrival',
+  ],
+  'functions/src/shuttleDepartureCallable.ts': ['requestShuttleDeparture'],
+  'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
+  'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
+});
+
 function normalizeFile(file) {
   return String(file).trim().replaceAll('\\', '/').replace(/^\.\//, '');
 }
@@ -157,16 +171,20 @@ export function classifyDeploymentRange({
     };
   }
   if (manual) {
+    const classified = classifyChangedFiles([], { manual: true });
     return {
-      ...classifyChangedFiles([], { manual: true }),
+      ...classified,
+      deployOnly: classified.targets.join(','),
       currentTip: true,
       staleRun: false,
       baselineAncestry: true,
     };
   }
   if (!before) {
+    const classified = classifyChangedFiles(['__missing_diff_revision__']);
     return {
-      ...classifyChangedFiles(['__missing_diff_revision__']),
+      ...classified,
+      deployOnly: deploymentSelector({ targets: classified.targets }),
       currentTip: true,
       staleRun: false,
       baselineAncestry: false,
@@ -183,17 +201,94 @@ export function classifyDeploymentRange({
   }
   const files = changedFiles ?? filesFromGit(before, after, cwd);
   const metadataOnly = versionMetadataOnly ?? versionMetadataOnlyForRange(before, after, files, cwd);
+  const classification = classifyChangedFiles(files, { versionMetadataOnly: metadataOnly });
+  // Keep the coarse release gate at Hosting + Functions for callable releases;
+  // the Firebase selector below narrows the actual Function mutations.
+  if (classification.targets.includes('functions') && !classification.targets.includes('hosting')) {
+    classification.targets = ['hosting', ...classification.targets];
+  }
+  const deployOnly = deploymentSelector({ before, after, files, targets: classification.targets, cwd });
   return {
-    ...classifyChangedFiles(files, { versionMetadataOnly: metadataOnly }),
+    ...classification,
+    deployOnly,
     currentTip: true,
     staleRun: false,
     baselineAncestry: true,
   };
 }
 
+function functionExports(source) {
+  const lines = source.split('\n');
+  const declarations = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^export\s+const\s+([A-Za-z_$][\w$]*)\s*=/.exec(lines[index]);
+    if (match) declarations.push({ name: match[1], line: index });
+  }
+  const exports = new Map();
+  for (let index = 0; index < declarations.length; index += 1) {
+    const declaration = declarations[index];
+    let end = declarations[index + 1]?.line ?? lines.length;
+    for (let line = declaration.line + 1; line < end; line += 1) {
+      if (/^\}\);\s*$/.test(lines[line])) {
+        end = line + 1;
+        break;
+      }
+    }
+    const block = lines.slice(declaration.line, end).join('\n');
+    if (/=\s*onCall\s*</.test(block) || /=\s*onCall\s*\(/.test(block) || /=\s*onRequest\s*</.test(block) || /=\s*onRequest\s*\(/.test(block) || /=\s*onSchedule\s*</.test(block) || /=\s*onSchedule\s*\(/.test(block)) {
+      exports.set(declaration.name, block);
+    }
+  }
+  return exports;
+}
+
+function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, 'functions/src/index.ts');
+    try {
+      return execFileSync('git', ['show', `${revision}:functions/src/index.ts`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine callable changes at ${revision}:functions/src/index.ts.`);
+    }
+  };
+  const previous = functionExports(readAt(before));
+  const current = functionExports(readAt(after));
+  const names = new Set([...previous.keys(), ...current.keys()]);
+  return [...names].filter((name) => previous.get(name) !== current.get(name));
+}
+
+export function deploymentSelector({ before, after, files, targets, cwd = process.cwd(), manual = false, sourceAtRevision = null } = {}) {
+  if (!targets?.includes('functions')) return (targets ?? []).join(',');
+  if (manual) throw new Error('Manual deployment with Functions requires an audited named-function selector.');
+  if (!before || !after) throw new Error('Functions deployment requires a known successful deployment baseline.');
+  const runtimeFiles = files.map(normalizeFile).filter((file) =>
+    file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
+  const selected = new Set();
+  for (const file of runtimeFiles) {
+    if (file === 'functions/src/index.ts') {
+      for (const name of changedIndexCallables(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    const consumers = CALLABLES_BY_CHANGED_MODULE[file];
+    if (!consumers) throw new Error(`No audited callable consumer map exists for changed Functions module ${file}.`);
+    for (const name of consumers) selected.add(name);
+  }
+  if (selected.size === 0) throw new Error('Functions changed but no named callable deployment could be proven.');
+  const ordered = [...selected];
+  const deployTargets = (targets ?? []).filter((target) => target !== 'functions');
+  if (!deployTargets.includes('hosting')) deployTargets.unshift('hosting');
+  deployTargets.push(...ordered.map((name) => `functions:${name}`));
+  return deployTargets.join(',');
+}
+
 export function formatGitHubOutputs(result) {
   return [
     `targets=${result.targets.join(',')}`,
+    `deploy_only=${result.deployOnly ?? result.targets.join(',')}`,
+    `function_names=${(result.deployOnly ?? '').split(',').filter((target) => target.startsWith('functions:')).map((target) => target.slice('functions:'.length)).join(',')}`,
     `has_targets=${result.targets.length > 0}`,
     `unknown_files=${JSON.stringify(result.unknownFiles)}`,
     `ignored_files=${JSON.stringify(result.ignoredFiles)}`,

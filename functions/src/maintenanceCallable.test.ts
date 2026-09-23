@@ -3,7 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 import { activeVesselIdsForRoles } from './gameSetup';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), set: vi.fn(), create: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), rateLimitSet: vi.fn(), create: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
   gmInstanceOwners: {} as Record<string, string>,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
@@ -85,6 +85,9 @@ vi.mock('firebase-admin/firestore', () => ({
             const sets: Array<readonly [string, Record<string, unknown>]> = [];
             const deletes: string[] = [];
             const document = (path: string) => {
+              if (path.includes('/serverState/callableRateLimit-')) {
+                return { exists: false, data: () => undefined, get: () => undefined };
+              }
               if (path.includes('/private/shipConsoleWriteGrant')) {
                 const instanceId = path.split('/').at(-3) ?? '';
                 const fields = {
@@ -191,7 +194,8 @@ vi.mock('firebase-admin/firestore', () => ({
                 return value;
               },
               update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
-              set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+              set: (path: string, ...args: unknown[]) => path.includes('/serverState/callableRateLimit-')
+                ? mock.rateLimitSet(path, ...args) : sets.push([path, args[0] as Record<string, unknown>]),
               create: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
               delete: (path: string) => deletes.push(path),
             };
@@ -263,6 +267,9 @@ vi.mock('firebase-admin/firestore', () => ({
           const deletes: string[] = [];
           const tx = {
             get: async (path: string) => {
+              if (path.includes('/serverState/callableRateLimit-')) {
+                return { exists: false, data: () => undefined, get: () => undefined };
+              }
               if (path.includes('/commandReceipts/')) {
                 const fields = mock.commandReceipts[path];
                 return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
@@ -349,7 +356,8 @@ vi.mock('firebase-admin/firestore', () => ({
               return { exists: true, get: (key: string) => fields[key] };
             },
             update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
-            set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+            set: (path: string, ...args: unknown[]) => path.includes('/serverState/callableRateLimit-')
+              ? mock.rateLimitSet(path, ...args) : sets.push([path, args[0] as Record<string, unknown>]),
             create: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
             delete: (path: string) => deletes.push(path),
           };
@@ -386,6 +394,9 @@ vi.mock('firebase-admin/firestore', () => ({
       }
       const tx = {
         get: async (path: string) => {
+          if (path.includes('/serverState/callableRateLimit-')) {
+            return { exists: false, data: () => undefined, get: () => undefined };
+          }
           if (path === 'sessions/s1/shuttleDepartures' ||
               path === 'sessions/s1/shuttleTransitChains') {
             return { exists: true, docs: [] };
@@ -396,7 +407,8 @@ vi.mock('firebase-admin/firestore', () => ({
           return mock.get(path);
         },
         update: mock.update,
-        set: mock.set,
+        set: (path: string, ...args: unknown[]) => path.includes('/serverState/callableRateLimit-')
+          ? mock.rateLimitSet(path, ...args) : mock.set(path, ...args),
         create: mock.create,
         delete: mock.delete,
       };
@@ -500,6 +512,7 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('damage-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.rateLimitSet.mockReset();
   mock.create.mockReset();
   mock.delete.mockReset();
   mock.set.mockImplementation((path: string, fields: Record<string, unknown>) => {
@@ -762,6 +775,7 @@ it('begins maintenance atomically with a server-owned revision', async () => {
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'maintenanceCycles.aegis': expect.objectContaining({ step: 1, revision: 1 }),
   }));
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
 });
 
 it.each([
@@ -774,11 +788,17 @@ it.each([
   mock.chartId = chartId;
   mock.navigation = environmentalNavigation(coordinate);
   mock.randomInt.mockReturnValue(roll);
+  const getCallsBefore = mock.get.mock.calls.length;
 
   const result = await runMaintenance.run(request({
     ...data,
     requestId: `maintenance-${chartId}-${coordinate}`,
   }));
+
+  const scanIndex = mock.get.mock.calls.findIndex(([path], index) => index >= getCallsBefore &&
+    ['sessions/s1/fleetGroups', 'sessions/s1/players'].includes(String(path)));
+  expect(scanIndex).toBeGreaterThanOrEqual(0);
+  expect(mock.rateLimitSet.mock.invocationCallOrder[0]).toBeLessThan(mock.get.mock.invocationCallOrder[scanIndex]!);
 
   expect(result).toMatchObject({
     status: 'committed',
@@ -996,8 +1016,10 @@ it('commits one environmental draw across transaction retry, duplicate request, 
   ]);
 
   const callsAfterCommit = mock.randomInt.mock.calls.length;
+  const rateLimitWritesAfterCommit = mock.rateLimitSet.mock.calls.length;
   await expect(runMaintenance.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.randomInt.mock.calls.length).toBe(callsAfterCommit);
+  expect(mock.rateLimitSet.mock.calls.length).toBe(rateLimitWritesAfterCommit);
   expect(Object.keys(maintenance.damageDraws)).toHaveLength(1);
 });
 

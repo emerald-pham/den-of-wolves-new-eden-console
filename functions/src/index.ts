@@ -4278,6 +4278,62 @@ export const confirmSetup = onCall<{
     },
   };
 
+  // Authenticate and resolve an exact request replay before charging the
+  // bounded roster/seat scans in the authoritative transaction below.
+  const [preflightSession, preflightPlayer, preflightInstance, priorSetup, markerSetup, legacySetupEvent] = await Promise.all([
+    sessionRef.get(),
+    db.doc(`sessions/${command.sessionId}/players/${uid}`).get(),
+    db.doc(`sessions/${command.sessionId}/gmInstances/${command.instanceId}`).get(),
+    requestRef.get(), markerRef.get(), eventRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  await rejectForeignLegacyM1CommandBeforeReplay(
+    command.sessionId, command.requestId, 'setup', [requestRef.path, eventRef.path],
+  );
+  const preflightReply = (() => {
+    const prior = priorSetup;
+    const marker = markerSetup;
+    const legacyEvent = legacySetupEvent;
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'setup') && !prior.exists) {
+      throw commandError('failed-precondition', 'This setup request has a marker without a replayable receipt.', 'conflict');
+    }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('setup');
+    if (!prior.exists) return null;
+    if (
+      prior.get('action') !== 'confirm-setup' ||
+      prior.get('sessionId') !== command.sessionId ||
+      prior.get('actorUid') !== uid ||
+      prior.get('instanceId') !== command.instanceId
+    ) {
+      throw commandError('failed-precondition', 'This request id belongs to a different setup command.', 'conflict');
+    }
+    const expectedFingerprint = setupCommandFingerprint(
+      command.configuration,
+      command.activeRoleIds,
+      command.expectedSetupRevision,
+      command.lockChart,
+    );
+    if (!sameSetupCommandFingerprint(prior.get('fingerprint'), expectedFingerprint)) {
+      throw commandError('failed-precondition', 'This request id was already used for a different setup tuple.', 'conflict');
+    }
+    const reply = prior.get('reply');
+    if (typeof reply !== 'object' || reply === null) {
+      throw commandError('failed-precondition', 'This setup request has no replayable result.', 'conflict');
+    }
+    if (reply.status === 'stale') return reply as Record<string, unknown>;
+    return { ...(reply as Record<string, unknown>), status: 'replayed' };
+  })();
+  if (preflightReply) return preflightReply;
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'confirmSetup', sessionId: command.sessionId, uid, requestId: command.requestId,
+    requestFingerprint: JSON.stringify(setupCommandFingerprint(
+      command.configuration, command.activeRoleIds, command.expectedSetupRevision, command.lockChart,
+    )),
+  });
+
   return db.runTransaction(async (tx) => {
     const fingerprint = setupCommandFingerprint(
       command.configuration,
@@ -4873,6 +4929,43 @@ export const startGame = onCall<{
     expectedRevision: start.expectedSetupRevision,
     payload: {},
   };
+  const [preflightSession, preflightPlayer, preflightInstance, priorStart, markerStart, legacyStartEvent] = await Promise.all([
+    sessionRef.get(),
+    db.doc(`sessions/${start.sessionId}/players/${uid}`).get(),
+    db.doc(`sessions/${start.sessionId}/gmInstances/${start.instanceId}`).get(),
+    startRequestRef.get(), markerRef.get(), eventRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  await rejectForeignLegacyM1CommandBeforeReplay(
+    start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
+  );
+  const preflightReply = (() => {
+    const prior = priorStart;
+    const marker = markerStart;
+    const legacyEvent = legacyStartEvent;
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'start') && !prior.exists) {
+      throw commandError('failed-precondition', 'This start request has a marker without a replayable receipt.', 'conflict');
+    }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('start');
+    if (!prior.exists) return null;
+    if (!sameStartRequestFingerprint(prior.get('fingerprint'), fingerprint)) {
+      throw commandError('failed-precondition', 'This request id was already used for a different start payload or actor.', 'conflict');
+    }
+    const result = prior.get('reply');
+    if (typeof result !== 'object' || result === null) {
+      throw commandError('failed-precondition', 'This start request has no replayable result.', 'conflict');
+    }
+    if ((result as Record<string, unknown>).status === 'stale') return result as Record<string, unknown>;
+    return { ...(result as Record<string, unknown>), status: 'replayed' };
+  })();
+  if (preflightReply) return preflightReply;
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'startGame', sessionId: start.sessionId, uid, requestId: start.requestId,
+    requestFingerprint: JSON.stringify(fingerprint),
+  });
   // Keep one candidate for the whole transaction invocation. Firestore may
   // retry a transaction callback; retries must not manufacture a new order.
   let candidateMissionDeck: MissionDeckState | undefined;
@@ -14877,6 +14970,27 @@ export const declareWolfAttack = onCall<{
     payload: {},
   };
 
+  // Check membership and the request receipt before charging the fleet-wide
+  // scans used to validate and snapshot the declaration.
+  const [preflightAuthSession, preflightAuthPlayer, preflightAuthInstance, preflightAuthReceipt] = await Promise.all([
+    sessionRef.get(), playerRef.get(), instanceRef.get(), receiptRef.get(),
+  ]);
+  if (!preflightAuthSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightAuthInstance, preflightAuthPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  await rejectForeignLegacyM1CommandBeforeReplay(
+    declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
+  );
+  const receiptReplay = replayBoundCommand(
+    preflightAuthReceipt, fingerprint, isWolfAttackDeclarationResult, 'Wolf attack declaration',
+  );
+  if (receiptReplay) return receiptReplay;
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'declareWolfAttack', sessionId: declaration.sessionId, uid, requestId: declaration.requestId,
+    requestFingerprint: JSON.stringify(fingerprint),
+  });
+
   const [preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
     preflightWindow, preflightNavigation, preflightState, preflightReceipt,
     preflightAudit, preflightEvent, preflightFleetGroups, preflightPlayers,
@@ -21987,6 +22101,10 @@ export const runMaintenance = onCall<{
     return maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId) ?? null;
   });
   if (preflightReply) return preflightReply;
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'runMaintenance', sessionId: data.sessionId, uid, requestId: data.requestId,
+    requestFingerprint: JSON.stringify(fingerprint),
+  });
 
   // These server-owned values are fixed after request/authority validation and
   // before the mutating transaction, so callback retries cannot reroll or

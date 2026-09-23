@@ -23,6 +23,8 @@ export interface DeploymentVerificationOptions {
   readonly expectedVersion: string;
   readonly hostingUrl?: string;
   readonly region?: string;
+  readonly functionNames?: string;
+  readonly previousFunctionRevisions?: Readonly<Record<string, string>>;
   readonly fetchImpl?: (
     input: string,
     init: { readonly cache: 'no-store' },
@@ -33,3 +35,10 @@ export interface DeploymentVerificationOptions {
 export function verifyDeployment(
   options: DeploymentVerificationOptions,
 ): Promise<DeploymentVerificationResult>;
+
+export function captureFunctionRevisions(options: {
+  readonly functionNames: string;
+  readonly projectId: string;
+  readonly region?: string;
+  readonly runCommand?: (command: string, args: readonly string[]) => Promise<string>;
+}): Promise<Record<string, string>>;

@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  rateLimitSet: vi.fn(),
   session: {} as Record<string, unknown>,
   playerDocs: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   instanceDocs: [] as Array<{ id: string; fields: Record<string, unknown> }>,
@@ -39,12 +40,23 @@ vi.mock('firebase-admin/firestore', () => ({
     toMillis() { return this.date.getTime(); }
   },
   getFirestore: () => ({
-    doc: (path: string) => ({ path, id: path.split('/').at(-1) }),
+    doc: (path: string) => ({ path, id: path.split('/').at(-1), get: () => mock.get({ path }) }),
     collection: (path: string) => ({ path }),
     runTransaction: async (callback: (tx: unknown) => unknown) => {
-      const transaction = { get: mock.get, update: mock.update, set: mock.set, delete: vi.fn() };
+      let rateLimitTransaction = false;
+      const transaction = {
+        get: mock.get, update: mock.update,
+        set: (ref: { path: string }, ...args: unknown[]) => {
+          if (ref.path.includes('/serverState/callableRateLimit-')) {
+            rateLimitTransaction = true;
+            return mock.rateLimitSet(ref, ...args);
+          }
+          return mock.set(ref, ...args);
+        },
+        delete: vi.fn(),
+      };
       let result = await callback(transaction);
-      while (mock.transactionRetries > 0) {
+      while (mock.transactionRetries > 0 && !rateLimitTransaction) {
         mock.transactionRetries -= 1;
         result = await callback(transaction);
       }
@@ -53,7 +65,8 @@ vi.mock('firebase-admin/firestore', () => ({
   }),
   FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
 }));
-vi.mock('node:crypto', () => ({
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...await importOriginal(),
   randomInt: mock.randomInt,
   randomUUID: vi.fn(() => 'start-test-uuid'),
 }));
@@ -196,6 +209,7 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.rateLimitSet.mockReset();
   mock.priorReply = undefined;
   mock.priorFingerprint = undefined;
   mock.craftOwnershipManifest = undefined;
@@ -730,6 +744,7 @@ it('returns the original result as replayed without repeating start writes', asy
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.rateLimitSet).not.toHaveBeenCalled();
 });
 
 it('replays a stored stale start disposition as stale, never as committed', async () => {
@@ -1269,6 +1284,18 @@ it('writes private automatic loyalties and a safe setup receipt in the same comm
     ([ref]) => ref.path === 'sessions/s1/events/start-start-receipt',
   )?.[1] as Record<string, unknown> | undefined;
   expect(eventWrite).not.toHaveProperty('deckOrder');
+});
+
+it('records a fresh start in the authenticated rate bucket before roster scans', async () => {
+  await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-rate-limit', expectedSetupRevision: 0,
+  }));
+
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(1);
+  const scanIndex = mock.get.mock.calls.findIndex(([ref]) =>
+    (ref as { path?: string }).path === 'sessions/s1/players');
+  expect(scanIndex).toBeGreaterThanOrEqual(0);
+  expect(mock.rateLimitSet.mock.invocationCallOrder[0]).toBeLessThan(mock.get.mock.invocationCallOrder[scanIndex]!);
 });
 
 it('reuses a valid persisted mission deck without replacing its immutable order', async () => {

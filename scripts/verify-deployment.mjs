@@ -99,6 +99,53 @@ async function verifyFunctions({ projectId, region, runCommand }) {
   }
 }
 
+function revisionFromService(service) {
+  const revision = service?.status?.latestReadyRevisionName;
+  if (typeof revision !== 'string' || !revision.trim()) {
+    throw new Error('Cloud Run service has no ready revision name.');
+  }
+  return revision;
+}
+
+export async function captureFunctionRevisions({ functionNames, projectId, region = 'us-central1', runCommand = defaultRunCommand } = {}) {
+  const names = [...new Set(String(functionNames ?? '').split(',').map((name) => name.trim()).filter(Boolean))];
+  if (!names.length) throw new Error('At least one named Function is required for revision capture.');
+  const revisions = {};
+  for (const name of names) {
+    const functionRecord = parseJson(await runCommand('gcloud', [
+      'functions', 'describe', name, '--v2', `--project=${projectId}`, `--region=${region}`, '--format=json',
+    ]), `Cloud Function ${name}`);
+    const resource = functionRecord?.serviceConfig?.service;
+    const match = typeof resource === 'string'
+      ? /^projects\/[^/]+\/locations\/[^/]+\/services\/([^/]+)$/.exec(resource)
+      : null;
+    if (!match) throw new Error(`Function ${name} has no valid backing Cloud Run service.`);
+    const service = parseJson(await runCommand('gcloud', [
+      'run', 'services', 'describe', match[1], `--project=${projectId}`, `--region=${region}`, '--format=json',
+    ]), `Cloud Run service for ${name}`);
+    revisions[name] = revisionFromService(service);
+  }
+  return revisions;
+}
+
+async function verifySelectedFunctionRevisions({ functionNames, previousRevisions, projectId, region, runCommand }) {
+  const names = [...new Set(String(functionNames ?? '').split(',').map((name) => name.trim()).filter(Boolean))];
+  if (!names.length) return;
+  if (!previousRevisions || typeof previousRevisions !== 'object') {
+    throw new Error('Selected Function deployment verification requires pre-deploy revisions.');
+  }
+  const current = await captureFunctionRevisions({ functionNames: names.join(','), projectId, region, runCommand });
+  for (const name of names) {
+    const before = previousRevisions[name];
+    if (typeof before !== 'string' || !before.trim()) {
+      throw new Error(`No pre-deploy ready revision was captured for ${name}.`);
+    }
+    if (current[name] === before) {
+      throw new Error(`Function ${name} did not publish a new ready revision; still ${before}.`);
+    }
+  }
+}
+
 async function verifyFirestore({ projectId, runCommand }) {
   const output = await runCommand('gcloud', [
     'firestore', 'databases', 'describe', '--database=(default)',
@@ -119,6 +166,8 @@ export async function verifyDeployment({
   expectedVersion,
   hostingUrl = `https://${projectId}.web.app`,
   region = 'us-central1',
+  functionNames = '',
+  previousFunctionRevisions,
   fetchImpl = globalThis.fetch,
   runCommand = defaultRunCommand,
 } = {}) {
@@ -131,6 +180,7 @@ export async function verifyDeployment({
   }
   if (selectedTargets.includes('functions')) {
     await verifyFunctions({ projectId, region, runCommand });
+    await verifySelectedFunctionRevisions({ functionNames, previousRevisions: previousFunctionRevisions, projectId, region, runCommand });
     result.functions = true;
   }
   if (selectedTargets.includes('firestore')) {
@@ -146,7 +196,7 @@ function parseOptions(argv) {
     const name = argv[index];
     const value = argv[index + 1];
     if (!name?.startsWith('--') || value === undefined) {
-      throw new Error('Usage: verify-deployment.mjs --targets <targets> --project <project> --version <version>');
+      throw new Error('Usage: verify-deployment.mjs --targets <targets> --project <project> --version <version> [--function-names <names> --function-revisions-file <path>] | --capture-functions <names> --project <project> --output <path>');
     }
     options[name.slice(2)] = value;
     index += 1;
@@ -156,16 +206,37 @@ function parseOptions(argv) {
 
 if (process.argv[1] && process.argv[1].endsWith('/verify-deployment.mjs')) {
   const options = parseOptions(process.argv.slice(2));
-  verifyDeployment({
+  if (options['capture-functions']) {
+    captureFunctionRevisions({
+      functionNames: options['capture-functions'],
+      projectId: options.project,
+      region: options.region || undefined,
+    }).then(async (revisions) => {
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(options.output, `${JSON.stringify(revisions, null, 2)}\n`, 'utf8');
+      console.log('Pre-deploy Function revisions captured.');
+    }).catch((error) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    });
+  } else {
+    const { readFile } = await import('node:fs/promises');
+    const previousFunctionRevisions = options['function-revisions-file']
+      ? JSON.parse(await readFile(options['function-revisions-file'], 'utf8'))
+      : undefined;
+    verifyDeployment({
     targets: options.targets,
     projectId: options.project,
     expectedVersion: options.version,
     hostingUrl: options['hosting-url'] || undefined,
     region: options.region || undefined,
+    functionNames: options['function-names'] || '',
+    previousFunctionRevisions,
   }).then(() => {
     console.log('Deployment verification passed.');
   }).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   });
+  }
 }
