@@ -234,6 +234,14 @@ it('skips proven documentation, test, and tooling-only changes', () => {
   expect(formatGitHubOutputs(result)).toContain('has_targets=false');
 });
 
+it('runs render verification for the known performance budget without selecting Firebase surfaces', () => {
+  const result = classifyChangedFiles(['config/render-performance-baseline.json']);
+
+  expect(result.targets).toEqual([]);
+  expect(result.unknownFiles).toEqual([]);
+  expect(result.riskGates).toMatchObject({ render: true, webBuild: true });
+});
+
 it('fails closed to all surfaces for an unknown changed file', () => {
   const result = classifyChangedFiles(['.env.production']);
 

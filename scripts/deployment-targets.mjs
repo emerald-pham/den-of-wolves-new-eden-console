@@ -24,6 +24,7 @@ const FIRESTORE_FILES = new Set([
 
 const TOOLING_ONLY_FILES = new Set([
   'docs/implementation-prompts.json',
+  'config/render-performance-baseline.json',
 ]);
 
 // Keep this dependency map explicit. When a shared helper changes, deploy every
