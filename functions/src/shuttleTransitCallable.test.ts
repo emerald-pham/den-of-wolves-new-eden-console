@@ -43,7 +43,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
-    constructor(readonly code: string, message: string) { super(message); }
+    constructor(readonly code: string, message: string, readonly details?: unknown) { super(message); }
   },
   onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
 }));
@@ -278,6 +278,96 @@ it('fails closed when a revisioned transit has no matching private chain', async
     code: 'failed-precondition',
   });
   expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).not.toHaveProperty('routeLegs');
+});
+
+it('returns the fresh authoritative transit when a competing begin wins without writing again', async () => {
+  await beginShuttleTransit.run(request(command));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+
+  const failure = await beginShuttleTransit.run(request({
+    ...command, requestId: 'transit-lost-race',
+  })).catch((cause: unknown) => cause as { details?: unknown });
+  expect(failure).toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'in-transit',
+          transit: { transitRequestId: 'transit-1', revision: 1 },
+        },
+      },
+    },
+  });
+  const current = (failure.details as { movementConflict: { current: { transit: Fields } } })
+    .movementConflict.current.transit;
+  expect(current).not.toHaveProperty('originShipId');
+  expect(current).not.toHaveProperty('originDepartedAt');
+  expect(current).not.toHaveProperty('routeLegs');
+  expect(current).not.toHaveProperty('originPosition');
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).not.toHaveProperty('routeLegs');
+});
+
+it('returns the current transit for a stale retarget identity without writing or creating an event', async () => {
+  await beginShuttleTransit.run(request(command));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length;
+
+  await expect(retargetShuttleTransit.run(request({
+    sessionId: 's1', requestId: 'retarget-stale-trip', shuttleId: 'starlight',
+    transitRequestId: 'old-transit', destinationShipId: 'dione',
+    expectedControlRevision: 0, expectedCycle: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'in-transit',
+          transit: { transitRequestId: 'transit-1', revision: 1 },
+        },
+      },
+    },
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
+  expect([...mock.documents.keys()].some((path) => path.includes('/events/shuttle-retarget-'))).toBe(false);
+});
+
+it('returns the current host when arrival wins before a stale retarget, without writing', async () => {
+  await beginShuttleTransit.run(request(command));
+  mock.documents.delete('sessions/s1/shuttleDepartures/starlight');
+  mock.documents.delete('sessions/s1/shuttleTransitChains/starlight');
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleDockings = [
+    ...(session.shuttleDockings as Fields[]),
+    { shuttleId: 'starlight', shipId: 'icebreaker', dockedAt: '2026-09-23T12:00:00.000Z' },
+  ];
+  mock.set.mockClear();
+  mock.update.mockClear();
+  mock.create.mockClear();
+
+  await expect(retargetShuttleTransit.run(request({
+    sessionId: 's1', requestId: 'retarget-after-arrival', shuttleId: 'starlight',
+    transitRequestId: 'transit-1', destinationShipId: 'dione',
+    expectedControlRevision: 0, expectedCycle: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'docked',
+          docking: { shuttleId: 'starlight', shipId: 'icebreaker' },
+        },
+      },
+    },
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.create).not.toHaveBeenCalled();
 });
 
 it('fails closed when the private chain identity does not match the public transit', async () => {

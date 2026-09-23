@@ -49,7 +49,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
-    constructor(readonly code: string, message: string) { super(message); }
+    constructor(readonly code: string, message: string, readonly details?: unknown) { super(message); }
   },
   onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
 }));
@@ -57,7 +57,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { requestShuttleDeparture } from './index';
+import { beginShuttleTransit, requestShuttleDeparture } from './index';
 
 const command = {
   sessionId: 's1', requestId: 'depart-1', shuttleId: 'starlight',
@@ -206,7 +206,7 @@ it('rejects an SNN departure request at the restricted Press deadline while park
   }
 });
 
-it('allows only one pending Coordination move for the current holder and cycle', async () => {
+it('returns the current pending move when a second departure request loses', async () => {
   await expect(requestShuttleDeparture.run(request(command))).resolves.toMatchObject({
     status: 'requested', holderUid: 'holder', originShipId: 'aegis',
     destinationShipId: 'icebreaker', cycle: 2, controlRevision: 0,
@@ -215,12 +215,54 @@ it('allows only one pending Coordination move for the current holder and cycle',
 
   await expect(requestShuttleDeparture.run(request({
     ...command, requestId: 'depart-2',
-  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'requested',
+          docking: { shuttleId: 'starlight', shipId: 'aegis' },
+          departure: { requestId: 'depart-1', originShipId: 'aegis', destinationShipId: 'icebreaker' },
+        },
+      },
+    },
+  });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
   expect(mock.documents.get('sessions/s1/shuttleDepartures/starlight')).toMatchObject({
     requestId: 'depart-1', holderUid: 'holder', originShipId: 'aegis',
     destinationShipId: 'icebreaker', cycle: 2,
   });
+});
+
+it('returns the current transit when a departure request loses to a competing begin', async () => {
+  await requestShuttleDeparture.run(request(command));
+  await beginShuttleTransit.run(request({
+    sessionId: 's1', requestId: 'transit-won', shuttleId: 'starlight',
+    expectedDepartureRequestId: 'depart-1', expectedControlRevision: 0, expectedCycle: 2,
+  }));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+
+  await expect(requestShuttleDeparture.run(request({
+    ...command, requestId: 'depart-after-transit',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: {
+      commandError: 'conflict',
+      movementConflict: {
+        type: 'shuttle-movement-conflict', sessionId: 's1', shuttleId: 'starlight',
+        current: {
+          status: 'in-transit',
+          transit: { transitRequestId: 'transit-won', revision: 1 },
+        },
+      },
+    },
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  const current = mock.documents.get('sessions/s1/shuttleDepartures/starlight')!;
+  expect(current).not.toHaveProperty('originShipId');
+  expect(current).not.toHaveProperty('routeLegs');
 });
 
 it('accepts departure while another enabled shuttle is already off the docking ledger', async () => {

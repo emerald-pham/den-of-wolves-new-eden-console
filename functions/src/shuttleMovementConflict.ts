@@ -1,7 +1,9 @@
 import { shuttleHostIsAllowed } from './craftOwnership';
 import { parseShuttleDepartures, type ShuttleDepartureRequestState } from './shuttleDeparture';
 import {
+  parseShuttleTransitAuthority,
   parseShuttleTransitPublic,
+  toPublicShuttleTransit,
   type ShuttleTransitPublicState,
 } from './shuttleTransit';
 
@@ -35,6 +37,10 @@ function safeDocking(value: unknown, shuttleId: string): ShuttleMovementConflict
       !shuttleHostIsAllowed(shuttleId, docking.shipId) || typeof docking.dockedAt !== 'string' ||
       docking.dockedAt.length === 0) return null;
   return { shuttleId, shipId: docking.shipId, dockedAt: docking.dockedAt };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Build only a validated member-safe current location; malformed state stays a generic conflict. */
@@ -81,6 +87,43 @@ export function shuttleMovementConflictResult(input: Readonly<{
     shuttleId: input.shuttleId,
     current: { status: 'requested', docking, departure },
   };
+}
+
+/** Project only the current member-readable movement bound to its server authority and audience. */
+export function shuttleMovementConflictForCurrentState(input: Readonly<{
+  sessionId: string;
+  shuttleId: string;
+  actorFleetGroupId: unknown;
+  dockings: unknown;
+  movement?: unknown;
+  transitChain?: unknown;
+}>): ShuttleMovementConflictResult | null {
+  if (isRecord(input.movement) && input.movement.status === 'in-transit') {
+    const authority = parseShuttleTransitAuthority(input.movement, input.transitChain, input.shuttleId);
+    if (!authority || authority.transit.fleetGroupId !== input.actorFleetGroupId) return null;
+    return shuttleMovementConflictResult({
+      sessionId: input.sessionId,
+      shuttleId: input.shuttleId,
+      transit: toPublicShuttleTransit(authority.transit),
+    });
+  }
+
+  if (input.movement !== undefined && input.movement !== null &&
+      (!isRecord(input.movement) || input.movement.status !== 'requested' ||
+        input.movement.fleetGroupId !== input.actorFleetGroupId)) return null;
+  const matchingDockings = Array.isArray(input.dockings)
+    ? input.dockings.filter((docking) =>
+      isRecord(docking) && docking.shuttleId === input.shuttleId)
+    : [];
+  if (matchingDockings.length !== 1) return null;
+  return shuttleMovementConflictResult({
+    sessionId: input.sessionId,
+    shuttleId: input.shuttleId,
+    docking: matchingDockings[0],
+    ...(isRecord(input.movement) && input.movement.status === 'requested'
+      ? { departure: input.movement }
+      : {}),
+  });
 }
 
 export function shuttleMovementConflictDetails(

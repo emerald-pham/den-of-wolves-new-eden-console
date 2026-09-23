@@ -297,6 +297,10 @@ import {
 } from './shuttleTransit';
 import { createCompleteShuttleArrivalCallable } from './shuttleArrivalCallable';
 import {
+  shuttleMovementConflictDetails,
+  shuttleMovementConflictForCurrentState,
+} from './shuttleMovementConflict';
+import {
   resolveWolfAttackShuttleParking,
   type WolfAttackParkingDecision,
 } from './wolfAttackParking';
@@ -7063,6 +7067,21 @@ type ShuttleDepartureReply = Omit<ShuttleDepartureRequestState, 'status'> & Read
   sessionId: string;
 }>;
 
+function shuttleMovementConflictErrorForCurrentState(input: Readonly<{
+  message: string;
+  sessionId: string;
+  shuttleId: string;
+  actorFleetGroupId: unknown;
+  dockings: unknown;
+  movement?: unknown;
+  transitChain?: unknown;
+}>): HttpsError {
+  const conflict = shuttleMovementConflictForCurrentState(input);
+  return conflict
+    ? new HttpsError('failed-precondition', input.message, shuttleMovementConflictDetails(conflict))
+    : commandError('failed-precondition', input.message, 'conflict');
+}
+
 function isShuttleDepartureReply(value: unknown, sessionId: string): value is ShuttleDepartureReply {
   if (!isRecord(value)) return false;
   const state = { ...value };
@@ -7123,11 +7142,12 @@ export const requestShuttleDeparture = onCall<{
   const departureRef = db.doc(
     `sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`,
   );
+  const transitChainRef = db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${data.shuttleId}`);
   const requestedAt = new Date().toISOString();
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, attackState, departure] = await Promise.all([
+    const [session, actor, receipt, attackState, departure, transitChainSnapshot] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(attackStateRef),
-      tx.get(departureRef),
+      tx.get(departureRef), tx.get(transitChainRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -7168,6 +7188,28 @@ export const requestShuttleDeparture = onCall<{
     const departures = parseShuttleDepartures(
       departure.exists ? { [data.shuttleId]: departure.data() } : undefined,
     );
+    const storedMovement = departure.exists ? departure.data() : undefined;
+    if (departures?.[data.shuttleId]) {
+      throw shuttleMovementConflictErrorForCurrentState({
+        message: 'This shuttle already has a pending departure request.',
+        sessionId: data.sessionId,
+        shuttleId: data.shuttleId,
+        actorFleetGroupId: groupId,
+        dockings: rawDockings,
+        movement: storedMovement,
+      });
+    }
+    if (isRecord(storedMovement) && storedMovement.status === 'in-transit') {
+      throw shuttleMovementConflictErrorForCurrentState({
+        message: 'The shuttle is already in transit.',
+        sessionId: data.sessionId,
+        shuttleId: data.shuttleId,
+        actorFleetGroupId: groupId,
+        dockings: rawDockings,
+        movement: storedMovement,
+        transitChain: transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+      });
+    }
     const phase = turnPhaseState(session.get('turnPhase'));
     const currentCycle = session.get('currentTurn');
     if (!Array.isArray(activeVesselIds) || activeVesselIds.length === 0 ||
@@ -7324,6 +7366,30 @@ export const beginShuttleTransit = onCall<{
     const departures = parseShuttleDepartures(
       transitSnapshot.exists ? { [data.shuttleId]: transitSnapshot.data() } : undefined,
     );
+    const storedMovement = transitSnapshot.exists ? transitSnapshot.data() : undefined;
+    const actorFleetGroupId = actor.get('fleetGroupId');
+    if (isRecord(storedMovement) && storedMovement.status === 'in-transit') {
+      throw shuttleMovementConflictErrorForCurrentState({
+        message: 'The shuttle has already entered transit.',
+        sessionId: data.sessionId,
+        shuttleId: data.shuttleId,
+        actorFleetGroupId,
+        dockings: rawDockings,
+        movement: storedMovement,
+        transitChain: transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+      });
+    }
+    if (departures?.[data.shuttleId] &&
+        departures[data.shuttleId]!.requestId !== data.expectedDepartureRequestId) {
+      throw shuttleMovementConflictErrorForCurrentState({
+        message: 'The pending shuttle departure changed before transit began.',
+        sessionId: data.sessionId,
+        shuttleId: data.shuttleId,
+        actorFleetGroupId,
+        dockings: rawDockings,
+        movement: storedMovement,
+      });
+    }
     const phase = turnPhaseState(session.get('turnPhase'));
     const currentCycle = session.get('currentTurn');
     if (!group || group.id !== groupId ||
@@ -7502,7 +7568,15 @@ export const retargetShuttleTransit = onCall<{
       : null;
     const transit = authority?.transit;
     if (!transit || transit.transitRequestId !== data.transitRequestId) {
-      throw commandError('failed-precondition', 'The shuttle transit is no longer available.', 'conflict');
+      throw shuttleMovementConflictErrorForCurrentState({
+        message: 'The shuttle transit is no longer available.',
+        sessionId: data.sessionId,
+        shuttleId: data.shuttleId,
+        actorFleetGroupId: actor.get('fleetGroupId'),
+        dockings: session.get('shuttleDockings'),
+        movement: transitSnapshot.exists ? transitSnapshot.data() : undefined,
+        transitChain: transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
+      });
     }
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId !== transit.fleetGroupId) {

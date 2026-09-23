@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
-import { enterShuttleTransit, toPublicShuttleTransit } from './shuttleTransit';
-import { shuttleMovementConflictDetails, shuttleMovementConflictResult } from './shuttleMovementConflict';
+import { enterShuttleTransit, toPublicShuttleTransit, toShuttleTransitChain } from './shuttleTransit';
+import {
+  shuttleMovementConflictDetails,
+  shuttleMovementConflictForCurrentState,
+  shuttleMovementConflictResult,
+} from './shuttleMovementConflict';
 
 const docking = { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' };
 const departure = {
@@ -38,6 +42,33 @@ it('projects only the public transit leg and excludes private route authority', 
   expect(result.current.transit).not.toHaveProperty('originShipId');
   expect(result.current.transit).not.toHaveProperty('routeLegs');
   expect(result.current.transit).not.toHaveProperty('originPosition');
+});
+
+it('projects current transit only for its fleet audience and a matching server chain', () => {
+  const input = {
+    sessionId: 's1', shuttleId: 'starlight', actorFleetGroupId: 'fleet-1',
+    dockings: [], movement: toPublicShuttleTransit(transit), transitChain: toShuttleTransitChain(transit),
+  };
+  const result = shuttleMovementConflictForCurrentState(input);
+  expect(result?.current.status).toBe('in-transit');
+  if (result?.current.status !== 'in-transit') throw new Error('Expected a current transit projection.');
+  expect(result.current.transit).not.toHaveProperty('routeLegs');
+  expect(result.current.transit).not.toHaveProperty('originShipId');
+  expect(shuttleMovementConflictForCurrentState({ ...input, actorFleetGroupId: 'other-fleet' })).toBeNull();
+  expect(shuttleMovementConflictForCurrentState({
+    ...input, transitChain: { ...input.transitChain, revision: input.transitChain.revision + 1 },
+  })).toBeNull();
+});
+
+it('projects pending requests only to the same fleet audience', () => {
+  const input = {
+    sessionId: 's1', shuttleId: 'starlight', actorFleetGroupId: 'fleet-1',
+    dockings: [docking], movement: departure,
+  };
+  expect(shuttleMovementConflictForCurrentState(input)?.current).toMatchObject({
+    status: 'requested', docking, departure,
+  });
+  expect(shuttleMovementConflictForCurrentState({ ...input, actorFleetGroupId: 'other-fleet' })).toBeNull();
 });
 
 it.each([
