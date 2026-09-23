@@ -195,7 +195,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 097 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Audit the emergency timer pause slice. |
 | 098 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Make phase expiry idempotent. |
 | 099 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Gate Team actions. |
-| 100 | PRESERVE | done | 113;321;212 | none | none | none | none | none | none | none | E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX | M2 | Gate Coordination actions. |
+| 100 | PRESERVE | done | 113;321 | none | none | none | none | none | none | none | E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX | M2 | Gate Coordination actions. |
 | 101 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Announce Team completion. |
 | 102 | PRESERVE | done | none | none | none | none | none | none | none | none | E-102-COORDINATION-COMPLETION | M2 | Announce Coordination completion. |
 | 103 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Initialize the next turn. |
@@ -323,10 +323,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 208 | NEW | done | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-208;E-198-230-PRODUCTION | M3;M5 | Resolve Shepherd Water Reclamation. |
 | 209 | NEW | done | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-209;E-198-230-PRODUCTION | M3;M5 | Resolve both Shepherd Advanced Hydroponics consoles. |
 | 210 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-210 | M3;M5 | Audit the Shepherd Jump Drive. |
-| 211 | NEW | done | 165;204;267 | none | none | none | none | none | none | none | E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS | M3;M5 | Encode Endeavour console-upgrade research tracks. |
-| 212 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE | M3;M5 | Enforce Endeavour research cadence. |
-| 213 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-213;E-213-ECM-DEVICE | M3;M5 | Build and use the ECM Device. |
-| 214 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE | M3;M5 | Build and use the Wolf Agent Detector. |
+| 211 | NEW | partial | 165;204;267 | none | none | none | none | none | none | none | E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS | M3;M5 | Encode Endeavour console-upgrade research tracks. |
+| 212 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE | M3;M5 | Enforce Endeavour research cadence. |
+| 213 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-213;E-213-ECM-DEVICE | M3;M5 | Build and use the ECM Device. |
+| 214 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE | M3;M5 | Build and use the Wolf Agent Detector. |
 | 215 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-215;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Shepherd Captain workspace. |
 | 215a | NEW | done | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215A;E-215A-SHEPHERD-ENGINEER-WORKSPACE | M3;M5 | Complete the Shepherd Engineer workspace. |
 | 215b | NEW | missing | 166;204;211;212;213;214;267;321;325;328;391;401;410;422;508 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |

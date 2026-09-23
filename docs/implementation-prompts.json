@@ -8658,7 +8658,7 @@
       "evidenceIds": "E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "113;321;212",
+      "hardPromptPrerequisites": "113;321",
       "id": "100",
       "milestoneHints": "M2",
       "relatedConsumes": "none",
@@ -11679,7 +11679,7 @@
         "acceptance": "each track advances the left-most box and exposes the correct current material cost.",
         "title": "Encode Endeavour console-upgrade research tracks."
       },
-      "description": "The server research contract now encodes all fourteen Endeavour tracks with their exact ordered material costs, including the four-box Wolf Agent Detector track and the printed Command and Control sequence. One pure transition validates the entire progress record, crosses exactly the left-most remaining box, exposes the prior and next current material costs, preserves unrelated tracks, and rejects unknown, fractional, negative, overrun, or completed progress. Canonical ship-console lookup maps duplicate printed console ids to their shared research track and rejects unknown ship/system pairs. Research cadence, persistence, device effects, and material-spending field upgrades remain owned by Prompts 212–214 and 391.",
+      "description": "The server research contract now encodes all fourteen Endeavour tracks with their exact ordered material costs, including the four-box Wolf Agent Detector track and the printed Command and Control sequence. One pure transition validates the entire progress record, crosses exactly the left-most remaining box, exposes the prior and next current material costs, preserves unrelated tracks, and rejects unknown, fractional, negative, overrun, or completed progress. Canonical ship-console lookup maps duplicate printed console ids to their shared research track and rejects unknown ship/system pairs. Research cadence, persistence, device effects, and material-spending field upgrades remain owned by Prompts 212–214 and 391. No production Team action yet advances a research box; Prompt 211 remains partial until that transition is reachable and verified through the authoritative game path.",
       "evidenceIds": "E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11691,7 +11691,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "done",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -11702,7 +11702,7 @@
         "acceptance": "up to three distinct choices plus no more than two five-ore extras resolve per Team Phase.",
         "title": "Enforce Endeavour research cadence."
       },
-      "description": "The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. The resolver consumes the server phase policy, allowing this printed Team-phase exception while denying Coordination, missing phase, and unauthorized actor scopes. Persistence and client controls remain downstream; this non-feature contract does not mutate a session.",
+      "description": "The server cadence contract now records canonical cycle-and-revision research choices, advances Prompt 211 progress, permits at most three distinct standard tracks and two additional distinct tracks per cycle, and charges exactly five Shepherd ore for each additional choice. It preserves monotonic revisions across cycle rollover and rejects duplicate tracks across funding types, stale revisions, future-cycle state, insufficient or malformed ore, unknown funding/tracks, over-limit histories, malformed persisted state, and completed tracks before returning a new immutable result. The resolver consumes the server phase policy, allowing this printed Team-phase exception while denying Coordination, missing phase, and unauthorized actor scopes. Persistence and client controls remain downstream; this non-feature contract does not mutate a session. Prompt 212 remains partial until the authoritative writer, reachable Scientist control, and live cadence are verified.",
       "evidenceIds": "E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11714,7 +11714,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "done",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -11725,7 +11725,7 @@
         "acceptance": "the completed device reduces the owning group’s pursuit by three exactly once per allowed use.",
         "title": "Build and use the ECM Device."
       },
-      "description": "The pure server-domain ECM Device transition requires the canonical five-box research track to be complete, derives ownership from the one canonical fleet group containing Shepherd, and validates the complete private pursuit authority before use. Activation subtracts the fixed printed value of three from only that group, bounded at zero, preserves every other group, and moves the device through a revision-bound one-shot state so stale or repeated use cannot apply the effect twice. This closes Prompt 213's non-feature domain contract only: no callable, session transaction or persistence, actor or phase authorization, durable replay/event, projection, UI, deployment, or playable release is claimed here. Focused domain tests cover exact reduction, low-value bounds, ownership isolation, canonical group IDs, incomplete research, stale and repeated requests, and malformed authority.",
+      "description": "The pure server-domain ECM Device transition requires the canonical five-box research track to be complete, derives ownership from the one canonical fleet group containing Shepherd, and validates the complete private pursuit authority before use. Activation subtracts the fixed printed value of three from only that group, bounded at zero, preserves every other group, and moves the device through a revision-bound one-shot state so stale or repeated use cannot apply the effect twice. This implements Prompt 213's non-feature domain contract only: no callable, session transaction or persistence, actor or phase authorization, durable replay/event, projection, UI, deployment, or playable release is claimed here. Focused domain tests cover exact reduction, low-value bounds, ownership isolation, canonical group IDs, incomplete research, stale and repeated requests, and malformed authority. Prompt 213 remains partial until its authorized session transaction, client action, and live device effect are verified.",
       "evidenceIds": "E-AUDIT-213;E-213-ECM-DEVICE",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11737,7 +11737,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "done",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -11748,7 +11748,7 @@
         "acceptance": "the completed device permits up to three private server-randomized tests per cycle.",
         "title": "Build and use the Wolf Agent Detector."
       },
-      "description": "The pure server-domain Wolf Agent Detector allowance requires the canonical four-box research track to be complete and reserves at most three ordinal test slots per cycle. Its exact-key, revision-bound state resets the allowance on a later cycle, rejects stale, backward, malformed, over-limit, and unreachable histories, and stores no target identity or randomized result. This closes Prompt 214's non-feature device allowance contract only. Prompt 508 still owns target authority, private server randomness, approximate 80% accuracy, durable persistence and replay, private delivery, UI, deployment, and playable use; none of those are claimed here.",
+      "description": "The pure server-domain Wolf Agent Detector allowance requires the canonical four-box research track to be complete and reserves at most three ordinal test slots per cycle. Its exact-key, revision-bound state resets the allowance on a later cycle, rejects stale, backward, malformed, over-limit, and unreachable histories, and stores no target identity or randomized result. This implements Prompt 214's non-feature device allowance contract only. Prompt 508 still owns target authority, private server randomness, approximate 80% accuracy, durable persistence and replay, private delivery, UI, deployment, and playable use; none of those are claimed here. Prompt 214 remains partial until the private, authorized device path and live test allowance are verified.",
       "evidenceIds": "E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11760,7 +11760,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "done",
+      "status": "partial",
       "tag": "NEW"
     },
     {
