@@ -195,7 +195,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 097 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Audit the emergency timer pause slice. |
 | 098 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Make phase expiry idempotent. |
 | 099 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Gate Team actions. |
-| 100 | PRESERVE | done | 113;321 | none | none | none | none | none | none | none | E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX | M2 | Gate Coordination actions. |
+| 100 | PRESERVE | partial | 113;321;212 | none | none | none | none | none | none | none | E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX | M2 | Gate Coordination actions. |
 | 101 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Announce Team completion. |
 | 102 | PRESERVE | done | none | none | none | none | none | none | none | none | E-102-COORDINATION-COMPLETION | M2 | Announce Coordination completion. |
 | 103 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Initialize the next turn. |
@@ -259,7 +259,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 148 | NEW | done | 145 | none | none | none | none | none | none | none | E-AUDIT-148;E-148-PARKING-RETENTION | M2 | Preserve post-attack parking. |
 | 149 | NEW | done | 143 | none | none | none | none | none | none | none | E-AUDIT-149;E-149-150-531-QUARANTINE-DOCKING | M2 | Restrict quarantined docking. |
 | 150 | NEW | done | 149 | none | none | none | none | none | none | none | E-AUDIT-150;E-149-150-531-QUARANTINE-DOCKING | M2 | Prevent quarantine reset exploits. |
-| 151 | NEW | done | 286 | none | none | none | none | none | none | none | E-AUDIT-151;E-151-COMMUNICATION-BOUNDARY | M2 | Block split-fleet communications. |
+| 151 | NEW | partial | 286 | none | none | none | none | none | none | none | E-AUDIT-151;E-151-COMMUNICATION-BOUNDARY | M2 | Block split-fleet communications. |
 | 152 | NEW | missing | 337;338 | none | none | none | none | none | none | none | E-AUDIT-152 | M2 | Redact split-fleet shuttle state. |
 | 153 | NEW | missing | 143;336 | none | none | none | none | none | none | none | E-AUDIT-153 | M2 | Constrain cross-group docking. |
 | 154 | NEW | missing | 142;141;145;149;336;414 | none | none | none | none | none | none | none | E-AUDIT-154 | M2 | Model airspace transitions. |
@@ -347,7 +347,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 228 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-228;E-198-230-PRODUCTION | M3;M5 | Resolve Refinery 124 Hydroponics. |
 | 229 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-229;E-198-230-PRODUCTION | M3;M5 | Resolve Refinery 124 Water Reclamation. |
 | 230 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-230;E-198-230-PRODUCTION | M3;M5 | Resolve both Fuel Refinery consoles. |
-| 231 | NEW | done | 182;273 | none | none | none | none | none | none | none | E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE | M3;M5 | Gate the Refinery Fighter Bay. |
+| 231 | NEW | partial | 182;273 | none | none | none | none | none | none | none | E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE | M3;M5 | Gate the Refinery Fighter Bay. |
 | 232 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-232 | M3;M5 | Audit the Refinery 124 Jump Drive. |
 | 233 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-233;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Refinery 124 Captain workspace. |
 | 233a | NEW | done | 166;224;230;271;361;377;383 | none | none | none | none | none | none | none | E-233A-REFINERY-ENGINEER-WORKSPACE;E-198-230-PRODUCTION;E-164-377-CARGO-AUTHORITY;E-383-CHACAU-REPAIRS;E-AUDIT-224;E-AUDIT-271;E-AUDIT-233A | M3;M5 | Complete the Refinery Engineer workspace. |
@@ -357,18 +357,18 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 235 | EXTEND | done | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-235;E-235-VERIFIED | M3;M5;M6 | Complete Gorgoneion identity and maintenance. |
 | 236 | NEW | missing | 234;287-304 | none | none | none | none | none | none | none | E-AUDIT-236 | M3;M5;M6 | Resolve the Gorgoneion Jump Drive. |
 | 237 | NEW | missing | 234;401;402 | none | none | OWNER-GORGONEION-ADMISSION-PREDEAL-LIFECYCLE | none | none | none | 166;278 | E-AUDIT-237 | M3;M5;M6 | Resolve Gorgoneion Mission Support. |
-| 238 | NEW | done | 234;361 | none | none | none | none | none | none | none | E-AUDIT-238;E-238-GORGONEION-REPAIR-DRONES | M3;M5;M6 | Resolve Gorgoneion Repair Drones. |
+| 238 | NEW | partial | 234;361 | none | none | none | none | none | none | none | E-AUDIT-238;E-238-GORGONEION-REPAIR-DRONES | M3;M5;M6 | Resolve Gorgoneion Repair Drones. |
 | 239 | NEW | done | 234;165 | none | none | none | none | none | none | none | E-AUDIT-239;E-239-MISSILE-ARRAY-REGISTRATION | M3;M5;M6 | Register the Gorgoneion Missile Array. |
 | 240 | NEW | done | 234;165 | none | none | none | none | none | none | none | E-AUDIT-240;E-240-FORCE-FIELD-REGISTRATION | M3;M5;M6 | Register the Gorgoneion Force Field Projector. |
 | 241 | NEW | done | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-241;E-241-VERIFIED | M3;M5;M6 | Complete base Capybara identity and maintenance. |
 | 241a | NEW | missing | 234;287-304 | none | none | none | none | none | none | none | E-AUDIT-241A | M3;M5;M6 | Resolve the base Capybara Jump Drive. |
 | 241b | NEW | missing | 241;401 | none | none | none | none | none | none | none | E-AUDIT-241B | M3;M5;M6 | Resolve base Capybara Bulk Haulage. |
-| 241c | NEW | done | 241;164 | none | none | none | none | none | none | none | E-AUDIT-241C;E-241C-BASE-CAPYBARA-CARGO | M3;M5;M6 | Resolve base Capybara Cargo Transfer. |
+| 241c | NEW | partial | 241;164 | none | none | none | none | none | none | none | E-AUDIT-241C;E-241C-BASE-CAPYBARA-CARGO | M3;M5;M6 | Resolve base Capybara Cargo Transfer. |
 | 241d | NEW | done | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241D;E-241D-VERIFIED | M3;M5;M6 | Resolve base Capybara food and water production. |
 | 241e | NEW | done | 241;122;125 | none | none | none | none | none | none | none | E-AUDIT-241E;E-241E-VERIFIED | M3;M5;M6 | Resolve the base Capybara Fuel Processor. |
 | 242 | NEW | done | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-242;E-242-VERIFIED | M3;M5;M6 | Complete Warrior identity and maintenance. |
 | 243 | NEW | missing | 242;401;402;407;413 | none | none | none | none | none | none | none | E-AUDIT-243 | M3;M5;M6 | Resolve Warrior Reclamator. |
-| 244 | NEW | done | 234;361 | none | none | none | none | none | none | none | E-AUDIT-244;E-244-WARRIOR-REPAIR-DRONES | M3;M5;M6 | Resolve Warrior Repair Drones. |
+| 244 | NEW | partial | 234;361 | none | none | none | none | none | none | none | E-AUDIT-244;E-244-WARRIOR-REPAIR-DRONES | M3;M5;M6 | Resolve Warrior Repair Drones. |
 | 245 | NEW | done | 242 | none | none | none | none | none | none | none | E-AUDIT-245;E-245-VERIFIED | M3;M5;M6 | Register Warrior Salvage Drones. |
 | 246 | NEW | done | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-246;E-246-VERIFIED | M3;M5;M6 | Complete Vulcan identity and maintenance. |
 | 247 | NEW | done | 246;182 | none | none | none | none | none | none | none | E-AUDIT-247;E-247-LASER-CANNON-REGISTRATION | M3;M5;M6 | Register the Vulcan Laser Cannon. |
@@ -434,7 +434,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 304 | EXTEND | missing | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304 | M4;M5 | Reconcile jump retries. |
 | 305 | NEW | done | 103;485 | none | none | none | none | none | none | none | E-AUDIT-305;E-305-GROUP-FOUNDATION;E-305-CYCLE-PURSUIT | M4;M5 | Advance pursuit each cycle. |
 | 306 | NEW | done | 281;285;305 | none | none | none | none | none | none | none | E-AUDIT-306;E-306-CHART-DEPTH-PURSUIT | M4;M5 | Reduce pursuit by chart depth. |
-| 307 | NEW | done | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION | M4;M5 | Isolate pursuit by fleet group. |
+| 307 | NEW | partial | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION | M4;M5 | Isolate pursuit by fleet group. |
 | 308 | NEW | done | 306 | none | none | none | none | none | none | none | E-AUDIT-308;E-308-ION-PURSUIT | M4;M5 | Apply Ion Nebula pursuit behavior. |
 | 309 | NEW | done | 306 | none | none | none | none | none | none | none | E-AUDIT-309;E-309-LEVEL5-PURSUIT | M4;M5 | Apply the Level 5 Planet exception. |
 | 310 | NEW | done | 313;315 | none | none | none | none | none | none | none | E-AUDIT-310;E-310-UNSTABLE-STAR-REPEAT | M4;M5 | Make Unstable Star missions repeatable. |
@@ -448,15 +448,15 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 318 | NEW | done | 313 | none | none | none | none | none | none | none | E-AUDIT-318;E-318-CANDIDATE-DISCOVERY | M4;M5 | Track candidate discovery. |
 | 319 | NEW | done | 318 | none | none | none | none | none | none | none | E-AUDIT-319;E-319-CANDIDATE-PLAN-VERIFIED | M4;M5 | Surface the Cycle 6 planning checkpoint. |
 | 320 | PROVE | missing | 281;282;294;313;316 | none | none | none | none | none | none | none | E-AUDIT-320 | M4;M5 | Run the jump-and-system scenario. |
-| 321 | NEW | done | 260;267;269;280 | none | none | none | none | none | none | none | E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS | M4;M5;M8 | Define scout entitlements. |
-| 322 | NEW | done | 321;177 | none | none | none | none | none | none | none | E-AUDIT-322;E-322-STARLIGHT-FIRST-SCAN | M4;M5;M8 | Resolve Starlight's first scan. |
-| 323 | NEW | done | 321;322 | none | none | none | none | none | none | none | E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN | M4;M5;M8 | Resolve Starlight's fuelled second scan. |
-| 324 | NEW | done | 321;216 | none | none | none | none | none | none | none | E-AUDIT-324;E-324-HUMMINGBIRD-SCAN | M4;M5;M8 | Resolve Hummingbird scouting. |
-| 325 | NEW | done | 321;267 | none | none | none | none | none | none | none | E-AUDIT-325;E-325-ENDEAVOUR-SCAN | M4;M5;M8 | Resolve Endeavour scouting. |
-| 326 | NEW | done | 321;280;177 | none | none | none | none | none | none | none | E-AUDIT-326;E-326-COMMS-SCAN | M4;M5;M8 | Resolve Comms Officer scouting. |
-| 327 | PROVE | done | 321;285 | none | none | none | none | none | none | none | E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY | M4;M5;M8 | Measure scout range from current authority. |
-| 328 | NEW | done | 321;327;006 | none | none | none | none | none | none | none | E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT | M4;M5;M8 | Deliver scout results privately. |
-| 329 | NEW | done | 283;328 | none | none | none | none | none | none | none | E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL | M4;M5;M8 | Reveal a chart result as facilitator. |
+| 321 | NEW | partial | 260;267;269;280 | none | none | none | none | none | none | none | E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS | M4;M5;M8 | Define scout entitlements. |
+| 322 | NEW | partial | 321;177 | none | none | none | none | none | none | none | E-AUDIT-322;E-322-STARLIGHT-FIRST-SCAN | M4;M5;M8 | Resolve Starlight's first scan. |
+| 323 | NEW | partial | 321;322 | none | none | none | none | none | none | none | E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN | M4;M5;M8 | Resolve Starlight's fuelled second scan. |
+| 324 | NEW | partial | 321;216 | none | none | none | none | none | none | none | E-AUDIT-324;E-324-HUMMINGBIRD-SCAN | M4;M5;M8 | Resolve Hummingbird scouting. |
+| 325 | NEW | partial | 321;267 | none | none | none | none | none | none | none | E-AUDIT-325;E-325-ENDEAVOUR-SCAN | M4;M5;M8 | Resolve Endeavour scouting. |
+| 326 | NEW | partial | 321;280;177 | none | none | none | none | none | none | none | E-AUDIT-326;E-326-COMMS-SCAN | M4;M5;M8 | Resolve Comms Officer scouting. |
+| 327 | PROVE | partial | 321;285 | none | none | none | none | none | none | none | E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY | M4;M5;M8 | Measure scout range from current authority. |
+| 328 | NEW | partial | 321;327;006 | none | none | none | none | none | none | none | E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT | M4;M5;M8 | Deliver scout results privately. |
+| 329 | NEW | partial | 283;328 | none | none | none | none | none | none | none | E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL | M4;M5;M8 | Reveal a chart result as facilitator. |
 | 330 | NEW | missing | 313;328 | none | none | none | none | none | none | none | E-AUDIT-330 | M4;M5;M8 | Persist player discovery notes safely. |
 | 331 | PROVE | missing | 167;328;330 | none | none | none | none | none | none | none | E-AUDIT-331 | M4;M5;M8 | Audit scouting events. |
 | 332 | NEW | missing | 313;328 | none | none | none | none | none | none | none | E-AUDIT-332 | M4;M5;M8 | Accumulate Deep Nebula scans privately. |
@@ -505,7 +505,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 375 | NEW | done | 361;369 | none | none | none | none | none | none | none | E-AUDIT-375;E-375-ORDINARY-BAY-CAPACITY-VERIFIED | M7 | Enforce ordinary bay capacity. |
 | 376 | NEW | done | 126;369 | none | none | none | none | none | none | none | E-AUDIT-376;E-376-AEGIS-DUAL-BAY-CAPACITY-VERIFIED | M7 | Enforce AEGIS dual-bay capacity. |
 | 377 | NEW | done | 361;363 | none | none | none | none | none | none | 164 | E-AUDIT-377;E-164-377-CARGO-AUTHORITY;E-164-TRANSFER-RELATED | M7 | Transfer permitted shuttle cargo. |
-| 378 | NEW | done | 377 | none | none | none | none | none | none | none | E-AUDIT-378;E-378-SECURITY-TEAM-LOCATION | M7 | Preserve security-team semantics. |
+| 378 | NEW | partial | 377 | none | none | none | none | none | none | none | E-AUDIT-378;E-378-SECURITY-TEAM-LOCATION | M7 | Preserve security-team semantics. |
 | 379 | NEW | done | 377 | none | none | none | none | none | none | none | E-AUDIT-379;E-379-INVALID-CARGO-MOVES-DENIED | M7 | Deny invalid cargo moves. |
 | 380 | NEW | partial | 365;366;367 | none | none | none | none | none | none | none | E-AUDIT-380;E-380-SHUTTLE-MOVEMENT-CONFLICT | M7 | Reconcile movement conflicts. |
 | 381 | NEW | done | 263;361 | none | none | none | none | none | none | none | E-AUDIT-381;E-381-PHILIA-REPAIRS | M7 | Resolve Philia repairs. |

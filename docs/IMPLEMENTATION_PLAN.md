@@ -2193,7 +2193,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 097
 - [x] Prompt 098
 - [x] Prompt 099
-- [x] Prompt 100
+- [ ] Prompt 100
 - [x] Prompt 101
 - [x] Prompt 102
 - [x] Prompt 103
@@ -2257,7 +2257,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 148
 - [x] Prompt 149
 - [x] Prompt 150
-- [x] Prompt 151
+- [ ] Prompt 151
 - [ ] Prompt 152
 - [ ] Prompt 153
 - [ ] Prompt 154
@@ -2345,7 +2345,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 228
 - [x] Prompt 229
 - [x] Prompt 230
-- [x] Prompt 231
+- [ ] Prompt 231
 - [ ] Prompt 232
 - [x] Prompt 233
 - [x] Prompt 233a
@@ -2355,18 +2355,18 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 235
 - [ ] Prompt 236
 - [ ] Prompt 237
-- [x] Prompt 238
+- [ ] Prompt 238
 - [x] Prompt 239
 - [x] Prompt 240
 - [x] Prompt 241
 - [ ] Prompt 241a
 - [ ] Prompt 241b
-- [x] Prompt 241c
+- [ ] Prompt 241c
 - [x] Prompt 241d
 - [x] Prompt 241e
 - [x] Prompt 242
 - [ ] Prompt 243
-- [x] Prompt 244
+- [ ] Prompt 244
 - [x] Prompt 245
 - [x] Prompt 246
 - [x] Prompt 247
@@ -2432,7 +2432,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 304
 - [x] Prompt 305
 - [x] Prompt 306
-- [x] Prompt 307
+- [ ] Prompt 307
 - [x] Prompt 308
 - [x] Prompt 309
 - [x] Prompt 310
@@ -2446,15 +2446,15 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 318
 - [x] Prompt 319
 - [ ] Prompt 320
-- [x] Prompt 321
-- [x] Prompt 322
-- [x] Prompt 323
-- [x] Prompt 324
-- [x] Prompt 325
-- [x] Prompt 326
-- [x] Prompt 327
-- [x] Prompt 328
-- [x] Prompt 329
+- [ ] Prompt 321
+- [ ] Prompt 322
+- [ ] Prompt 323
+- [ ] Prompt 324
+- [ ] Prompt 325
+- [ ] Prompt 326
+- [ ] Prompt 327
+- [ ] Prompt 328
+- [ ] Prompt 329
 - [ ] Prompt 330
 - [ ] Prompt 331
 - [ ] Prompt 332
@@ -2503,7 +2503,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 375
 - [x] Prompt 376
 - [x] Prompt 377
-- [x] Prompt 378
+- [ ] Prompt 378
 - [x] Prompt 379
 - [ ] Prompt 380
 - [x] Prompt 381
