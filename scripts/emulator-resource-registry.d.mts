@@ -78,7 +78,7 @@ export interface ValidationCommandSpec {
 export interface IndependentSecurityReviewReceipt {
   readonly version: 1;
   readonly kind: 'independent-security-review';
-  readonly reviewerModel: 'gpt-5.6-terra';
+  readonly reviewerModel: 'gpt-6-sol';
   readonly reasoningEffort: 'xhigh';
   readonly outcome: 'approved';
   readonly commitSha: string;

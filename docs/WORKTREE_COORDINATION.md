@@ -89,7 +89,7 @@ The runtime threat-model manifest and its validator are a narrow security-
 governance exception. A registered change to `security/threat-model.json` or
 `scripts/validate-threat-model*.mjs` cannot complete coordination validation
 with a free-form review note. `coordination:validate` requires a JSON receipt
-whose `kind` is `independent-security-review`, reviewer is `gpt-5.6-terra` at
+whose `kind` is `independent-security-review`, reviewer is `gpt-6-sol` at
 `xhigh`, outcome is `approved`, and `commitSha` is the exact candidate HEAD;
 the receipt also carries a non-empty summary and ISO `reviewedAt` timestamp.
 `coordination:finish` checks that same receipt against the landed commit. CI

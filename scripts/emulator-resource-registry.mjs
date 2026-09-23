@@ -95,19 +95,19 @@ export function parseIndependentSecurityReviewReceipt(value, expectedCommitSha) 
   const reviewedAt = text(record.reviewedAt);
   const reviewedAtDate = new Date(reviewedAt);
   if (record.version !== 1 || record.kind !== 'independent-security-review' ||
-      record.reviewerModel !== 'gpt-5.6-terra' || record.reasoningEffort !== 'xhigh' ||
+      record.reviewerModel !== 'gpt-6-sol' || record.reasoningEffort !== 'xhigh' ||
       record.outcome !== 'approved' || record.commitSha !== expectedCommitSha ||
       !text(record.summary) || !reviewedAt || !Number.isFinite(reviewedAtDate.getTime()) ||
       reviewedAtDate.toISOString() !== reviewedAt) {
     throw new Error(
       `Independent security review receipt must approve exact HEAD ${expectedCommitSha} ` +
-      'with Terra xhigh, a summary, and an ISO reviewedAt timestamp.',
+      'with GPT-6 Sol xhigh, a summary, and an ISO reviewedAt timestamp.',
     );
   }
   return {
     version: 1,
     kind: 'independent-security-review',
-    reviewerModel: 'gpt-5.6-terra',
+    reviewerModel: 'gpt-6-sol',
     reasoningEffort: 'xhigh',
     outcome: 'approved',
     commitSha: expectedCommitSha,

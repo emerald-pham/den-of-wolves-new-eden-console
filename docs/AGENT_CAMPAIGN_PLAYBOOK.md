@@ -25,14 +25,15 @@ there is no minimum-agent count.
 
 ## Model and review choices
 
-Luna at `max` or `xhigh` is the economical default. Terra is an independent
+Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Luna 6 at
+`max` or `xhigh` is the economical default. Sol 6 is the independent
 review option for risky changes touching shared session state, callable
 authorization, Firestore rules, deployment, or authentication infrastructure.
 Ask the reviewer for all findings in one pass. Escalate only after actual lack
 of progress or a material failed attempt; a typo, copy change, or test-count
-correction does not require a handoff. Do not force a Luna → Terra → Luna loop.
-Sol is not a default child and may be used only after a permitted escalation is
-actually reached, with the reason recorded in the task discussion.
+correction does not require a handoff. Do not force a Luna → Sol → Luna loop.
+Use Sol 6 for justified blocker diagnosis or ownership transfer only after the
+failed attempt and reason are recorded in the task discussion.
 
 ## Scope and concurrency
 

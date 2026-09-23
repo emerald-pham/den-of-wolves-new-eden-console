@@ -5,6 +5,9 @@ workflow and product-safety guide: use its risk-based task path, focused tests,
 server-authority rules, emulator isolation, responsive UI checks, version and
 changelog policy, and truthful merge/deploy closeout.
 
+Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
+`gpt-6-sol` for the independent risk reviews specified in `CLAUDE.md`.
+
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with
 generated Markdown views for convenient reading. Update the catalog and

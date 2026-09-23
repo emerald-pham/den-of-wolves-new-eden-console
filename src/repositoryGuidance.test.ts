@@ -114,12 +114,13 @@ describe('repository guidance', () => {
     expect(errors, errors.join('\n')).toEqual([]);
 
     const weak = new Map(sources);
-    weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('Terra', 'Reviewer'));
-    weak.set('docs/AGENT_CAMPAIGN_PLAYBOOK.md', readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md').replaceAll('Terra', 'Reviewer'));
+    weak.set('AGENTS.md', readGuidance('AGENTS.md').replaceAll('gpt-6-sol', 'gpt-5.6-terra'));
+    weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('gpt-6-sol', 'gpt-5.6-terra'));
+    weak.set('docs/AGENT_CAMPAIGN_PLAYBOOK.md', readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md').replaceAll('gpt-6-sol', 'gpt-5.6-terra'));
     const weakErrors: string[] = [];
     validateAgentModelEscalation({ sources: weak, errors: weakErrors });
     expect(weakErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('risky shared/session/callable/rules or deploy/auth'),
+      expect.stringContaining('must not authorize older or Terra subagent models'),
     ]));
   });
 

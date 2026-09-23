@@ -81,8 +81,8 @@ The top-level coordinator defaults to `gpt-6-astra` with medium reasoning. It
 owns priorities, complete bounded task briefs, architecture decisions, and difficult
 blockers, and intervenes at meaningful boundaries rather than requesting
 repeated status, duplicating investigation, or reviewing every tool result. Do
-not create expensive child coordinators or a mandatory Sol stage; do not create
-Sol children absent explicit user instruction. Sol is not a default child.
+not create expensive child coordinators or a mandatory review stage. Only
+`gpt-6-luna` and `gpt-6-sol` may be delegated as subagents.
 
 Workers own task-specific documentation reading and code investigation. Beyond
 required agent instructions, the coordinator relies on concise worker findings,
@@ -97,12 +97,12 @@ self-review and validation, merge, push, and deployment verification when
 applicable. A sidecar is optional and there is no minimum-agent count. Parallelize
 independent deliverables only when the concrete benefit exceeds coordination,
 context, and integration cost, and give every extra agent a bounded deliverable.
-Delegated workers default to `gpt-5.6-luna` with `xhigh` reasoning. Luna with
+Delegated workers default to `gpt-6-luna` with `xhigh` reasoning. Luna with
 `xhigh` is the economical default for delegated work. Select `max` only for
 difficult bounded work with a brief reason; there is no automatic max
 escalation.
 
-Use `gpt-5.6-terra` with `xhigh` for an independent review when a behavior
+Use `gpt-6-sol` with `xhigh` for an independent review when a behavior
 change touches shared session state, callable behavior (including authorization
 and rules), Firestore rules, deployment/authentication infrastructure, or the
 truthfulness of release and capacity evidence.
@@ -110,14 +110,14 @@ Editing comments or copy and routinely deploying an ordinary feature do not by
 themselves trigger review. Keep meaningful security and authority tests and final validation. Send all
 actionable findings together; the owner repairs them, with follow-up limited to
 unresolved findings or materially changed risk. Do not run a compulsory Luna →
-Terra → Luna ownership cycle.
+Sol → Luna ownership cycle.
 
 Escalate only after actual lack of progress or a material failure: substantive
 diagnosis and an attempted repair must fail and the owner cannot identify a
-credible next step. A failed test with an obvious fix is progress. Terra may
+credible next step. A failed test with an obvious fix is progress. Sol may
 diagnose or take over a justified blocker when the reason and ownership
 transfer are explicit; the existing Astra coordinator handles difficult
-decisions without a mandatory Sol stage.
+decisions without a mandatory extra stage.
 
 The normal path is:
 
@@ -125,7 +125,7 @@ The normal path is:
 2. Implement the smallest useful change with focused, meaningful tests.
 3. For a behavior change to shared session state, callable behavior (including
    authorization and rules), Firestore rules, deployment/authentication
-   infrastructure, or release/capacity evidence, obtain an independent Terra
+   infrastructure, or release/capacity evidence, obtain an independent Sol 6
    risk review and receive all
    actionable findings in one pass. The owner repairs findings in a bounded
    follow-up. Ordinary feature deployment and documentation or copy edits do
@@ -437,7 +437,7 @@ server-only.
 - [ ] Focused meaningful checks cover changed behavior; behavior changes to
   shared session state, callable behavior (including authorization and rules),
   Firestore rules, or deployment/authentication infrastructure received one
-  independent Terra review.
+  independent Sol 6 review.
 - [ ] Rendered UI, fonts, responsive states, and visible navigation were
   inspected when applicable.
 - [ ] The final appropriate validation ran after reconciliation; any rerun had

@@ -365,14 +365,14 @@ describe('simplified coordination registry', () => {
     }
   });
 
-  it('binds security-governance validation and finish to an approved exact-HEAD Terra receipt', async () => {
+  it('binds security-governance validation and finish to an approved exact-HEAD GPT-6 Sol receipt', async () => {
     const { directory, filePath } = await fixture();
     const commitSha = 'a'.repeat(40);
     const release = releaseSnapshot(['security/threat-model.json'], commitSha);
     const receipt = {
       version: 1,
       kind: 'independent-security-review',
-      reviewerModel: 'gpt-5.6-terra',
+      reviewerModel: 'gpt-6-sol',
       reasoningEffort: 'xhigh',
       outcome: 'approved',
       commitSha,
@@ -396,6 +396,12 @@ describe('simplified coordination registry', () => {
         'independent-review': JSON.stringify({ ...receipt, commitSha: 'b'.repeat(40) }),
         commandRunner: async () => undefined,
       })).rejects.toThrow(/approve exact HEAD/);
+      await expect(validateCoordinationEntry(filePath, {
+        id: started.id,
+        release,
+        'independent-review': JSON.stringify({ ...receipt, reviewerModel: 'gpt-5.6-terra' }),
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/GPT-6 Sol xhigh/);
 
       const completed = await validateCoordinationEntry(filePath, {
         id: started.id,

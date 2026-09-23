@@ -54,8 +54,8 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
     'must not require nonce/digest cleanup gates',
   ],
   [
-    /(?:mandatory|required|must) [^.]{0,100}(?:luna\s*(?:→|->|to)\s*terra\s*(?:→|->|to)\s*luna|luna\/terra loop)/i,
-    'must not require a Luna/Terra/Luna handoff cycle',
+    /(?:mandatory|required|must) [^.]{0,100}(?:luna\s*(?:→|->|to)\s*(?:terra|sol)\s*(?:→|->|to)\s*luna|luna\/(?:terra|sol) loop)/i,
+    'must not require a compulsory reviewer handoff cycle',
   ],
   [
     /(?:keep|keeps|retain|retains|must|required|requires|mandatory)[^.]{0,100}48-hour retention/i,
@@ -65,18 +65,27 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
 
 /** Validate the compact risk-based model policy on a guidance surface. */
 export function validateAgentModelEscalation({ sources, errors }) {
+  const agentPolicy = sourceFor(sources, 'AGENTS.md', errors);
+  requireText('AGENTS.md', agentPolicy, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6-sol[\s\S]{0,80}(?:subagents|delegated)/i,
+    'must allow only GPT-6 Luna and GPT-6 Sol subagents', errors);
   for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /luna[\s\S]{0,120}(?:max|xhigh)[\s\S]{0,140}economical|economical[\s\S]{0,120}luna/i,
-      'must name Luna max or xhigh as the economical default', errors);
-    requireText(filePath, source, /terra[\s\S]{0,220}independent[\s\S]{0,220}review[\s\S]{0,260}(?:risk|session|callable|rules|deploy|auth)/i,
-      'must reserve Terra review for risky shared/session/callable/rules or deploy/auth work', errors);
+    requireText(filePath, source, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6-sol[\s\S]{0,80}(?:subagents|delegated)/i,
+      'must allow only GPT-6 Luna and GPT-6 Sol subagents', errors);
+    requireText(filePath, source, /(?:default[\s\S]{0,60}gpt-6-luna|gpt-6-luna[\s\S]{0,160}economical)/i,
+      'must name GPT-6 Luna as the default delegated worker', errors);
+    requireText(filePath, source, /gpt-6-sol[\s\S]{0,200}independent[\s\S]{0,100}review[\s\S]{0,180}(?:risk|session|callable|rules|deploy|auth)/i,
+      'must reserve GPT-6 Sol independent review for risky shared/session/callable/rules or deploy/auth work', errors);
     requireText(filePath, source, /escalat[\s\S]{0,180}(?:actual|lack of progress|material failed|failed attempt)/i,
       'must escalate only after actual lack of progress or a material failure', errors);
-    requireText(filePath, source, /(?:no|not|do not)[\s\S]{0,100}(?:compulsory|mandatory)[\s\S]{0,100}(?:luna|terra)|(?:no|not|do not)[\s\S]{0,120}luna[\s\S]{0,80}terra[\s\S]{0,80}luna/i,
-      'must reject a compulsory Luna/Terra/Luna cycle', errors);
-    requireText(filePath, source, /sol[\s\S]{0,160}(?:not|never)[\s\S]{0,100}default[\s\S]{0,100}(?:child|agent)|sol[\s\S]{0,160}permitted escalation/i,
-      'must keep Sol out of the default child path', errors);
+    requireText(filePath, source, /do not (?:run|force) a (?:compulsory )?luna\s*(?:→|->)\s*sol\s*(?:→|->)\s*luna/i,
+      'must reject a compulsory Luna/Sol/Luna cycle', errors);
+    if (/gpt-5\.6-(?:luna|sol|terra)|gpt-6-terra/i.test(source)) {
+      errors.push(`${filePath}: must not authorize older or Terra subagent models`);
+    }
+  }
+  if (/gpt-5\.6-(?:luna|sol|terra)|gpt-6-terra/i.test(agentPolicy)) {
+    errors.push('AGENTS.md: must not authorize older or Terra subagent models');
   }
 }
 
