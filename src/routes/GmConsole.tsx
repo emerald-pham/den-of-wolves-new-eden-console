@@ -14,6 +14,7 @@ import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
 import { nextGmClockUpdate } from '@/lib/gmClock';
+import { sessionSnapshotAuthorityFor, sessionSnapshotAuthorityVersion } from '@/lib/sessionSnapshotAuthority';
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { AEGIS_FIGHTER_WING_CAPACITY, FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { consoleSabotageTargetsForShip } from '@/data/consoleSabotageTargets';
@@ -180,6 +181,7 @@ interface StagedCounter {
   readonly sending: boolean;
   readonly stale?: boolean;
   readonly staleRevision?: number | undefined;
+  readonly staleSnapshotVersion?: number | undefined;
   readonly retryBlock?: 'alert' | 'refresh' | undefined;
 }
 
@@ -203,6 +205,11 @@ function counterDraftOwnerKey(owner: CounterDraftOwner): string {
 
 function counterDraftRegistryKey(owner: CounterDraftOwner, key: string): string {
   return JSON.stringify([counterDraftOwnerKey(owner), key]);
+}
+
+function acceptedCounterSnapshotVersion(owner: CounterDraftOwner | null): number | undefined {
+  if (!owner) return undefined;
+  return sessionSnapshotAuthorityVersion(sessionSnapshotAuthorityFor(owner.sessionId, owner.uid));
 }
 
 function activeCounterDraftOwner(
@@ -1349,6 +1356,9 @@ export default function GmConsole() {
 
   useEffect(() => {
     if (!session) return;
+    const snapshotVersion = acceptedCounterSnapshotVersion(
+      activeCounterDraftOwner(session, me, local),
+    );
     const current = stagedCountersRef.current;
     let next = current;
     for (const [key, staged] of Object.entries(current)) {
@@ -1356,22 +1366,27 @@ export default function GmConsole() {
       const currentRevision = session.vesselActionRevisions?.[staged.target.shipId] ?? 0;
       const amount = counterAmountFromSession(session, staged.target);
       const hasAlert = hasAuthoritativeCounterAlert(session, staged.target);
-      const hasNewerSnapshot = Number.isSafeInteger(currentRevision) &&
+      const hasNewerCounterRevision = Number.isSafeInteger(currentRevision) &&
         currentRevision > (staged.staleRevision ?? -1);
+      const hasNewerSnapshot = snapshotVersion !== undefined &&
+        snapshotVersion > (staged.staleSnapshotVersion ?? -1);
       const retryBlock = hasAlert
         ? 'alert'
         : hasNewerSnapshot ? undefined : staged.retryBlock;
-      const baseAmount = hasNewerSnapshot && amount !== undefined ? amount : staged.baseAmount;
-      const staleRevision = hasNewerSnapshot ? currentRevision : staged.staleRevision;
+      const baseAmount = (hasNewerCounterRevision || hasNewerSnapshot) && amount !== undefined
+        ? amount
+        : staged.baseAmount;
+      const staleRevision = hasNewerCounterRevision ? currentRevision : staged.staleRevision;
+      const staleSnapshotVersion = hasNewerSnapshot ? snapshotVersion : staged.staleSnapshotVersion;
       if (retryBlock === staged.retryBlock && baseAmount === staged.baseAmount &&
-          staleRevision === staged.staleRevision) continue;
+          staleRevision === staged.staleRevision && staleSnapshotVersion === staged.staleSnapshotVersion) continue;
       if (next === current) next = { ...current };
       (next as Record<string, StagedCounter>)[key] = {
-        ...staged, retryBlock, baseAmount, staleRevision,
+        ...staged, retryBlock, baseAmount, staleRevision, staleSnapshotVersion,
       };
     }
     if (next !== current) replaceStagedCounters(next);
-  }, [session]);
+  }, [session, me?.uid, me?.role, local?.id]);
 
   useEffect(() => () => {
     for (const timer of counterTimers.current.values()) window.clearTimeout(timer);
@@ -1555,6 +1570,7 @@ export default function GmConsole() {
     if (!queued || queued.sending) return;
     const started = useSessionStore.getState();
     const submittedOwner = activeCounterDraftOwner(started.session, started.me, started.gmInstance);
+    const submittedSnapshotVersion = acceptedCounterSnapshotVersion(submittedOwner);
     const submittedSessionId = started.session?.id;
     const submittedInstanceId = started.gmInstance?.id;
     const submittedUid = started.me?.uid;
@@ -1583,14 +1599,20 @@ export default function GmConsole() {
               latest.gmInstance.uid === submittedUid && currentAmount !== undefined &&
               latestOwner && stagedCountersRef.current[key] === sending) {
             const currentRevision = latest.session?.vesselActionRevisions?.[sending.target.shipId] ?? result.revision;
-            const retryBlock = result.retryBlockedByAlert ||
-              hasAuthoritativeCounterAlert(latest.session, sending.target) ? 'alert' : undefined;
+            const currentSnapshotVersion = acceptedCounterSnapshotVersion(latestOwner);
+            const hasNewerSnapshot = submittedSnapshotVersion !== undefined &&
+              currentSnapshotVersion !== undefined && currentSnapshotVersion > submittedSnapshotVersion;
+            const hasAlert = hasAuthoritativeCounterAlert(latest.session, sending.target);
+            const retryBlock = hasAlert || (result.retryBlockedByAlert && !hasNewerSnapshot)
+              ? 'alert'
+              : undefined;
             const stale = {
               ...sending,
               baseAmount: currentAmount,
               sending: false,
               stale: true,
               staleRevision: Math.max(result.revision, currentRevision),
+              staleSnapshotVersion: currentSnapshotVersion ?? submittedSnapshotVersion,
               retryBlock,
             } satisfies StagedCounter;
             replaceStagedCounters({ ...stagedCountersRef.current, [key]: stale });
@@ -1607,6 +1629,10 @@ export default function GmConsole() {
               latestOwner.uid === submittedUid && latestOwner.instanceId === submittedInstanceId &&
               currentAmount !== undefined && stagedCountersRef.current[key] === sending) {
             const currentRevision = latest.session?.vesselActionRevisions?.[sending.target.shipId] ?? 0;
+            const currentSnapshotVersion = acceptedCounterSnapshotVersion(latestOwner);
+            const hasNewerSnapshot = submittedSnapshotVersion !== undefined &&
+              currentSnapshotVersion !== undefined && currentSnapshotVersion > submittedSnapshotVersion;
+            const hasAlert = hasAuthoritativeCounterAlert(latest.session, sending.target);
             replaceStagedCounters({
               ...stagedCountersRef.current,
               [key]: {
@@ -1615,7 +1641,8 @@ export default function GmConsole() {
                 sending: false,
                 stale: true,
                 staleRevision: Math.max(sending.staleRevision ?? 0, currentRevision),
-                retryBlock: 'refresh',
+                staleSnapshotVersion: currentSnapshotVersion ?? submittedSnapshotVersion,
+                retryBlock: hasAlert ? 'alert' : hasNewerSnapshot ? undefined : 'refresh',
               },
             });
           }

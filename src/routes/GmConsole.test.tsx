@@ -9,6 +9,7 @@ import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS as LEGACY_SYSTEMS, siteForCoordinate } from '@/data/starChart';
+import { acceptCallableSessionAuthority } from '@/lib/sessionSnapshotAuthority';
 import {
   SESSION_WAIVER_RESET_EVENT,
   SESSION_WAIVER_STORAGE_KEY,
@@ -1921,8 +1922,15 @@ it('keeps stale GM counter steps for an explicit retry against the refreshed val
 });
 
 it('keeps stale counter input when an alert blocks retry until a fresh snapshot', async () => {
-  useSessionStore.getState().setGmInstance(local);
-  streamInstances([local]);
+  const sessionId = 'stale-counter-alert-refresh';
+  const current = useSessionStore.getState();
+  useSessionStore.getState().setIdentity(
+    { ...current.session!, id: sessionId, updatedAt: '2026-01-01T00:00:00.000Z' },
+    { ...current.me!, sessionId },
+  );
+  const instance = { ...local, sessionId };
+  useSessionStore.getState().setGmInstance(instance);
+  streamInstances([instance]);
   const activeSession = useSessionStore.getState().session;
   if (activeSession) useSessionStore.getState().setSession({
     ...activeSession,
@@ -1930,6 +1938,8 @@ it('keeps stale counter input when an alert blocks retry until a fresh snapshot'
     vesselActionRevisions: { dione: 0 },
     shipUnrest: { dione: 7 },
   });
+  const initialSnapshot = useSessionStore.getState().session!;
+  expect(acceptCallableSessionAuthority(initialSnapshot, 'u1')).toBe(true);
   vi.mocked(applyShipCounterSteps)
     .mockImplementationOnce(async () => {
       const current = useSessionStore.getState().session;
@@ -1963,10 +1973,15 @@ it('keeps stale counter input when an alert blocks retry until a fresh snapshot'
     expect(retry).toBeDisabled();
 
     const beforeRetry = useSessionStore.getState().session!;
-    await act(async () => useSessionStore.getState().setSession({
+    const refreshedAfterAlert = {
       ...beforeRetry,
-      vesselActionRevisions: { ...beforeRetry.vesselActionRevisions, dione: 3 },
+      updatedAt: '2026-09-23T10:01:00.000Z',
+      vesselActionRevisions: { ...beforeRetry.vesselActionRevisions, dione: 2 },
       unrestAlerts: {},
+    };
+    expect(acceptCallableSessionAuthority(refreshedAfterAlert, 'u1')).toBe(true);
+    await act(async () => useSessionStore.getState().setSession({
+      ...refreshedAfterAlert,
     }));
     expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeEnabled();
 
@@ -1980,14 +1995,88 @@ it('keeps stale counter input when an alert blocks retry until a fresh snapshot'
     expect(applyShipCounterSteps).toHaveBeenCalledTimes(2);
 
     const afterRejection = useSessionStore.getState().session!;
-    await act(async () => useSessionStore.getState().setSession({
+    const refreshedAfterRejection = {
       ...afterRejection,
-      vesselActionRevisions: { ...afterRejection.vesselActionRevisions, dione: 4 },
+      updatedAt: '2026-09-23T10:02:00.000Z',
+      vesselActionRevisions: { ...afterRejection.vesselActionRevisions, dione: 2 },
       unrestAlerts: {},
+    };
+    expect(acceptCallableSessionAuthority(refreshedAfterRejection, 'u1')).toBe(true);
+    await act(async () => useSessionStore.getState().setSession({
+      ...refreshedAfterRejection,
     }));
     expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeEnabled();
     fireEvent.click(within(dione).getByRole('button', { name: /discard.*unrest/i }));
     expect(within(dione).queryByRole('button', { name: /retry.*unrest/i })).not.toBeInTheDocument();
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+    vi.mocked(applyShipCounterSteps).mockReset();
+  }
+});
+
+it('uses a newer alert-free snapshot that arrives before the stale response', async () => {
+  const sessionId = 'stale-counter-snapshot-first';
+  const current = useSessionStore.getState();
+  useSessionStore.getState().setIdentity(
+    { ...current.session!, id: sessionId, updatedAt: '2026-01-01T00:00:00.000Z' },
+    { ...current.me!, sessionId },
+  );
+  const instance = { ...local, sessionId };
+  useSessionStore.getState().setGmInstance(instance);
+  streamInstances([instance]);
+  const activeSession = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    vesselActionRevisions: { dione: 0 },
+    shipUnrest: { dione: 7 },
+  });
+  const initialSnapshot = useSessionStore.getState().session!;
+  expect(acceptCallableSessionAuthority(initialSnapshot, 'u1')).toBe(true);
+  let completeStale!: () => void;
+  vi.mocked(applyShipCounterSteps).mockImplementationOnce(() => new Promise((resolve) => {
+    completeStale = () => resolve({
+      status: 'stale', amount: 8, alertRaised: false, revision: 2,
+      currentRevision: 2, retryBlockedByAlert: true,
+    } as never);
+  }));
+  const view = renderConsole();
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+
+  vi.useFakeTimers();
+  try {
+    const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+    fireEvent.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+    fireEvent.click(within(dione).getByRole('button', { name: /decrease civil unrest/i }));
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(applyShipCounterSteps).toHaveBeenCalledTimes(1);
+
+    const beforeSnapshot = useSessionStore.getState().session!;
+    const newerSnapshot = {
+      ...beforeSnapshot,
+      updatedAt: '2026-09-23T10:05:00.000Z',
+      vesselActionRevisions: { ...beforeSnapshot.vesselActionRevisions, dione: 3 },
+      shipUnrest: { ...beforeSnapshot.shipUnrest, dione: 9 },
+      unrestAlerts: {},
+    };
+    expect(acceptCallableSessionAuthority(newerSnapshot, 'u1')).toBe(true);
+    await act(async () => {
+      useSessionStore.getState().setSession(newerSnapshot);
+    });
+    await act(async () => {
+      completeStale();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(within(dione).getByText('Current amount: 9; proposed after steps: 8')).toBeInTheDocument();
+    expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeEnabled();
+    fireEvent.click(within(dione).getByRole('button', { name: /discard.*unrest/i }));
   } finally {
     view.unmount();
     vi.useRealTimers();
