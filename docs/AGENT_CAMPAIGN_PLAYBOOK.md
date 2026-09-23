@@ -25,8 +25,9 @@ there is no minimum-agent count.
 
 ## Model and review choices
 
-Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Luna 6 at
-`max` or `xhigh` is the economical default. Sol 6 is the independent
+Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Luna 6 with
+`xhigh` reasoning is the economical default; reserve `max` for difficult
+bounded work with a brief reason. Sol 6 is the independent
 review option for risky changes touching shared session state, callable
 authorization, Firestore rules, deployment, or authentication infrastructure.
 Ask the reviewer for all findings in one pass. Escalate only after actual lack
