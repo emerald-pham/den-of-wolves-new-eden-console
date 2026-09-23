@@ -1610,6 +1610,71 @@ it('keeps fighter counts read-only until GM write mode and sends one wing correc
   expect(setFighterWingCount).toHaveBeenCalledWith('fighter-wing-alpha', 3);
 });
 
+it('keeps the proposed count visible and supports an explicit retry after a stale live count', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    activeVesselIds: ['aegis'],
+    shipUpgrades: { aegis: [] },
+    fighterWingCounts: Object.fromEntries(FIGHTER_WING_IDS.map((wingId) => [wingId, { count: 4, revision: 0 }])),
+  });
+
+  let attempts = 0;
+  vi.mocked(setFighterWingCount).mockImplementation(async (wingId, count) => {
+    attempts += 1;
+    const current = useSessionStore.getState().session;
+    if (!current) throw new Error('Expected the test session.');
+    if (attempts === 1) {
+      useSessionStore.getState().setSession({
+        ...current,
+        shipUpgrades: { ...current.shipUpgrades, aegis: ['construction-bay'] },
+        fighterWingCounts: {
+          ...current.fighterWingCounts,
+          [wingId]: { count: 6, revision: 2 },
+        },
+      });
+      return { status: 'stale', wingId, count: 5, currentRevision: 1, revision: 1, capacity: 6 };
+    }
+    useSessionStore.getState().setSession({
+      ...current,
+      fighterWingCounts: {
+        ...current.fighterWingCounts,
+        [wingId]: { count, revision: 3 },
+      },
+    });
+    return { status: 'committed', wingId, count, revision: 3, capacity: 6 };
+  });
+
+  renderConsole();
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+  const aegis = within(fleet).getByRole('group', { name: 'AEGIS resource controls' });
+  await user.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+  let alpha = within(aegis).getByRole('listitem', { name: /fighter-wing-alpha fighter count 4/i });
+  let input = within(alpha).getByRole('spinbutton', { name: /set fighter-wing-alpha fighter count/i });
+  await user.clear(input);
+  await user.type(input, '3');
+  await user.click(within(alpha).getByRole('button', { name: /apply fighter-wing-alpha fighter count/i }));
+
+  expect(await screen.findByText('STALE // live count 6 / 6; draft preserved. Apply again to retry.'))
+    .toBeInTheDocument();
+  alpha = within(aegis).getByRole('listitem', { name: /fighter-wing-alpha fighter count 6/i });
+  input = within(alpha).getByRole('spinbutton', { name: /set fighter-wing-alpha fighter count/i });
+  expect(input).toHaveValue(3);
+  const retry = within(alpha).getByRole('button', { name: /apply fighter-wing-alpha fighter count/i });
+  expect(retry).toBeEnabled();
+  await user.click(retry);
+
+  expect(await within(aegis).findByRole('listitem', { name: /fighter-wing-alpha fighter count 3/i }))
+    .toBeInTheDocument();
+  expect(setFighterWingCount).toHaveBeenNthCalledWith(1, 'fighter-wing-alpha', 3);
+  expect(setFighterWingCount).toHaveBeenNthCalledWith(2, 'fighter-wing-alpha', 3);
+  expect(screen.queryByText(/draft preserved/)).not.toBeInTheDocument();
+});
+
 it('shows the authoritative group pursuit beneath every grouped ship resource control', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);

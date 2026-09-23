@@ -69,6 +69,7 @@ const {
   assignReplacementRole,
   fleeDestroyedShip,
   scavengeDestroyedShipStores,
+  setFighterWingCount,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -3319,4 +3320,135 @@ describe('Commissar authority refresh ownership', () => {
       }
     },
   );
+});
+
+
+describe('GM fighter-wing stale recovery', () => {
+  const initialWingCounts = {
+    'fighter-wing-alpha': { count: 4, revision: 0 },
+    'fighter-wing-bravo': { count: 3, revision: 2 },
+  };
+
+  function readyGmSession(): void {
+    useSessionStore.getState().setIdentity(
+      {
+        ...session,
+        phase: 'active',
+        currentTurn: 1,
+        fighterWingCounts: initialWingCounts,
+        shipUpgrades: { aegis: ['targeting-computer'] },
+      },
+      { ...player, role: 'gm' },
+    );
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  }
+
+  function staleCountCallable(overrides: Readonly<Record<string, unknown>> = {}) {
+    return Object.assign(vi.fn(({ requestId }: { requestId: string }) => Promise.resolve({
+      data: {
+        status: 'stale', sessionId: 's1', requestId, wingId: 'fighter-wing-alpha',
+        count: 5, currentRevision: 1, revision: 1, capacity: 6,
+        actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+        idempotencyKey: requestId, auditId: `fighter-count-${requestId}`,
+        ...overrides,
+      },
+    })), { stream: vi.fn() });
+  }
+
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
+    readyGmSession();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('uses a complete stale reply to refresh the count, revision, and capacity for a safe retry', async () => {
+    const callable = staleCountCallable();
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(setFighterWingCount('fighter-wing-alpha', 3)).resolves.toMatchObject({
+      status: 'stale', count: 5, currentRevision: 1, capacity: 6,
+    });
+
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', wingId: 'fighter-wing-alpha', count: 3, expectedRevision: 0,
+    }));
+    expect(useSessionStore.getState().session).toMatchObject({
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 5, revision: 1 },
+        'fighter-wing-bravo': { count: 3, revision: 2 },
+      },
+      shipUpgrades: { aegis: ['targeting-computer', 'construction-bay'] },
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+
+    const retry = Object.assign(vi.fn(({ requestId }: { requestId: string }) => Promise.resolve({
+      data: {
+        status: 'committed', sessionId: 's1', requestId, wingId: 'fighter-wing-alpha',
+        count: 3, revision: 2, capacity: 6,
+        actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+        idempotencyKey: requestId, auditId: `fighter-count-${requestId}`,
+      },
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(retry as never);
+    await expect(setFighterWingCount('fighter-wing-alpha', 3)).resolves.toMatchObject({
+      status: 'committed', count: 3, revision: 2,
+    });
+    expect(retry).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', wingId: 'fighter-wing-alpha', count: 3, expectedRevision: 1,
+    }));
+    expect(useSessionStore.getState().session?.fighterWingCounts?.['fighter-wing-alpha'])
+      .toEqual({ count: 3, revision: 2 });
+  });
+
+  it.each([
+    ['missing fresh count', { count: undefined }],
+    ['wrong session', { sessionId: 'other-session' }],
+    ['wrong wing', { wingId: 'fighter-wing-bravo' }],
+    ['inconsistent revisions', { revision: 2 }],
+    ['invalid capacity', { capacity: 5 }],
+    ['count above capacity', { count: 7 }],
+  ])('fails closed for a malformed stale reply: %s', async (_label, overrides) => {
+    const callable = staleCountCallable(overrides);
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(setFighterWingCount('fighter-wing-alpha', 3)).resolves.toBeNull();
+    expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(initialWingCounts);
+    expect(useSessionStore.getState().session?.shipUpgrades).toEqual({ aegis: ['targeting-computer'] });
+  });
+
+  it('does not apply stale state after GM authority changes while the callable is pending', async () => {
+    let finish!: (value: { data: unknown }) => void;
+    let requestId = '';
+    const callable = Object.assign(vi.fn((request: { requestId: string }) => {
+      requestId = request.requestId;
+      return new Promise<{ data: unknown }>((resolve) => { finish = resolve; });
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+    const pending = setFighterWingCount('fighter-wing-alpha', 3);
+    await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+
+    const currentPlayer = useSessionStore.getState().me;
+    if (!currentPlayer) throw new Error('Expected the GM identity.');
+    useSessionStore.getState().setMe({ ...currentPlayer, role: 'player' });
+    finish({
+      data: {
+        status: 'stale', sessionId: 's1',
+        requestId,
+        wingId: 'fighter-wing-alpha', count: 5, currentRevision: 1, revision: 1, capacity: 6,
+        actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+        idempotencyKey: requestId, auditId: `fighter-count-${requestId}`,
+      },
+    });
+
+    await expect(pending).resolves.toMatchObject({ status: 'stale' });
+    expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(initialWingCounts);
+    expect(useSessionStore.getState().session?.shipUpgrades).toEqual({ aegis: ['targeting-computer'] });
+  });
 });

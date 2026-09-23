@@ -28,6 +28,7 @@ import type {
   CommissarPurgeAuthority,
 } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
+import { AEGIS_FIGHTER_WING_CAPACITY } from '@/data/aegisConsoles';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
 import { resourcesForShip, type ResourceId, type ShipResourceInventory } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
@@ -1317,24 +1318,40 @@ export interface FighterWingCountResult extends Partial<VesselActionEnvelope> {
   readonly capacity: number;
 }
 
-function fighterWingCountReply(value: unknown): FighterWingCountResult | null {
+function fighterWingCountReply(
+  value: unknown,
+  expected: { readonly sessionId: string; readonly requestId: string; readonly wingId: string; readonly actorUid: string },
+): FighterWingCountResult | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  if ((raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
-    typeof raw.wingId !== 'string' || typeof raw.capacity !== 'number' ||
-    !Number.isSafeInteger(raw.capacity) || raw.capacity < 0) return null;
+  const status = raw.status;
+  const capacity = raw.capacity;
+  const count = raw.count;
+  const revision = raw.revision;
+  const currentRevision = raw.currentRevision;
+  if ((status !== 'committed' && status !== 'replayed' && status !== 'stale') ||
+    raw.sessionId !== expected.sessionId || raw.requestId !== expected.requestId ||
+    raw.wingId !== expected.wingId || raw.actorUid !== expected.actorUid || raw.vesselId !== 'aegis' ||
+    (capacity !== AEGIS_FIGHTER_WING_CAPACITY.standard && capacity !== AEGIS_FIGHTER_WING_CAPACITY.upgraded) ||
+    typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > capacity ||
+    typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0 ||
+    (currentRevision !== undefined && (typeof currentRevision !== 'number' ||
+      !Number.isSafeInteger(currentRevision) || currentRevision < 0))) return null;
+  if (status === 'stale' && (typeof currentRevision !== 'number' || revision !== currentRevision ||
+    raw.idempotencyKey !== expected.requestId || typeof raw.auditId !== 'string' || raw.auditId.length === 0)) {
+    return null;
+  }
   const phase = sessionPhase(raw.phase);
   const result: FighterWingCountResult = {
-    status: raw.status,
-    wingId: raw.wingId,
-    capacity: raw.capacity,
-    ...(typeof raw.count === 'number' && Number.isSafeInteger(raw.count) ? { count: raw.count } : {}),
-    ...(typeof raw.revision === 'number' && Number.isSafeInteger(raw.revision) ? { revision: raw.revision } : {}),
-    ...(typeof raw.currentRevision === 'number' && Number.isSafeInteger(raw.currentRevision)
-      ? { currentRevision: raw.currentRevision } : {}),
-    ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
+    status,
+    wingId: expected.wingId,
+    capacity,
+    count,
+    revision,
+    ...(typeof currentRevision === 'number' ? { currentRevision } : {}),
+    actorUid: expected.actorUid,
     ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null ? { actorRoleId: raw.actorRoleId as string | null } : {}),
-    ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
+    vesselId: 'aegis',
     ...(typeof raw.turn === 'number' ? { turn: raw.turn } : {}),
     ...(phase === undefined ? {} : { phase }),
     ...(typeof raw.idempotencyKey === 'string' ? { idempotencyKey: raw.idempotencyKey } : {}),
@@ -1352,11 +1369,13 @@ export async function setFighterWingCount(
   if (!store.session || !store.gmInstance) throw new Error('An active GM instance is required.');
   requireFreshSessionAuthority();
   const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const actorUid = store.gmInstance.uid;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   const expectedRevision = store.session.fighterWingCounts?.[wingId]?.revision ?? 0;
   const payload = {
     sessionId,
-    instanceId: store.gmInstance.id,
+    instanceId,
     requestId: commandId(),
     wingId,
     count,
@@ -1365,11 +1384,43 @@ export async function setFighterWingCount(
   try {
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, unknown>(functions(), 'setFighterWingCount');
-    const reply = fighterWingCountReply((await call(payload)).data);
+    const reply = fighterWingCountReply((await call(payload)).data, {
+      sessionId, requestId: payload.requestId, wingId, actorUid,
+    });
     if (!reply) throw new Error('The server returned an invalid fighter-wing count.');
-    const current = useSessionStore.getState().session;
+    const latest = useSessionStore.getState();
+    const current = latest.session;
+    const gm = latest.gmInstance;
+    const stillSameGm = latest.me?.sessionId === sessionId && latest.me.role === 'gm' &&
+      latest.me.uid === actorUid && gm?.id === instanceId &&
+      gm.sessionId === sessionId && gm.uid === actorUid;
+    if (reply.status === 'stale') {
+      if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+        !stillSameGm || reply.count === undefined || reply.currentRevision === undefined) return reply;
+      const aegisUpgrades = current.shipUpgrades?.aegis ?? [];
+      const hasConstructionBay = aegisUpgrades.includes('construction-bay');
+      const currentCapacity = hasConstructionBay
+        ? AEGIS_FIGHTER_WING_CAPACITY.upgraded
+        : AEGIS_FIGHTER_WING_CAPACITY.standard;
+      const nextAegisUpgrades = reply.capacity === currentCapacity
+        ? aegisUpgrades
+        : reply.capacity === AEGIS_FIGHTER_WING_CAPACITY.upgraded
+          ? [...aegisUpgrades, 'construction-bay']
+          : aegisUpgrades.filter((upgrade) => upgrade !== 'construction-bay');
+      useSessionStore.getState().setSession({
+        ...current,
+        fighterWingCounts: {
+          ...current.fighterWingCounts,
+          [wingId]: { count: reply.count, revision: reply.currentRevision },
+        },
+        ...(reply.capacity === currentCapacity ? {} : {
+          shipUpgrades: { ...current.shipUpgrades, aegis: nextAegisUpgrades },
+        }),
+      });
+      return reply;
+    }
     if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
-      reply.status === 'stale' || reply.count === undefined || reply.revision === undefined) return reply;
+      !stillSameGm || reply.count === undefined || reply.revision === undefined) return reply;
     useSessionStore.getState().setSession({
       ...current,
       fighterWingCounts: {

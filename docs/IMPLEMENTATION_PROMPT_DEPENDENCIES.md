@@ -781,7 +781,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 618 | EXTEND | missing | 084;085;086;612 | none | none | none | none | none | none | none | E-AUDIT-618 | X | Reconnect every live projection. |
 | 618a | REPAIR | done | 045;084;085;086 | none | none | none | none | none | none | 048;522;618;633 | E-618A-OWNER;E-618A-DEPENDENCIES;E-618A-VERIFIED | X | Automatically recover the GM manifest after a transient connection failure. |
 | 619 | EXTEND | missing | 542;612 | none | none | none | none | none | none | none | E-AUDIT-619 | X | Make candidate retries survive reconnect. |
-| 620 | EXTEND | missing | 014;088 | none | none | none | none | none | none | none | E-AUDIT-620 | X | Recover from stale revisions. |
+| 620 | EXTEND | partial | 014;088 | none | none | none | none | none | none | none | E-AUDIT-620 | X | Recover from stale revisions. |
 | 621 | EXTEND | missing | 433;434;612 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-621 | X;M9 | Recover during a Wolf attack. |
 | 622 | EXTEND | missing | 401;402;612 | none | none | none | none | none | none | none | E-AUDIT-622 | X | Recover during an away mission. |
 | 623 | EXTEND | done | none | none | none | none | none | none | none | none | E-623-VERIFIED | X | Preserve PWA deep links. |

@@ -15,7 +15,7 @@ import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
 import { nextGmClockUpdate } from '@/lib/gmClock';
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
-import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
+import { AEGIS_FIGHTER_WING_CAPACITY, FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { consoleSabotageTargetsForShip } from '@/data/consoleSabotageTargets';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
@@ -455,6 +455,7 @@ export default function GmConsole() {
   const [scavengeMutation, setScavengeMutation] = useState<string | null>(null);
   const [scavengeMessage, setScavengeMessage] = useState<Readonly<Record<string, string>>>({});
   const [fighterWingDrafts, setFighterWingDrafts] = useState<Readonly<Record<string, string>>>({});
+  const [fighterWingMessages, setFighterWingMessages] = useState<Readonly<Record<string, string>>>({});
   const [fighterWingMutation, setFighterWingMutation] = useState<string | null>(null);
   const [stagedCounters, setStagedCounters] = useState<Readonly<Record<string, StagedCounter>>>({});
   const stagedCountersRef = useRef<Readonly<Record<string, StagedCounter>>>({});
@@ -2227,9 +2228,34 @@ export default function GmConsole() {
     const rawCount = fighterWingDrafts[wingId];
     const count = Number(rawCount);
     if (!Number.isSafeInteger(count) || count < 0 || count > 6) return;
+    const startingGm = useSessionStore.getState().gmInstance;
+    if (!startingGm) return;
     setFighterWingMutation(wingId);
     try {
-      await setFighterWingCount(wingId, count);
+      const result = await setFighterWingCount(wingId, count);
+      const latest = useSessionStore.getState();
+      const latestSession = latest.session;
+      const liveWing = latestSession?.fighterWingCounts?.[wingId];
+      const liveCapacity = latestSession?.shipUpgrades?.aegis?.includes('construction-bay')
+        ? AEGIS_FIGHTER_WING_CAPACITY.upgraded
+        : AEGIS_FIGHTER_WING_CAPACITY.standard;
+      const stillSameGm = latest.me?.role === 'gm' && latest.me.sessionId === startingGm.sessionId &&
+        latest.me.uid === startingGm.uid && latest.gmInstance?.id === startingGm.id &&
+        latest.gmInstance.sessionId === startingGm.sessionId && latest.gmInstance.uid === startingGm.uid;
+      if (result?.status === 'stale' && stillSameGm && latestSession?.id === startingGm.sessionId &&
+        liveWing && result.currentRevision !== undefined && liveWing.revision >= result.currentRevision &&
+        liveWing.count <= liveCapacity && result.revision === result.currentRevision) {
+        setFighterWingMessages((messages) => ({
+          ...messages,
+          [wingId]: `STALE // live count ${liveWing.count} / ${liveCapacity}; draft preserved. Apply again to retry.`,
+        }));
+      } else {
+        setFighterWingMessages((messages) => {
+          const next = { ...messages };
+          delete next[wingId];
+          return next;
+        });
+      }
     } finally {
       setFighterWingMutation(null);
     }
@@ -3191,7 +3217,14 @@ export default function GmConsole() {
                                     max={capacity}
                                     value={draft}
                                     aria-label={`Set ${wingId} fighter count`}
-                                    onChange={(event) => setFighterWingDrafts((values) => ({ ...values, [wingId]: event.target.value }))}
+                                    onChange={(event) => {
+                                      setFighterWingDrafts((values) => ({ ...values, [wingId]: event.target.value }));
+                                      setFighterWingMessages((messages) => {
+                                        const next = { ...messages };
+                                        delete next[wingId];
+                                        return next;
+                                      });
+                                    }}
                                   />
                                   <button
                                     type="button"
@@ -3200,6 +3233,11 @@ export default function GmConsole() {
                                     onClick={() => void changeFighterWingCount(wingId)}
                                   >{fighterWingMutation === wingId ? 'Applying…' : 'Apply'}</button>
                                 </div>
+                                {fighterWingMessages[wingId] && (
+                                  <p className="gm-player-roster__note" role="status" aria-live="polite">
+                                    {fighterWingMessages[wingId]}
+                                  </p>
+                                )}
                               </li>
                             );
                           })}
