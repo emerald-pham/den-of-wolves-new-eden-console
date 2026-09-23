@@ -1,6 +1,6 @@
 import type { ShuttleControlEntry } from './shuttleControl';
 import type { AuthoritativeShuttleDocking } from './shuttleDocking';
-import type { ShipDamageState } from './shipDamage';
+import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import { isResourceShipId } from './resources';
 
 export const ALLY_REPAIR_COST = 4;
@@ -37,11 +37,15 @@ export function parseAllyRepairLedger(value: unknown): AllyRepairLedger | null {
   const hosts: AllyRepairHostEntry[] = [];
   for (const host of raw.hosts) {
     const entry = record(host);
+    const knownSystemIds = entry && typeof entry.shipId === 'string'
+      ? new Set((SHIP_DAMAGE_DECKS[entry.shipId] ?? []).map(({ systemId }) => systemId))
+      : new Set<string>();
     if (!entry || Object.keys(entry).some((key) => !['shipId', 'systemIds'].includes(key)) ||
         typeof entry.shipId !== 'string' || !ALLY_HOST_SHIP_IDS.includes(entry.shipId as typeof ALLY_HOST_SHIP_IDS[number]) ||
         !isResourceShipId(entry.shipId) || !Array.isArray(entry.systemIds) ||
         entry.systemIds.length < 1 || entry.systemIds.length > ALLY_MAX_CONSOLES_PER_HOST ||
         entry.systemIds.some((id) => typeof id !== 'string' || id.length === 0) ||
+        entry.systemIds.some((id) => typeof id !== 'string' || !knownSystemIds.has(id)) ||
         new Set(entry.systemIds).size !== entry.systemIds.length ||
         hosts.some((candidate) => candidate.shipId === entry.shipId)) return null;
     hosts.push({

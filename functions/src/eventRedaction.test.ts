@@ -146,6 +146,30 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('allow-lists the member-safe Ally repair outcome without Union authority details', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'ally-repair',
+      envelope: {
+        sessionId: 's1', actorUid: 'holder', actorRoleId: 'joint-engineering-shepherd-icebreaker',
+        turn: 3, phase: 'active', requestId: 'ally-repair-1', revision: 1,
+        serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        shuttleId: 'ally', hostShipId: 'shepherd', systemIds: ['reactor', 'storage'],
+        materialsSpent: 8, materialsRemaining: 4, holderUid: 'private', fleetGroupId: 'private',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 3, phase: 'active', type: 'ally-repair', requestId: 'ally-repair-1',
+      revision: 1, serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      createdAt: 'server-time', shuttleId: 'ally', hostShipId: 'shepherd',
+      systemIds: ['reactor', 'storage'], materialsSpent: 8,
+    });
+    expect(memberEventFieldsFor('ally-repair')).toEqual([
+      'shuttleId', 'hostShipId', 'systemIds', 'materialsSpent',
+    ]);
+  });
+
   it('keeps the replay-safe envelope and only the public payload allowlist', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'maintenance',

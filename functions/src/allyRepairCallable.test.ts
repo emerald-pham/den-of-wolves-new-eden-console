@@ -121,6 +121,14 @@ it('atomically repairs the facilitator-set Ally host, exposes only the outcome, 
   expect(receipt?.result).not.toHaveProperty('ownerUid');
   expect(receipt?.result).not.toHaveProperty('holderUid');
   expect(receipt?.result).not.toHaveProperty('fleetGroupId');
+  expect(mock.documents.get('sessions/s1/events/ally-repair-ally-repair-1')).toMatchObject({
+    type: 'ally-repair',
+    visibility: 'member',
+    shuttleId: 'ally', hostShipId: 'shepherd',
+    systemIds: ['reactor', 'storage'], materialsSpent: 8,
+  });
+  expect(mock.documents.get('sessions/s1/events/ally-repair-ally-repair-1'))
+    .not.toHaveProperty('actorUid');
 
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   (mock.documents.get('sessions/s1') as Fields).phase = 'debrief';
@@ -178,6 +186,7 @@ it.each([
   ['missing live coordination window', { session: { turnPhase: { state: 'restricted' } } }],
   ['malformed server fuel', { session: { shuttleFuelled: { ally: 'yes' } } }],
   ['malformed server repair history', { session: { allyRepairs: { cycle: 3, revision: -1, hosts: [] } } }],
+  ['unknown host damage-deck id', { request: { systemIds: ['not-a-damage-card'] } }],
 ] as const)('rejects %s before writing', async (_label, change) => {
   const session = mock.documents.get('sessions/s1')!;
   const player = mock.documents.get('sessions/s1/players/holder')!;

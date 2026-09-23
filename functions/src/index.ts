@@ -341,6 +341,7 @@ import {
   isChacauRepairCallableReply,
   parseChacauRepairCallableCommand,
 } from './chacauRepairCallable';
+export { repairConsolesFromAlly } from './allyRepairCallable';
 import {
   evacuateShuttleSurvivors,
   parseShuttleEvacuations,

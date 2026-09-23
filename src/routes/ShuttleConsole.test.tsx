@@ -268,8 +268,9 @@ it('opens Ally with its Shepherd / Icebreaker Union envelope and returns by keyb
   expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
     .toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
-  expect(screen.getByText(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i))
+  expect(screen.getByText(/repair up to 2 consoles.*4 materials each/i))
     .toBeInTheDocument();
+  expect(screen.queryByText(/damage a console.*permission.*gain 3 materials/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Fuelled repair' })).toBeInTheDocument();
   expect(screen.getByText(/fuelled.*repair consoles on a second ship/i)).toBeInTheDocument();
   expect(screen.queryByText(/fuelled.*repair or scrap/i)).not.toBeInTheDocument();

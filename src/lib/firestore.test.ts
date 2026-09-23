@@ -786,6 +786,33 @@ it('hydrates only canonical Chacau damage-deck history', () => {
   }).chacauRepairs).toBeUndefined();
 });
 
+it('hydrates only canonical Ally damage-deck history', () => {
+  expect(sessionFrom('ally-history', {
+    ...sessionData(8),
+    allyRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'shepherd', systemIds: ['reactor', 'storage'] }],
+    },
+  }).allyRepairs).toEqual({
+    cycle: 3, revision: 2,
+    hosts: [{ shipId: 'shepherd', systemIds: ['reactor', 'storage'] }],
+  });
+  expect(sessionFrom('ally-aegis-history', {
+    ...sessionData(8),
+    allyRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'aegis', systemIds: ['fighter-bay-alpha'] }],
+    },
+  }).allyRepairs).toBeUndefined();
+  expect(sessionFrom('ally-unknown-console-history', {
+    ...sessionData(8),
+    allyRepairs: {
+      cycle: 3, revision: 2,
+      hosts: [{ shipId: 'icebreaker', systemIds: ['not-a-damage-card'] }],
+    },
+  }).allyRepairs).toBeUndefined();
+});
+
 it('does not carry malformed IDs from an untrusted session snapshot', () => {
   const session = sessionFrom('safe-session', {
     ...sessionData(8),

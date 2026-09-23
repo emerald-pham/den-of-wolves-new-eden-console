@@ -11,7 +11,10 @@ import { turnPhaseState } from './turnZero';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
+import { EventVisibility, buildAuthoritativeEventEnvelope } from './eventEnvelope';
+import { buildPrivacySafeEventRecord } from './eventRedaction';
 import {
+  ALLY_REPAIR_COST,
   ALLY_HOST_SHIP_IDS,
   ALLY_UNION_ROLE_ID,
   parseAllyRepairLedger,
@@ -305,6 +308,22 @@ export const repairConsolesFromAlly = onCall<{
       allyRepairs: result.ledger,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'ally-repair',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: command.sessionId, actorUid: uid, actorRoleId: actualPlayerRole(actor) ?? null,
+        turn: currentCycle as number, phase: 'active',
+        type: 'ally-repair', requestId: command.requestId,
+        revision: result.ledger.revision, serverTime: new Date(),
+        visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shuttleId: 'ally', hostShipId: result.hostShipId,
+        systemIds: result.repairedSystemIds,
+        materialsSpent: result.repairedSystemIds.length * ALLY_REPAIR_COST,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

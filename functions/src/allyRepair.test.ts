@@ -107,6 +107,9 @@ describe('Ally repair', () => {
       cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }],
     })).toBeNull();
     expect(parseAllyRepairLedger({
+      cycle: 3, revision: 1, hosts: [{ shipId: 'shepherd', systemIds: ['not-a-damage-card'] }],
+    })).toBeNull();
+    expect(parseAllyRepairLedger({
       cycle: 3, revision: 1, hosts: [
         { shipId: 'shepherd', systemIds: ['reactor'] },
         { shipId: 'shepherd', systemIds: ['storage'] },

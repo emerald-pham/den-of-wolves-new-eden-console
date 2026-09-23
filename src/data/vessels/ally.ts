@@ -22,6 +22,8 @@ export default defineShuttle({
       name: 'Repair',
       phase: 'Coordination',
       effect: 'Repair up to 2 consoles on one ship for 4 materials each, or damage a console with a ship player’s permission to gain 3 materials.',
+      // P385 owns permissioned dismantling; P384 exposes only the released repair action.
+      surfaceEffect: 'Repair up to 2 consoles on one ship for 4 materials each.',
     },
     {
       name: 'Fuelled repair',

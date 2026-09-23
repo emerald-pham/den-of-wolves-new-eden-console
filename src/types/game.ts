@@ -702,6 +702,15 @@ export interface ChacauRepairLedger {
   }>[];
 }
 
+export interface AllyRepairLedger {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly hosts: readonly Readonly<{
+    readonly shipId: VesselId;
+    readonly systemIds: readonly string[];
+  }>[];
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -829,6 +838,7 @@ export interface GameSession {
   readonly philiaRepairs?: PhiliaRepairLedger;
   readonly macawRepairs?: MacawRepairLedger;
   readonly chacauRepairs?: ChacauRepairLedger;
+  readonly allyRepairs?: AllyRepairLedger;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

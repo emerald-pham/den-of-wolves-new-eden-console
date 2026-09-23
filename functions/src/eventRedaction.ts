@@ -44,6 +44,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'philia-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'macaw-repair': ['shuttleId', 'hostShipId', 'systemIds', 'scrapSpent'],
   'chacau-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
+  'ally-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };
 
@@ -80,6 +81,8 @@ const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>
   'macaw-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
   'chacau-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'ally-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
 };
 

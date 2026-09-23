@@ -101,6 +101,7 @@ import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resource
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { damageSystemIdsForShip, parseChacauRepairLedger } from './chacauRepairLedger';
+import { parseAllyRepairLedger } from './allyRepairLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -1705,6 +1706,10 @@ function chacauRepairs(value: unknown): GameSession['chacauRepairs'] {
   return parseChacauRepairLedger(value) ?? undefined;
 }
 
+function allyRepairs(value: unknown): GameSession['allyRepairs'] {
+  return parseAllyRepairLedger(value) ?? undefined;
+}
+
 function highwallMining(value: unknown): GameSession['highwallMining'] {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'operations'].includes(key)) ||
@@ -2270,6 +2275,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentBlacksmithRepairs = blacksmithRepairs(data.blacksmithRepairs);
   const currentMacawRepairs = macawRepairs(data.macawRepairs);
   const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
+  const currentAllyRepairs = allyRepairs(data.allyRepairs);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2350,6 +2356,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(currentBlacksmithRepairs ? { blacksmithRepairs: currentBlacksmithRepairs } : {}),
     ...(currentMacawRepairs ? { macawRepairs: currentMacawRepairs } : {}),
     ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),
+    ...(currentAllyRepairs ? { allyRepairs: currentAllyRepairs } : {}),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
