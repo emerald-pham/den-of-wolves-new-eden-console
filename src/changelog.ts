@@ -26,6 +26,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 478, partial: 14, active: 0, missing: 259,
     },
     changes: [
+      'If another update changes a GM counter first, the console shows the current value and keeps your proposed steps available for safe retry or discard.',
+      '478 of 751 planned items are complete (63.65%).',
+    ],
+  },
+
+  {
+    version: '0.5.15',
+    implementationProgress: {
+      completed: 478, total: 751, percentage: '63.65%',
+      done: 478, partial: 14, active: 0, missing: 259,
+    },
+    changes: [
       'When a different player uses the same browser, the previous player’s private navigation chart no longer appears while reconnecting.',
       '478 of 751 planned items are complete (63.65%).',
     ],

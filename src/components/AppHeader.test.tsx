@@ -605,7 +605,7 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
 });
 
-it('renders plain changelog copy with its progress marker and keyboard stop intact', async () => {
+it('renders the current and previous changelog copy with progress and keyboard stop intact', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
@@ -620,9 +620,14 @@ it('renders plain changelog copy with its progress marker and keyboard stop inta
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'When a different player uses the same browser, the previous player’s private navigation chart no longer appears while reconnecting.',
+    'If another update changes a GM counter first, the console shows the current value and keeps your proposed steps available for safe retry or discard.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('478 of 751 planned items are complete (63.65%).')).toBeVisible();
+  const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.15' }).closest('article');
+  if (!previousEntry) throw new Error('Expected the previous changelog entry.');
+  expect(within(previousEntry).getByText(
+    'When a different player uses the same browser, the previous player’s private navigation chart no longer appears while reconnecting.',
+  )).toBeVisible();
   expect(within(region).getAllByText('217 of 750 planned items are complete (28.93%).').length).toBeGreaterThan(0);
 });
 
