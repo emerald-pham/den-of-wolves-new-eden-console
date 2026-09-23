@@ -65,6 +65,7 @@ import {
   applyWolfCommanderTargetRerolls,
   finishWolfCommanderTargetingRerolls,
   getAegisCommandAndControl,
+  launchDioneMaliades,
 } from './index';
 
 const firstTurnCards = [
@@ -132,6 +133,43 @@ function currentGame(options: { readonly commander?: boolean; readonly connected
   }
 }
 
+function makeMaliadesLaunchable(): void {
+  const sessionFields = mock.documents.get('sessions/s1')!;
+  const stateFields = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  mock.documents.set('sessions/s1', {
+    ...sessionFields,
+    activeRoleIds: [...(sessionFields.activeRoleIds as string[]), 'dione-engineer'],
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:00:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:10:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    maintenanceCycles: {
+      ...(sessionFields.maintenanceCycles as Fields),
+      dione: {
+        turn: 1, step: 7, revision: 4,
+        results: { '5': 'Reactor powered up. Charged 1/4 consoles.' },
+        charges: ['fighter-bay'], refuelled: [],
+      },
+    },
+    shipDamage: {
+      ...(sessionFields.shipDamage as Fields),
+      dione: { damagedSystemIds: [], destroyed: false },
+    },
+  });
+  mock.documents.set('sessions/s1/wolfAttackState/current', {
+    ...stateFields,
+    battleTableCraftActions: [
+      { craftId: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer' },
+    ],
+    launchedCraftIds: [],
+  });
+  player('dione-1', {
+    assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+    activeConsoleRoleId: 'dione-engineer',
+  });
+}
+
 beforeEach(() => {
   currentGame();
   mock.get.mockClear();
@@ -191,6 +229,45 @@ it('finishes an empty Commander reroll window and consumes its exact private rec
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/redirect-1')).toMatchObject({
     type: 'aegis-command-and-control-redirect', actorRoleId: 'executive-officer',
     commanderCompletion: 'finished', rosterIndex: 2, shipId: 'wolf-fighter-wing',
+  });
+});
+
+it('preserves a Commander finish across an unrelated Maliades revision before C&C', async () => {
+  const finished = await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-before-maliades', expectedTurn: 1, expectedRevision: 1,
+  }, 'commander-1'));
+  expect(finished.revision).toBe(2);
+  makeMaliadesLaunchable();
+
+  await expect(launchDioneMaliades.run(request({
+    sessionId: 's1', requestId: 'maliades-after-finish', expectedTurn: 1, expectedRevision: 2,
+  }, 'dione-1'))).resolves.toMatchObject({ status: 'committed', revision: 3 });
+
+  const redirected = await applyAegisCommandAndControl.run(request({
+    sessionId: 's1', requestId: 'redirect-after-maliades', expectedTurn: 1,
+    expectedRevision: 3, rosterIndex: 0,
+  }));
+  expect(redirected).toMatchObject({ revision: 4, commanderCompletion: 'finished' });
+  expect(await getAegisCommandAndControl.run(request({ sessionId: 's1' }))).toMatchObject({
+    revision: 4, eligible: false, rerollsFinalized: true,
+    reason: 'already-used', redirectedShipId: 'wolf-fighter-wing',
+  });
+});
+
+it('keeps a no-Commander redirect readable after an unrelated Maliades revision', async () => {
+  currentGame({ commander: false });
+  await expect(applyAegisCommandAndControl.run(request({
+    sessionId: 's1', requestId: 'redirect-before-maliades', expectedTurn: 1,
+    expectedRevision: 1, rosterIndex: 0,
+  }))).resolves.toMatchObject({ revision: 2, commanderCompletion: 'no-commander' });
+  makeMaliadesLaunchable();
+
+  await expect(launchDioneMaliades.run(request({
+    sessionId: 's1', requestId: 'maliades-after-no-commander', expectedTurn: 1, expectedRevision: 2,
+  }, 'dione-1'))).resolves.toMatchObject({ status: 'committed', revision: 3 });
+  await expect(getAegisCommandAndControl.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    revision: 3, eligible: false, rerollsFinalized: true,
+    reason: 'already-used', redirectedShipId: 'wolf-fighter-wing',
   });
 });
 
@@ -294,6 +371,29 @@ it('rejects a malformed replay result with receipt-only or private fields', asyn
   });
 
   await expect(applyAegisCommandAndControl.run(request(data)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ revision: 2 });
+});
+
+it('rejects a malformed Commander finish replay with extra private receipt fields', async () => {
+  const data = {
+    sessionId: 's1', requestId: 'finish-malformed-replay', expectedTurn: 1, expectedRevision: 1,
+  };
+  const first = await finishWolfCommanderTargetingRerolls.run(request(data, 'commander-1'));
+  const receiptPath = 'sessions/s1/commandReceipts/finish-malformed-replay';
+  const stored = mock.documents.get(receiptPath)!;
+  mock.documents.set(receiptPath, {
+    ...stored,
+    result: {
+      ...(first as Fields),
+      view: {
+        ...(first as Fields).view as Fields,
+        rolls: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing', die: 2, target: 'dione', initialDie: 5 }],
+      },
+    },
+  });
+
+  await expect(finishWolfCommanderTargetingRerolls.run(request(data, 'commander-1')))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ revision: 2 });
 });

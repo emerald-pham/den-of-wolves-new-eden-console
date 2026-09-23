@@ -37,9 +37,11 @@ it('counts actual assigned Commander players even while disconnected and ignores
   expect(assignedWolfCommanderUids([])).toEqual([]);
 });
 
-it('requires a current-turn, current-revision committed finish when a Commander is assigned', () => {
+it('requires a current-turn committed finish and preserves it across later state revisions', () => {
   expect(commanderRerollsCompletionDecision(finished, 4, 7, ['commander-1'])).toBe('finished');
-  expect(commanderRerollsCompletionDecision(finished, 4, 8, ['commander-1'])).toBe('pending');
+  expect(commanderRerollsCompletionDecision(finished, 4, 8, ['commander-1'])).toBe('finished');
+  expect(commanderRerollsCompletionDecision({ ...finished, revision: 9 }, 4, 8, ['commander-1']))
+    .toBe('pending');
   expect(commanderRerollsCompletionDecision({ ...finished, turn: 3 }, 4, 7, ['commander-1'])).toBe('pending');
   expect(commanderRerollsCompletionDecision(undefined, 4, 7, ['commander-1'])).toBe('pending');
   expect(commanderRerollsCompletionDecision(finished, 4, 7, ['commander-1', 'commander-2']))

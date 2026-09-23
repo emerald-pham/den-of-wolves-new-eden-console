@@ -67,7 +67,7 @@ export function commanderRerollsCompletionDecision(
   assignedCommanderUids: readonly string[],
 ): CommanderRerollsCompletionDecision {
   const completion = parseCompletion(value);
-  if (completion && completion.turn === turn && completion.revision === revision) {
+  if (completion && completion.turn === turn && completion.revision <= revision) {
     // The server-created finish marker proves its actor held Commander
     // authority when they committed it. A later reassignment does not reopen
     // a reroll window that has already been explicitly closed.

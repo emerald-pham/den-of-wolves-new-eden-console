@@ -518,6 +518,7 @@ import {
   parseWolfTargetingReceipt,
   type WolfCommanderTargetingView,
 } from './wolfCommanderRerolls';
+import { WOLF_SHIP_IDS } from './wolfShipCatalog';
 import {
   applyWolfCommandAndControlRedirect,
   assignedWolfCommanderUids,
@@ -15613,15 +15614,47 @@ type WolfCommanderTargetingFinishResult = Readonly<{
   view: WolfCommanderTargetingView;
 }>;
 
-function isWolfCommanderTargetingFinishResult(value: unknown): value is WolfCommanderTargetingFinishResult {
+function isSafeWolfCommanderTargetingView(value: unknown): value is WolfCommanderTargetingView {
   if (!isRecord(value)) return false;
-  return value.status === 'committed' && value.type === 'wolf-commander-targeting-finish' &&
+  const allowed = new Set([
+    'type', 'sessionId', 'turn', 'revision', 'currentStep', 'rerollsFinalized',
+    'rolls', 'eligibleRerollIndexes', 'rerolledIndexes',
+  ]);
+  const rolls = Array.isArray(value.rolls) ? value.rolls : [];
+  const eligibleRerollIndexes = value.eligibleRerollIndexes;
+  const rerolledIndexes = value.rerolledIndexes;
+  const indexesAreSafe = (raw: unknown): raw is number[] => Array.isArray(raw) &&
+    raw.every((index) => Number.isSafeInteger(index) && (index as number) >= 0 && (index as number) < rolls.length) &&
+    new Set(raw).size === raw.length;
+  return Object.keys(value).every((key) => allowed.has(key)) &&
+    value.type === 'wolf-commander-targeting-view' &&
     typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
-    typeof value.requestId === 'string' && value.requestId.length > 0 &&
     Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
     Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
-    value.currentStep === 'targeting' && isRecord(value.view) &&
-    value.view.type === 'wolf-commander-targeting-view' && value.view.rerollsFinalized === true;
+    value.currentStep === 'targeting' && typeof value.rerollsFinalized === 'boolean' &&
+    Array.isArray(value.rolls) && rolls.length > 0 && rolls.every((roll, index) => isRecord(roll) &&
+      Object.keys(roll).every((key) => ['rosterIndex', 'shipId', 'die', 'target'].includes(key)) &&
+      roll.rosterIndex === index && typeof roll.shipId === 'string' &&
+      (WOLF_SHIP_IDS as readonly string[]).includes(roll.shipId) &&
+      Number.isSafeInteger(roll.die) && (roll.die as number) >= 1 && (roll.die as number) <= 8 &&
+      typeof roll.target === 'string' && roll.target.length > 0) &&
+    indexesAreSafe(eligibleRerollIndexes) && indexesAreSafe(rerolledIndexes) &&
+    eligibleRerollIndexes.length + rerolledIndexes.length === rolls.length &&
+    new Set([...eligibleRerollIndexes, ...rerolledIndexes]).size === rolls.length &&
+    (!value.rerollsFinalized || eligibleRerollIndexes.length === 0);
+}
+
+function isWolfCommanderTargetingFinishResult(value: unknown): value is WolfCommanderTargetingFinishResult {
+  if (!isRecord(value)) return false;
+  const view = value.view;
+  return value.status === 'committed' && value.type === 'wolf-commander-targeting-finish' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
+    typeof value.requestId === 'string' && isCanonicalRequestId(value.requestId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    value.currentStep === 'targeting' && isSafeWolfCommanderTargetingView(view) &&
+    view.rerollsFinalized && view.sessionId === value.sessionId &&
+    view.turn === value.turn && view.revision === value.revision;
 }
 
 type AegisCommandAndControlReason =
@@ -15770,9 +15803,9 @@ function currentAegisCommandAndControlRedirect(
         completion.status !== sameTurnUse.commanderCompletion ||
         !Number.isSafeInteger(completion.revision) || (completion.revision as number) > inputs.revision ||
         (completion.status === 'no-commander' &&
-          (completion.revision !== sameTurnUse.revision || completion.revision !== inputs.revision ||
+          (completion.revision !== sameTurnUse.revision ||
             completion.actorUid !== sameTurnUse.actorUid || completion.requestId !== sameTurnUse.requestId)) ||
-        (completion.status === 'finished' && sameTurnUse.revision !== (completion.revision as number) + 1)) {
+        (completion.status === 'finished' && sameTurnUse.revision <= (completion.revision as number))) {
       throw commandError('failed-precondition', 'The Command and Control marker does not match its targeting receipt.', 'conflict');
     }
   } else if (sameTurnUse) {
@@ -16233,10 +16266,9 @@ export const applyAegisCommandAndControl = onCall<{
       );
     }
     const nextRevision = inputs.revision + 1;
-    const finishedByCommander = isRecord(state.get('commanderRerollCompletion')) &&
-      state.get('commanderRerollCompletion').status === 'finished' &&
-      state.get('commanderRerollCompletion').turn === inputs.turn &&
-      state.get('commanderRerollCompletion').revision === inputs.revision;
+    const storedCompletion = state.get('commanderRerollCompletion');
+    const finishedByCommander = completionDecision === 'finished' && isRecord(storedCompletion) &&
+      storedCompletion.status === 'finished' && storedCompletion.turn === inputs.turn;
     const commanderCompletion = finishedByCommander ? 'finished' as const : 'no-commander' as const;
     const completionMarker = finishedByCommander
       ? state.get('commanderRerollCompletion')
