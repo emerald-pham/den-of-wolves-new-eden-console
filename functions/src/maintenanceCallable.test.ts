@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { activeVesselIdsForRoles } from './gameSetup';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), set: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), create: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
   gmInstanceOwners: {} as Record<string, string>,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
@@ -51,7 +52,14 @@ const mock = vi.hoisted(() => ({
   activeRoleIds: undefined as readonly string[] | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
-vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    randomInt: mock.randomInt,
+    randomUUID: mock.randomUUID,
+  };
+});
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
@@ -109,7 +117,8 @@ vi.mock('firebase-admin/firestore', () => ({
                   path.includes('/events/seat-claim-') ||
                   path.includes('/events/seat-release-') ||
                   path.includes('/events/press-availability-') ||
-                  path.includes('/events/advance-test-')) {
+                  path.includes('/events/advance-test-') ||
+                  path.includes('/events/airspace-close-')) {
                 return { exists: false, get: () => undefined };
               }
               if (path.includes('/maintenanceRequests/')) {
@@ -139,13 +148,17 @@ vi.mock('firebase-admin/firestore', () => ({
               if (path === 'sessions/s1/fleetGroups') {
                 return {
                   exists: true,
-                  docs: mock.fleetGroups.map((fields) => ({
+                  docs: parkingFleetGroups().map((fields) => ({
                     id: fields.id,
                     exists: true,
                     data: () => fields,
                     get: (key: string) => fields[key as keyof typeof fields],
                   })),
                 };
+              }
+              if (path === 'sessions/s1/shuttleDepartures' ||
+                  path === 'sessions/s1/shuttleTransitChains') {
+                return { exists: true, docs: [] };
               }
               if (path.includes('/players/')) {
                 return { exists: true, get: (key: string) => ({
@@ -179,6 +192,7 @@ vi.mock('firebase-admin/firestore', () => ({
               },
               update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
               set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+              create: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
               delete: (path: string) => deletes.push(path),
             };
             const result = await callback(tx);
@@ -281,6 +295,10 @@ vi.mock('firebase-admin/firestore', () => ({
                   })),
                 };
               }
+              if (path === 'sessions/s1/shuttleDepartures' ||
+                  path === 'sessions/s1/shuttleTransitChains') {
+                return { exists: true, docs: [] };
+              }
               if (path.includes('/setupMutationRequests/') ||
                   path.includes('/gmResponsibilityRequests/') ||
                   path.includes('/seatMutationRequests/') ||
@@ -292,7 +310,8 @@ vi.mock('firebase-admin/firestore', () => ({
                   path.includes('/events/seat-claim-') ||
                   path.includes('/events/seat-release-') ||
                   path.includes('/events/press-availability-') ||
-                  path.includes('/events/advance-test-')) {
+                  path.includes('/events/advance-test-') ||
+                  path.includes('/events/airspace-close-')) {
                 return { exists: false, get: () => undefined };
               }
               if (path === 'sessions/s1/wolfAttackState/current') {
@@ -331,6 +350,7 @@ vi.mock('firebase-admin/firestore', () => ({
             },
             update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
             set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+            create: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
             delete: (path: string) => deletes.push(path),
           };
           const result = await callback(tx);
@@ -364,7 +384,22 @@ vi.mock('firebase-admin/firestore', () => ({
         }
         throw new Error('Mock transaction exceeded optimistic retry limit.');
       }
-      const tx = { get: mock.get, update: mock.update, set: mock.set, delete: mock.delete };
+      const tx = {
+        get: async (path: string) => {
+          if (path === 'sessions/s1/shuttleDepartures' ||
+              path === 'sessions/s1/shuttleTransitChains') {
+            return { exists: true, docs: [] };
+          }
+          if (path.includes('/events/airspace-close-')) {
+            return { exists: false, get: () => undefined };
+          }
+          return mock.get(path);
+        },
+        update: mock.update,
+        set: mock.set,
+        create: mock.create,
+        delete: mock.delete,
+      };
       if (mock.retry) await callback(tx);
       return callback(tx);
     },
@@ -391,6 +426,13 @@ import { initialShuttleDockingsForRoles } from './shuttlecraft';
 import { emptySmallShipState } from './smallShip';
 
 let advanceRequestSequence = 0;
+
+function parkingFleetGroups() {
+  if (mock.fleetGroups.length > 0) return mock.fleetGroups;
+  const roles = mock.activeRoleIds ?? recommendedRoleIds(18);
+  const vesselIds = mock.activeVesselIds ?? activeVesselIdsForRoles(roles);
+  return [{ id: 'fleet-1', vesselIds: [...vesselIds], memberUids: ['u1'] }];
+}
 
 function request(data: Record<string, unknown>, uid: string | null = 'u1') {
   const payload = data.expectedTurn !== undefined && data.requestId === undefined
@@ -458,6 +500,7 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('damage-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.create.mockReset();
   mock.delete.mockReset();
   mock.set.mockImplementation((path: string, fields: Record<string, unknown>) => {
     if (path.includes('/commandReceipts/')) mock.commandReceipts[path] = fields;
@@ -478,7 +521,8 @@ beforeEach(() => {
         path.includes('/events/seat-claim-') ||
         path.includes('/events/seat-release-') ||
         path.includes('/events/press-availability-') ||
-        path.includes('/events/advance-test-')) {
+        path.includes('/events/advance-test-') ||
+        path.includes('/events/airspace-close-')) {
       return { exists: false, get: () => undefined };
     }
     if (path.includes('/maintenanceRequests/')) {
@@ -517,13 +561,17 @@ beforeEach(() => {
     }
     if (path === 'sessions/s1/fleetGroups') {
       return {
-        docs: mock.fleetGroups.map((fields) => ({
+        docs: parkingFleetGroups().map((fields) => ({
           id: fields.id,
           exists: true,
           data: () => fields,
           get: (key: string) => fields[key as keyof typeof fields],
         })),
       };
+    }
+    if (path === 'sessions/s1/shuttleDepartures' ||
+        path === 'sessions/s1/shuttleTransitChains') {
+      return { exists: true, docs: [] };
     }
     if (path === 'sessions/s1/players') {
       return {
@@ -2212,8 +2260,12 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
   });
-  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.update).toHaveBeenCalledTimes(2);
   expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.create).toHaveBeenCalledWith(
+    expect.stringMatching(/\/events\/airspace-close-/),
+    expect.objectContaining({ type: 'airspace-closure-parking', turn: 2 }),
+  );
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/events/turn-advanced-2',
     expect.objectContaining({
@@ -2514,7 +2566,7 @@ it('blocks a next-Team transition while an admitted small ship is undocked', asy
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
-    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    openAirspaceEndsAt: '2099-09-06T11:59:00.000Z',
     airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
   };
   mock.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion') };
@@ -2542,7 +2594,7 @@ it.each([
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
-    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    openAirspaceEndsAt: '2099-09-06T11:59:00.000Z',
     airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
   };
 
@@ -2566,7 +2618,7 @@ it('rejects an unknown shuttle host even when a corrupted active-vessel roster n
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
-    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    openAirspaceEndsAt: '2099-09-06T11:59:00.000Z',
     airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
   };
 
@@ -2621,13 +2673,17 @@ it('commits one server-owned Coordination completion announcement with the next-
     turnStartAnnouncement: { turn: 2, survivorPopulation: 242_541 },
     turnPhase: { turn: 2 },
   });
-  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.update).toHaveBeenCalledTimes(2);
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 2,
     turnStartAnnouncement: { turn: 2, survivorPopulation: 242_541 },
     turnPhase: expect.objectContaining({ turn: 2 }),
   }));
   expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.create).toHaveBeenCalledWith(
+    expect.stringMatching(/\/events\/airspace-close-/),
+    expect.objectContaining({ type: 'airspace-closure-parking', turn: 1 }),
+  );
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/events/turn-advanced-1',
     expect.objectContaining({
@@ -2668,10 +2724,7 @@ it('freezes the configured final turn in debrief and replays the terminal receip
   mock.shuttleFuelled = { starlight: true };
   mock.activeVesselIds = ['aegis'];
   mock.activeRoleIds = ['admiral'];
-  mock.shuttleDockings = initialShuttleDockingsForRoles(mock.activeRoleIds).map((docking) => ({
-    ...docking,
-    inTransit: true,
-  }));
+  mock.shuttleDockings = initialShuttleDockingsForRoles(mock.activeRoleIds);
   mock.legacyPursuitGroups = { fleet: 8 };
   mock.fleetGroups = [
     { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
@@ -3232,7 +3285,10 @@ it('serializes simultaneous airspace expiry observers into one transition event'
     message: expect.stringMatching(/cycle changed/i),
   });
   expect(mock.currentTurn).toBe(2);
-  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.update).toHaveBeenCalledTimes(2);
+  expect(mock.set.mock.calls.filter(([path]) =>
+    typeof path === 'string' && path.includes('/events/airspace-close-'),
+  )).toHaveLength(1);
   const pursuitWrites = mock.set.mock.calls.filter(([path]) =>
     path === 'sessions/s1/serverState/navigation');
   expect(pursuitWrites).toHaveLength(1);

@@ -13839,6 +13839,7 @@ export const advanceTurn = onCall<{
         sessionRef,
         session,
         activePhase.openAirspaceEndsAt,
+        `sessions/${advance.sessionId}`,
       );
     }
     const result = advanceTurnInTransaction(

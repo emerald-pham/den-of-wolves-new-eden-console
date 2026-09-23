@@ -126,6 +126,7 @@ export async function parkAtOrdinaryAirspaceDeadline(
   sessionRef: DocumentReference,
   session: DocumentSnapshot,
   closedAt: string,
+  sessionPath = sessionRef.path,
 ): Promise<void> {
   const currentTurn = sessionTurn(session.get('currentTurn'));
   const phase = turnPhaseState(session.get('turnPhase'));
@@ -136,10 +137,11 @@ export async function parkAtOrdinaryAirspaceDeadline(
   }
 
   const db = getFirestore();
-  const groupsRef = db.collection(`${sessionRef.path}/fleetGroups`);
-  const departuresRef = db.collection(`${sessionRef.path}/shuttleDepartures`);
-  const chainsRef = db.collection(`${sessionRef.path}/shuttleTransitChains`);
-  const eventRef = db.doc(`${sessionRef.path}/events/${airspaceClosureEventId(currentTurn, closedAt)}`);
+  const sessionId = sessionPath.split('/').at(-1) ?? sessionRef.id;
+  const groupsRef = db.collection(`${sessionPath}/fleetGroups`);
+  const departuresRef = db.collection(`${sessionPath}/shuttleDepartures`);
+  const chainsRef = db.collection(`${sessionPath}/shuttleTransitChains`);
+  const eventRef = db.doc(`${sessionPath}/events/${airspaceClosureEventId(currentTurn, closedAt)}`);
   const [groupsSnapshot, departuresSnapshot, chainsSnapshot, priorEvent] = await Promise.all([
     tx.get(groupsRef), tx.get(departuresRef), tx.get(chainsRef), tx.get(eventRef),
   ]);
@@ -229,14 +231,14 @@ export async function parkAtOrdinaryAirspaceDeadline(
     updatedAt: FieldValue.serverTimestamp(),
   });
   for (const shuttleId of parking.clearedTransitIds) {
-    tx.delete(db.doc(`${sessionRef.path}/shuttleDepartures/${shuttleId}`));
-    tx.delete(db.doc(`${sessionRef.path}/shuttleTransitChains/${shuttleId}`));
+    tx.delete(db.doc(`${sessionPath}/shuttleDepartures/${shuttleId}`));
+    tx.delete(db.doc(`${sessionPath}/shuttleTransitChains/${shuttleId}`));
   }
   const eventId = airspaceClosureEventId(currentTurn, closedAt);
   tx.create(eventRef, buildPrivacySafeEventRecord({
     type: 'airspace-closure-parking',
     envelope: {
-      sessionId: sessionRef.id,
+      sessionId,
       turn: currentTurn,
       phase: 'active',
       requestId: eventId,
