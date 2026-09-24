@@ -1,5 +1,4 @@
 import { phaseFromTurnPhase, type ActorScope } from './actionMetadata';
-import { MAINTENANCE_ORDERS } from './maintenanceOrder';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState } from './smallShip';
@@ -92,6 +91,8 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   currentCycle: number;
   turnPhase: unknown;
   vesselMode: unknown;
+  /** Server-derived from the strict optional-ship admission resolver. */
+  isSmallShipAdmitted: unknown;
   activeVesselIds: unknown;
   smallShipState: unknown;
   resourceId: unknown;
@@ -131,11 +132,17 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   if (!Array.isArray(input.activeVesselIds) || input.activeVesselIds.length === 0 ||
       input.activeVesselIds.some((id) => typeof id !== 'string') ||
       new Set(input.activeVesselIds).size !== input.activeVesselIds.length ||
-      input.activeVesselIds.some((id) => !Object.prototype.hasOwnProperty.call(MAINTENANCE_ORDERS, id))) {
-    throw new Error('The active vessel authority is malformed.');
+      input.activeVesselIds.some((id) => !isResourceShipId(id))) {
+    throw new Error('The canonical core-fleet authority is malformed.');
   }
-  if (!input.activeVesselIds.includes(SMALL_SHIP_ID) || input.activeVesselIds.includes('capybara')) {
-    throw new Error('Cargo Transfer requires the active base Capybara and excludes the expansion ship.');
+  if (input.activeVesselIds.includes(SMALL_SHIP_ID)) {
+    throw new Error('The base Capybara must remain separate from the canonical core-fleet roster.');
+  }
+  if (input.activeVesselIds.includes('capybara')) {
+    throw new Error('Cargo Transfer requires the base Capybara and excludes the expansion ship.');
+  }
+  if (input.isSmallShipAdmitted !== true) {
+    throw new Error('Cargo Transfer requires server-owned admission for a docked base Capybara.');
   }
 
   const smallShipState = requireCanonicalSmallShipState(input.smallShipState);
@@ -143,7 +150,7 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   if (!hostShipId) throw new Error('The base Capybara must be docked with one host ship.');
   if (!isResourceShipId(hostShipId) || hostShipId === 'capybara' ||
       !input.activeVesselIds.includes(hostShipId)) {
-    throw new Error('The base Capybara must be docked with an active host inventory.');
+    throw new Error('The base Capybara must be docked with an active core host inventory.');
   }
   const hostResources = requireCanonicalHostInventory(input.hostResources, hostShipId);
 

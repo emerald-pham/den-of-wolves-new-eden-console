@@ -226,14 +226,17 @@ export const transferBaseCapybaraCargo = onCall<{
     }
     const vesselMode = requireBaseVesselMode(session);
     const activeVesselIds = session.get('activeVesselIds');
-    if (!Array.isArray(activeVesselIds) ||
-        activeVesselIds.some((id) => typeof id !== 'string') ||
-        new Set(activeVesselIds).size !== activeVesselIds.length ||
-        !replacementRoleAvailable(ROLE_ID, {
+    const isSmallShipAdmitted = Array.isArray(activeVesselIds) &&
+      activeVesselIds.every((id) => typeof id === 'string') &&
+      new Set(activeVesselIds).size === activeVesselIds.length &&
+      replacementRoleAvailable(ROLE_ID, {
           activeVesselIds: activeVesselIds as string[],
-          expansion: 'base',
-        })) {
-      failClosed('The base Capybara is not in the authoritative active-vessel roster.');
+          expansion: session.get('expansion') as string,
+          smallShipStates: session.get('smallShipStates'),
+          capybaraEnabled: session.get('capybaraEnabled'),
+        });
+    if (!isSmallShipAdmitted) {
+      failClosed('The base Capybara has not been admitted by a valid server-owned docking state.');
     }
 
     const storedSmallShips = isRecord(session.get('smallShipStates'))
@@ -257,6 +260,7 @@ export const transferBaseCapybaraCargo = onCall<{
           currentCycle: currentCycle as number,
           turnPhase: session.get('turnPhase'),
           vesselMode,
+          isSmallShipAdmitted,
           activeVesselIds,
           smallShipState,
           resourceId: command.resourceId,

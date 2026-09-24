@@ -89,7 +89,7 @@ function session(): Fields {
     phase: 'active', currentTurn: 4,
     turnPhase: { turn: 4, airspace: { state: 'lifted' } },
     expansion: 'base', capybaraEnabled: true,
-    activeVesselIds: ['aegis', 'capybara-small'],
+    activeVesselIds: ['aegis'],
     smallShipStates: {
       'capybara-small': {
         ...emptySmallShipState('capybara-small', 'aegis'), dockingRevision: 2,
@@ -132,6 +132,7 @@ it('moves one legal cargo type atomically between the docked host and base Capyb
     },
     shipResources: { aegis: { materials: 2 } },
   });
+  expect(mock.documents.get('sessions/s1')?.activeVesselIds).toEqual(['aegis']);
   expect(mock.update).toHaveBeenCalledTimes(1);
   expect(mock.set).toHaveBeenCalledTimes(1);
   expect(mock.set).toHaveBeenCalledWith(
@@ -204,11 +205,22 @@ it.each([
     stored.currentTurn = 5;
     stored.turnPhase = { turn: 5, airspace: { state: 'lifted' } };
   }],
-  ['inactive host vessel', (stored: Fields) => { stored.activeVesselIds = ['dione', 'capybara-small']; }],
-  ['mixed expansion ship', (stored: Fields) => { stored.activeVesselIds = ['aegis', 'capybara-small', 'capybara']; }],
+  ['inactive host vessel', (stored: Fields) => { stored.activeVesselIds = ['dione']; }],
+  ['mixed expansion ship', (stored: Fields) => { stored.activeVesselIds = ['aegis', 'capybara']; }],
   ['malformed active-vessel list', (stored: Fields) => { stored.activeVesselIds = ['aegis', 'rogue']; }],
+  ['Capybara inserted into core roster', (stored: Fields) => { stored.activeVesselIds = ['aegis', 'capybara-small']; }],
+  ['missing Capybara state', (stored: Fields) => { stored.smallShipStates = {}; }],
   ['undocked small ship', (stored: Fields) => {
     stored.smallShipStates = { 'capybara-small': emptySmallShipState('capybara-small') };
+  }],
+  ['malformed Capybara state', (stored: Fields) => {
+    (stored.smallShipStates as Fields)['capybara-small'] = {
+      ...(stored.smallShipStates as Fields)['capybara-small'] as Fields,
+      unrecognizedAdmissionField: true,
+    };
+  }],
+  ['malformed sibling small-ship state', (stored: Fields) => {
+    (stored.smallShipStates as Fields).warrior = { id: 'warrior', hostShipId: 'aegis' };
   }],
   ['stale dock expectation', (stored: Fields) => {
     (stored.smallShipStates as Fields)['capybara-small'] = {
