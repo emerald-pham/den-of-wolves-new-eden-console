@@ -258,12 +258,31 @@ candidate retains 2,238 raw and 1,469 gzip bytes below the version 17 ceilings;
 all largest-chunk, startup, render-update, and mobile-frame limits are
 unchanged.
 
-Prompt 241c's rendered panel matrix on the unchanged client surface passed all
-eight combinations: 320x844 and 390x844 phones, 844x390 short landscape, and
-1440x900 desktop, each under normal and reduced motion. Every case had no
-horizontal overflow, a reachable 44px transfer button, visible keyboard focus
+Before the client authority follow-up, Prompt 241c's rendered panel matrix
+passed all eight combinations: 320x844 and 390x844 phones, 844x390 short
+landscape, and 1440x900 desktop, each under normal and reduced motion. Every
+case had no horizontal overflow, a reachable 44px transfer button, visible keyboard focus
 (2px solid orange outline), and the expected monospace font stack. The narrow
 phone panel requires vertical scrolling, and keyboard navigation scrolled the
 focused transfer control into view. Screenshots and detailed measurements were
 captured in the local `/tmp/p241c-rendered-20260924` run; those temporary
 artifacts are not part of the repository.
+
+After the client-side host and stale-reply checks were added, exact code
+candidate `163d7d6cf967a9a71377b68d973ed397295115c1` passed baseline v17 at
+`2026-09-24T10:13:25.226Z`. It measured 1,807,815 raw bytes, 479,105 gzip
+bytes, and a 496,263-byte largest chunk across nine chunks. Landing and cached
+Role Select startup p95 were 100.27 ms and 100.72 ms; DRADIS, attack, and
+mission-hand update p95 were 34.3 ms, 35.4 ms, and 34.9 ms; the 390x844 mobile
+frame measured 16.7 ms p95 with zero long frames. This leaves 1,685 raw and
+1,395 gzip bytes below the v17 ceilings; all other P637 limits remain
+unchanged.
+
+The responsive panel matrix was rerun against that client candidate and passed
+the same eight phone, short-landscape, desktop, normal-motion, and
+reduced-motion combinations. The dock host had an explicit undestroyed damage
+projection, so fresh transfer was enabled. All cases still had no horizontal
+overflow, a visible focused 44px transfer control, a 2px solid orange focus
+outline, and the monospace font stack. New screenshots and measurements are in
+the local `/tmp/p241c-rendered-20260924-v2` run; those temporary artifacts are
+not part of the repository.
