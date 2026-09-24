@@ -40,6 +40,7 @@ function installSession(overrides: Partial<GameSession> = {}): void {
     shipResources: {
       aegis: { securityTeams: 3, ore: 5, fuel: 7, food: 9, water: 11, materials: 13 },
     },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
     ...overrides,
   } as GameSession);
   useSessionStore.getState().setConnection('live');
@@ -127,6 +128,53 @@ it('disables transfer when the host is not in the canonical core roster or the c
   } }));
   rerender(<BaseCapybaraCargoTransferPanel />);
   expect(within(panel).getByRole('button', { name: 'Transfer cargo' })).toBeDisabled();
+});
+
+it.each([
+  ['destroyed', { aegis: { damagedSystemIds: [], destroyed: true } }],
+  ['unknown', {}],
+] as const)('disables a fresh transfer when host damage is %s', (_label, shipDamage) => {
+  act(() => installSession({ shipDamage }));
+  render(<BaseCapybaraCargoTransferPanel />);
+  const panel = screen.getByRole('region', { name: 'Cargo Transfer' });
+  expect(within(panel).getByRole('button', { name: 'Transfer cargo' })).toBeDisabled();
+  expect(within(panel).getByText(/damage status is unknown or the host is destroyed/i)).toBeInTheDocument();
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+it.each([
+  ['replacement role', { replacementRoleId: null }],
+  ['seat', { seatId: 'admiral' }],
+] as const)('ignores a delayed result after the Captain %s authority changes', async (_label, patch) => {
+  const response = deferred<BaseCapybaraCargoTransferResult>();
+  mocks.transfer.mockReturnValueOnce(response.promise);
+  render(<BaseCapybaraCargoTransferPanel />);
+  const panel = screen.getByRole('region', { name: 'Cargo Transfer' });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Transfer cargo' }));
+  await waitFor(() => expect(mocks.transfer).toHaveBeenCalledTimes(1));
+
+  act(() => {
+    const me = useSessionStore.getState().me!;
+    useSessionStore.getState().setMe({ ...me, ...patch });
+  });
+  expect(within(panel).getByRole('button', { name: 'Transfer cargo' })).toBeDisabled();
+
+  await act(async () => {
+    response.resolve({
+      status: 'committed', hostShipId: 'aegis', resourceId: 'food', direction: 'load',
+      amount: 1, cycle: 3, cargoRevision: 5,
+    });
+    await response.promise;
+  });
+
+  expect(within(panel).queryByText(/loaded onto Capybara/i)).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Retry exact cargo request' })).not.toBeInTheDocument();
 });
 
 it('keeps the transfer control disabled outside explicit base vessel mode', () => {

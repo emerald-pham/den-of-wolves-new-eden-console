@@ -12,7 +12,7 @@ import {
 } from '@/lib/sessionMutationAuthority';
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { GameSession } from '@/types/game';
+import type { GameSession, Player } from '@/types/game';
 
 const LABELS: Readonly<Record<(typeof BASE_CAPYBARA_CARGO_TYPES)[number], string>> = {
   securityTeams: 'Security Teams',
@@ -22,6 +22,27 @@ const LABELS: Readonly<Record<(typeof BASE_CAPYBARA_CARGO_TYPES)[number], string
   water: 'Water',
   materials: 'Materials',
 };
+
+function captainAuthorityIdentity(session: GameSession | null | undefined, me: Player | null | undefined): string {
+  return JSON.stringify([
+    session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.activeConsoleRoleId, me?.seatId,
+  ]);
+}
+
+function isBaseCapybaraCaptain(me: Player | null | undefined): boolean {
+  return me?.role === 'player' && me.replacementRoleId === 'capybara-small-captain' &&
+    me.activeConsoleRoleId === null && me.seatId === null;
+}
+
+function isCurrentCaptainAuthority(
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+  expectedIdentity: string,
+): boolean {
+  const current = useSessionStore.getState();
+  return isCurrentSessionAuthority(checkpoint) &&
+    captainAuthorityIdentity(current.session, current.me) === expectedIdentity &&
+    isBaseCapybaraCaptain(current.me);
+}
 
 export default function BaseCapybaraCargoTransferPanel() {
   const session = useSessionStore((state) => state.session) as GameSession | null;
@@ -35,11 +56,13 @@ export default function BaseCapybaraCargoTransferPanel() {
   const [retry, setRetry] = useState<{
     command: BaseCapybaraCargoTransferCommand;
     checkpoint: SessionAuthorityCheckpoint;
+    authorityIdentity: string;
   } | null>(null);
-  const pendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
-  const identity = JSON.stringify([
-    session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.activeConsoleRoleId, me?.seatId,
-  ]);
+  const pendingRef = useRef<{
+    checkpoint: SessionAuthorityCheckpoint;
+    authorityIdentity: string;
+  } | null>(null);
+  const identity = captainAuthorityIdentity(session, me);
 
   const currentCycle = session?.currentTurn ?? 0;
   const isBaseMode = session?.expansion === 'base' && session.capybaraEnabled === true;
@@ -53,6 +76,8 @@ export default function BaseCapybaraCargoTransferPanel() {
     !session.activeVesselIds.includes('capybara-small') && !session.activeVesselIds.includes('capybara'));
   const hostIsActive = Boolean(coreRosterValid && ship && ship.dockingRevision >= 1 &&
     hostShipId && session?.activeVesselIds?.includes(hostShipId));
+  const hostDamage = hostShipId ? session?.shipDamage?.[hostShipId] : undefined;
+  const hostCanTransfer = hostDamage?.destroyed === false;
   const hostInventory = hostIsActive && hostShipId ? session?.shipResources?.[hostShipId] : undefined;
   const resourceAvailable = direction === 'load'
     ? hostInventory?.[resourceId]
@@ -62,18 +87,18 @@ export default function BaseCapybaraCargoTransferPanel() {
   const coordinationOpen = session?.phase === 'active' && currentCycle >= 1 &&
     phase?.airspace.state === 'lifted' && phase.timerPause === undefined &&
     Date.now() < Date.parse(phase.openAirspaceEndsAt);
-  const isCaptain = me?.role === 'player' && me.replacementRoleId === 'capybara-small-captain' &&
-    me.activeConsoleRoleId === null && me.seatId === null;
-  const canSubmit = isCaptain && isBaseMode && cargo !== null && hostIsActive && coordinationOpen &&
+  const isCaptain = isBaseCapybaraCaptain(me);
+  const canSubmit = isCaptain && isBaseMode && cargo !== null && hostIsActive && hostCanTransfer && coordinationOpen &&
     Number.isSafeInteger(amount) && amount >= 1 &&
     Number.isSafeInteger(resourceAvailable) && (resourceAvailable as number) >= amount;
   const statusMessage = status !== null && status.checkpoint.sessionId === session?.id && status.checkpoint.uid === me?.uid
     ? status.message : '';
   const errorMessage = error !== null && error.checkpoint.sessionId === session?.id && error.checkpoint.uid === me?.uid
     ? error.message : '';
-  const retryCommand = retry && isCurrentSessionAuthority(retry.checkpoint) ? retry.command : null;
+  const retryCommand = retry && isCurrentCaptainAuthority(retry.checkpoint, retry.authorityIdentity)
+    ? retry.command : null;
   const pendingForCurrentAuthority = pending && pendingRef.current !== null &&
-    isCurrentSessionAuthority(pendingRef.current);
+    isCurrentCaptainAuthority(pendingRef.current.checkpoint, pendingRef.current.authorityIdentity);
 
   useEffect(() => {
     setResourceId('food');
@@ -100,10 +125,13 @@ export default function BaseCapybaraCargoTransferPanel() {
 
   async function submit(): Promise<void> {
     const current = useSessionStore.getState();
+    const currentIdentity = captainAuthorityIdentity(current.session, current.me);
     const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
-    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
-    if (pendingRef.current && isCurrentSessionAuthority(pendingRef.current)) return;
-    const activeRetry = retry && isCurrentSessionAuthority(retry.checkpoint) ? retry : null;
+    if (!checkpoint || !isCurrentCaptainAuthority(checkpoint, currentIdentity)) return;
+    if (pendingRef.current &&
+        isCurrentCaptainAuthority(pendingRef.current.checkpoint, pendingRef.current.authorityIdentity)) return;
+    const activeRetry = retry &&
+      isCurrentCaptainAuthority(retry.checkpoint, retry.authorityIdentity) ? retry : null;
     const command: BaseCapybaraCargoTransferCommand = activeRetry?.command ?? {
       requestId: window.crypto.randomUUID(),
       expectedCycle: currentCycle,
@@ -116,14 +144,14 @@ export default function BaseCapybaraCargoTransferPanel() {
     };
     if (!activeRetry && !canSubmit) return;
 
-    pendingRef.current = checkpoint;
+    pendingRef.current = { checkpoint, authorityIdentity: currentIdentity };
     setPending(true);
-    setRetry({ command, checkpoint });
+    setRetry({ command, checkpoint, authorityIdentity: currentIdentity });
     setError(null);
     setStatus(null);
     try {
       const result = await transferBaseCapybaraCargo(command);
-      if (!isCurrentSessionAuthority(checkpoint)) return;
+      if (!isCurrentCaptainAuthority(checkpoint, currentIdentity)) return;
       const resourceName = LABELS[result.resourceId];
       setStatus({
         checkpoint,
@@ -136,13 +164,15 @@ export default function BaseCapybaraCargoTransferPanel() {
       setRetry(null);
       setAmountText('1');
     } catch (cause) {
-      if (!isCurrentSessionAuthority(checkpoint)) return;
+      if (!isCurrentCaptainAuthority(checkpoint, currentIdentity)) return;
       setError({
         checkpoint,
         message: cause instanceof Error ? cause.message : 'Capybara Cargo Transfer failed.',
       });
     } finally {
-      if (isCurrentSessionAuthority(checkpoint) && pendingRef.current === checkpoint) {
+      if (isCurrentCaptainAuthority(checkpoint, currentIdentity) &&
+          pendingRef.current?.checkpoint === checkpoint &&
+          pendingRef.current.authorityIdentity === currentIdentity) {
         pendingRef.current = null;
         setPending(false);
       }
@@ -161,6 +191,8 @@ export default function BaseCapybaraCargoTransferPanel() {
       {!isCaptain && <p>The current base Capybara Captain replacement role controls this transfer.</p>}
       {!isBaseMode && <p>Base Capybara Cargo Transfer is unavailable in the current vessel mode.</p>}
       {!hostIsActive && <p>Capybara must be admitted and docked with a current active core host before transferring cargo.</p>}
+      {hostIsActive && !hostCanTransfer &&
+        <p>Cargo Transfer is unavailable because the current host damage status is unknown or the host is destroyed.</p>}
       {!coordinationOpen && <p>Cargo Transfer is available during the current Coordination cycle.</p>}
       {cargo === null && <p>Cargo inventory is unavailable. Refresh the live session after facilitator docking.</p>}
       {cargo && (
@@ -174,6 +206,7 @@ export default function BaseCapybaraCargoTransferPanel() {
         </dl>
       )}
       <fieldset className="maintenance-controls" disabled={!isCaptain || !isBaseMode || !hostIsActive ||
+        !hostCanTransfer ||
         cargo === null || !coordinationOpen || pendingForCurrentAuthority}>
         <legend>Choose a cargo transfer</legend>
         <label htmlFor="base-capybara-cargo-resource">Resource</label>
