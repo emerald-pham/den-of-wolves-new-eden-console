@@ -139,6 +139,26 @@ it('replays the exact facilitator request without another write and rejects stal
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each(['closed', 'retained-empty', 'debrief', 'success', 'failure'])(
+  'rejects a fresh calculation during the terminal %s phase',
+  async (phase) => {
+    put('sessions/s1', { phase, currentTurn: 3, playerCount: 8, activeRoleIds: ['admiral'] });
+    await expect(calculateArrestPosse.run(request({ ...baseData, requestId: `terminal-${phase}` })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has('sessions/s1/arrestPosseCalculations/current')).toBe(false);
+    expect(mock.documents.has(`sessions/s1/commandReceipts/terminal-${phase}`)).toBe(false);
+  },
+);
+
+it('preserves an exact committed replay after the session becomes terminal', async () => {
+  const committed = await calculateArrestPosse.run(request());
+  put('sessions/s1', { phase: 'debrief', currentTurn: 3, playerCount: 8, activeRoleIds: ['admiral'] });
+  mock.set.mockClear();
+
+  await expect(calculateArrestPosse.run(request())).resolves.toEqual(committed);
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects a non-facilitator and a forged suspicion field before writing', async () => {
   await expect(calculateArrestPosse.run(request(baseData, 'u2')))
     .rejects.toMatchObject({ code: 'permission-denied' });

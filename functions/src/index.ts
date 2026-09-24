@@ -10120,6 +10120,7 @@ export const calculateArrestPosse = onCall<{
       'arrest posse calculation',
     );
     if (replay) return replay;
+    requireActiveGameplayPhase(authority.session);
 
     let currentRevision = 0;
     if (current.exists) {
