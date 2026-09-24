@@ -20,6 +20,10 @@ const terminalFreezeExemptions = new Set([
   'claimSeat', 'releaseSeat', 'startSinglePlayerDemo', 'setDebriefMode',
   // Read-only authority projections do not mutate gameplay state.
   'getCommissarPurgeAuthority',
+  // Current-GM acknowledgement only records handling of a prior committed
+  // sabotage clue and emits its decorative notice; it must remain drainable
+  // from the terminal/debrief view without reopening gameplay mutations.
+  'acknowledgeWolfHackingAlert',
 ]);
 
 function callableBody(index: number): string {

@@ -2,6 +2,7 @@ import {
   collection,
   connectFirestoreEmulator,
   doc,
+  getDocFromServer,
   getFirestore,
   onSnapshot,
   orderBy,
@@ -64,6 +65,9 @@ import type {
   WolfActionReceipt,
   WolfSuspicionHistoryEntry,
   WolfClueDisclosure,
+  WolfHackingAlert,
+  PlayerHackingNotice,
+  PendingWolfHackingAlert,
   Voyage33Admission,
   Voyage33MaintenanceState,
   WolfAssignment,
@@ -98,7 +102,7 @@ import {
   SHIPS,
   SMALL_SHIPS,
 } from '@/data/ships';
-import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
+import { RESOURCE_DEFINITIONS, shipResources, shipUnrest, type ResourceId } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { damageSystemIdsForShip, parseChacauRepairLedger } from './chacauRepairLedger';
@@ -671,6 +675,22 @@ function isCanonicalRequestId(value: unknown): value is string {
     /^[A-Za-z0-9_-]+$/.test(value);
 }
 
+const MAX_WOLF_HACKING_NOTICE_SEQUENCE = 10_000;
+
+function playerHackingNoticeIdForSequence(sequence: number): string {
+  return `notice-${String(sequence).padStart(12, '0')}`;
+}
+
+function playerHackingNoticeFeedCount(value: unknown, sessionId: string): number | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => !['type', 'sessionId', 'noticeCount'].includes(key)) ||
+      raw.type !== 'wolf-hacking-notice-feed' || raw.sessionId !== sessionId ||
+      !Number.isSafeInteger(raw.noticeCount) || (raw.noticeCount as number) < 0 ||
+      (raw.noticeCount as number) > MAX_WOLF_HACKING_NOTICE_SEQUENCE) return null;
+  return raw.noticeCount as number;
+}
+
 function wolfClueDisclosure(value: unknown): WolfClueDisclosure | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
@@ -888,6 +908,16 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
   if (consoleAction && (!consoleMode || !isCanonicalRequestId(raw.visitId) ||
       !historyShip || !historySystem || historySystem.name !== raw.targetSystemName ||
       historySystemId?.startsWith('armoured-hull'))) return null;
+  const historyShuttleId = typeof raw.shuttleId === 'string' ? parseEntityId('shuttle', raw.shuttleId) : undefined;
+  const historyShuttle = historyShuttleId
+    ? SHUTTLECRAFT.find((candidate) => candidate.id === historyShuttleId) : undefined;
+  const resourceIds = new Set<string>(RESOURCE_DEFINITIONS.map((resource) => resource.id));
+  const hasSupplyDetails = ['shuttleId', 'resourceId', 'destroyedAmount', 'remainingAmount']
+    .some((key) => Object.hasOwn(raw, key));
+  if (supplyAction && hasSupplyDetails && (!historyShuttle || historyShuttle.captainRoleId !== actorRoleId ||
+      typeof raw.resourceId !== 'string' || !resourceIds.has(raw.resourceId) ||
+      !Number.isSafeInteger(raw.destroyedAmount) || (raw.destroyedAmount as number) < 0 ||
+      !Number.isSafeInteger(raw.remainingAmount) || (raw.remainingAmount as number) < 0)) return null;
   const expected = (raw.total as number) <= 6
     ? ['none', 'Nothing.']
     : (raw.total as number) <= 11
@@ -912,11 +942,157 @@ function wolfSuspicionHistoryEntry(value: unknown, sessionId: string): WolfSuspi
       targetSystemId: historySystem.id,
       targetSystemName: historySystem.name,
       mode: consoleMode,
+    } : supplyAction && hasSupplyDetails && historyShuttle ? {
+      shuttleId: historyShuttle.id,
+      resourceId: raw.resourceId as ResourceId,
+      destroyedAmount: raw.destroyedAmount as number,
+      remainingAmount: raw.remainingAmount as number,
     } : {}),
     oldSuspicion: raw.oldSuspicion as number, increment: expectedIncrement,
     newSuspicion: raw.newSuspicion as number, roll: raw.roll as number,
     total: raw.total as number, clueTier: raw.clueTier as WolfSuspicionHistoryEntry['clueTier'],
     disclosure: raw.disclosure, auditId: raw.auditId as string, createdAt,
+  };
+}
+
+function wolfHackingAlert(
+  value: unknown,
+  sessionId: string,
+  alertId: string,
+): WolfHackingAlert | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const parsedSessionId = parseEntityId('session', raw.sessionId);
+  const actorUid = parseEntityId('player', raw.actorUid);
+  const actorRoleId = parseEntityId('role', raw.actorRoleId);
+  const createdAt = optionalIso(raw.createdAt);
+  const acknowledged = raw.state === 'acknowledged';
+  const acknowledgedBy = acknowledged ? parseEntityId('player', raw.acknowledgedBy) : undefined;
+  const acknowledgedAt = acknowledged ? optionalIso(raw.acknowledgedAt) : undefined;
+  const clueInstructionHandledAt = acknowledged ? optionalIso(raw.clueInstructionHandledAt) : undefined;
+  const acknowledgementKeys = [
+    'acknowledgedBy', 'acknowledgedByInstanceId', 'acknowledgedAt',
+    'clueInstructionHandled', 'clueInstructionHandledBy', 'clueInstructionHandledAt',
+    'overlayNoticeId', 'overlayNoticeSequence',
+  ];
+  const statusFields = acknowledged ? {
+    state: 'acknowledged' as const,
+    revision: 2 as const,
+    acknowledgedBy: acknowledgedBy!,
+    acknowledgedByInstanceId: raw.acknowledgedByInstanceId as string,
+    acknowledgedAt: acknowledgedAt!,
+    clueInstructionHandled: true as const,
+    clueInstructionHandledBy: acknowledgedBy!,
+    clueInstructionHandledAt: clueInstructionHandledAt!,
+    overlayNoticeId: raw.overlayNoticeId as string,
+    overlayNoticeSequence: raw.overlayNoticeSequence as number,
+  } : { state: 'pending' as const, revision: 1 as const };
+  const tiers: readonly WolfHackingAlert['clueTier'][] = [
+    'none', 'natural-change', 'wolf-activity', 'wolf-activity-hint', 'strong-hint', 'traitor-name',
+  ];
+  const commonKeys = [
+    'type', 'state', 'alertId', 'sessionId', 'requestId', 'action', 'source', 'cycle',
+    'actorUid', 'actorRoleId', 'auditId', 'revision', 'clueTier', 'clueInstruction', 'createdAt',
+  ];
+  if (raw.type !== 'wolf-hacking-alert' ||
+      (raw.state !== 'pending' && raw.state !== 'acknowledged') ||
+      (raw.state === 'pending' && raw.revision !== 1) ||
+      (acknowledged && (raw.revision !== 2 || !acknowledgedBy || !acknowledgedAt ||
+        !isCanonicalRequestId(raw.acknowledgedByInstanceId) ||
+        raw.clueInstructionHandled !== true || raw.clueInstructionHandledBy !== acknowledgedBy ||
+        !clueInstructionHandledAt || !isCanonicalRequestId(raw.overlayNoticeId) ||
+        !Number.isSafeInteger(raw.overlayNoticeSequence) ||
+        (raw.overlayNoticeSequence as number) < 1 ||
+        (raw.overlayNoticeSequence as number) > MAX_WOLF_HACKING_NOTICE_SEQUENCE ||
+        raw.overlayNoticeId !== playerHackingNoticeIdForSequence(raw.overlayNoticeSequence as number))) ||
+      raw.alertId !== alertId ||
+      raw.requestId !== alertId || !isCanonicalRequestId(alertId) ||
+      parsedSessionId !== parseEntityId('session', sessionId) || !actorUid || !actorRoleId ||
+      !findConsoleRole(actorRoleId) || !createdAt || raw.revision !== (acknowledged ? 2 : 1) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !tiers.includes(raw.clueTier as WolfHackingAlert['clueTier']) ||
+      typeof raw.clueInstruction !== 'string' || raw.clueInstruction.length < 1 ||
+      raw.clueInstruction.length > 160) return null;
+  const clueInstructions: Record<WolfHackingAlert['clueTier'], string> = {
+    none: 'Nothing.',
+    'natural-change': 'Point the change out to someone, framed as natural or accidental.',
+    'wolf-activity': 'Point out the wolf activity to someone.',
+    'wolf-activity-hint': 'Point out the wolf activity, and give a hint.',
+    'strong-hint': 'Give someone a strong hint.',
+    'traitor-name': "Give someone the traitor's name.",
+  };
+  if (raw.clueInstruction !== clueInstructions[raw.clueTier as WolfHackingAlert['clueTier']]) return null;
+  if (raw.action === 'sabotage-console' && raw.source === 'wolf-console-sabotage') {
+    const allowed = new Set([...commonKeys, ...(acknowledged ? acknowledgementKeys : []),
+      'visitId', 'targetShipId', 'targetSystemId', 'targetSystemName', 'mode',
+    ]);
+    const ship = typeof raw.targetShipId === 'string'
+      ? SHIPS.find((candidate) => candidate.id === raw.targetShipId) : undefined;
+    const target = ship && typeof raw.targetSystemId === 'string'
+      ? consoleSabotageTargetsForShip(ship.id).find((candidate) => candidate.id === raw.targetSystemId)
+      : undefined;
+    if (Object.keys(raw).some((key) => !allowed.has(key)) ||
+        raw.auditId !== `wolf-console-sabotage-${alertId}` ||
+        !isCanonicalRequestId(raw.visitId) || !ship || !target ||
+        target.name !== raw.targetSystemName || target.id.startsWith('armoured-hull') ||
+        (raw.mode !== 'random' && raw.mode !== 'chosen')) return null;
+    return {
+      type: 'wolf-hacking-alert', ...statusFields, alertId,
+      sessionId: parsedSessionId!, requestId: alertId,
+      action: 'sabotage-console', source: 'wolf-console-sabotage',
+      cycle: raw.cycle as number, actorUid, actorRoleId,
+      auditId: raw.auditId as string,
+      visitId: raw.visitId, targetShipId: ship.id,
+      targetSystemId: target.id, targetSystemName: target.name,
+      mode: raw.mode, clueTier: raw.clueTier as WolfHackingAlert['clueTier'],
+      clueInstruction: raw.clueInstruction, createdAt,
+    };
+  }
+  if (raw.action === 'sabotage-supplies' && raw.source === 'wolf-supply-sabotage') {
+    const allowed = new Set([...commonKeys, ...(acknowledged ? acknowledgementKeys : []),
+      'shuttleId', 'resourceId', 'destroyedAmount', 'remainingAmount',
+    ]);
+    const shuttleId = parseEntityId('shuttle', raw.shuttleId);
+    const shuttle = shuttleId ? SHUTTLECRAFT.find((candidate) => candidate.id === shuttleId) : undefined;
+    const resourceIds = new Set<string>(RESOURCE_DEFINITIONS.map((resource) => resource.id));
+    if (Object.keys(raw).some((key) => !allowed.has(key)) ||
+        raw.auditId !== `wolf-supply-sabotage-${alertId}` || !shuttle ||
+        shuttle.captainRoleId !== actorRoleId || typeof raw.resourceId !== 'string' ||
+        !resourceIds.has(raw.resourceId) || !Number.isSafeInteger(raw.destroyedAmount) ||
+        (raw.destroyedAmount as number) < 0 || !Number.isSafeInteger(raw.remainingAmount) ||
+        (raw.remainingAmount as number) < 0) return null;
+    return {
+      type: 'wolf-hacking-alert', ...statusFields, alertId,
+      sessionId: parsedSessionId!, requestId: alertId,
+      action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
+      cycle: raw.cycle as number, actorUid, actorRoleId,
+      auditId: raw.auditId as string,
+      shuttleId: shuttle.id, resourceId: raw.resourceId as ResourceId,
+      destroyedAmount: raw.destroyedAmount as number,
+      remainingAmount: raw.remainingAmount as number,
+      clueTier: raw.clueTier as WolfHackingAlert['clueTier'],
+      clueInstruction: raw.clueInstruction, createdAt,
+    };
+  }
+  return null;
+}
+
+function playerHackingNotice(
+  value: unknown,
+  sessionId: string,
+  noticeId: string,
+  sequence: number,
+): PlayerHackingNotice | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const parsedSessionId = parseEntityId('session', raw.sessionId);
+  const createdAt = optionalIso(raw.createdAt);
+  if (Object.keys(raw).some((key) => !['type', 'sessionId', 'sequence', 'createdAt'].includes(key)) ||
+      raw.type !== 'wolf-hacking-overlay-notice' || !isCanonicalRequestId(noticeId) ||
+      noticeId !== playerHackingNoticeIdForSequence(sequence) || raw.sequence !== sequence ||
+      parsedSessionId !== parseEntityId('session', sessionId) || !createdAt) return null;
+  return {
+    id: noticeId, type: 'wolf-hacking-overlay-notice', sessionId: parsedSessionId!, sequence, createdAt,
   };
 }
 
@@ -3253,6 +3429,123 @@ export function subscribeGmWolfSuspicionHistory(
     subscribed = false;
     unsubscribe();
     onHistory([]);
+  };
+}
+
+/** Subscribe to the durable pending facilitator-only sabotage alert queue. */
+export function subscribeGmWolfHackingAlerts(
+  sessionId: string,
+  onAlerts: (alerts: readonly PendingWolfHackingAlert[] | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/wolfHackingAlerts`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const parsed = snapshot.docs.map((entry) =>
+        wolfHackingAlert(entry.data(), sessionId, entry.id));
+      if (parsed.some((alert) => alert === null)) {
+        onAlerts(null);
+        return;
+      }
+      onAlerts((parsed as WolfHackingAlert[])
+        .filter((alert): alert is PendingWolfHackingAlert => alert.state === 'pending')
+        .sort((left, right) =>
+          left.createdAt.localeCompare(right.createdAt) || left.alertId.localeCompare(right.alertId)));
+    },
+    () => {
+      if (!subscribed) return;
+      onAlerts(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onAlerts(null);
+  };
+}
+
+/** Subscribe to actor-free notices available to every connected session member. */
+export function subscribePlayerHackingNotices(
+  sessionId: string,
+  onNotices: (notices: readonly PlayerHackingNotice[] | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  let latestNoticeCount: number | null = null;
+  const noticesBySequence = new Map<number, PlayerHackingNotice>();
+  const pendingSequences = new Set<number>();
+  const publishIfComplete = () => {
+    if (!subscribed || latestNoticeCount === null) return;
+    const notices: PlayerHackingNotice[] = [];
+    for (let sequence = 1; sequence <= latestNoticeCount; sequence += 1) {
+      const notice = noticesBySequence.get(sequence);
+      if (!notice) return;
+      notices.push(notice);
+    }
+    onNotices(notices);
+  };
+  const feedRef = doc(db(), `sessions/${sessionId}/playerHackingNoticeFeeds/current`);
+  const unsubscribe = onSnapshot(
+    feedRef,
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) {
+        if (latestNoticeCount === null || latestNoticeCount === 0) {
+          latestNoticeCount = 0;
+          onNotices([]);
+        } else {
+          onNotices(null);
+        }
+        return;
+      }
+      const noticeCount = playerHackingNoticeFeedCount(snapshot.data(), sessionId);
+      if (noticeCount === null) {
+        onNotices(null);
+        return;
+      }
+      if (latestNoticeCount !== null && noticeCount < latestNoticeCount) return;
+      latestNoticeCount = noticeCount;
+      if (noticeCount === 0) {
+        onNotices([]);
+        return;
+      }
+      for (let sequence = 1; sequence <= noticeCount; sequence += 1) {
+        if (noticesBySequence.has(sequence) || pendingSequences.has(sequence)) continue;
+        pendingSequences.add(sequence);
+        const noticeId = playerHackingNoticeIdForSequence(sequence);
+        void getDocFromServer(doc(
+          db(), `sessions/${sessionId}/playerHackingNotices/${noticeId}`,
+        )).then((noticeSnapshot) => {
+          pendingSequences.delete(sequence);
+          if (!subscribed) return;
+          if (noticeSnapshot.metadata?.fromCache === true || !noticeSnapshot.exists()) {
+            onNotices(null);
+            return;
+          }
+          const parsed = playerHackingNotice(
+            noticeSnapshot.data(), sessionId, noticeId, sequence,
+          );
+          if (!parsed) {
+            onNotices(null);
+            return;
+          }
+          noticesBySequence.set(sequence, parsed);
+          publishIfComplete();
+        }).catch(() => {
+          pendingSequences.delete(sequence);
+          if (subscribed) onNotices(null);
+        });
+      }
+    },
+    () => {
+      if (!subscribed) return;
+      onNotices(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onNotices(null);
   };
 }
 

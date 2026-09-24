@@ -1,0 +1,103 @@
+.wolf-hacking-alert {
+  position: fixed;
+  z-index: 20;
+  inset-block-start: calc(env(safe-area-inset-top) + var(--app-header-height, 4.25rem) + 0.65rem);
+  inset-inline-end: max(0.75rem, env(safe-area-inset-right));
+  width: min(34rem, calc(100vw - 1.5rem));
+  max-height: min(44dvh, 28rem);
+  overflow: auto;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid var(--cic-amber);
+  border-inline-start: 0.3rem solid var(--cic-danger);
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  box-shadow: inset 0 0 1rem color-mix(in srgb, var(--cic-danger) 8%, transparent);
+  font: 0.82rem/1.5 var(--cic-mono);
+  pointer-events: auto;
+}
+
+.wolf-hacking-alert p {
+  margin: 0.55rem 0;
+  overflow-wrap: anywhere;
+}
+
+.wolf-hacking-alert__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--cic-rule);
+  padding-block-end: 0.65rem;
+}
+
+.wolf-hacking-alert__eyebrow {
+  margin: 0 0 0.2rem !important;
+  color: var(--cic-ember);
+  letter-spacing: 0.08em;
+}
+
+.wolf-hacking-alert h2 {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 1.05rem/1.3 var(--cic-display);
+  text-transform: uppercase;
+}
+
+.wolf-hacking-alert__count {
+  flex: 0 0 auto;
+  color: var(--cic-cyan-hot);
+  font-size: 0.68rem;
+  text-align: end;
+}
+
+.wolf-hacking-alert__clue {
+  border-inline-start: 2px solid var(--cic-amber);
+  padding-inline-start: 0.7rem;
+}
+
+.wolf-hacking-alert__error,
+.wolf-hacking-alert [role='alert'] {
+  color: var(--cic-scream);
+}
+
+.wolf-hacking-alert button {
+  width: 100%;
+  min-height: 44px;
+  margin-block-start: 0.45rem;
+}
+
+.wolf-hacking-alert button:hover:not(:disabled) {
+  border-color: var(--cic-amber-glow);
+  background: color-mix(in srgb, var(--cic-cyan-dim) 18%, transparent);
+  color: var(--cic-cyan-hot);
+}
+
+.wolf-hacking-alert button:focus-visible {
+  outline-color: var(--cic-cyan-hot);
+}
+
+@media (max-width: 40rem) {
+  .wolf-hacking-alert {
+    inset-inline: max(0.5rem, env(safe-area-inset-left));
+    width: auto;
+    max-height: min(52dvh, 25rem);
+    padding: 0.8rem;
+    font-size: 0.75rem;
+  }
+
+  .wolf-hacking-alert h2 {
+    font-size: 0.94rem;
+  }
+}
+
+@media (max-height: 32rem) and (orientation: landscape) {
+  .wolf-hacking-alert {
+    inset-block-start: calc(env(safe-area-inset-top) + var(--app-header-height, 3rem) + 0.35rem);
+    max-height: min(45dvh, 15rem);
+    padding: 0.55rem 0.75rem;
+  }
+
+  .wolf-hacking-alert p {
+    margin-block: 0.25rem;
+  }
+}

@@ -18,6 +18,7 @@ import {
   refreshPresence,
 } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
+import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
@@ -827,6 +828,7 @@ function AppRoutes() {
         turnPhase={session?.turnPhase}
       />
       <AppHeader />
+      <WolfHackingRuntime />
       <EndgameDialog />
       <CommunicationError />
       <UnrestAlert />

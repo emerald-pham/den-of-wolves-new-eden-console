@@ -22,6 +22,7 @@ import {
   requireWolfAssignmentRequest,
   requireStartWolfConsoleVisitRequest,
   requireResolveWolfConsoleSabotageRequest,
+  requireAcknowledgeWolfHackingAlertRequest,
   requireWolfSupplySabotageRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
@@ -107,6 +108,24 @@ describe('callable request guards', () => {
       sessionId: 's1', instanceId: 'gm-1', requestId: 'resolve-1',
       visitId: 'visit-1', expectedCycle: 2, mode: 'random', chosenSystemId: 'reactor',
     }), 'invalid-argument');
+  });
+
+  it('accepts only a revision-bound facilitator hacking-alert acknowledgement', () => {
+    expect(requireAcknowledgeWolfHackingAlertRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-1', alertId: 'sabotage-1',
+      expectedRevision: 1,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-1', alertId: 'sabotage-1',
+      expectedRevision: 1,
+    });
+    expectHttpsError(() => requireAcknowledgeWolfHackingAlertRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-2', alertId: 'sabotage-1',
+      expectedRevision: 0,
+    }), 'invalid-argument');
+    expectHttpsError(() => requireAcknowledgeWolfHackingAlertRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-3', alertId: 'sabotage-1',
+      expectedRevision: 1, clueInstruction: 'client supplied',
+    } as never), 'invalid-argument');
   });
 
   it('accepts only a canonical Wolf supply-sabotage request for a positive expected cycle', () => {

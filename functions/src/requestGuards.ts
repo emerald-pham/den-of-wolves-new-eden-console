@@ -1281,6 +1281,37 @@ export function requireResolveWolfConsoleSabotageRequest(data: {
   };
 }
 
+/** Validate one facilitator acknowledgement for a pending sabotage alert. */
+export function requireAcknowledgeWolfHackingAlertRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  alertId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  alertId: string;
+  expectedRevision: number;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'alertId', 'expectedRevision',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Hacking alert acknowledgement contains unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive integer.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    alertId: requiredId(data.alertId, 'alertId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 /** Validate one private Wolf intelligence message before its authority transaction. */
 export function requireWolfIntelligenceRequest(data: {
   sessionId?: unknown;

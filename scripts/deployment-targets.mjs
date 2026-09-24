@@ -348,6 +348,38 @@ const P436_COMMAND_AND_CONTROL_BLUEPRINT_AFTER = P436_COMMAND_AND_CONTROL_BLUEPR
   "    resolver: unavailable('Command and Control is unavailable until the AEGIS attack resolver lands.', ['182']),\n",
   "    resolver: implemented('wolf-attack.command-and-control'),\n",
 );
+const P503A_ACK_GUARD_ADDITION = `/** Validate one facilitator acknowledgement for a pending sabotage alert. */
+export function requireAcknowledgeWolfHackingAlertRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  alertId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  alertId: string;
+  expectedRevision: number;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'alertId', 'expectedRevision',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Hacking alert acknowledgement contains unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive integer.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    alertId: requiredId(data.alertId, 'alertId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
+`;
 
 const P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS = Object.freeze([
   ["import type { CandidateReveal } from './candidateRevealProjection';", 1],
@@ -538,6 +570,29 @@ function callableIsExportedAtRevision(name, revision, cwd, sourceAtRevision) {
   return directExport.test(indexSource) || reExport.test(indexSource);
 }
 
+function p503aAcknowledgementGuardImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/requestGuards.ts';
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, file);
+    try {
+      return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine callable changes at ${revision}:${file}.`);
+    }
+  };
+  const previous = readAt(before);
+  const current = readAt(after);
+  if (previous.includes(P503A_ACK_GUARD_ADDITION) ||
+      current.split(P503A_ACK_GUARD_ADDITION).length - 1 !== 1 ||
+      current.replace(P503A_ACK_GUARD_ADDITION, '') !== previous) {
+    throw new Error('Cannot safely map request-guard changes outside the exact P503a acknowledgement validator.');
+  }
+  return ['acknowledgeWolfHackingAlert'];
+}
+
 function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
@@ -545,6 +600,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
   for (const file of runtimeFiles) {
     if (file === 'functions/src/index.ts') {
       for (const name of changedIndexCallables(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/requestGuards.ts') {
+      for (const name of p503aAcknowledgementGuardImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     if (file === 'functions/src/callableRateLimit.ts') {

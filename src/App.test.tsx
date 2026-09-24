@@ -17,6 +17,7 @@ vi.mock('@/lib/sessionService', () => ({
   CONNECT_RETRY_INTERVAL_MS: 2_000,
   connectAutomatically: vi.fn().mockResolvedValue(undefined),
   beginOpenAirspacePhase: vi.fn().mockResolvedValue(undefined),
+  acknowledgeWolfHackingAlert: vi.fn(),
   createSession: vi.fn(),
   disconnectFromSession: vi.fn(),
   joinSession: vi.fn(),
@@ -41,6 +42,8 @@ vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
   subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
+  subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
+  subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
   subscribeGmInstances: vi.fn((
     _sessionId: string,
     onInstances: (instances: readonly GmInstance[]) => void,

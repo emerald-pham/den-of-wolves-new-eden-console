@@ -59,6 +59,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import {
+  acknowledgeWolfHackingAlert,
   submitWolfHomingBeacon,
   submitWolfIntelligence,
   submitWolfSupplySabotage,
@@ -78,6 +79,11 @@ function provision(): void {
     phase: 'active', currentTurn: 2, activeRoleIds: [...recommendedRoleIds(18)],
     activeVesselIds: ['aegis', 'dione'],
     shuttleCargo: { philia: { food: 5 }, maliades: { water: 4 } },
+  });
+  put('sessions/s1/players/gm-uid', { uid: 'gm-uid', role: 'gm', connected: true });
+  put('sessions/s1/gmInstances/gm-1', {
+    uid: 'gm-uid', connected: true,
+    lastSeenAt: { toDate: () => new Date(Date.now()), toMillis: () => Date.now() },
   });
   put('sessions/s1/players/u2', {
     uid: 'u2', role: 'player', connected: true, assignedRoleId: 'dione-engineer',
@@ -261,9 +267,16 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
     action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
     sessionId: 's1', requestId: 'wolf-supply-1', cycle: 2,
     actorUid: 'u2', actorRoleId: 'dione-engineer',
+    shuttleId: 'philia', resourceId: 'food', destroyedAmount: 2, remainingAmount: 3,
     oldSuspicion: 0, increment: 2, newSuspicion: 2,
     roll: 1, total: 3, clueTier: 'none', disclosure: 'Nothing.',
     auditId: 'wolf-supply-sabotage-wolf-supply-1', createdAt: 'server-time',
+  });
+  expect(mock.documents.get('sessions/s1/wolfHackingAlerts/wolf-supply-1')).toMatchObject({
+    type: 'wolf-hacking-alert', state: 'pending', alertId: 'wolf-supply-1',
+    sessionId: 's1', requestId: 'wolf-supply-1', action: 'sabotage-supplies',
+    cycle: 2, actorUid: 'u2', actorRoleId: 'dione-engineer',
+    shuttleId: 'philia', resourceId: 'food', clueInstruction: expect.any(String), revision: 1,
   });
   expect(cryptoMock.randomInt).toHaveBeenCalledOnce();
   expect(cryptoMock.randomInt).toHaveBeenCalledWith(1, 7);
@@ -274,6 +287,51 @@ it('atomically resolves supply sabotage, suspicion, and the private cycle commit
   expect(mock.documents.get('sessions/s1/wolfActionState/u2/audit/wolf-supply-1'))
     .toMatchObject({ actorUid: 'u2', cycle: 2, action: 'sabotage-supplies' });
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
+});
+
+it('acknowledges supply sabotage only while its immutable supply details still match', async () => {
+  const committed = await submitWolfSupplySabotage.run(request());
+  const historyPath = 'sessions/s1/wolfSuspicionHistory/wolf-supply-1';
+  const originalHistory = mock.documents.get(historyPath);
+  put(historyPath, { ...originalHistory, destroyedAmount: 99 });
+  await expect(acknowledgeWolfHackingAlert.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-supply-corrupt',
+    alertId: 'wolf-supply-1', expectedRevision: 1,
+  }, 'gm-uid'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/playerHackingNotices/notice-000000000001')).toBe(false);
+
+  put(historyPath, originalHistory!);
+  const acknowledgement = await acknowledgeWolfHackingAlert.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-supply-1',
+    alertId: 'wolf-supply-1', expectedRevision: 1,
+  }, 'gm-uid'));
+  expect(acknowledgement).toMatchObject({
+    status: 'acknowledged', alertId: 'wolf-supply-1', noticeId: 'notice-000000000001',
+    noticeSequence: 1, revision: 2,
+  });
+  expect(mock.documents.get('sessions/s1/playerHackingNotices/notice-000000000001')).toEqual({
+    type: 'wolf-hacking-overlay-notice', sessionId: 's1', sequence: 1, createdAt: 'server-time',
+  });
+  expect(mock.documents.get('sessions/s1/playerHackingNoticeFeeds/current')).toEqual({
+    type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1,
+  });
+  await expect(submitWolfSupplySabotage.run(request())).resolves.toEqual(committed);
+  expect([...mock.documents.keys()].filter((path) => path.startsWith('sessions/s1/playerHackingNotices/')))
+    .toEqual(['sessions/s1/playerHackingNotices/notice-000000000001']);
+});
+
+it('fails closed when suspicion history occupies a new supply sabotage request without its receipt', async () => {
+  const requestId = 'wolf-supply-orphan-history';
+  const historyPath = `sessions/s1/wolfSuspicionHistory/${requestId}`;
+  const orphanHistory = {
+    type: 'wolf-suspicion-history', status: 'committed', sessionId: 's1', requestId,
+  };
+  put(historyPath, orphanHistory);
+  await expect(submitWolfSupplySabotage.run(request({ ...baseData, requestId })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get(historyPath)).toEqual(orphanHistory);
+  expect(mock.documents.has(`sessions/s1/wolfHackingAlerts/${requestId}`)).toBe(false);
+  expect(mock.documents.get('sessions/s1')).toMatchObject({ shuttleCargo: { philia: { food: 5 } } });
 });
 
 it('sends private Wolf intelligence with three suspicion and facilitator-only clue records', async () => {

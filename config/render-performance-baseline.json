@@ -1,9 +1,9 @@
 {
-  "version": 17,
+  "version": 18,
   "prompt": "637",
   "budgets": {
-    "landingBundleRawBytes": 1809500,
-    "landingBundleGzipBytes": 480500,
+    "landingBundleRawBytes": 1822830,
+    "landingBundleGzipBytes": 483957,
     "largestJavaScriptChunkBytes": 512000,
     "landingStartupP95Ms": 2500,
     "routeStartupP95Ms": 2500,

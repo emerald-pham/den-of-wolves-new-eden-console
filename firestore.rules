@@ -32,6 +32,35 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    function isSafePlayerHackingNoticeFeed(sessionId, feedId) {
+      return isMember(sessionId)
+        && feedId == 'current'
+        && (resource == null || (
+          resource.data.keys().hasAll(['type', 'sessionId', 'noticeCount'])
+          && resource.data.keys().hasOnly(['type', 'sessionId', 'noticeCount'])
+          && resource.data.type == 'wolf-hacking-notice-feed'
+          && resource.data.sessionId == sessionId
+          && resource.data.noticeCount is int
+          && resource.data.noticeCount >= 0
+          && resource.data.noticeCount <= 10000
+        ));
+    }
+
+    function isSafePlayerHackingNotice(sessionId, noticeId) {
+      return isMember(sessionId)
+        && noticeId.matches('notice-[0-9]{12}')
+        && (resource == null || (
+          resource.data.keys().hasAll(['type', 'sessionId', 'sequence', 'createdAt'])
+          && resource.data.keys().hasOnly(['type', 'sessionId', 'sequence', 'createdAt'])
+          && resource.data.type == 'wolf-hacking-overlay-notice'
+          && resource.data.sessionId == sessionId
+          && resource.data.sequence is int
+          && resource.data.sequence > 0
+          && resource.data.sequence <= 10000
+          && resource.data.createdAt is timestamp
+        ));
+    }
+
     function isCurrentIntelligenceAgentHolder(sessionId, investigationUid) {
       let secretId = 'loyalty-' + uid();
       let secretPath = /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId);
@@ -934,6 +963,28 @@ service cloud.firestore {
       // bands, and disclosure instructions never cross the GM boundary.
       match /wolfSuspicionHistory/{requestId} {
         allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
+      // Private pending sabotage alerts stay available to the facilitator
+      // across routes until the server records review and clue handling.
+      match /wolfHackingAlerts/{alertId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
+      // The public index and each notice are fetched by known document path so
+      // these get rules can reject malformed or mixed private/public fields.
+      // Every client write and both collection-list surfaces remain denied.
+      match /playerHackingNoticeFeeds/{feedId} {
+        allow get: if isSafePlayerHackingNoticeFeed(sessionId, feedId);
+        allow list: if false;
+        allow write: if false;
+      }
+
+      match /playerHackingNotices/{noticeId} {
+        allow get: if isSafePlayerHackingNotice(sessionId, noticeId);
+        allow list: if false;
         allow write: if false;
       }
 

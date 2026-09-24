@@ -23,6 +23,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 40, active: 0, missing: 254,
+    },
+    changes: [
+      'After committed Wolf console or supply sabotage, the facilitator gets a private alert and can acknowledge the printed clue instruction before every player console receives an approved hacking notice.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+    implementationPrompts: ['503a'],
+  },
+
+  {
+    version: '0.5.27',
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
       done: 457, partial: 39, active: 0, missing: 255,
     },
     changes: [

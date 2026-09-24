@@ -41,6 +41,7 @@ const {
   setDebriefMode,
   setGmControlsLocked,
   advanceTurn,
+  acknowledgeWolfHackingAlert,
   authorFacilitatorRuleCall,
   setDiseaseQuarantine,
   startGame,
@@ -153,6 +154,64 @@ function counterBatchResponse(
 function callableRejecting(value: unknown) {
   return Object.assign(vi.fn().mockRejectedValue(value), { stream: vi.fn() });
 }
+
+function prepareHackingAckGm() {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity(session, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: player.uid, name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+}
+
+it('sends a revision-bound acknowledgement through the current facilitator instance', async () => {
+  prepareHackingAckGm();
+  const callable = Object.assign(vi.fn(async (payload: Record<string, unknown>) => ({
+    data: {
+      status: 'acknowledged', type: 'wolf-hacking-alert-acknowledgement',
+      sessionId: payload.sessionId, requestId: payload.requestId,
+      alertId: payload.alertId, noticeId: 'notice-000000000001', noticeSequence: 1, revision: 2,
+    },
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  await expect(acknowledgeWolfHackingAlert({
+    sessionId: 's1', alertId: 'alert-1', revision: 1,
+  })).resolves.toMatchObject({ status: 'acknowledged', alertId: 'alert-1', noticeId: 'notice-000000000001', noticeSequence: 1 });
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'acknowledgeWolfHackingAlert');
+  expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', instanceId: 'instance-1', alertId: 'alert-1', expectedRevision: 1,
+    requestId: expect.stringMatching(/^[A-Za-z0-9-]+$/),
+  }));
+});
+
+it('rejects a late acknowledgement reply after the facilitator role changes', async () => {
+  prepareHackingAckGm();
+  let complete!: (reply: unknown) => void;
+  let payload!: Record<string, unknown>;
+  const callable = Object.assign(vi.fn((received: Record<string, unknown>) => new Promise((resolve) => {
+    payload = received;
+    complete = resolve;
+  })), {
+    stream: vi.fn(),
+  });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+  const acknowledgement = acknowledgeWolfHackingAlert({
+    sessionId: 's1', alertId: 'alert-2', revision: 1,
+  });
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  useSessionStore.getState().setMe({ ...player, role: 'player' });
+  complete({
+    data: {
+      status: 'acknowledged', type: 'wolf-hacking-alert-acknowledgement',
+      sessionId: payload.sessionId, requestId: payload.requestId,
+      alertId: payload.alertId, noticeId: 'notice-000000000002', noticeSequence: 2, revision: 2,
+    },
+  });
+  await expect(acknowledgement).rejects.toThrow(/facilitator authority changed/i);
+});
 
 describe('connect', () => {
   beforeEach(() => {

@@ -98,6 +98,7 @@ import {
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
   requireWolfSupplySabotageRequest,
+  requireAcknowledgeWolfHackingAlertRequest,
   requireStartWolfConsoleVisitRequest,
   requireResolveWolfConsoleSabotageRequest,
   requireWolfHomingBeaconRequest,
@@ -17024,6 +17025,12 @@ export const resolveWolfConsoleSabotage = onCall<{
   const suspicionHistoryRef = db.doc(
     `sessions/${submission.sessionId}/wolfSuspicionHistory/${submission.requestId}`,
   );
+  const hackingAlertRef = db.doc(
+    `sessions/${submission.sessionId}/wolfHackingAlerts/${submission.requestId}`,
+  );
+  const playerNoticeFeedRef = db.doc(
+    `sessions/${submission.sessionId}/playerHackingNoticeFeeds/current`,
+  );
   const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
   const fingerprint: CommandFingerprint = {
     action: 'resolve-wolf-console-sabotage',
@@ -17042,9 +17049,10 @@ export const resolveWolfConsoleSabotage = onCall<{
   let damageIndex: number | undefined;
   let clueRoll: number | undefined;
   return db.runTransaction(async (tx): Promise<WolfConsoleSabotageResult> => {
-    const [{ session }, visit, census, receipt] = await Promise.all([
+    const [{ session }, visit, census, receipt, existingHackingAlert, existingHistory, existingNoticeFeed] = await Promise.all([
       requireFacilitatorInstance(tx, submission.sessionId, uid, submission.instanceId),
-      tx.get(visitRef), tx.get(censusRef), tx.get(receiptRef),
+      tx.get(visitRef), tx.get(censusRef), tx.get(receiptRef), tx.get(hackingAlertRef),
+      tx.get(suspicionHistoryRef), tx.get(playerNoticeFeedRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, submission.sessionId, submission.requestId, 'Wolf console sabotage', [],
@@ -17055,7 +17063,29 @@ export const resolveWolfConsoleSabotage = onCall<{
         isWolfConsoleSabotageResult(value, submission.sessionId, submission.requestId),
       'Wolf console sabotage',
     );
-    if (replay) return replay;
+    if (replay) {
+      const replayNoticeId = existingHackingAlert.get('overlayNoticeId');
+      const replayNotice = existingHackingAlert.get('state') === 'acknowledged' &&
+        typeof replayNoticeId === 'string'
+        ? await tx.get(db.doc(`sessions/${submission.sessionId}/playerHackingNotices/${replayNoticeId}`))
+        : undefined;
+      if (!isStoredWolfHackingAlertConsistent(
+        existingHackingAlert.data(), existingHistory, submission.sessionId, submission.requestId,
+        replayNotice, existingNoticeFeed,
+      )) {
+        throw commandError(
+          'failed-precondition', 'The replayed sabotage alert no longer matches its committed history.',
+          'malformed-input',
+        );
+      }
+      return replay;
+    }
+    if (existingHackingAlert.exists || existingHistory.exists) {
+      throw commandError(
+        'failed-precondition', 'Sabotage history or its private alert exists without a replay receipt.',
+        'malformed-input',
+      );
+    }
     if (!visit.exists || visit.get('type') !== 'wolf-console-visit' ||
         visit.get('status') !== 'observing' || visit.get('visitId') !== submission.visitId) {
       throw commandError('failed-precondition', 'The console visit is unavailable.', 'conflict');
@@ -17303,6 +17333,28 @@ export const resolveWolfConsoleSabotage = onCall<{
       auditId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(hackingAlertRef, {
+      type: 'wolf-hacking-alert',
+      state: 'pending',
+      alertId: submission.requestId,
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      action: 'sabotage-console',
+      source: 'wolf-console-sabotage',
+      cycle,
+      actorUid,
+      actorRoleId: authorization.coverRoleId,
+      auditId,
+      revision: 1,
+      visitId: submission.visitId,
+      targetShipId,
+      targetSystemId: consequence.card.systemId,
+      targetSystemName: consequence.card.systemName,
+      mode: consequence.mode,
+      clueTier: clue.clueTier,
+      clueInstruction: clue.facilitatorInstruction,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     tx.set(actionRef, record);
     tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
     tx.update(visitRef, {
@@ -17382,6 +17434,12 @@ export const submitWolfSupplySabotage = onCall<{
   const suspicionHistoryRef = db.doc(
     `sessions/${submission.sessionId}/wolfSuspicionHistory/${submission.requestId}`,
   );
+  const hackingAlertRef = db.doc(
+    `sessions/${submission.sessionId}/wolfHackingAlerts/${submission.requestId}`,
+  );
+  const playerNoticeFeedRef = db.doc(
+    `sessions/${submission.sessionId}/playerHackingNoticeFeeds/current`,
+  );
   const actionRef = db.doc(`sessions/${submission.sessionId}/wolfActionState/${uid}`);
   const auditRef = db.doc(
     `sessions/${submission.sessionId}/wolfActionState/${uid}/audit/${submission.requestId}`,
@@ -17398,9 +17456,10 @@ export const submitWolfSupplySabotage = onCall<{
   };
   let clueRoll: number | undefined;
   return db.runTransaction(async (tx): Promise<WolfSupplySabotageResult> => {
-    const [session, player, loyalty, assignment, census, currentAction, receipt] = await Promise.all([
+    const [session, player, loyalty, assignment, census, currentAction, receipt, existingHackingAlert, existingHistory, existingNoticeFeed] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(loyaltyRef), tx.get(assignmentRef),
-      tx.get(censusRef), tx.get(actionRef), tx.get(receiptRef),
+      tx.get(censusRef), tx.get(actionRef), tx.get(receiptRef), tx.get(hackingAlertRef),
+      tx.get(suspicionHistoryRef), tx.get(playerNoticeFeedRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, submission.sessionId, submission.requestId, 'Wolf supply sabotage', [],
@@ -17412,7 +17471,29 @@ export const submitWolfSupplySabotage = onCall<{
         isWolfSupplySabotageResult(value, submission.sessionId, submission.requestId, uid),
       'Wolf supply sabotage',
     );
-    if (replay) return replay;
+    if (replay) {
+      const replayNoticeId = existingHackingAlert.get('overlayNoticeId');
+      const replayNotice = existingHackingAlert.get('state') === 'acknowledged' &&
+        typeof replayNoticeId === 'string'
+        ? await tx.get(db.doc(`sessions/${submission.sessionId}/playerHackingNotices/${replayNoticeId}`))
+        : undefined;
+      if (!isStoredWolfHackingAlertConsistent(
+        existingHackingAlert.data(), existingHistory, submission.sessionId, submission.requestId,
+        replayNotice, existingNoticeFeed,
+      )) {
+        throw commandError(
+          'failed-precondition', 'The replayed sabotage alert no longer matches its committed history.',
+          'malformed-input',
+        );
+      }
+      return replay;
+    }
+    if (existingHackingAlert.exists || existingHistory.exists) {
+      throw commandError(
+        'failed-precondition', 'Sabotage history or its private alert exists without a replay receipt.',
+        'malformed-input',
+      );
+    }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireActiveGameplayPhase(session);
     const cycle = sessionTurn(session.get('currentTurn'));
@@ -17621,6 +17702,10 @@ export const submitWolfSupplySabotage = onCall<{
       cycle,
       actorUid: uid,
       actorRoleId: authorization.coverRoleId,
+      shuttleId: submission.shuttleId,
+      resourceId: submission.resourceId,
+      destroyedAmount: consequence.destroyedAmount,
+      remainingAmount: consequence.remainingAmount,
       oldSuspicion: clue.oldSuspicion,
       increment: clue.increment,
       newSuspicion: clue.newSuspicion,
@@ -17631,9 +17716,399 @@ export const submitWolfSupplySabotage = onCall<{
       auditId: envelope.auditId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(hackingAlertRef, {
+      type: 'wolf-hacking-alert',
+      state: 'pending',
+      alertId: submission.requestId,
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      action: 'sabotage-supplies',
+      source: 'wolf-supply-sabotage',
+      cycle,
+      actorUid: uid,
+      actorRoleId: authorization.coverRoleId,
+      auditId: envelope.auditId,
+      revision: 1,
+      shuttleId: submission.shuttleId,
+      resourceId: submission.resourceId,
+      destroyedAmount: consequence.destroyedAmount,
+      remainingAmount: consequence.remainingAmount,
+      clueTier: clue.clueTier,
+      clueInstruction: clue.facilitatorInstruction,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     tx.set(actionRef, record);
     tx.set(auditRef, { ...record, createdAt: FieldValue.serverTimestamp() });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type PendingWolfHackingAlert = Readonly<Record<string, unknown>>;
+
+function isPendingWolfHackingAlert(
+  value: unknown,
+  sessionId: string,
+  alertId: string,
+): value is PendingWolfHackingAlert {
+  if (!isRecord(value) || value.type !== 'wolf-hacking-alert' || value.state !== 'pending' ||
+      value.alertId !== alertId || value.sessionId !== sessionId || value.requestId !== alertId ||
+      value.revision !== 1 || !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
+      typeof value.actorUid !== 'string' || typeof value.actorRoleId !== 'string' ||
+      !(ROLE_IDS as readonly string[]).includes(value.actorRoleId) ||
+      typeof value.auditId !== 'string' || typeof value.clueTier !== 'string' ||
+      typeof value.clueInstruction !== 'string' || value.clueInstruction.length < 1 ||
+      value.createdAt === undefined) return false;
+  const commonKeys = [
+    'type', 'state', 'alertId', 'sessionId', 'requestId', 'action', 'source', 'cycle',
+    'actorUid', 'actorRoleId', 'auditId', 'revision', 'clueTier', 'clueInstruction', 'createdAt',
+  ];
+  const clueInstructions: Readonly<Record<string, string>> = {
+    none: 'Nothing.',
+    'natural-change': 'Point the change out to someone, framed as natural or accidental.',
+    'wolf-activity': 'Point out the wolf activity to someone.',
+    'wolf-activity-hint': 'Point out the wolf activity, and give a hint.',
+    'strong-hint': 'Give someone a strong hint.',
+    'traitor-name': "Give someone the traitor's name.",
+  };
+  if (clueInstructions[value.clueTier as string] !== value.clueInstruction) return false;
+  const actionKeys = value.action === 'sabotage-console'
+    ? [
+        'visitId', 'targetShipId', 'targetSystemId', 'targetSystemName', 'mode',
+      ]
+    : value.action === 'sabotage-supplies'
+      ? ['shuttleId', 'resourceId', 'destroyedAmount', 'remainingAmount']
+      : null;
+  if (actionKeys === null) return false;
+  const allowedKeys = new Set([...commonKeys, ...actionKeys]);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) return false;
+  if (value.action === 'sabotage-console') {
+    const deck = typeof value.targetShipId === 'string' ? SHIP_DAMAGE_DECKS[value.targetShipId] : undefined;
+    const target = deck?.find((card) => card.systemId === value.targetSystemId);
+    return value.source === 'wolf-console-sabotage' &&
+      value.auditId === `wolf-console-sabotage-${alertId}` &&
+      typeof value.visitId === 'string' && typeof value.targetShipId === 'string' &&
+      typeof value.targetSystemId === 'string' && target !== undefined &&
+      target.systemName === value.targetSystemName &&
+      (value.mode === 'random' || value.mode === 'chosen');
+  }
+  return value.source === 'wolf-supply-sabotage' &&
+    value.auditId === `wolf-supply-sabotage-${alertId}` &&
+    typeof value.shuttleId === 'string' &&
+    ROLE_OWNED_CRAFT_CATALOG.some((craft) =>
+      craft.id === value.shuttleId && craft.kind === 'shuttle' && craft.ownerRoleId === value.actorRoleId) &&
+    (RESOURCE_IDS as readonly string[]).includes(value.resourceId as string) &&
+    Number.isSafeInteger(value.destroyedAmount) && (value.destroyedAmount as number) >= 0 &&
+    Number.isSafeInteger(value.remainingAmount) && (value.remainingAmount as number) >= 0 &&
+    (value.destroyedAmount as number) <= (value.remainingAmount as number) &&
+    Number.isSafeInteger((value.destroyedAmount as number) + (value.remainingAmount as number));
+}
+
+function pendingHackingAlertMatchesHistory(
+  alert: PendingWolfHackingAlert,
+  history: DocumentSnapshot,
+): boolean {
+  const historyKeys = alert.action === 'sabotage-console'
+    ? [
+        'type', 'status', 'action', 'source', 'sessionId', 'requestId', 'cycle',
+        'actorUid', 'actorRoleId', 'visitId', 'targetShipId', 'targetSystemId',
+        'targetSystemName', 'mode', 'oldSuspicion', 'increment', 'newSuspicion',
+        'roll', 'total', 'clueTier', 'disclosure', 'auditId', 'createdAt',
+      ]
+    : [
+        'type', 'status', 'action', 'source', 'sessionId', 'requestId', 'cycle',
+        'actorUid', 'actorRoleId', 'shuttleId', 'resourceId', 'destroyedAmount',
+        'remainingAmount', 'oldSuspicion', 'increment', 'newSuspicion', 'roll',
+        'total', 'clueTier', 'disclosure', 'auditId', 'createdAt',
+      ];
+  const storedHistory = history.data();
+  const oldSuspicion = history.get('oldSuspicion');
+  const increment = history.get('increment');
+  const newSuspicion = history.get('newSuspicion');
+  const roll = history.get('roll');
+  const total = history.get('total');
+  const expectedIncrement = alert.action === 'sabotage-console'
+    ? alert.mode === 'chosen' ? 4 : 2
+    : 2;
+  const expectedClue = Number.isSafeInteger(total)
+    ? (total as number) <= 6 ? ['none', 'Nothing.']
+      : (total as number) <= 11 ? ['natural-change', 'Point the change out to someone, framed as natural or accidental.']
+        : (total as number) <= 15 ? ['wolf-activity', 'Point out the wolf activity to someone.']
+          : (total as number) <= 19 ? ['wolf-activity-hint', 'Point out the wolf activity, and give a hint.']
+            : (total as number) <= 23 ? ['strong-hint', 'Give someone a strong hint.']
+              : ['traitor-name', "Give someone the traitor's name."]
+    : null;
+  if (!history.exists || !isRecord(storedHistory) ||
+      Object.keys(storedHistory).some((key) => !historyKeys.includes(key)) ||
+      historyKeys.some((key) => storedHistory[key] === undefined) ||
+      history.get('type') !== 'wolf-suspicion-history' ||
+      history.get('status') !== 'committed' || history.get('sessionId') !== alert.sessionId ||
+      history.get('requestId') !== alert.requestId || history.get('cycle') !== alert.cycle ||
+      history.get('actorUid') !== alert.actorUid || history.get('actorRoleId') !== alert.actorRoleId ||
+      history.get('action') !== alert.action || history.get('source') !== alert.source ||
+      history.get('auditId') !== alert.auditId || history.get('clueTier') !== alert.clueTier ||
+      history.get('disclosure') !== alert.clueInstruction ||
+      !Number.isSafeInteger(oldSuspicion) || (oldSuspicion as number) < 0 ||
+      !Number.isSafeInteger(increment) || increment !== expectedIncrement ||
+      !Number.isSafeInteger(newSuspicion) ||
+      (newSuspicion as number) !== (oldSuspicion as number) + expectedIncrement ||
+      !Number.isSafeInteger(roll) || (roll as number) < 1 || (roll as number) > 6 ||
+      !Number.isSafeInteger(total) ||
+      (total as number) !== (newSuspicion as number) + (roll as number) ||
+      !expectedClue || expectedClue[0] !== alert.clueTier ||
+      expectedClue[1] !== alert.clueInstruction) return false;
+  if (alert.action === 'sabotage-console') {
+    return history.get('visitId') === alert.visitId &&
+      history.get('targetShipId') === alert.targetShipId &&
+      history.get('targetSystemId') === alert.targetSystemId &&
+      history.get('targetSystemName') === alert.targetSystemName &&
+      history.get('mode') === alert.mode;
+  }
+  return alert.action === 'sabotage-supplies' &&
+    history.get('shuttleId') === alert.shuttleId &&
+    history.get('resourceId') === alert.resourceId &&
+    history.get('destroyedAmount') === alert.destroyedAmount &&
+    history.get('remainingAmount') === alert.remainingAmount;
+}
+
+const MAX_WOLF_HACKING_NOTICE_SEQUENCE = 10_000;
+
+function wolfHackingNoticeId(sequence: number): string {
+  return `notice-${String(sequence).padStart(12, '0')}`;
+}
+
+function wolfHackingNoticeSequence(noticeId: unknown): number | null {
+  if (typeof noticeId !== 'string') return null;
+  const match = /^notice-(\d{12})$/.exec(noticeId);
+  if (!match) return null;
+  const sequence = Number(match[1]);
+  return Number.isSafeInteger(sequence) && sequence > 0 &&
+    sequence <= MAX_WOLF_HACKING_NOTICE_SEQUENCE && wolfHackingNoticeId(sequence) === noticeId
+    ? sequence : null;
+}
+
+function wolfHackingNoticeFeedCount(value: unknown, sessionId: string): number | null {
+  if (!isRecord(value) || value.type !== 'wolf-hacking-notice-feed' ||
+      value.sessionId !== sessionId || !Number.isSafeInteger(value.noticeCount) ||
+      (value.noticeCount as number) < 0 ||
+      (value.noticeCount as number) > MAX_WOLF_HACKING_NOTICE_SEQUENCE ||
+      Object.keys(value).some((key) => !['type', 'sessionId', 'noticeCount'].includes(key))) return null;
+  return value.noticeCount as number;
+}
+
+function isPlayerHackingNoticeRecord(
+  value: unknown,
+  sessionId: string,
+  noticeId: string,
+  sequence: number,
+): boolean {
+  return isRecord(value) && value.type === 'wolf-hacking-overlay-notice' &&
+    value.sessionId === sessionId && value.sequence === sequence &&
+    Number.isSafeInteger(sequence) && sequence > 0 &&
+    noticeId === wolfHackingNoticeId(sequence) && value.createdAt !== undefined &&
+    Object.keys(value).every((key) => ['type', 'sessionId', 'sequence', 'createdAt'].includes(key));
+}
+
+/** Validate the immutable sabotage binding even after its GM acknowledgement. */
+function isStoredWolfHackingAlertConsistent(
+  value: unknown,
+  history: DocumentSnapshot,
+  sessionId: string,
+  alertId: string,
+  notice?: DocumentSnapshot,
+  noticeFeed?: DocumentSnapshot,
+): boolean {
+  if (isPendingWolfHackingAlert(value, sessionId, alertId)) {
+    return pendingHackingAlertMatchesHistory(value, history);
+  }
+  if (!isRecord(value) || value.state !== 'acknowledged' || value.revision !== 2 ||
+      typeof value.acknowledgedBy !== 'string' || value.acknowledgedBy.length < 1 ||
+      typeof value.acknowledgedByInstanceId !== 'string' || value.acknowledgedByInstanceId.length < 1 ||
+      value.acknowledgedAt === undefined || value.clueInstructionHandled !== true ||
+      value.clueInstructionHandledBy !== value.acknowledgedBy ||
+      value.clueInstructionHandledAt === undefined ||
+      typeof value.overlayNoticeId !== 'string' || value.overlayNoticeId.length < 1 ||
+      !Number.isSafeInteger(value.overlayNoticeSequence) ||
+      (value.overlayNoticeSequence as number) < 1 ||
+      value.overlayNoticeSequence !== wolfHackingNoticeSequence(value.overlayNoticeId) ||
+      !notice?.exists || notice.id !== value.overlayNoticeId ||
+      !isPlayerHackingNoticeRecord(
+        notice.data(), sessionId, value.overlayNoticeId, value.overlayNoticeSequence as number,
+      ) || !noticeFeed?.exists ||
+      (wolfHackingNoticeFeedCount(noticeFeed.data(), sessionId) ?? -1) <
+        (value.overlayNoticeSequence as number)) return false;
+
+  const acknowledgedKeys = new Set([
+    'acknowledgedBy', 'acknowledgedByInstanceId', 'acknowledgedAt',
+    'clueInstructionHandled', 'clueInstructionHandledBy', 'clueInstructionHandledAt',
+    'overlayNoticeId', 'overlayNoticeSequence',
+  ]);
+  const pending: Record<string, unknown> = { ...value, state: 'pending', revision: 1 };
+  for (const key of acknowledgedKeys) delete pending[key];
+  return isPendingWolfHackingAlert(pending, sessionId, alertId) &&
+    pendingHackingAlertMatchesHistory(pending, history);
+}
+
+type AcknowledgeWolfHackingAlertResult = Readonly<{
+  status: 'acknowledged';
+  type: 'wolf-hacking-alert-acknowledgement';
+  sessionId: string;
+  requestId: string;
+  alertId: string;
+  noticeId: string;
+  noticeSequence: number;
+  revision: 2;
+}>;
+
+function isAcknowledgeWolfHackingAlertResult(
+  value: unknown,
+  sessionId: string,
+  requestId: string,
+  alertId: string,
+): value is AcknowledgeWolfHackingAlertResult {
+  return isRecord(value) && value.status === 'acknowledged' &&
+    value.type === 'wolf-hacking-alert-acknowledgement' && value.sessionId === sessionId &&
+    value.requestId === requestId && value.alertId === alertId &&
+    typeof value.noticeId === 'string' &&
+    value.noticeSequence === wolfHackingNoticeSequence(value.noticeId) &&
+    value.revision === 2;
+}
+
+/**
+ * Record facilitator review of one exact private sabotage alert and publish
+ * only an actor-free decorative notice to the session's player consoles.
+ */
+export const acknowledgeWolfHackingAlert = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  alertId?: unknown;
+  expectedRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const submission = requireAcknowledgeWolfHackingAlertRequest(request.data ?? {});
+  const alertRef = db.doc(
+    `sessions/${submission.sessionId}/wolfHackingAlerts/${submission.alertId}`,
+  );
+  const historyRef = db.doc(
+    `sessions/${submission.sessionId}/wolfSuspicionHistory/${submission.alertId}`,
+  );
+  const receiptRef = commandReceiptRef(submission.sessionId, submission.requestId);
+  const noticeFeedRef = db.doc(
+    `sessions/${submission.sessionId}/playerHackingNoticeFeeds/current`,
+  );
+  const fingerprint: CommandFingerprint = {
+    action: 'acknowledge-wolf-hacking-alert',
+    sessionId: submission.sessionId,
+    requestId: submission.requestId,
+    actorUid: uid,
+    instanceId: submission.instanceId,
+    expectedRevision: submission.expectedRevision,
+    payload: { alertId: submission.alertId },
+  };
+  return db.runTransaction(async (tx): Promise<AcknowledgeWolfHackingAlertResult> => {
+    const [, alert, history, receipt, noticeFeed] = await Promise.all([
+      requireFacilitatorInstance(tx, submission.sessionId, uid, submission.instanceId),
+      tx.get(alertRef), tx.get(historyRef), tx.get(receiptRef), tx.get(noticeFeedRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, submission.sessionId, submission.requestId, 'Wolf hacking alert acknowledgement', [],
+    );
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is AcknowledgeWolfHackingAlertResult =>
+        isAcknowledgeWolfHackingAlertResult(
+          value, submission.sessionId, submission.requestId, submission.alertId,
+        ),
+      'Wolf hacking alert acknowledgement',
+    );
+    if (replay) {
+      const replayNotice = await tx.get(
+        db.doc(`sessions/${submission.sessionId}/playerHackingNotices/${replay.noticeId}`),
+      );
+      if (!isStoredWolfHackingAlertConsistent(
+        alert.data(), history, submission.sessionId, submission.alertId, replayNotice, noticeFeed,
+      ) || alert.get('overlayNoticeId') !== replay.noticeId ||
+          alert.get('overlayNoticeSequence') !== replay.noticeSequence) {
+        throw commandError(
+          'failed-precondition', 'The acknowledged alert and player notice no longer match.',
+          'malformed-input',
+        );
+      }
+      return replay;
+    }
+    const record = alert.data();
+    if (!alert.exists || !isPendingWolfHackingAlert(record, submission.sessionId, submission.alertId)) {
+      throw commandError(
+        'failed-precondition', 'The pending hacking alert is missing or malformed.', 'malformed-input',
+      );
+    }
+    if (record.revision !== submission.expectedRevision) {
+      throw commandError(
+        'failed-precondition', 'The hacking alert changed. Refresh before acknowledging it.',
+        'stale-revision',
+      );
+    }
+    if (!pendingHackingAlertMatchesHistory(record, history)) {
+      throw commandError(
+        'failed-precondition', 'The hacking alert no longer matches its committed action history.',
+        'malformed-input',
+      );
+    }
+    const noticeCount = noticeFeed.exists
+      ? wolfHackingNoticeFeedCount(noticeFeed.data(), submission.sessionId)
+      : 0;
+    if (noticeCount === null || noticeCount >= MAX_WOLF_HACKING_NOTICE_SEQUENCE) {
+      throw commandError(
+        'failed-precondition', 'The public hacking-notice feed is malformed or exhausted.',
+        'malformed-input',
+      );
+    }
+    const noticeSequence = noticeCount + 1;
+    const noticeId = wolfHackingNoticeId(noticeSequence);
+    const noticeRef = db.doc(`sessions/${submission.sessionId}/playerHackingNotices/${noticeId}`);
+    const existingNotice = await tx.get(noticeRef);
+    if (existingNotice.exists) {
+      throw commandError(
+        'failed-precondition', 'The player notice already exists without an acknowledgement receipt.',
+        'malformed-input',
+      );
+    }
+    const result: AcknowledgeWolfHackingAlertResult = {
+      status: 'acknowledged',
+      type: 'wolf-hacking-alert-acknowledgement',
+      sessionId: submission.sessionId,
+      requestId: submission.requestId,
+      alertId: submission.alertId,
+      noticeId,
+      noticeSequence,
+      revision: 2,
+    };
+    const acknowledgedAt = FieldValue.serverTimestamp();
+    tx.update(alertRef, {
+      state: 'acknowledged',
+      revision: 2,
+      acknowledgedBy: uid,
+      acknowledgedByInstanceId: submission.instanceId,
+      acknowledgedAt,
+      clueInstructionHandled: true,
+      clueInstructionHandledBy: uid,
+      clueInstructionHandledAt: acknowledgedAt,
+      overlayNoticeId: noticeId,
+      overlayNoticeSequence: noticeSequence,
+    });
+    tx.set(noticeRef, {
+      type: 'wolf-hacking-overlay-notice',
+      sessionId: submission.sessionId,
+      sequence: noticeSequence,
+      createdAt: acknowledgedAt,
+    });
+    tx.set(noticeFeedRef, {
+      type: 'wolf-hacking-notice-feed',
+      sessionId: submission.sessionId,
+      noticeCount: noticeSequence,
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: acknowledgedAt });
     return result;
   });
 });

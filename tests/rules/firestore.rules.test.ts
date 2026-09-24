@@ -1764,6 +1764,90 @@ describe('private Wolf suspicion history', () => {
   });
 });
 
+describe('Wolf hacking alert and public notice audiences', () => {
+  it('keeps pending alerts GM-only and lets members read only actor-free acknowledged notices', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/wolfHackingAlerts/sabotage-1`), {
+        type: 'wolf-hacking-alert', state: 'pending', alertId: 'sabotage-1',
+        sessionId: 's1', requestId: 'sabotage-1', action: 'sabotage-supplies',
+        source: 'wolf-supply-sabotage', cycle: 3, actorUid: 'alice',
+        actorRoleId: 'dione-engineer', auditId: 'wolf-supply-sabotage-sabotage-1',
+        revision: 1, shuttleId: 'philia', resourceId: 'food', destroyedAmount: 2,
+        remainingAmount: 3, clueTier: 'none', clueInstruction: 'Nothing.', createdAt: new Date(),
+      });
+      await setDoc(doc(db, `${SESSION}/playerHackingNotices/notice-000000000001`), {
+        type: 'wolf-hacking-overlay-notice', sessionId: 's1', sequence: 1, createdAt: new Date(),
+      });
+      await setDoc(doc(db, `${SESSION}/playerHackingNotices/notice-000000000002`), {
+        type: 'wolf-hacking-overlay-notice', sessionId: 's1', sequence: 2, createdAt: new Date(),
+        actorUid: 'alice',
+      });
+      await setDoc(doc(db, `${SESSION}/playerHackingNoticeFeeds/current`), {
+        type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1,
+      });
+    });
+
+    const alertPath = `${SESSION}/wolfHackingAlerts/sabotage-1`;
+    await assertSucceeds(getDoc(doc(as('gm1'), alertPath)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/wolfHackingAlerts`)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), alertPath)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/wolfHackingAlerts`)));
+    }
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), alertPath);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { state: 'acknowledged' }));
+      await assertFails(deleteDoc(target));
+    }
+
+    const noticePath = `${SESSION}/playerHackingNotices/notice-000000000001`;
+    await assertSucceeds(getDoc(doc(as('alice'), noticePath)));
+    await assertSucceeds(getDoc(doc(as('press'), noticePath)));
+    await assertSucceeds(getDoc(doc(as('observer'), noticePath)));
+    await assertSucceeds(getDoc(doc(as('gm1'), noticePath)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerHackingNotices/notice-000000000002`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/playerHackingNotices/notice-000000000002`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/playerHackingNotices`)));
+    await assertFails(getDocs(collection(as('outsider'), `${SESSION}/playerHackingNotices`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/playerHackingNoticeFeeds/current`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/playerHackingNoticeFeeds/current`)));
+    await assertFails(getDoc(doc(as('outsider'), `${SESSION}/playerHackingNoticeFeeds/current`)));
+    for (const uid of ['alice', 'gm1']) {
+      const feed = doc(as(uid), `${SESSION}/playerHackingNoticeFeeds/current`);
+      await assertFails(setDoc(feed, { forged: true }));
+      await assertFails(updateDoc(feed, { noticeCount: 2 }));
+      await assertFails(deleteDoc(feed));
+    }
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), `${SESSION}/playerHackingNoticeFeeds/current`));
+    });
+    const missingFeed = await assertSucceeds(
+      getDoc(doc(as('alice'), `${SESSION}/playerHackingNoticeFeeds/current`)),
+    );
+    expect(missingFeed.exists()).toBe(false);
+    const missingNotice = await assertSucceeds(
+      getDoc(doc(as('alice'), `${SESSION}/playerHackingNotices/notice-000000000003`)),
+    );
+    expect(missingNotice.exists()).toBe(false);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/playerHackingNoticeFeeds/current`), {
+        type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1, actorUid: 'alice',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerHackingNoticeFeeds/current`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/playerHackingNoticeFeeds`)));
+    await assertFails(getDocs(collection(as('outsider'), `${SESSION}/playerHackingNoticeFeeds`)));
+    for (const uid of ['alice', 'gm1']) {
+      const target = doc(as(uid), noticePath);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { sessionId: 'other' }));
+      await assertFails(deleteDoc(target));
+    }
+  });
+});
+
 describe('players', () => {
   it('bounds ordinary roster reads to the caller current connected fleet group', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

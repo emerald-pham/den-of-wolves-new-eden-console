@@ -12,6 +12,7 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   connectFirestoreEmulator: vi.fn(),
   doc: vi.fn(),
+  getDocFromServer: vi.fn(),
   getFirestore: vi.fn(),
   onSnapshot: vi.fn(),
   orderBy: vi.fn(),
@@ -39,6 +40,8 @@ const {
   subscribeLoyaltyCensus,
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
+  subscribeGmWolfHackingAlerts,
+  subscribePlayerHackingNotices,
   subscribeGmWolfClueDisclosure,
   subscribeGmWolfCultIntelligence,
   subscribeGmWolfAttackPreparation,
@@ -51,7 +54,7 @@ const {
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
-const { onSnapshot, where } = await import('firebase/firestore');
+const { doc, getDocFromServer, onSnapshot, where } = await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
@@ -2147,6 +2150,178 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
   stop();
   expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
   expect(onHistory).toHaveBeenLastCalledWith([]);
+});
+
+it('strictly projects pending GM sabotage alerts and clears malformed or stale callbacks', () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onAlerts = vi.fn();
+  const stop = subscribeGmWolfHackingAlerts('s1', onAlerts);
+  const alert = {
+    type: 'wolf-hacking-alert', state: 'pending', alertId: 'console-1',
+    sessionId: 's1', requestId: 'console-1', action: 'sabotage-console',
+    source: 'wolf-console-sabotage', cycle: 3, actorUid: 'u2',
+    actorRoleId: 'dione-engineer', auditId: 'wolf-console-sabotage-console-1',
+    revision: 1, visitId: 'visit-1', targetShipId: 'dione', targetSystemId: 'reactor',
+    targetSystemName: 'Reactor', mode: 'chosen', clueTier: 'none',
+    clueInstruction: 'Nothing.', createdAt: '2026-09-20T20:00:00.000Z',
+  };
+  const supplyAlert = {
+    ...alert, alertId: 'supplies-1', requestId: 'supplies-1',
+    action: 'sabotage-supplies', source: 'wolf-supply-sabotage',
+    auditId: 'wolf-supply-sabotage-supplies-1', shuttleId: 'philia',
+    resourceId: 'food', destroyedAmount: 2, remainingAmount: 3,
+  };
+  const acknowledgedAlert = {
+    ...alert, alertId: 'acknowledged-1', requestId: 'acknowledged-1',
+    auditId: 'wolf-console-sabotage-acknowledged-1', state: 'acknowledged', revision: 2,
+    acknowledgedBy: 'gm-uid', acknowledgedByInstanceId: 'gm-1',
+    acknowledgedAt: '2026-09-20T20:01:00.000Z', clueInstructionHandled: true,
+    clueInstructionHandledBy: 'gm-uid', clueInstructionHandledAt: '2026-09-20T20:01:00.000Z',
+    overlayNoticeId: 'notice-000000000001', overlayNoticeSequence: 1,
+  };
+  for (const key of ['visitId', 'targetShipId', 'targetSystemId', 'targetSystemName', 'mode'] as const) {
+    delete (supplyAlert as Record<string, unknown>)[key];
+  }
+  callbacks[0]?.({ metadata: { fromCache: true }, docs: [
+    { id: 'console-1', data: () => alert }, { id: 'supplies-1', data: () => supplyAlert },
+  ] });
+  expect(onAlerts).not.toHaveBeenCalled();
+  callbacks[0]?.({ metadata: { fromCache: false }, docs: [
+    { id: 'console-1', data: () => alert }, { id: 'supplies-1', data: () => supplyAlert },
+    { id: 'acknowledged-1', data: () => acknowledgedAlert },
+  ] });
+  expect(onAlerts).toHaveBeenLastCalledWith([
+    expect.objectContaining({
+      type: 'wolf-hacking-alert', alertId: 'console-1', actorUid: 'u2',
+      targetShipId: 'dione', targetSystemId: 'reactor', clueInstruction: 'Nothing.',
+    }),
+    expect.objectContaining({
+      type: 'wolf-hacking-alert', alertId: 'supplies-1',
+      shuttleId: 'philia', resourceId: 'food', destroyedAmount: 2,
+    }),
+  ]);
+  callbacks[0]?.({ metadata: { fromCache: false }, docs: [
+    { id: 'console-1', data: () => ({ ...alert, privateExtra: 'reject' }) },
+  ] });
+  expect(onAlerts).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({ metadata: { fromCache: false }, docs: [
+    { id: 'acknowledged-1', data: () => ({ ...acknowledgedAlert, revision: 1 }) },
+  ] });
+  expect(onAlerts).toHaveBeenLastCalledWith(null);
+  stop();
+  expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
+  callbacks[0]?.({ metadata: { fromCache: false }, docs: [{ id: 'console-1', data: () => alert }] });
+  expect(onAlerts).toHaveBeenLastCalledWith(null);
+});
+
+it('loads every actor-free notice by its indexed direct document path', async () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onNotices = vi.fn();
+  const firstNotice = {
+    type: 'wolf-hacking-overlay-notice', sessionId: 's1', sequence: 1,
+    createdAt: '2026-09-20T20:00:00.000Z',
+  };
+  const secondNotice = {
+    type: 'wolf-hacking-overlay-notice', sessionId: 's1', sequence: 2,
+    createdAt: '2026-09-20T20:00:01.000Z',
+  };
+  vi.mocked(getDocFromServer).mockClear();
+  vi.mocked(doc).mockClear();
+  vi.mocked(getDocFromServer)
+    .mockResolvedValueOnce({
+      id: 'notice-000000000001', exists: () => true,
+      data: () => firstNotice, metadata: { fromCache: false },
+    } as never)
+    .mockResolvedValueOnce({
+      id: 'notice-000000000002', exists: () => true,
+      data: () => secondNotice, metadata: { fromCache: false },
+    } as never);
+  const stop = subscribePlayerHackingNotices('s1', onNotices);
+  callbacks[0]?.({
+    exists: () => true,
+    metadata: { fromCache: false },
+    data: () => ({ type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 2 }),
+  });
+  await vi.waitFor(() => expect(onNotices).toHaveBeenLastCalledWith([
+    { id: 'notice-000000000001', ...firstNotice },
+    { id: 'notice-000000000002', ...secondNotice },
+  ]));
+  expect(vi.mocked(doc).mock.calls.map(([, path]) => path)).toEqual([
+    'sessions/s1/playerHackingNoticeFeeds/current',
+    'sessions/s1/playerHackingNotices/notice-000000000001',
+    'sessions/s1/playerHackingNotices/notice-000000000002',
+  ]);
+  expect(vi.mocked(getDocFromServer)).toHaveBeenCalledTimes(2);
+  callbacks[0]?.({
+    exists: () => true, metadata: { fromCache: false },
+    data: () => ({ type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1 }),
+  });
+  expect(onNotices).toHaveBeenLastCalledWith([
+    { id: 'notice-000000000001', ...firstNotice },
+    { id: 'notice-000000000002', ...secondNotice },
+  ]);
+  expect(vi.mocked(getDocFromServer)).toHaveBeenCalledTimes(2);
+  stop();
+  expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
+  callbacks[0]?.({
+    exists: () => true, metadata: { fromCache: false },
+    data: () => ({ type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 3 }),
+  });
+  expect(vi.mocked(getDocFromServer)).toHaveBeenCalledTimes(2);
+});
+
+it('fails closed when a direct player notice read contains a private extra field', async () => {
+  const { callbacks } = captureSessionListener();
+  const onNotices = vi.fn();
+  vi.mocked(getDocFromServer).mockReset().mockRejectedValueOnce(new Error('permission-denied'));
+  subscribePlayerHackingNotices('s1', onNotices);
+  callbacks[0]?.({
+    exists: () => true, metadata: { fromCache: false },
+    data: () => ({ type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1 }),
+  });
+  await vi.waitFor(() => expect(onNotices).toHaveBeenLastCalledWith(null));
+});
+
+it('drops delayed player notice reads after the feed listener is unsubscribed', async () => {
+  const { callbacks } = captureSessionListener();
+  const onNotices = vi.fn();
+  let completeRead!: (snapshot: unknown) => void;
+  vi.mocked(getDocFromServer).mockReset().mockImplementation(() => new Promise((resolve) => {
+    completeRead = resolve;
+  }) as never);
+  const stop = subscribePlayerHackingNotices('s1', onNotices);
+  callbacks[0]?.({
+    exists: () => true, metadata: { fromCache: false },
+    data: () => ({ type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1 }),
+  });
+  await vi.waitFor(() => expect(vi.mocked(getDocFromServer)).toHaveBeenCalledOnce());
+  stop();
+  const callsAtUnsubscribe = onNotices.mock.calls.length;
+  completeRead({
+    id: 'notice-000000000001', exists: () => true,
+    data: () => ({
+      type: 'wolf-hacking-overlay-notice', sessionId: 's1', sequence: 1,
+      createdAt: '2026-09-20T20:00:00.000Z',
+    }),
+    metadata: { fromCache: false },
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(onNotices).toHaveBeenCalledTimes(callsAtUnsubscribe);
+  expect(onNotices).toHaveBeenLastCalledWith(null);
+});
+
+it('rejects malformed player notice feed state before requesting any notice document', () => {
+  const { callbacks } = captureSessionListener();
+  const onNotices = vi.fn();
+  vi.mocked(getDocFromServer).mockClear();
+  subscribePlayerHackingNotices('s1', onNotices);
+  callbacks[0]?.({
+    exists: () => true, metadata: { fromCache: false },
+    data: () => ({ type: 'wolf-hacking-notice-feed', sessionId: 's1', noticeCount: 1, actorUid: 'u2' }),
+  });
+  expect(onNotices).toHaveBeenLastCalledWith(null);
+  expect(vi.mocked(getDocFromServer)).not.toHaveBeenCalled();
 });
 
 it('hydrates only a valid private Zealotry response and never exposes census identities', () => {

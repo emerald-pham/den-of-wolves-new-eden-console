@@ -286,3 +286,20 @@ overflow, a visible focused 44px transfer control, a 2px solid orange focus
 outline, and the monospace font stack. New screenshots and measurements are in
 the local `/tmp/p241c-rendered-20260924-v2` run; those temporary artifacts are
 not part of the repository.
+
+Baseline version 18 calibrates only the complete-application JavaScript byte
+ceilings for Prompt 503a's global facilitator alert and player notice runtime.
+Verified live source `c64741b8fdddb14eb3847dc789838d70cd8db2d7` measured
+1,807,815 raw bytes and 479,105 gzip bytes in the archived origin/main build.
+The P503a candidate with the durable sequence feed measured 1,821,830 raw
+bytes, 482,957 gzip bytes, and a 500,784-byte largest chunk across nine chunks:
++14,015 raw and +3,852 gzip bytes over that source. The version 18 raw and gzip
+ceilings are 1,822,830 and 483,934 bytes, each 1,000 bytes above the measured
+candidate; the largest chunk ceiling and every timing/frame limit remain
+unchanged. Its landing and cached Role Select startup p95 were 103.46 ms and
+106.05 ms; DRADIS, attack, and mission-hand update p95 were 35.3 ms, 33.5 ms,
+and 35.4 ms; the 390x844 mobile frame p95 was 16.7 ms with zero long frames.
+These are local Node 23.10 Chromium measurements, not CI-host or production
+telemetry. The exact candidate and calibrated v18 rerun are recorded in
+`/tmp/p503a-p637-feed-20260924/results.json`; remeasure if reviewed application
+code changes.

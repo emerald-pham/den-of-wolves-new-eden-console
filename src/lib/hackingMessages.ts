@@ -32,3 +32,13 @@ export function nextHackingMessage(
   const offset = 1 + Math.floor(random() * (HACKING_MESSAGES.length - 1));
   return HACKING_MESSAGES[(previousIndex + offset) % HACKING_MESSAGES.length] ?? first;
 }
+
+/** Select one existing message consistently for every console receiving a notice. */
+export function hackingMessageForNoticeId(noticeId: string): HackingMessage {
+  let hash = 2_166_136_261;
+  for (const character of noticeId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16_777_619) >>> 0;
+  }
+  return HACKING_MESSAGES[hash % HACKING_MESSAGES.length] ?? HACKING_MESSAGES[0];
+}

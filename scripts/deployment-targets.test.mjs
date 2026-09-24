@@ -31,6 +31,49 @@ const CANDIDATE_REVEAL_CALLABLES = [
   'moveShipToLocation', 'resumeSession', 'runMaintenance',
 ];
 const P436_EXPORTS = [...COMMAND_AND_CONTROL_CALLABLES, ...CONSOLE_METADATA_CALLABLES];
+const P503A_CALLABLES = [
+  'acknowledgeWolfHackingAlert',
+  'resolveWolfConsoleSabotage',
+  'submitWolfSupplySabotage',
+];
+const P503A_ACK_GUARD_ADDITION = `/** Validate one facilitator acknowledgement for a pending sabotage alert. */
+export function requireAcknowledgeWolfHackingAlertRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  alertId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  alertId: string;
+  expectedRevision: number;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'alertId', 'expectedRevision',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Hacking alert acknowledgement contains unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a positive integer.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    alertId: requiredId(data.alertId, 'alertId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
+`;
+const P503A_ACK_GUARD_SOURCE_AFTER = readFileSync(
+  new URL('../functions/src/requestGuards.ts', import.meta.url), 'utf8',
+);
+assert.equal(P503A_ACK_GUARD_SOURCE_AFTER.split(P503A_ACK_GUARD_ADDITION).length - 1, 1);
+const P503A_ACK_GUARD_SOURCE_BEFORE = P503A_ACK_GUARD_SOURCE_AFTER
+  .replace(P503A_ACK_GUARD_ADDITION, '');
 
 const P436_RESOLVER_ID_ADDITION = "  | 'wolf-attack.command-and-control'\n";
 const COMMAND_AND_CONTROL_BLUEPRINT_BEFORE = [
@@ -221,6 +264,38 @@ test('maps small-ship maintenance changes only to the callables that execute the
     ...BASE_CAPYBARA_CARGO_CALLABLES,
     'runSmallShipMaintenance',
   ]));
+});
+
+test('selects only the three changed P503a callables from exact export and request-guard additions', () => {
+  const before = [
+    "export const resolveWolfConsoleSabotage = onCall(async () => { return 'before-console'; });",
+    "export const submitWolfSupplySabotage = onCall(async () => { return 'before-supplies'; });",
+    "export const acknowledgeWolfHackingAlert = onCall(async () => { return 'before-ack'; });",
+    "export const unrelatedCallable = onCall(async () => { return 'unchanged'; });",
+  ].join('\n');
+  const after = before
+    .replace('before-console', 'after-console')
+    .replace('before-supplies', 'after-supplies')
+    .replace('before-ack', 'after-ack');
+  const selectWithGuard = (guardAfter = P503A_ACK_GUARD_SOURCE_AFTER) => deploymentSelector({
+    before: 'base', after: 'candidate',
+    files: ['functions/src/index.ts', 'functions/src/requestGuards.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      if (file === 'functions/src/index.ts') return revision === 'base' ? before : after;
+      if (file === 'functions/src/requestGuards.ts') {
+        return revision === 'base' ? P503A_ACK_GUARD_SOURCE_BEFORE : guardAfter;
+      }
+      throw new Error(`Unexpected selector source ${file}`);
+    },
+  });
+  const selected = selectWithGuard();
+  assert.deepEqual(selectedFunctions(selected), functionTargets(P503A_CALLABLES));
+  assert.throws(
+    () => selectWithGuard(`${P503A_ACK_GUARD_SOURCE_AFTER}\nexport function unrelatedGuard() { return true; }\n`),
+    /Cannot safely map request-guard changes outside the exact P503a acknowledgement validator/,
+  );
 });
 
 test('selects the complete P238 production callable set from the live 0.5.23 baseline', () => {

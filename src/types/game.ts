@@ -19,6 +19,7 @@ import type {
   SupplementalVesselId,
   VesselId,
 } from './identifiers';
+import type { ResourceId } from '@/data/resources';
 
 export type {
   AnyEntityId,
@@ -1291,6 +1292,10 @@ export interface WolfSuspicionHistoryEntry {
   readonly targetSystemId?: string;
   readonly targetSystemName?: string;
   readonly mode?: 'random' | 'chosen';
+  readonly shuttleId?: ShuttleId;
+  readonly resourceId?: ResourceId;
+  readonly destroyedAmount?: number;
+  readonly remainingAmount?: number;
   readonly oldSuspicion: number;
   readonly increment: number;
   readonly newSuspicion: number;
@@ -1300,6 +1305,78 @@ export interface WolfSuspicionHistoryEntry {
   readonly disclosure: string;
   readonly auditId: string;
   readonly createdAt: string;
+}
+
+interface WolfHackingAlertBase {
+  readonly type: 'wolf-hacking-alert';
+  readonly alertId: string;
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly actorUid: PlayerId;
+  readonly actorRoleId: RoleId;
+  readonly auditId: string;
+  readonly clueTier: WolfClueTier;
+  readonly clueInstruction: string;
+  readonly createdAt: string;
+}
+
+type WolfHackingAlertAction =
+  | {
+      readonly action: 'sabotage-console';
+      readonly source: 'wolf-console-sabotage';
+      readonly visitId: string;
+      readonly targetShipId: VesselId;
+      readonly targetSystemId: string;
+      readonly targetSystemName: string;
+      readonly mode: 'random' | 'chosen';
+    }
+  | {
+      readonly action: 'sabotage-supplies';
+      readonly source: 'wolf-supply-sabotage';
+      readonly shuttleId: ShuttleId;
+      readonly resourceId: ResourceId;
+      readonly destroyedAmount: number;
+      readonly remainingAmount: number;
+    };
+
+type WolfHackingAlertStatus =
+  | { readonly state: 'pending'; readonly revision: 1 }
+  | {
+      readonly state: 'acknowledged';
+      readonly revision: 2;
+      readonly acknowledgedBy: PlayerId;
+      readonly acknowledgedByInstanceId: string;
+      readonly acknowledgedAt: string;
+      readonly clueInstructionHandled: true;
+      readonly clueInstructionHandledBy: PlayerId;
+      readonly clueInstructionHandledAt: string;
+      readonly overlayNoticeId: string;
+      readonly overlayNoticeSequence: number;
+    };
+
+/** Facilitator-only durable queue and acknowledgement record for sabotage. */
+export type WolfHackingAlert = WolfHackingAlertBase & WolfHackingAlertAction & WolfHackingAlertStatus;
+export type PendingWolfHackingAlert = Extract<WolfHackingAlert, { readonly state: 'pending' }>;
+
+/** Public session-member projection with no actor, action, clue, or target data. */
+export interface PlayerHackingNotice {
+  readonly id: string;
+  readonly type: 'wolf-hacking-overlay-notice';
+  readonly sessionId: SessionId;
+  readonly sequence: number;
+  readonly createdAt: string;
+}
+
+export interface AcknowledgeWolfHackingAlertResult {
+  readonly status: 'acknowledged';
+  readonly type: 'wolf-hacking-alert-acknowledgement';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly alertId: string;
+  readonly noticeId: string;
+  readonly noticeSequence: number;
+  readonly revision: 2;
 }
 
 export interface ShuttleDocking {

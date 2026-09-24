@@ -620,9 +620,14 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Base Capybara Captains can transfer security teams, ore, fuel, food, water, or materials between Capybara cargo and its current docked host during Coordination.',
+    'After committed Wolf console or supply sabotage, the facilitator gets a private alert and can acknowledge the printed clue instruction before every player console receives an approved hacking notice.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousCapybaraEntry = within(region).getByRole('heading', { name: 'Build 0.5.27' }).closest('article');
+  if (!previousCapybaraEntry) throw new Error('Expected the preserved P241c Capybara cargo release entry.');
+  expect(within(previousCapybaraEntry).getByText(
+    'Base Capybara Captains can transfer security teams, ore, fuel, food, water, or materials between Capybara cargo and its current docked host during Coordination.',
+  )).toBeVisible();
   const previousWarriorEntry = within(region).getByRole('heading', { name: 'Build 0.5.26' }).closest('article');
   if (!previousWarriorEntry) throw new Error('Expected the preserved P244 Warrior repair release entry.');
   expect(within(previousWarriorEntry).getByText(

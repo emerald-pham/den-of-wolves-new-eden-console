@@ -25,6 +25,8 @@ import type {
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfCultIntelligence,
+  PendingWolfHackingAlert,
+  AcknowledgeWolfHackingAlertResult,
   ArbourVision,
   SessionPhase,
   CommissarPurgeAuthority,
@@ -4039,6 +4041,58 @@ export async function resolveWolfConsoleSabotage(
     functions(), 'resolveWolfConsoleSabotage',
   );
   return (await call(payload)).data;
+}
+
+/** Acknowledge one exact private alert and confirm its printed clue was handled. */
+export async function acknowledgeWolfHackingAlert(
+  alert: Pick<PendingWolfHackingAlert, 'sessionId' | 'alertId' | 'revision'>,
+): Promise<AcknowledgeWolfHackingAlertResult> {
+  const initial = useSessionStore.getState();
+  if (!initial.session || !initial.me || initial.me.role !== 'gm' || !initial.gmInstance ||
+      initial.session.id !== alert.sessionId || initial.gmInstance.sessionId !== alert.sessionId ||
+      initial.gmInstance.uid !== initial.me.uid) {
+    throw new Error('The current facilitator session is required to acknowledge this alert.');
+  }
+  requireFreshSessionAuthority('Reconnect before acknowledging a hacking alert.');
+  const sessionId = initial.session.id;
+  const instanceId = initial.gmInstance.id;
+  const uid = initial.me.uid;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
+  await ensureSignedIn();
+  const authorityIsCurrent = () => {
+    const current = useSessionStore.getState();
+    return current.session?.id === sessionId && current.me?.role === 'gm' &&
+      current.me.uid === uid && current.gmInstance?.id === instanceId &&
+      current.gmInstance.uid === uid && current.gmInstance.sessionId === sessionId &&
+      authorityCheckpointIsCurrent(checkpoint);
+  };
+  if (!authorityIsCurrent()) {
+    throw new Error('The facilitator authority changed before the alert could be acknowledged.');
+  }
+  const payload = {
+    sessionId,
+    instanceId,
+    requestId: commandId(),
+    alertId: alert.alertId,
+    expectedRevision: alert.revision,
+  };
+  const call = httpsCallable<typeof payload, AcknowledgeWolfHackingAlertResult>(
+    functions(), 'acknowledgeWolfHackingAlert',
+  );
+  const result = (await call(payload)).data;
+  if (!authorityIsCurrent()) {
+    throw new Error('The facilitator authority changed before the acknowledgement was confirmed.');
+  }
+  if (result.status !== 'acknowledged' || result.type !== 'wolf-hacking-alert-acknowledgement' ||
+      result.sessionId !== sessionId || result.requestId !== payload.requestId ||
+      result.alertId !== alert.alertId || typeof result.noticeId !== 'string' ||
+      !Number.isSafeInteger(result.noticeSequence) || result.noticeSequence < 1 ||
+      result.noticeSequence > 10_000 ||
+      result.noticeId !== `notice-${String(result.noticeSequence).padStart(12, '0')}` ||
+      result.revision !== 2) {
+    throw new Error('The facilitator acknowledgement response was malformed.');
+  }
+  return result;
 }
 
 /** Mark the approximate first Wolf-attack window from an active GM console. */
