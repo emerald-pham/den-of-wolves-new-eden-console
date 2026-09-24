@@ -78,15 +78,6 @@ function isPresentedSmallShipState(
   return ['startedAt', 'completedAt'].every((key) => cycle[key] === undefined || typeof cycle[key] === 'string');
 }
 
-function isPresentedDockedSmallShip(
-  value: unknown,
-  id: string,
-  activeVesselIds: ReadonlySet<string>,
-): boolean {
-  return isPresentedSmallShipState(value, id, activeVesselIds) && typeof value === 'object' &&
-    value !== null && (value as Record<string, unknown>).hostShipId !== null;
-}
-
 export interface PresentedSmallShipStateMapOptions {
   readonly activeVesselIds: unknown;
   readonly smallShipStates: unknown;
@@ -94,37 +85,34 @@ export interface PresentedSmallShipStateMapOptions {
   readonly capybaraEnabled?: unknown;
 }
 
-function presentedSmallShipStateMap(options: PresentedSmallShipStateMapOptions): {
-  readonly activeVesselIds: Set<string>;
-  readonly states: Record<string, unknown>;
-} | undefined {
+/** Validate the full map, or require one optional ship to be docked too. */
+export function isPresentedSmallShipStateMapValid(
+  options: PresentedSmallShipStateMapOptions,
+  targetId?: string,
+): boolean {
   const coreIds = new Set<string>(SHIPS.map((ship) => ship.id));
   const smallShipIds = new Set<string>(SMALL_SHIPS.map((ship) => ship.id));
   const persisted = options.activeVesselIds;
   const states = options.smallShipStates;
   const expansion = options.expansion ?? 'base';
-  if (!Array.isArray(persisted) || persisted.length === 0 ||
+  if (!Array.isArray(persisted) || !persisted.length ||
       persisted.some((id) => typeof id !== 'string' || !coreIds.has(id)) ||
       new Set(persisted).size !== persisted.length || !isRecord(states) ||
-      Object.keys(states).some((id) => !smallShipIds.has(id)) ||
       (expansion !== 'base' && expansion !== 'capybara' && expansion !== 'none') ||
-      (options.capybaraEnabled !== undefined && typeof options.capybaraEnabled !== 'boolean')) return undefined;
+      (options.capybaraEnabled !== undefined && typeof options.capybaraEnabled !== 'boolean')) return false;
 
   const capybaraEnabled = options.capybaraEnabled !== false;
   if ((persisted.includes('capybara') && (expansion !== 'capybara' || !capybaraEnabled)) ||
       (expansion === 'capybara' && !capybaraEnabled) ||
-      (Object.hasOwn(states, 'capybara-small') && (expansion !== 'base' || !capybaraEnabled))) return undefined;
+      (Object.hasOwn(states, 'capybara-small') && (expansion !== 'base' || !capybaraEnabled))) return false;
 
   const activeVesselIds = new Set(persisted as string[]);
+  let targetDocked = false;
   for (const [id, state] of Object.entries(states)) {
-    if (!isPresentedSmallShipState(state, id, activeVesselIds)) return undefined;
+    if (!smallShipIds.has(id) || !isPresentedSmallShipState(state, id, activeVesselIds)) return false;
+    if (id === targetId && (state as Record<string, unknown>).hostShipId !== null) targetDocked = true;
   }
-  return { activeVesselIds, states };
-}
-
-/** Full-map presentation check shared with session hydration so sanitizing cannot widen admission. */
-export function isPresentedSmallShipStateMapValid(options: PresentedSmallShipStateMapOptions): boolean {
-  return presentedSmallShipStateMap(options) !== undefined;
+  return !targetId || targetDocked;
 }
 
 /** Presentation-only mirror of the server admission rule for GM role options. */
@@ -137,15 +125,6 @@ export function replacementRoleAvailableForSession(
     readonly capybaraEnabled?: unknown;
   },
 ): boolean {
-  if (role.kind === 'role') {
-    return role.vesselId === undefined ||
-      Array.isArray(options.activeVesselIds) && options.activeVesselIds.includes(role.vesselId);
-  }
-  if (!role.vesselId) return false;
-  const parsed = presentedSmallShipStateMap(options);
-  if (!parsed || !SMALL_SHIPS.some((ship) => ship.id === role.vesselId)) return false;
-  const expansion = options.expansion ?? 'base';
-  const capybaraEnabled = options.capybaraEnabled !== false;
-  if (role.vesselId === 'capybara-small' && (expansion !== 'base' || !capybaraEnabled)) return false;
-  return isPresentedDockedSmallShip(parsed.states[role.vesselId], role.vesselId, parsed.activeVesselIds);
+  if (role.kind !== 'extra-ship' || !role.vesselId) return false;
+  return isPresentedSmallShipStateMapValid(options, role.vesselId);
 }
