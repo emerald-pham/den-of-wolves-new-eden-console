@@ -10,7 +10,7 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,790,000 bytes |
+| Complete application JavaScript, raw | 1,790,512 bytes |
 | Complete application JavaScript, gzip | 477,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
@@ -179,3 +179,16 @@ only the raw and gzip ceilings were exceeded. The new size ceilings retain
 render-update, and mobile-frame budgets remain unchanged. P238 remains partial
 until an ordinary authorized repair succeeds end to end against the deployed
 exact SHA; no live repair proof is recorded yet.
+
+Baseline version 15 adds 512 bytes to the raw JavaScript ceiling for the
+optional-ship admission and Gorgoneion integration. The exact pre-calibration
+source SHA `9b24b2ea7643b655b319b4322e2268b1a71dbf25` measured 1,789,974 raw
+bytes, 475,779 gzip bytes, a 496,263-byte largest chunk across nine chunks,
+landing and cached Role Select startup p95 at 82.71 ms and 79.62 ms, DRADIS,
+attack, and mission-hand update p95 at 34.6 ms, 34.6 ms, and 34.4 ms, and a
+390x844 mobile frame p95 of 16.7 ms with zero long frames. The revised raw
+ceiling is 1,790,512 bytes, leaving 538 bytes over that exact measurement; the
+gzip ceiling retains 1,221 bytes of headroom. Version 15 changes only the raw
+bundle ceiling. Gzip, largest-chunk, startup, render-update, and mobile-frame
+ceilings remain unchanged, and the admission parser remains full-map and
+fail-closed.
