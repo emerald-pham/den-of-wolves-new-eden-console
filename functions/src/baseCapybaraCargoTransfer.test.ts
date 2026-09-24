@@ -20,7 +20,13 @@ const base = {
   actorRoleId: 'capybara-small-captain',
   actorScope: 'player' as const,
   currentCycle: 4,
-  turnPhase: { turn: 4, airspace: { state: 'lifted' } },
+  currentTime: Date.parse('2099-09-24T12:05:00.000Z'),
+  turnPhase: {
+    turn: 4,
+    teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
+    openAirspaceEndsAt: '2099-09-24T12:15:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  },
   vesselMode: 'base-capybara',
   isSmallShipAdmitted: true,
   activeVesselIds: ['aegis'],
@@ -31,6 +37,7 @@ const base = {
   expectedRevision: 0,
   cargoState: undefined,
   hostResources,
+  hostDamage: { damagedSystemIds: [], destroyed: false },
 };
 
 describe('base Capybara Cargo Transfer', () => {
@@ -79,9 +86,23 @@ describe('base Capybara Cargo Transfer', () => {
     ['wrong role', { actorRoleId: 'gorgoneion-captain' }, /Capybara Captain/i],
     ['foreign holder', { actorUid: 'other' }, /current base Capybara Captain/i],
     ['facilitator scope', { actorScope: 'facilitator' }, /Capybara Captain/i],
-    ['Team Phase', { turnPhase: { turn: 4, airspace: { state: 'restricted' } } }, /Coordination/i],
+    ['Team Phase', {
+      turnPhase: {
+        turn: 4,
+        teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
+        openAirspaceEndsAt: '2099-09-24T12:15:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    }, /Coordination/i],
     ['unknown phase', { turnPhase: undefined }, /phase.*unavailable/i],
-    ['stale phase cycle', { turnPhase: { turn: 3, airspace: { state: 'lifted' } } }, /current cycle/i],
+    ['stale phase cycle', {
+      turnPhase: {
+        turn: 3,
+        teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
+        openAirspaceEndsAt: '2099-09-24T12:15:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+      },
+    }, /current cycle/i],
     ['expansion mode', { vesselMode: 'expansion-capybara' }, /canonical base Capybara vessel mode/i],
     ['missing server-owned admission', { isSmallShipAdmitted: false }, /server-owned admission/i],
     ['expansion Capybara mixed in', { activeVesselIds: ['aegis', 'capybara'] }, /excludes the expansion ship/i],
@@ -96,6 +117,9 @@ describe('base Capybara Cargo Transfer', () => {
     ['overdraw', { amount: 4 }, /enough cargo/i],
     ['cargo overdraw', { direction: 'unload', amount: 1 }, /enough cargo/i],
     ['stale revision', { expectedRevision: 1 }, /changed/i],
+    ['destroyed docked host', { hostDamage: { damagedSystemIds: [], destroyed: true } }, /destroyed host/i],
+    ['missing host damage authority', { hostDamage: undefined }, /damage authority is malformed/i],
+    ['malformed host damage authority', { hostDamage: { damagedSystemIds: ['unknown-system'], destroyed: false } }, /damage authority is malformed/i],
   ] as const)('rejects %s without returning a mutation', (_label, patch, message) => {
     expect(() => resolveBaseCapybaraCargoTransfer({ ...base, ...patch } as never)).toThrow(message);
   });

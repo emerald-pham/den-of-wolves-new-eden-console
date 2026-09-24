@@ -11,6 +11,7 @@ import {
 import { isResourceShipId } from './resources';
 import { replacementRoleAvailable, replacementRoleFor } from './replacementRoles';
 import { vesselModeForConfiguration } from './gameSetup';
+import { turnPhaseState } from './turnZero';
 
 type RecordValue = Record<string, unknown>;
 
@@ -139,6 +140,7 @@ function requireCaptainAuthority(
 ): string {
   if (!isActivePlayer(player) || player.get('replacementRoleId') !== ROLE_ID ||
       player.get('activeConsoleRoleId') !== null ||
+      player.get('seatId') !== null ||
       (player.get('escapeState') !== undefined && player.get('escapeState') !== null)) {
     throw new HttpsError('permission-denied', 'Only the connected current base Capybara Captain may transfer cargo.');
   }
@@ -219,10 +221,14 @@ export const transferBaseCapybaraCargo = onCall<{
       failClosed('Cargo Transfer is available only during active gameplay.');
     }
     const currentCycle = session.get('currentTurn');
-    const turnPhase = session.get('turnPhase');
+    const turnPhase = turnPhaseState(session.get('turnPhase'));
+    const currentTime = Date.now();
+    const openAirspaceEndsAt = turnPhase ? Date.parse(turnPhase.openAirspaceEndsAt) : Number.NaN;
     if (!Number.isSafeInteger(currentCycle) || currentCycle !== command.expectedCycle ||
-        !isRecord(turnPhase) || turnPhase.turn !== currentCycle) {
-      failClosed('The Capybara cargo cycle changed. Refresh before transferring.');
+        !turnPhase || turnPhase.turn !== currentCycle || turnPhase.airspace.state !== 'lifted' ||
+        turnPhase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) ||
+        currentTime >= openAirspaceEndsAt) {
+      failClosed('Base Capybara Cargo Transfer requires the current live Coordination cycle.');
     }
     const vesselMode = requireBaseVesselMode(session);
     const activeVesselIds = session.get('activeVesselIds');
@@ -250,6 +256,12 @@ export const transferBaseCapybaraCargo = onCall<{
     const storedResources = isRecord(session.get('shipResources'))
       ? session.get('shipResources') as RecordValue : undefined;
     const hostResources = storedResources?.[command.expectedHostShipId];
+    const storedDamage = isRecord(session.get('shipDamage'))
+      ? session.get('shipDamage') as RecordValue : undefined;
+    const hostDamage = storedDamage?.[command.expectedHostShipId];
+    if (!storedDamage || !Object.prototype.hasOwnProperty.call(storedDamage, command.expectedHostShipId)) {
+      failClosed('The current docked-host damage authority is unavailable.');
+    }
     const result = (() => {
       try {
         return resolveBaseCapybaraCargoTransfer({
@@ -258,7 +270,8 @@ export const transferBaseCapybaraCargo = onCall<{
           actorRoleId: actor.get('replacementRoleId'),
           actorScope: 'player',
           currentCycle: currentCycle as number,
-          turnPhase: session.get('turnPhase'),
+          currentTime,
+          turnPhase,
           vesselMode,
           isSmallShipAdmitted,
           activeVesselIds,
@@ -269,6 +282,7 @@ export const transferBaseCapybaraCargo = onCall<{
           expectedRevision: command.expectedRevision,
           cargoState: session.get('baseCapybaraCargo'),
           hostResources,
+          hostDamage,
         });
       } catch (cause) {
         throw new HttpsError(

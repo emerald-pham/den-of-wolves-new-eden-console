@@ -87,7 +87,12 @@ const put = (path: string, fields: Fields) => mock.documents.set(path, { ...fiel
 function session(): Fields {
   return {
     phase: 'active', currentTurn: 4,
-    turnPhase: { turn: 4, airspace: { state: 'lifted' } },
+    turnPhase: {
+      turn: 4,
+      teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-24T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
     expansion: 'base', capybaraEnabled: true,
     activeVesselIds: ['aegis'],
     smallShipStates: {
@@ -98,6 +103,7 @@ function session(): Fields {
     shipResources: {
       aegis: { ore: 7, fuel: 6, food: 5, water: 4, materials: 3, securityTeams: 2 },
     },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
   };
 }
 
@@ -110,7 +116,7 @@ beforeEach(() => {
   put('sessions/s1', session());
   put('sessions/s1/players/captain', {
     sessionId: 's1', role: 'player', connected: true,
-    replacementRoleId: 'capybara-small-captain', activeConsoleRoleId: null,
+    replacementRoleId: 'capybara-small-captain', activeConsoleRoleId: null, seatId: null,
   });
   put('sessions/s1/players/other', {
     sessionId: 's1', role: 'player', connected: true,
@@ -172,6 +178,8 @@ it.each([
   ['disconnected player', { connected: false }],
   ['historical Captain', { replacementRoleId: 'gorgoneion-captain' }],
   ['conflicting active console', { activeConsoleRoleId: 'admiral' }],
+  ['replacement Captain with a core seat', { seatId: 'admiral' }],
+  ['replacement Captain with missing seat authority', { seatId: undefined }],
 ] as const)('denies a %s before any ledger write', async (_label, patch) => {
   Object.assign(mock.documents.get('sessions/s1/players/captain')!, patch);
   await expect(transferBaseCapybaraCargo.run(request(command))).rejects.toMatchObject({
@@ -200,6 +208,17 @@ it.each([
   ['unknown mode', (stored: Fields) => { delete stored.expansion; }],
   ['Team phase', (stored: Fields) => { stored.turnPhase = { turn: 4, airspace: { state: 'restricted' } }; }],
   ['unknown phase', (stored: Fields) => { delete stored.turnPhase; }],
+  ['expired Coordination window', (stored: Fields) => {
+    (stored.turnPhase as Fields).openAirspaceEndsAt = '2000-01-01T00:00:00.000Z';
+  }],
+  ['paused Coordination window', (stored: Fields) => {
+    (stored.turnPhase as Fields).timerPause = {
+      window: 'open', remainingMs: 60_000, pausedAt: '2099-09-24T12:01:00.000Z',
+    };
+  }],
+  ['malformed Coordination clock', (stored: Fields) => {
+    (stored.turnPhase as Fields).openAirspaceEndsAt = 'not-a-timestamp';
+  }],
   ['stale cycle', (stored: Fields) => { stored.currentTurn = 5; }],
   ['old request cycle', (stored: Fields) => {
     stored.currentTurn = 5;
@@ -229,6 +248,13 @@ it.each([
     };
   }],
   ['missing host inventory', (stored: Fields) => { stored.shipResources = {}; }],
+  ['destroyed docked host', (stored: Fields) => {
+    (stored.shipDamage as Fields).aegis = { damagedSystemIds: [], destroyed: true };
+  }],
+  ['missing docked-host damage', (stored: Fields) => { stored.shipDamage = {}; }],
+  ['malformed docked-host damage', (stored: Fields) => {
+    (stored.shipDamage as Fields).aegis = { damagedSystemIds: ['rogue-system'], destroyed: false };
+  }],
   ['malformed host inventory', (stored: Fields) => {
     (stored.shipResources as Fields).aegis = { ore: 7, fuel: 6, food: 5, water: 4, materials: 3, securityTeams: 2, scrap: 0 };
   }],

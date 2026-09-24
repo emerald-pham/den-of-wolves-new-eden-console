@@ -1,7 +1,9 @@
-import { phaseFromTurnPhase, type ActorScope } from './actionMetadata';
+import type { ActorScope } from './actionMetadata';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState } from './smallShip';
+import { SHIP_DAMAGE_DECKS } from './shipDamage';
+import { turnPhaseState } from './turnZero';
 
 const ROLE_ID = 'capybara-small-captain' as const;
 const SMALL_SHIP_ID = 'capybara-small' as const;
@@ -82,6 +84,19 @@ function requireCanonicalHostInventory(value: unknown, hostShipId: string): Ship
   return value as ShipResourceInventory;
 }
 
+function requireUndestroyedHostDamage(value: unknown, hostShipId: string): void {
+  const raw = record(value);
+  const deck = SHIP_DAMAGE_DECKS[hostShipId];
+  const knownSystemIds = new Set((deck ?? []).map(({ systemId }) => systemId));
+  if (!raw || !deck || !exactKeys(raw, ['damagedSystemIds', 'destroyed']) ||
+      typeof raw.destroyed !== 'boolean' || !Array.isArray(raw.damagedSystemIds) ||
+      raw.damagedSystemIds.some((id) => typeof id !== 'string' || !knownSystemIds.has(id)) ||
+      new Set(raw.damagedSystemIds).size !== raw.damagedSystemIds.length) {
+    throw new Error('The docked-host damage authority is malformed.');
+  }
+  if (raw.destroyed) throw new Error('A destroyed host cannot transfer Capybara cargo.');
+}
+
 /** Resolve one base-game Capybara cargo move without persistence. */
 export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   actorUid: unknown;
@@ -89,6 +104,7 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   actorRoleId: unknown;
   actorScope: ActorScope;
   currentCycle: number;
+  currentTime: number;
   turnPhase: unknown;
   vesselMode: unknown;
   /** Server-derived from the strict optional-ship admission resolver. */
@@ -101,6 +117,7 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   expectedRevision: unknown;
   cargoState: unknown;
   hostResources: unknown;
+  hostDamage: unknown;
 }>): Readonly<{
   hostShipId: string;
   resourceId: BaseCapybaraCargoType;
@@ -117,13 +134,19 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
     throw new Error('Only the current base Capybara Captain may use Cargo Transfer.');
   }
 
-  const phase = phaseFromTurnPhase(input.turnPhase);
-  if (phase === 'unknown') throw new Error('The current server phase is unavailable for Cargo Transfer.');
-  if (phase !== 'coordination') throw new Error('Base Capybara Cargo Transfer is available only during Coordination.');
-  const rawPhase = record(input.turnPhase);
-  if (!Number.isSafeInteger(input.currentCycle) || input.currentCycle < 1 ||
-      !rawPhase || rawPhase.turn !== input.currentCycle) {
+  const phase = turnPhaseState(input.turnPhase);
+  if (!phase) throw new Error('The current server phase is unavailable for Cargo Transfer.');
+  if (!Number.isSafeInteger(input.currentCycle) || input.currentCycle < 1 || phase.turn !== input.currentCycle) {
     throw new Error('Cargo Transfer requires the current cycle authority.');
+  }
+  if (phase.airspace.state !== 'lifted') {
+    throw new Error('Base Capybara Cargo Transfer is available only during Coordination.');
+  }
+  const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+  if (!Number.isSafeInteger(input.currentTime) || input.currentTime < 0 ||
+      phase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) ||
+      input.currentTime >= openAirspaceEndsAt) {
+    throw new Error('Base Capybara Cargo Transfer requires the current live Coordination cycle.');
   }
 
   if (input.vesselMode !== 'base-capybara') {
@@ -153,6 +176,7 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
     throw new Error('The base Capybara must be docked with an active core host inventory.');
   }
   const hostResources = requireCanonicalHostInventory(input.hostResources, hostShipId);
+  requireUndestroyedHostDamage(input.hostDamage, hostShipId);
 
   if (!BASE_CAPYBARA_CARGO_TYPES.includes(input.resourceId as BaseCapybaraCargoType)) {
     throw new Error('That resource is not permitted by the base Capybara printed cargo rule.');
