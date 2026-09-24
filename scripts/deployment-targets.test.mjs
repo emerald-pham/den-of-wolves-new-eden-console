@@ -66,6 +66,20 @@ const MALIADE_SOURCE_MODULE_CALLABLES = Object.freeze({
   ],
   'functions/src/wolfAttackDeclaration.ts': ['declareWolfAttack'],
 });
+const WOLF_ATTACK_DECLARATION_ADDITIONS = [
+  '  /** Stable identity for this declared attack; range actions bind to it. */\n  readonly attackId: string;\n',
+  '  /** Hidden Maliades effects committed against this exact attack. */\n  readonly maliadesRangeEffects: unknown;\n',
+];
+const WOLF_ATTACK_DECLARATION_AFTER = readFileSync(
+  new URL('../functions/src/wolfAttackDeclaration.ts', import.meta.url), 'utf8',
+);
+for (const addition of WOLF_ATTACK_DECLARATION_ADDITIONS) {
+  assert.equal(WOLF_ATTACK_DECLARATION_AFTER.split(addition).length - 1, 1);
+}
+const WOLF_ATTACK_DECLARATION_BEFORE = WOLF_ATTACK_DECLARATION_ADDITIONS.reduce(
+  (source, addition) => source.replace(addition, ''),
+  WOLF_ATTACK_DECLARATION_AFTER,
+);
 const BASE_CAPYBARA_CARGO_CALLABLES = ['transferBaseCapybaraCargo'];
 const SMALL_SHIP_MAINTENANCE_CALLABLES = ['runSmallShipMaintenance'];
 const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';
@@ -274,6 +288,8 @@ function selectorFor(files, {
   navigationAfter = NAVIGATION_PROJECTION_AFTER,
   eventRedactionBefore = EVENT_REDACTION_BEFORE,
   eventRedactionAfter = EVENT_REDACTION_P397_BEFORE,
+  wolfAttackDeclarationBefore = WOLF_ATTACK_DECLARATION_BEFORE,
+  wolfAttackDeclarationAfter = WOLF_ATTACK_DECLARATION_AFTER,
 } = {}) {
   return deploymentSelector({
     before: 'base',
@@ -291,6 +307,9 @@ function selectorFor(files, {
       }
       if (file === 'functions/src/eventRedaction.ts') {
         return revision === 'base' ? eventRedactionBefore : eventRedactionAfter;
+      }
+      if (file === 'functions/src/wolfAttackDeclaration.ts') {
+        return revision === 'base' ? wolfAttackDeclarationBefore : wolfAttackDeclarationAfter;
       }
       return '';
     },
@@ -531,10 +550,29 @@ test('maps Maliades source modules to the exact callables that consume them', ()
   }
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const callableSource = readFileSync(new URL('../functions/src/maliadesCallable.ts', import.meta.url), 'utf8');
+  assert.match(indexSource, /type WolfAttackStageState,[\s\S]*from '\.\/wolfAttackDeclaration';/);
+  assert.match(indexSource, /const stageState: WolfAttackStageState = \{/);
   assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
   assert.match(indexSource, /export const getDioneMaliadesLaunch\s*=\s*onCall/);
   assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /beginMaliadesAttack,[\s\S]*launchMaliades,[\s\S]*parseMaliadesState,[\s\S]*from '\.\/maliadesState';/);
+  assert.match(callableSource, /repairMaliades as repairMaliadesState,[\s\S]*type MaliadesMediumChoice,[\s\S]*from '\.\/maliadesState';/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
+});
+
+test('fails closed when WolfAttackDeclaration changes beyond the exact type-only attack-state fields', () => {
+  const altered = WOLF_ATTACK_DECLARATION_AFTER.replace(
+    "  return state.status !== 'resolved' || state.airspaceLocked !== false ||",
+    '  return false || state.airspaceLocked !== false ||',
+  );
+  assert.notEqual(altered, WOLF_ATTACK_DECLARATION_AFTER);
+  assert.throws(
+    () => selectorFor(['functions/src/wolfAttackDeclaration.ts'], {
+      wolfAttackDeclarationAfter: altered,
+    }),
+    /Cannot safely map wolf attack declaration changes outside the exact reviewed type-only attack-state additions/,
+  );
 });
 
 test('fails closed when a Maliades member-event allowlist expands beyond its exact privacy fields', () => {

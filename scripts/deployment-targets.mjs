@@ -31,6 +31,10 @@ const CANDIDATE_REVEAL_CALLABLES = Object.freeze([
   'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
   'moveShipToLocation', 'resumeSession', 'runMaintenance',
 ]);
+const WOLF_ATTACK_DECLARATION_TYPE_ADDITIONS = Object.freeze([
+  '  /** Stable identity for this declared attack; range actions bind to it. */\n  readonly attackId: string;\n',
+  '  /** Hidden Maliades effects committed against this exact attack. */\n  readonly maliadesRangeEffects: unknown;\n',
+]);
 
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
@@ -74,8 +78,6 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/maliadesState.ts': [
     'declareWolfAttack', 'getDioneMaliadesLaunch', 'launchDioneMaliades', 'repairMaliades',
   ],
-  // The declaration module change adds only fields to the written attack record.
-  'functions/src/wolfAttackDeclaration.ts': ['declareWolfAttack'],
   // advanceSmallShipMaintenance is used by these three deployed transactions;
   // type-only and test imports do not add callable consumers.
   'functions/src/smallShip.ts': [
@@ -316,6 +318,39 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   const current = functionExports(readAt(after));
   const names = new Set([...previous.keys(), ...current.keys()]);
   return [...names].filter((name) => previous.get(name) !== current.get(name));
+}
+
+function wolfAttackDeclarationTypeImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/wolfAttackDeclaration.ts';
+  const readAt = (revision) => {
+    if (sourceAtRevision) {
+      const source = sourceAtRevision(revision, file);
+      if (typeof source === 'string') return source;
+      throw new Error(`Cannot safely determine declaration type changes at ${revision}:${file}.`);
+    }
+    try {
+      return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine declaration type changes at ${revision}:${file}.`);
+    }
+  };
+  const previous = readAt(before);
+  let currentRest = readAt(after);
+  for (const addition of WOLF_ATTACK_DECLARATION_TYPE_ADDITIONS) {
+    const beforeCount = previous.split(addition).length - 1;
+    const afterCount = currentRest.split(addition).length - 1;
+    if (beforeCount !== 0 || afterCount !== 1) {
+      throw new Error('Cannot safely map wolf attack declaration changes outside the exact reviewed type-only attack-state additions.');
+    }
+    currentRest = currentRest.replace(addition, '');
+  }
+  if (currentRest !== previous) {
+    throw new Error('Cannot safely map wolf attack declaration changes outside the exact reviewed type-only attack-state additions.');
+  }
+  return ['declareWolfAttack'];
 }
 
 const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
@@ -726,6 +761,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/consoleMetadata.ts') {
       for (const name of commandAndControlConsoleMetadataImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/wolfAttackDeclaration.ts') {
+      for (const name of wolfAttackDeclarationTypeImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     const consumers = CALLABLES_BY_CHANGED_MODULE[file];
