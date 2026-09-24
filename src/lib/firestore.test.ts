@@ -36,6 +36,7 @@ const {
   subscribeSessionPlayers,
   subscribeShuttleDeparture,
   subscribeIntelligenceInvestigation,
+  subscribeHummingbirdHarvest,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmArrestPosseCalculation,
@@ -52,6 +53,7 @@ const {
   subscribeGmFacilitatorRuleCall,
   subscribeGmZealotryResponse,
   subscribeGmCivilUnrestResolution,
+  subscribeGmCrisisState,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -332,7 +334,7 @@ it('hydrates only a canonical group-audienced shuttle departure document', () =>
     data: () => ({ ...valid, unexpected: true }),
   });
 
-  expect(onDeparture.mock.calls).toEqual([[valid], [null]]);
+  expect(onDeparture.mock.calls).toEqual([[null], [valid], [null]]);
 });
 
 it('hydrates a canonical group-private shuttle transit document', () => {
@@ -1155,7 +1157,9 @@ it('projects normalized dual-lane GM responsibilities from the server projection
     responsibilities: ['main', 'assistant'], responsibility: 'main',
     claimedAt: '2026-09-08T19:00:00.000Z',
   }]);
-  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     (callback as (snapshot: unknown) => void)({
       docs: [{
         id: 'bridge',
@@ -1189,7 +1193,9 @@ it('projects a sole legacy GM responsibility into both canonical lanes from the 
     responsibilities: ['main', 'assistant'], responsibility: 'assistant',
     claimedAt: '2026-09-08T19:00:00.000Z',
   }]);
-  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     (callback as (snapshot: unknown) => void)({
       docs: [{
         id: 'bridge',
@@ -1217,7 +1223,9 @@ it('projects a sole legacy GM responsibility into both canonical lanes from the 
 
 it('parses and monotonically subscribes to the facilitator current rule call', () => {
   const onCall = vi.fn();
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     (callback as (snapshot: unknown) => void)({
       exists: () => true,
       data: () => ({
@@ -1331,7 +1339,9 @@ it('never publishes raw stale claims from the realtime collection', async () => 
 it('hydrates stable seat role ids without treating Press as a core seat', () => {
   const onSeats = vi.fn();
   let snapshotNumber = 0;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     snapshotNumber += 1;
     if (snapshotNumber === 3) {
       (callback as (snapshot: unknown) => void)({
@@ -1376,7 +1386,9 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
   const onPrivateLoyalty = vi.fn();
   const onSetupReceipt = vi.fn();
   let listener = 0;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     listener += 1;
     if (listener === 3) {
       (callback as (snapshot: unknown) => void)({ docs: [] });
@@ -2455,6 +2467,60 @@ it('resets the Civil Unrest resolution revision gate when the current crisis is 
   expect(onResolution.mock.calls[2]?.[0]).not.toHaveProperty('updatedAt');
 });
 
+it('does not replay unchanged crisis projections over facilitator drafts after reconnect', () => {
+  const { callbacks } = captureSessionListener();
+  let crisisTitleDraft = '';
+  const onCrisis = vi.fn((crisis: { readonly title: string } | null) => {
+    if (crisis) crisisTitleDraft = crisis.title;
+  });
+  const onZealotry = vi.fn();
+  const onCivilUnrest = vi.fn();
+  const stopCrisis = subscribeGmCrisisState('s1', onCrisis);
+  const stopZealotry = subscribeGmZealotryResponse('s1', onZealotry);
+  const stopCivilUnrest = subscribeGmCivilUnrestResolution('s1', onCivilUnrest);
+  const crisis = {
+    sessionId: 's1', crisisId: 'zealotry-1', state: 'debated', revision: 4,
+    title: 'Current crisis', details: 'Current details', crisisKind: 'religious-zealotry',
+    configurationOverride: '', updatedAt: '2026-09-24T12:00:00.000Z',
+  };
+  const zealotry = {
+    type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-1', crisisRevision: 4,
+    state: 'debated', revision: 2, actions: ['investigate'], rationale: 'Recorded response.',
+    loyaltyCensusRevision: 3, updatedAt: '2026-09-24T12:00:00.000Z',
+  };
+  const civilUnrest = {
+    type: 'civil-unrest-resolution', sessionId: 's1', crisisId: 'unrest-1', crisisRevision: 2,
+    state: 'debated', revision: 1, presidentResponse: 'No action.', consequence: 'No change.',
+    rationale: 'Recorded response.', recordedBy: 'facilitator',
+    grievanceRevisions: [
+      { shipId: 'dione', revision: null }, { shipId: 'icebreaker', revision: 1 },
+      { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null },
+      { shipId: 'refinery-124', revision: null },
+    ],
+    updatedAt: '2026-09-24T12:00:00.000Z',
+  };
+  const serverSnapshot = (data: object) => ({
+    metadata: { fromCache: false }, exists: () => true, data: () => data,
+  });
+
+  callbacks[0]?.(serverSnapshot(crisis));
+  crisisTitleDraft = 'Unsaved facilitator edit';
+  callbacks[0]?.(serverSnapshot({ ...crisis }));
+  callbacks[1]?.(serverSnapshot(zealotry));
+  callbacks[1]?.(serverSnapshot({ ...zealotry }));
+  callbacks[2]?.(serverSnapshot(civilUnrest));
+  callbacks[2]?.(serverSnapshot({ ...civilUnrest }));
+
+  expect(crisisTitleDraft).toBe('Unsaved facilitator edit');
+  expect(onCrisis).toHaveBeenCalledTimes(1);
+  expect(onZealotry).toHaveBeenCalledTimes(1);
+  expect(onCivilUnrest).toHaveBeenCalledTimes(1);
+
+  stopCrisis();
+  stopZealotry();
+  stopCivilUnrest();
+});
+
 it('does not let a delayed older census revision overwrite the newer server projection', () => {
   const { callbacks } = captureSessionListener();
   const onCensus = vi.fn();
@@ -2516,7 +2582,7 @@ it('keeps the GM Wolf Cult intelligence projection monotonic and clears terminal
   expect(onIntelligence).toHaveBeenLastCalledWith(null);
 });
 
-it('hydrates only a canonical private Intelligence Agent investigation', () => {
+it('waits for current server authorization before hydrating a private Intelligence Agent investigation', () => {
   const { callbacks, errors } = captureSessionListener();
   const onInvestigation = vi.fn();
   const onError = vi.fn();
@@ -2524,14 +2590,18 @@ it('hydrates only a canonical private Intelligence Agent investigation', () => {
     's1', 'u1', onInvestigation, onError,
   );
 
+  const investigation = {
+    type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
+    cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
+    targetDisplayName: 'Target', reportedWolf: true, suspicion: 8, visibleToUids: ['u1'],
+  };
   callbacks[0]?.({
+    metadata: { fromCache: true },
     exists: () => true,
-    data: () => ({
-      type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
-      cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
-      targetDisplayName: 'Target', reportedWolf: true, suspicion: 8, visibleToUids: ['u1'],
-    }),
+    data: () => investigation,
   });
+  expect(onInvestigation).toHaveBeenCalledTimes(1);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => investigation });
   expect(onInvestigation).toHaveBeenLastCalledWith({
     type: 'intelligence-investigation', sessionId: 's1', requestId: 'investigate-1',
     cycle: 3, revision: 2, investigatorUid: 'u1', targetUid: 'u2',
@@ -2561,6 +2631,40 @@ it('hydrates only a canonical private Intelligence Agent investigation', () => {
 
   errors[0]?.({ code: 'permission-denied' });
   expect(onInvestigation).toHaveBeenLastCalledWith(null);
+  expect(onError).not.toHaveBeenCalled();
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => investigation });
+  expect(onInvestigation).toHaveBeenLastCalledWith(null);
+  unsubscribe();
+});
+
+it('waits for current server authorization before hydrating private Hummingbird rolls', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onHarvest = vi.fn();
+  const onError = vi.fn();
+  const unsubscribe = subscribeHummingbirdHarvest('s1', 'u1', onHarvest, onError);
+  const harvest = {
+    sessionId: 's1', ownerUid: 'u1', turn: 2, hostShipId: 'quellon', revision: 1,
+    status: 'pending', rolls: [2, 5], requestId: 'harvest-1', createdAt: '2026-09-24T12:00:00.000Z',
+  };
+
+  callbacks[0]?.({
+    metadata: { fromCache: true }, exists: () => true, data: () => harvest,
+  });
+  expect(onHarvest).toHaveBeenCalledTimes(1);
+  expect(onHarvest).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true, data: () => harvest,
+  });
+  expect(onHarvest).toHaveBeenLastCalledWith(expect.objectContaining({
+    sessionId: 's1', ownerUid: 'u1', rolls: [2, 5], status: 'pending',
+  }));
+
+  errors[0]?.({ code: 'permission-denied' });
+  expect(onHarvest).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true, data: () => harvest,
+  });
+  expect(onHarvest).toHaveBeenLastCalledWith(null);
   expect(onError).not.toHaveBeenCalled();
   unsubscribe();
 });
@@ -2739,9 +2843,11 @@ it('allows equal revision updates, clears deletion, and resets ordering only on 
 it('clears a revisioned projection on listener errors without reopening an older revision', () => {
   const callbacks: Array<(snapshot: unknown) => void> = [];
   const errors: Array<(error: unknown) => void> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error: unknown) => {
-    callbacks.push(callback as (snapshot: unknown) => void);
-    errors.push(error as (error: unknown) => void);
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown, error?: unknown) => {
+    const hasOptions = typeof optionsOrCallback !== 'function';
+    callbacks.push((hasOptions ? callbackOrError : optionsOrCallback) as (snapshot: unknown) => void);
+    errors.push((hasOptions ? error : callbackOrError) as (error: unknown) => void);
     return vi.fn();
   }) as never);
   const onCensus = vi.fn();
@@ -2822,7 +2928,9 @@ it('drops malformed player identities from private loyalty and setup receipt pro
 
 it('parses only audience-safe maintenance result fields from member events', () => {
   const onEvents = vi.fn();
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     (callback as (snapshot: unknown) => void)({
       docs: [{
         id: 'maintenance-rations-1',
@@ -2876,7 +2984,7 @@ it('parses only audience-safe maintenance result fields from member events', () 
   }]);
   expect(CLIENT_MAINTENANCE_EVENT_ACTIONS).toEqual(SERVER_MAINTENANCE_EVENT_ACTIONS);
   expect(CLIENT_MAINTENANCE_EVENT_RESULT_STEPS).toEqual(SERVER_MAINTENANCE_EVENT_RESULT_STEPS);
-  const serialized = JSON.stringify(onEvents.mock.calls[0]?.[0]);
+  const serialized = JSON.stringify(onEvents.mock.lastCall?.[0]);
   expect(serialized).not.toContain('facilitator-only note');
   expect(serialized).not.toContain('private fingerprint');
   expect(serialized).not.toContain('deck order');
@@ -2914,25 +3022,27 @@ it('reconstructs the visible event snapshot once from server document IDs after 
     eventDoc('turn-advanced-3', 'Reconnected alert', 'payload-event-3'),
   ]));
 
-  expect(onEvents).toHaveBeenCalledTimes(2);
-  expect(onEvents.mock.calls[0]?.[0].map((event) => event.id)).toEqual([
+  expect(onEvents).toHaveBeenCalledTimes(3);
+  expect(onEvents.mock.calls[1]?.[0].map((event) => event.id)).toEqual([
     'turn-advanced-1', 'turn-advanced-2',
   ]);
-  expect(onEvents.mock.calls[1]?.[0].map((event) => event.id)).toEqual([
+  expect(onEvents.mock.calls[2]?.[0].map((event) => event.id)).toEqual([
     'turn-advanced-2', 'turn-advanced-3',
   ]);
-  expect(onEvents.mock.calls[1]?.[0]).toHaveLength(2);
-  expect(onEvents.mock.calls[1]?.[0][0]).toMatchObject({
+  expect(onEvents.mock.calls[2]?.[0]).toHaveLength(2);
+  expect(onEvents.mock.calls[2]?.[0][0]).toMatchObject({
     id: 'turn-advanced-2',
     message: 'Overlapping alert',
   });
-  expect(onEvents.mock.calls[1]?.[0].map((event) => event.id)).not.toContain('payload-event-2');
+  expect(onEvents.mock.calls[2]?.[0].map((event) => event.id)).not.toContain('payload-event-2');
 });
 
 it('hydrates legacy seat labels and factions from the canonical role catalog', () => {
   const onSeats = vi.fn();
   let snapshotNumber = 0;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     snapshotNumber += 1;
     if (snapshotNumber === 3) {
       (callback as (snapshot: unknown) => void)({
@@ -3013,19 +3123,145 @@ function sessionSnapshot(
 function captureSessionListener() {
   const callbacks: Array<(snapshot: unknown) => void> = [];
   const errors: Array<(error: unknown) => void> = [];
+  const options: unknown[] = [];
   const unsubscribeSpies: Array<ReturnType<typeof vi.fn>> = [];
   vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
     callbackOrError: unknown, error?: unknown) => {
     const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
     const errorCallback = typeof optionsOrCallback === 'function' ? callbackOrError : error;
+    options.push(typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback);
     callbacks.push(callback as (snapshot: unknown) => void);
     errors.push((errorCallback as ((error: unknown) => void) | undefined) ?? (() => undefined));
     const unsubscribe = vi.fn();
     unsubscribeSpies.push(unsubscribe);
     return unsubscribe;
   }) as never);
-  return { callbacks, errors, unsubscribeSpies };
+  return { callbacks, errors, options, unsubscribeSpies };
 }
+
+it('reconfirms unchanged session and player authority from metadata-only server snapshots after reconnect', () => {
+  const authority = { hasServerSessionAuthority: false, authorityVersion: 0 };
+  const updatedAt = '2026-09-24T12:00:00.000Z';
+  const onSession = vi.fn();
+  const onSessionFreshness = vi.fn();
+  const onPlayer = vi.fn();
+  const onPlayerFreshness = vi.fn();
+  const onSeats = vi.fn();
+  const handlers = {
+    onSession, onSessionFreshness, onPlayer, onPlayerFreshness, onSeats,
+    onKicked: vi.fn(), onError: vi.fn(), sessionSnapshotAuthority: authority,
+  };
+  const playerData = {
+    role: 'player', displayName: 'Current', seatId: null, connected: true,
+    joinedAt: '2026-09-24T11:00:00.000Z',
+  };
+  const playerSnapshot = (fromCache: boolean) => ({
+    metadata: { fromCache },
+    exists: () => true,
+    get: (field: string) => playerData[field as keyof typeof playerData],
+    data: () => playerData,
+  });
+  const first = captureSessionListener();
+  const stopFirst = subscribeSessionState('s1', 'u1', handlers);
+  expect(first.options.slice(0, 3)).toEqual([
+    { includeMetadataChanges: true },
+    { includeMetadataChanges: true },
+    { includeMetadataChanges: true },
+  ]);
+  first.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt }, false));
+  first.callbacks[1]?.(playerSnapshot(false));
+  first.callbacks[2]?.({ metadata: { fromCache: false }, docs: [] });
+  stopFirst();
+
+  const second = captureSessionListener();
+  subscribeSessionState('s1', 'u1', handlers);
+  second.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt }, true));
+  second.callbacks[1]?.(playerSnapshot(true));
+  second.callbacks[2]?.({ metadata: { fromCache: true }, docs: [] });
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
+  expect(onPlayerFreshness).toHaveBeenLastCalledWith(true);
+  onSession.mockClear();
+  onSessionFreshness.mockClear();
+  onPlayer.mockClear();
+  onPlayerFreshness.mockClear();
+  onSeats.mockClear();
+
+  // The backend data has not changed. Firestore still sends a metadata-only
+  // fromCache:false event once the existing document is confirmed by server.
+  second.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt }, false));
+  second.callbacks[1]?.(playerSnapshot(false));
+  second.callbacks[2]?.({ metadata: { fromCache: false }, docs: [] });
+
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
+  expect(onPlayerFreshness).toHaveBeenLastCalledWith(true);
+  expect(onSession).not.toHaveBeenCalled();
+  expect(onPlayer).toHaveBeenCalledTimes(1);
+  expect(onSeats).toHaveBeenCalledTimes(1);
+});
+
+it('requests metadata-only server confirmation for every session, role, mission, and candidate listener', () => {
+  const { options } = captureSessionListener();
+  const handler = vi.fn();
+  const stop = subscribeSessionState('projection-options', 'projection-player', {
+    onSession: handler,
+    onSessionFreshness: handler,
+    sessionSnapshotAuthority: { hasServerSessionAuthority: false },
+    onPlayer: handler,
+    onPlayerFreshness: handler,
+    onKicked: handler,
+    onSeats: handler,
+    onPlayerDiscovery: handler,
+    onGmDiscovery: handler,
+    onPrivateLoyalty: handler,
+    onWolfCultIntelligence: handler,
+    onArbourVision: handler,
+    onRoleBrief: handler,
+    onAwayMissionHandPointer: handler,
+    onAwayMissionHand: handler,
+    onAwayMissionHandPointers: handler,
+    onAwayMissionHands: handler,
+    onGmAwayMissionHandPointers: handler,
+    onCommissarPurgeAuthority: handler,
+    onFacilitatorRuleCall: handler,
+    onSetupReceipt: handler,
+    onError: handler,
+  });
+
+  expect(options.length).toBeGreaterThan(10);
+  expect(options.every((value) => value &&
+    (value as { readonly includeMetadataChanges?: boolean }).includeMetadataChanges === true)).toBe(true);
+  stop();
+});
+
+it('does not expose cached role, loyalty, or GM setup projections before current server authorization', () => {
+  const { callbacks } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onRoleBrief = vi.fn();
+  const onSetupReceipt = vi.fn();
+  const stop = subscribeSessionState('private-cache-reconnect', 'private-cache-player', {
+    onSession: vi.fn(),
+    onPlayer: vi.fn(),
+    onKicked: vi.fn(),
+    onSeats: vi.fn(),
+    onPrivateLoyalty,
+    onRoleBrief,
+    onSetupReceipt,
+    onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'wolf-agent', suspicion: 0 }),
+  });
+  callbacks[4]?.({ metadata: { fromCache: true }, exists: () => true, data: () => ({}) });
+  callbacks[5]?.({ metadata: { fromCache: true }, docs: [] });
+
+  expect(onPrivateLoyalty).not.toHaveBeenCalled();
+  expect(onRoleBrief).not.toHaveBeenCalled();
+  expect(onSetupReceipt).not.toHaveBeenCalled();
+  stop();
+});
 
 it('suppresses delayed older lifecycle snapshots at the session listener boundary', () => {
   const { callbacks } = captureSessionListener();
@@ -3554,8 +3790,8 @@ it('drops delayed cached secondary query snapshots after a server snapshot', asy
 
   expect(onInstances).toHaveBeenCalledTimes(1);
   expect(onPlayers).toHaveBeenCalledTimes(2);
-  expect(onEvents).toHaveBeenCalledTimes(1);
-  expect(onDraws).toHaveBeenCalledTimes(1);
+  expect(onEvents).toHaveBeenCalledTimes(2);
+  expect(onDraws).toHaveBeenCalledTimes(2);
   stopDraws();
   stopPlayers();
   stopInstances();
@@ -4130,9 +4366,13 @@ it('recovers a failed GM manifest listener and callable without reload, then can
   const snapshots: Array<(snapshot: unknown) => void> = [];
   const failures: Array<(error: unknown) => void> = [];
   const stops: Array<ReturnType<typeof vi.fn>> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, next: (snapshot: unknown) => void, error: (error: unknown) => void) => {
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, optionsOrNext: unknown,
+    callbackOrError: unknown, error?: unknown) => {
+    const hasOptions = typeof optionsOrNext !== 'function';
+    const next = (hasOptions ? callbackOrError : optionsOrNext) as (snapshot: unknown) => void;
+    const onError = (hasOptions ? error : callbackOrError) as (error: unknown) => void;
     snapshots.push(next);
-    failures.push(error);
+    failures.push(onError);
     const stop = vi.fn();
     stops.push(stop);
     return stop;
@@ -4185,9 +4425,11 @@ it.each(['permission-denied', 'not-found'])('does not retry a denied GM manifest
   let publish: ((snapshot: unknown) => void) | undefined;
   let fail: ((error: unknown) => void) | undefined;
   const stopListener = vi.fn();
-  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, next: (snapshot: unknown) => void, error: (error: unknown) => void) => {
-    publish = next;
-    fail = error;
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, optionsOrNext: unknown,
+    callbackOrError: unknown, error?: unknown) => {
+    const hasOptions = typeof optionsOrNext !== 'function';
+    publish = (hasOptions ? callbackOrError : optionsOrNext) as typeof publish;
+    fail = (hasOptions ? error : callbackOrError) as typeof fail;
     return stopListener;
   }) as never);
   let resolveRead: ((value: unknown) => void) | undefined;
@@ -4215,8 +4457,10 @@ it.each(['permission-denied', 'not-found'])('does not retry a denied GM manifest
 it('retains private crisis configuration on reconnect and rejects malformed kinds', async () => {
   const { subscribeGmCrisisState } = await import('./firestore');
   let publish: ((snapshot: unknown) => void) | undefined;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
-    publish = callback as (snapshot: unknown) => void;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    publish = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError) as
+      (snapshot: unknown) => void;
     return vi.fn();
   }) as never);
   const onState = vi.fn();
@@ -4260,8 +4504,9 @@ it('reads only valid server crisis reports and drops hidden fields, cached draft
 it('restores valid outbreak details and rejects malformed private projections', async () => {
   const { subscribeGmCrisisState } = await import('./firestore');
   let publish!: (snapshot: unknown) => void;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
-    publish = callback as typeof publish;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown) => {
+    publish = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError) as typeof publish;
     return vi.fn();
   }) as never);
   const onState = vi.fn();

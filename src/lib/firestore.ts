@@ -161,6 +161,26 @@ function serverAuthorityCursor(
     trustedTimestampCursor(data.updatedAt);
 }
 
+function sameServerAuthorityCursor(
+  left: ServerAuthorityCursor | undefined,
+  right: ServerAuthorityCursor | undefined,
+): boolean {
+  return left !== undefined && right !== undefined &&
+    left.seconds === right.seconds && left.nanoseconds === right.nanoseconds;
+}
+
+function createDistinctProjectionPublisher<T>(onProjection: (projection: T) => void) {
+  let hasPublished = false;
+  let lastProjection = '';
+  return (projection: T) => {
+    const nextProjection = JSON.stringify(projection) ?? 'undefined';
+    if (hasPublished && nextProjection === lastProjection) return;
+    hasPublished = true;
+    lastProjection = nextProjection;
+    onProjection(projection);
+  };
+}
+
 export function db(): Firestore {
   if (!firestore) {
     // The persisted Zustand snapshot and short-lived outbox own offline state;
@@ -2869,10 +2889,11 @@ export function subscribeSessionState(
     pointers.forEach((pointer) => {
       const unsubscribe = onSnapshot(
         doc(database, `sessions/${sessionId}/awayMissionHands/${pointer.handId}`),
+        { includeMetadataChanges: true },
         (snapshot) => {
           if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
               generation !== awayMissionHandListenerGeneration) return;
-          if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+          if (snapshot.metadata?.fromCache === true) return;
           const hand = snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null;
           if (hand) hands.set(pointer.handId, hand);
           else hands.delete(pointer.handId);
@@ -2893,7 +2914,7 @@ export function subscribeSessionState(
     });
   };
   const unsubscribes = [
-    onSnapshot(doc(database, `sessions/${sessionId}`), (snapshot) => {
+    onSnapshot(doc(database, `sessions/${sessionId}`), { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.exists()) {
         const fromCache = snapshot.metadata?.fromCache === true;
@@ -2903,11 +2924,21 @@ export function subscribeSessionState(
         if (fromCache && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         const data = snapshot.data();
         const session = sessionFrom(snapshot.id, data);
-        if (!fromCache && !acceptServerSessionAuthority(
-          sessionSnapshotAuthority,
-          session,
-          serverAuthorityCursor(snapshot, data),
-        )) return;
+        if (!fromCache) {
+          const cursor = serverAuthorityCursor(snapshot, data);
+          if (sessionSnapshotAuthority.hasServerSessionAuthority && sameServerAuthorityCursor(
+            sessionSnapshotAuthority.latestServerAuthorityCursor,
+            cursor,
+          )) {
+            // An equal server updateTime confirms the unchanged document after
+            // reconnect. Keep the already accepted contents and restore the
+            // transport freshness signal without replaying an equal-version
+            // payload that could have been queued before the reconnect.
+            handlers.onSessionFreshness?.(true);
+            return;
+          }
+          if (!acceptServerSessionAuthority(sessionSnapshotAuthority, session, cursor)) return;
+        }
         handlers.onSession(session);
         if (fromCache) {
           handlers.onSessionFreshness?.(false);
@@ -2917,7 +2948,7 @@ export function subscribeSessionState(
       }
       else onError();
     }, onError),
-    onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), (snapshot) => {
+    onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       const fromCache = snapshot.metadata?.fromCache === true;
       // Player role/seat projections are part of the same reconnect identity.
@@ -2960,6 +2991,7 @@ export function subscribeSessionState(
     )] : []),
     ...(handlers.onGmDiscovery ? [onSnapshot(
       doc(database, `sessions/${sessionId}/gmDiscovery/current`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || gmDiscoveryTerminated || currentSessionSubscriptionToken !== subscriptionToken) return;
         // The full chart is privileged. A remembered GM role is insufficient
@@ -2977,7 +3009,7 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
-    onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {
+    onSnapshot(collection(database, `sessions/${sessionId}/seats`), { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
       handlers.onSeats(snapshot.docs
@@ -2986,10 +3018,11 @@ export function subscribeSessionState(
     }, onError),
     ...(handlers.onPrivateLoyalty ? [unsubscribePrivateLoyalty = onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (privateLoyaltyListenerGeneration !== 1) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         privateLoyaltyListenerBroken = false;
         const next = snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null;
         const nextKind = next?.kind ?? null;
@@ -3029,9 +3062,10 @@ export function subscribeSessionState(
     )] : []),
     ...(handlers.onRoleBrief ? [onSnapshot(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         handlers.onRoleBrief?.(
           snapshot.exists() ? roleBrief(snapshot.data(), sessionId, uid) : null,
         );
@@ -3046,9 +3080,10 @@ export function subscribeSessionState(
     )] : []),
     ...(handlers.onCommissarPurgeAuthority ? [onSnapshot(
       doc(database, `sessions/${sessionId}/commissarPurgeAuthority/${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         handlers.onCommissarPurgeAuthority?.(
           snapshot.exists() ? commissarPurgeAuthority(snapshot.data(), sessionId) : null,
         );
@@ -3064,9 +3099,10 @@ export function subscribeSessionState(
     )] : []),
     ...(handlers.onFacilitatorRuleCall ? [onSnapshot(
       doc(database, `sessions/${sessionId}/facilitatorRuleCalls/recipient-${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         handlers.onFacilitatorRuleCall?.(
           snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId, uid) : null,
         );
@@ -3087,9 +3123,10 @@ export function subscribeSessionState(
         where('sessionId', '==', sessionId),
         where('participantUid', '==', uid),
       ),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         const pointers = snapshot.docs
           .map((entry) => awayMissionHandPointer(entry.data(), sessionId, uid))
           .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null);
@@ -3113,9 +3150,10 @@ export function subscribeSessionState(
         collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
         where('sessionId', '==', sessionId),
       ),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         handlers.onGmAwayMissionHandPointers?.(
           snapshot.docs
             .map((entry) => awayMissionHandPointer(entry.data(), sessionId))
@@ -3136,9 +3174,10 @@ export function subscribeSessionState(
         collection(database, `sessions/${sessionId}/secrets`),
         where('visibleToUids', 'array-contains', uid),
       ),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         const latest = snapshot.docs
           .map((secret) => setupReceipt(secret.get('payload')))
           .filter((receipt): receipt is SetupReceipt => receipt !== null)
@@ -3156,10 +3195,11 @@ export function subscribeSessionState(
     if (!handlers.onWolfCultIntelligence) return;
     unsubscribeWolfCult = onSnapshot(
       doc(database, `sessions/${sessionId}/wolfCultIntelligence/${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
             generation !== wolfCultListenerGeneration) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         const intelligence = snapshot.exists()
           ? wolfCultIntelligence(snapshot.data(), sessionId, uid)
           : null;
@@ -3184,10 +3224,11 @@ export function subscribeSessionState(
     if (!handlers.onArbourVision) return;
     unsubscribeArbourVision = onSnapshot(
       doc(database, `sessions/${sessionId}/arbourVisions/${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
             generation !== arbourVisionListenerGeneration) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         const vision = snapshot.exists() ? arbourVision(snapshot.data(), sessionId, uid) : null;
         if (vision && !acceptsArbourVisionRevision(vision.revision)) return;
         handlers.onArbourVision?.(vision);
@@ -3210,10 +3251,11 @@ export function subscribeSessionState(
     privateLoyaltyListenerBroken = false;
     unsubscribePrivateLoyalty = onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
             generation !== privateLoyaltyListenerGeneration) return;
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        if (snapshot.metadata?.fromCache === true) return;
         const next = snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null;
         const nextKind = next?.kind ?? null;
         if (nextKind !== lastPrivateLoyaltyKind) {
@@ -3302,6 +3344,7 @@ export function subscribeVipCards(
   const authority = suppliedAuthority ?? projectionSessionAuthority(sessionId, undefined);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/vipHands/${uid}`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -3331,24 +3374,24 @@ export function subscribeHummingbirdHarvest(
   uid: string,
   onHarvest: (harvest: HummingbirdHarvest | null) => void,
   onError: () => void = () => undefined,
-  suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
   let subscribed = true;
-  let hasServerSnapshot = false;
-  const authority = suppliedAuthority ?? projectionSessionAuthority(sessionId, undefined);
+  let listenerTerminated = false;
+  onHarvest(null);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/hummingbirdHarvests/${uid}`),
+    { includeMetadataChanges: true },
     (snapshot) => {
-      if (!subscribed) return;
+      if (!subscribed || listenerTerminated) return;
       const fromCache = snapshot.metadata?.fromCache === true;
-      if (fromCache && (hasServerSnapshot || authority?.hasServerSessionAuthority)) return;
-      if (!fromCache) hasServerSnapshot = true;
+      if (fromCache) return;
       onHarvest(snapshot.exists() ? hummingbirdHarvest(snapshot.data(), sessionId, uid) : null);
     },
     (error: { readonly code?: string }) => {
       if (!subscribed) return;
+      listenerTerminated = true;
+      onHarvest(null);
       if (error.code === 'permission-denied' || error.code === 'not-found') {
-        onHarvest(null);
         return;
       }
       onError();
@@ -3374,6 +3417,7 @@ export function subscribeLoyaltyCensus(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/loyaltyCensus/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const census = snapshot.exists() ? loyaltyCensus(snapshot.data()) : null;
@@ -3403,6 +3447,7 @@ export function subscribeGmArrestPosseCalculation(
   let invalidated = false;
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/arrestPosseCalculations/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       if (!snapshot.exists()) {
@@ -3451,6 +3496,7 @@ export function subscribeGmWolfClueDisclosure(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfClueDisclosure/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const disclosure = snapshot.exists() ? wolfClueDisclosure(snapshot.data()) : null;
@@ -3478,6 +3524,7 @@ export function subscribeGmWolfActionReceipt(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfActionReceipts/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const receipt = snapshot.exists() ? wolfActionReceipt(snapshot.data(), sessionId) : null;
@@ -3508,6 +3555,7 @@ export function subscribeGmWolfSuspicionHistory(
       orderBy('createdAt', 'desc'),
       limit(30),
     ),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       onHistory(snapshot.docs.flatMap((entry) => {
@@ -3535,6 +3583,7 @@ export function subscribeGmWolfHackingAlerts(
   let subscribed = true;
   const unsubscribe = onSnapshot(
     collection(db(), `sessions/${sessionId}/wolfHackingAlerts`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const parsed = snapshot.docs.map((entry) =>
@@ -3582,6 +3631,7 @@ export function subscribePlayerHackingNotices(
   const feedRef = doc(db(), `sessions/${sessionId}/playerHackingNoticeFeeds/current`);
   const unsubscribe = onSnapshot(
     feedRef,
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       if (!snapshot.exists()) {
@@ -3653,6 +3703,7 @@ export function subscribeGmWolfCultIntelligence(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfCultIntelligence/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const intelligence = snapshot.exists() ? gmWolfCultIntelligence(snapshot.data(), sessionId) : null;
@@ -3684,6 +3735,7 @@ export function subscribeGmArbourVision(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/arbourVisions/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const vision = snapshot.exists() ? gmArbourVision(snapshot.data(), sessionId) : null;
@@ -3715,6 +3767,7 @@ export function subscribeGmFacilitatorRuleCall(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/facilitatorRuleCalls/gm-current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const call = snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId) : null;
@@ -3742,6 +3795,7 @@ export function subscribeGmWolfAttackWindow(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfAttackWindow/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const window = snapshot.exists() ? wolfAttackWindow(snapshot.data()) : null;
@@ -3769,6 +3823,7 @@ export function subscribeGmWolfAttackPreparation(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfAttackPreparation/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const preparation = snapshot.exists() ? wolfAttackPreparation(snapshot.data()) : null;
@@ -3796,6 +3851,7 @@ export function subscribeGmWolfAttackState(
   const acceptsRevision = createMonotonicRevisionGate();
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfAttackState/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const state = snapshot.exists() ? wolfAttackDeclarationState(snapshot.data()) : null;
@@ -3821,6 +3877,7 @@ export function subscribeGmWolfAssignment(
   let subscribed = true;
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/secrets/wolf-assignment`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       onAssignment(snapshot.exists() ? wolfAssignment(snapshot.get('payload')) : null);
@@ -3908,6 +3965,7 @@ export function subscribeGmInstances(
     listenerFailed = false;
     const stop = onSnapshot(
       query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!alive() || generation !== listenerGeneration) return;
         const fromCache = snapshot.metadata?.fromCache === true;
@@ -4062,6 +4120,9 @@ export function subscribeShuttleDeparture(
   onError: () => void = () => undefined,
 ): Unsubscribe {
   let subscribed = true;
+  // A shuttle or session change must not leave the previous flight plan on
+  // screen while the new listener waits for server authority.
+  onDeparture(null);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/shuttleDepartures/${shuttleId}`),
     { includeMetadataChanges: true },
@@ -4089,17 +4150,20 @@ export function subscribeIntelligenceInvestigation(
   onError: () => void = () => undefined,
 ): Unsubscribe {
   let subscribed = true;
+  let listenerTerminated = false;
   onInvestigation(null);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/intelligenceInvestigations/${uid}`),
+    { includeMetadataChanges: true },
     (snapshot) => {
-      if (!subscribed) return;
+      if (!subscribed || listenerTerminated || snapshot.metadata?.fromCache === true) return;
       onInvestigation(snapshot.exists()
         ? intelligenceInvestigation(snapshot.data(), sessionId, uid)
         : null);
     },
     (error: { readonly code?: string }) => {
       if (!subscribed) return;
+      listenerTerminated = true;
       onInvestigation(null);
       if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
     },
@@ -4154,6 +4218,7 @@ export function subscribeShipConfetti(
   let lastSignal: string | null = null;
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/shipConfetti/${shipId}`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -4193,12 +4258,14 @@ export function subscribeSessionEvents(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  onEvents([]);
   const unsubscribe = onSnapshot(
     query(
       collection(db(), `sessions/${sessionId}/events`),
       orderBy('createdAt', 'desc'),
       limit(30),
     ),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -4279,7 +4346,11 @@ export function subscribeSessionEvents(
         }];
       }));
     },
-    () => { if (subscribed) onError(); },
+    () => {
+      if (!subscribed) return;
+      onEvents([]);
+      onError();
+    },
   );
   return () => {
     subscribed = false;
@@ -4403,8 +4474,10 @@ export function subscribeGmCrisisState(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  const publishState = createDistinctProjectionPublisher(onState);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/crisisState/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -4413,7 +4486,7 @@ export function subscribeGmCrisisState(
         projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
       )) return;
       if (!fromCache) hasServerSnapshot = true;
-      onState(snapshot.exists() ? crisisStateProjection(snapshot.data(), sessionId) : null);
+      publishState(snapshot.exists() ? crisisStateProjection(snapshot.data(), sessionId) : null);
     },
     () => {
       if (!subscribed) return;
@@ -4435,8 +4508,10 @@ export function subscribeGmZealotryResponse(
 ): Unsubscribe {
   let subscribed = true;
   let acceptsRevision = createMonotonicRevisionGate();
+  const publishResponse = createDistinctProjectionPublisher(onResponse);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/zealotryResponses/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       // A closed crisis removes the current projection. The next crisis starts
@@ -4444,7 +4519,7 @@ export function subscribeGmZealotryResponse(
       if (!snapshot.exists()) acceptsRevision = createMonotonicRevisionGate();
       const response = snapshot.exists() ? zealotryResponse(snapshot.data(), sessionId) : null;
       if (response && !acceptsRevision(response.revision)) return;
-      onResponse(response);
+      publishResponse(response);
     },
     (error: { readonly code?: string }) => {
       if (!subscribed) return;
@@ -4469,14 +4544,16 @@ export function subscribeGmCivilUnrestResolution(
 ): Unsubscribe {
   let subscribed = true;
   let acceptsRevision = createMonotonicRevisionGate();
+  const publishResolution = createDistinctProjectionPublisher(onResolution);
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/civilUnrestResolutions/current`),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
       if (!snapshot.exists()) acceptsRevision = createMonotonicRevisionGate();
       const resolution = snapshot.exists() ? civilUnrestResolution(snapshot.data(), sessionId) : null;
       if (resolution && !acceptsRevision(resolution.revision)) return;
-      onResolution(resolution);
+      publishResolution(resolution);
     },
     () => { if (subscribed) onResolution(null); },
   );
@@ -4495,12 +4572,14 @@ export function subscribeDamageDraws(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  onDraws([]);
   const unsubscribe = onSnapshot(
     query(
       collection(db(), `sessions/${sessionId}/damageDraws`),
       orderBy('createdAt', 'desc'),
       limit(30),
     ),
+    { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -4542,7 +4621,11 @@ export function subscribeDamageDraws(
         }];
       }));
     },
-    () => { if (subscribed) onError(); },
+    () => {
+      if (!subscribed) return;
+      onDraws([]);
+      onError();
+    },
   );
   return () => {
     subscribed = false;
