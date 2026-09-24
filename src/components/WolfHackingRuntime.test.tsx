@@ -90,6 +90,13 @@ it('keeps committed GM alerts visible and queues each until the exact clue instr
   expect(screen.queryByText('Nothing.')).not.toBeInTheDocument();
 });
 
+it('hides the fixed facilitator alert panel after the verified queue is empty', () => {
+  setTrustedState('gm');
+  render(<WolfHackingRuntime />);
+  act(() => gmListener?.([]));
+  expect(screen.queryByLabelText('Facilitator sabotage alerts')).not.toBeInTheDocument();
+});
+
 it('clears stale GM callbacks on role change and delivers the approved static notice to players', () => {
   vi.useFakeTimers();
   setTrustedState('gm');

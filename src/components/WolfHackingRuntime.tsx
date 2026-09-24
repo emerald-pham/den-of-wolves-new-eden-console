@@ -144,6 +144,9 @@ export default function WolfHackingRuntime() {
 
   const visibleGmView = gmAuthorized && gmView.key === gmKey ? gmView : undefined;
   const currentAlert = visibleGmView?.status === 'ready' ? visibleGmView.alerts[0] : undefined;
+  const showGmView = visibleGmView && (
+    visibleGmView.status !== 'ready' || visibleGmView.alerts.length > 0
+  );
   const visiblePlayerView = playerAuthorized && playerView.key === playerKey ? playerView : undefined;
   const activeNotice = visiblePlayerView?.status === 'ready' ? visiblePlayerView.queue[0] : undefined;
   const activeNoticeId = activeNotice?.id;
@@ -185,7 +188,7 @@ export default function WolfHackingRuntime() {
 
   return (
     <>
-      {visibleGmView && visibleGmView.status !== 'inactive' && (
+      {showGmView && visibleGmView && visibleGmView.status !== 'inactive' && (
         <aside
           className="wolf-hacking-alert"
           aria-label="Facilitator sabotage alerts"

@@ -15917,18 +15917,22 @@ export const advanceWolfAttackToLongRange = onCall<{
         'stale-revision',
       );
     }
-    const deadlineAt = state.get('deadlineAt');
+    const declaredDeadlineAt = state.get('deadlineAt');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
-        !phase || phase.turn !== inputs.turn || phase.openAirspaceEndsAt !== deadlineAt ||
+    if (typeof declaredDeadlineAt !== 'string' || !Number.isFinite(Date.parse(declaredDeadlineAt)) ||
+        !phase || phase.turn !== inputs.turn || !Number.isFinite(Date.parse(phase.openAirspaceEndsAt)) ||
         phase.timerPause !== undefined ||
         phase.airspace.state !== 'restricted') {
       throw commandError(
         'failed-precondition',
-        'The current airspace lock, pause state, or declared deadline no longer matches this attack.',
+        'The current targeting stage is not under a live, restricted airspace deadline.',
         'conflict',
       );
     }
+    // The emergency timer can shift the session deadline while this private
+    // targeting stage remains open. The session's current server-owned phase
+    // is authoritative; do not compare it to the declaration-time deadline.
+    const deadlineAt = phase.openAirspaceEndsAt;
 
     const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
     const completion = commanderRerollsCompletionDecision(
@@ -15964,6 +15968,7 @@ export const advanceWolfAttackToLongRange = onCall<{
     tx.update(stateRef, {
       revision: nextRevision,
       currentStep: nextStep,
+      deadlineAt,
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(auditRef, {

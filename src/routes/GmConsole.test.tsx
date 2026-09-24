@@ -3496,7 +3496,8 @@ it('lets the live GM close targeting and enter Long Range on the existing attack
   const advance = within(preparation).getByRole('button', { name: 'Close targeting and enter Long Range' });
   expect(advance).toBeEnabled();
   expect(preparation).not.toHaveTextContent(/calculationReceipt|rosterIndex|die:/i);
-  await user.click(advance);
+  advance.focus();
+  await user.keyboard('{Enter}');
 
   await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(1, 4));
   expect(preparation).toHaveTextContent(`Targeting closed // Long Range // deadline ${deadlineAt}`);

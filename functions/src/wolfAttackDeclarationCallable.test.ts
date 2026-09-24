@@ -75,9 +75,11 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 import {
   advanceWolfAttackToLongRange,
   declareWolfAttack,
+  extendAirspaceWindow,
   finishWolfCommanderTargetingRerolls,
   getDioneMaliadesLaunch,
   launchDioneMaliades,
+  setEmergencyTimerPaused,
 } from './index';
 import { parseMaliadesState, resolveMaliadesMedium as resolveMaliadesStateMedium,
   resolveMaliadesShort as resolveMaliadesStateShort } from './maliadesState';
@@ -396,6 +398,125 @@ it('does not advance targeting while the current emergency timer is paused', asy
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
   expect(mock.documents.has('sessions/s1/commandReceipts/advance-paused')).toBe(false);
   expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-paused')).toBe(false);
+});
+
+it('uses the current server-owned airspace deadline after a restricted-window extension', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-24T19:00:00.000Z'));
+  session({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-24T18:59:58.000Z',
+      openAirspaceEndsAt: '2026-09-24T19:01:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+  await declareWolfAttack.run(request());
+  const declarationDeadline = mock.documents.get('sessions/s1/wolfAttackState/current')?.deadlineAt;
+
+  // Model a still-live restricted phase so the ordinary server-owned extension
+  // callable can advance the airspace clock independently of the attack receipt.
+  patchSession({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-24T19:00:30.000Z',
+      openAirspaceEndsAt: '2026-09-24T19:01:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  const extension = await extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, window: 'restricted',
+  }));
+  const currentDeadline = extension.turnPhase.openAirspaceEndsAt;
+  expect(currentDeadline).toBe('2026-09-24T19:06:00.000Z');
+  expect(declarationDeadline).not.toBe(currentDeadline);
+
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-extension-targeting', expectedTurn: 1, expectedRevision: 1,
+  }, 'u2'));
+  const readyState = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  const readyRevision = readyState.revision as number;
+
+  await expect(advanceWolfAttackToLongRange.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-extension-stale',
+    expectedTurn: 1, expectedRevision: readyRevision - 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/commandReceipts/advance-extension-stale')).toBe(false);
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-extension-stale')).toBe(false);
+
+  const result = await advanceWolfAttackToLongRange.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-extension',
+    expectedTurn: 1, expectedRevision: readyRevision,
+  }));
+  expect(result).toMatchObject({ currentStep: 'long-range', deadlineAt: currentDeadline });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', deadlineAt: currentDeadline,
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/advance-after-extension'))
+    .toMatchObject({ deadlineAt: currentDeadline });
+  expect(mock.documents.get('sessions/s1/commandReceipts/advance-after-extension'))
+    .toMatchObject({ result: expect.objectContaining({ deadlineAt: currentDeadline }) });
+});
+
+it('uses the resumed server-owned airspace deadline and rejects a paused advance without writes', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-24T19:00:00.000Z'));
+  session({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-24T18:59:58.000Z',
+      openAirspaceEndsAt: '2026-09-24T19:01:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+  await declareWolfAttack.run(request());
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-resume-targeting', expectedTurn: 1, expectedRevision: 1,
+  }, 'u2'));
+  const declarationDeadline = mock.documents.get('sessions/s1/wolfAttackState/current')?.deadlineAt;
+
+  await setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, paused: true,
+  }));
+  mock.update.mockClear();
+  const stateWhilePaused = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+  await expect(advanceWolfAttackToLongRange.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-while-paused',
+    expectedTurn: 1, expectedRevision: 2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateWhilePaused);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/advance-while-paused')).toBe(false);
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-while-paused')).toBe(false);
+
+  vi.setSystemTime(new Date('2026-09-24T19:02:00.000Z'));
+  await setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, paused: false,
+  }));
+  const resumedDeadline = mock.documents.get('sessions/s1')?.turnPhase &&
+    (mock.documents.get('sessions/s1')?.turnPhase as Fields).openAirspaceEndsAt;
+  expect(resumedDeadline).toBe('2026-09-24T19:03:00.000Z');
+  expect(declarationDeadline).not.toBe(resumedDeadline);
+
+  mock.update.mockClear();
+  const result = await advanceWolfAttackToLongRange.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-resume',
+    expectedTurn: 1, expectedRevision: 2,
+  }));
+  expect(result).toMatchObject({ currentStep: 'long-range', deadlineAt: resumedDeadline });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', deadlineAt: resumedDeadline,
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/advance-after-resume'))
+    .toMatchObject({ deadlineAt: resumedDeadline });
+  expect(mock.documents.get('sessions/s1/commandReceipts/advance-after-resume'))
+    .toMatchObject({ result: expect.objectContaining({ deadlineAt: resumedDeadline }) });
 });
 
 it('does not overwrite a private targeting audit when its command receipt is missing', async () => {
