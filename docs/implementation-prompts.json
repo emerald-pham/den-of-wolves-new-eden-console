@@ -4076,6 +4076,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "541 -> current fleet group after arrival-derived discovery",
+      "id": "E-541-ARRIVAL-GROUP-REVEAL",
+      "language": "The server publishes only candidate code and chart title to the current fleet group after an arrival-derived discovery, binding the active session, recipient, selected chart, navigation state, players, and fleet-group snapshots in the authoritative transaction. Stale or malformed authority clears the candidate projection. The allowlisted view excludes organiser-chart data and O's pre-discovery bonus. Scout-derived reveal remains unimplemented because no digital producer or audience contract is defined. Focused local server, client, rules, and privacy tests pass; an ordinary authorized production arrival has not been verified, so Prompt 541 remains partial.",
+      "source": "functions/src/candidateRevealProjection.ts; functions/src/index.ts; functions/src/navigationProjection.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/App.tsx; src/routes/SessionMode.tsx; src/routes/ShipConsole.tsx; focused local validation",
+      "type": "evidence / partial / local validation / authority / privacy"
+    },
+    {
       "direction": "542 -> 541",
       "id": "E-AUDIT-542",
       "language": "Candidate retry safety consumes candidate reveal.",
@@ -20430,8 +20437,8 @@
         "acceptance": "an entitled discovery exposes N, O, or P to the correct group without leaking organiser-chart facts.",
         "title": "Reveal a New Eden candidate."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-541",
+      "description": "Arrival-derived candidate codes and names are projected to the current fleet group with chart details withheld; scout-derived reveal and ordinary authorized production-path proof remain outstanding.",
+      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "318;525",
@@ -20439,10 +20446,12 @@
       "milestoneHints": "M3;M11;M13",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.23"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

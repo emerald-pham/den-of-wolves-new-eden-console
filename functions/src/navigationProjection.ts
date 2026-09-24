@@ -15,6 +15,7 @@ import {
   parseCandidatePlanCheckpoint,
   type CandidatePlanCheckpoint,
 } from './candidatePlanCheckpoint';
+import type { CandidateReveal } from './candidateRevealProjection';
 
 export interface NavigationState {
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
@@ -41,6 +42,7 @@ export interface PlayerDiscoveryProjection {
   readonly pursuitValue?: number;
   readonly navigationLogs: readonly NavigationLogEntry[];
   readonly systemHistory?: SystemHistoryForShip;
+  readonly candidateReveals?: readonly CandidateReveal[];
   readonly revision: number;
 }
 
@@ -273,6 +275,7 @@ export function playerDiscoveryProjection(
   navigation: NavigationState,
   revision: number,
   fleetGroupVesselIds: readonly string[] = [],
+  candidateReveals?: readonly CandidateReveal[],
 ): PlayerDiscoveryProjection {
   const groupId = typeof player.get('fleetGroupId') === 'string' ? player.get('fleetGroupId') as string : '';
   const shipId = playerShipId(player);
@@ -287,6 +290,7 @@ export function playerDiscoveryProjection(
         ? { pursuitValue: navigation.pursuitGroups[groupId] }
         : {}),
       navigationLogs: [],
+      ...(candidateReveals !== undefined ? { candidateReveals: [...candidateReveals] } : {}),
       revision,
     };
   }
@@ -308,6 +312,7 @@ export function playerDiscoveryProjection(
       : {}),
     navigationLogs: entries,
     ...(ownHistory ? { systemHistory: ownHistory } : {}),
+    ...(candidateReveals !== undefined ? { candidateReveals: [...candidateReveals] } : {}),
     revision,
   };
 }
@@ -319,6 +324,10 @@ export function writePlayerDiscoveryProjection(
   navigation: NavigationState,
   revision: number,
   fleetGroupVesselIds: readonly string[] = [],
+  candidateReveals?: readonly CandidateReveal[],
 ): void {
-  tx.set(ref, playerDiscoveryProjection(player, navigation, revision, fleetGroupVesselIds));
+  const projection = playerDiscoveryProjection(
+    player, navigation, revision, fleetGroupVesselIds, candidateReveals,
+  );
+  tx.set(ref, projection);
 }

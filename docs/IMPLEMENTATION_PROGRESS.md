@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **457 / 751 prompts complete (60.85%)**
 
-Status breakdown: **457 done · 38 partial · 256 missing**.
+Status breakdown: **457 done · 39 partial · 255 missing**.
 
 Active prompt: **none**
 
@@ -1010,7 +1010,7 @@ release classification and evidence.
 | 538 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 539 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 540 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 541 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 541 | partial | non-feature | 0.5.23 | Arrival-derived candidate codes and names are projected to the current fleet group with chart details withheld; scout-derived reveal and ordinary authorized production-path proof remain outstanding. |
 | 542 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 543 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 544 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

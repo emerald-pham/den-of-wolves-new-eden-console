@@ -43,7 +43,17 @@ import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import EscapeState from '@/routes/EscapeState';
 import ReplacementRoleWorkspace from '@/routes/ReplacementRoleWorkspace';
-import type { ArbourVision, CommissarPurgeAuthority, GameSession, LoyaltyCensus, Player, RoleBrief as RoleBriefProjection, WolfCultIntelligence } from '@/types/game';
+import type {
+  ArbourVision,
+  CommissarPurgeAuthority,
+  CurrentGroupCandidateRevealProjection,
+  GameSession,
+  LoyaltyCensus,
+  Player,
+  PlayerDiscoveryProjection,
+  RoleBrief as RoleBriefProjection,
+  WolfCultIntelligence,
+} from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 
@@ -56,6 +66,7 @@ const hasConsoleDradis = (path: string): boolean =>
 function stripNavigationProjection(session: GameSession): GameSession {
   const next = { ...session };
   delete next.playerDiscovery;
+  delete next.currentGroupCandidateReveals;
   delete next.shipGalacticCoordinates;
   delete next.shipNavigationLogs;
   return next;
@@ -173,6 +184,74 @@ function AppRoutes() {
     let censusSubscribed = false;
     let censusGeneration = 0;
     let playerProjectionFresh = false;
+    let sessionProjectionFresh = false;
+    let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
+    const clearCurrentGroupCandidateReveals = () => {
+      const store = useSessionStore.getState();
+      const current = store.session;
+      if (!current || current.id !== sessionId) return;
+      const next = { ...current };
+      delete next.currentGroupCandidateReveals;
+      if (next.playerDiscovery?.candidateReveals !== undefined) {
+        next.playerDiscovery = { ...next.playerDiscovery, candidateReveals: [] };
+      }
+      store.setSession(next);
+    };
+    const applyPendingPlayerDiscovery = () => {
+      if (!callbackCurrent() || pendingPlayerDiscovery === undefined) return;
+      const store = useSessionStore.getState();
+      const current = store.session;
+      if (!current || current.id !== sessionId) return;
+      if (pendingPlayerDiscovery === null) {
+        pendingPlayerDiscovery = undefined;
+        store.setSession(stripNavigationProjection(current));
+        return;
+      }
+      const projection = pendingPlayerDiscovery;
+      const requiresCandidateAuthority = projection.candidateReveals !== undefined;
+      // Navigation remains an own-ship projection. Group candidate names need
+      // both independent server snapshots because either can change the read
+      // audience while this protected document is arriving.
+      if (requiresCandidateAuthority &&
+          (!playerProjectionFresh || !sessionProjectionFresh)) return;
+      const me = store.me;
+      if (me?.uid !== playerUid || me.role !== 'player' ||
+          (requiresCandidateAuthority &&
+            (!me.fleetGroupId || projection.groupId !== me.fleetGroupId))) {
+        pendingPlayerDiscovery = undefined;
+        store.setSession(stripNavigationProjection(current));
+        return;
+      }
+      const candidateProjection: CurrentGroupCandidateRevealProjection | undefined =
+        current.phase === 'active' && requiresCandidateAuthority &&
+          me.fleetGroupId === projection.groupId
+          ? {
+            groupId: projection.groupId,
+            candidateReveals: projection.candidateReveals,
+            revision: projection.revision,
+          }
+          : undefined;
+      const withoutPreviousDiscovery = stripNavigationProjection(current);
+      const withGroupCandidates = candidateProjection
+        ? { ...withoutPreviousDiscovery, currentGroupCandidateReveals: candidateProjection }
+        : withoutPreviousDiscovery;
+      const entitledShipId = effectivePlayerShip(me);
+      if (!entitledShipId || projection.shipId !== entitledShipId) {
+        pendingPlayerDiscovery = undefined;
+        store.setSession(withGroupCandidates);
+        return;
+      }
+      const shipId = projection.shipId;
+      pendingPlayerDiscovery = undefined;
+      store.setSession({
+        ...withGroupCandidates,
+        playerDiscovery: projection,
+        ...(shipId && projection.currentCoordinate
+          ? { shipGalacticCoordinates: { [shipId]: projection.currentCoordinate } }
+          : {}),
+        ...(shipId ? { shipNavigationLogs: { [shipId]: projection.navigationLogs } } : {}),
+      });
+    };
     let subscribeLoyaltyCensusFn: (
       sessionId: string,
       onCensus: (census: LoyaltyCensus | null) => void,
@@ -264,6 +343,10 @@ function AppRoutes() {
             ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
             ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
             ...(current.candidatePlanCheckpoint ? { candidatePlanCheckpoint: current.candidatePlanCheckpoint } : {}),
+            ...(sessionProjectionFresh && current.currentGroupCandidateReveals && next.phase === 'active' &&
+              store.me?.fleetGroupId === current.currentGroupCandidateReveals.groupId
+              ? { currentGroupCandidateReveals: current.currentGroupCandidateReveals }
+              : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
         },
@@ -273,30 +356,16 @@ function AppRoutes() {
           const current = store.session;
           if (!current || current.id !== sessionId) return;
           if (store.me?.role === 'gm' && current.organiserSystems !== undefined) {
+            pendingPlayerDiscovery = undefined;
             const next = { ...current };
+            delete next.currentGroupCandidateReveals;
             if (projection) next.playerDiscovery = projection;
             else delete next.playerDiscovery;
             store.setSession(next);
             return;
           }
-          if (!projection) {
-            store.setSession(stripNavigationProjection(current));
-            return;
-          }
-          const entitledShipId = effectivePlayerShip(store.me);
-          if (!entitledShipId || projection.shipId !== entitledShipId) return;
-          const shipId = projection.shipId;
-          const withoutPreviousDiscovery = stripNavigationProjection(current);
-          store.setSession({
-            ...withoutPreviousDiscovery,
-            playerDiscovery: projection,
-            ...(shipId && projection.currentCoordinate
-              ? { shipGalacticCoordinates: { [shipId]: projection.currentCoordinate } }
-              : {}),
-            ...(shipId
-              ? { shipNavigationLogs: { [shipId]: projection.navigationLogs } }
-              : {}),
-          });
+          pendingPlayerDiscovery = projection;
+          applyPendingPlayerDiscovery();
         },
         onGmDiscovery: (projection) => {
           if (!callbackCurrent()) return;
@@ -316,14 +385,18 @@ function AppRoutes() {
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
+          sessionProjectionFresh = fresh;
           const store = useSessionStore.getState();
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           store.setConnection(fresh ? 'live' : 'offline');
+          if (!fresh) clearCurrentGroupCandidateReveals();
+          else applyPendingPlayerDiscovery();
         },
         onPlayer: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           const previousEntitlement = playerEntitlementKey(store.me);
+          const previousFleetGroupId = store.me?.fleetGroupId;
           const previousWolfCultIdentity = store.me
             ? `${store.me.uid}:${store.me.role}:${store.me.assignedRoleId ?? ''}:${store.me.replacementRoleId ?? ''}`
             : '';
@@ -333,12 +406,19 @@ function AppRoutes() {
             store.setFacilitatorRuleCall(null);
           }
           playerProjectionFresh = false;
+          clearCurrentGroupCandidateReveals();
           store.setMe(next);
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
           }
           if (previousEntitlement !== nextEntitlement) {
             retainArbourVisionForEntitlementChange();
+          }
+          if (previousFleetGroupId !== next.fleetGroupId) {
+            const current = useSessionStore.getState().session;
+            if (current?.id === sessionId) {
+              useSessionStore.getState().setSession(stripNavigationProjection(current));
+            }
           }
           const authority = store.commissarPurgeAuthority;
           const authorityStillCurrent = authority?.role === 'commissar'
@@ -408,6 +488,8 @@ function AppRoutes() {
         onPlayerFreshness: (fresh) => {
           if (!callbackCurrent()) return;
           playerProjectionFresh = fresh;
+          if (!fresh) clearCurrentGroupCandidateReveals();
+          else applyPendingPlayerDiscovery();
           reconcileLoyaltyCensus();
         },
         onKicked: () => {

@@ -145,12 +145,14 @@ beforeEach(() => {
     }
     if (path === 'sessions/s1/fleetGroups') {
       return { docs: mock.fleetGroups.map((group) => ({
-        exists: true, id: group.id, data: () => group, get: (key: string) => group[key as keyof typeof group],
+        exists: true, id: group.id, ref: { path: `${path}/${group.id}` },
+        data: () => group, get: (key: string) => group[key as keyof typeof group],
       })) };
     }
     if (path === 'sessions/s1/players') {
       return { docs: mock.players.map((entry) => ({
-        exists: true, id: entry.id, data: () => entry.fields, get: (key: string) => entry.fields[key],
+        exists: true, id: entry.id, ref: { path: `${path}/${entry.id}` },
+        data: () => entry.fields, get: (key: string) => entry.fields[key],
       })) };
     }
     const fields: Record<string, unknown> = path.includes('/players/')
@@ -167,6 +169,7 @@ beforeEach(() => {
         ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {
           phase: 'active',
+          activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
           currentTurn: mock.currentTurn,
           turnPhase: {
             turn: mock.currentTurn,
@@ -201,11 +204,21 @@ beforeEach(() => {
           maintenanceCycles: {
             aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
           },
-        };
+    };
     if (path === 'sessions/s1/serverState/navigation') {
-      return { exists: true, data: () => fields, get: (key: string) => fields[key] };
+      return {
+        exists: true, id: 'navigation', ref: { path }, data: () => fields,
+        get: (key: string) => fields[key],
+      };
     }
-    return { exists: true, get: (key: string) => fields[key] };
+    const pathId = path.split('/').at(-1) ?? '';
+    return {
+      exists: true,
+      id: pathId,
+      ref: { path },
+      data: () => fields,
+      get: (key: string) => fields[key],
+    };
   });
 });
 
@@ -295,12 +308,18 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
 
 it('persists a candidate arrival while keeping it out of another ship projection', async () => {
   mock.fleetGroups = [{
-    ...mock.fleetGroups[0]!, memberUids: ['u1', 'u2'],
+    id: 'fleet-1', vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'refinery-124'],
+    memberUids: ['u1', 'u2'],
+  }, {
+    id: 'fleet-2', vesselIds: ['quellon'], memberUids: ['u3'],
   }];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 4 };
   mock.players = [
     { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' } },
     { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+    { id: 'u3', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'quellon-captain' } },
   ];
+  mock.transactionRetries = 1;
   await expect(moveShipToLocation.run(request({
     ...data, requestId: 'candidate-arrival', destination: '6798',
   }))).resolves.toMatchObject({ destination: '6798' });
@@ -320,19 +339,36 @@ it('persists a candidate arrival while keeping it out of another ship projection
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(
-    'sessions/s1/playerDiscoveries/u1',
+    'sessions/s1/playerDiscoveries/u2',
     expect.objectContaining({
-      systemHistory: expect.objectContaining({
-        '6798': expect.objectContaining({
-          candidateDiscovery: expect.objectContaining({ code: 'N' }),
-        }),
-      }),
+      groupId: 'fleet-1',
+      candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring' }],
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(
-    'sessions/s1/playerDiscoveries/u2',
-    expect.not.objectContaining({ systemHistory: expect.anything() }),
+    'sessions/s1/playerDiscoveries/u1',
+    expect.not.objectContaining({ candidateReveals: expect.anything() }),
   );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/playerDiscoveries/u3',
+    expect.objectContaining({ groupId: 'fleet-2', candidateReveals: [] }),
+  );
+  const candidateProjection = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/playerDiscoveries/u2')?.[1];
+  expect(candidateProjection?.candidateReveals).toEqual([
+    { code: 'N', title: 'Ancient Jump Ring' },
+  ]);
+  expect(Object.keys(candidateProjection?.candidateReveals?.[0] ?? {}).sort()).toEqual(['code', 'title']);
+  expect(JSON.stringify(candidateProjection?.candidateReveals)).not.toMatch(/organiser|summary|bonus|6798/);
+
+  const receipt = mock.set.mock.calls.find(([path]) => path.includes('/commandReceipts/'))?.[1];
+  expect(receipt).toBeDefined();
+  mock.commandReceiptRecord = { fingerprint: receipt?.fingerprint, result: receipt?.result };
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await moveShipToLocation.run(request({ ...data, requestId: 'candidate-arrival', destination: '6798' }));
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it.each([

@@ -6,8 +6,9 @@ import { activeFleetShipIds, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
-import type { Seat, Voyage33Admission } from '@/types/game';
+import type { CandidateReveal, Seat, Voyage33Admission } from '@/types/game';
 import { replacementRoleFor } from '@/data/replacementRoles';
+import CandidateRevealPanel from '@/components/CandidateRevealPanel';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -20,6 +21,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   const me = useSessionStore((state) => state.me);
   const seats = useSessionStore((state) => state.seats);
   const selectedMode = useSessionStore((state) => state.mode);
+  const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const isGm = useSessionStore(selectIsGm);
 
   if (!session || !me) return <Navigate to="/" replace />;
@@ -43,6 +45,10 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         {...(session.admittedVesselIds === undefined ? {} : { admittedVesselIds: session.admittedVesselIds })}
         {...(session.voyage33Admission === undefined ? {} : { voyage33Admission: session.voyage33Admission })}
         isGm={isGm}
+        candidateReveals={me.role === 'player' && sessionSnapshotFreshness === 'server' &&
+          session.phase === 'active' && me.fleetGroupId &&
+          session.currentGroupCandidateReveals?.groupId === me.fleetGroupId
+          ? session.currentGroupCandidateReveals.candidateReveals : []}
         seats={seats}
         viewerUid={me.uid}
         activeConsoleRoleId={me.activeConsoleRoleId ?? null}
@@ -87,6 +93,7 @@ function FleetRoster({
   admittedVesselIds,
   voyage33Admission,
   isGm,
+  candidateReveals,
   seats,
   viewerUid,
   activeConsoleRoleId,
@@ -102,6 +109,7 @@ function FleetRoster({
   admittedVesselIds?: readonly string[];
   voyage33Admission?: Voyage33Admission;
   isGm: boolean;
+  candidateReveals: readonly CandidateReveal[];
   seats: readonly Seat[];
   viewerUid: string;
   activeConsoleRoleId: string | null;
@@ -155,6 +163,8 @@ function FleetRoster({
           />
         </label>
       </header>
+
+      <CandidateRevealPanel candidateReveals={candidateReveals} />
 
       <section className="fleet-group" aria-labelledby="independent-roles">
         <h2 className="fleet-group__title" id="independent-roles">Independent stations</h2>

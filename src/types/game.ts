@@ -150,6 +150,21 @@ export interface SystemHistoryEntry {
 export type SystemHistoryForShip = Readonly<Record<string, SystemHistoryEntry>>;
 export type SystemHistory = Readonly<Record<string, SystemHistoryForShip>>;
 
+export type NewEdenCandidateCode = 'N' | 'O' | 'P';
+
+/** The only candidate identity fields exposed to an entitled fleet member. */
+export interface CandidateReveal {
+  readonly code: NewEdenCandidateCode;
+  readonly title: string;
+}
+
+/** A current fleet group's member-safe candidate view, separate from ship history. */
+export interface CurrentGroupCandidateRevealProjection {
+  readonly groupId: GroupId;
+  readonly candidateReveals: readonly CandidateReveal[];
+  readonly revision: number;
+}
+
 /** Server-owned navigation knowledge for one entitled player/ship view. */
 export interface PlayerDiscoveryProjection {
   readonly groupId: GroupId;
@@ -165,6 +180,8 @@ export interface PlayerDiscoveryProjection {
   readonly pursuitValue?: number;
   readonly navigationLogs: readonly ShipNavigationLogEntry[];
   readonly systemHistory?: SystemHistoryForShip;
+  /** Arrival-derived N/O/P identities discovered by this player's current group. */
+  readonly candidateReveals?: readonly CandidateReveal[];
   readonly revision: number;
 }
 
@@ -938,6 +955,8 @@ export interface GameSession {
   readonly shipNavigationLogs?: ShipNavigationLogs;
   /** The authenticated player's server-owned discovery entitlement. */
   readonly playerDiscovery?: PlayerDiscoveryProjection;
+  /** Group-scoped candidate view; it remains available without a claimed ship role. */
+  readonly currentGroupCandidateReveals?: CurrentGroupCandidateRevealProjection;
   /** Facilitator-only organiser lookup received from the protected projection. */
   readonly organiserSites?: Readonly<Record<string, OrganiserSiteProjection>>;
   /** Facilitator-only coordinate mapping for the opaque map topology. */

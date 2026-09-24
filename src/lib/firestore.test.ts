@@ -180,7 +180,8 @@ it('hydrates only internally consistent Highwall mining results', () => {
 it('hydrates only a canonical private fleet-group vessel tuple', () => {
   const callbacks: Array<(snapshot: ReturnType<typeof sessionSnapshot>) => void> = [];
   vi.mocked(onSnapshot).mockImplementation((...args: unknown[]) => {
-    callbacks.push(args[1] as (snapshot: ReturnType<typeof sessionSnapshot>) => void);
+    const callback = typeof args[1] === 'function' ? args[1] : args[2];
+    callbacks.push(callback as (snapshot: ReturnType<typeof sessionSnapshot>) => void);
     return vi.fn();
   });
   const onPlayerDiscovery = vi.fn();
@@ -2626,9 +2627,12 @@ function captureSessionListener() {
   const callbacks: Array<(snapshot: unknown) => void> = [];
   const errors: Array<(error: unknown) => void> = [];
   const unsubscribeSpies: Array<ReturnType<typeof vi.fn>> = [];
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown, error: unknown) => {
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
+    callbackOrError: unknown, error?: unknown) => {
+    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
+    const errorCallback = typeof optionsOrCallback === 'function' ? callbackOrError : error;
     callbacks.push(callback as (snapshot: unknown) => void);
-    errors.push((error as ((error: unknown) => void) | undefined) ?? (() => undefined));
+    errors.push((errorCallback as ((error: unknown) => void) | undefined) ?? (() => undefined));
     const unsubscribe = vi.fn();
     unsubscribeSpies.push(unsubscribe);
     return unsubscribe;
@@ -3039,6 +3043,37 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.attempts[0]?.id).toBe('attempt-1');
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.candidateDiscovery?.code).toBe('N');
   expect(gmProjection.organiserSystemHistory?.dione?.['8378']?.attempts[0]?.id).toBe('attempt-2');
+});
+
+it('redacts cached candidate names, accepts only the exact code/title schema, and clears on read denial', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onPlayerDiscovery = vi.fn();
+  subscribeSessionState('candidate-cache', 'candidate-reader', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onPlayerDiscovery,
+    onGmDiscovery: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    sessionSnapshotAuthority: sessionSnapshotAuthorityFor('candidate-cache', 'candidate-reader'),
+  });
+  const projection = {
+    groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '0000',
+    knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+    pursuitDistance: 0, navigationLogs: [], revision: 3,
+    candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring' }],
+  };
+  callbacks[2]?.({ metadata: { fromCache: true }, exists: () => true, data: () => projection });
+  expect(onPlayerDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({ candidateReveals: [] }));
+
+  callbacks[2]?.({ metadata: { fromCache: false }, exists: () => true, data: () => projection });
+  expect(onPlayerDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({
+    candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring' }],
+  }));
+
+  callbacks[2]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
+    ...projection,
+    candidateReveals: [{ code: 'O', title: 'Deep Nebula', accruedBonus: 3 }],
+  }) });
+  expect(onPlayerDiscovery).toHaveBeenLastCalledWith(null);
+  errors[2]?.({ code: 'permission-denied' });
+  expect(onPlayerDiscovery).toHaveBeenLastCalledWith(null);
 });
 
 it('clears the GM navigation projection when its protected listener loses permission', () => {

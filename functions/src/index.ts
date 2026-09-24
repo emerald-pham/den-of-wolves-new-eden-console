@@ -12,6 +12,10 @@ import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard
 import { recordSystemHazard } from './systemHistory';
 import { candidateDiscoveryFromArrival } from './candidateDiscovery';
 import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
+import {
+  candidateRevealProjectionForCurrentFleetMember,
+  type CandidateReveal,
+} from './candidateRevealProjection';
 import { isDeepStrictEqual } from 'node:util';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
@@ -184,7 +188,6 @@ import {
   isValidPursuitAuthority,
   navigationState,
   navigationStateDocumentPath,
-  playerDiscoveryProjection,
   pursuitGroups,
   writePlayerDiscoveryProjection,
   type NavigationState,
@@ -1371,6 +1374,78 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   };
 }
 
+interface DiscoveryProjectionSnapshots {
+  readonly sessionSnapshot: DocumentSnapshot;
+  readonly navigationSnapshot: DocumentSnapshot;
+  readonly fleetGroupSnapshots: readonly DocumentSnapshot[];
+}
+
+/**
+ * Bind the exact transaction navigation write to the path/identity of the
+ * navigation snapshot it was derived from. Candidate projection consumers
+ * still validate the session, member, and group snapshots independently.
+ */
+function navigationSnapshotForTransactionProjection(
+  snapshot: DocumentSnapshot,
+  navigation: NavigationState,
+): DocumentSnapshot {
+  const snapshotAuthority = snapshot as unknown as {
+    readonly id?: unknown;
+    readonly ref?: { readonly path?: unknown };
+    readonly exists?: unknown;
+    data?: unknown;
+  };
+  if (snapshotAuthority.exists !== true || typeof snapshotAuthority.id !== 'string' ||
+      typeof snapshotAuthority.ref?.path !== 'string' || typeof snapshotAuthority.data !== 'function') {
+    return snapshot;
+  }
+  const stored = snapshot.data();
+  if (!isRecord(stored)) return snapshot;
+  const transactionData = { ...stored, ...navigationProjectionFields(navigation) };
+  return {
+    id: snapshotAuthority.id,
+    ref: { path: snapshot.ref.path },
+    exists: true,
+    data: () => transactionData,
+  } as unknown as DocumentSnapshot;
+}
+
+function currentGroupCandidateReveals(
+  sessionId: string,
+  sessionSnapshot: DocumentSnapshot,
+  navigationSnapshot: DocumentSnapshot,
+  navigation: NavigationState,
+  playerSnapshots: readonly DocumentSnapshot[],
+  fleetGroupSnapshots: readonly DocumentSnapshot[],
+  recipientUid: string,
+): readonly CandidateReveal[] | undefined {
+  const projection = candidateRevealProjectionForCurrentFleetMember({
+    sessionId,
+    sessionSnapshot,
+    navigationSnapshot: navigationSnapshotForTransactionProjection(navigationSnapshot, navigation),
+    playerSnapshots,
+    fleetGroupSnapshots,
+    recipientUid,
+  });
+  return projection?.recipientUid === recipientUid &&
+    projection.recipientPath === `sessions/${sessionId}/playerDiscoveries/${recipientUid}`
+    ? projection.candidateReveals
+    : undefined;
+}
+
+function transactionDocumentSnapshot(
+  id: string,
+  path: string,
+  value: Record<string, unknown>,
+): DocumentSnapshot {
+  return {
+    id,
+    ref: { path },
+    exists: true,
+    data: () => value,
+  } as unknown as DocumentSnapshot;
+}
+
 function lockedNavigationChart(session: Pick<DocumentSnapshot, 'get'>): 'A' | 'B' | 'C' {
   const chart = session.get('chartId');
   if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) ||
@@ -1414,6 +1489,8 @@ type MaintenanceHazardAuthority =
       readonly navigation: NavigationState;
       readonly revision: number;
       readonly chart: 'A' | 'B' | 'C';
+      readonly sessionSnapshot: DocumentSnapshot;
+      readonly navigationSnapshot: DocumentSnapshot;
     };
 
 function maintenanceHazardAuthority(
@@ -1513,13 +1590,18 @@ function maintenanceHazardAuthority(
     navigation: parsedNavigation,
     revision: revision as number,
     chart,
+    sessionSnapshot: session,
+    navigationSnapshot: storedNavigation,
   };
 }
 
 interface TurnPursuitAuthority {
   readonly navigation: NavigationState;
   readonly navigationRevision: number;
+  readonly sessionSnapshot: DocumentSnapshot;
+  readonly navigationSnapshot: DocumentSnapshot;
   readonly fleetGroups: readonly FleetGroupRecord[];
+  readonly fleetGroupSnapshots: readonly DocumentSnapshot[];
   readonly players: readonly DocumentSnapshot[];
   readonly chart: 'A' | 'B' | 'C';
   readonly legacyHeaderPresent: boolean;
@@ -1862,7 +1944,10 @@ async function readTurnPursuitAuthority(
   return {
     navigation,
     navigationRevision,
+    sessionSnapshot: session,
+    navigationSnapshot: storedNavigation,
     fleetGroups,
+            fleetGroupSnapshots: groups.docs ?? [],
     players: players.docs,
     chart: chartId === 'B' || chartId === 'C' ? chartId : 'A',
     legacyHeaderPresent,
@@ -1913,6 +1998,11 @@ function writeTurnPursuitState(
     authority.chart,
     authority.fleetGroups,
     true,
+    {
+      sessionSnapshot: authority.sessionSnapshot,
+      navigationSnapshot: authority.navigationSnapshot,
+      fleetGroupSnapshots: authority.fleetGroupSnapshots,
+    },
   );
   return { navigation, revision };
 }
@@ -2015,6 +2105,7 @@ function publishDiscoveryProjections(
   chart: 'A' | 'B' | 'C' = 'A',
   fleetGroups: readonly FleetGroupRecord[] = [],
   replaceProjectionMaps = false,
+  projectionSnapshots?: DiscoveryProjectionSnapshots,
 ): void {
   const shipFleetGroupIds = Object.fromEntries(fleetGroups.flatMap((group) =>
     group.vesselIds.map((shipId) => [shipId, group.id])));
@@ -2045,6 +2136,17 @@ function publishDiscoveryProjections(
       get: (field: string) => field === 'fleetGroupId' ? effectiveGroupId : player.get(field),
     };
     const fleetGroupVesselIds = fleetGroups.find((group) => group.id === effectiveGroupId)?.vesselIds ?? [];
+    const candidateReveals = projectionSnapshots
+      ? currentGroupCandidateReveals(
+        sessionId,
+        projectionSnapshots.sessionSnapshot,
+        projectionSnapshots.navigationSnapshot,
+        navigation,
+        players,
+        projectionSnapshots.fleetGroupSnapshots,
+        player.id,
+      )
+      : undefined;
     writePlayerDiscoveryProjection(
       tx,
       playerDiscoveryProjectionRef(sessionId, player.id),
@@ -2052,6 +2154,7 @@ function publishDiscoveryProjections(
       navigation,
       revision,
       fleetGroupVesselIds,
+      candidateReveals,
     );
   }
 }
@@ -4588,7 +4691,12 @@ export const confirmSetup = onCall<{
     });
     publishDiscoveryProjections(
       tx, command.sessionId, playerDocs, nextNavigation, reply.setupRevision,
-      command.configuration.chartId, [nextGroup],
+      command.configuration.chartId, [nextGroup], false,
+      {
+        sessionSnapshot: authority.session,
+        navigationSnapshot: storedNavigation,
+        fleetGroupSnapshots: [storedGroup],
+      },
     );
     tx.set(db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`), {
       ...nextCraftManifest,
@@ -9270,9 +9378,12 @@ export const assignReplacementRole = onCall<{
   };
   return db.runTransaction(async (tx): Promise<ReplacementMutationResult> => {
     const authority = await requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId);
-    const [target, eligibility, players, receipt, targetSecret] = await Promise.all([
+    const [target, eligibility, players, fleetGroupSnapshots, storedNavigation, receipt, targetSecret] = await Promise.all([
       tx.get(targetRef), tx.get(eligibilityRef),
-      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)), tx.get(receiptRef),
+      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${assignment.sessionId}/fleetGroups`)),
+      tx.get(navigationStateRef(assignment.sessionId)),
+      tx.get(receiptRef),
       tx.get(targetSecretRef),
     ]);
     const replay = replayReplacementMutation(
@@ -9361,15 +9472,28 @@ export const assignReplacementRole = onCall<{
     if (!privateBrief) {
       throw commandError('failed-precondition', 'Replacement role brief is unavailable.', 'malformed-input');
     }
-    const storedNavigation = await tx.get(navigationStateRef(assignment.sessionId));
     const navigation = navigationStateForSession(storedNavigation, authority.session, activeVesselIds);
     const rawNavigationRevision = storedNavigation.get('revision');
     const navigationRevision = typeof rawNavigationRevision === 'number' &&
       Number.isSafeInteger(rawNavigationRevision) && rawNavigationRevision >= 0 ? rawNavigationRevision : 0;
+    const candidateReveals = currentGroupCandidateReveals(
+      assignment.sessionId,
+      authority.session,
+      storedNavigation,
+      navigation,
+      players.docs ?? [],
+      fleetGroupSnapshots.docs ?? [],
+      assignment.targetUid,
+    );
+    const targetGroupId = target.get('fleetGroupId');
+    const targetGroupSnapshot = typeof targetGroupId === 'string'
+      ? fleetGroupSnapshots.docs?.find((snapshot) => snapshot.id === targetGroupId)
+      : undefined;
+    const targetGroup = targetGroupSnapshot ? fleetGroupRecord(targetGroupSnapshot.data()) : undefined;
     writePlayerDiscoveryProjection(
       tx, playerDiscoveryProjectionRef(assignment.sessionId, assignment.targetUid),
       { get: (field: string) => field === 'replacementRoleId' ? assignment.replacementRoleId : target.get(field) },
-      navigation, navigationRevision,
+      navigation, navigationRevision, targetGroup?.vesselIds ?? [], candidateReveals,
     );
     tx.update(targetRef, {
       replacementRoleId: assignment.replacementRoleId,
@@ -12381,7 +12505,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       publishDiscoveryProjections(
         tx, sessionId, playerDocs, navigation, navigationRevision,
         sessionDoc.get('chartId') === 'B' || sessionDoc.get('chartId') === 'C' ? sessionDoc.get('chartId') : 'A',
-        [group],
+        [group], false,
+        { sessionSnapshot: sessionDoc, navigationSnapshot: storedNavigation, fleetGroupSnapshots: [storedGroup] },
       );
       tx.update(sessionRef, {
         shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -12426,11 +12551,18 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         const projectionPlayer = {
           get: (field: string) => field === 'fleetGroupId' ? group.id : player.get(field),
         };
-        tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-          ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision, group.vesselIds),
-          groupId: group.id,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        const candidateReveals = currentGroupCandidateReveals(
+          sessionId, sessionDoc, storedNavigation, navigation, playerDocs, [storedGroup], uid,
+        );
+        writePlayerDiscoveryProjection(
+          tx,
+          playerDiscoveryProjectionRef(sessionId, uid),
+          projectionPlayer,
+          navigation,
+          navigationRevision,
+          group.vesselIds,
+          candidateReveals,
+        );
         tx.update(sessionRef, {
           deleteAfter: null,
           updatedAt: FieldValue.serverTimestamp(),
@@ -12462,16 +12594,34 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           connectionGeneration: 1,
           lastSeenAt: FieldValue.serverTimestamp(),
         });
-        tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-          groupId: group.id,
-          fleetGroupVesselIds: [...group.vesselIds],
-          knownCoordinates: ['0000'], knownSystems: discoverySystemsForCoordinates(['0000']),
-          pursuitDistance: 0, navigationLogs: [], revision: navigationRevision,
-          ...(navigation.pursuitGroups[group.id] !== undefined
-            ? { pursuitValue: navigation.pursuitGroups[group.id] }
-            : {}),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        const newPlayerSnapshot = transactionDocumentSnapshot(
+          uid,
+          `sessions/${sessionId}/players/${uid}`,
+          { role: 'player', connected: true, fleetGroupId: group.id },
+        );
+        const nextGroupSnapshot = transactionDocumentSnapshot(
+          group.id,
+          `sessions/${sessionId}/fleetGroups/${group.id}`,
+          { id: group.id, vesselIds: [...group.vesselIds], memberUids: [...group.memberUids] },
+        );
+        const candidateReveals = currentGroupCandidateReveals(
+          sessionId,
+          sessionDoc,
+          storedNavigation,
+          navigation,
+          [...playerDocs, newPlayerSnapshot],
+          [nextGroupSnapshot],
+          uid,
+        );
+        writePlayerDiscoveryProjection(
+          tx,
+          playerDiscoveryProjectionRef(sessionId, uid),
+          { get: (field: string) => field === 'fleetGroupId' ? group.id : undefined },
+          navigation,
+          navigationRevision,
+          group.vesselIds,
+          candidateReveals,
+        );
       }
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
@@ -12705,7 +12855,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     publishDiscoveryProjections(
       tx, sessionId, playerDocs, navigation, navigationRevision,
       currentSession.get('chartId') === 'B' || currentSession.get('chartId') === 'C' ? currentSession.get('chartId') : 'A',
-      [group],
+      [group], false,
+      { sessionSnapshot: currentSession, navigationSnapshot: storedNavigation, fleetGroupSnapshots: [storedGroup] },
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -12749,11 +12900,18 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     const projectionPlayer = {
       get: (field: string) => field === 'fleetGroupId' ? group.id : currentPlayer.get(field),
     };
-    tx.set(playerDiscoveryProjectionRef(sessionId, uid), {
-      ...playerDiscoveryProjection(projectionPlayer, navigation, navigationRevision, group.vesselIds),
-      groupId: group.id,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    const candidateReveals = currentGroupCandidateReveals(
+      sessionId, currentSession, storedNavigation, navigation, playerDocs, [storedGroup], uid,
+    );
+    writePlayerDiscoveryProjection(
+      tx,
+      playerDiscoveryProjectionRef(sessionId, uid),
+      projectionPlayer,
+      navigation,
+      navigationRevision,
+      group.vesselIds,
+      candidateReveals,
+    );
     tx.update(sessionRef, {
       deleteAfter: null,
       updatedAt: FieldValue.serverTimestamp(),
@@ -13762,6 +13920,8 @@ export const moveShipToLocation = onCall<{
       nextRevision,
       chart,
       pursuitFleetGroups,
+      false,
+      { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -14016,6 +14176,8 @@ export const jumpShip = onCall<{
       revision,
       chart,
       pursuitFleetGroups,
+      false,
+      { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -23158,9 +23320,12 @@ export const runMaintenance = onCall<{
           return {
             players: players.docs ?? [],
             fleetGroups,
+            fleetGroupSnapshots: groups.docs ?? [],
             currentNavigation: environmentalAuthority.navigation,
             revision: environmentalAuthority.revision,
             chart: environmentalAuthority.chart,
+            sessionSnapshot: snapshot,
+            navigationSnapshot: environmentalAuthority.navigationSnapshot,
           };
         })()
       : undefined;
@@ -23336,6 +23501,12 @@ export const runMaintenance = onCall<{
         nextNavigationRevision,
         environmentalHistoryAuthority.chart,
         environmentalHistoryAuthority.fleetGroups,
+        false,
+        {
+          sessionSnapshot: environmentalHistoryAuthority.sessionSnapshot,
+          navigationSnapshot: environmentalHistoryAuthority.navigationSnapshot,
+          fleetGroupSnapshots: environmentalHistoryAuthority.fleetGroupSnapshots,
+        },
       );
     }
     tx.set(eventRef, buildPrivacySafeEventRecord({

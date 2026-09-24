@@ -171,6 +171,44 @@ it('places the pursuit tracker beneath shipboard DRADIS and uses this ship posit
   expect(tracker).toHaveTextContent('RED ALERT ACTIVE');
 });
 
+it('shows candidate discoveries only when the fresh current player group matches', () => {
+  const current = useSessionStore.getState().session;
+  if (!current) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...current,
+    phase: 'active',
+    currentGroupCandidateReveals: {
+      groupId: 'fleet-1', revision: 4,
+      candidateReveals: [{ code: 'P', title: 'Ancient Space Station' }],
+    },
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  const { unmount } = render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+  const panel = screen.getByRole('region', { name: 'Candidate discoveries' });
+  expect(panel).toHaveTextContent('P');
+  expect(panel).toHaveTextContent('Ancient Space Station');
+  unmount();
+
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentGroupCandidateReveals: {
+      groupId: 'fleet-2', revision: 4,
+      candidateReveals: [{ code: 'P', title: 'Ancient Space Station' }],
+    },
+  });
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
+});
+
 it.each([
   ['aegis', 'Old Nations of Earth // Interstellar Council Service Navy // ICN'],
   ['shepherd', 'New Nations of the Colonies // Rosal // ROSAL'],

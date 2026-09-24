@@ -52,9 +52,9 @@ const baseAuthority = () => ({
     },
   }),
   playerSnapshots: [
-    snapshot('u1', `${sessionPath}/players/u1`, { fleetGroupId: 'fleet-1' }),
-    snapshot('u2', `${sessionPath}/players/u2`, { fleetGroupId: 'fleet-1' }),
-    snapshot('u3', `${sessionPath}/players/u3`, { fleetGroupId: 'fleet-2' }),
+    snapshot('u1', `${sessionPath}/players/u1`, { role: 'player', fleetGroupId: 'fleet-1' }),
+    snapshot('u2', `${sessionPath}/players/u2`, { role: 'player', fleetGroupId: 'fleet-1' }),
+    snapshot('u3', `${sessionPath}/players/u3`, { role: 'player', fleetGroupId: 'fleet-2' }),
   ],
   fleetGroupSnapshots: [
     snapshot('fleet-1', `${sessionPath}/fleetGroups/fleet-1`, {
@@ -156,7 +156,13 @@ describe('current-group candidate reveal projection', () => {
     }],
     ['a kicked recipient', {
       playerSnapshots: [
-        snapshot('u1', `${sessionPath}/players/u1`, { fleetGroupId: 'fleet-1', kickedAt: 'kicked' }),
+        snapshot('u1', `${sessionPath}/players/u1`, { role: 'player', fleetGroupId: 'fleet-1', kickedAt: 'kicked' }),
+        ...baseAuthority().playerSnapshots.slice(1),
+      ],
+    }],
+    ['a facilitator recipient', {
+      playerSnapshots: [
+        snapshot('u1', `${sessionPath}/players/u1`, { role: 'gm', fleetGroupId: 'fleet-1' }),
         ...baseAuthority().playerSnapshots.slice(1),
       ],
     }],

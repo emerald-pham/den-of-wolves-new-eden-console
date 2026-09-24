@@ -96,17 +96,22 @@ describe('useSessionStore', () => {
       shipGalacticCoordinates: { aegis: '0000', dione: '8378' },
       shipNavigationLogs: { aegis: [], dione: [] },
       candidatePlanCheckpoint: { cycle: 6 as const, planExists: true, checkedAt: '2026-09-22T12:00:00.000Z' },
+      currentGroupCandidateReveals: {
+        groupId: 'fleet-1', revision: 4,
+        candidateReveals: [{ code: 'N' as const, title: 'Ancient Jump Ring' }],
+      },
     };
     useSessionStore.getState().setIdentity(privateSession, { ...player, uid: 'previous-uid', role: 'player' });
     const assertNoPrivateNavigation = (value: GameSession) => {
       for (const key of [
         'playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'organiserSystems',
         'organiserSites', 'organiserSystemHistory', 'pursuitDistances', 'pursuitGroups',
-        'shipFleetGroupIds', 'candidatePlanCheckpoint',
+        'shipFleetGroupIds', 'candidatePlanCheckpoint', 'currentGroupCandidateReveals',
       ]) {
         expect(value).not.toHaveProperty(key);
       }
       expect(JSON.stringify(value)).not.toContain('8378');
+      expect(JSON.stringify(value)).not.toContain('Ancient Jump Ring');
     };
     // Rehydration happens synchronously before AppRuntime asks Firebase to
     // resume the cached identity. Do not persist the previous UID's private

@@ -23,12 +23,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 457, total: 751, percentage: '60.85%',
-      done: 457, partial: 38, active: 0, missing: 256,
+      done: 457, partial: 39, active: 0, missing: 255,
     },
     changes: [
+      'When your fleet group reaches a New Eden candidate, its members can see that candidate’s code and name in the console. Other chart locations stay hidden.',
       'Shepherd Scientists can now advance Endeavour research from their console during Team Phase. Each choice crosses the next box in one track; up to two additional choices cost five Shepherd ore each. Research updates future field-upgrade prices, while purchase controls remain under development.',
       '457 of 751 planned items are complete (60.85%).',
     ],
+    implementationPrompts: [541],
   },
 
   {

@@ -546,6 +546,49 @@ describe('App', () => {
     unmount();
   });
 
+  it('waits for fresh session and player authority and clears candidate reveals on reconnect changes', async () => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      subscriptions.push(next);
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', fleetGroupId: 'fleet-1',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, member);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    const first = subscriptions[0]!;
+    const projection = {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['aegis'], shipId: 'aegis', currentCoordinate: '0000',
+      knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' }, pursuitDistance: 0,
+      navigationLogs: [], revision: 3,
+      candidateReveals: [{ code: 'N' as const, title: 'Ancient Jump Ring' }],
+    };
+    act(() => first.onPlayerDiscovery?.(projection));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => first.onSessionFreshness?.(true));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => first.onPlayerFreshness?.(true));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual({
+      groupId: 'fleet-1', candidateReveals: projection.candidateReveals, revision: 3,
+    });
+
+    // A new player projection invalidates the old group's reveal before the
+    // reconnect membership and the private projection have both refreshed.
+    act(() => first.onPlayer?.({ ...member }));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => first.onPlayerDiscovery?.(projection));
+    act(() => first.onPlayerFreshness?.(false));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+
+    act(() => first.onPlayer?.({ ...member, fleetGroupId: 'fleet-2' }));
+    act(() => first.onPlayerDiscovery?.(projection));
+    act(() => first.onPlayerFreshness?.(true));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    unmount();
+  });
+
   it('reopens the organiser map listener after a same-UID GM promotion and rejects the former listener', async () => {
     const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
     const stop = vi.fn();

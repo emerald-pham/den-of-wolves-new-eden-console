@@ -3154,6 +3154,29 @@ body {
   font: 0.78rem/1.7 var(--cic-mono);
 }
 
+.candidate-reveal-panel {
+  margin: 1rem 0;
+}
+
+.candidate-reveal-panel ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate-reveal-panel li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: baseline;
+}
+
+.candidate-reveal-panel li strong {
+  color: var(--cic-amber);
+}
+
 .ship-console__role {
   margin: 0.9rem 0 0;
   font: 700 0.68rem/1.5 var(--cic-mono);

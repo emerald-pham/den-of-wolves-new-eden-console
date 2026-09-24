@@ -116,6 +116,47 @@ service cloud.firestore {
         ).data.fleetGroupId;
     }
 
+    function isSafeCandidateReveal(value) {
+      return value is map
+        && value.keys().hasAll(['code', 'title'])
+        && value.keys().hasOnly(['code', 'title'])
+        && value.code in ['N', 'O', 'P']
+        && value.title is string
+        && value.title.size() > 0
+        && value.title.size() <= 120;
+    }
+
+    function hasSafeCandidateReveals() {
+      let reveals = resource.data.candidateReveals;
+      return reveals is list
+        && reveals.size() <= 3
+        && (reveals.size() == 0 || isSafeCandidateReveal(reveals[0]))
+        && (reveals.size() < 2 || (
+          isSafeCandidateReveal(reveals[1]) && reveals[0].code != reveals[1].code
+        ))
+        && (reveals.size() < 3 || (
+          isSafeCandidateReveal(reveals[2])
+          && reveals[0].code != reveals[2].code
+          && reveals[1].code != reveals[2].code
+        ));
+    }
+
+    function hasCurrentCandidateRevealAuthority(sessionId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && player.fleetGroupId is string
+        && resource.data.groupId is string
+        && resource.data.groupId == player.fleetGroupId
+        && session.phase == 'active'
+        && (('chartSelectionLocked' in session && session.chartSelectionLocked == true)
+          || ('configurationLocked' in session && session.configurationLocked == true))
+        && hasSafeCandidateReveals();
+    }
+
     function isGmPrivateSecret(secretId) {
       return secretId == 'wolf-assignment' || secretId.matches('setup-receipt-.*');
     }
@@ -825,7 +866,8 @@ service cloud.firestore {
       // producer derives the group and assigned ship on the server; clients
       // cannot enumerate a group's or another ship's history.
       match /playerDiscoveries/{playerUid} {
-        allow get: if isMember(sessionId) && playerUid == uid();
+        allow get: if isMember(sessionId) && playerUid == uid()
+          && (!('candidateReveals' in resource.data) || hasCurrentCandidateRevealAuthority(sessionId));
         allow list, write: if false;
       }
 

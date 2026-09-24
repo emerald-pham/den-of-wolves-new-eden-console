@@ -1335,6 +1335,55 @@ describe('session header', () => {
   it('cannot be deleted from the client', async () => {
     await assertFails(deleteDoc(doc(as('gm1'), SESSION)));
   });
+
+  it('binds candidate reveals to an active player and the live fleet-group pointer', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), { phase: 'active', chartSelectionLocked: true });
+      await setDoc(doc(db, `${SESSION}/playerDiscoveries/alice`), {
+        groupId: 'fleet-1', shipId: 'aegis', knownCoordinates: ['0000'], navigationLogs: [],
+        candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring' }], revision: 2,
+      });
+      await setDoc(doc(db, `${SESSION}/playerDiscoveries/gm1`), {
+        groupId: 'fleet-1', candidateReveals: [{ code: 'P', title: 'Ancient Space Station' }], revision: 2,
+      });
+    });
+
+    const currentProjection = await assertSucceeds(
+      getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)),
+    );
+    expect(currentProjection.data()?.candidateReveals).toEqual([
+      { code: 'N', title: 'Ancient Jump Ring' },
+    ]);
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/playerDiscoveries/gm1`)));
+    await assertFails(updateDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`), {
+      candidateReveals: [{ code: 'O', title: 'Deep Nebula' }],
+    }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/alice`), {
+        candidateReveals: [{ code: 'O', title: 'Deep Nebula', accruedBonus: 3 }],
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/alice`), {
+        candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring' }],
+      });
+    });
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { fleetGroupId: 'fleet-2' });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        fleetGroupId: 'fleet-1', connected: false,
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/playerDiscoveries/alice`)));
+  });
 });
 
 describe('events', () => {

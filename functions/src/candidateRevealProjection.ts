@@ -131,7 +131,7 @@ export function candidateRevealProjectionForCurrentFleetMember(
     }
     if (!isRecord(data)) return undefined;
     if (snapshot.id === authority.recipientUid) {
-      if (snapshot.ref.path !== recipientPath || kicked(data)) return undefined;
+      if (snapshot.ref.path !== recipientPath || kicked(data) || data.role !== 'player') return undefined;
       recipientExists = true;
     }
     if (kicked(data)) continue;

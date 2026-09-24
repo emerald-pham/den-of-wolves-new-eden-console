@@ -5,6 +5,7 @@ import PopulationTrack from '@/components/PopulationTrack';
 import FleetConsoleWorkspace from '@/components/FleetConsoleWorkspace';
 import FleetAlertControl from '@/components/FleetAlertControl';
 import PursuitTracker from '@/components/PursuitTracker';
+import CandidateRevealPanel from '@/components/CandidateRevealPanel';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import RoleAssignment from '@/components/RoleAssignment';
@@ -60,6 +61,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const me = useSessionStore((state) => state.me);
   const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
   const playerRole = useSessionStore((state) => state.me?.role);
+  const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const gmInstanceClaimedAt = useSessionStore((state) => state.gmInstance?.claimedAt);
   const mode = useSessionStore((state) => state.mode);
@@ -159,6 +161,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     !(ship.id === 'capybara' && session.capybaraEnabled === false) &&
     !(ship.id === 'dione' && session.dioneEnabled === false),
   );
+  const candidateReveals = !observer && playerRole === 'player' &&
+    sessionSnapshotFreshness === 'server' && session?.phase === 'active' &&
+    fleetGroupId && session.currentGroupCandidateReveals?.groupId === fleetGroupId
+    ? session.currentGroupCandidateReveals.candidateReveals
+    : [];
 
   const captureObserverWriteAuthority = useCallback((targetShipId = ship?.id): GmShipConsoleWriteGrantAuthority | null => {
     const current = useSessionStore.getState();
@@ -452,6 +459,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
+        <CandidateRevealPanel candidateReveals={candidateReveals} />
         {gameplayFrozen && (
           <p className="ship-console__status" role="status">
             {session?.gameOutcome?.cause === 'total-fleet-loss'

@@ -54,6 +54,47 @@ it('returns from role selection to the intermediate screen', async () => {
   expect(screen.getByText('Intermediate route')).toBeInTheDocument();
 });
 
+it('shows candidate discoveries to fresh members of the current group on the role roster', () => {
+  const candidateView = {
+    groupId: 'fleet-1', revision: 4,
+    candidateReveals: [{ code: 'O' as const, title: 'Deep Nebula' }],
+  };
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentGroupCandidateReveals: candidateView,
+  });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, role: 'player', fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  const renderRoster = () => render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+  const current = renderRoster();
+  const panel = screen.getByRole('region', { name: 'Candidate discoveries' });
+  expect(within(panel).getByText('O', { exact: true })).toBeInTheDocument();
+  expect(within(panel).getByText('Deep Nebula', { exact: true })).toBeInTheDocument();
+  current.unmount();
+
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentGroupCandidateReveals: { ...candidateView, groupId: 'fleet-2' },
+  });
+  const wrongGroup = renderRoster();
+  expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
+  wrongGroup.unmount();
+
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, currentGroupCandidateReveals: candidateView,
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  renderRoster();
+  expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
+});
+
 it('identifies the unaffiliated SNN press shuttle', () => {
   useSessionStore.getState().setMode('press');
   render(

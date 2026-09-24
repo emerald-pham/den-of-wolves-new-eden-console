@@ -17,6 +17,7 @@ import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import type {
   CommissarPurgeAuthority,
+  CandidateReveal,
   CandidatePlanCheckpoint,
   DamageDraw,
   FacilitatorRuleCall,
@@ -1248,6 +1249,10 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
     : { [shipId ?? 'unknown']: raw.navigationLogs });
   const ownHistory = systemHistoryForShip(raw?.systemHistory);
   const projectedPursuitValue = nonNegativeInteger(raw?.pursuitValue);
+  const candidateReveals = raw?.candidateReveals === undefined
+    ? undefined
+    : candidateRevealValues(raw.candidateReveals);
+  if (raw?.candidateReveals !== undefined && candidateReveals === undefined) return undefined;
   return {
     groupId,
     fleetGroupVesselIds: fleetGroupVesselIds as string[],
@@ -1261,8 +1266,25 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
       : {}),
     navigationLogs: shipId ? logs[shipId] ?? [] : [],
     ...(ownHistory ? { systemHistory: ownHistory } : {}),
+    ...(candidateReveals !== undefined ? { candidateReveals } : {}),
     revision,
   };
+}
+
+function candidateRevealValues(value: unknown): readonly CandidateReveal[] | undefined {
+  if (!Array.isArray(value) || value.length > 3) return undefined;
+  const seen = new Set<string>();
+  const reveals: CandidateReveal[] = [];
+  for (const entry of value) {
+    const raw = recordValue(entry);
+    if (!raw || Object.keys(raw).length !== 2 ||
+        (raw.code !== 'N' && raw.code !== 'O' && raw.code !== 'P') ||
+        typeof raw.title !== 'string' || raw.title.trim().length === 0 || raw.title.length > 120 ||
+        seen.has(raw.code)) return undefined;
+    seen.add(raw.code);
+    reveals.push({ code: raw.code, title: raw.title });
+  }
+  return reveals;
 }
 
 function organiserSiteProjection(value: unknown): OrganiserSiteProjection | undefined {
@@ -2654,14 +2676,23 @@ export function subscribeSessionState(
     }, onError),
     ...(handlers.onPlayerDiscovery ? [onSnapshot(
       doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        handlers.onPlayerDiscovery?.(snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null);
+        const projection = snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null;
+        handlers.onPlayerDiscovery?.(snapshot.metadata?.fromCache === true &&
+          projection?.candidateReveals?.length
+          ? { ...projection, candidateReveals: [] }
+          : projection);
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onPlayerDiscovery?.(null);
+          return;
+        }
+        onError();
       },
     )] : []),
     ...(handlers.onGmDiscovery ? [onSnapshot(
