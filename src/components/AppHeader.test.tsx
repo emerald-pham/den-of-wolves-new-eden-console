@@ -620,12 +620,21 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Launching Maliades now tracks damage across attacks, blocks launch after three damage, and lets the Dione Engineer repair it during the fuelled Team Phase.',
+    'Facilitators can close Wolf targeting from the GM console and enter Long Range while keeping the current airspace deadline.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
-    'Medium and Short attacks remain unavailable until current Wolf targets can be shown safely.',
+    'The full Wolf range, boarding, damage, and casualty receipt is still being built.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousMaliadesEntry = within(region).getByRole('heading', { name: 'Build 0.5.31' }).closest('article');
+  if (!previousMaliadesEntry) throw new Error('Expected the preserved P397 Maliades release entry.');
+  expect(within(previousMaliadesEntry).getByText(
+    'Launching Maliades now tracks damage across attacks, blocks launch after three damage, and lets the Dione Engineer repair it during the fuelled Team Phase.',
+  )).toBeVisible();
+  expect(within(previousMaliadesEntry).getByText(
+    'Medium and Short attacks remain unavailable until current Wolf targets can be shown safely.',
+  )).toBeVisible();
+  expect(within(previousMaliadesEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
   const previousEndeavourEntry = within(region).getByRole('heading', { name: 'Build 0.5.30' }).closest('article');
   if (!previousEndeavourEntry) throw new Error('Expected the preserved P391 field-upgrade release entry.');
   expect(within(previousEndeavourEntry).getByText(
