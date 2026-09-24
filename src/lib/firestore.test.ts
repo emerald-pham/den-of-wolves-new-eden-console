@@ -4,6 +4,7 @@ import { activeFleetShipIds } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, SessionEvent } from '@/types/game';
 import { projectShipState } from './shipStateProjection';
+import { REPLACEMENT_ROLE_CATALOG, replacementRoleAvailableForSession } from '@/data/replacementRoles';
 import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as CLIENT_MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
 
@@ -423,6 +424,7 @@ it('hydrates a privacy-safe total fleet loss without hiding retained craft state
   };
   const session = sessionFrom('total-fleet-loss', {
     ...sessionData(8), phase: 'failure', currentTurn: 0, gameOutcome: outcome,
+    activeVesselIds: ['aegis'],
     shuttleCargo: { starlight: { food: 2 } },
     smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2, population: 1_000, unrest: 1, cycle: { step: 1, revision: 3, results: { '1': 'Rations applied.' }, charges: [], turn: 1 } } },
   });
@@ -502,7 +504,7 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
 });
 
-it('hydrates only valid optional small-ship state and keeps host linkage explicit', () => {
+it('fails closed for the full optional small-ship map when a sibling is malformed', () => {
   const session = sessionFrom('small-ship-state-session', {
     ...sessionData(8),
     activeVesselIds: ['aegis'],
@@ -522,11 +524,92 @@ it('hydrates only valid optional small-ship state and keeps host linkage explici
       },
     },
   });
-  expect(session.smallShipStates?.gorgoneion).toMatchObject({
-    id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2,
-    population: 1_000, cycle: { step: 1, revision: 3, turn: 1 },
+  expect(session.smallShipStates).toEqual({});
+});
+
+it.each([
+  ['unknown field on the docked ship', {
+    gorgoneion: {
+      id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      admitted: true,
+    },
+  }],
+  ['malformed sibling state', {
+    gorgoneion: {
+      id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+    },
+    warrior: {
+      id: 'warrior', hostShipId: 'aegis', dockingRevision: 1,
+      population: 'spoofed', unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+    },
+  }],
+  ['unknown state key', {
+    gorgoneion: {
+      id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+    },
+    'future-ship': {
+      id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+    },
+  }],
+] as const)('fails closed through session hydration for %s', (_label, smallShipStates) => {
+  const session = sessionFrom('malformed-small-ship-map', {
+    ...sessionData(8),
+    activeVesselIds: ['aegis'],
+    expansion: 'base',
+    capybaraEnabled: true,
+    smallShipStates,
   });
-  expect(session.smallShipStates?.warrior).toBeUndefined();
+  const role = REPLACEMENT_ROLE_CATALOG.find((entry) => entry.id === 'gorgoneion-captain')!;
+  expect(session.smallShipStates).toEqual({});
+  expect(replacementRoleAvailableForSession(role, {
+    activeVesselIds: session.activeVesselIds,
+    smallShipStates: session.smallShipStates,
+    expansion: session.expansion,
+    capybaraEnabled: session.capybaraEnabled,
+  })).toBe(false);
+});
+
+it.each([
+  ['missing persisted roster', undefined],
+  ['malformed persisted roster', ['aegis', 'gorgoneion']],
+] as const)('keeps the setup roster but hides small-ship options when the %s is unavailable', (_label, storedVessels) => {
+  const setup = {
+    playerCount: 8,
+    chartId: 'A',
+    expansion: 'base',
+    turnLimit: 6,
+    dioneEnabled: true,
+    capybaraEnabled: true,
+    activeRoleIds: ['admiral'],
+    activeVesselIds: ['aegis'],
+  };
+  const data = {
+    ...sessionData(8),
+    setup,
+    expansion: 'base',
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+        population: 1_000, unrest: 0,
+        cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+    ...(storedVessels === undefined ? {} : { activeVesselIds: storedVessels }),
+  };
+  const session = sessionFrom('setup-with-untrusted-header', data);
+  const role = REPLACEMENT_ROLE_CATALOG.find((entry) => entry.id === 'gorgoneion-captain')!;
+  expect(session.activeVesselIds).toEqual(['aegis']);
+  expect(session.smallShipStates).toEqual({});
+  expect(replacementRoleAvailableForSession(role, {
+    activeVesselIds: session.activeVesselIds,
+    smallShipStates: session.smallShipStates,
+    expansion: session.expansion,
+    capybaraEnabled: session.capybaraEnabled,
+  })).toBe(false);
 });
 
 it('hydrates only a known Gorgoneion repair outcome and preserves malformed history as unavailable', () => {

@@ -20,6 +20,9 @@ export interface ExtraShipAdmissionInput {
   readonly capybaraEnabled?: unknown;
 }
 
+export type ExtraShipStateMapInput = Pick<ExtraShipAdmissionInput,
+  'activeVesselIds' | 'smallShipStates' | 'expansion' | 'capybaraEnabled'>;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -56,17 +59,23 @@ function strictSmallShipState(value: unknown, id: SmallShipId): SmallShipState |
  * transaction has written a valid, revision-advanced state at an active core
  * fleet host. The extra ship never enters or mutates activeVesselIds.
  */
-export function isExtraShipAdmitted(input: ExtraShipAdmissionInput): boolean {
-  if (typeof input.smallShipId !== 'string' || !SMALL_SHIP_IDS_SET.has(input.smallShipId) ||
-      !isCoreFleet(input.activeVesselIds) || !isRecord(input.smallShipStates) ||
-      (input.expansion !== undefined && input.expansion !== 'base' && input.expansion !== 'capybara') ||
+function parsedExtraShipStateMap(input: ExtraShipStateMapInput): Map<SmallShipId, SmallShipState> | undefined {
+  if (!isCoreFleet(input.activeVesselIds) || !isRecord(input.smallShipStates) ||
+      (input.expansion !== undefined && input.expansion !== 'base' && input.expansion !== 'capybara' && input.expansion !== 'none') ||
       (input.capybaraEnabled !== undefined && typeof input.capybaraEnabled !== 'boolean')) {
-    return false;
+    return undefined;
   }
+
+  const expansion = input.expansion ?? 'base';
+  const capybaraEnabled = input.capybaraEnabled !== false;
+  if ((input.activeVesselIds.includes('capybara') && (expansion !== 'capybara' || !capybaraEnabled)) ||
+      (expansion === 'capybara' && !capybaraEnabled) ||
+      (Object.hasOwn(input.smallShipStates, 'capybara-small') &&
+        (expansion !== 'base' || !capybaraEnabled))) return undefined;
 
   const coreVesselIds = new Set(input.activeVesselIds);
   const smallShipStates = input.smallShipStates;
-  if (Object.keys(smallShipStates).some((id) => !SMALL_SHIP_IDS_SET.has(id))) return false;
+  if (Object.keys(smallShipStates).some((id) => !SMALL_SHIP_IDS_SET.has(id))) return undefined;
 
   // Any present entry with an unknown schema or a dock outside the current
   // core fleet makes the optional-vessel authority ambiguous for this session.
@@ -74,17 +83,42 @@ export function isExtraShipAdmitted(input: ExtraShipAdmissionInput): boolean {
   for (const [rawId, value] of Object.entries(smallShipStates)) {
     const id = rawId as SmallShipId;
     const state = strictSmallShipState(value, id);
-    if (!state) return false;
+    if (!state) return undefined;
     if (state.hostShipId !== null &&
         (state.dockingRevision < 1 || !isResourceShipId(state.hostShipId) ||
          !coreVesselIds.has(state.hostShipId))) {
-      return false;
+      return undefined;
     }
     parsedStates.set(id, state);
   }
 
+  return parsedStates;
+}
+
+/** Validate every server-owned optional-ship entry before projecting the map. */
+export function isExtraShipStateMapValid(input: ExtraShipStateMapInput): boolean {
+  return parsedExtraShipStateMap(input) !== undefined;
+}
+
+/**
+ * Keep the public projection empty when any entry is malformed or mixed with
+ * an unknown schema, so clients cannot advertise admission from a sanitized
+ * partial map that the server itself rejects.
+ */
+export function publicSmallShipStatesForSession(
+  input: ExtraShipStateMapInput,
+): Record<string, SmallShipState> {
+  if (input.smallShipStates === undefined || input.smallShipStates === null) return {};
+  const parsedStates = parsedExtraShipStateMap(input);
+  return parsedStates ? Object.fromEntries(parsedStates) : {};
+}
+
+export function isExtraShipAdmitted(input: ExtraShipAdmissionInput): boolean {
+  if (typeof input.smallShipId !== 'string' || !SMALL_SHIP_IDS_SET.has(input.smallShipId)) return false;
+  const parsedStates = parsedExtraShipStateMap(input);
+  if (!parsedStates) return false;
   const state = parsedStates.get(input.smallShipId as SmallShipId);
-  if (!state?.hostShipId) return false;
+  if (!state || state.hostShipId === null) return false;
   if (state.id === 'capybara-small' &&
       ((input.expansion ?? 'base') !== 'base' || input.capybaraEnabled === false)) {
     return false;

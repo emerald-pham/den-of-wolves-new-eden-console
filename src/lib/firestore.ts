@@ -81,7 +81,7 @@ import type {
 import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UNREST_SHIP_IDS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection, type CivilUnrestResolution } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
-import { replacementRoleFor } from '@/data/replacementRoles';
+import { isPresentedSmallShipStateMapValid, replacementRoleFor } from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -1500,9 +1500,20 @@ function maintenanceCycles(value: unknown): NonNullable<GameSession['maintenance
 
 const SMALL_SHIP_IDS: readonly SmallShipId[] = ['gorgoneion', 'capybara-small', 'warrior', 'vulcan'];
 
-function smallShipStates(value: unknown): NonNullable<GameSession['smallShipStates']> {
+function smallShipStates(
+  value: unknown,
+  activeVesselIds: readonly string[] | undefined,
+  expansion: unknown,
+  capybaraEnabled: unknown,
+): NonNullable<GameSession['smallShipStates']> {
+  if (value === undefined || value === null) return {};
   const stored = recordValue(value);
-  if (!stored) return {};
+  if (!stored || !isPresentedSmallShipStateMapValid({
+    activeVesselIds,
+    smallShipStates: stored,
+    expansion,
+    capybaraEnabled,
+  })) return {};
   return Object.fromEntries(SMALL_SHIP_IDS.flatMap((id) => {
     const raw = recordValue(stored[id]);
     const cycle = recordValue(raw?.cycle);
@@ -2306,6 +2317,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const activeVesselIds = setup?.activeVesselIds ?? (
     hasStoredVesselIds ? storedVesselIds ?? [] : undefined
   );
+  const admissionVesselIds = hasStoredVesselIds ? storedVesselIds ?? [] : undefined;
+  const currentSmallShipStates = smallShipStates(
+    data.smallShipStates, admissionVesselIds, data.expansion, data.capybaraEnabled,
+  );
   const storedDockings = Array.isArray(data.shuttleDockings)
     ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)
     : undefined;
@@ -2404,7 +2419,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
-    smallShipStates: smallShipStates(data.smallShipStates),
+    smallShipStates: currentSmallShipStates,
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),

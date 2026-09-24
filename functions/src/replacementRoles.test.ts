@@ -14,15 +14,25 @@ describe('replacement role authority', () => {
     expect(replacementRoleFor('capybara-captain')).toBeUndefined();
   });
 
-  it('keeps base Capybara distinct from the expansion and requires an active vessel', () => {
+  it('keeps extra-ship availability separate from the canonical core roster', () => {
+    const smallShipStates = {
+      'capybara-small': {
+        id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1,
+        population: 2_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+      warrior: {
+        id: 'warrior', hostShipId: null, dockingRevision: 2,
+        population: 2_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    };
     expect(replacementRoleAvailable('capybara-small-captain', {
-      activeVesselIds: ['capybara-small'], expansion: 'base',
+      activeVesselIds: ['aegis'], expansion: 'base', smallShipStates, capybaraEnabled: true,
     })).toBe(true);
     expect(replacementRoleAvailable('capybara-small-captain', {
-      activeVesselIds: ['capybara-small'], expansion: 'capybara',
+      activeVesselIds: ['aegis'], expansion: 'capybara', smallShipStates, capybaraEnabled: true,
     })).toBe(false);
     expect(replacementRoleAvailable('warrior-captain', {
-      activeVesselIds: [], expansion: 'base',
+      activeVesselIds: ['aegis'], expansion: 'base', smallShipStates,
     })).toBe(false);
   });
 

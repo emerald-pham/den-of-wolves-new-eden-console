@@ -176,6 +176,7 @@ import {
   replacementAuthorityAllowsRole,
   type ReplacementRoleDefinition,
 } from './replacementRoles';
+import { publicSmallShipStatesForSession } from './extraShipAdmission';
 import {
   applyShipNavigationMove,
   isStarSystemCoordinate,
@@ -2224,15 +2225,16 @@ function commissarPurgeState(value: unknown): StoredCommissarPurgeState {
 
 function publicSmallShipStates(
   value: unknown,
-  activeVesselIds: readonly string[],
+  persistedActiveVesselIds: unknown,
+  expansion: unknown,
+  capybaraEnabled: unknown,
 ): Record<string, SmallShipState> {
-  const stored = isRecord(value) ? value : {};
-  const activeHosts = new Set(activeVesselIds.filter(isResourceShipId));
-  return Object.fromEntries(SMALL_SHIP_IDS.flatMap((smallShipId) => {
-    const state = parseSmallShipState(stored[smallShipId], smallShipId);
-    if (!state || (state.hostShipId !== null && !activeHosts.has(state.hostShipId))) return [];
-    return [[smallShipId, state]];
-  }));
+  return publicSmallShipStatesForSession({
+    smallShipStates: value,
+    activeVesselIds: persistedActiveVesselIds,
+    expansion,
+    capybaraEnabled,
+  });
 }
 
 function publicVoyage33Admission(value: unknown, sessionId: string): Voyage33Admission | undefined {
@@ -9405,6 +9407,8 @@ export const assignReplacementRole = onCall<{
     const activeVesselIds = replacementVesselIds(authority.session);
     if (!role || !replacementRoleAvailable(assignment.replacementRoleId, {
       activeVesselIds, expansion: String(authority.session.get('expansion') ?? 'base'),
+      smallShipStates: authority.session.get('smallShipStates'),
+      capybaraEnabled: authority.session.get('capybaraEnabled'),
     })) {
       throw commandError('failed-precondition', 'That replacement role is not active in this session.', 'conflict');
     }
@@ -12698,7 +12702,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
         unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
         maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
-        smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
+        smallShipStates: publicSmallShipStates(
+          sessionSnap.get('smallShipStates'), sessionSnap.get('activeVesselIds'),
+          sessionSnap.get('expansion'), sessionSnap.get('capybaraEnabled'),
+        ),
         shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
         shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
         serviceShuttleRecharges:
@@ -12999,7 +13006,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
       unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
       maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
-      smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
+      smallShipStates: publicSmallShipStates(
+        sessionSnap.get('smallShipStates'), sessionSnap.get('activeVesselIds'),
+        sessionSnap.get('expansion'), sessionSnap.get('capybaraEnabled'),
+      ),
       shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
       shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
       serviceShuttleRecharges:

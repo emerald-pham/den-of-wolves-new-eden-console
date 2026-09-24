@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 457, partial: 39, active: 0, missing: 255,
     },
     changes: [
+      'Facilitators can assign an optional small-ship Captain after docking that ship to an active core ship. The optional ship stays outside the core fleet roster.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+    implementationPrompts: [238],
+  },
+
+  {
+    version: '0.5.24',
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 39, active: 0, missing: 255,
+    },
+    changes: [
       'When charged during Coordination, Gorgoneion Repair Drones spend 3 materials from the current docked host to repair one damaged console, once per cycle.',
       '457 of 751 planned items are complete (60.85%).',
     ],

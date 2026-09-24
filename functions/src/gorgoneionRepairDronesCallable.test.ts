@@ -83,7 +83,7 @@ const resetFixture = () => {
     phase: 'active', currentTurn: 3,
     // The extra-ship Captain is a current replacement role, not a casting seat.
     // This user's historical assignedRoleId remains unrelated to that entitlement.
-    activeRoleIds: ['warrior-captain'], activeVesselIds: ['aegis', 'gorgoneion'],
+    activeRoleIds: ['warrior-captain'], activeVesselIds: ['aegis'],
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
       openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
@@ -215,6 +215,19 @@ it.each([
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['never docked', { ...gorgoneionState(), dockingRevision: 0 }],
+  ['undocked after prior docking', { ...gorgoneionState(), hostShipId: null, dockingRevision: 2 }],
+  ['malformed docking revision', { ...gorgoneionState(), dockingRevision: '2' }],
+  ['client-shaped admission marker', { ...gorgoneionState(), admitted: true }],
+])('denies Repair Drones with %s server state', async (_label, state) => {
+  mock.documents.get('sessions/s1')!.smallShipStates = { gorgoneion: state };
+  await expect(repairGorgoneionWithDrones.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('rejects non-Coordination, expired, and paused cycles before mutation', async () => {
   const session = mock.documents.get('sessions/s1')!;
   session.turnPhase = { ...session.turnPhase as Fields, airspace: { state: 'restricted', tickerActive: false, pressAccess: false } };
@@ -240,7 +253,7 @@ it('rejects non-Coordination, expired, and paused cycles before mutation', async
 it('uses current canonical host resources and damage rather than client-selected or projected values', async () => {
   const session = mock.documents.get('sessions/s1')!;
   session.smallShipStates = { gorgoneion: { ...gorgoneionState(), hostShipId: 'icebreaker' } };
-  session.activeVesselIds = ['aegis', 'icebreaker', 'gorgoneion'];
+  session.activeVesselIds = ['aegis', 'icebreaker'];
   session.shipResources = {
     aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 99, securityTeams: 9 },
     icebreaker: { ore: 0, fuel: 4, food: 11, water: 9, materials: 2, securityTeams: 2 },

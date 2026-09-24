@@ -373,8 +373,18 @@ it('rejects an extra-ship replacement when the persisted vessel tuple is malform
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('allows an extra-ship replacement only when its vessel is in the persisted tuple', async () => {
-  mock.session = { ...mock.session, activeVesselIds: ['aegis', 'gorgoneion'] };
+it('assigns an extra-ship replacement only after its server-owned docking state names an active core host', async () => {
+  mock.session = {
+    ...mock.session,
+    activeVesselIds: ['aegis'],
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+        population: 1_000, unrest: 0,
+        cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+  };
   mock.eligibility = { eligible: true, reason: 'dead', revision: 1 };
 
   await expect(assignReplacementRole.run(request({
@@ -389,5 +399,34 @@ it('allows an extra-ship replacement only when its vessel is in the persisted tu
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/roleBriefs/player-1' }),
     expect.objectContaining({ roleId: 'gorgoneion-captain', visibleToUids: ['player-1'] }),
+  );
+  expect(mock.session.activeVesselIds).toEqual(['aegis']);
+});
+
+it.each([
+  ['never docked', { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 0 }],
+  ['undocked', { id: 'gorgoneion', hostShipId: null, dockingRevision: 2 }],
+  ['malformed revision', { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: '1' }],
+  ['inactive host', { id: 'gorgoneion', hostShipId: 'dione', dockingRevision: 1 }],
+  ['unknown host', { id: 'gorgoneion', hostShipId: 'unknown-ship', dockingRevision: 1 }],
+] as const)('rejects extra-ship assignment with %s state', async (_label, partialState) => {
+  mock.session = {
+    ...mock.session,
+    activeVesselIds: ['aegis'],
+    smallShipStates: {
+      gorgoneion: {
+        ...partialState, population: 1_000, unrest: 0,
+        cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+  };
+  mock.eligibility = { eligible: true, reason: 'late', revision: 1 };
+  await expect(assignReplacementRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `replacement-${_label.replaceAll(' ', '-')}`,
+    targetUid: 'player-1', replacementRoleId: 'gorgoneion-captain', expectedRevision: 1,
+    expectedSetupRevision: 4,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/player-1' }), expect.anything(),
   );
 });

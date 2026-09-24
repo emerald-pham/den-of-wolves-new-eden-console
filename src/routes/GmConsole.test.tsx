@@ -1374,6 +1374,37 @@ it('does not advertise extra-ship replacement roles for a duplicate vessel tuple
   expect(within(panel).getByRole('option', { name: /Wolf Commander/i })).toBeInTheDocument();
 });
 
+it('offers the Gorgoneion Captain after GM docking while preserving the core vessel roster', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+        population: 1_000, unrest: 0, cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{
+      uid: 'u2', sessionId: 's1', displayName: 'Ari', role: 'player', seatId: 'admiral',
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', connected: false,
+      joinedAt: '2026-01-01T00:01:00.000Z',
+    }]);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Facilitator replacement roles' });
+  expect(within(panel).getByRole('option', { name: /Gorgoneion Captain/i })).toBeInTheDocument();
+  expect(useSessionStore.getState().session?.activeVesselIds).toEqual(['aegis']);
+});
+
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;

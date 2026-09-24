@@ -1234,6 +1234,20 @@ describe('session header', () => {
     await assertFails(updateDoc(session, { dioneEnabled: false }));
   });
 
+  it('keeps small-ship admission and the canonical core roster server-owned', async () => {
+    const dockedGorgoneion = {
+      id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1_000, unrest: 0,
+      cycle: { step: 0, revision: 0, results: {}, charges: [] },
+    };
+    for (const uid of ['alice', 'gm1']) {
+      const session = doc(as(uid), SESSION);
+      await assertFails(updateDoc(session, { smallShipStates: { gorgoneion: dockedGorgoneion } }));
+      await assertFails(updateDoc(session, { 'smallShipStates.gorgoneion': dockedGorgoneion }));
+      await assertFails(updateDoc(session, { activeVesselIds: ['aegis', 'gorgoneion'] }));
+    }
+  });
+
   it('cannot change Press availability or its CAS revision from the client', async () => {
     for (const uid of ['alice', 'gm1']) {
       const session = doc(as(uid), SESSION);

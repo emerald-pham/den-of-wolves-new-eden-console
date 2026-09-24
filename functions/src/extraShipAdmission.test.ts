@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isExtraShipAdmitted } from './extraShipAdmission';
+import { isExtraShipAdmitted, publicSmallShipStatesForSession } from './extraShipAdmission';
 import { emptySmallShipState, type SmallShipId } from './smallShip';
 
 const CORE_VESSELS = ['aegis'] as const;
@@ -24,6 +24,55 @@ function admission(
 }
 
 describe('server-owned extra-ship admission', () => {
+  it('projects no optional states when any sibling has an unknown or malformed shape', () => {
+    const valid = dockedState('gorgoneion');
+    const malformedSibling = { ...dockedState('warrior'), admitted: true };
+    expect(publicSmallShipStatesForSession({
+      activeVesselIds: CORE_VESSELS,
+      smallShipStates: { gorgoneion: valid, warrior: malformedSibling },
+      expansion: 'base',
+      capybaraEnabled: true,
+    })).toEqual({});
+    expect(publicSmallShipStatesForSession({
+      activeVesselIds: CORE_VESSELS,
+      smallShipStates: { gorgoneion: valid, 'future-ship': valid },
+      expansion: 'base',
+      capybaraEnabled: true,
+    })).toEqual({});
+  });
+
+  it('projects the complete valid state map without changing the core roster', () => {
+    const coreVessels = [...CORE_VESSELS];
+    expect(publicSmallShipStatesForSession({
+      activeVesselIds: coreVessels,
+      smallShipStates: { gorgoneion: dockedState('gorgoneion') },
+      expansion: 'base',
+      capybaraEnabled: true,
+    })).toEqual({ gorgoneion: dockedState('gorgoneion') });
+    expect(coreVessels).toEqual(['aegis']);
+  });
+
+  it.each([
+    ['missing persisted core roster', undefined],
+    ['malformed persisted core roster', ['aegis', 'gorgoneion']],
+    ['duplicate persisted core roster', ['aegis', 'aegis']],
+  ])('does not project an admitted ship with a %s', (_label, activeVesselIds) => {
+    const state = dockedState('gorgoneion');
+    expect(publicSmallShipStatesForSession({
+      activeVesselIds,
+      smallShipStates: { gorgoneion: state },
+      expansion: 'base',
+      capybaraEnabled: true,
+    })).toEqual({});
+    expect(isExtraShipAdmitted({
+      activeVesselIds,
+      smallShipStates: { gorgoneion: state },
+      smallShipId: 'gorgoneion',
+      expansion: 'base',
+      capybaraEnabled: true,
+    })).toBe(false);
+  });
+
   it.each(['gorgoneion', 'capybara-small', 'warrior', 'vulcan'] as const)(
     'admits docked %s separately from the canonical core roster', (id) => {
       const coreVessels = [...CORE_VESSELS];
@@ -91,5 +140,24 @@ describe('server-owned extra-ship admission', () => {
     expect(admission('capybara-small', states, { expansion: 'unknown' })).toBe(false);
     expect(admission('capybara-small', states, { capybaraEnabled: false })).toBe(false);
     expect(admission('capybara-small', states, { capybaraEnabled: 'false' })).toBe(false);
+  });
+
+  it('rejects a mixed Capybara mode in the core roster or small-ship state', () => {
+    expect(admission('gorgoneion', { gorgoneion: dockedState('gorgoneion') }, {
+      activeVesselIds: ['aegis', 'capybara'], expansion: 'base',
+    })).toBe(false);
+    expect(admission('gorgoneion', { gorgoneion: dockedState('gorgoneion') }, {
+      activeVesselIds: ['aegis', 'capybara'], expansion: 'capybara', capybaraEnabled: false,
+    })).toBe(false);
+    expect(admission('gorgoneion', {
+      gorgoneion: dockedState('gorgoneion'),
+      'capybara-small': { ...dockedState('capybara-small') },
+    }, { expansion: 'capybara' })).toBe(false);
+  });
+
+  it('allows other docked small ships when the session disables Capybara', () => {
+    expect(admission('gorgoneion', { gorgoneion: dockedState('gorgoneion') }, {
+      expansion: 'none', capybaraEnabled: false,
+    })).toBe(true);
   });
 });

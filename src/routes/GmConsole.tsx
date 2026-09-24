@@ -118,7 +118,11 @@ import {
   type ZealotryResponseAction,
 } from '@/types/crisis';
 import { isWireSafeEntityId } from '@/types/identifiers';
-import { REPLACEMENT_ELIGIBILITY_REASONS, REPLACEMENT_ROLE_CATALOG } from '@/data/replacementRoles';
+import {
+  REPLACEMENT_ELIGIBILITY_REASONS,
+  REPLACEMENT_ROLE_CATALOG,
+  replacementRoleAvailableForSession,
+} from '@/data/replacementRoles';
 
 const WOLF_PREPARATION_CARD_TYPES = [
   { id: 'wolf-fighter-wing', label: 'Fighter Wing' },
@@ -786,8 +790,14 @@ export default function GmConsole() {
       : [],
   );
   const replacementRoles = REPLACEMENT_ROLE_CATALOG.filter((role) =>
-    (!role.baseVesselOnly || session?.expansion !== 'capybara') &&
-    (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
+    role.kind === 'extra-ship'
+      ? replacementRoleAvailableForSession(role, {
+        activeVesselIds: persistedReplacementVesselIds,
+        smallShipStates: session?.smallShipStates,
+        expansion: session?.expansion,
+        capybaraEnabled: session?.capybaraEnabled,
+      })
+      : (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
   );
 
   useLayoutEffect(() => {

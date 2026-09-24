@@ -159,6 +159,18 @@ test('maps the Gorgoneion repair resolver and transaction to the deployed repair
   }
 });
 
+test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {
+  const selected = selectorFor(['functions/src/extraShipAdmission.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'assignReplacementRole', 'joinSession', 'resumeSession', 'repairGorgoneionWithDrones',
+  ]));
+});
+
+test('maps the replacement-role admission change only to the assignment callable', () => {
+  const selected = selectorFor(['functions/src/replacementRoles.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['assignReplacementRole']));
+});
+
 test('maps small-ship maintenance changes only to the callables that execute the changed resolver', () => {
   const selected = selectorFor(['functions/src/smallShip.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([

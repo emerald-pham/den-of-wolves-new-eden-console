@@ -1,3 +1,5 @@
+import { isExtraShipAdmitted } from './extraShipAdmission';
+
 /**
  * Replacement roles are a separate catalog from the printed core roster.
  * They are adjudicated by a live GM after an explicit eligibility decision;
@@ -50,13 +52,22 @@ export function isReplacementEligibilityReason(value: unknown): value is Replace
 
 export function replacementRoleAvailable(
   roleId: string,
-  options: { readonly activeVesselIds: readonly string[]; readonly expansion: string },
+  options: {
+    readonly activeVesselIds: readonly string[];
+    readonly expansion: string;
+    readonly smallShipStates?: unknown;
+    readonly capybaraEnabled?: unknown;
+  },
 ): boolean {
   const role = replacementRoleFor(roleId);
   if (!role) return false;
-  if (role.baseVesselOnly && options.expansion === 'capybara') return false;
-  if (role.kind === 'extra-ship') return role.vesselId !== undefined &&
-    options.activeVesselIds.includes(role.vesselId);
+  if (role.kind === 'extra-ship') return role.vesselId !== undefined && isExtraShipAdmitted({
+    smallShipId: role.vesselId,
+    activeVesselIds: options.activeVesselIds,
+    smallShipStates: options.smallShipStates,
+    expansion: options.expansion,
+    capybaraEnabled: options.capybaraEnabled,
+  });
   return role.vesselId === undefined || options.activeVesselIds.includes(role.vesselId);
 }
 
