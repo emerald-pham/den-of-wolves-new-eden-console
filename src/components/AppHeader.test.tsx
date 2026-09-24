@@ -620,9 +620,18 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'The Endeavour Scientist console now shows field-upgrade targets with current research prices and cycle limits during Coordination.',
+    'Launching Maliades now tracks damage across attacks, blocks launch after three damage, and lets the Dione Engineer repair it during the fuelled Team Phase.',
+  )).toBeVisible();
+  expect(within(newestEntry).getByText(
+    'Medium and Short attacks remain unavailable until current Wolf targets can be shown safely.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousEndeavourEntry = within(region).getByRole('heading', { name: 'Build 0.5.30' }).closest('article');
+  if (!previousEndeavourEntry) throw new Error('Expected the preserved P391 field-upgrade release entry.');
+  expect(within(previousEndeavourEntry).getByText(
+    'The Endeavour Scientist console now shows field-upgrade targets with current research prices and cycle limits during Coordination.',
+  )).toBeVisible();
+  expect(within(previousEndeavourEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
   const previousArrestEntry = within(region).getByRole('heading', { name: 'Build 0.5.29' }).closest('article');
   if (!previousArrestEntry) throw new Error('Expected the preserved P513 arrest-calculator release entry.');
   expect(within(previousArrestEntry).getByText(

@@ -93,7 +93,7 @@ function player(uid: string, fields: Fields = {}): void {
 function attackState(fields: Fields = {}): void {
   put('sessions/s1/wolfAttackState/current', {
     type: 'wolf-attack-state', status: 'declared', currentStep: 'targeting', airspaceLocked: true,
-    turn: 1, revision: 1, commanderRerollIndexes: [],
+    turn: 1, revision: 1, attackId: 'wolf-attack-test-1', commanderRerollIndexes: [],
     preparation: {
       turn: 1, revision: 1, shipIds: firstTurnCards, targetMode: 'pre-rolled',
       targetAssignments: [], modifiers: ['aegis-command-and-control'], notes: 'private GM note',
