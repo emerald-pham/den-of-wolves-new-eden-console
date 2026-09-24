@@ -210,3 +210,13 @@ measured candidate. Only the raw and gzip size limits change; largest-chunk,
 startup, render-update, and mobile-frame limits remain unchanged. These are
 local Chromium measurements, not CI-host or production telemetry. P244 remains
 partial until an ordinary authorized production repair succeeds end to end.
+
+After the Warrior Captain authority correction, exact candidate
+`7f968bedd6a9f719684c059306b17ba8f511e5fd` was remeasured with baseline v16
+on 2026-09-24. It remained at 1,798,767 raw bytes, 477,200 gzip bytes, and a
+496,263-byte largest chunk across nine chunks. Landing and cached Role Select
+startup p95 were 114.73 ms and 110.16 ms; DRADIS, attack, and mission-hand
+update p95 were 34.9 ms, 33.4 ms, and 33.5 ms; the 390x844 mobile frame was
+16.8 ms p95 with zero long frames. This confirms the corrected authority path
+did not increase the measured bundle or runtime costs, leaving 2,233 raw and
+1,300 gzip bytes below the approved ceilings.
