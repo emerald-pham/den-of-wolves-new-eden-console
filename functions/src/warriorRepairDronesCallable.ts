@@ -105,16 +105,20 @@ function activePlayer(player: DocumentSnapshot): boolean {
   return lastSeenAt instanceof Timestamp && !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
-function currentCaptainSeat(session: DocumentSnapshot, player: DocumentSnapshot, seat: DocumentSnapshot, uid: string): void {
+function currentCaptainRoleId(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  uid: string,
+): typeof ROLE_ID {
   const activeRoleIds = session.get('activeRoleIds');
-  if (!Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
-      new Set(activeRoleIds).size !== activeRoleIds.length || !activeRoleIds.includes(ROLE_ID) ||
-      player.get('assignedRoleId') !== ROLE_ID || player.get('seatId') !== ROLE_ID ||
-      (player.get('replacementRoleId') !== undefined && player.get('replacementRoleId') !== null) ||
-      !seat.exists || seat.id !== ROLE_ID || seat.get('roleId') !== ROLE_ID ||
-      seat.get('status') !== 'claimed' || seat.get('holderUid') !== uid) {
+  if (player.id !== uid || player.get('role') !== 'player' ||
+      player.get('replacementRoleId') !== ROLE_ID ||
+      player.get('seatId') !== null || player.get('activeConsoleRoleId') !== null ||
+      !Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
+      new Set(activeRoleIds).size !== activeRoleIds.length || !activeRoleIds.includes(ROLE_ID)) {
     throw new HttpsError('permission-denied', 'Only the current Warrior Captain may use Repair Drones.');
   }
+  return ROLE_ID;
 }
 
 function fingerprintFor(uid: string, command: WarriorRepairDronesCommand): CommandFingerprint {
@@ -166,6 +170,9 @@ function replayReply(
   if (disposition.kind === 'collision') {
     throw new HttpsError('failed-precondition', 'This Warrior Repair Drones request id is bound to a different command.');
   }
+  if (receipt.get('actorRoleId') !== ROLE_ID) {
+    throw new HttpsError('failed-precondition', 'This Warrior Repair Drones request has no valid actor-role audit.');
+  }
   const result = receipt.get('result');
   if (!replyMatchesFingerprint(result, fingerprint)) {
     throw new HttpsError('failed-precondition', 'This Warrior Repair Drones request has no replayable result.');
@@ -199,21 +206,20 @@ export const repairWarriorWithDrones = onCall<{
   const db = getFirestore();
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
   const actorRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
-  const seatRef = db.doc(`sessions/${command.sessionId}/seats/${ROLE_ID}`);
   const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/${ACTION}-${command.requestId}`);
   const legacyRefs = LEGACY_REQUEST_PATHS.map((path) => db.doc(path(command.sessionId, command.requestId)));
 
   return db.runTransaction(async (tx) => {
-    const [session, actor, seat, receipt, event, ...legacy] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(seatRef), tx.get(receiptRef), tx.get(eventRef),
+    const [session, actor, receipt, event, ...legacy] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
       ...legacyRefs.map((ref) => tx.get(ref)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!activePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'A connected Warrior Captain is required.');
     }
-    currentCaptainSeat(session, actor, seat, uid);
+    const actorRoleId = currentCaptainRoleId(session, actor, uid);
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
     if (legacy.some((snapshot) => snapshot.exists)) {
@@ -258,8 +264,8 @@ export const repairWarriorWithDrones = onCall<{
     try {
       result = resolveWarriorRepairDrones({
         actorUid: uid,
-        activeRoleHolderUid: seat.get('holderUid'),
-        actorRoleId: actor.get('assignedRoleId'),
+        activeRoleHolderUid: uid,
+        actorRoleId,
         actorScope: 'player',
         currentCycle: currentCycle as number,
         expectedRevision: command.expectedRepairRevision,
@@ -290,6 +296,7 @@ export const repairWarriorWithDrones = onCall<{
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, {
+      actorRoleId,
       fingerprint,
       result: reply,
       createdAt: FieldValue.serverTimestamp(),

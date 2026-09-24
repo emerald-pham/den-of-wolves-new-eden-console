@@ -97,11 +97,8 @@ const resetFixture = () => {
     },
   });
   put('sessions/s1/players/warrior-captain', {
-    role: 'player', connected: true, assignedRoleId: 'warrior-captain',
-    seatId: 'warrior-captain', replacementRoleId: null,
-  });
-  put('sessions/s1/seats/warrior-captain', {
-    roleId: 'warrior-captain', status: 'claimed', holderUid: 'warrior-captain',
+    role: 'player', connected: true, assignedRoleId: 'doctor',
+    replacementRoleId: 'warrior-captain', seatId: null, activeConsoleRoleId: null,
   });
 };
 
@@ -134,9 +131,61 @@ it('atomically spends six canonical host materials, repairs both selected consol
     action: 'warrior-repair-drones', actorUid: 'warrior-captain',
     expectedRevision: 0, payload: { expectedHostShipId: 'icebreaker', systemIds: ['storage', 'reactor'] },
   });
+  expect(receipt.actorRoleId).toBe('warrior-captain');
   expect(receipt.result).not.toHaveProperty('actorUid');
   expect(receipt.result).not.toHaveProperty('activeRoleHolderUid');
   expect(mock.documents.has('sessions/s1/events/warrior-repair-drones-warrior-repair-1')).toBe(false);
+});
+
+it('authorizes the current Warrior replacement role after GM assignment clears its seat pointers', async () => {
+  Object.assign(mock.documents.get('sessions/s1/players/warrior-captain')!, {
+    assignedRoleId: 'doctor', replacementRoleId: 'warrior-captain',
+    seatId: null, activeConsoleRoleId: null,
+  });
+
+  await expect(repairWarriorWithDrones.run(request(command))).resolves.toMatchObject({
+    status: 'committed', smallShipId: 'warrior', hostShipId: 'icebreaker',
+  });
+  expect(mock.documents.get('sessions/s1/commandReceipts/warrior-repair-1'))
+    .toHaveProperty('actorRoleId', 'warrior-captain');
+});
+
+it('does not grant the Warrior Captain action from a stale assignedRoleId alone', async () => {
+  Object.assign(mock.documents.get('sessions/s1/players/warrior-captain')!, {
+    assignedRoleId: 'warrior-captain', replacementRoleId: null,
+    seatId: null, activeConsoleRoleId: null,
+  });
+
+  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects an old Warrior assignment after the player receives a different replacement role', async () => {
+  Object.assign(mock.documents.get('sessions/s1/players/warrior-captain')!, {
+    assignedRoleId: 'warrior-captain', replacementRoleId: 'commissar',
+    seatId: null, activeConsoleRoleId: null,
+  });
+
+  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects a former holder UID when another player owns the current replacement role', async () => {
+  put('sessions/s1/players/former-captain', {
+    role: 'player', connected: true, assignedRoleId: 'warrior-captain',
+    replacementRoleId: null, seatId: null, activeConsoleRoleId: null,
+  });
+
+  await expect(repairWarriorWithDrones.run(request(command, 'former-captain')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('replays the exact successful command after Coordination closes without another write', async () => {
@@ -145,6 +194,17 @@ it('replays the exact successful command after Coordination closes without anoth
   mock.documents.get('sessions/s1')!.phase = 'debrief';
   await expect(repairWarriorWithDrones.run(request(command))).resolves.toMatchObject({
     status: 'replayed', materialsRemaining: 3, repairRevision: 1,
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('fails closed when a replay receipt has a different actor-role audit', async () => {
+  await repairWarriorWithDrones.run(request(command));
+  mock.documents.get('sessions/s1/commandReceipts/warrior-repair-1')!.actorRoleId = 'commissar';
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+
+  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
@@ -161,17 +221,19 @@ it('rejects altered receipt reuse and a second repair in the same cycle before m
 });
 
 it.each([
-  ['wrong assigned Captain role', { player: { assignedRoleId: 'gorgoneion-captain' } }],
-  ['wrong player seat', { player: { seatId: 'gorgoneion-captain' } }],
-  ['replacement occupant', { player: { replacementRoleId: 'commissar' } }],
-  ['another seat holder', { seat: { holderUid: 'someone-else' } }],
-  ['released Captain seat', { seat: { status: 'open' } }],
+  ['stale assignedRoleId without a current replacement assignment', {
+    player: { assignedRoleId: 'warrior-captain', replacementRoleId: null },
+  }],
+  ['replaced identity with another current role', {
+    player: { assignedRoleId: 'warrior-captain', replacementRoleId: 'commissar' },
+  }],
+  ['stale seat pointer', { player: { seatId: 'warrior-captain' } }],
+  ['stale core-console pointer', { player: { activeConsoleRoleId: 'warrior-captain' } }],
   ['removed Captain entitlement', { session: { activeRoleIds: [] } }],
   ['disconnected Captain', { player: { connected: false } }],
 ] as const)('denies %s without mutation', async (_label, change) => {
   if ('session' in change) Object.assign(mock.documents.get('sessions/s1')!, change.session);
   if ('player' in change) Object.assign(mock.documents.get('sessions/s1/players/warrior-captain')!, change.player);
-  if ('seat' in change) Object.assign(mock.documents.get('sessions/s1/seats/warrior-captain')!, change.seat);
   await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
     code: 'permission-denied',
   });
