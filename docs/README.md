@@ -30,6 +30,7 @@ are regenerated from it:
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Generated prompt objectives, acceptance, and source decisions |
 | [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Generated prompt status and release evidence |
 | [IMPLEMENTATION_CONTRACTS.md](IMPLEMENTATION_CONTRACTS.md) | Generated bounded contract view for named prompts |
+| [POST_PROMPT_COMPLETION_TASKS.md](POST_PROMPT_COMPLETION_TASKS.md) | Owner-deferred review and work after all 751 prompts |
 
 Do not manually edit or copy live counts, dependencies, or active-prompt status
 into generated guides. Update the catalog and regenerate its Markdown views;
