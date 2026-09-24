@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { deploymentSelector } from './deployment-targets.mjs';
+import { classifyChangedFiles, deploymentSelector } from './deployment-targets.mjs';
 
 const COMMAND_AND_CONTROL_CALLABLES = [
   'applyAegisCommandAndControl',
@@ -80,6 +80,18 @@ const WOLF_ATTACK_DECLARATION_BEFORE = WOLF_ATTACK_DECLARATION_ADDITIONS.reduce(
   (source, addition) => source.replace(addition, ''),
   WOLF_ATTACK_DECLARATION_AFTER,
 );
+
+test('ignores stored rendered evidence without treating it as a deployable file', () => {
+  const files = [
+    'evidence/prompt-428-gm-control/README.md',
+    'evidence/prompt-428-gm-control/phone-320-full.png',
+  ];
+  const result = classifyChangedFiles(files);
+  assert.deepEqual(result.targets, []);
+  assert.deepEqual(result.unknownFiles, []);
+  assert.deepEqual(result.ignoredFiles, files);
+});
+
 const BASE_CAPYBARA_CARGO_CALLABLES = ['transferBaseCapybaraCargo'];
 const SMALL_SHIP_MAINTENANCE_CALLABLES = ['runSmallShipMaintenance'];
 const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';

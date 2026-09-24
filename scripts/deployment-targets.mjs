@@ -144,7 +144,7 @@ export function classifyChangedFiles(files, {
   const normalizedFiles = [...new Set(files.map(normalizeFile).filter(Boolean))].sort();
 
   for (const file of normalizedFiles) {
-    if (isDocumentation(file) || isTestFile(file) || isToolingOnly(file)) {
+    if (isDocumentation(file) || isTestFile(file) || isToolingOnly(file) || file.startsWith('evidence/')) {
       ignoredFiles.push(file);
       continue;
     }
