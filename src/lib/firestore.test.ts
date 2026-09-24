@@ -2648,15 +2648,22 @@ it('hydrates only the safe GM declaration summary and keeps its revision monoton
   callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
+    data: () => ({ status: 'declared', turn: 1, revision: 3, preparationRevision: 2,
+      currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
+      parkedCraftIds: ['starlight'], calculationReceipt: { hidden: true }, preparation: { notes: 'hidden' } }),
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
     data: () => ({ status: 'declared', turn: 1, revision: 1, preparationRevision: 2,
       currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
       parkedCraftIds: ['starlight'] }),
   });
 
-  expect(onState).toHaveBeenCalledTimes(1);
+  expect(onState).toHaveBeenCalledTimes(2);
   expect(onState).toHaveBeenLastCalledWith({
-    status: 'declared', turn: 1, revision: 2, preparationRevision: 2,
-    currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z',
+    status: 'declared', turn: 1, revision: 3, preparationRevision: 2,
+    currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z',
     airspaceLocked: true, parkedCraftIds: ['starlight'], launchedCraftIds: [],
   });
   unsubscribe();

@@ -63,6 +63,7 @@ import {
   setWolfAttackWindow,
   stageWolfAttackPreparation,
   declareWolfAttack as declareWolfAttackCommand,
+  advanceWolfAttackToLongRange as advanceWolfAttackToLongRangeCommand,
   startWolfConsoleVisit,
   resolveWolfConsoleSabotage,
   replayTurnStartAnnouncement,
@@ -411,6 +412,7 @@ export default function GmConsole() {
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const connection = useSessionStore((state) => state.connection);
+  const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
   const loyaltyCensus = useSessionStore((state) => state.gmLoyaltyCensus);
   const gmWolfCultIntelligence = useSessionStore((state) => state.gmWolfCultIntelligence);
@@ -443,6 +445,8 @@ export default function GmConsole() {
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
   const [wolfAttackPreparation, setWolfAttackPreparationState] = useState<WolfAttackPreparation | null>(null);
   const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
+  const [wolfStageAdvanceMutation, setWolfStageAdvanceMutation] = useState(false);
+  const [wolfStageAdvanceMessage, setWolfStageAdvanceMessage] = useState<string | null>(null);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [wolfActionReceipt, setWolfActionReceipt] = useState<WolfActionReceipt | null>(null);
   const [wolfSuspicionHistory, setWolfSuspicionHistory] = useState<readonly WolfSuspicionHistoryEntry[]>([]);
@@ -703,10 +707,20 @@ export default function GmConsole() {
     wolfAttackState === null && currentPhase?.airspace.state === 'lifted' &&
     currentPhase.timerPause === undefined,
   );
-  const wolfDeclarationAnnouncement = wolfAttackState
+  const wolfStageAdvanceAvailable = Boolean(
+    local && isGm && connection === 'live' && sessionSnapshotFreshness === 'server' &&
+    session?.phase === 'active' &&
+    wolfAttackState?.status === 'declared' && wolfAttackState.currentStep === 'targeting' &&
+    wolfAttackState.turn === currentTurn && currentPhase?.turn === currentTurn &&
+    currentPhase.airspace.state === 'restricted' &&
+    currentPhase.timerPause === undefined,
+  );
+  const wolfDeclarationAnnouncement = wolfStageAdvanceMessage ?? (wolfAttackState
     ? `Declaration // committed // Cycle ${wolfAttackState.turn} // ${wolfAttackState.currentStep} // deadline ${wolfAttackState.deadlineAt}`
-    : wolfDeclarationMessage ?? 'Declaration // waiting for a due timing marker and saved private draft';
-  const wolfDeclarationAnnouncementKey = wolfAttackState
+    : wolfDeclarationMessage ?? 'Declaration // waiting for a due timing marker and saved private draft');
+  const wolfDeclarationAnnouncementKey = wolfStageAdvanceMessage
+    ? `stage:${wolfStageAdvanceMessage}`
+    : wolfAttackState
     ? `state:${wolfAttackState.turn}:${wolfAttackState.revision}:${wolfAttackState.currentStep}:${wolfAttackState.deadlineAt}`
     : wolfDeclarationMessage
       ? `message:${wolfDeclarationMessage}`
@@ -1115,8 +1129,11 @@ export default function GmConsole() {
       );
       const stopWolfAttackState = subscribeGmWolfAttackState(
         sessionId,
-        (next) => setWolfAttackState((current) =>
-          current && next && next.revision < current.revision ? current : next),
+        (next) => {
+          setWolfStageAdvanceMessage(null);
+          setWolfAttackState((current) =>
+            current && next && next.revision < current.revision ? current : next);
+        },
       );
       const stopWolfAssignment = subscribeGmWolfAssignment(
         sessionId,
@@ -2356,6 +2373,32 @@ export default function GmConsole() {
     }
   }
 
+  async function closeWolfTargeting(): Promise<void> {
+    const state = wolfAttackState;
+    if (!state || !local || !session || !me || !wolfStageAdvanceAvailable || wolfStageAdvanceMutation) return;
+    const requestSessionId = session.id;
+    const requestInstanceId = local.id;
+    const requestUid = me.uid;
+    const stillAuthorized = () => {
+      const current = useSessionStore.getState();
+      return current.session?.id === requestSessionId && current.me?.uid === requestUid &&
+        current.me.role === 'gm' && current.gmInstance?.id === requestInstanceId &&
+        current.gmInstance.sessionId === requestSessionId && current.gmInstance.uid === requestUid;
+    };
+    setWolfStageAdvanceMutation(true);
+    setWolfStageAdvanceMessage(null);
+    try {
+      const result = await advanceWolfAttackToLongRangeCommand(state.turn, state.revision);
+      if (!stillAuthorized()) return;
+      setWolfStageAdvanceMessage(`Targeting closed // Long Range // deadline ${result.deadlineAt}`);
+    } catch {
+      if (!stillAuthorized()) return;
+      setWolfStageAdvanceMessage('Targeting could not advance // refresh the live GM state and retry.');
+    } finally {
+      setWolfStageAdvanceMutation(false);
+    }
+  }
+
   async function saveCensusNote(targetUid: string): Promise<void> {
     if (endgameEvaluation || !loyaltyCensus || censusNoteMutationUid !== null) return;
     setCensusNoteMutationUid(targetUid);
@@ -2850,6 +2893,12 @@ export default function GmConsole() {
                 GM-only staging // players receive no cards, targets, modifiers, or notes. Declaration,
                 dice, damage, and casualties remain separate server actions.
               </p>
+              {wolfAttackState?.currentStep === 'targeting' && (
+                <p className="gm-console__hint">
+                  After the Wolf Commander finishes, the facilitator can close targeting and enter Long Range.
+                  Any AEGIS redirect already submitted is retained, and the current airspace deadline carries forward.
+                </p>
+              )}
               <fieldset className="gm-wolf-preparation__fieldset">
                 <legend>Eligible Wolf cards // Cycle {currentTurn}</legend>
                 <div className="gm-wolf-preparation__cards">
@@ -2955,6 +3004,18 @@ export default function GmConsole() {
                 >
                   {wolfDeclarationMutation ? 'Declaring Wolf attack…' : 'Declare Wolf attack'}
                 </button>
+                {wolfAttackState?.currentStep === 'targeting' && (
+                  <button
+                    className="cic-action-button"
+                    type="button"
+                    disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation}
+                    onClick={() => void closeWolfTargeting()}
+                  >
+                    {wolfStageAdvanceMutation
+                      ? 'Entering Long Range…'
+                      : 'Close targeting and enter Long Range'}
+                  </button>
+                )}
               </div>
               <LiveChangeRegion
                 as="p"

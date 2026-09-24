@@ -475,7 +475,7 @@ export interface WolfAttackDeclarationState {
   readonly turn: number;
   readonly revision: number;
   readonly preparationRevision: number;
-  readonly currentStep: 'targeting';
+  readonly currentStep: 'targeting' | 'long-range';
   readonly deadlineAt: string;
   readonly airspaceLocked: true;
   readonly parkedCraftIds: readonly string[];

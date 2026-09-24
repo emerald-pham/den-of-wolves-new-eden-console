@@ -61,6 +61,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import {
+  advanceWolfAttackToLongRange,
   applyAegisCommandAndControl,
   applyWolfCommanderTargetRerolls,
   finishWolfCommanderTargetingRerolls,
@@ -229,6 +230,50 @@ it('finishes an empty Commander reroll window and consumes its exact private rec
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/redirect-1')).toMatchObject({
     type: 'aegis-command-and-control-redirect', actorRoleId: 'executive-officer',
     commanderCompletion: 'finished', rosterIndex: 2, shipId: 'wolf-fighter-wing',
+  });
+});
+
+it('preserves an authorized C&C redirect when the facilitator closes targeting', async () => {
+  const deadlineAt = '2026-09-24T20:00:00.000Z';
+  currentGame();
+  session({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-24T19:45:00.000Z',
+      openAirspaceEndsAt: deadlineAt,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  attackState({ deadlineAt });
+  player('gm-1', { role: 'gm' });
+  put('sessions/s1/gmInstances/gm-1', { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+
+  await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-before-advance', expectedTurn: 1, expectedRevision: 1,
+  }, 'commander-1'));
+  await applyAegisCommandAndControl.run(request({
+    sessionId: 's1', requestId: 'redirect-before-advance', expectedTurn: 1,
+    expectedRevision: 2, rosterIndex: 2,
+  }));
+
+  await expect(advanceWolfAttackToLongRange.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-redirect',
+    expectedTurn: 1, expectedRevision: 3,
+  }, 'gm-1'))).resolves.toMatchObject({
+    status: 'committed', previousStep: 'targeting', currentStep: 'long-range',
+    revision: 4, deadlineAt,
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', revision: 4, deadlineAt,
+  });
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state.commandAndControl).toMatchObject({
+    turn: 1, revision: 3, shipId: 'wolf-fighter-wing', commanderCompletion: 'finished',
+  });
+  expect((state.calculationReceipt as Fields).targeting).toMatchObject({
+    rolls: expect.arrayContaining([
+      expect.objectContaining({ rosterIndex: 2, target: 'aegis', modifiers: ['command-and-control-redirect'] }),
+    ]),
   });
 });
 

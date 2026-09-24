@@ -519,6 +519,7 @@ import {
 import {
   CORE_WOLF_TARGET_RING,
   EXPANDED_WOLF_TARGET_RING,
+  WOLF_ATTACK_STEPS,
   resolveWolfTargeting,
   type WolfTargetRing,
   type WolfTargetingReceipt,
@@ -15819,6 +15820,170 @@ export const declareWolfAttack = onCall<{
   });
 });
 
+type WolfAttackStageAdvanceResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-attack-stage-advance';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  previousStep: 'targeting';
+  currentStep: 'long-range';
+  deadlineAt: string;
+}>;
+
+function isWolfAttackStageAdvanceResult(value: unknown): value is WolfAttackStageAdvanceResult {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'previousStep', 'currentStep', 'deadlineAt',
+  ]);
+  return Object.keys(value).every((key) => allowed.has(key)) &&
+    value.status === 'committed' && value.type === 'wolf-attack-stage-advance' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
+    isCanonicalRequestId(value.requestId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 2 &&
+    value.previousStep === WOLF_ATTACK_DECLARATION_STEP &&
+    value.currentStep === WOLF_ATTACK_STEPS[1] &&
+    typeof value.deadlineAt === 'string' && Number.isFinite(Date.parse(value.deadlineAt));
+}
+
+/** Close the server-owned targeting step and enter the printed Long Range step. */
+export const advanceWolfAttackToLongRange = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'instanceId', 'requestId', 'expectedTurn', 'expectedRevision']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Targeting advancement accepts only the current facilitator revision.');
+  }
+  const change = requireWolfAttackTargetingAdvanceRequest(raw);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const playerRef = db.doc(`sessions/${change.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${change.sessionId}/gmInstances/${change.instanceId}`);
+  const stateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const playersRef = db.collection(`sessions/${change.sessionId}/players`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'advance-wolf-attack-targeting',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: change.instanceId,
+    expectedRevision: change.expectedRevision,
+    payload: { expectedTurn: change.expectedTurn },
+  };
+
+  return db.runTransaction(async (tx: Transaction): Promise<WolfAttackStageAdvanceResult> => {
+    const [session, player, instance, state, players, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(stateRef),
+      tx.get(playersRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isLiveGmInstance(instance, player, uid)) {
+      throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+    }
+    const replay = replayBoundCommand(
+      receipt, fingerprint, isWolfAttackStageAdvanceResult, 'Wolf attack targeting advancement',
+    );
+    if (replay) return replay;
+    if (audit.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This Wolf attack request id is already bound to another action.',
+        'conflict',
+      );
+    }
+    requireActiveGameplayPhase(session);
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf attack can advance only during active gameplay.',
+        'invalid-phase',
+      );
+    }
+
+    const inputs = wolfCommanderTargetingInputs(session, state);
+    if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
+      throw commandError(
+        'failed-precondition',
+        'The Wolf targeting stage is stale. Refresh the current facilitator view before advancing.',
+        'stale-revision',
+      );
+    }
+    const deadlineAt = state.get('deadlineAt');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
+        !phase || phase.turn !== inputs.turn || phase.openAirspaceEndsAt !== deadlineAt ||
+        phase.timerPause !== undefined ||
+        phase.airspace.state !== 'restricted') {
+      throw commandError(
+        'failed-precondition',
+        'The current airspace lock, pause state, or declared deadline no longer matches this attack.',
+        'conflict',
+      );
+    }
+
+    const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
+    const completion = commanderRerollsCompletionDecision(
+      state.get('commanderRerollCompletion'), inputs.turn, inputs.revision, commanderUids,
+    );
+    if (completion === 'pending') {
+      throw commandError(
+        'failed-precondition',
+        'The assigned Wolf Commander must finish targeting before the attack can enter Long Range.',
+        'invalid-phase',
+      );
+    }
+    currentAegisCommandAndControlRedirect(
+      state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
+    );
+    if (inputs.revision >= Number.MAX_SAFE_INTEGER) {
+      throw commandError('failed-precondition', 'The Wolf attack revision cannot advance further.', 'conflict');
+    }
+
+    const nextRevision = inputs.revision + 1;
+    const nextStep = WOLF_ATTACK_STEPS[1];
+    const result: WolfAttackStageAdvanceResult = {
+      status: 'committed',
+      type: 'wolf-attack-stage-advance',
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      turn: inputs.turn,
+      revision: nextRevision,
+      previousStep: WOLF_ATTACK_DECLARATION_STEP,
+      currentStep: nextStep,
+      deadlineAt,
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      currentStep: nextStep,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-attack-stage-advance',
+      action: 'targeting-closed',
+      fromStep: WOLF_ATTACK_DECLARATION_STEP,
+      toStep: nextStep,
+      turn: inputs.turn,
+      revision: nextRevision,
+      deadlineAt,
+      actorUid: uid,
+      instanceId: change.instanceId,
+      requestId: change.requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 type WolfCommanderTargetingResult = Readonly<{
   status: 'committed';
   type: 'wolf-commander-target-reroll';
@@ -15977,6 +16142,33 @@ function requireWolfTargetingCompletionRequest(raw: Record<string, unknown>): {
   }
   return {
     sessionId,
+    requestId: raw.requestId,
+    expectedTurn: raw.expectedTurn as number,
+    expectedRevision: raw.expectedRevision as number,
+  };
+}
+
+function requireWolfAttackTargetingAdvanceRequest(raw: Record<string, unknown>): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedTurn: number;
+  expectedRevision: number;
+} {
+  const { sessionId } = requireSessionRequest(raw);
+  if (!isCanonicalRequestId(raw.instanceId)) {
+    throw new HttpsError('invalid-argument', 'instanceId is invalid.');
+  }
+  if (!isCanonicalRequestId(raw.requestId)) {
+    throw new HttpsError('invalid-argument', 'requestId is invalid.');
+  }
+  if (!Number.isSafeInteger(raw.expectedTurn) || (raw.expectedTurn as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn and expectedRevision must be positive integers.');
+  }
+  return {
+    sessionId,
+    instanceId: raw.instanceId,
     requestId: raw.requestId,
     expectedTurn: raw.expectedTurn as number,
     expectedRevision: raw.expectedRevision as number,

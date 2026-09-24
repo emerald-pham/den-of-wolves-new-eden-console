@@ -44,6 +44,7 @@ vi.mock('@/lib/sessionService', () => ({
   setWolfAttackWindow: vi.fn(),
   stageWolfAttackPreparation: vi.fn(),
   declareWolfAttack: vi.fn(),
+  advanceWolfAttackToLongRange: vi.fn(),
   startWolfConsoleVisit: vi.fn(),
   resolveWolfConsoleSabotage: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
@@ -94,6 +95,7 @@ vi.mock('@/lib/smallShipService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
+  advanceWolfAttackToLongRange,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
@@ -3453,6 +3455,98 @@ it('activates the GM declaration control with Enter after the due window and dra
   await waitFor(() => expect(declareWolfAttack).toHaveBeenCalledWith(4));
   expect(preparation).toHaveTextContent(/declared \/\/ cycle 1 \/\/ targeting step \/\/ airspace locked \/\/ 2 craft parked/i);
   expect(declarationStatus).toHaveAttribute('aria-live', 'polite');
+});
+
+it('lets the live GM close targeting and enter Long Range on the existing attack deadline', async () => {
+  const user = userEvent.setup();
+  const deadlineAt = '2026-09-24T20:00:00.000Z';
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-24T19:45:00.000Z',
+      openAirspaceEndsAt: deadlineAt,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({
+      status: 'declared', turn: 1, revision: 4, preparationRevision: 2,
+      currentStep: 'targeting', deadlineAt, airspaceLocked: true,
+      parkedCraftIds: ['starlight'], launchedCraftIds: [],
+    });
+    return vi.fn();
+  });
+  vi.mocked(advanceWolfAttackToLongRange).mockResolvedValue({
+    status: 'committed', type: 'wolf-attack-stage-advance', sessionId: 's1',
+    requestId: 'advance-ui', turn: 1, revision: 5, previousStep: 'targeting',
+    currentStep: 'long-range', deadlineAt,
+  } as never);
+  renderConsole();
+
+  const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
+  const advance = within(preparation).getByRole('button', { name: 'Close targeting and enter Long Range' });
+  expect(advance).toBeEnabled();
+  expect(preparation).not.toHaveTextContent(/calculationReceipt|rosterIndex|die:/i);
+  await user.click(advance);
+
+  await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(1, 4));
+  expect(preparation).toHaveTextContent(`Targeting closed // Long Range // deadline ${deadlineAt}`);
+});
+
+it('ignores a late Long Range receipt after the active GM instance changes', async () => {
+  const user = userEvent.setup();
+  const deadlineAt = '2026-09-24T20:00:00.000Z';
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-24T19:45:00.000Z',
+      openAirspaceEndsAt: deadlineAt,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({
+      status: 'declared', turn: 1, revision: 4, preparationRevision: 2,
+      currentStep: 'targeting', deadlineAt, airspaceLocked: true,
+      parkedCraftIds: ['starlight'], launchedCraftIds: [],
+    });
+    return vi.fn();
+  });
+  let resolveAdvance!: (value: unknown) => void;
+  vi.mocked(advanceWolfAttackToLongRange).mockImplementation(() => new Promise((resolve) => {
+    resolveAdvance = resolve;
+  }) as never);
+  renderConsole();
+
+  const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
+  await user.click(within(preparation).getByRole('button', { name: 'Close targeting and enter Long Range' }));
+  await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(1, 4));
+  act(() => useSessionStore.getState().setGmInstance({ ...local, id: 'replacement-instance' }));
+  await act(async () => resolveAdvance({
+    status: 'committed', type: 'wolf-attack-stage-advance', sessionId: 's1',
+    requestId: 'stale-advance-ui', turn: 1, revision: 5, previousStep: 'targeting',
+    currentStep: 'long-range', deadlineAt,
+  }));
+
+  expect(preparation).not.toHaveTextContent(`Targeting closed // Long Range // deadline ${deadlineAt}`);
 });
 
 it('requires three deliberate confirmations to pause and resume the emergency timer', async () => {

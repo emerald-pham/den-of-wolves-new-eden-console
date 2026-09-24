@@ -51,6 +51,7 @@ const {
   extendAirspaceWindow,
   setEmergencyTimerPaused,
   setWolfAttackWindow,
+  advanceWolfAttackToLongRange,
   getDioneMaliadesLaunch,
   launchDioneMaliades,
   setActiveRoleEnabled,
@@ -2121,6 +2122,35 @@ describe('GM instance commands', () => {
       requestId: expect.any(String), status: 'due',
     }));
     expect(useSessionStore.getState().session).not.toHaveProperty('wolfAttackWindow');
+  });
+
+  it('advances only the revision-bound private Wolf stage through the current GM instance', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 1 }, { ...player, role: 'gm' },
+    );
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const callable = Object.assign(vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+      status: 'committed', type: 'wolf-attack-stage-advance',
+      sessionId: payload.sessionId, requestId: payload.requestId,
+      turn: 1, revision: 6, previousStep: 'targeting', currentStep: 'long-range',
+      deadlineAt: '2026-09-24T20:00:00.000Z',
+    } })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(advanceWolfAttackToLongRange(1, 5)).resolves.toMatchObject({
+      status: 'committed', previousStep: 'targeting', currentStep: 'long-range', revision: 6,
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceWolfAttackToLongRange');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 1, expectedRevision: 5,
+      requestId: expect.stringMatching(/^[A-Za-z0-9-]+$/),
+    }));
   });
 
   it('reads and commits the Dione Engineer Maliades launch against the displayed attack revision', async () => {

@@ -3818,6 +3818,31 @@ function wolfAttackDeclarationReply(value: unknown): WolfAttackDeclarationResult
   };
 }
 
+function wolfAttackStageAdvanceReply(value: unknown): WolfAttackStageAdvanceResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision',
+    'previousStep', 'currentStep', 'deadlineAt',
+  ]);
+  if (
+    Object.keys(reply).some((key) => !allowed.has(key)) ||
+    reply.status !== 'committed' || reply.type !== 'wolf-attack-stage-advance' ||
+    typeof reply.sessionId !== 'string' || !reply.sessionId ||
+    typeof reply.requestId !== 'string' || !reply.requestId ||
+    !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+    !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 2 ||
+    reply.previousStep !== 'targeting' || reply.currentStep !== 'long-range' ||
+    typeof reply.deadlineAt !== 'string' || !Number.isFinite(Date.parse(reply.deadlineAt))
+  ) return null;
+  return {
+    status: 'committed', type: 'wolf-attack-stage-advance',
+    sessionId: reply.sessionId, requestId: reply.requestId,
+    turn: reply.turn as number, revision: reply.revision as number,
+    previousStep: 'targeting', currentStep: 'long-range', deadlineAt: reply.deadlineAt,
+  };
+}
+
 function dioneMaliadesLaunchViewReply(value: unknown): DioneMaliadesLaunchView | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
@@ -3885,6 +3910,18 @@ export interface WolfCommanderTargetingFinishResult {
   readonly revision: number;
   readonly currentStep: 'targeting';
   readonly view: WolfCommanderTargetingView;
+}
+
+export interface WolfAttackStageAdvanceResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-attack-stage-advance';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly previousStep: 'targeting';
+  readonly currentStep: 'long-range';
+  readonly deadlineAt: string;
 }
 
 function wolfCommanderTargetingView(value: unknown): WolfCommanderTargetingView | null {
@@ -4286,6 +4323,41 @@ export async function declareWolfAttack(expectedRevision: number): Promise<WolfA
   try {
     const reply = wolfAttackDeclarationReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf-attack declaration.');
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Advance the live GM attack state from targeting into its printed Long Range step. */
+export async function advanceWolfAttackToLongRange(
+  expectedTurn: number,
+  expectedRevision: number,
+): Promise<WolfAttackStageAdvanceResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before advancing the Wolf attack.');
+  }
+  requireFreshSessionAuthority('Reconnect before advancing the Wolf attack.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedTurn,
+    expectedRevision,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'advanceWolfAttackToLongRange');
+  try {
+    const reply = wolfAttackStageAdvanceReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== payload.requestId ||
+        reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1) {
+      throw new Error('The server returned an invalid Wolf attack stage receipt.');
+    }
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
   } catch (cause) {

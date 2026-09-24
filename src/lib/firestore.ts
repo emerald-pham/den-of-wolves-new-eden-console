@@ -1300,7 +1300,9 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     ? rawLaunchedCraftIds.filter((id): id is string => typeof id === 'string')
     : [];
   if (
-    state.status !== 'declared' || state.currentStep !== 'targeting' || state.airspaceLocked !== true ||
+    state.status !== 'declared' ||
+    (state.currentStep !== 'targeting' && state.currentStep !== 'long-range') ||
+    state.airspaceLocked !== true ||
     !Number.isSafeInteger(state.turn) || (state.turn as number) < 1 ||
     !Number.isSafeInteger(state.revision) || (state.revision as number) < 1 ||
     !Number.isSafeInteger(state.preparationRevision) || (state.preparationRevision as number) < 1 ||
@@ -1314,7 +1316,7 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     turn: state.turn as number,
     revision: state.revision as number,
     preparationRevision: state.preparationRevision as number,
-    currentStep: 'targeting',
+    currentStep: state.currentStep,
     deadlineAt: state.deadlineAt,
     airspaceLocked: true,
     parkedCraftIds,
