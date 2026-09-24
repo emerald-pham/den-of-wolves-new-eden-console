@@ -237,3 +237,12 @@ mobile-frame limits remain unchanged. These are local Chromium measurements,
 not CI-host or production telemetry. Prompt 241c remains partial until an
 ordinary authorized production cargo transfer is observed with before/after
 inventory evidence.
+
+Exact calibrated candidate
+`9f6781db0a4a3a93816e3953e985ff2ee612a840` passed baseline v17 on
+2026-09-24. It measured 1,807,262 raw bytes, 479,031 gzip bytes, and a
+496,263-byte largest chunk across nine chunks. Landing and cached Role Select
+startup p95 were 115.92 ms and 111.68 ms; DRADIS, attack, and mission-hand
+update p95 were 34.7 ms, 33.4 ms, and 33.5 ms; the 390x844 mobile frame was
+16.8 ms p95 with zero long frames. The measured bundle retains 2,238 raw and
+1,469 gzip bytes below the version 17 ceilings.
