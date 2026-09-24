@@ -164,6 +164,18 @@ it('rechecks the active phase before replay and rejects ids already owned by ano
   expect(mock.create).not.toHaveBeenCalled();
 });
 
+it('rejects legacy M1 request-id ownership before creating a scout request', async () => {
+  const requestId = 'scout-legacy-collision';
+  put(`sessions/s1/setupMutationRequests/${requestId}`, { type: 'legacy-setup-command' });
+
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId, entitlementId: 'starlight', targetCoordinate: '5143',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.create).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/scoutRequests/${requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+});
+
 it.each([
   ['cross-entitlement', 'explorer', 'starlight'],
   ['wrong core seat', 'wing', 'starlight'],

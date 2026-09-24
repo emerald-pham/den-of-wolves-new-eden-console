@@ -22904,6 +22904,7 @@ export const requestScout = onCall<{
     } catch {
       throw new HttpsError('permission-denied', 'The current player does not hold that printed scout entitlement.');
     }
+    await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'scout request', []);
     const fingerprint: CommandFingerprint = {
       action: 'request-scout', sessionId, requestId, actorUid: uid,
       instanceId: null, expectedRevision: null,
