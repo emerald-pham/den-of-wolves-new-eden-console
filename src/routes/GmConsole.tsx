@@ -1,6 +1,6 @@
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
@@ -457,6 +457,7 @@ export default function GmConsole() {
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [arrestPosseCalculation, setArrestPosseCalculation] = useState<ArrestPosseCalculation | null>(null);
+  const [arrestPosseCalculationGeneration, setArrestPosseCalculationGeneration] = useState(0);
   const [wolfCultFortressCoordinate, setWolfCultFortressCoordinate] = useState('');
   const [wolfCultSuppliesCoordinate, setWolfCultSuppliesCoordinate] = useState('');
   const [wolfCultAgentUid, setWolfCultAgentUid] = useState('');
@@ -536,7 +537,18 @@ export default function GmConsole() {
   const [wolfPreparationNotes, setWolfPreparationNotes] = useState('');
   const [clock, setClock] = useState(() => Date.now());
   const crisisAuthorityGeneration = useRef(0);
+  const arrestPosseCalculationGenerationRef = useRef(0);
   const verifiedCrisisAuthorityKey = useRef<string | null>(null);
+  const advanceArrestPosseCalculationGeneration = useCallback((): number => {
+    const next = arrestPosseCalculationGenerationRef.current + 1;
+    arrestPosseCalculationGenerationRef.current = next;
+    setArrestPosseCalculationGeneration(next);
+    return next;
+  }, []);
+  const clearArrestPosseCalculation = useCallback((): void => {
+    advanceArrestPosseCalculationGeneration();
+    setArrestPosseCalculation(null);
+  }, [advanceArrestPosseCalculationGeneration]);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
@@ -850,7 +862,7 @@ export default function GmConsole() {
     // A persisted projection is not fresh GM authority. Hold no crisis data
     // while the callable-backed manifest proves this exact instance.
     useSessionStore.getState().setGmCrisisState(null);
-    setArrestPosseCalculation(null);
+    clearArrestPosseCalculation();
     setCrisisMutationState(null);
     setCrisisMessage(null);
     const currentAuthorityKey = (): string | null => {
@@ -890,7 +902,7 @@ export default function GmConsole() {
       store.setGmCrisisState(null);
       store.setGmZealotryResponse(null);
       store.setGmCivilUnrestResolution(null);
-      setArrestPosseCalculation(null);
+      clearArrestPosseCalculation();
       clearCivilUnrestResolutionDraft();
       if (
         store.session?.id === sessionId &&
@@ -952,12 +964,13 @@ export default function GmConsole() {
             ? subscribeGmArrestPosseCalculation(sessionId, (next) => {
               const currentKey = currentAuthorityKey();
               if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              advanceArrestPosseCalculationGeneration();
               setArrestPosseCalculation((current) =>
                 current && next && next.revision < current.revision ? current : next);
             }, () => {
               const currentKey = currentAuthorityKey();
               if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
-              setArrestPosseCalculation(null);
+              clearArrestPosseCalculation();
               useSessionStore.getState().setCommunicationError({
                 code: 'gm-arrest-posse-link',
                 message: 'The facilitator arrest calculation could not be refreshed.',
@@ -1219,7 +1232,7 @@ export default function GmConsole() {
       useSessionStore.getState().setGmCrisisState(null);
       useSessionStore.getState().setGmZealotryResponse(null);
       useSessionStore.getState().setGmCivilUnrestResolution(null);
-      setArrestPosseCalculation(null);
+      clearArrestPosseCalculation();
       clearCivilUnrestResolutionDraft();
       setCrisisMutationState(null);
       setCrisisMessage(null);
@@ -1227,7 +1240,18 @@ export default function GmConsole() {
       setWolfAttackState(null);
       setAllPlayers([]);
     };
-  }, [isGm, local?.id, local?.uid, me?.fleetGroupId, me?.role, me?.sessionId, me?.uid, sessionId]);
+  }, [
+    advanceArrestPosseCalculationGeneration,
+    clearArrestPosseCalculation,
+    isGm,
+    local?.id,
+    local?.uid,
+    me?.fleetGroupId,
+    me?.role,
+    me?.sessionId,
+    me?.uid,
+    sessionId,
+  ]);
 
   useEffect(() => {
     setCensusNotes(Object.fromEntries(
@@ -2349,8 +2373,10 @@ export default function GmConsole() {
     defenders: number,
     adjustment: -1 | 1 | undefined,
     expectedRevision: number,
-  ): Promise<ArrestPosseCalculation> {
+  ): Promise<ArrestPosseCalculation | null> {
+    const generation = arrestPosseCalculationGenerationRef.current;
     const next = await calculateArrestPosse(targetUid, defenders, adjustment, expectedRevision);
+    if (arrestPosseCalculationGenerationRef.current !== generation) return null;
     setArrestPosseCalculation((current) =>
       current && next.revision < current.revision ? current : next);
     return next;
@@ -4171,6 +4197,7 @@ export default function GmConsole() {
               targetOptions={arrestPosseTargetOptions}
               censusRevision={loyaltyCensus.revision}
               expectedRevision={arrestPosseCalculation?.revision ?? 0}
+              calculationGeneration={arrestPosseCalculationGeneration}
               calculation={arrestPosseCalculation}
               onCalculate={runArrestPosseCalculation}
             />

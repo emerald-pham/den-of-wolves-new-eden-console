@@ -68,12 +68,62 @@ export function requireAcknowledgeWolfHackingAlertRequest(data: {
 }
 
 `;
-const P503A_ACK_GUARD_SOURCE_AFTER = readFileSync(
+const P513_ARREST_POSSE_GUARD_ADDITION = `/** Accept only inputs the facilitator chooses; suspicion is always read server-side. */
+export function requireArrestPosseCalculationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  defenders?: unknown;
+  adjustment?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  targetUid: string;
+  defenders: number;
+  adjustment?: -1 | 1;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'expectedRevision', 'targetUid', 'defenders', 'adjustment',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Arrest posse requests contain unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.defenders) || (data.defenders as number) < 0) {
+    throw new HttpsError('invalid-argument', 'defenders must be a non-negative integer.');
+  }
+  if (data.adjustment !== undefined && data.adjustment !== -1 && data.adjustment !== 1) {
+    throw new HttpsError('invalid-argument', 'adjustment must be -1, +1, or omitted.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    defenders: data.defenders as number,
+    ...(data.adjustment === undefined ? {} : { adjustment: data.adjustment as -1 | 1 }),
+  };
+}
+
+`;
+const REQUEST_GUARD_SOURCE_AFTER = readFileSync(
   new URL('../functions/src/requestGuards.ts', import.meta.url), 'utf8',
 );
-assert.equal(P503A_ACK_GUARD_SOURCE_AFTER.split(P503A_ACK_GUARD_ADDITION).length - 1, 1);
-const P503A_ACK_GUARD_SOURCE_BEFORE = P503A_ACK_GUARD_SOURCE_AFTER
-  .replace(P503A_ACK_GUARD_ADDITION, '');
+assert.equal(REQUEST_GUARD_SOURCE_AFTER.split(P503A_ACK_GUARD_ADDITION).length - 1, 1);
+assert.equal(REQUEST_GUARD_SOURCE_AFTER.split(P513_ARREST_POSSE_GUARD_ADDITION).length - 1, 1);
+const REQUEST_GUARD_SOURCE_BASE = REQUEST_GUARD_SOURCE_AFTER
+  .replace(P503A_ACK_GUARD_ADDITION, '')
+  .replace(P513_ARREST_POSSE_GUARD_ADDITION, '');
+const P503A_ACK_GUARD_SOURCE_BEFORE = REQUEST_GUARD_SOURCE_BASE;
+const P503A_ACK_GUARD_SOURCE_AFTER = REQUEST_GUARD_SOURCE_BASE + P503A_ACK_GUARD_ADDITION;
+const P513_ARREST_POSSE_GUARD_SOURCE_BEFORE =
+  REQUEST_GUARD_SOURCE_BASE + P503A_ACK_GUARD_ADDITION;
 
 const P436_RESOLVER_ID_ADDITION = "  | 'wolf-attack.command-and-control'\n";
 const COMMAND_AND_CONTROL_BLUEPRINT_BEFORE = [
@@ -124,6 +174,7 @@ NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
 const INDEX_SOURCE = [
   ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
   ...BASE_CAPYBARA_CARGO_CALLABLES, ...SMALL_SHIP_MAINTENANCE_CALLABLES,
+  'calculateArrestPosse',
 ].map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
 const GORGONEION_EVENT_FIELD_ENTRY =
   "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
@@ -294,8 +345,32 @@ test('selects only the three changed P503a callables from exact export and reque
   assert.deepEqual(selectedFunctions(selected), functionTargets(P503A_CALLABLES));
   assert.throws(
     () => selectWithGuard(`${P503A_ACK_GUARD_SOURCE_AFTER}\nexport function unrelatedGuard() { return true; }\n`),
-    /Cannot safely map request-guard changes outside the exact P503a acknowledgement validator/,
+    /Cannot safely map request-guard changes outside the exact audited validators/,
   );
+});
+
+test('maps the exact P513 arrest-posse request guard to its exported callable', () => {
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate',
+    files: ['functions/src/requestGuards.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      if (file === 'functions/src/index.ts') return INDEX_SOURCE;
+      if (file === 'functions/src/requestGuards.ts') {
+        return revision === 'base'
+          ? P513_ARREST_POSSE_GUARD_SOURCE_BEFORE
+          : REQUEST_GUARD_SOURCE_AFTER;
+      }
+      throw new Error(`Unexpected selector source ${file}`);
+    },
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['calculateArrestPosse']));
+});
+
+test('maps the P513 arrest-posse domain module to its callable export', () => {
+  const selected = selectorFor(['functions/src/arrestPosse.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['calculateArrestPosse']));
 });
 
 test('selects the complete P238 production callable set from the live 0.5.23 baseline', () => {

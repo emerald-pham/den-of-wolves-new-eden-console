@@ -66,6 +66,27 @@ it('hides an old count when the input or authoritative census revision changes',
   expect(onCalculate).not.toHaveBeenCalled();
 });
 
+it('hides a successful local reply when the live projection is invalidated', async () => {
+  const user = userEvent.setup();
+  const onCalculate = vi.fn().mockResolvedValue(result);
+  const props = {
+    targetOptions: [{ uid: 'u2', label: 'Rae (u2)' }],
+    censusRevision: 9,
+    expectedRevision: 0,
+    calculation: null,
+    onCalculate,
+  };
+  const { rerender } = render(<ArrestPosseCalculator {...props} calculationGeneration={0} />);
+
+  fireEvent.change(screen.getByLabelText('Defenders'), { target: { value: '2' } });
+  await user.selectOptions(screen.getByLabelText('Optional adjustment'), '1');
+  await user.click(screen.getByRole('button', { name: 'Calculate required players' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('8 players needed');
+
+  rerender(<ArrestPosseCalculator {...props} calculationGeneration={1} />);
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+
 it('fails closed when no target is available or the defender input is not a non-negative integer', () => {
   render(
     <ArrestPosseCalculator

@@ -56,6 +56,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/endeavourResearchWriter.ts': [
     'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
   ],
+  'functions/src/arrestPosse.ts': ['calculateArrestPosse'],
   'functions/src/extraShipAdmission.ts': [
     'assignReplacementRole', 'joinSession', 'resumeSession',
     'repairGorgoneionWithDrones', 'repairWarriorWithDrones', 'transferBaseCapybaraCargo',
@@ -380,6 +381,54 @@ export function requireAcknowledgeWolfHackingAlertRequest(data: {
 }
 
 `;
+const P513_ARREST_POSSE_GUARD_ADDITION = `/** Accept only inputs the facilitator chooses; suspicion is always read server-side. */
+export function requireArrestPosseCalculationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  defenders?: unknown;
+  adjustment?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  targetUid: string;
+  defenders: number;
+  adjustment?: -1 | 1;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'expectedRevision', 'targetUid', 'defenders', 'adjustment',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Arrest posse requests contain unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.defenders) || (data.defenders as number) < 0) {
+    throw new HttpsError('invalid-argument', 'defenders must be a non-negative integer.');
+  }
+  if (data.adjustment !== undefined && data.adjustment !== -1 && data.adjustment !== 1) {
+    throw new HttpsError('invalid-argument', 'adjustment must be -1, +1, or omitted.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    defenders: data.defenders as number,
+    ...(data.adjustment === undefined ? {} : { adjustment: data.adjustment as -1 | 1 }),
+  };
+}
+
+`;
+const REQUEST_GUARD_ADDITIONS = Object.freeze([
+  { source: P503A_ACK_GUARD_ADDITION, callable: 'acknowledgeWolfHackingAlert' },
+  { source: P513_ARREST_POSSE_GUARD_ADDITION, callable: 'calculateArrestPosse' },
+]);
 
 const P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS = Object.freeze([
   ["import type { CandidateReveal } from './candidateRevealProjection';", 1],
@@ -570,7 +619,7 @@ function callableIsExportedAtRevision(name, revision, cwd, sourceAtRevision) {
   return directExport.test(indexSource) || reExport.test(indexSource);
 }
 
-function p503aAcknowledgementGuardImpacts(before, after, cwd, sourceAtRevision = null) {
+function requestGuardCallableImpacts(before, after, cwd, sourceAtRevision = null) {
   const file = 'functions/src/requestGuards.ts';
   const readAt = (revision) => {
     if (sourceAtRevision) return sourceAtRevision(revision, file);
@@ -585,12 +634,26 @@ function p503aAcknowledgementGuardImpacts(before, after, cwd, sourceAtRevision =
   };
   const previous = readAt(before);
   const current = readAt(after);
-  if (previous.includes(P503A_ACK_GUARD_ADDITION) ||
-      current.split(P503A_ACK_GUARD_ADDITION).length - 1 !== 1 ||
-      current.replace(P503A_ACK_GUARD_ADDITION, '') !== previous) {
-    throw new Error('Cannot safely map request-guard changes outside the exact P503a acknowledgement validator.');
+  const addedCallables = [];
+  let previousRest = previous;
+  let currentRest = current;
+  for (const { source, callable } of REQUEST_GUARD_ADDITIONS) {
+    const beforeCount = previous.split(source).length - 1;
+    const afterCount = current.split(source).length - 1;
+    if (beforeCount > 1 || afterCount > 1 || afterCount < beforeCount) {
+      throw new Error('Cannot safely map request-guard changes outside the exact audited validators.');
+    }
+    if (afterCount > beforeCount) addedCallables.push(callable);
+    if (beforeCount === 1) previousRest = previousRest.replace(source, '');
+    if (afterCount === 1) currentRest = currentRest.replace(source, '');
   }
-  return ['acknowledgeWolfHackingAlert'];
+  if (addedCallables.length === 0) {
+    throw new Error('Cannot safely map request-guard changes without an exact audited validator addition.');
+  }
+  if (currentRest !== previousRest) {
+    throw new Error('Cannot safely map request-guard changes outside the exact audited validators.');
+  }
+  return addedCallables;
 }
 
 function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
@@ -603,7 +666,7 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       continue;
     }
     if (file === 'functions/src/requestGuards.ts') {
-      for (const name of p503aAcknowledgementGuardImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      for (const name of requestGuardCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     if (file === 'functions/src/callableRateLimit.ts') {

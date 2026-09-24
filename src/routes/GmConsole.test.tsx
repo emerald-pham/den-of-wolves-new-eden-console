@@ -301,6 +301,74 @@ it('mounts the private arrest calculator only on the verified GM console and sub
   expect(await within(panel).findByRole('status')).toHaveTextContent('7 players needed');
 });
 
+it('clears a successful arrest reply when the live projection is invalidated', async () => {
+  const user = userEvent.setup();
+  let publishCalculation: ((calculation: {
+    type: 'arrest-posse-calculation'; sessionId: string; revision: number; requestId: string;
+    targetUid: string; defenders: number; requiredPlayers: number; censusRevision: number;
+  } | null) => void) | undefined;
+  vi.mocked(subscribeGmArrestPosseCalculation).mockImplementation((_sessionId, onCalculation) => {
+    publishCalculation = onCalculation;
+    onCalculation(null);
+    return vi.fn();
+  });
+  vi.mocked(calculateArrestPosse).mockResolvedValue({
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    requestId: 'arrest-reply', targetUid: 'u2', defenders: 0,
+    requiredPlayers: 7, censusRevision: 9,
+  } as never);
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Arrest posse calculator' });
+  await user.click(within(panel).getByRole('button', { name: 'Calculate required players' }));
+  expect(await within(panel).findByRole('status')).toHaveTextContent('7 players needed');
+
+  act(() => publishCalculation?.(null));
+  expect(within(panel).queryByRole('status')).not.toBeInTheDocument();
+});
+
+it('ignores a delayed arrest reply when the live projection invalidates during the request', async () => {
+  const user = userEvent.setup();
+  let publishCalculation: ((calculation: {
+    type: 'arrest-posse-calculation'; sessionId: string; revision: number; requestId: string;
+    targetUid: string; defenders: number; requiredPlayers: number; censusRevision: number;
+  } | null) => void) | undefined;
+  let resolveCalculation: ((value: unknown) => void) | undefined;
+  vi.mocked(subscribeGmArrestPosseCalculation).mockImplementation((_sessionId, onCalculation) => {
+    publishCalculation = onCalculation;
+    onCalculation(null);
+    return vi.fn();
+  });
+  vi.mocked(calculateArrestPosse).mockImplementation(() => new Promise((resolve) => {
+    resolveCalculation = resolve;
+  }) as never);
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Arrest posse calculator' });
+  await user.click(within(panel).getByRole('button', { name: 'Calculate required players' }));
+  await waitFor(() => expect(calculateArrestPosse).toHaveBeenCalled());
+  act(() => publishCalculation?.(null));
+  await act(async () => {
+    resolveCalculation?.({
+      type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+      requestId: 'arrest-delayed', targetUid: 'u2', defenders: 0,
+      requiredPlayers: 7, censusRevision: 9,
+    });
+  });
+
+  expect(within(panel).queryByRole('status')).not.toBeInTheDocument();
+});
+
 it('clears the arrest count and ignores late projection callbacks after GM authority is revoked', async () => {
   let publishInstances: ((instances: readonly typeof local[]) => void) | undefined;
   let publishCalculation: ((calculation: {

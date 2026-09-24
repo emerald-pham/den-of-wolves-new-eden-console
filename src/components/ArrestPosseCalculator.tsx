@@ -12,26 +12,31 @@ interface ArrestPosseCalculatorProps {
   readonly targetOptions: readonly ArrestPosseTargetOption[];
   readonly censusRevision: number;
   readonly expectedRevision: number;
+  readonly calculationGeneration?: number;
   readonly calculation: ArrestPosseCalculation | null;
   readonly onCalculate: (
     targetUid: string,
     defenders: number,
     adjustment: -1 | 1 | undefined,
     expectedRevision: number,
-  ) => Promise<ArrestPosseCalculation>;
+  ) => Promise<ArrestPosseCalculation | null>;
 }
 
 export default function ArrestPosseCalculator({
   targetOptions,
   censusRevision,
   expectedRevision,
+  calculationGeneration = 0,
   calculation,
   onCalculate,
 }: ArrestPosseCalculatorProps) {
   const [targetUid, setTargetUid] = useState(targetOptions[0]?.uid ?? '');
   const [defenders, setDefenders] = useState('0');
   const [adjustmentChoice, setAdjustmentChoice] = useState<'none' | '-1' | '1'>('none');
-  const [reply, setReply] = useState<ArrestPosseCalculation | null>(null);
+  const [reply, setReply] = useState<{
+    readonly calculation: ArrestPosseCalculation;
+    readonly generation: number;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -53,9 +58,10 @@ export default function ArrestPosseCalculator({
   const defenderCount = defenders === '' ? Number.NaN : Number(defenders);
   const validDefenders = Number.isSafeInteger(defenderCount) && defenderCount >= 0;
   const adjustment = adjustmentChoice === 'none' ? undefined : Number(adjustmentChoice) as -1 | 1;
-  const latest = calculation && reply
-    ? (calculation.revision > reply.revision ? calculation : reply)
-    : calculation ?? reply;
+  const visibleReply = reply?.generation === calculationGeneration ? reply.calculation : null;
+  const latest = calculation && visibleReply
+    ? (calculation.revision > visibleReply.revision ? calculation : visibleReply)
+    : calculation ?? visibleReply;
   const censusIsCurrent = latest?.censusRevision === censusRevision;
   const inputsMatch = Boolean(
     latest && targetOptions.some((target) => target.uid === targetUid) &&
@@ -70,7 +76,7 @@ export default function ArrestPosseCalculator({
     setErrorMessage(null);
     try {
       const next = await onCalculate(targetUid, defenderCount, adjustment, expectedRevision);
-      setReply(next);
+      if (next) setReply({ calculation: next, generation: calculationGeneration });
     } catch (cause) {
       setErrorMessage(normalizeCommandError(cause).message);
     } finally {
