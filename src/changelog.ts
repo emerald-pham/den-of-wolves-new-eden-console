@@ -23,6 +23,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 43, active: 0, missing: 251,
+    },
+    changes: [
+      'Launching Maliades now tracks damage across attacks, blocks launch after three damage, and lets the Dione Engineer repair it during the fuelled Team Phase.',
+      'Medium and Short attacks remain unavailable until current Wolf targets can be shown safely.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+    implementationPrompts: [397, 453],
+  },
+
+  {
+    version: '0.5.30',
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
       done: 457, partial: 41, active: 0, missing: 253,
     },
     changes: [

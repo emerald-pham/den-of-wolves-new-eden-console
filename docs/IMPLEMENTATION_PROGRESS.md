@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **457 / 751 prompts complete (60.85%)**
 
-Status breakdown: **457 done · 41 partial · 253 missing**.
+Status breakdown: **457 done · 43 partial · 251 missing**.
 
 Active prompt: **none**
 
@@ -839,7 +839,7 @@ release classification and evidence.
 | 394 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 395 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 396 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 397 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 397 | partial | non-feature | 0.5.31 | Release 0.5.31 adds authoritative Maliades launch state, attack-scoped action reset, destroyed-launch denial, and transactional fuelled Team Phase repair. Damage survives later attacks while Medium/Short action records reset. Both range callables now fail closed before reading GM-only Wolf targeting state, and the console hides those actions until safe current target choices exist. Prompt 397 remains partial because ordinary attack declarations only reach targeting; completing its range actions requires P432a attack-stage advancement, P431 target-shift policy, and P433/P433b audience-safe choices and results. No ordinary production attack or live Medium/Short action has been verified. |
 | 398 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 399 | done | non-feature | — | Verified the existing production Macaw boundary. The Capybara Captain moves it through the shared authoritative shuttle path, and its exact server/client cargo allowlist includes the full printed resource set plus Scrap without exposing Boa reclamation or combat actions. This is evidence reconciliation with no runtime change. |
 | 400 | done | non-feature | — | Verified the existing production Boa boundary. The Capybara Recycler moves it through the shared authoritative shuttle path, its cargo allowlist permits only Scrap, and its reclamation and three-range combat procedures remain distinct from Macaw. This is evidence reconciliation with no runtime change. |
@@ -906,7 +906,7 @@ release classification and evidence.
 | 450 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 451 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 452 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 453 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 453 | partial | non-feature | 0.5.31 | Release 0.5.31 keeps the printed Medium/Short damage math in the pure state domain and disables both production range endpoints and client controls. Authorized requests receive the same unavailable response before any GM-only Wolf attack read, transaction, roll, or write; member events omit target choices, dice, shifts, and damage mappings. Prompt 453 remains partial because no ordinary attack advances past targeting, no audience-safe Dione choice producer supplies current eligible targets, and no range result updates Wolf durability. Resume after P432a, P431, and P433/P433b provide the current stage, target-shift policy, and entitled choices/results; verify ordinary lifecycle, wrong actors, stale phases, duplicate targets, and reconnect against those producers. The member-readable Maliades state schema also needs an audience review before range results are stored. |
 | 454 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 455 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 456 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

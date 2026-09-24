@@ -2921,9 +2921,9 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "397 -> 264;182",
+      "direction": "397 -> 264;182;431;432a;433;433b",
       "id": "E-AUDIT-397",
-      "language": "Maliades state consumes craft and combat-console registration.",
+      "language": "Maliades launch and durability consume craft and combat-console registration; completing Medium/Short range also requires the configured shift rule, ordinary attack-stage advancement, and audience-safe attack choices/results.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -3334,9 +3334,9 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "453 -> 264;397",
+      "direction": "453 -> 264;397;431;432a;433;433b",
       "id": "E-AUDIT-453",
-      "language": "Maliades combat consumes craft and Maliades state.",
+      "language": "Maliades range combat consumes craft and persistent state, target-shift policy, ordinary attack-stage advancement, and audience-safe Dione choices/results.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -6307,6 +6307,20 @@
       "language": "The verified facilitator console sends only the selected target, defender count, optional ±1 adjustment, and current result revision. The callable verifies the live facilitator instance, reads the selected target's current server-owned loyalty record and checks it against the facilitator census and current role holder, applies the accepted six minus floor(suspicion/5) plus defenders and optional adjustment formula, and writes a GM-only projection and actor-bound replay receipt containing no suspicion. It does not write the session, cycle, role state, or public event stream. Fresh calculations use the shared active-gameplay guard and reject closed, retained-empty, debrief, success, and failure phases before writes; an authenticated exact committed replay remains available without a second write. Strict payload/result allowlists, integer overflow rejection, malformed source/census checks, exact request replay and revision CAS, GM-only Firestore access, monotonic listener parsing, verified-manifest route gating, and late callback rejection are covered. Validation passes: domain 23/23, request guards 47/47, callable 15/15, Firestore listener 135/135, client service 176/176, calculator component 5/5, GM route 122/122, Firestore rules 128/128, Functions and web builds, ESLint with no errors, and font consistency 61/61. P637 measured 1,829,603 raw and 484,147 gzip JavaScript bytes across eight chunks, with all startup, render-update, and frame measures within the explicit version 19 ceilings (/tmp/p637-render-performance/results.json). Local Chrome rendered desktop 1440x900, phone 390x844 and 320x740, and short landscape 844x390 in normal and reduced motion; all had no horizontal overflow, controls at least 44px tall, and no suspicion displayed (/tmp/p513-render/results.json). The authorized repository reference provides the formula derivative used here; primary Facilitator Guide provenance is unavailable in this checkout, and no other arrest policy or P514 deadline/outcome is added. No ordinary authorized production GM calculation has been observed, so P513 remains partial.",
       "source": "docs/implementation-prompts.json Prompt 513 acceptance; repository-authorized REFERENCE_ONLY_CORE_RULES.md and REFERENCE_ONLY_FACILITATION.md formula derivative (primary Facilitator Guide provenance unavailable in this checkout); functions/src/arrestPosse.ts; functions/src/arrestPosse.test.ts; functions/src/index.ts calculateArrestPosse; functions/src/arrestPosseCallable.test.ts; functions/src/terminalFreezePolicy.test.ts; functions/src/requestGuards.ts; functions/src/requestGuards.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/components/ArrestPosseCalculator.tsx; src/components/ArrestPosseCalculator.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/styles/arrest-posse.css; scripts/deployment-targets.mjs; scripts/deployment-targets.test.mjs; config/render-performance-baseline.json; docs/RENDER_PERFORMANCE_BASELINES.md; scripts/prompt-637-render-performance.mjs; Sol xhigh exact-source review approved 27563a7b73b70ea80acb1c53cf8e3c93923068ec; /tmp/p513-render/results.json; local Chrome screenshots /tmp/p513-render/desktop.png, phone-390.png, phone-320.png, short-landscape.png, phone-reduced.png, short-landscape-reduced.png; exact-SHA FleetBroadcast normal/reduced lifecycle, AEGIS, and two-pass Stand Down browser artifacts /tmp/fleet-ticker-smoke/1790262687268-80763-ebe4871b-6cbe-48f0-8047-d09ead355636; /tmp/p637-render-performance/results.json; Functions TypeScript build; root production build; font consistency check",
       "type": "evidence / partial / server-authority / callable / firestore-rules / privacy / replay / CAS / responsive / reduced-motion / performance / independent-review / production-path-pending"
+    },
+    {
+      "direction": "182 -> 397 (partial); 397 -> 453 (partial)",
+      "id": "E-397-MALIADES-STATE-PARTIAL",
+      "language": "Release 0.5.31 persists Maliades launch and durability state, carries damage across declared Wolf attacks, resets only per-attack action records, blocks launch after destruction, and repairs damage atomically during the fuelled, docked Team Phase. Range callables are closed before GM-only targeting state access and the live panel has no Medium/Short controls. Reconciled on main 3bf93ced; independent gpt-6-sol xhigh review cleared exact source HEAD be9a3cf9. Focused Maliades/session/hydration/route suites pass 445/445, Firestore rules pass 128/128, Functions build and app typecheck pass, and local Chrome responsive checks show no horizontal overflow at 320x844, 844x390, or 1440x900 in normal motion and 320x844/844x390 in reduced motion. P397 remains partial: no ordinary production attack proceeds beyond targeting, and no authorized live Wolf attack has been observed.",
+      "source": "functions/src/maliadesState.ts; functions/src/maliadesState.test.ts; functions/src/index.ts; functions/src/wolfAttackDeclaration.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/maliadesCallable.ts; functions/src/maliadesCallable.test.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; src/lib/maliadesLedger.ts; src/lib/maliadesLedger.test.ts; src/lib/maliadesService.ts; src/lib/maliadesService.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/components/DioneMaliadesLaunch.tsx; src/components/MaliadesPanel.tsx; src/components/MaliadesPanel.test.tsx; src/components/ShuttleConsoleTemplate.tsx; src/routes/ShuttleConsole.test.tsx; src/types/game.ts; tests/rules/firestore.rules.test.ts; focused tests, Firestore rules, Functions build, app typecheck, independent gpt-6-sol xhigh review at be9a3cf90c15b035a91cf83f91e4608c4f0c3cf5; local Chrome responsive/reduced-motion renders at /tmp/maliades_phone.png, /tmp/maliades_desktop.png, /tmp/maliades_short-landscape.png, /tmp/maliades_phone-reduced.png, and /tmp/maliades_landscape-reduced.png",
+      "type": "evidence / partial / production-callable / durable-state / launch / destruction / repair / fail-closed / privacy / firestore-rules / independent-review / responsive / reduced-motion / production-path-pending"
+    },
+    {
+      "direction": "397 -> 453 (partial)",
+      "id": "E-453-MALIADES-RANGE-BLOCKER",
+      "language": "The printed Medium/Short math remains a pure state resolver only. In production, both callables authorize the active Dione Engineer and current Maliades holder, then return the same unavailable response for enemy, friendly, and absent target guesses before reading Wolf attack state or performing a transaction, roll, or write; the client services fail closed and the panel exposes no range controls. Member events now retain only craftId/cycle/revision for range types, with a regression proving target IDs, attack dice, target-number shifts, and damage mappings are removed. Sol xhigh review cleared exact reconciled source HEAD be9a3cf9. P453 remains partial because production attack progression stops at targeting and there is no P433/P433b audience-safe eligible-target producer; member-readable session range fields must also be reviewed before any range result is stored. P432a, P431, P433, and P433b are explicit remaining prerequisites. No live Medium/Short action has been observed.",
+      "source": "functions/src/maliadesCallable.ts; functions/src/maliadesCallable.test.ts; functions/src/maliadesState.ts; functions/src/maliadesState.test.ts; functions/src/wolfAttackDeclarationCallable.test.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; src/lib/maliadesService.ts; src/lib/maliadesService.test.ts; src/components/MaliadesPanel.tsx; src/components/MaliadesPanel.test.tsx; docs/implementation-prompts.json Prompt 397/453 prerequisites; independent gpt-6-sol xhigh review at be9a3cf90c15b035a91cf83f91e4608c4f0c3cf5",
+      "type": "evidence / partial / fail-closed / no-hidden-state-read / privacy / audience-projection-pending / independent-review / production-path-pending"
     }
   ],
   "plan": {
@@ -16463,19 +16477,21 @@
         "acceptance": "launch, three-damage destruction, fuel repair, Medium choice, and Short risk persist authoritatively.",
         "title": "Resolve Maliades state."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-397",
+      "description": "Release 0.5.31 adds authoritative Maliades launch state, attack-scoped action reset, destroyed-launch denial, and transactional fuelled Team Phase repair. Damage survives later attacks while Medium/Short action records reset. Both range callables now fail closed before reading GM-only Wolf targeting state, and the console hides those actions until safe current target choices exist. Prompt 397 remains partial because ordinary attack declarations only reach targeting; completing its range actions requires P432a attack-stage advancement, P431 target-shift policy, and P433/P433b audience-safe choices and results. No ordinary production attack or live Medium/Short action has been verified.",
+      "evidenceIds": "E-AUDIT-397;E-WOLF;E-397-MALIADES-STATE-PARTIAL;E-453-MALIADES-RANGE-BLOCKER",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "264;182",
+      "hardPromptPrerequisites": "264;182;431;432a;433;433b",
       "id": "397",
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.31"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -18012,19 +18028,21 @@
         "acceptance": "its Medium target/damage choice, Short attack, self-risk, durability, and fuel repair remain authoritative.",
         "title": "Resolve Maliades at range."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-453",
+      "description": "Release 0.5.31 keeps the printed Medium/Short damage math in the pure state domain and disables both production range endpoints and client controls. Authorized requests receive the same unavailable response before any GM-only Wolf attack read, transaction, roll, or write; member events omit target choices, dice, shifts, and damage mappings. Prompt 453 remains partial because no ordinary attack advances past targeting, no audience-safe Dione choice producer supplies current eligible targets, and no range result updates Wolf durability. Resume after P432a, P431, and P433/P433b provide the current stage, target-shift policy, and entitled choices/results; verify ordinary lifecycle, wrong actors, stale phases, duplicate targets, and reconnect against those producers. The member-readable Maliades state schema also needs an audience review before range results are stored.",
+      "evidenceIds": "E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "264;397",
+      "hardPromptPrerequisites": "264;397;431;432a;433;433b",
       "id": "453",
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.31"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
