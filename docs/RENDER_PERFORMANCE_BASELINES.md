@@ -10,8 +10,8 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,790,512 bytes |
-| Complete application JavaScript, gzip | 477,000 bytes |
+| Complete application JavaScript, raw | 1,809,500 bytes |
+| Complete application JavaScript, gzip | 480,500 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
@@ -220,3 +220,20 @@ update p95 were 35.2 ms, 34.7 ms, and 34.8 ms; the 390x844 mobile frame was
 16.7 ms p95 with zero long frames. This confirms the corrected authority path
 did not increase the measured bundle or runtime costs, leaving 2,233 raw and
 1,300 gzip bytes below the approved ceilings.
+
+Baseline version 17 raises only the complete application JavaScript ceilings
+for Prompt 241c's base Capybara Cargo Transfer panel and client. The exact live
+pre-calibration source at `01060c498b3be210585d736c5e08b4308de915cb` measured
+1,798,767 raw bytes and 477,200 gzip bytes. Exact pre-calibration candidate
+`b67383efbaae405e14378122447b297975075d7d` measured 1,807,262 raw bytes,
+479,031 gzip bytes, and a 496,263-byte
+largest chunk across nine chunks. The feature added 8,495 raw and 1,831 gzip
+bytes against the live source; the new ceilings retain 2,238 raw and 1,469
+gzip bytes above the candidate. Landing and cached Role Select startup p95
+were 149.01 ms and 114.60 ms; DRADIS, attack, and mission-hand update p95 were
+33.7 ms, 33.5 ms, and 33.5 ms; the 390x844 mobile frame measured 16.8 ms p95
+with zero long frames. The largest-chunk, startup, render-update, and
+mobile-frame limits remain unchanged. These are local Chromium measurements,
+not CI-host or production telemetry. Prompt 241c remains partial until an
+ordinary authorized production cargo transfer is observed with before/after
+inventory evidence.
