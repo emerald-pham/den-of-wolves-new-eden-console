@@ -50,6 +50,7 @@ vi.mock('@/lib/sessionService', () => ({
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
   setFacilitatorCensusNote: vi.fn(),
+  calculateArrestPosse: vi.fn(),
   deliverWolfCultIntelligence: vi.fn(),
   authorUniversalArbourVision: vi.fn(),
   authorFacilitatorRuleCall: vi.fn(),
@@ -81,6 +82,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmCrisisState: vi.fn(),
   subscribeGmZealotryResponse: vi.fn(),
   subscribeGmCivilUnrestResolution: vi.fn(),
+  subscribeGmArrestPosseCalculation: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
@@ -91,11 +93,11 @@ vi.mock('@/lib/smallShipService', () => ({
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -204,6 +206,10 @@ beforeEach(() => {
     onResolution(null);
     return vi.fn();
   });
+  vi.mocked(subscribeGmArrestPosseCalculation).mockImplementation((_sessionId, onCalculation) => {
+    onCalculation(null);
+    return vi.fn();
+  });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([]);
     return vi.fn();
@@ -268,6 +274,83 @@ it('shows the facilitator-only loyalty census without exposing private card extr
   expect(census).toHaveTextContent('wolf-agent');
   expect(census).toHaveTextContent('10');
   expect(census).not.toHaveTextContent(/brief|notes|link|proof/i);
+});
+
+it('mounts the private arrest calculator only on the verified GM console and submits no suspicion', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  vi.mocked(calculateArrestPosse).mockResolvedValue({
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    requestId: 'arrest-1', targetUid: 'u2', defenders: 2, adjustment: 1,
+    requiredPlayers: 7, censusRevision: 9,
+  } as never);
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Arrest posse calculator' });
+  expect(panel).not.toHaveTextContent('14');
+  expect(panel).not.toHaveTextContent(/suspicion/i);
+  fireEvent.change(within(panel).getByLabelText('Defenders'), { target: { value: '2' } });
+  await user.selectOptions(within(panel).getByLabelText('Optional adjustment'), '1');
+  await user.click(within(panel).getByRole('button', { name: 'Calculate required players' }));
+
+  await waitFor(() => expect(calculateArrestPosse).toHaveBeenCalledWith('u2', 2, 1, 0));
+  expect(await within(panel).findByRole('status')).toHaveTextContent('7 players needed');
+});
+
+it('clears the arrest count and ignores late projection callbacks after GM authority is revoked', async () => {
+  let publishInstances: ((instances: readonly typeof local[]) => void) | undefined;
+  let publishCalculation: ((calculation: {
+    type: 'arrest-posse-calculation'; sessionId: string; revision: number; requestId: string;
+    targetUid: string; defenders: number; requiredPlayers: number; censusRevision: number;
+  } | null) => void) | undefined;
+  const stopCalculation = vi.fn();
+  vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
+    publishInstances = onInstances;
+    onInstances([local]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmArrestPosseCalculation).mockImplementation((_sessionId, onCalculation) => {
+    publishCalculation = onCalculation;
+    onCalculation(null);
+    return stopCalculation;
+  });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Arrest posse calculator' });
+  act(() => publishCalculation?.({
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    requestId: 'arrest-live', targetUid: 'u2', defenders: 2,
+    requiredPlayers: 8, censusRevision: 9,
+  }));
+  expect(within(panel).getByRole('status')).toHaveTextContent('8 players needed');
+
+  act(() => {
+    useSessionStore.getState().setIdentity(
+      useSessionStore.getState().session!,
+      { ...useSessionStore.getState().me!, role: 'player' },
+    );
+    publishCalculation?.({
+      type: 'arrest-posse-calculation', sessionId: 's1', revision: 2,
+      requestId: 'arrest-stale', targetUid: 'u2', defenders: 2,
+      requiredPlayers: 99, censusRevision: 9,
+    });
+  });
+
+  expect(stopCalculation).toHaveBeenCalled();
+  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+  expect(screen.queryByText('99 players needed')).not.toBeInTheDocument();
+  expect(useSessionStore.getState().me?.role).toBe('player');
+  // Exercise the already-revoked listener and keep the route privacy boundary.
+  act(() => publishInstances?.([]));
+  expect(screen.queryByRole('region', { name: 'Arrest posse calculator' })).not.toBeInTheDocument();
 });
 
 it('runs the server-timed facilitator flow for random or chosen console sabotage', async () => {

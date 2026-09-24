@@ -38,6 +38,7 @@ const {
   subscribeIntelligenceInvestigation,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
+  subscribeGmArrestPosseCalculation,
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
   subscribeGmWolfHackingAlerts,
@@ -1839,6 +1840,43 @@ it('hydrates the known facilitator census only from server authority and allowli
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
   });
   expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+});
+
+it('subscribes to the server-only arrest calculation, rejects cached or malformed state, and stays monotonic', () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onCalculation = vi.fn();
+  const unsubscribe = subscribeGmArrestPosseCalculation('s1', onCalculation);
+  const result = {
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 3,
+    requestId: 'arrest-3', targetUid: 'u2', defenders: 2, adjustment: 1,
+    requiredPlayers: 8, censusRevision: 9,
+  };
+
+  callbacks[0]?.({ metadata: { fromCache: true }, exists: () => true, data: () => result });
+  expect(onCalculation).not.toHaveBeenCalled();
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => result });
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({ ...result, revision: 2, requestId: 'arrest-2' }),
+  });
+  expect(onCalculation).toHaveBeenCalledTimes(1);
+  expect(onCalculation).toHaveBeenLastCalledWith(result);
+
+  callbacks[0]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    data: () => ({ ...result, revision: 4, requestId: 'arrest-4', suspicion: 14 }),
+  });
+  expect(onCalculation.mock.calls).toEqual([[result], [null]]);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => result });
+  expect(onCalculation.mock.calls).toEqual([[result], [null]]);
+  const recovered = { ...result, revision: 5, requestId: 'arrest-5' };
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => recovered });
+  expect(onCalculation).toHaveBeenLastCalledWith(recovered);
+  unsubscribe();
+  const callsAtUnsubscribe = onCalculation.mock.calls.length;
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => result });
+  expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
+  expect(onCalculation).toHaveBeenCalledTimes(callsAtUnsubscribe);
 });
 
 it('hydrates only canonical facilitator Wolf clue disclosures', () => {

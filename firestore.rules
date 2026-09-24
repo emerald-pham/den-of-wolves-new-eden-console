@@ -744,6 +744,13 @@ service cloud.firestore {
         }
       }
 
+      // The current arrest-posse result is private facilitator guidance. The
+      // server derives suspicion and clients may never enumerate or write it.
+      match /arrestPosseCalculations/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+      }
+
       // The approximate Wolf-attack timing marker and its audit trail are
       // facilitator controls, never a player-readable session field.
       match /wolfAttackWindow/{projectionId} {

@@ -42,6 +42,7 @@ const {
   setGmControlsLocked,
   advanceTurn,
   acknowledgeWolfHackingAlert,
+  calculateArrestPosse,
   authorFacilitatorRuleCall,
   setDiseaseQuarantine,
   startGame,
@@ -211,6 +212,81 @@ it('rejects a late acknowledgement reply after the facilitator role changes', as
     },
   });
   await expect(acknowledgement).rejects.toThrow(/facilitator authority changed/i);
+});
+
+it('sends the arrest target and defender count through the current GM callable without suspicion', async () => {
+  prepareHackingAckGm();
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  const callable = Object.assign(vi.fn(async (payload: Record<string, unknown>) => ({
+    data: {
+      type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+      requestId: payload.requestId, targetUid: 'u2', defenders: 2, adjustment: -1,
+      requiredPlayers: 5, censusRevision: 9,
+    },
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  await expect(calculateArrestPosse('u2', 2, -1, 0)).resolves.toMatchObject({
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    targetUid: 'u2', defenders: 2, adjustment: -1, requiredPlayers: 5, censusRevision: 9,
+  });
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'calculateArrestPosse');
+  const payload = callable.mock.calls[0]?.[0];
+  expect(payload).toMatchObject({
+    sessionId: 's1', instanceId: 'instance-1', expectedRevision: 0,
+    targetUid: 'u2', defenders: 2, adjustment: -1,
+    requestId: expect.stringMatching(/^[A-Za-z0-9-]+$/),
+  });
+  expect(payload).not.toHaveProperty('suspicion');
+});
+
+it('reuses the same calculation request id after an ambiguous callable failure', async () => {
+  prepareHackingAckGm();
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  const callable = Object.assign(
+    vi.fn()
+      .mockRejectedValueOnce({ code: 'unavailable' })
+      .mockImplementationOnce(async (payload: Record<string, unknown>) => ({
+        data: {
+          type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+          requestId: payload.requestId, targetUid: 'u2', defenders: 0,
+          requiredPlayers: 4, censusRevision: 9,
+        },
+      })),
+    { stream: vi.fn() },
+  );
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  await expect(calculateArrestPosse('u2', 0, undefined, 0)).rejects.toMatchObject({ code: 'unavailable' });
+  await calculateArrestPosse('u2', 0, undefined, 0);
+  expect(callable.mock.calls[1]?.[0].requestId).toBe(callable.mock.calls[0]?.[0].requestId);
+});
+
+it('rejects a stale arrest calculation reply after GM authority changes', async () => {
+  prepareHackingAckGm();
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  let complete!: (reply: unknown) => void;
+  let payload!: Record<string, unknown>;
+  const callable = Object.assign(vi.fn((received: Record<string, unknown>) => new Promise((resolve) => {
+    payload = received;
+    complete = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+  const calculation = calculateArrestPosse('u2', 0, undefined, 0);
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  useSessionStore.getState().setMe({ ...player, role: 'player' });
+  complete({ data: {
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    requestId: payload.requestId, targetUid: 'u2', defenders: 0,
+    requiredPlayers: 4, censusRevision: 9,
+  } });
+  await expect(calculation).rejects.toThrow(/facilitator authority changed/i);
 });
 
 describe('connect', () => {

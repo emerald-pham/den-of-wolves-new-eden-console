@@ -23,6 +23,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 41, active: 0, missing: 253,
+    },
+    changes: [
+      'Facilitators can privately calculate the players needed for an arrest using the chosen defenders and an optional one player adjustment. Suspicion stays private.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+    implementationPrompts: [513],
+  },
+
+  {
+    version: '0.5.28',
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
       done: 457, partial: 40, active: 0, missing: 254,
     },
     changes: [

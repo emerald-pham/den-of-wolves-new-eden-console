@@ -77,6 +77,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPhase,
   AwayMissionHandPointer,
+  ArrestPosseCalculation,
   VipCard,
   VipCardId,
   VipCardName,
@@ -668,6 +669,40 @@ function loyaltyCensus(value: unknown): LoyaltyCensus | null {
   if (entries.length !== raw.entries.length ||
       new Set(entries.map((entry) => entry.uid)).size !== entries.length) return null;
   return { revision: raw.revision, entries };
+}
+
+/** Parse the exact GM result shape; raw suspicion fields invalidate it. */
+export function parseArrestPosseCalculation(
+  value: unknown,
+  expectedSessionId: string,
+): ArrestPosseCalculation | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'revision', 'requestId', 'targetUid', 'defenders', 'adjustment',
+    'requiredPlayers', 'censusRevision',
+  ]);
+  const sessionId = parseEntityId('session', raw.sessionId);
+  const targetUid = parseEntityId('player', raw.targetUid);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) ||
+      raw.type !== 'arrest-posse-calculation' || !sessionId || sessionId !== expectedSessionId || !targetUid ||
+      typeof raw.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Number.isSafeInteger(raw.defenders) || (raw.defenders as number) < 0 ||
+      (raw.adjustment !== undefined && raw.adjustment !== -1 && raw.adjustment !== 1) ||
+      !Number.isSafeInteger(raw.requiredPlayers) ||
+      !Number.isSafeInteger(raw.censusRevision) || (raw.censusRevision as number) < 0) return null;
+  return {
+    type: 'arrest-posse-calculation',
+    sessionId,
+    revision: raw.revision as number,
+    requestId: raw.requestId,
+    targetUid,
+    defenders: raw.defenders as number,
+    ...(raw.adjustment === undefined ? {} : { adjustment: raw.adjustment as -1 | 1 }),
+    requiredPlayers: raw.requiredPlayers as number,
+    censusRevision: raw.censusRevision as number,
+  };
 }
 
 function isCanonicalRequestId(value: unknown): value is string {
@@ -3344,6 +3379,56 @@ export function subscribeLoyaltyCensus(
     subscribed = false;
     unsubscribe();
     onCensus(null);
+  };
+}
+
+/** Subscribe to the current server-owned calculation only for a live GM route. */
+export function subscribeGmArrestPosseCalculation(
+  sessionId: string,
+  onCalculation: (calculation: ArrestPosseCalculation | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  let latestRevision: number | undefined;
+  let invalidated = false;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/arrestPosseCalculations/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) {
+        invalidated = true;
+        onCalculation(null);
+        return;
+      }
+      const raw = snapshot.data();
+      const revision = typeof raw?.revision === 'number' && Number.isSafeInteger(raw.revision) && raw.revision >= 1
+        ? raw.revision
+        : undefined;
+      if (revision !== undefined && latestRevision !== undefined && revision < latestRevision) return;
+      const calculation = parseArrestPosseCalculation(raw, sessionId);
+      if (!calculation) {
+        if (revision !== undefined) latestRevision = revision;
+        invalidated = true;
+        onCalculation(null);
+        return;
+      }
+      if (latestRevision !== undefined &&
+          (calculation.revision < latestRevision || (invalidated && calculation.revision <= latestRevision))) return;
+      latestRevision = calculation.revision;
+      invalidated = false;
+      onCalculation(calculation);
+    },
+    () => {
+      if (!subscribed) return;
+      invalidated = true;
+      onCalculation(null);
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onCalculation(null);
   };
 }
 

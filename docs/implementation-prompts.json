@@ -6293,6 +6293,13 @@
       "language": "Each committed console or supply sabotage atomically records a replay-safe private facilitator alert bound to its exact action history and printed clue instruction. The current facilitator sees a durable in-app queue and must acknowledge that the instruction was handled; the acknowledgement is bound to the exact alert/history and current GM instance with revision CAS and replay receipts. Only then does the server write a public actor-free notice. Members read an exact-schema playerHackingNoticeFeeds/current counter by direct get and fetch each deterministic sequence-addressed notice by direct get, so multiple notices remain queued across navigation and reconnect without collection listing. Firestore denies feed and notice list access and all client writes; both direct-read schemas reject extra fields, including actor-bearing fields, before sending the document to a member. Every player console maps notices to existing HACKING_MESSAGES through the shared aria-hidden, nonblocking Intrusion overlay; reduced motion still displays approved messages statically and launcher opt-in behavior is unchanged. Strict request guards, history reconciliation, pending/acknowledged CAS revisions, current-GM authority, strict client parsers, monotonic sequence handling, and stale-callback guards fail closed on replay, malformed mixed state, or authority changes. Missing-receipt history failures were reproduced red then pass green. Focused Functions guard/callable tests pass 87/87; App/runtime/Intrusion/Firestore/session/message tests pass 380/380; Firestore rules pass 127/127; terminal-freeze classification passes 10/10; changelog copy passes 41/41; typecheck and Functions build pass; font consistency passes 61/61; deployment selector tests pass 28/28 and reject unknown/mixed edits; the exact dry-run target set is Hosting, Firestore, resolveWolfConsoleSabotage, submitWolfSupplySabotage, and acknowledgeWolfHackingAlert. Responsive QA passed 320x740, 390x844, 844x390, and 1440x900 under full and reduced motion. P637 v18 measured 1,821,830 raw and 482,957 gzip bytes with a 500,784-byte largest chunk; only raw and gzip ceilings were calibrated at 1,822,830 and 483,957 bytes. P637 passed all rendered startup, update, and frame checks with unchanged limits: 512,000-byte largest chunk, 2,500 ms landing and route startup, 150/120/100 ms DRADIS/attack/mission-hand updates, 120 ms mobile-frame p95, and 70 long frames (artifact /tmp/p503a-p637-p503a-final/results.json). FleetBroadcast normal/reduced lifecycle proof remains at /tmp/fleet-ticker-smoke/1790250486581-4392-5d5cc33c-4eeb-4a4c-9fc5-027b85b76c5d. No ordinary authorized production game was available to exercise sabotage, acknowledgement, and delivery end to end, so Prompt 503a remains partial.",
       "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/requestGuards.test.ts; functions/src/terminalFreezePolicy.test.ts; functions/src/wolfConsoleSabotageCallable.test.ts; functions/src/wolfActionCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/lib/hackingMessages.ts; src/lib/hackingMessages.test.ts; src/components/WolfHackingRuntime.tsx; src/components/WolfHackingRuntime.css; src/components/WolfHackingRuntime.test.tsx; src/App.tsx; src/App.test.tsx; src/components/AppHeader.test.tsx; scripts/deployment-targets.mjs; scripts/deployment-targets.test.mjs; config/render-performance-baseline.json; docs/RENDER_PERFORMANCE_BASELINES.md; scripts/prompt-637-render-performance.mjs; /tmp/p503a-p637-p503a-final/results.json; FleetBroadcast normal/reduced lifecycle proof /tmp/fleet-ticker-smoke/1790254539282-16801-7c8f98f0-f8f7-4922-9e4d-75ccda3b1d6e; responsive browser QA at four viewport sizes in full and reduced motion",
       "type": "evidence / partial / server-authority / callable / firestore-rules / privacy / replay / deployment-selector / responsive / reduced-motion / performance / independent-review-pending / production-path-pending"
+    },
+    {
+      "direction": "513 -> private arrest-posse size calculation (partial)",
+      "id": "E-513-ARREST-POSSE-PRIVATE",
+      "language": "The verified facilitator console sends only the selected target, defender count, optional ±1 adjustment, and current result revision. The callable verifies the live facilitator instance, reads the selected target's current server-owned loyalty record and checks it against the facilitator census and current role holder, applies the accepted six minus floor(suspicion/5) plus defenders and optional adjustment formula, and writes a GM-only projection and actor-bound replay receipt containing no suspicion. It does not write the session, cycle, role state, or public event stream. Strict payload/result allowlists, integer overflow rejection, malformed source/census checks, exact request replay and revision CAS, GM-only Firestore access, monotonic listener parsing, verified-manifest route gating, and late callback rejection are covered. Validation passes: domain 23/23, request guards 47/47, callable 9/9, Firestore listener 135/135, client service 176/176, calculator component 4/4, GM route 120/120, Firestore rules 128/128, Functions build, web production build, ESLint with no errors, and font consistency 61/61. Local Chrome rendered desktop 1440x900, phone 390x844 and 320x740, and short landscape 844x390 in normal and reduced motion; all had no horizontal overflow, controls at least 44px tall, and no suspicion displayed (/tmp/p513-render/results.json). The authorized repository reference provides the formula derivative used here; primary Facilitator Guide provenance is unavailable in this checkout, and no other arrest policy or P514 deadline/outcome is added. No ordinary authorized production GM calculation has been observed, so P513 remains partial.",
+      "source": "docs/implementation-prompts.json Prompt 513 acceptance; repository-authorized REFERENCE_ONLY_CORE_RULES.md and REFERENCE_ONLY_FACILITATION.md formula derivative (primary Facilitator Guide provenance unavailable in this checkout); functions/src/arrestPosse.ts; functions/src/arrestPosse.test.ts; functions/src/index.ts calculateArrestPosse; functions/src/requestGuards.ts; functions/src/requestGuards.test.ts; functions/src/arrestPosseCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/components/ArrestPosseCalculator.tsx; src/components/ArrestPosseCalculator.test.tsx; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/styles/arrest-posse.css; /tmp/p513-render/results.json; local Chrome screenshots /tmp/p513-render/desktop.png, phone-390.png, phone-320.png, short-landscape.png, phone-reduced.png, short-landscape-reduced.png; Functions TypeScript build; root production build; font consistency check",
+      "type": "evidence / partial / server-authority / callable / firestore-rules / privacy / replay / CAS / responsive / reduced-motion / independent-review-pending / production-path-pending"
     }
   ],
   "plan": {
@@ -19568,15 +19575,15 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "the facilitator receives six minus suspicion bands plus defenders and optional ±1 adjustment without revealing suspicion.",
         "title": "Calculate arrest posse size privately."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-513",
+      "description": "The verified facilitator console offers a private arrest-posse calculator. The server checks the selected player's current private loyalty record against the facilitator census and current role holder, then applies the catalog-authorized six minus suspicion bands plus defenders and optional ±1 adjustment. The GM-only result contains no suspicion, and the calculation leaves session, cycle, roles, and public events unchanged. Strict request and result shapes, exact replay, revision checks, malformed-state handling, GM-only Firestore reads, and stale listener protection are covered. The primary Facilitator Guide provenance is missing from this checkout, so this slice implements only the explicitly accepted formula and does not add arrest resolution or deadline policy. Keep Prompt 513 partial until an ordinary authorized production calculation is observed.",
+      "evidenceIds": "E-AUDIT-513;E-513-ARREST-POSSE-PRIVATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497",
@@ -19584,10 +19591,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.29"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

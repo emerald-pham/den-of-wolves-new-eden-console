@@ -1011,6 +1011,35 @@ describe('session header', () => {
     await assertFails(getDoc(gmCensus));
   });
 
+  it('keeps the current arrest-posse calculation readable only by a connected GM', async () => {
+    const path = `${SESSION}/arrestPosseCalculations/current`;
+    const gmProjection = doc(as('gm1'), path);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), {
+        type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+        requestId: 'arrest-1', targetUid: 'alice', defenders: 2,
+        adjustment: 1, requiredPlayers: 8, censusRevision: 3,
+      });
+    });
+
+    await assertSucceeds(getDoc(gmProjection));
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertFails(getDoc(doc(as('press'), path)));
+    await assertFails(getDoc(doc(as('observer'), path)));
+    await assertFails(getDoc(doc(as('stranger'), path)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/arrestPosseCalculations/history-arrest-1`)));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/arrestPosseCalculations`)));
+    await assertFails(setDoc(gmProjection, { type: 'arrest-posse-calculation', revision: 2 }));
+    await assertFails(updateDoc(gmProjection, { requiredPlayers: 1 }));
+    await assertFails(deleteDoc(gmProjection));
+    await assertFails(setDoc(doc(as('alice'), path), { type: 'arrest-posse-calculation', revision: 2 }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+    await assertFails(getDoc(gmProjection));
+  });
+
   it('keeps Wolf Cult intelligence private to the current holder and connected GMs', async () => {
     const holderProjection = doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`);
     const otherPlayerProjection = doc(as('press'), `${SESSION}/wolfCultIntelligence/alice`);

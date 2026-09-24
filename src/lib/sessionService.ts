@@ -27,6 +27,7 @@ import type {
   WolfCultIntelligence,
   PendingWolfHackingAlert,
   AcknowledgeWolfHackingAlertResult,
+  ArrestPosseCalculation,
   ArbourVision,
   SessionPhase,
   CommissarPurgeAuthority,
@@ -39,6 +40,7 @@ import type { CounterStep } from './counterPreview';
 import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
+import { parseArrestPosseCalculation } from './firestore';
 import {
   acceptCallableSessionAuthority,
 } from './sessionSnapshotAuthority';
@@ -252,6 +254,18 @@ function deviceLabel(): string {
 function commandId(): string {
   return window.crypto.randomUUID();
 }
+
+interface PendingArrestPosseAttempt {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly expectedRevision: number;
+  readonly targetUid: string;
+  readonly defenders: number;
+  readonly adjustment?: -1 | 1;
+  readonly requestId: string;
+}
+
+let pendingArrestPosseAttempt: PendingArrestPosseAttempt | null = null;
 
 interface PendingStartRequest {
   readonly sessionId: string;
@@ -1917,6 +1931,83 @@ export async function setFacilitatorCensusNote(
     },
     createdAt: new Date().toISOString(),
   });
+}
+
+/** Calculate a private arrest posse count; suspicion never crosses the client boundary. */
+export async function calculateArrestPosse(
+  targetUid: string,
+  defenders: number,
+  adjustment: -1 | 1 | undefined,
+  expectedRevision: number,
+): Promise<ArrestPosseCalculation> {
+  const initial = useSessionStore.getState();
+  const instance = initial.gmInstance;
+  const session = initial.session;
+  const uid = initial.me?.uid;
+  if (!session || !initial.me || initial.me.role !== 'gm' || !instance || !uid ||
+      instance.sessionId !== session.id || instance.uid !== uid ||
+      !initial.gmLoyaltyCensus || !initial.gmLoyaltyCensus.entries.some((entry) =>
+        entry.uid === targetUid && Number.isSafeInteger(entry.suspicion) &&
+        (entry.suspicion as number) >= 0)) {
+    throw new Error('An active GM census and target are required before calculating the arrest posse.');
+  }
+  if (!parseEntityId('player', targetUid) || !Number.isSafeInteger(defenders) || defenders < 0 ||
+      !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 ||
+      expectedRevision >= Number.MAX_SAFE_INTEGER ||
+      (adjustment !== undefined && adjustment !== -1 && adjustment !== 1)) {
+    throw new Error('The arrest target, defender count, adjustment, or revision is invalid.');
+  }
+
+  requireFreshSessionAuthority('Reconnect before calculating the arrest posse.');
+  const sessionId = session.id;
+  const instanceId = instance.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
+  await ensureSignedIn();
+  const authorityIsCurrent = (): boolean => {
+    const current = useSessionStore.getState();
+    return current.session?.id === sessionId && current.me?.sessionId === sessionId &&
+      current.me?.role === 'gm' && current.me.uid === uid &&
+      current.gmInstance?.id === instanceId && current.gmInstance.uid === uid &&
+      current.gmInstance.sessionId === sessionId && authorityCheckpointIsCurrent(checkpoint);
+  };
+  if (!authorityIsCurrent()) {
+    pendingArrestPosseAttempt = null;
+    throw new Error('The facilitator authority changed before the calculation could be sent.');
+  }
+
+  const matchingAttempt = pendingArrestPosseAttempt &&
+    pendingArrestPosseAttempt.sessionId === sessionId &&
+    pendingArrestPosseAttempt.instanceId === instanceId &&
+    pendingArrestPosseAttempt.expectedRevision === expectedRevision &&
+    pendingArrestPosseAttempt.targetUid === targetUid &&
+    pendingArrestPosseAttempt.defenders === defenders &&
+    pendingArrestPosseAttempt.adjustment === adjustment;
+  const attempt: PendingArrestPosseAttempt = matchingAttempt
+    ? pendingArrestPosseAttempt!
+    : {
+      sessionId, instanceId, expectedRevision, targetUid, defenders,
+      ...(adjustment === undefined ? {} : { adjustment }),
+      requestId: commandId(),
+    };
+  pendingArrestPosseAttempt = attempt;
+  const payload = {
+    sessionId, instanceId, requestId: attempt.requestId, expectedRevision,
+    targetUid, defenders,
+    ...(adjustment === undefined ? {} : { adjustment }),
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'calculateArrestPosse');
+  const response = parseArrestPosseCalculation((await call(payload)).data, sessionId);
+  if (!authorityIsCurrent()) {
+    pendingArrestPosseAttempt = null;
+    throw new Error('The facilitator authority changed before the calculation was confirmed.');
+  }
+  if (!response || response.requestId !== attempt.requestId || response.revision !== expectedRevision + 1 ||
+      response.targetUid !== targetUid || response.defenders !== defenders ||
+      response.adjustment !== adjustment) {
+    throw new Error('The arrest calculation response was malformed or stale. Refresh the facilitator readout.');
+  }
+  if (pendingArrestPosseAttempt?.requestId === attempt.requestId) pendingArrestPosseAttempt = null;
+  return response;
 }
 
 /** Deliver one facilitator-authored Wolf Cult intelligence projection. */

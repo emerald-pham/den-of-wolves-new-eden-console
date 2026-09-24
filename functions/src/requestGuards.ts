@@ -1424,6 +1424,49 @@ export function requireFacilitatorCensusNoteRequest(data: {
   };
 }
 
+/** Accept only inputs the facilitator chooses; suspicion is always read server-side. */
+export function requireArrestPosseCalculationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  defenders?: unknown;
+  adjustment?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  targetUid: string;
+  defenders: number;
+  adjustment?: -1 | 1;
+} {
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'expectedRevision', 'targetUid', 'defenders', 'adjustment',
+  ]);
+  if (Object.keys(data).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'Arrest posse requests contain unsupported fields.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.defenders) || (data.defenders as number) < 0) {
+    throw new HttpsError('invalid-argument', 'defenders must be a non-negative integer.');
+  }
+  if (data.adjustment !== undefined && data.adjustment !== -1 && data.adjustment !== 1) {
+    throw new HttpsError('invalid-argument', 'adjustment must be -1, +1, or omitted.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    defenders: data.defenders as number,
+    ...(data.adjustment === undefined ? {} : { adjustment: data.adjustment as -1 | 1 }),
+  };
+}
+
 /** A facilitator-authored Wolf Cult intelligence delivery. */
 export function requireWolfCultIntelligenceRequest(data: {
   sessionId?: unknown;

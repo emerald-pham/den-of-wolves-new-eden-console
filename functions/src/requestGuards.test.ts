@@ -23,6 +23,7 @@ import {
   requireStartWolfConsoleVisitRequest,
   requireResolveWolfConsoleSabotageRequest,
   requireAcknowledgeWolfHackingAlertRequest,
+  requireArrestPosseCalculationRequest,
   requireWolfSupplySabotageRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
@@ -126,6 +127,38 @@ describe('callable request guards', () => {
       sessionId: 's1', instanceId: 'gm-1', requestId: 'ack-3', alertId: 'sabotage-1',
       expectedRevision: 1, clueInstruction: 'client supplied',
     } as never), 'invalid-argument');
+  });
+
+  it('accepts only a facilitator arrest-posse request without client suspicion', () => {
+    expect(requireArrestPosseCalculationRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-1', expectedRevision: 0,
+      targetUid: 'u2', defenders: 2,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-1', expectedRevision: 0,
+      targetUid: 'u2', defenders: 2,
+    });
+    expect(requireArrestPosseCalculationRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-2', expectedRevision: 4,
+      targetUid: 'u2', defenders: 1, adjustment: -1,
+    }).adjustment).toBe(-1);
+    expect(requireArrestPosseCalculationRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-3', expectedRevision: 4,
+      targetUid: 'u2', defenders: 1, adjustment: 1,
+    }).adjustment).toBe(1);
+    expectHttpsError(() => requireArrestPosseCalculationRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-4', expectedRevision: 0,
+      targetUid: 'u2', defenders: 1, adjustment: 0,
+    }), 'invalid-argument');
+    expectHttpsError(() => requireArrestPosseCalculationRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-5', expectedRevision: 0,
+      targetUid: 'u2', defenders: 1, suspicion: 5,
+    } as never), 'invalid-argument');
+    for (const defenders of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1]) {
+      expectHttpsError(() => requireArrestPosseCalculationRequest({
+        sessionId: 's1', instanceId: 'gm-1', requestId: 'arrest-6', expectedRevision: 0,
+        targetUid: 'u2', defenders,
+      }), 'invalid-argument');
+    }
   });
 
   it('accepts only a canonical Wolf supply-sabotage request for a positive expected cycle', () => {

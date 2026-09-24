@@ -105,6 +105,7 @@ import {
   requireWolfIntelligenceRequest,
   requireIntelligenceInvestigationRequest,
   requireFacilitatorCensusNoteRequest,
+  requireArrestPosseCalculationRequest,
   requireCandidatePlanCheckpointRequest,
   requireWolfCultIntelligenceRequest,
   requireArbourVisionRequest,
@@ -242,6 +243,7 @@ import {
   type LoyaltyKind,
 } from './gameSetup';
 import { liveLoyaltySuspicionDecision } from './loyaltySuspicion';
+import { calculateArrestPosseSize } from './arrestPosse';
 import { serializedRoleBrief } from './roleBriefs';
 import {
   arrivalActivationForAdmission,
@@ -10033,6 +10035,180 @@ export const setFacilitatorCensusNote = onCall<{
       instanceId: change.instanceId,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type ArrestPosseCalculationResult = Readonly<{
+  type: 'arrest-posse-calculation';
+  sessionId: string;
+  revision: number;
+  requestId: string;
+  targetUid: string;
+  defenders: number;
+  adjustment?: -1 | 1;
+  requiredPlayers: number;
+  censusRevision: number;
+}>;
+
+function isArrestPosseCalculationResult(
+  value: unknown,
+  sessionId: string,
+): value is ArrestPosseCalculationResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'revision', 'requestId', 'targetUid', 'defenders', 'adjustment',
+    'requiredPlayers', 'censusRevision',
+  ]);
+  return Object.keys(result).every((key) => allowed.has(key)) &&
+    result.type === 'arrest-posse-calculation' && result.sessionId === sessionId &&
+    Number.isSafeInteger(result.revision) && (result.revision as number) >= 1 &&
+    isCanonicalRequestId(result.requestId) && isWireSafeEntityId(result.targetUid) &&
+    Number.isSafeInteger(result.defenders) && (result.defenders as number) >= 0 &&
+    (result.adjustment === undefined || result.adjustment === -1 || result.adjustment === 1) &&
+    Number.isSafeInteger(result.requiredPlayers) &&
+    Number.isSafeInteger(result.censusRevision) && (result.censusRevision as number) >= 0;
+}
+
+/** Calculate the arrest posse privately from the server-owned loyalty card. */
+export const calculateArrestPosse = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  defenders?: unknown;
+  adjustment?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const calculation = requireArrestPosseCalculationRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${calculation.sessionId}/arrestPosseCalculations/current`);
+  const censusRef = db.doc(`sessions/${calculation.sessionId}/loyaltyCensus/current`);
+  const secretRef = db.doc(`sessions/${calculation.sessionId}/secrets/loyalty-${calculation.targetUid}`);
+  const playersRef = db.collection(`sessions/${calculation.sessionId}/players`);
+  const receiptRef = commandReceiptRef(calculation.sessionId, calculation.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'calculate-arrest-posse',
+    sessionId: calculation.sessionId,
+    requestId: calculation.requestId,
+    actorUid: uid,
+    instanceId: calculation.instanceId,
+    expectedRevision: calculation.expectedRevision,
+    payload: {
+      targetUid: calculation.targetUid,
+      defenders: calculation.defenders,
+      ...(calculation.adjustment === undefined ? {} : { adjustment: calculation.adjustment }),
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<ArrestPosseCalculationResult> => {
+    const [authority, current, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, calculation.sessionId, uid, calculation.instanceId),
+      tx.get(currentRef),
+      tx.get(receiptRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, calculation.sessionId, calculation.requestId, 'arrest posse calculation', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is ArrestPosseCalculationResult =>
+        isArrestPosseCalculationResult(value, calculation.sessionId),
+      'arrest posse calculation',
+    );
+    if (replay) return replay;
+
+    let currentRevision = 0;
+    if (current.exists) {
+      const projection = current.data();
+      if (!isArrestPosseCalculationResult(projection, calculation.sessionId)) {
+        throw commandError(
+          'failed-precondition',
+          'The current arrest calculation is malformed; refresh the facilitator console.',
+          'malformed-input',
+        );
+      }
+      currentRevision = projection.revision;
+    }
+    if (currentRevision !== calculation.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The arrest calculation changed. Wait for the live facilitator readout and try again.',
+        'stale-revision',
+      );
+    }
+    if (currentRevision >= Number.MAX_SAFE_INTEGER) {
+      throw commandError(
+        'failed-precondition',
+        'The arrest calculation revision cannot advance safely.',
+        'malformed-input',
+      );
+    }
+
+    const [census, secret, players] = await Promise.all([
+      tx.get(censusRef), tx.get(secretRef), tx.get(playersRef),
+    ]);
+    const censusRevision = census.get('revision');
+    if (!census.exists || census.get('type') !== 'loyalty-census' ||
+        !Number.isSafeInteger(censusRevision) || (censusRevision as number) < 0) {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator loyalty census is unavailable or malformed; refresh before calculating.',
+        'malformed-input',
+      );
+    }
+    const censusEntries = storedLoyaltyCensusEntries(census);
+    if (!censusEntries) {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator loyalty census is malformed; refresh before calculating.',
+        'malformed-input',
+      );
+    }
+    const censusTarget = censusEntries.find((entry) => entry.uid === calculation.targetUid);
+    const authoritativeTarget = loyaltyCensusEntryFromSecret(
+      secret, players.docs, sessionActiveRoleIds(authority.session),
+    );
+    if (!censusTarget || !authoritativeTarget ||
+        censusTarget.kind !== authoritativeTarget.kind ||
+        censusTarget.suspicion !== authoritativeTarget.suspicion ||
+        !Number.isSafeInteger(authoritativeTarget.suspicion) ||
+        (authoritativeTarget.suspicion as number) < 0) {
+      throw commandError(
+        'failed-precondition',
+        'The selected player has no matching current loyalty record; refresh the facilitator census.',
+        'conflict',
+      );
+    }
+
+    const nextRevision = currentRevision + 1;
+    let requiredPlayers: number;
+    try {
+      requiredPlayers = calculateArrestPosseSize(
+        authoritativeTarget.suspicion, calculation.defenders, calculation.adjustment,
+      );
+    } catch {
+      throw commandError(
+        'failed-precondition',
+        'The arrest count exceeds the supported integer range; check the defender count.',
+        'malformed-input',
+      );
+    }
+    const result: ArrestPosseCalculationResult = {
+      type: 'arrest-posse-calculation',
+      sessionId: calculation.sessionId,
+      revision: nextRevision,
+      requestId: calculation.requestId,
+      targetUid: calculation.targetUid,
+      defenders: calculation.defenders,
+      ...(calculation.adjustment === undefined ? {} : { adjustment: calculation.adjustment }),
+      requiredPlayers,
+      censusRevision: censusRevision as number,
+    };
+    tx.set(currentRef, result);
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

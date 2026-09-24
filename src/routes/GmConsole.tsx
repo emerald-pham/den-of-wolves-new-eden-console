@@ -2,6 +2,7 @@ import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
@@ -43,6 +44,7 @@ import {
   setPressEnabled,
   setFacilitatorResponsibility,
   setFacilitatorCensusNote,
+  calculateArrestPosse,
   deliverWolfCultIntelligence,
   authorUniversalArbourVision,
   authorFacilitatorRuleCall,
@@ -89,6 +91,7 @@ import {
 } from '@/lib/counterPreview';
 import type {
   AirspaceWindow,
+  ArrestPosseCalculation,
   DamageDraw,
   GameSession,
   GmInstance,
@@ -453,6 +456,7 @@ export default function GmConsole() {
   const [wolfConsoleMessage, setWolfConsoleMessage] = useState<string | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
+  const [arrestPosseCalculation, setArrestPosseCalculation] = useState<ArrestPosseCalculation | null>(null);
   const [wolfCultFortressCoordinate, setWolfCultFortressCoordinate] = useState('');
   const [wolfCultSuppliesCoordinate, setWolfCultSuppliesCoordinate] = useState('');
   const [wolfCultAgentUid, setWolfCultAgentUid] = useState('');
@@ -841,10 +845,12 @@ export default function GmConsole() {
     let stopCrisisState: () => void = () => undefined;
     let stopZealotryResponse: () => void = () => undefined;
     let stopCivilUnrestResolution: () => void = () => undefined;
+    let stopArrestPosseCalculation: () => void = () => undefined;
     let unsubscribe: () => void = () => undefined;
     // A persisted projection is not fresh GM authority. Hold no crisis data
     // while the callable-backed manifest proves this exact instance.
     useSessionStore.getState().setGmCrisisState(null);
+    setArrestPosseCalculation(null);
     setCrisisMutationState(null);
     setCrisisMessage(null);
     const currentAuthorityKey = (): string | null => {
@@ -872,6 +878,8 @@ export default function GmConsole() {
       stopZealotryResponse = () => undefined;
       stopCivilUnrestResolution();
       stopCivilUnrestResolution = () => undefined;
+      stopArrestPosseCalculation();
+      stopArrestPosseCalculation = () => undefined;
       stopInstances();
       stopInstances = () => undefined;
       setInstances([]);
@@ -882,6 +890,7 @@ export default function GmConsole() {
       store.setGmCrisisState(null);
       store.setGmZealotryResponse(null);
       store.setGmCivilUnrestResolution(null);
+      setArrestPosseCalculation(null);
       clearCivilUnrestResolutionDraft();
       if (
         store.session?.id === sessionId &&
@@ -910,6 +919,7 @@ export default function GmConsole() {
       subscribeGmCrisisState,
       subscribeGmZealotryResponse,
       subscribeGmCivilUnrestResolution,
+      subscribeGmArrestPosseCalculation,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -938,6 +948,22 @@ export default function GmConsole() {
           if (!authorityKey || crisisSubscribed) return;
           crisisSubscribed = true;
           verifiedCrisisAuthorityKey.current = authorityKey;
+          stopArrestPosseCalculation = typeof subscribeGmArrestPosseCalculation === 'function'
+            ? subscribeGmArrestPosseCalculation(sessionId, (next) => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              setArrestPosseCalculation((current) =>
+                current && next && next.revision < current.revision ? current : next);
+            }, () => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              setArrestPosseCalculation(null);
+              useSessionStore.getState().setCommunicationError({
+                code: 'gm-arrest-posse-link',
+                message: 'The facilitator arrest calculation could not be refreshed.',
+              });
+            })
+            : () => undefined;
           stopCrisisState = typeof subscribeGmCrisisState === 'function'
             ? subscribeGmCrisisState(sessionId, (crisis) => {
               const currentKey = currentAuthorityKey();
@@ -1163,6 +1189,7 @@ export default function GmConsole() {
         stopCrisisState();
         stopZealotryResponse();
         stopCivilUnrestResolution();
+        stopArrestPosseCalculation();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -1181,6 +1208,7 @@ export default function GmConsole() {
       stopCrisisState();
       stopZealotryResponse();
       stopCivilUnrestResolution();
+      stopArrestPosseCalculation();
       setWolfAssignment(null);
       setWolfActionReceipt(null);
       setWolfSuspicionHistory([]);
@@ -1191,6 +1219,7 @@ export default function GmConsole() {
       useSessionStore.getState().setGmCrisisState(null);
       useSessionStore.getState().setGmZealotryResponse(null);
       useSessionStore.getState().setGmCivilUnrestResolution(null);
+      setArrestPosseCalculation(null);
       clearCivilUnrestResolutionDraft();
       setCrisisMutationState(null);
       setCrisisMessage(null);
@@ -1205,6 +1234,23 @@ export default function GmConsole() {
       (loyaltyCensus?.entries ?? []).map((entry) => [entry.uid, entry.note ?? '']),
     ));
   }, [loyaltyCensus?.entries, loyaltyCensus?.revision]);
+
+  const arrestPosseAuthorityVerified = Boolean(
+    isGm && sessionId && me?.uid && local &&
+    local.sessionId === sessionId && local.uid === me.uid &&
+    instances.some((instance) =>
+      instance.id === local.id && instance.sessionId === sessionId && instance.uid === me.uid),
+  );
+  const arrestPosseTargetOptions = useMemo(() => (loyaltyCensus?.entries ?? []).flatMap((entry) => {
+    if (typeof entry.suspicion !== 'number' || !Number.isSafeInteger(entry.suspicion) || entry.suspicion < 0) {
+      return [];
+    }
+    const displayName = allPlayers.find((player) => player.uid === entry.uid)?.displayName ?? entry.uid;
+    return [{
+      uid: entry.uid,
+      label: displayName === entry.uid ? entry.uid : `${displayName} (${entry.uid})`,
+    }];
+  }), [allPlayers, loyaltyCensus?.entries]);
 
   const wolfCultRecipients = useMemo(
     () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'wolf-cult') ?? [],
@@ -2296,6 +2342,18 @@ export default function GmConsole() {
     } finally {
       setCensusNoteMutationUid(null);
     }
+  }
+
+  async function runArrestPosseCalculation(
+    targetUid: string,
+    defenders: number,
+    adjustment: -1 | 1 | undefined,
+    expectedRevision: number,
+  ): Promise<ArrestPosseCalculation> {
+    const next = await calculateArrestPosse(targetUid, defenders, adjustment, expectedRevision);
+    setArrestPosseCalculation((current) =>
+      current && next.revision < current.revision ? current : next);
+    return next;
   }
 
   async function beginWolfConsoleObservation(): Promise<void> {
@@ -4106,6 +4164,17 @@ export default function GmConsole() {
               </ul>
             )}
           </section>
+
+          {arrestPosseAuthorityVerified && loyaltyCensus && (
+            <ArrestPosseCalculator
+              key={`${sessionId}:${me?.uid}:${local?.id}`}
+              targetOptions={arrestPosseTargetOptions}
+              censusRevision={loyaltyCensus.revision}
+              expectedRevision={arrestPosseCalculation?.revision ?? 0}
+              calculation={arrestPosseCalculation}
+              onCalculate={runArrestPosseCalculation}
+            />
+          )}
 
           {isGm && loyaltyCensus && (
             <section

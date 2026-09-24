@@ -1212,6 +1212,19 @@ export interface LoyaltyCensus {
   readonly entries: readonly LoyaltyCensusEntry[];
 }
 
+/** Server-calculated facilitator-only arrest guidance; it never contains suspicion. */
+export interface ArrestPosseCalculation {
+  readonly type: 'arrest-posse-calculation';
+  readonly sessionId: SessionId;
+  readonly revision: number;
+  readonly requestId: string;
+  readonly targetUid: PlayerId;
+  readonly defenders: number;
+  readonly adjustment?: -1 | 1;
+  readonly requiredPlayers: number;
+  readonly censusRevision: number;
+}
+
 export type WolfClueTier =
   | 'none'
   | 'natural-change'
