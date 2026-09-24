@@ -16736,7 +16736,7 @@ export const applyAegisCommandAndControl = onCall<{
   });
 });
 
-type DioneMaliadesLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'already-launched';
+type DioneMaliadesLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'already-launched';
 
 type DioneMaliadesLaunchView = Readonly<{
   type: 'dione-maliades-launch-view';
@@ -16844,6 +16844,21 @@ function dioneMaliadesLaunchView(
       type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
       revision: revision as number, launched: true, eligible: false,
       reason: 'already-launched',
+    };
+  }
+  const maliadesState = parseMaliadesState(session.get('maliadesState'));
+  if (!maliadesState) {
+    throw commandError(
+      'failed-precondition',
+      'The authoritative Maliades durability state is malformed; refresh before launch.',
+      'conflict',
+    );
+  }
+  if (maliadesState.destroyed) {
+    return {
+      type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: false, eligible: false,
+      reason: 'destroyed',
     };
   }
   const cycles = session.get('maintenanceCycles');
@@ -16973,6 +16988,8 @@ export const launchDioneMaliades = onCall<{
         ? 'Maliades is already launched for this Wolf attack.'
         : view.reason === 'damaged'
           ? 'The Dione Fighter Bay is damaged and cannot launch Maliades.'
+          : view.reason === 'destroyed'
+            ? 'Maliades is destroyed and cannot launch.'
           : view.reason === 'uncharged'
             ? 'Charge the Dione Fighter Bay before launching Maliades.'
             : 'No active Wolf attack is accepting the Maliades launch.';

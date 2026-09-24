@@ -7,6 +7,7 @@ function statusCopy(view: DioneMaliadesLaunchView | null): string {
   if (!view) return 'Checking battle-table authority…';
   if (view.launched) return `Maliades launched // Cycle ${view.turn}`;
   if (view.eligible) return 'Fighter Bay 10♦ // charged // operational // launch authorized';
+  if (view.reason === 'destroyed') return 'Maliades destroyed // launch denied';
   if (view.reason === 'damaged') return 'Fighter Bay 10♦ // damaged // launch denied';
   if (view.reason === 'uncharged') return 'Fighter Bay 10♦ // uncharged // launch denied';
   return 'Maliades launch // waiting for an active Wolf attack';

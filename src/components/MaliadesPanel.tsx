@@ -15,8 +15,6 @@ interface Props {
 export default function MaliadesPanel({ control, docking, fuelled }: Props) {
   const session = useSessionStore((state) => state.session)!;
   const me = useSessionStore((state) => state.me)!;
-  const [shiftTarget, setShiftTarget] = useState('');
-  const [shift, setShift] = useState<-1 | 1>(1);
   const [mediumTarget, setMediumTarget] = useState('');
   const [shortTargets, setShortTargets] = useState(['', '']);
   const [busy, setBusy] = useState(false);
@@ -28,11 +26,8 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
     phase.airspace.state === 'restricted' && !phase.timerPause;
   const isHolder = control.shuttleId === 'maliades' && control.ownerRoleId === 'dione-engineer' &&
     control.holderUid === me.uid && me.activeConsoleRoleId === 'dione-engineer';
-  const targetShiftChoice: MaliadesMediumChoice | undefined = shiftTarget.trim()
-    ? { kind: 'target-shift', targetId: shiftTarget.trim(), shift } : undefined;
-  const attackChoice: MaliadesMediumChoice | undefined = mediumTarget.trim()
-    ? { kind: 'attack', targetId: mediumTarget.trim() } : undefined;
-  const mediumChoices = [targetShiftChoice, attackChoice].filter((choice): choice is MaliadesMediumChoice => choice !== undefined);
+  const mediumChoices: MaliadesMediumChoice[] = mediumTarget.trim()
+    ? [{ kind: 'attack', targetId: mediumTarget.trim() }] : [];
   const selectedShortTargets = shortTargets.map((target) => target.trim()).filter(Boolean);
   const hostName = docking ? findShip(docking.shipId)?.name ?? docking.shipId : undefined;
   const canOperate = Boolean(state?.launched && !state.destroyed && isHolder && phaseOpen && !busy);
@@ -40,7 +35,6 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
     fuelled && docking && !busy);
 
   useEffect(() => {
-    setShiftTarget('');
     setMediumTarget('');
     setShortTargets(['', '']);
     setStatus('');
@@ -98,16 +92,8 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
     {docking ? <p>Docked host // {hostName} // fuel // {fuelled ? 'fuelled' : 'unfuelled'}</p> : <p>Maliades is not docked with an active host.</p>}
 
     <fieldset disabled={!canOperate}>
-      <legend>Medium range // choose up to one shift and one attack</legend>
-      <label>Current Wolf target for +1 / −1 shift
-        <input value={shiftTarget} onChange={(event) => setShiftTarget(event.target.value)} placeholder="Current target ID" />
-      </label>
-      <label>Shift
-        <select value={shift} onChange={(event) => setShift(Number(event.target.value) === -1 ? -1 : 1)}>
-          <option value="1">+1 (6 wraps to 1)</option>
-          <option value="-1">−1 (1 wraps to 6)</option>
-        </select>
-      </label>
+      <legend>Medium range // target and damage</legend>
+      <p>Target-number shifts are unavailable until a current Wolf target choice is available.</p>
       <label>Attack target
         <input value={mediumTarget} onChange={(event) => setMediumTarget(event.target.value)} placeholder="Wolf target ID" />
       </label>

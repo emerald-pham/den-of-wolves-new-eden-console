@@ -7,12 +7,15 @@ vi.mock('node:crypto', () => cryptoMock);
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
-  const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '' });
+  const referenceReads: string[] = [];
   const snapshot = (path: string) => {
     const fields = documents.get(path);
     return { exists: fields !== undefined, id: path.split('/').at(-1) ?? '', ref: ref(path), get: (field: string) => fields?.[field], data: () => fields };
   };
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
+  const ref = (path: string) => ({
+    path, id: path.split('/').at(-1) ?? '', get: async () => { referenceReads.push(path); return snapshot(path); },
+  });
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     const current = { ...(documents.get(target.path) ?? {}) };
@@ -29,7 +32,7 @@ const mock = vi.hoisted(() => {
     documents.set(target.path, current);
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
-  return { documents, get, set, update, db: { doc: ref, runTransaction } };
+  return { documents, get, set, update, referenceReads, db: { doc: ref, runTransaction } };
 });
 
 vi.mock('firebase-admin/firestore', () => ({
@@ -60,7 +63,7 @@ const baseSession = () => ({
 });
 
 beforeEach(() => {
-  mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear(); mock.db.runTransaction.mockClear();
+  mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear(); mock.referenceReads.length = 0; mock.db.runTransaction.mockClear();
   cryptoMock.randomInt.mockReset().mockReturnValue(3);
   put('sessions/s1', baseSession());
   put('sessions/s1/players/holder', {
@@ -87,7 +90,7 @@ beforeEach(() => {
 });
 
 const medium = { sessionId: 's1', requestId: 'medium-1', expectedCycle: 2, expectedRevision: 1,
-  choices: [{ kind: 'target-shift', targetId: 'aegis', shift: 1 }, { kind: 'attack', targetId: 'dione' }] };
+  choices: [{ kind: 'attack', targetId: 'dione' }] };
 
 it('commits Medium server dice, redacts actor identity, and replays without rolling again', async () => {
   await expect(resolveMaliadesMedium.run(request(medium))).resolves.toMatchObject({
@@ -99,10 +102,10 @@ it('commits Medium server dice, redacts actor identity, and replays without roll
   expect(wolfAfterMedium.revision).toBe(2);
   const targetingAfterMedium = (wolfAfterMedium.calculationReceipt as Fields).targeting as Fields;
   expect((targetingAfterMedium.rolls as Fields[])[0]).toMatchObject({
-    rosterIndex: 0, finalDie: 2, shiftedDie: 2, target: 'dione', modifiers: ['target-shift'],
+    rosterIndex: 0, finalDie: 1, target: 'aegis', modifiers: [],
   });
   expect(wolfAfterMedium.maliadesRangeEffects).toEqual(expect.objectContaining({
-    medium: { targetShifts: [{ rosterIndex: 0, fromTarget: 'aegis', toTarget: 'dione', shift: 1, fromDie: 1, toDie: 2 }], damageByTarget: { dione: 1 } },
+    medium: { targetShifts: [], damageByTarget: { dione: 1 } },
   }));
   expect(mock.documents.get('sessions/s1/events/maliades-medium-medium-1')).not.toHaveProperty('actorUid');
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
@@ -135,6 +138,57 @@ it('resolves Short risk, then repairs one damage only with fuelled Team Phase do
 it('rejects stale or foreign authority before server dice', async () => {
   await expect(resolveMaliadesMedium.run(request({ ...medium, expectedRevision: 0 }))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(resolveMaliadesMedium.run(request(medium, 'owner'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('denies every target-shift guess without reading-dependent results, dice, or writes', async () => {
+  const guesses = [
+    { requestId: 'shift-existing', targetId: 'aegis', targets: ['aegis', 'dione', 'icebreaker'] },
+    { requestId: 'shift-absent', targetId: 'shepherd', targets: ['aegis', 'dione', 'icebreaker'] },
+    { requestId: 'shift-duplicate', targetId: 'aegis', targets: ['aegis', 'aegis', 'icebreaker'] },
+  ];
+  const outcomes: Array<{ code: unknown; message: string }> = [];
+  for (const guess of guesses) {
+    const state = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
+    const receipt = state.calculationReceipt as Fields;
+    const targeting = receipt.targeting as Fields;
+    targeting.rolls = guess.targets.map((target, rosterIndex) => ({
+      rosterIndex, shipId: 'wolf-fighter-wing', initialDie: rosterIndex + 1,
+      finalDie: rosterIndex + 1, target, modifiers: [],
+    }));
+    mock.referenceReads.length = 0;
+    mock.get.mockClear();
+    mock.set.mockClear();
+    mock.update.mockClear();
+    cryptoMock.randomInt.mockClear();
+    let caught: { code?: unknown; message: string } | undefined;
+    try {
+      await resolveMaliadesMedium.run(request({
+        sessionId: 's1', requestId: guess.requestId, expectedCycle: 2, expectedRevision: 1,
+        choices: [{ kind: 'target-shift', targetId: guess.targetId, shift: 1 }],
+      }));
+    } catch (error) {
+      caught = error as { code?: unknown; message: string };
+    }
+    expect(caught).toBeDefined();
+    outcomes.push({ code: caught?.code, message: caught!.message });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+    expect(mock.get).not.toHaveBeenCalled();
+    expect(mock.referenceReads).toEqual(['sessions/s1', 'sessions/s1/players/holder']);
+  }
+  expect(outcomes[1]).toEqual(outcomes[0]);
+  expect(outcomes[2]).toEqual(outcomes[0]);
+});
+
+it('still denies target-shift guesses to a non-holder before the uniform target-choice denial', async () => {
+  await expect(resolveMaliadesMedium.run(request({
+    sessionId: 's1', requestId: 'foreign-shift', expectedCycle: 2, expectedRevision: 1,
+    choices: [{ kind: 'target-shift', targetId: 'aegis', shift: 1 }],
+  }, 'owner'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 

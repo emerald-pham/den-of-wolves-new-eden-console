@@ -9,7 +9,7 @@ import { repairMaliades, resolveMaliadesMedium } from './maliadesService';
 
 const state = {
   revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0 as const, destroyed: false,
-  medium: { targetShift: { targetId: 'wolf-1', shift: 1 as const }, attack: null }, short: null,
+  medium: { targetShift: null, attack: { targetId: 'dione', die: 4, hit: true, selfDamage: 0 } }, short: null,
 };
 
 beforeEach(() => {
@@ -26,18 +26,24 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
-it('calls Medium with the observed revision and validates its state projection', async () => {
+it('calls available Medium attacks with the observed revision and validates its state projection', async () => {
   mocks.call.mockImplementation(async (payload: { requestId: string }) => ({ data: {
     status: 'committed', sessionId: 's1', requestId: payload.requestId, craftId: 'maliades', cycle: 2,
     revision: 2, state, resolution: state.medium,
   } }));
-  await expect(resolveMaliadesMedium(2, 1, [{ kind: 'target-shift', targetId: 'wolf-1', shift: 1 }]))
+  await expect(resolveMaliadesMedium(2, 1, [{ kind: 'attack', targetId: 'dione' }]))
     .resolves.toMatchObject({ status: 'committed', cycle: 2, revision: 2 });
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'resolveMaliadesMedium');
   expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', expectedCycle: 2, expectedRevision: 1,
-    choices: [{ kind: 'target-shift', targetId: 'wolf-1', shift: 1 }],
+    choices: [{ kind: 'attack', targetId: 'dione' }],
   }));
+});
+
+it('does not send target-shift guesses without a safe current-target choice', async () => {
+  await expect(resolveMaliadesMedium(2, 1, [{ kind: 'target-shift', targetId: 'aegis', shift: 1 }]))
+    .rejects.toThrow(/current wolf target choices are not available/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });
 
 it('rejects cache-backed authority before contacting a callable', async () => {

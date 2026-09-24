@@ -3823,6 +3823,7 @@ function dioneMaliadesLaunchViewReply(value: unknown): DioneMaliadesLaunchView |
   const reply = value as Record<string, unknown>;
   const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
     reply.reason === 'uncharged' || reply.reason === 'damaged' ||
+    reply.reason === 'destroyed' ||
     reply.reason === 'already-launched';
   if (reply.type !== 'dione-maliades-launch-view' || typeof reply.sessionId !== 'string' ||
       !reply.sessionId || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||

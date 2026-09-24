@@ -73,7 +73,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import { declareWolfAttack, getDioneMaliadesLaunch, launchDioneMaliades } from './index';
-import { resolveMaliadesMedium } from './maliadesCallable';
+import { resolveMaliadesMedium, resolveMaliadesShort } from './maliadesCallable';
 import { parseMaliadesState } from './maliadesState';
 import { initialFighterWingCounts } from './fighterWings';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
@@ -374,8 +374,19 @@ it('resets only per-attack Maliades actions across two declarations while preser
     sessionId: 's1', requestId: 'lifecycle-medium-1', expectedCycle: 1, expectedRevision: 2,
     choices: [{ kind: 'attack', targetId: 'aegis' }],
   }))).resolves.toMatchObject({ status: 'committed', revision: 3 });
+  const firstWolfState = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
+  firstWolfState.currentStep = 'short-range';
+  cryptoMock.randomInt.mockReturnValueOnce(1);
+  await expect(resolveMaliadesShort.run(request({
+    sessionId: 's1', requestId: 'lifecycle-short-1', expectedCycle: 1, expectedRevision: 3,
+    targetIds: ['dione'],
+  }))).resolves.toMatchObject({ status: 'committed', revision: 4, state: { damage: 1 } });
   const firstState = mock.documents.get('sessions/s1').maliadesState as Fields;
-  expect(firstState).toMatchObject({ attackId: 'wolf-attack-wolf-declare-1', launched: true, medium: { attack: { targetId: 'aegis' } } });
+  expect(firstState).toMatchObject({
+    attackId: 'wolf-attack-wolf-declare-1', launched: true, damage: 1,
+    medium: { attack: { targetId: 'aegis', die: 1, hit: false, selfDamage: 1 } },
+    short: { rolls: [{ targetId: 'dione', die: 2, hit: true, selfDamage: 0 }], selfDamage: 0 },
+  });
 
   // The lifecycle owner removes the resolved declaration before the next cycle;
   // the new declaration transaction is responsible for resetting Maliades' per-attack fields.
@@ -423,20 +434,60 @@ it('resets only per-attack Maliades actions across two declarations while preser
     attackId: 'wolf-attack-wolf-declare-2', attackCycle: 2, launched: false,
     damage: firstState.damage, medium: null, short: null,
   });
+  expect(secondWolfState.maliadesRangeEffects).toEqual({
+    attackId: 'wolf-attack-wolf-declare-2', cycle: 2, medium: null, short: null,
+  });
   await expect(launchDioneMaliades.run(request({
     sessionId: 's1', requestId: 'lifecycle-launch-2', expectedTurn: 2,
     expectedRevision: secondWolfState.revision as number,
-  }))).resolves.toMatchObject({ status: 'committed', maliadesRevision: 5 });
+  }))).resolves.toMatchObject({ status: 'committed', maliadesRevision: 6 });
   const wolfAfterSecondLaunch = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
   wolfAfterSecondLaunch.currentStep = 'medium-range';
+  cryptoMock.randomInt.mockReturnValueOnce(3);
   await expect(resolveMaliadesMedium.run(request({
-    sessionId: 's1', requestId: 'lifecycle-medium-2', expectedCycle: 2, expectedRevision: 5,
+    sessionId: 's1', requestId: 'lifecycle-medium-2', expectedCycle: 2, expectedRevision: 6,
     choices: [{ kind: 'attack', targetId: 'aegis' }],
-  }))).resolves.toMatchObject({ status: 'committed', revision: 6 });
-  expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({
-    attackId: 'wolf-attack-wolf-declare-2', launched: true, damage: (firstState.damage as number) + 1,
-    medium: { attack: { targetId: 'aegis' } },
+  }))).resolves.toMatchObject({
+    status: 'committed', revision: 7, state: { damage: 1, medium: { attack: { die: 4, hit: true, selfDamage: 0 } } },
   });
+  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'short-range';
+  cryptoMock.randomInt.mockReturnValueOnce(1);
+  await expect(resolveMaliadesShort.run(request({
+    sessionId: 's1', requestId: 'lifecycle-short-2', expectedCycle: 2, expectedRevision: 7,
+    targetIds: ['quellon'],
+  }))).resolves.toMatchObject({
+    status: 'committed', revision: 8, state: { damage: 1, short: { selfDamage: 0 } },
+  });
+  expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({
+    attackId: 'wolf-attack-wolf-declare-2', launched: true, damage: firstState.damage,
+    medium: { attack: { targetId: 'aegis' } }, short: { rolls: [{ targetId: 'quellon' }] },
+  });
+  expect((mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).maliadesRangeEffects).toEqual({
+    attackId: 'wolf-attack-wolf-declare-2', cycle: 2,
+    medium: { targetShifts: [], damageByTarget: { aegis: 1 } },
+    short: { damageByTarget: { quellon: 1 } },
+  });
+});
+
+it('blocks a destroyed Maliades from the next attack launch view', async () => {
+  await declareThenSeatDioneEngineer();
+  patchSession({
+    maliadesState: {
+      revision: 2, attackId: 'wolf-attack-wolf-declare-1', attackCycle: 1,
+      launched: false, damage: 3, destroyed: true, medium: null, short: null,
+    },
+  });
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(getDioneMaliadesLaunch.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    launched: false, eligible: false, reason: 'destroyed',
+  });
+  await expect(launchDioneMaliades.run(request({
+    sessionId: 's1', requestId: 'destroyed-maliades', expectedTurn: 1, expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('denies stale, uncharged, damaged, malformed, and non-Engineer Maliades launches without writes', async () => {

@@ -82,6 +82,9 @@ export async function resolveMaliadesMedium(
       choices.some(choice => choice.kind === 'target-shift' && choice.shift !== -1 && choice.shift !== 1)) {
     throw new Error('The Maliades Medium selection is invalid. Refresh the console and try again.');
   }
+  if (choices.some(choice => choice.kind === 'target-shift')) {
+    throw new Error('Current Wolf target choices are not available for Maliades shifts.');
+  }
   const checkpoint = captureSessionAuthority(session.id, me.uid);
   const payload = { sessionId: session.id, requestId: commandId(), expectedCycle, expectedRevision, choices: [...choices] };
   const reply = parseActionReply(

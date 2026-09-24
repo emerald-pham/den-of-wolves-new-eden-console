@@ -351,6 +351,19 @@ async function runMaliadesRangeAction(
   const stateRef = db.doc(`sessions/${command.sessionId}/wolfAttackState/current`);
   const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/maliades-${kind}-${command.requestId}`);
+  if (kind === 'medium' && command.choices?.some((choice) => choice.kind === 'target-shift')) {
+    // Do not compare a player guess with the GM-only targeting receipt: success,
+    // ambiguity, or denial would reveal hidden target assignments.
+    const [session, actor] = await Promise.all([sessionRef.get(), actorRef.get()]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireDioneEngineer(actor, uid);
+    requireMaliadesControl(session, uid);
+    throw commandError(
+      'failed-precondition',
+      'Current Wolf target choices are not available for Maliades shifts.',
+      'unavailable-service',
+    );
+  }
   return db.runTransaction(async (tx: Transaction): Promise<RecordValue> => {
     const [session, actor, wolfState, receipt, event] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(stateRef), tx.get(receiptRef), tx.get(eventRef),

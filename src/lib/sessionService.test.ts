@@ -2153,6 +2153,15 @@ describe('GM instance commands', () => {
       sessionId: 's1', expectedTurn: 2, expectedRevision: 5,
       requestId: expect.any(String),
     }));
+
+    const destroyedView = {
+      type: 'dione-maliades-launch-view', sessionId: 's1', turn: 2, revision: 6,
+      launched: false, eligible: false, reason: 'destroyed',
+    } as const;
+    const destroyedRead = callableReturning({ data: destroyedView });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) =>
+      name === 'getDioneMaliadesLaunch' ? destroyedRead : launch);
+    await expect(getDioneMaliadesLaunch()).resolves.toEqual(destroyedView);
   });
 
   it('does not queue an emergency timer command while offline', async () => {

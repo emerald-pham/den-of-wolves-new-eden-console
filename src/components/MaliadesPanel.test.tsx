@@ -37,15 +37,15 @@ beforeEach(() => {
   mocks.repair.mockResolvedValue({ status: 'committed', cycle: 2, revision: 2, state: { ...state, revision: 2 }, hostShipId: 'dione', damageRepaired: 1, materialsRemaining: 3 });
 });
 
-it('keeps the Maliades controls cycle-based and submits selected Medium choices', async () => {
+it('keeps the Maliades controls cycle-based and submits only available Medium choices', async () => {
   const user = userEvent.setup();
   render(<MaliadesPanel control={control} docking={docking} fuelled />);
   expect(screen.getByRole('heading', { name: 'Maliades operations' })).toBeVisible();
-  await user.type(screen.getByLabelText('Current Wolf target for +1 / −1 shift'), 'wolf-1');
+  expect(screen.getByText(/target-number shifts are unavailable/i)).toBeVisible();
+  expect(screen.queryByLabelText('Current Wolf target for +1 / −1 shift')).not.toBeInTheDocument();
   await user.type(screen.getByLabelText('Attack target'), 'wolf-2');
   await user.click(screen.getByRole('button', { name: /resolve medium range/i }));
   await waitFor(() => expect(mocks.medium).toHaveBeenCalledWith(2, 1, [
-    { kind: 'target-shift', targetId: 'wolf-1', shift: 1 },
     { kind: 'attack', targetId: 'wolf-2' },
   ]));
   expect(screen.getByRole('status')).toHaveTextContent(/cycle 2/);

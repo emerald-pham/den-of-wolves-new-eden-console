@@ -486,6 +486,7 @@ export type DioneMaliadesLaunchReason =
   | 'waiting'
   | 'uncharged'
   | 'damaged'
+  | 'destroyed'
   | 'already-launched';
 
 export interface DioneMaliadesLaunchView {
