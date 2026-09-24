@@ -22,6 +22,7 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
 ];
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
 const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
+const SMALL_SHIP_MAINTENANCE_CALLABLES = ['runSmallShipMaintenance'];
 const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';
 const P238_MAPPED_CANDIDATE = 'd005c510';
 const CANDIDATE_REVEAL_CALLABLES = [
@@ -76,7 +77,10 @@ for (const [addition, expectedCount] of P541_NAVIGATION_ADDITIONS) {
 assert.equal(NAVIGATION_PROJECTION_BEFORE.split(P541_NAVIGATION_WRITER_AFTER).length - 1, 1);
 NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
   .replace(P541_NAVIGATION_WRITER_AFTER, P541_NAVIGATION_WRITER_BEFORE);
-const INDEX_SOURCE = P436_EXPORTS.map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
+const INDEX_SOURCE = [
+  ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
+  ...SMALL_SHIP_MAINTENANCE_CALLABLES,
+].map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
 const GORGONEION_EVENT_FIELD_ENTRY =
   "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
 const GORGONEION_ENVELOPE_FIELD_ENTRY = [
@@ -200,6 +204,7 @@ test('maps small-ship maintenance changes only to the callables that execute the
   const selected = selectorFor(['functions/src/smallShip.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
     ...GORGONEION_REPAIR_CALLABLES,
+    ...WARRIOR_REPAIR_CALLABLES,
     'runSmallShipMaintenance',
   ]));
 });
@@ -218,6 +223,27 @@ test('selects the complete P238 production callable set from the live 0.5.23 bas
     ...GORGONEION_REPAIR_CALLABLES,
     'runSmallShipMaintenance',
   ]));
+});
+
+test('selects the Warrior consumer on the full range after its callable enters the live export surface', () => {
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const files = execFileSync('git', ['diff', '--name-only', P238_DEPLOYMENT_BASELINE, after], {
+    encoding: 'utf8',
+  }).split('\n').filter(Boolean);
+  const selected = deploymentSelector({
+    before: P238_DEPLOYMENT_BASELINE,
+    after,
+    files,
+    targets: ['hosting', 'functions'],
+  });
+  const deployed = selectedFunctions(selected);
+  for (const name of [
+    ...GORGONEION_REPAIR_CALLABLES,
+    ...WARRIOR_REPAIR_CALLABLES,
+    ...SMALL_SHIP_MAINTENANCE_CALLABLES,
+  ]) {
+    assert.ok(deployed.includes(`functions:${name}`), `${name} must be selected for the full shared-consumer range`);
+  }
 });
 
 test('maps the exact Gorgoneion member-event allowlist delta to its repair callable', () => {

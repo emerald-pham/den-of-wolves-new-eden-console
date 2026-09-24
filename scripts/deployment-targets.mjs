@@ -65,9 +65,11 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
   'functions/src/warriorRepairDrones.ts': ['repairWarriorWithDrones'],
   'functions/src/warriorRepairDronesCallable.ts': ['repairWarriorWithDrones'],
-  // advanceSmallShipMaintenance is used by these two deployed transactions;
+  // advanceSmallShipMaintenance is used by these three deployed transactions;
   // type-only and test imports do not add callable consumers.
-  'functions/src/smallShip.ts': ['runSmallShipMaintenance', 'repairGorgoneionWithDrones'],
+  'functions/src/smallShip.ts': [
+    'runSmallShipMaintenance', 'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
+  ],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
     'finishWolfCommanderTargetingRerolls', 'getAegisCommandAndControl', 'getWolfCommanderTargeting',
@@ -512,6 +514,27 @@ function rateLimitCallableImpacts(before, after, cwd, sourceAtRevision) {
   return [...names].filter((name) => oldEntries.get(name) !== newEntries.get(name));
 }
 
+function callableIsExportedAtRevision(name, revision, cwd, sourceAtRevision) {
+  let indexSource;
+  if (sourceAtRevision) {
+    indexSource = sourceAtRevision(revision, 'functions/src/index.ts');
+  } else {
+    try {
+      indexSource = execFileSync('git', ['show', `${revision}:functions/src/index.ts`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      throw new Error(`Cannot safely determine deployed callable exports at ${revision}:functions/src/index.ts.`);
+    }
+  }
+  if (typeof indexSource !== 'string') {
+    throw new Error(`Cannot safely determine deployed callable exports at ${revision}:functions/src/index.ts.`);
+  }
+  const directExport = new RegExp(`\\bexport\\s+(?:const|function)\\s+${name}\\b`);
+  const reExport = new RegExp(`\\bexport\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*['"][^'"]+['"]`);
+  return directExport.test(indexSource) || reExport.test(indexSource);
+}
+
 function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
@@ -539,7 +562,14 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     const consumers = CALLABLES_BY_CHANGED_MODULE[file];
     if (!consumers) throw new Error(`No audited callable consumer map exists for changed Functions module ${file}.`);
-    for (const name of consumers) selected.add(name);
+    for (const name of consumers) {
+      // The Warrior repair domain shares this helper, but the callable became
+      // deployable only after its index export landed. Historical ranges that
+      // predate that export must not target a nonexistent Function.
+      if (file === 'functions/src/smallShip.ts' && name === 'repairWarriorWithDrones' &&
+          !callableIsExportedAtRevision(name, after, cwd, sourceAtRevision)) continue;
+      selected.add(name);
+    }
   }
   return [...selected];
 }

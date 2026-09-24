@@ -1,5 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { activeVesselIdsForRoles } from './gameSetup';
+import { recommendedRoleIds } from './roleConfiguration';
 import { advanceSmallShipMaintenance, emptySmallShipState } from './smallShip';
 
 type Fields = Record<string, unknown>;
@@ -81,9 +83,10 @@ const warriorState = () => ({
 const resetFixture = () => {
   mock.documents.clear();
   mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear(); mock.db.runTransaction.mockClear();
+  const activeRoleIds = recommendedRoleIds(8);
   put('sessions/s1', {
     phase: 'active', currentTurn: 3,
-    activeRoleIds: ['warrior-captain'], activeVesselIds: ['icebreaker'],
+    activeRoleIds: [...activeRoleIds], activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
     expansion: 'base', capybaraEnabled: true,
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
@@ -115,7 +118,12 @@ it('parses only a one or two-console current-host command with explicit revision
   expect(parseWarriorRepairDronesCommand({ ...command, expectedRepairRevision: Number.MAX_SAFE_INTEGER })).toBeNull();
 });
 
-it('atomically spends six canonical host materials, repairs both selected consoles, and records a private replay receipt', async () => {
+it('authorizes the current replacement-role holder outside the real core roster and commits one repair', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  expect(session.activeRoleIds).toEqual(recommendedRoleIds(8));
+  expect(session.activeRoleIds).not.toContain('warrior-captain');
+  expect(session.activeVesselIds).toEqual(activeVesselIdsForRoles(recommendedRoleIds(8)));
+
   await expect(repairWarriorWithDrones.run(request(command))).resolves.toEqual({
     status: 'committed', sessionId: 's1', requestId: 'warrior-repair-1',
     smallShipId: 'warrior', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
@@ -236,12 +244,15 @@ it.each([
   ['stale assignedRoleId without a current replacement assignment', {
     player: { assignedRoleId: 'warrior-captain', replacementRoleId: null },
   }],
+  ['fabricated core-roster role without replacement custody', {
+    session: { activeRoleIds: [...recommendedRoleIds(8), 'warrior-captain'] },
+    player: { replacementRoleId: null },
+  }],
   ['replaced identity with another current role', {
     player: { assignedRoleId: 'warrior-captain', replacementRoleId: 'commissar' },
   }],
   ['stale seat pointer', { player: { seatId: 'warrior-captain' } }],
   ['stale core-console pointer', { player: { activeConsoleRoleId: 'warrior-captain' } }],
-  ['removed Captain entitlement', { session: { activeRoleIds: [] } }],
   ['disconnected Captain', { player: { connected: false } }],
 ] as const)('denies %s without mutation', async (_label, change) => {
   if ('session' in change) Object.assign(mock.documents.get('sessions/s1')!, change.session);
@@ -312,8 +323,9 @@ it.each([
 
 it('keeps the canonical core roster raw and denies Warrior being smuggled into it', async () => {
   const session = mock.documents.get('sessions/s1')!;
-  expect(session.activeVesselIds).toEqual(['icebreaker']);
-  session.activeVesselIds = ['icebreaker', 'warrior'];
+  const coreVessels = activeVesselIdsForRoles(recommendedRoleIds(8));
+  expect(session.activeVesselIds).toEqual(coreVessels);
+  session.activeVesselIds = [...coreVessels, 'warrior'];
 
   await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
     code: 'failed-precondition',

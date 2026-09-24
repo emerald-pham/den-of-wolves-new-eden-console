@@ -109,16 +109,12 @@ function activePlayer(player: DocumentSnapshot): boolean {
 }
 
 function currentCaptainRoleId(
-  session: DocumentSnapshot,
   player: DocumentSnapshot,
   uid: string,
 ): typeof ROLE_ID {
-  const activeRoleIds = session.get('activeRoleIds');
   if (player.id !== uid || player.get('role') !== 'player' ||
       player.get('replacementRoleId') !== ROLE_ID ||
-      player.get('seatId') !== null || player.get('activeConsoleRoleId') !== null ||
-      !Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
-      new Set(activeRoleIds).size !== activeRoleIds.length || !activeRoleIds.includes(ROLE_ID)) {
+      player.get('seatId') !== null || player.get('activeConsoleRoleId') !== null) {
     throw new HttpsError('permission-denied', 'Only the current Warrior Captain may use Repair Drones.');
   }
   return ROLE_ID;
@@ -222,7 +218,7 @@ export const repairWarriorWithDrones = onCall<{
     if (!activePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'A connected Warrior Captain is required.');
     }
-    const actorRoleId = currentCaptainRoleId(session, actor, uid);
+    const actorRoleId = currentCaptainRoleId(actor, uid);
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
     if (legacy.some((snapshot) => snapshot.exists)) {

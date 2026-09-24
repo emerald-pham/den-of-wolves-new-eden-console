@@ -192,3 +192,21 @@ gzip ceiling retains 1,221 bytes of headroom. Version 15 changes only the raw
 bundle ceiling. Gzip, largest-chunk, startup, render-update, and mobile-frame
 ceilings remain unchanged, and the admission parser remains full-map and
 fail-closed.
+
+Baseline version 16 raises the complete application JavaScript ceilings to
+1,801,000 raw and 478,500 gzip bytes for Prompt 244's Warrior Repair Drones
+panel and client. The exact deployed 0.5.25 source at
+`92931e92cdd0f6aafaca1f806e340b6adb9ad902` measured 1,789,974 raw bytes,
+475,779 gzip bytes, and a 496,263-byte largest chunk across nine chunks in a
+local P637 run on 2026-09-24. The pre-calibration P244 candidate at
+`388e090ce4fce1f74ece9d2cce25f6de8481f7c3` measured 1,798,767 raw bytes,
+477,200 gzip bytes, and the same 496,263-byte largest chunk. P244 therefore
+added 8,793 raw bytes and 1,421 gzip bytes over the deployed source. Its
+landing and cached Role Select startup p95 were 119.19 ms and 113 ms; DRADIS,
+attack, and mission-hand update p95 were 34.5 ms, 33.5 ms, and 33.5 ms; and the
+390x844 mobile frame measured 16.8 ms p95 with zero long frames. The new
+ceilings retain 2,233 raw bytes and 1,300 gzip bytes of headroom over that
+measured candidate. Only the raw and gzip size limits change; largest-chunk,
+startup, render-update, and mobile-frame limits remain unchanged. These are
+local Chromium measurements, not CI-host or production telemetry. P244 remains
+partial until an ordinary authorized production repair succeeds end to end.
