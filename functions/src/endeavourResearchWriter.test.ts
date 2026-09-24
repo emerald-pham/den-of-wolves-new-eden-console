@@ -105,6 +105,7 @@ beforeEach(() => {
   mock.get.mockClear();
   mock.set.mockClear();
   mock.update.mockClear();
+  mock.db.runTransaction.mockClear();
   seedSession();
 });
 
@@ -442,5 +443,89 @@ describe('Endeavour Team research writer', () => {
     });
     await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }, 'intruder')))
       .rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
+  it('returns only the opaque field-upgrade revision and current-cycle count with current pricing in one private read', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { reactor: 2 });
+    put('sessions/s1/serverState/endeavourResearchCadence', {
+      cycle: 3, revision: 5,
+      choices: [{ trackId: 'reactor', funding: 'standard', oreCost: 0 }],
+    });
+    put('sessions/s1/serverState/endeavourFieldUpgrades', {
+      cycle: 3,
+      revision: 9,
+      targets: [
+        { shipId: 'shepherd', systemId: 'reactor', trackId: 'reactor', materialCost: 8, crossedBox: 0 },
+        { shipId: 'aegis', systemId: 'reactor', trackId: 'reactor', materialCost: 8, crossedBox: 0 },
+      ],
+    });
+
+    const result = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
+
+    expect(result).toMatchObject({
+      cycle: 3,
+      researchRevision: 5,
+      fieldUpgradeState: { upgradeRevision: 9, targetsUsedThisCycle: 2 },
+    });
+    const tracks = (result as Fields).tracks as Fields[];
+    expect(tracks.find((track) => track.trackId === 'reactor')).toMatchObject({
+      crossedBoxes: 2, currentMaterialCost: 6, complete: false,
+    });
+    expect(result).not.toHaveProperty('fieldUpgradeState.targets');
+    expect(JSON.stringify(result)).not.toContain('"shipId"');
+    const readPaths = mock.get.mock.calls.map(([target]) => target.path);
+    expect(readPaths).toContain('sessions/s1/serverState/endeavourFieldUpgrades');
+    expect(mock.db.runTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets the displayed target count across cycles while retaining the opaque upgrade revision', async () => {
+    put('sessions/s1/serverState/endeavourFieldUpgrades', {
+      cycle: 2,
+      revision: 9,
+      targets: [
+        { shipId: 'shepherd', systemId: 'reactor', trackId: 'reactor', materialCost: 8, crossedBox: 0 },
+      ],
+    });
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      cycle: 3,
+      fieldUpgradeState: { upgradeRevision: 9, targetsUsedThisCycle: 0 },
+    });
+  });
+
+  it('denies a former Scientist when Endeavour control has moved to another holder', async () => {
+    const session = mock.documents.get('sessions/s1')!;
+    (session.shuttleControl as Fields).endeavour = {
+      shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist',
+      ownerUid: 'scientist', holderUid: 'replacement-scientist', revision: 3,
+    };
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the private field-upgrade ledger is malformed or ahead of the current cycle', async () => {
+    for (const ledger of [
+      {
+        cycle: 3,
+        revision: 9,
+        targets: [{ shipId: 'shepherd', systemId: 'storage', trackId: 'reactor', materialCost: 8, crossedBox: 0 }],
+      },
+      {
+        cycle: 4,
+        revision: 9,
+        targets: [{ shipId: 'shepherd', systemId: 'reactor', trackId: 'reactor', materialCost: 8, crossedBox: 0 }],
+      },
+    ]) {
+      put('sessions/s1/serverState/endeavourFieldUpgrades', ledger);
+
+      await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' })))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(mock.set).not.toHaveBeenCalled();
+      expect(mock.update).not.toHaveBeenCalled();
+      mock.documents.delete('sessions/s1/serverState/endeavourFieldUpgrades');
+    }
   });
 });

@@ -7,6 +7,7 @@ import {
   type EndeavourResearchWorkspace,
 } from '@/lib/endeavourResearchService';
 import type { ShuttleControlEntry } from '@/types/game';
+import EndeavourFieldUpgradePanel from './EndeavourFieldUpgradePanel';
 import './EndeavourResearchPanel.css';
 
 function isCurrentScientistHolder(expectedSessionId: string, expectedUid: string): boolean {
@@ -139,7 +140,7 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   const oreDisabled = !liveTeamPhase || !selectedTrack || oreUsed >= 2 ||
     (workspace?.shepherdOre ?? 0) < 5 || loading || busyFunding !== null;
 
-  return (
+  return <>
     <section className="console-workspace__section endeavour-research-panel"
       aria-label="Endeavour research controls" aria-busy={loading || busyFunding !== null}>
       <div className="console-workspace__status">
@@ -206,5 +207,18 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         </div>
       </>}
     </section>
-  );
+    {workspace && <EndeavourFieldUpgradePanel
+      control={control}
+      workspace={workspace}
+      purchaseState={{
+        status: 'ready',
+        sessionId: workspace.sessionId,
+        cycle: workspace.cycle,
+        researchRevision: workspace.researchRevision,
+        upgradeRevision: workspace.fieldUpgradeState.upgradeRevision,
+        targetsUsedThisCycle: workspace.fieldUpgradeState.targetsUsedThisCycle,
+      }}
+      onRefresh={reload}
+    />}
+  </>;
 }

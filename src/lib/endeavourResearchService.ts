@@ -37,6 +37,10 @@ export interface EndeavourResearchWorkspace {
   readonly progress: Readonly<Record<string, number>>;
   readonly tracks: readonly EndeavourResearchTrackView[];
   readonly shepherdOre: number;
+  readonly fieldUpgradeState: Readonly<{
+    upgradeRevision: number;
+    targetsUsedThisCycle: number;
+  }>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -56,11 +60,18 @@ function isCounter(value: unknown): value is number {
 function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourResearchWorkspace | null {
   const fields = [
     'status', 'sessionId', 'cycle', 'researchRevision', 'cadence', 'progress', 'tracks', 'shepherdOre',
+    'fieldUpgradeState',
   ];
   if (!isRecord(value) || !hasExactKeys(value, fields) || value.status !== 'ready' ||
       value.sessionId !== expectedSessionId || !isCounter(value.cycle) || value.cycle < 1 ||
       !isCounter(value.researchRevision) || !isCounter(value.shepherdOre) ||
       !isRecord(value.progress) || !Array.isArray(value.tracks) || value.tracks.length === 0 ||
+      !isRecord(value.fieldUpgradeState) ||
+      !hasExactKeys(value.fieldUpgradeState, ['upgradeRevision', 'targetsUsedThisCycle']) ||
+      !isCounter(value.fieldUpgradeState.upgradeRevision) ||
+      value.fieldUpgradeState.upgradeRevision >= Number.MAX_SAFE_INTEGER ||
+      !isCounter(value.fieldUpgradeState.targetsUsedThisCycle) ||
+      value.fieldUpgradeState.targetsUsedThisCycle > 4 ||
       !isRecord(value.cadence) || !hasExactKeys(value.cadence, ['cycle', 'revision', 'choices']) ||
       value.cadence.cycle !== value.cycle || value.cadence.revision !== value.researchRevision ||
       !Array.isArray(value.cadence.choices)) return null;
@@ -127,6 +138,10 @@ function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourRes
     progress,
     tracks,
     shepherdOre: value.shepherdOre,
+    fieldUpgradeState: {
+      upgradeRevision: value.fieldUpgradeState.upgradeRevision,
+      targetsUsedThisCycle: value.fieldUpgradeState.targetsUsedThisCycle,
+    },
   };
 }
 

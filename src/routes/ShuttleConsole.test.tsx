@@ -112,6 +112,7 @@ beforeEach(() => {
     cadence: { cycle: 3, revision: 0, choices: [] }, progress: {},
     tracks: [{ trackId: 'reactor', name: 'Reactor', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 8, complete: false }],
     shepherdOre: 10,
+    fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
   });
   endeavourResearchMocks.advance.mockResolvedValue(undefined);
   vi.mocked(selectConsoleRole).mockReset();

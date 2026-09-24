@@ -20,6 +20,7 @@ const workspace: EndeavourResearchWorkspace = {
     totalBoxes: 5, currentMaterialCost: 7, complete: false,
   }],
   shepherdOre: 10,
+  fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
 };
 
 beforeEach(() => {
@@ -87,6 +88,7 @@ it('fails closed on malformed server projections', async () => {
   for (const data of [
     { ...workspace, tracks: [{ ...workspace.tracks[0]!, privateCost: 99 }] },
     { ...workspace, tracks: [{ ...workspace.tracks[0]!, totalBoxes: '5' }] },
+    { ...workspace, fieldUpgradeState: { upgradeRevision: -1, targetsUsedThisCycle: 0 } },
   ]) {
     mocks.call.mockResolvedValueOnce({ data });
     await expect(readEndeavourResearchWorkspace()).rejects.toThrow(/invalid Endeavour research data/i);

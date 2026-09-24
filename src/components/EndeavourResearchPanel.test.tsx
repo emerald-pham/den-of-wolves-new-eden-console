@@ -25,6 +25,7 @@ const workspace = {
     { trackId: 'jump-drive', name: 'Jump Drive', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 14, complete: false },
   ],
   shepherdOre: 10,
+  fieldUpgradeState: { upgradeRevision: 6, targetsUsedThisCycle: 0 },
 };
 
 beforeEach(() => {
@@ -62,6 +63,9 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   );
   expect(screen.getByText('Shepherd // 10 ore available')).toBeVisible();
   expect(mocks.read).toHaveBeenCalledTimes(1);
+  expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
+  expect(screen.getByText('Purchases are available during the live Coordination window.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
 });
 
 it('submits the selected standard choice and refreshes from the server without an optimistic advance', async () => {

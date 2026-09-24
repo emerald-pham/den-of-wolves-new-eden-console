@@ -28,6 +28,7 @@ const workspace: EndeavourResearchWorkspace = {
     { trackId: 'water-reclamation', name: 'Water Reclamation', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 8, complete: false },
   ],
   shepherdOre: 10,
+  fieldUpgradeState: { upgradeRevision: 6, targetsUsedThisCycle: 0 },
 };
 
 const purchaseState = {

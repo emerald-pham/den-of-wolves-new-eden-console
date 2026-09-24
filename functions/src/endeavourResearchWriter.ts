@@ -23,6 +23,7 @@ import { serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { ROLE_IDS } from './roleConfiguration';
 import { parsePlayerEscapeState } from './escapeState';
+import { parseEndeavourFieldUpgradeState } from './endeavourFieldUpgrades';
 
 type RecordValue = Record<string, unknown>;
 
@@ -284,6 +285,7 @@ function readPrivateState(
   session: DocumentSnapshot,
   research: DocumentSnapshot,
   cadenceSnapshot: DocumentSnapshot,
+  fieldUpgradeSnapshot: DocumentSnapshot,
   shepherdOre: number,
 ) {
   const cycle = session.get('currentTurn');
@@ -301,6 +303,12 @@ function readPrivateState(
   const projectedCadence = cadence.cycle === cycle
     ? cadence
     : Object.freeze({ cycle: cycle as number, revision: cadence.revision, choices: Object.freeze([]) });
+  const fieldUpgrades = parseEndeavourFieldUpgradeState(
+    fieldUpgradeSnapshot.exists ? fieldUpgradeSnapshot.data() : undefined,
+  );
+  if (!fieldUpgrades || fieldUpgrades.cycle > (cycle as number)) {
+    throw new HttpsError('failed-precondition', 'The private Endeavour field-upgrade state is malformed.');
+  }
   return {
     status: 'ready' as const,
     sessionId,
@@ -312,6 +320,10 @@ function readPrivateState(
     })(),
     tracks: researchTracks(progress),
     shepherdOre,
+    fieldUpgradeState: Object.freeze({
+      upgradeRevision: fieldUpgrades.revision,
+      targetsUsedThisCycle: fieldUpgrades.cycle === cycle ? fieldUpgrades.targets.length : 0,
+    }),
   };
 }
 
@@ -325,16 +337,17 @@ export const readEndeavourResearchWorkspace = onCall<{ sessionId?: unknown }>(
     const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
     const researchRef = db.doc(`sessions/${sessionId}/serverState/endeavourResearch`);
     const cadenceRef = db.doc(`sessions/${sessionId}/serverState/endeavourResearchCadence`);
+    const fieldUpgradeRef = db.doc(`sessions/${sessionId}/serverState/endeavourFieldUpgrades`);
     return db.runTransaction(async (tx) => {
-      const [session, actor, research, cadence] = await Promise.all([
-        tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(cadenceRef),
+      const [session, actor, research, cadence, fieldUpgrades] = await Promise.all([
+        tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(cadenceRef), tx.get(fieldUpgradeRef),
       ]);
       if (!session.exists) throw new HttpsError('not-found', 'No such session.');
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during active gameplay.');
       }
       const authority = await requireCurrentScientist(tx, session, actor, sessionId, uid);
-      return readPrivateState(sessionId, session, research, cadence, authority.shepherdOre);
+      return readPrivateState(sessionId, session, research, cadence, fieldUpgrades, authority.shepherdOre);
     });
   },
 );
