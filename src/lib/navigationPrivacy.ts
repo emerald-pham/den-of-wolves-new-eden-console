@@ -2,7 +2,7 @@ import type { GameSession } from '@/types/game';
 
 type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 
-/** Discard the organiser chart while preserving only an entitled ship projection. */
+/** Discard the organiser chart while preserving entitled member projections. */
 export function stripGmNavigationProjection(session: GameSession): GameSession {
   const next = { ...session };
   delete next.shipGalacticCoordinates;
@@ -14,7 +14,6 @@ export function stripGmNavigationProjection(session: GameSession): GameSession {
   delete next.pursuitGroups;
   delete next.shipFleetGroupIds;
   delete next.candidatePlanCheckpoint;
-  delete next.currentGroupCandidateReveals;
   const own = next.playerDiscovery;
   if (own?.shipId) {
     if (own.currentCoordinate) next.shipGalacticCoordinates = { [own.shipId]: own.currentCoordinate };

@@ -186,7 +186,8 @@ function AppRoutes() {
     let playerProjectionFresh = false;
     let sessionProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
-    const clearCurrentGroupCandidateReveals = () => {
+    let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
+    const hideCurrentGroupCandidateReveals = () => {
       const store = useSessionStore.getState();
       const current = store.session;
       if (!current || current.id !== sessionId) return;
@@ -197,6 +198,26 @@ function AppRoutes() {
       }
       store.setSession(next);
     };
+    const clearCurrentGroupCandidateReveals = () => {
+      retainedGroupCandidateProjection = undefined;
+      hideCurrentGroupCandidateReveals();
+    };
+    const restoreRetainedGroupCandidateProjection = () => {
+      if (!callbackCurrent() || !playerProjectionFresh || !sessionProjectionFresh) return;
+      const store = useSessionStore.getState();
+      const current = store.session;
+      const retained = retainedGroupCandidateProjection;
+      if (!current || current.id !== sessionId || !retained) return;
+      if (current.phase !== 'active' || store.me?.uid !== playerUid || store.me.role !== 'player' ||
+          store.me.fleetGroupId !== retained.groupId) {
+        retainedGroupCandidateProjection = undefined;
+        hideCurrentGroupCandidateReveals();
+        return;
+      }
+      if (current.currentGroupCandidateReveals !== retained) {
+        store.setSession({ ...current, currentGroupCandidateReveals: retained });
+      }
+    };
     const applyPendingPlayerDiscovery = () => {
       if (!callbackCurrent() || pendingPlayerDiscovery === undefined) return;
       const store = useSessionStore.getState();
@@ -204,6 +225,7 @@ function AppRoutes() {
       if (!current || current.id !== sessionId) return;
       if (pendingPlayerDiscovery === null) {
         pendingPlayerDiscovery = undefined;
+        retainedGroupCandidateProjection = undefined;
         store.setSession(stripNavigationProjection(current));
         return;
       }
@@ -218,6 +240,7 @@ function AppRoutes() {
       if (me?.uid !== playerUid || me.role !== 'player' ||
           (requiresCandidateAuthority &&
             (!me.fleetGroupId || projection.groupId !== me.fleetGroupId))) {
+        retainedGroupCandidateProjection = undefined;
         pendingPlayerDiscovery = undefined;
         store.setSession(stripNavigationProjection(current));
         return;
@@ -231,6 +254,7 @@ function AppRoutes() {
             revision: projection.revision,
           }
           : undefined;
+      retainedGroupCandidateProjection = candidateProjection;
       const withoutPreviousDiscovery = stripNavigationProjection(current);
       const withGroupCandidates = candidateProjection
         ? { ...withoutPreviousDiscovery, currentGroupCandidateReveals: candidateProjection }
@@ -326,11 +350,23 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           const current = store.session;
           if (!current || current.id !== next.id) {
+            retainedGroupCandidateProjection = undefined;
             store.setSession(next);
             return;
           }
           // Protected documents have independent snapshot timing. A public
           // header update must not discard their already accepted projections.
+          const currentCandidateProjection = current.currentGroupCandidateReveals ??
+            retainedGroupCandidateProjection;
+          if (currentCandidateProjection && (next.phase !== 'active' || store.me?.uid !== playerUid ||
+              store.me.role !== 'player' || store.me.fleetGroupId !== currentCandidateProjection.groupId)) {
+            retainedGroupCandidateProjection = undefined;
+          }
+          const candidateProjection = sessionProjectionFresh && playerProjectionFresh &&
+            next.phase === 'active' && store.me?.uid === playerUid && store.me.role === 'player' &&
+            currentCandidateProjection && store.me.fleetGroupId === currentCandidateProjection.groupId
+            ? currentCandidateProjection : undefined;
+          if (candidateProjection) retainedGroupCandidateProjection = candidateProjection;
           const composed = {
             ...next,
             ...(current.playerDiscovery ? { playerDiscovery: current.playerDiscovery } : {}),
@@ -343,10 +379,7 @@ function AppRoutes() {
             ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
             ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
             ...(current.candidatePlanCheckpoint ? { candidatePlanCheckpoint: current.candidatePlanCheckpoint } : {}),
-            ...(sessionProjectionFresh && current.currentGroupCandidateReveals && next.phase === 'active' &&
-              store.me?.fleetGroupId === current.currentGroupCandidateReveals.groupId
-              ? { currentGroupCandidateReveals: current.currentGroupCandidateReveals }
-              : {}),
+            ...(candidateProjection ? { currentGroupCandidateReveals: candidateProjection } : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
         },
@@ -357,6 +390,7 @@ function AppRoutes() {
           if (!current || current.id !== sessionId) return;
           if (store.me?.role === 'gm' && current.organiserSystems !== undefined) {
             pendingPlayerDiscovery = undefined;
+            retainedGroupCandidateProjection = undefined;
             const next = { ...current };
             delete next.currentGroupCandidateReveals;
             if (projection) next.playerDiscovery = projection;
@@ -374,7 +408,10 @@ function AppRoutes() {
           if (!current || current.id !== sessionId) return;
           pendingGmDiscovery = projection;
           if (!projection) {
-            store.setSession(stripGmNavigationProjection(current));
+            retainedGroupCandidateProjection = undefined;
+            const next = { ...stripGmNavigationProjection(current) };
+            delete next.currentGroupCandidateReveals;
+            store.setSession(next);
             return;
           }
           if (store.me?.role === 'gm') {
@@ -390,7 +427,10 @@ function AppRoutes() {
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           store.setConnection(fresh ? 'live' : 'offline');
           if (!fresh) clearCurrentGroupCandidateReveals();
-          else applyPendingPlayerDiscovery();
+          else {
+            applyPendingPlayerDiscovery();
+            restoreRetainedGroupCandidateProjection();
+          }
         },
         onPlayer: (next) => {
           if (!callbackCurrent()) return;
@@ -406,7 +446,14 @@ function AppRoutes() {
             store.setFacilitatorRuleCall(null);
           }
           playerProjectionFresh = false;
-          clearCurrentGroupCandidateReveals();
+          const currentCandidateProjection = store.session?.id === sessionId
+            ? store.session.currentGroupCandidateReveals ?? retainedGroupCandidateProjection
+            : undefined;
+          retainedGroupCandidateProjection = currentCandidateProjection && store.me?.uid === playerUid &&
+            store.me.role === 'player' && next.uid === playerUid && next.role === 'player' &&
+            store.session?.phase === 'active' && next.fleetGroupId === currentCandidateProjection.groupId
+            ? currentCandidateProjection : undefined;
+          hideCurrentGroupCandidateReveals();
           store.setMe(next);
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
@@ -489,7 +536,10 @@ function AppRoutes() {
           if (!callbackCurrent()) return;
           playerProjectionFresh = fresh;
           if (!fresh) clearCurrentGroupCandidateReveals();
-          else applyPendingPlayerDiscovery();
+          else {
+            applyPendingPlayerDiscovery();
+            restoreRetainedGroupCandidateProjection();
+          }
           reconcileLoyaltyCensus();
         },
         onKicked: () => {

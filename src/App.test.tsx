@@ -589,6 +589,52 @@ describe('App', () => {
     unmount();
   });
 
+  it('retains candidate reveals across fresh headers and same-player presence snapshots', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', fleetGroupId: 'fleet-1',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, member);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const current = handlers!;
+    const projection = {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['aegis'], shipId: 'aegis', currentCoordinate: '0000',
+      knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' }, pursuitDistance: 0,
+      navigationLogs: [], revision: 7,
+      candidateReveals: [{ code: 'O' as const, title: 'Deep Nebula' }],
+    };
+
+    act(() => {
+      current.onSessionFreshness?.(true);
+      current.onPlayerFreshness?.(true);
+      current.onPlayerDiscovery?.(projection);
+    });
+    const accepted = {
+      groupId: 'fleet-1', candidateReveals: projection.candidateReveals, revision: 7,
+    };
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual(accepted);
+
+    act(() => current.onSession({ ...session, phase: 'active', currentTurn: 2 }));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual(accepted);
+
+    // Presence updates arrive as player snapshots; hide during revalidation,
+    // then restore only after the unchanged player authority is server-fresh.
+    act(() => current.onPlayer({ ...member }));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => current.onPlayerFreshness?.(true));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual(accepted);
+
+    act(() => current.onPlayer({ ...member, fleetGroupId: 'fleet-2' }));
+    act(() => current.onPlayerFreshness?.(true));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    unmount();
+  });
+
   it('reopens the organiser map listener after a same-UID GM promotion and rejects the former listener', async () => {
     const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
     const stop = vi.fn();
