@@ -23,10 +23,12 @@ export type ServerAuthorityCursor = {
  */
 export interface SessionSnapshotAuthority {
   hasServerSessionAuthority: boolean;
-  /** Increments only when a newer accepted server snapshot wins the cursor. */
+  /** Increments when an accepted server snapshot advances session authority. */
   authorityVersion?: number;
   latestSessionLifecycle?: SessionLifecycleCursor;
   latestServerAuthorityCursor?: ServerAuthorityCursor;
+  /** Stable content identity used to distinguish metadata-only reconnects from unversioned writes. */
+  latestServerSessionFingerprint?: string;
 }
 
 export function createSessionSnapshotAuthority(): SessionSnapshotAuthority {
@@ -73,6 +75,34 @@ function timestampFieldsCursor(value: Readonly<Record<string, unknown>>): Server
     nanoseconds < 0 || nanoseconds >= 1_000_000_000
   ) return undefined;
   return { seconds, nanoseconds };
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+function sessionFingerprint(session: GameSession): string {
+  // The hydration boundary synthesizes wall-clock timestamps for legacy docs
+  // without createdAt/updatedAt. They are not session-content changes and
+  // must not defeat duplicate-payload suppression after reconnect.
+  const projection = Object.fromEntries(
+    Object.entries(session).filter(([key]) => key !== 'createdAt' && key !== 'updatedAt'),
+  );
+  return stableSerialize(projection);
+}
+
+export function hasSameServerSessionProjection(
+  authority: SessionSnapshotAuthority,
+  session: GameSession,
+): boolean {
+  return authority.latestServerSessionFingerprint === sessionFingerprint(session);
 }
 
 export function trustedTimestampCursor(value: unknown): ServerAuthorityCursor | undefined {
@@ -124,16 +154,15 @@ function acceptsServerAuthorityCursor(
   previous: ServerAuthorityCursor | undefined,
   next: ServerAuthorityCursor | undefined,
   allowEqual = false,
+  allowUnversioned = false,
 ): boolean {
-  // Preserve one intentional legacy hydration. After any server callback has
-  // been accepted, another unversioned callback cannot overwrite it; a trusted
-  // cursor may upgrade that legacy authority exactly once. Once present, only
-  // a strictly newer full-precision listener cursor may advance server
-  // authority. A fresh callable may reconcile an equal cursor so disconnect
-  // followed by a same-state rejoin can restore local identity.
+  // Preserve one intentional legacy hydration. By default, an established
+  // server authority requires a newer cursor. Callers may allow an equal or
+  // missing cursor only after verifying that an authoritative server payload
+  // actually changed; session lifecycle checks still apply before acceptance.
   if (!hasServerSessionAuthority) return true;
-  if (previous === undefined) return next !== undefined;
-  if (next === undefined) return false;
+  if (next === undefined) return allowUnversioned;
+  if (previous === undefined) return true;
   const order = compareServerAuthorityCursors(next, previous);
   return allowEqual ? order >= 0 : order > 0;
 }
@@ -236,23 +265,27 @@ function acceptsSessionLifecycleSnapshot(
   return true;
 }
 
+/** Accept a session payload while preserving lifecycle monotonicity. */
 export function acceptServerSessionAuthority(
   authority: SessionSnapshotAuthority,
   session: GameSession,
   cursor: ServerAuthorityCursor | undefined,
   allowEqualCursor = false,
+  allowUnversioned = false,
 ): boolean {
   if (!acceptsServerAuthorityCursor(
     authority.hasServerSessionAuthority,
     authority.latestServerAuthorityCursor,
     cursor,
     allowEqualCursor,
+    allowUnversioned,
   )) return false;
   const nextLifecycle = sessionLifecycleCursor(session, authority.latestSessionLifecycle);
   if (!acceptsSessionLifecycleSnapshot(authority.latestSessionLifecycle, nextLifecycle)) return false;
   authority.hasServerSessionAuthority = true;
   authority.authorityVersion = sessionSnapshotAuthorityVersion(authority) + 1;
   authority.latestSessionLifecycle = nextLifecycle;
+  authority.latestServerSessionFingerprint = sessionFingerprint(session);
   if (cursor !== undefined) authority.latestServerAuthorityCursor = cursor;
   return true;
 }

@@ -2481,12 +2481,12 @@ it('does not replay unchanged crisis projections over facilitator drafts after r
   const crisis = {
     sessionId: 's1', crisisId: 'zealotry-1', state: 'debated', revision: 4,
     title: 'Current crisis', details: 'Current details', crisisKind: 'religious-zealotry',
-    configurationOverride: '', updatedAt: '2026-09-24T12:00:00.000Z',
+    configurationOverride: '', updatedAt: timestamp(1_789_077_000, 900_400_000),
   };
   const zealotry = {
     type: 'zealotry-response', sessionId: 's1', crisisId: 'zealotry-1', crisisRevision: 4,
     state: 'debated', revision: 2, actions: ['investigate'], rationale: 'Recorded response.',
-    loyaltyCensusRevision: 3, updatedAt: '2026-09-24T12:00:00.000Z',
+    loyaltyCensusRevision: 3, updatedAt: timestamp(1_789_077_000, 900_400_000),
   };
   const civilUnrest = {
     type: 'civil-unrest-resolution', sessionId: 's1', crisisId: 'unrest-1', crisisRevision: 2,
@@ -2497,7 +2497,7 @@ it('does not replay unchanged crisis projections over facilitator drafts after r
       { shipId: 'shepherd', revision: null }, { shipId: 'quellon', revision: null },
       { shipId: 'refinery-124', revision: null },
     ],
-    updatedAt: '2026-09-24T12:00:00.000Z',
+    updatedAt: timestamp(1_789_077_000, 900_400_000),
   };
   const serverSnapshot = (data: object) => ({
     metadata: { fromCache: false }, exists: () => true, data: () => data,
@@ -3199,6 +3199,45 @@ it('reconfirms unchanged session and player authority from metadata-only server 
   expect(onSeats).toHaveBeenCalledTimes(1);
 });
 
+it('publishes changed reconnect session data when its server updatedAt is unchanged or missing', () => {
+  const authority = { hasServerSessionAuthority: false, authorityVersion: 0 };
+  const updatedAt = '2026-09-24T12:00:00.000Z';
+  const onSession = vi.fn();
+  const onSessionFreshness = vi.fn();
+  const handlers = {
+    onSession, onSessionFreshness,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    sessionSnapshotAuthority: authority,
+  };
+  const shuttleControl = (holderUid: string, revision: number) => ({
+    starlight: {
+      shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1', holderUid, revision,
+    },
+  });
+  const first = captureSessionListener();
+  const stopFirst = subscribeSessionState('s1', 'u1', handlers);
+  first.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt, shuttleControl: shuttleControl('u1', 1) }, false));
+  expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u1');
+  stopFirst();
+
+  const second = captureSessionListener();
+  subscribeSessionState('s1', 'u1', handlers);
+  second.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt, shuttleControl: shuttleControl('u1', 1) }, true));
+  second.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt, shuttleControl: shuttleControl('u2', 2) }, false));
+
+  expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u2');
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
+
+  onSession.mockClear();
+  const unversionedData: Record<string, unknown> = {
+    ...sessionData(8), shuttleControl: shuttleControl('u3', 3),
+  };
+  delete unversionedData.updatedAt;
+  second.callbacks[0]?.(sessionSnapshot(unversionedData, false));
+  expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u3');
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
+});
+
 it('requests metadata-only server confirmation for every session, role, mission, and candidate listener', () => {
   const { options } = captureSessionListener();
   const handler = vi.fn();
@@ -3388,7 +3427,7 @@ it('preserves nanosecond precision when same-millisecond callbacks arrive out of
   });
 });
 
-it('rejects an equal trusted server cursor instead of replaying its callback', () => {
+it('accepts changed server session content with an equal trusted cursor', () => {
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();
   const cursor = timestamp(1_789_077_000, 900_400_000);
@@ -3409,13 +3448,13 @@ it('rejects an equal trusted server cursor instead of replaying its callback', (
     }), false,
   ));
 
-  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession).toHaveBeenCalledTimes(2);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({
-    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+    shipResources: { aegis: expect.objectContaining({ ore: 1 }) },
   });
 });
 
-it('keeps only the first legacy hydration and accepts a later trusted cursor upgrade', () => {
+it('accepts changed server content without a cursor and later trusted cursor upgrades', () => {
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();
   subscribeSessionState('s1', 'u1', {
@@ -3435,8 +3474,8 @@ it('keeps only the first legacy hydration and accepts a later trusted cursor upg
   delete unversioned.updatedAt;
   callbacks[0]?.(sessionSnapshot(unversioned));
 
-  expect(onSession).toHaveBeenCalledTimes(2);
-  expect(onSession.mock.lastCall?.[0]).toMatchObject({ setupRevision: 8 });
+  expect(onSession).toHaveBeenCalledTimes(4);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ setupRevision: 7 });
 });
 
 it('does not let a delayed cache snapshot overwrite an accepted callable reply', () => {

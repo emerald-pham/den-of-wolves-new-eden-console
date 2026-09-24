@@ -126,6 +126,7 @@ import { entityId, parseEntityId } from '@/types/identifiers';
 import {
   acceptServerSessionAuthority,
   createSessionSnapshotAuthority,
+  hasSameServerSessionProjection,
   sessionSnapshotAuthorityFor,
   trustedTimestampCursor,
   type ServerAuthorityCursor,
@@ -2926,18 +2927,30 @@ export function subscribeSessionState(
         const session = sessionFrom(snapshot.id, data);
         if (!fromCache) {
           const cursor = serverAuthorityCursor(snapshot, data);
-          if (sessionSnapshotAuthority.hasServerSessionAuthority && sameServerAuthorityCursor(
+          const sameSessionProjection = hasSameServerSessionProjection(sessionSnapshotAuthority, session);
+          const sameCursor = sameServerAuthorityCursor(
             sessionSnapshotAuthority.latestServerAuthorityCursor,
             cursor,
-          )) {
-            // An equal server updateTime confirms the unchanged document after
-            // reconnect. Keep the already accepted contents and restore the
-            // transport freshness signal without replaying an equal-version
-            // payload that could have been queued before the reconnect.
+          );
+          if (sessionSnapshotAuthority.hasServerSessionAuthority && sameSessionProjection &&
+              (cursor === undefined || sameCursor)) {
+            // A server-confirmed copy of the accepted content restores freshness
+            // without replaying it. A matching updatedAt alone is insufficient:
+            // some session writes do not advance that field.
             handlers.onSessionFreshness?.(true);
             return;
           }
-          if (!acceptServerSessionAuthority(sessionSnapshotAuthority, session, cursor)) return;
+          const allowEqualCursor = sessionSnapshotAuthority.hasServerSessionAuthority &&
+            !sameSessionProjection && sameCursor;
+          const allowUnversionedChange = sessionSnapshotAuthority.hasServerSessionAuthority &&
+            !sameSessionProjection && cursor === undefined;
+          if (!acceptServerSessionAuthority(
+            sessionSnapshotAuthority,
+            session,
+            cursor,
+            allowEqualCursor,
+            allowUnversionedChange,
+          )) return;
         }
         handlers.onSession(session);
         if (fromCache) {
