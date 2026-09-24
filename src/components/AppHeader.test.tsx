@@ -620,9 +620,15 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'When your fleet group reaches a New Eden candidate, its members can see that candidate’s code and name in the console. Other chart locations stay hidden.',
+    'When charged during Coordination, Gorgoneion Repair Drones spend 3 materials from the current docked host to repair one damaged console, once per cycle.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousP541Entry = within(region).getByRole('heading', { name: 'Build 0.5.23' }).closest('article');
+  if (!previousP541Entry) throw new Error('Expected the preserved 0.5.23 changelog entry.');
+  expect(within(previousP541Entry).getByText(
+    'When your fleet group reaches a New Eden candidate, its members can see that candidate’s code and name in the console. Other chart locations stay hidden.',
+  )).toBeVisible();
+  expect(within(previousP541Entry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
   const previousP212Entry = within(region).getByRole('heading', { name: 'Build 0.5.22' }).closest('article');
   if (!previousP212Entry) throw new Error('Expected the preserved 0.5.22 changelog entry.');
   expect(within(previousP212Entry).getByText(
