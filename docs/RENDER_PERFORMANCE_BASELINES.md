@@ -10,8 +10,8 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,781,000 bytes |
-| Complete application JavaScript, gzip | 474,000 bytes |
+| Complete application JavaScript, raw | 1,790,000 bytes |
+| Complete application JavaScript, gzip | 477,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
@@ -164,3 +164,18 @@ render-update, and mobile-frame budgets remain in force; the new size ceilings
 retain 1,832 raw bytes and 478 gzip bytes of headroom over the CI candidate.
 P541 remains partial pending ordinary authorized production-path evidence; no
 scout-triggered reveal is claimed.
+
+Baseline version 14 raises the complete application JavaScript ceilings to
+1,790,000 raw and 477,000 gzip bytes for Prompt 238's reachable Gorgoneion
+Repair Drones control and callable client. The P238 source candidate at
+`a7a1e9dc2a0bddb1b6a46d9183f76f826ad01d40` measured 1,787,246 raw bytes,
+474,963 gzip bytes, and the unchanged 496,263-byte largest chunk across nine
+JavaScript chunks. Its local P637 run at `2026-09-24T04:36:49.036Z` measured
+landing and cached Role Select startup p95 at 85.18 ms and 80.3 ms; DRADIS,
+attack, and mission-hand update p95 at 34.4 ms, 34.5 ms, and 34 ms; and the
+390x844 mobile probe at 16.8 ms p95 with zero long frames. Against version 13,
+only the raw and gzip ceilings were exceeded. The new size ceilings retain
+2,754 raw bytes and 2,037 gzip bytes of headroom; the largest-chunk, startup,
+render-update, and mobile-frame budgets remain unchanged. P238 remains partial
+until an ordinary authorized repair succeeds end to end against the deployed
+exact SHA; no live repair proof is recorded yet.
