@@ -620,12 +620,18 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
+    'After reconnecting, your console waits for current session information before showing game state again.',
+  )).toBeVisible();
+  expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousWolfEntry = within(region).getByRole('heading', { name: 'Build 0.5.32' }).closest('article');
+  if (!previousWolfEntry) throw new Error('Expected the preserved P428 Wolf targeting release entry.');
+  expect(within(previousWolfEntry).getByText(
     'Facilitators can close Wolf targeting from the GM console and enter Long Range while keeping the current airspace deadline.',
   )).toBeVisible();
-  expect(within(newestEntry).getByText(
+  expect(within(previousWolfEntry).getByText(
     'The full Wolf range, boarding, damage, and casualty receipt is still being built.',
   )).toBeVisible();
-  expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  expect(within(previousWolfEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
   const previousMaliadesEntry = within(region).getByRole('heading', { name: 'Build 0.5.31' }).closest('article');
   if (!previousMaliadesEntry) throw new Error('Expected the preserved P397 Maliades release entry.');
   expect(within(previousMaliadesEntry).getByText(
