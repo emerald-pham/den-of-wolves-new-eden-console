@@ -90,6 +90,14 @@ test('ignores stored rendered evidence without treating it as a deployable file'
   assert.deepEqual(result.targets, []);
   assert.deepEqual(result.unknownFiles, []);
   assert.deepEqual(result.ignoredFiles, files);
+
+  const unexpectedArtifact = classifyChangedFiles([
+    'evidence/prompt-428-gm-control/unexpected.ts',
+  ]);
+  assert.deepEqual(unexpectedArtifact.unknownFiles, [
+    'evidence/prompt-428-gm-control/unexpected.ts',
+  ]);
+  assert.deepEqual(unexpectedArtifact.targets, ['hosting', 'firestore', 'functions']);
 });
 
 const BASE_CAPYBARA_CARGO_CALLABLES = ['transferBaseCapybaraCargo'];
