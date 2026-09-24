@@ -56,6 +56,11 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/endeavourResearchWriter.ts': [
     'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
   ],
+  'functions/src/gorgoneionRepairDrones.ts': ['repairGorgoneionWithDrones'],
+  'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
+  // advanceSmallShipMaintenance is used by these two deployed transactions;
+  // type-only and test imports do not add callable consumers.
+  'functions/src/smallShip.ts': ['runSmallShipMaintenance', 'repairGorgoneionWithDrones'],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
     'finishWolfCommanderTargetingRerolls', 'getAegisCommandAndControl', 'getWolfCommanderTargeting',

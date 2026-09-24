@@ -146,6 +146,24 @@ test('maps the private Endeavour research writer to both production callables', 
   assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));
 });
 
+test('maps the Gorgoneion repair resolver and transaction to the deployed repair callable', () => {
+  for (const file of [
+    'functions/src/gorgoneionRepairDrones.ts',
+    'functions/src/gorgoneionRepairDronesCallable.ts',
+  ]) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(GORGONEION_REPAIR_CALLABLES));
+  }
+});
+
+test('maps small-ship maintenance changes only to the callables that execute the changed resolver', () => {
+  const selected = selectorFor(['functions/src/smallShip.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    ...GORGONEION_REPAIR_CALLABLES,
+    'runSmallShipMaintenance',
+  ]));
+});
+
 test('maps the exact Gorgoneion member-event allowlist delta to its repair callable', () => {
   const selected = selectorFor(['functions/src/eventRedaction.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(GORGONEION_REPAIR_CALLABLES));
