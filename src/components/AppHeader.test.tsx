@@ -620,9 +620,15 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Shepherd Scientists can now advance Endeavour research from their console during Team Phase. Each choice crosses the next box in one track; up to two additional choices cost five Shepherd ore each. Research updates future field-upgrade prices, while purchase controls remain under development.',
+    'When your fleet group reaches a New Eden candidate, its members can see that candidate’s code and name in the console. Other chart locations stay hidden.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousP212Entry = within(region).getByRole('heading', { name: 'Build 0.5.22' }).closest('article');
+  if (!previousP212Entry) throw new Error('Expected the preserved 0.5.22 changelog entry.');
+  expect(within(previousP212Entry).getByText(
+    'Shepherd Scientists can now advance Endeavour research from their console during Team Phase. Each choice crosses the next box in one track; up to two additional choices cost five Shepherd ore each. Research updates future field-upgrade prices, while purchase controls remain under development.',
+  )).toBeVisible();
+  expect(within(previousP212Entry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
   const previousEntry = within(region).getByRole('heading', { name: 'Build 0.5.21' }).closest('article');
   if (!previousEntry) throw new Error('Expected the previous changelog entry.');
   expect(within(previousEntry).getByText(
