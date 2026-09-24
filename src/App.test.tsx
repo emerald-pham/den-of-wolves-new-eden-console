@@ -619,6 +619,11 @@ describe('App', () => {
     };
     expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual(accepted);
 
+    // Players are denied access to the organizer chart. That expected denial
+    // must not revoke their separate, entitled group discovery projection.
+    act(() => current.onGmDiscovery?.(null));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual(accepted);
+
     act(() => current.onSession({ ...session, phase: 'active', currentTurn: 2 }));
     expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual(accepted);
 
@@ -631,6 +636,73 @@ describe('App', () => {
 
     act(() => current.onPlayer({ ...member, fleetGroupId: 'fleet-2' }));
     act(() => current.onPlayerFreshness?.(true));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    unmount();
+  });
+
+  it('clears candidate reveals and freshness after a listener error until a new projection arrives', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', fleetGroupId: 'fleet-1',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, member);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const current = handlers!;
+    const projection = {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['aegis'], shipId: 'aegis', currentCoordinate: '0000',
+      knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' }, pursuitDistance: 0,
+      navigationLogs: [], revision: 8,
+      candidateReveals: [{ code: 'N' as const, title: 'Ancient Jump Ring' }],
+    };
+    act(() => {
+      current.onSessionFreshness?.(true);
+      current.onPlayerFreshness?.(true);
+      current.onPlayerDiscovery?.(projection);
+    });
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual({
+      groupId: 'fleet-1', candidateReveals: projection.candidateReveals, revision: 8,
+    });
+
+    act(() => current.onError());
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+
+    act(() => {
+      current.onSessionFreshness?.(true);
+      current.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => current.onPlayerDiscovery?.(projection));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual({
+      groupId: 'fleet-1', candidateReveals: projection.candidateReveals, revision: 8,
+    });
+
+    act(() => window.dispatchEvent(new Event('offline')));
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => {
+      current.onSessionFreshness?.(true);
+      current.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => current.onPlayerDiscovery?.(projection));
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toEqual({
+      groupId: 'fleet-1', candidateReveals: projection.candidateReveals, revision: 8,
+    });
+    act(() => useSessionStore.getState().setConnection('offline'));
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
+    act(() => {
+      current.onSessionFreshness?.(true);
+      current.onPlayerFreshness?.(true);
+    });
     expect(useSessionStore.getState().session?.currentGroupCandidateReveals).toBeUndefined();
     unmount();
   });

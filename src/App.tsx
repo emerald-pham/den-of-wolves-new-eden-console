@@ -200,11 +200,13 @@ function AppRoutes() {
     };
     const clearCurrentGroupCandidateReveals = () => {
       retainedGroupCandidateProjection = undefined;
+      pendingPlayerDiscovery = undefined;
       hideCurrentGroupCandidateReveals();
     };
     const restoreRetainedGroupCandidateProjection = () => {
       if (!callbackCurrent() || !playerProjectionFresh || !sessionProjectionFresh) return;
       const store = useSessionStore.getState();
+      if (store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server') return;
       const current = store.session;
       const retained = retainedGroupCandidateProjection;
       if (!current || current.id !== sessionId || !retained) return;
@@ -235,7 +237,8 @@ function AppRoutes() {
       // both independent server snapshots because either can change the read
       // audience while this protected document is arriving.
       if (requiresCandidateAuthority &&
-          (!playerProjectionFresh || !sessionProjectionFresh)) return;
+          (!playerProjectionFresh || !sessionProjectionFresh || store.connection !== 'live' ||
+            store.sessionSnapshotFreshness !== 'server')) return;
       const me = store.me;
       if (me?.uid !== playerUid || me.role !== 'player' ||
           (requiresCandidateAuthority &&
@@ -276,6 +279,15 @@ function AppRoutes() {
         ...(shipId ? { shipNavigationLogs: { [shipId]: projection.navigationLogs } } : {}),
       });
     };
+    const unsubscribeAuthorityFreshness = useSessionStore.subscribe((state, previousState) => {
+      const wasFresh = previousState.connection === 'live' &&
+        previousState.sessionSnapshotFreshness === 'server';
+      const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
+      if (!wasFresh || isFresh) return;
+      sessionProjectionFresh = false;
+      playerProjectionFresh = false;
+      clearCurrentGroupCandidateReveals();
+    });
     let subscribeLoyaltyCensusFn: (
       sessionId: string,
       onCensus: (census: LoyaltyCensus | null) => void,
@@ -408,10 +420,17 @@ function AppRoutes() {
           if (!current || current.id !== sessionId) return;
           pendingGmDiscovery = projection;
           if (!projection) {
-            retainedGroupCandidateProjection = undefined;
-            const next = { ...stripGmNavigationProjection(current) };
-            delete next.currentGroupCandidateReveals;
-            store.setSession(next);
+            if (store.me?.role === 'gm') {
+              retainedGroupCandidateProjection = undefined;
+              const next = { ...stripGmNavigationProjection(current) };
+              delete next.currentGroupCandidateReveals;
+              store.setSession(next);
+            } else {
+              // An ordinary player's denied GM-chart listener is expected;
+              // scrub any stale chart data without clearing their separate
+              // current-group candidate projection.
+              store.setSession(stripGmNavigationProjection(current));
+            }
             return;
           }
           if (store.me?.role === 'gm') {
@@ -424,8 +443,8 @@ function AppRoutes() {
           if (!callbackCurrent()) return;
           sessionProjectionFresh = fresh;
           const store = useSessionStore.getState();
-          store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           store.setConnection(fresh ? 'live' : 'offline');
+          store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           if (!fresh) clearCurrentGroupCandidateReveals();
           else {
             applyPendingPlayerDiscovery();
@@ -742,7 +761,15 @@ function AppRoutes() {
           }
           store.setGmSetupReceipt(next);
         },
-        onError: () => { if (callbackCurrent()) useSessionStore.getState().setConnection('offline'); },
+        onError: () => {
+          if (!callbackCurrent()) return;
+          sessionProjectionFresh = false;
+          playerProjectionFresh = false;
+          clearCurrentGroupCandidateReveals();
+          const store = useSessionStore.getState();
+          store.setSessionSnapshotFreshness('cache');
+          store.setConnection('offline');
+        },
       });
     });
     return () => {
@@ -755,6 +782,7 @@ function AppRoutes() {
       arbourVisionBlocked = true;
       useSessionStore.getState().setArbourVision(null);
       useSessionStore.getState().setFacilitatorRuleCall(null);
+      unsubscribeAuthorityFreshness();
       unsubscribe();
     };
   }, [playerAuthority, playerRole, playerUid, sessionId]);
@@ -871,12 +899,23 @@ function AppRuntime() {
       pending.add(check);
       void check().catch(() => undefined).finally(() => pending.delete(check));
     };
-    const renewPresence = () => refreshPresence().catch(() => {
-      useSessionStore.getState().setConnection('offline');
-    });
+    const markAuthorityOffline = () => {
+      const store = useSessionStore.getState();
+      store.setSessionSnapshotFreshness('cache');
+      store.setConnection('offline');
+    };
+    const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
     const stopVersionMonitor = startVersionUpgradeMonitor({
       reconnect: () => run(connectAutomatically),
       onUpdateAvailable: markServiceWorkerUpdateAvailable,
+    });
+    // Some session-service failures mark the connection offline without going
+    // through the browser's offline event. A server snapshot is no longer a
+    // current authority proof once the Firebase connection is down.
+    const stopOfflineAuthorityWatch = useSessionStore.subscribe((state) => {
+      if (state.connection === 'offline' && state.sessionSnapshotFreshness === 'server') {
+        state.setSessionSnapshotFreshness('cache');
+      }
     });
     run(connectAutomatically);
 
@@ -896,9 +935,7 @@ function AppRuntime() {
       }
     }, PRESENCE_HEARTBEAT_INTERVAL_MS);
 
-    const markOffline = () => {
-      useSessionStore.getState().setConnection('offline');
-    };
+    const markOffline = markAuthorityOffline;
     const reconnectNow = () => {
       run(connectAutomatically);
     };
@@ -915,6 +952,7 @@ function AppRuntime() {
       window.clearInterval(reconcileGm);
       window.clearInterval(heartbeat);
       stopVersionMonitor();
+      stopOfflineAuthorityWatch();
       window.removeEventListener('offline', markOffline);
       window.removeEventListener('online', reconnectNow);
       document.removeEventListener('visibilitychange', reconnectWhenVisible);
