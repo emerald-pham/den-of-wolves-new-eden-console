@@ -212,11 +212,11 @@ local Chromium measurements, not CI-host or production telemetry. P244 remains
 partial until an ordinary authorized production repair succeeds end to end.
 
 After the Warrior Captain authority correction, exact candidate
-`e3f4969a95ae0a93277ea60955ac6a52e44fbe5b` was measured with baseline v16 on
+`e25ca0122fe9e03b46f55f93fca2aa84e08a83a8` was measured with baseline v16 on
 2026-09-24. It measured 1,798,767 raw bytes, 477,200 gzip bytes, and a
 496,263-byte largest chunk across nine chunks. Landing and cached Role Select
-startup p95 were 115.4 ms and 109.77 ms; DRADIS, attack, and mission-hand
-update p95 were 35 ms, 34.7 ms, and 35.1 ms; the 390x844 mobile frame was
+startup p95 were 119.58 ms and 115.95 ms; DRADIS, attack, and mission-hand
+update p95 were 35.2 ms, 34.7 ms, and 34.8 ms; the 390x844 mobile frame was
 16.7 ms p95 with zero long frames. This confirms the corrected authority path
 did not increase the measured bundle or runtime costs, leaving 2,233 raw and
 1,300 gzip bytes below the approved ceilings.
