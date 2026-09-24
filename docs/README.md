@@ -44,6 +44,7 @@ and `NEXT` is an advisory ready-work hint rather than a serial lock.
 | --- | --- |
 | [AESTHETICS.md](AESTHETICS.md) | Shared CIC visual language, responsive behavior, accessibility, and motion profiles |
 | [PLAYER_COPY_LEXICON.md](PLAYER_COPY_LEXICON.md) | Approved player-facing vocabulary, inventory boundary, forbidden jargon, and reviewed exclusions |
+| [TICKER_BEHAVIOR.md](TICKER_BEHAVIOR.md) | Canonical source priority, visible-message handoff, and Stand Down playback contract |
 | [CONSOLE_ARCHITECTURE.md](CONSOLE_ARCHITECTURE.md) | Shared vessel composition, ownership seams, and server-authority boundaries |
 | [SHIP_TEMPLATE.md](SHIP_TEMPLATE.md) | Capybara reference ship-console specification |
 | [SHUTTLE_TEMPLATE.md](SHUTTLE_TEMPLATE.md) | SNN reference shuttle-console specification |
@@ -59,6 +60,8 @@ authority or cause one vessel's configuration to leak into another.
 | Document | Owns |
 | --- | --- |
 | [ABUSE_PROTECTION_HANDOFF.md](ABUSE_PROTECTION_HANDOFF.md) | Capacity, abuse protection, App Check, and operational follow-up |
+| [CAPACITY_CONCLUSIONS.md](CAPACITY_CONCLUSIONS.md) | Current supported local envelope and the boundaries the evidence does not prove |
+| [CAPACITY_60_BROWSER_PROOF.md](CAPACITY_60_BROWSER_PROOF.md) | The bounded 60-browser local proof scenario, thresholds, and closure result |
 | [Runtime threat-model manifest](../security/threat-model.json) | Machine-readable hostile-client, session-code, and resource-exhaustion control map |
 | [PRESERVED_IN_AMBER.md](PRESERVED_IN_AMBER.md) | Immutable rollback-anchor policy and recovery reference |
 | [ci-deploy-setup.md](ci-deploy-setup.md) | Dated Workload Identity Federation setup and troubleshooting handoff |
@@ -70,6 +73,8 @@ current external configuration before acting on their recorded values.
 
 - [Prompt 603a rendered-evidence instructions](../evidence/prompt-603a/README.md)
   describe how to reproduce that bounded geometry artifact.
+- [Callable and snapshot health evidence](CALLABLE_HEALTH_METRICS.md) records the
+  local emulator metric taxonomy and its limits.
 - [Faction flag asset notes](../src/assets/flags/README.md) document stable local
   filenames and their focused contract.
 
