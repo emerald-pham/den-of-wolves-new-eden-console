@@ -1871,11 +1871,11 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "272 -> 161;162; OWNER-CHEPU-MISSION-PARTICIPATION-BONUS",
+      "direction": "272 -> 161;162",
       "id": "E-AUDIT-272",
-      "language": "Chepu registration preserves its PDF Colonel owner, Refinery 124 dock, security-team cargo, boarding support, and fuelled Boarding Action relocation; the routed shuttle derivative and preserved source inventory leave mission participation and numeric bonus unresolved, requiring OWNER-CHEPU-MISSION-PARTICIPATION-BONUS rather than an invented value.",
-      "source": "src/data/vessels/chepu.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; functions/src/craftOwnership.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Chepu derivative",
-      "type": "hard_prompt / decision_owner"
+      "language": "Purchased DoWNE v1.1 A4 double-sided primary source visually checked on physical PDF page 81: the Chepu panel lists security-team cargo, boarding defence, and fuelled Boarding Action relocation, with no printed away-mission participation rule or bonus; the adjacent, separately titled P.D.F. Escort Fighter Wing panel alone lists Away Mission participation with +2 search/rescue and +1 salvage. The typed Chepu record uses participation 'not-printed'; the wing retains its printed bonuses. Production registration records Chepu's Colonel ownership and Refinery 124 initial dock, the securityTeams-only cargo rule is consumed by transferShuttleCargoCommand, the /shuttles/chepu route renders the operational reference, and dealPrivateInitialCards uses the PDF Colonel mapping that includes only the Escort Fighter Wing. P272 closes at the registration boundary; actual boarding resolution and special fuelled Boarding Action relocation remain downstream prompts P395 and P461.",
+      "source": "Purchased source: DoWNE v1.1/Home Printing/DoWNE - A4 Double Sided v1.1.pdf; physical PDF p. 81 (1-based) of 84-page A4 PDF; SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86; visually inspected 2026-09-24; private PDF not copied into repository. src/data/vessels/chepu.ts; src/data/vessels/templates.ts AwayMissionSupport; src/data/pdfConsoles.ts; src/data/shuttles.ts; functions/src/craftOwnership.ts; functions/src/shuttlecraft.ts; functions/src/shuttleCargoTransfer.ts and functions/src/index.ts transferShuttleCargoCommand; functions/src/awayMissionCards.ts and functions/src/index.ts dealPrivateInitialCards; src/App.tsx /shuttles/:shuttleId route; src/components/FleetSystemsWorkspace.tsx; src/routes/ShuttleConsole.tsx; functions/src/shuttlecraft.test.ts; functions/src/craftOwnership.test.ts; functions/src/shuttleCargoTransfer.test.ts; functions/src/shuttleCargoTransferCallable.test.ts; functions/src/awayMissionCards.test.ts; src/data/shuttles.test.ts; src/data/craftHelp.test.ts; src/data/pdfConsoles.test.ts; src/components/FleetSystemsWorkspace.test.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Chepu derivative",
+      "type": "hard_prompt / purchased primary source / typed registration / production server data and callable paths / reachable route / discriminating regression"
     },
     {
       "direction": "273 -> 161;162;262",
@@ -13460,12 +13460,12 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-CHEPU-MISSION-PARTICIPATION-BONUS",
+      "decisionOwner": "none",
       "definition": {
-        "acceptance": "security cargo, boarding support, fuelled relocation, owner, dock, mission bonuses, and route are typed.",
+        "acceptance": "security cargo, boarding support, fuelled relocation, owner, dock, away-mission print status and bonuses, and route are source-aligned and typed.",
         "title": "Register Chepu completely."
       },
-      "description": "The canonical Chepu registration preserves the Refinery 124 PDF Colonel owner, SESSION START Refinery 124 dock, security-teams-only cargo, boarding support, and fuelled movement to a chosen ship at the start of Boarding Action. Focused data, server craft-ownership, manifest, and route tests verify these facts and keyboard return to the parent console. The routed REFERENCE_ONLY_SHUTTLES derivative establishes the listed cargo, boarding, relocation, owner, and dock facts, but its away-mission bonus summary does not state whether Chepu may contribute or what numeric bonus applies; no preserved Chepu primary artifact is available in the authorized source index. P272 remains partial under OWNER-CHEPU-MISSION-PARTICIPATION-BONUS pending an authoritative decision on whether Chepu contributes to away missions and, if so, its exact typed bonus; later cargo transfer, boarding, relocation, and mission engines remain separate prompts.",
+      "description": "The purchased DoWNE v1.1 A4 double-sided PDF, physical page 81, was visually checked against the Chepu and adjacent P.D.F. Escort Fighter Wing panels. Chepu lists security-team cargo, boarding defence, and fuelled movement to a chosen ship at the start of Boarding Action, but prints no away-mission participation rule or bonus. The separate Escort Fighter Wing panel prints away-mission participation with +2 search/rescue and +1 salvage. Typed registration keeps these records distinct: Chepu has participation 'not-printed', while the wing retains its printed bonuses. Production registration preserves Chepu's PDF Colonel owner and SESSION START Refinery 124 dock; the security-teams-only cargo map is consumed by transferShuttleCargoCommand, the PDF Colonel away-mission card path admits only the Escort Fighter Wing, and the routed /shuttles/chepu console renders Chepu's operational reference with a keyboard-accessible return. Focused regression tests distinguish Chepu from the wing across the typed records, server mission-craft helper, and route. This completes P272's source-aligned registration scope. The authoritative Wolf-attack boarding resolution and special fuelled Boarding Action relocation remain separate downstream work in P395 and P461; P272 does not claim those effects are implemented.",
       "evidenceIds": "E-AUDIT-272",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -13477,7 +13477,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

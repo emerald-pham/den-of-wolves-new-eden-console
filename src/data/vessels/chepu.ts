@@ -10,7 +10,7 @@ export default defineShuttle({
   vesselType: 'Assault shuttle',
   description: 'Moves security teams and reinforces boarding defence for the Refinery 124 P.D.F. Colonel.',
   captainRoleId: 'refinery-124-pdf-colonel',
-  // Source: purchased DoWNE - A4 Double Sided v1.1.pdf, physical PDF p. 81.
+  // Source: purchased DoWNE v1.1/Home Printing/DoWNE - A4 Double Sided v1.1.pdf, physical PDF p. 81.
   // The Chepu panel lists no away-mission rule; the adjacent fighter-wing panel is separate.
   awayMission: { participation: 'not-printed' },
   cargoTransferTypes: ['securityTeams'],

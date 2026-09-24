@@ -2394,7 +2394,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 269
 - [x] Prompt 270
 - [x] Prompt 271
-- [ ] Prompt 272
+- [x] Prompt 272
 - [x] Prompt 273
 - [x] Prompt 274
 - [x] Prompt 275
@@ -3153,7 +3153,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 269 — [PRESERVE] Register Hummingbird completely.** Acceptance: three-jump scout range, harvesting, mission bonuses, owner, dock, cargo, and route match its sheet.
 - **Prompt 270 — [PRESERVE] Register Condor completely.** Acceptance: full printed cargo and fuelled recharge remain Condor behavior, not a Black Sheep alias.
 - **Prompt 271 — [PRESERVE] Register Chacau completely.** Acceptance: actual cargo, repair, dismantle, permission, second-ship fuel rule, owner, dock, and route survive copied Philia text.
-- **Prompt 272 — [PRESERVE] Register Chepu completely.** Acceptance: security cargo, boarding support, fuelled relocation, owner, dock, mission bonuses, and route are typed.
+- **Prompt 272 — [PRESERVE] Register Chepu completely.** Acceptance: security cargo, boarding support, fuelled relocation, owner, dock, away-mission print status and bonuses, and route are source-aligned and typed.
 - **Prompt 273 — [PRESERVE] Register the PDF Escort Fighter Wing.** Acceptance: four-fighter cap, independent mission participation, combat launch, bonuses, and Colonel ownership are distinct.
 - **Prompt 274 — [PRESERVE] Register J.E.U. Wobbly completely.** Acceptance: its cargo and fuelled recharge belong to Wobbly despite copied Condor text and follow the active Union assignment.
 - **Prompt 275 — [PRESERVE] Register J.E.U. Ally completely.** Acceptance: cargo, repair, dismantle, permission, and fuel rule belong to Ally despite copied Chacau/Philia text.
