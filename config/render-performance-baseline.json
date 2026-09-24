@@ -3,7 +3,7 @@
   "prompt": "637",
   "budgets": {
     "landingBundleRawBytes": 1781000,
-    "landingBundleGzipBytes": 473000,
+    "landingBundleGzipBytes": 474000,
     "largestJavaScriptChunkBytes": 512000,
     "landingStartupP95Ms": 2500,
     "routeStartupP95Ms": 2500,

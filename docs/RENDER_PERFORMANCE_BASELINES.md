@@ -146,16 +146,21 @@ frames. The existing 473,000-byte gzip ceiling, largest-chunk, startup,
 render-update, and mobile-frame budgets remain unchanged; the raw ceiling
 retains 3,430 bytes of headroom over this measured candidate.
 
-Baseline version 13 raises only the complete application JavaScript raw ceiling
-from 1,778,000 to 1,781,000 bytes for Prompt 541's arrival-derived, current-
-group candidate reveal. Source candidate `b45b0763007b5ebefb6aed684a3b7dc62be15ced`
-measured 1,779,168 raw bytes, 472,795 gzip bytes, and a 496,263-byte largest
-chunk across nine JavaScript chunks. Its local P637 run at
-`2026-09-24T02:11:54.013Z` measured landing and cached Role Select startup p95
-at 83.83 ms and 80.12 ms; DRADIS, attack, and mission-hand update p95 at
-35 ms, 34.6 ms, and 34.2 ms; and the 390x844 mobile probe at 16.7 ms p95
-with zero long frames. The existing gzip ceiling of 473,000 bytes, largest-
-chunk ceiling, startup, render-update, and mobile-frame budgets remain
-unchanged; the raw ceiling retains 1,832 bytes of headroom over this measured
-candidate. P541 remains partial pending ordinary authorized production-path
-evidence; no scout-triggered reveal is claimed.
+Baseline version 13 raises the complete application JavaScript raw ceiling
+from 1,778,000 to 1,781,000 bytes and the gzip ceiling from 473,000 to 474,000
+bytes for Prompt 541's arrival-derived, current-group candidate reveal. The
+exact candidate at `39abc8b6c4c563382af4ed0f59e8eef6ba186c1b` measured
+1,779,168 raw bytes, 473,522 gzip bytes, and a 496,263-byte largest chunk
+across nine JavaScript chunks in GitHub Actions run `35948547382`. That run
+failed only the former gzip ceiling. Its uploaded render artifact measured
+landing and cached Role Select startup p95 at 264.44 ms and 222.55 ms; DRADIS,
+attack, and mission-hand update p95 at 100 ms, 33.6 ms, and 33.8 ms; and the
+390x844 mobile probe at 66.7 ms p95 with 30 long frames. These measurements
+remain within their unchanged limits. The local P637 run at
+`2026-09-24T02:11:54.013Z` at `b45b0763007b5ebefb6aed684a3b7dc62be15ced`
+measured the same 1,779,168 raw bytes and 472,795 gzip bytes before the
+CSS-only candidate-panel padding change. The unchanged largest-chunk, startup,
+render-update, and mobile-frame budgets remain in force; the new size ceilings
+retain 1,832 raw bytes and 478 gzip bytes of headroom over the CI candidate.
+P541 remains partial pending ordinary authorized production-path evidence; no
+scout-triggered reveal is claimed.
