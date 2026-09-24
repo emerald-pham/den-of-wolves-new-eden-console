@@ -728,6 +728,7 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   expect(screen.getByText(/\+3 to science checks/i)).toBeInTheDocument();
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
   expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
+  expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 0 of 5 boxes crossed; next field-upgrade cost is 8 materials.',

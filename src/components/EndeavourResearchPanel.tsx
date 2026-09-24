@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import {
   advanceEndeavourResearchTrack,
@@ -7,8 +7,9 @@ import {
   type EndeavourResearchWorkspace,
 } from '@/lib/endeavourResearchService';
 import type { ShuttleControlEntry } from '@/types/game';
-import EndeavourFieldUpgradePanel from './EndeavourFieldUpgradePanel';
 import './EndeavourResearchPanel.css';
+
+const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
 
 function isCurrentScientistHolder(expectedSessionId: string, expectedUid: string): boolean {
   const { session, me } = useSessionStore.getState();
@@ -207,18 +208,22 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         </div>
       </>}
     </section>
-    {workspace && <EndeavourFieldUpgradePanel
-      control={control}
-      workspace={workspace}
-      purchaseState={{
-        status: 'ready',
-        sessionId: workspace.sessionId,
-        cycle: workspace.cycle,
-        researchRevision: workspace.researchRevision,
-        upgradeRevision: workspace.fieldUpgradeState.upgradeRevision,
-        targetsUsedThisCycle: workspace.fieldUpgradeState.targetsUsedThisCycle,
-      }}
-      onRefresh={reload}
-    />}
+    {workspace && <Suspense fallback={<p className="console-workspace__status" role="status">
+      Loading Endeavour field-upgrade controls…
+    </p>}>
+      <EndeavourFieldUpgradePanel
+        control={control}
+        workspace={workspace}
+        purchaseState={{
+          status: 'ready',
+          sessionId: workspace.sessionId,
+          cycle: workspace.cycle,
+          researchRevision: workspace.researchRevision,
+          upgradeRevision: workspace.fieldUpgradeState.upgradeRevision,
+          targetsUsedThisCycle: workspace.fieldUpgradeState.targetsUsedThisCycle,
+        }}
+        onRefresh={reload}
+      />
+    </Suspense>}
   </>;
 }
