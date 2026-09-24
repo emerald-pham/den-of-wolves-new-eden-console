@@ -19,6 +19,10 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
   'advanceEndeavourResearchTrack',
   'readEndeavourResearchWorkspace',
 ];
+const CANDIDATE_REVEAL_CALLABLES = [
+  'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
+  'moveShipToLocation', 'resumeSession', 'runMaintenance', 'startGame', 'startSinglePlayerDemo',
+];
 const P436_EXPORTS = [...COMMAND_AND_CONTROL_CALLABLES, ...CONSOLE_METADATA_CALLABLES];
 
 const P436_RESOLVER_ID_ADDITION = "  | 'wolf-attack.command-and-control'\n";
@@ -93,6 +97,16 @@ test('maps the canonical Endeavour research resolver to its writer and P391 cons
 test('maps cadence policy changes to both private research callables', () => {
   const selected = selectorFor(['functions/src/endeavourResearchCadence.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));
+});
+
+test('maps candidate reveal and member discovery helpers to every production consumer', () => {
+  for (const file of [
+    'functions/src/candidateRevealProjection.ts',
+    'functions/src/navigationProjection.ts',
+  ]) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(CANDIDATE_REVEAL_CALLABLES));
+  }
 });
 
 test('maps Commander reroll helpers without relying on index changes', () => {

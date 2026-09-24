@@ -27,9 +27,16 @@ const TOOLING_ONLY_FILES = new Set([
   'config/render-performance-baseline.json',
 ]);
 
+const CANDIDATE_REVEAL_CALLABLES = Object.freeze([
+  'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
+  'moveShipToLocation', 'resumeSession', 'runMaintenance', 'startGame', 'startSinglePlayerDemo',
+]);
+
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
+  'functions/src/candidateRevealProjection.ts': CANDIDATE_REVEAL_CALLABLES,
+  'functions/src/navigationProjection.ts': CANDIDATE_REVEAL_CALLABLES,
   'functions/src/callableRateLimitFirestore.ts': [
     'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
     'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
