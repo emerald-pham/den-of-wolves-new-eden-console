@@ -4,16 +4,14 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import MaliadesPanel from './MaliadesPanel';
 import { useSessionStore } from '@/store/useSessionStore';
 
-const mocks = vi.hoisted(() => ({ medium: vi.fn(), short: vi.fn(), repair: vi.fn() }));
+const mocks = vi.hoisted(() => ({ repair: vi.fn() }));
 vi.mock('@/lib/maliadesService', () => ({
-  resolveMaliadesMedium: mocks.medium,
-  resolveMaliadesShort: mocks.short,
   repairMaliades: mocks.repair,
 }));
 
 const control = { shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'u1', revision: 2 } as const;
 const docking = { shuttleId: 'maliades', shipId: 'dione', dockedAt: 'SESSION START' } as const;
-const state = { revision: 1, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0 as const, destroyed: false, medium: null, short: null };
+const state = { revision: 1, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 1 as const, destroyed: false, medium: null, short: null };
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -32,21 +30,18 @@ beforeEach(() => {
   );
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
-  mocks.medium.mockResolvedValue({ status: 'committed', cycle: 2, revision: 2, state: { ...state, revision: 2 }, resolution: {} });
-  mocks.short.mockResolvedValue({ status: 'committed', cycle: 2, revision: 2, state: { ...state, revision: 2 }, resolution: {} });
   mocks.repair.mockResolvedValue({ status: 'committed', cycle: 2, revision: 2, state: { ...state, revision: 2 }, hostShipId: 'dione', damageRepaired: 1, materialsRemaining: 3 });
 });
 
-it('keeps the Maliades controls cycle-based and submits only available Medium choices', async () => {
+it('withholds range choices until safe Wolf targets are available and keeps fuelled repair', async () => {
   const user = userEvent.setup();
   render(<MaliadesPanel control={control} docking={docking} fuelled />);
   expect(screen.getByRole('heading', { name: 'Maliades operations' })).toBeVisible();
-  expect(screen.getByText(/target-number shifts are unavailable/i)).toBeVisible();
-  expect(screen.queryByLabelText('Current Wolf target for +1 / −1 shift')).not.toBeInTheDocument();
-  await user.type(screen.getByLabelText('Attack target'), 'wolf-2');
-  await user.click(screen.getByRole('button', { name: /resolve medium range/i }));
-  await waitFor(() => expect(mocks.medium).toHaveBeenCalledWith(2, 1, [
-    { kind: 'attack', targetId: 'wolf-2' },
-  ]));
-  expect(screen.getByRole('status')).toHaveTextContent(/cycle 2/);
+  expect(screen.getByText(/medium and short attacks are unavailable/i)).toBeVisible();
+  expect(screen.queryByLabelText('Attack target')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /resolve medium range/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /resolve short range/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /repair 1 damage/i }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledWith(2, 1, 'dione', 1));
+  expect(screen.getByRole('status')).toHaveTextContent(/repair committed/i);
 });

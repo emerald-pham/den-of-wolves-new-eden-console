@@ -92,114 +92,67 @@ beforeEach(() => {
 const medium = { sessionId: 's1', requestId: 'medium-1', expectedCycle: 2, expectedRevision: 1,
   choices: [{ kind: 'attack', targetId: 'dione' }] };
 
-it('commits Medium server dice, redacts actor identity, and replays without rolling again', async () => {
-  await expect(resolveMaliadesMedium.run(request(medium))).resolves.toMatchObject({
-    status: 'committed', cycle: 2, revision: 2, state: { damage: 0, revision: 2 },
-    resolution: { attack: { die: 4, hit: true, selfDamage: 0 } },
-  });
-  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(1);
-  const wolfAfterMedium = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
-  expect(wolfAfterMedium.revision).toBe(2);
-  const targetingAfterMedium = (wolfAfterMedium.calculationReceipt as Fields).targeting as Fields;
-  expect((targetingAfterMedium.rolls as Fields[])[0]).toMatchObject({
-    rosterIndex: 0, finalDie: 1, target: 'aegis', modifiers: [],
-  });
-  expect(wolfAfterMedium.maliadesRangeEffects).toEqual(expect.objectContaining({
-    medium: { targetShifts: [], damageByTarget: { dione: 1 } },
-  }));
-  expect(mock.documents.get('sessions/s1/events/maliades-medium-medium-1')).not.toHaveProperty('actorUid');
-  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
-  cryptoMock.randomInt.mockClear();
-  (mock.documents.get('sessions/s1') as Fields).phase = 'debrief';
-  await expect(resolveMaliadesMedium.run(request(medium))).resolves.toMatchObject({ status: 'replayed' });
-  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
-  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
-});
-
-it('resolves Short risk, then repairs one damage only with fuelled Team Phase docking', async () => {
-  await resolveMaliadesMedium.run(request(medium));
-  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'short-range';
-  cryptoMock.randomInt.mockReturnValueOnce(0).mockReturnValueOnce(1);
-  await expect(resolveMaliadesShort.run(request({
-    sessionId: 's1', requestId: 'short-1', expectedCycle: 2, expectedRevision: 2, targetIds: ['icebreaker', 'quellon'],
-  }))).resolves.toMatchObject({ revision: 3, state: { damage: 1, short: { selfDamage: 1 } } });
-  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
-    revision: 3, maliadesRangeEffects: { short: { damageByTarget: { quellon: 1 } } },
-  });
-  await expect(repairMaliades.run(request({
-    sessionId: 's1', requestId: 'repair-1', expectedCycle: 2, expectedRevision: 3,
-    expectedHostShipId: 'dione', damageToRepair: 1,
-  }))).resolves.toMatchObject({ status: 'committed', revision: 4, materialsRemaining: 3, state: { damage: 0 } });
-  expect(mock.documents.get('sessions/s1')).toMatchObject({
-    maliadesState: { revision: 4, damage: 0 }, shipResources: { dione: { materials: 3 } },
-  });
-});
-
-it('rejects stale or foreign authority before server dice', async () => {
-  await expect(resolveMaliadesMedium.run(request({ ...medium, expectedRevision: 0 }))).rejects.toMatchObject({ code: 'failed-precondition' });
-  await expect(resolveMaliadesMedium.run(request(medium, 'owner'))).rejects.toMatchObject({ code: 'permission-denied' });
-  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
-});
-
-it('denies every target-shift guess without reading-dependent results, dice, or writes', async () => {
-  const guesses = [
-    { requestId: 'shift-existing', targetId: 'aegis', targets: ['aegis', 'dione', 'icebreaker'] },
-    { requestId: 'shift-absent', targetId: 'shepherd', targets: ['aegis', 'dione', 'icebreaker'] },
-    { requestId: 'shift-duplicate', targetId: 'aegis', targets: ['aegis', 'aegis', 'icebreaker'] },
+it('denies enemy and friendly Medium/Short target guesses uniformly before reading attack state', async () => {
+  const attempts = [
+    { kind: 'medium' as const, targetId: 'wolf-fighter-wing', requestId: 'medium-enemy' },
+    { kind: 'medium' as const, targetId: 'aegis', requestId: 'medium-friendly' },
+    { kind: 'medium' as const, targetId: 'not-a-known-target', requestId: 'medium-absent' },
+    { kind: 'short' as const, targetId: 'wolf-fighter-wing', requestId: 'short-enemy' },
+    { kind: 'short' as const, targetId: 'aegis', requestId: 'short-friendly' },
+    { kind: 'short' as const, targetId: 'not-a-known-target', requestId: 'short-absent' },
   ];
   const outcomes: Array<{ code: unknown; message: string }> = [];
-  for (const guess of guesses) {
-    const state = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
-    const receipt = state.calculationReceipt as Fields;
-    const targeting = receipt.targeting as Fields;
-    targeting.rolls = guess.targets.map((target, rosterIndex) => ({
-      rosterIndex, shipId: 'wolf-fighter-wing', initialDie: rosterIndex + 1,
-      finalDie: rosterIndex + 1, target, modifiers: [],
-    }));
+  for (const attempt of attempts) {
     mock.referenceReads.length = 0;
     mock.get.mockClear();
     mock.set.mockClear();
     mock.update.mockClear();
     cryptoMock.randomInt.mockClear();
-    let caught: { code?: unknown; message: string } | undefined;
-    try {
-      await resolveMaliadesMedium.run(request({
-        sessionId: 's1', requestId: guess.requestId, expectedCycle: 2, expectedRevision: 1,
-        choices: [{ kind: 'target-shift', targetId: guess.targetId, shift: 1 }],
+    const operation = attempt.kind === 'medium'
+      ? resolveMaliadesMedium.run(request({
+        sessionId: 's1', requestId: attempt.requestId, expectedCycle: 2, expectedRevision: 1,
+        choices: [{ kind: 'attack', targetId: attempt.targetId }],
+      }))
+      : resolveMaliadesShort.run(request({
+        sessionId: 's1', requestId: attempt.requestId, expectedCycle: 2, expectedRevision: 1,
+        targetIds: [attempt.targetId],
       }));
-    } catch (error) {
-      caught = error as { code?: unknown; message: string };
-    }
+    let caught: { code?: unknown; message: string } | undefined;
+    try { await operation; } catch (error) { caught = error as { code?: unknown; message: string }; }
     expect(caught).toBeDefined();
     outcomes.push({ code: caught?.code, message: caught!.message });
+    expect(mock.referenceReads).toEqual(['sessions/s1', 'sessions/s1/players/holder']);
+    expect(mock.get).not.toHaveBeenCalled();
+    expect(mock.db.runTransaction).not.toHaveBeenCalled();
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
     expect(cryptoMock.randomInt).not.toHaveBeenCalled();
-    expect(mock.get).not.toHaveBeenCalled();
-    expect(mock.referenceReads).toEqual(['sessions/s1', 'sessions/s1/players/holder']);
   }
-  expect(outcomes[1]).toEqual(outcomes[0]);
-  expect(outcomes[2]).toEqual(outcomes[0]);
+  expect(outcomes.slice(1)).toEqual(Array(outcomes.length - 1).fill(outcomes[0]));
 });
 
-it('still denies target-shift guesses to a non-holder before the uniform target-choice denial', async () => {
-  await expect(resolveMaliadesMedium.run(request({
-    sessionId: 's1', requestId: 'foreign-shift', expectedCycle: 2, expectedRevision: 1,
-    choices: [{ kind: 'target-shift', targetId: 'aegis', shift: 1 }],
+it('still denies range actions to a non-holder before the uniform unavailable response', async () => {
+  await expect(resolveMaliadesMedium.run(request(medium, 'owner')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(resolveMaliadesShort.run(request({
+    sessionId: 's1', requestId: 'foreign-short', expectedCycle: 2, expectedRevision: 1, targetIds: ['wolf-fighter-wing'],
   }, 'owner'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.get).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 
-it('rejects a range command outside the current Wolf step or attack identity before rolling', async () => {
-  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'targeting';
-  await expect(resolveMaliadesMedium.run(request(medium))).rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
-
-  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'medium-range';
-  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).attackId = 'different-attack';
-  await expect(resolveMaliadesMedium.run(request({ ...medium, requestId: 'foreign-attack' })))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+it('repairs one damage only with fuelled Team Phase docking', async () => {
+  (mock.documents.get('sessions/s1') as Fields).maliadesState = {
+    revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 1, destroyed: false,
+    medium: null, short: null,
+  };
+  await expect(repairMaliades.run(request({
+    sessionId: 's1', requestId: 'repair-1', expectedCycle: 2, expectedRevision: 2,
+    expectedHostShipId: 'dione', damageToRepair: 1,
+  }))).resolves.toMatchObject({ status: 'committed', revision: 3, materialsRemaining: 3, state: { damage: 0 } });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    maliadesState: { revision: 3, damage: 0 }, shipResources: { dione: { materials: 3 } },
+  });
 });

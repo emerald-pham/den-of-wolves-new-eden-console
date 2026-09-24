@@ -73,8 +73,8 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import { declareWolfAttack, getDioneMaliadesLaunch, launchDioneMaliades } from './index';
-import { resolveMaliadesMedium, resolveMaliadesShort } from './maliadesCallable';
-import { parseMaliadesState } from './maliadesState';
+import { parseMaliadesState, resolveMaliadesMedium as resolveMaliadesStateMedium,
+  resolveMaliadesShort as resolveMaliadesStateShort } from './maliadesState';
 import { initialFighterWingCounts } from './fighterWings';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
@@ -346,7 +346,7 @@ it('lets only the active Dione Engineer launch Maliades from a charged operation
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('resets only per-attack Maliades actions across two declarations while preserving durability', async () => {
+it('resets only per-attack Maliades action records across declarations while preserving durability', async () => {
   await declareThenSeatDioneEngineer({
     shuttleControl: {
       maliades: {
@@ -357,35 +357,23 @@ it('resets only per-attack Maliades actions across two declarations while preser
   await expect(launchDioneMaliades.run(request({
     sessionId: 's1', requestId: 'lifecycle-launch-1', expectedTurn: 1, expectedRevision: 1,
   }))).resolves.toMatchObject({ status: 'committed', maliadesRevision: 2 });
-  patchSession({
-    phase: 'active',
-    turnPhase: {
-      turn: 1, teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
-      openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
-      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-    },
+  const launchedState = parseMaliadesState(mock.documents.get('sessions/s1').maliadesState);
+  expect(launchedState).not.toBeNull();
+  const priorMedium = resolveMaliadesStateMedium(launchedState!, {
+    expectedRevision: 2, attackId: 'wolf-attack-wolf-declare-1', attackCycle: 1,
+    choices: [{ kind: 'attack', targetId: 'wolf-cruiser' }], random: () => 0,
   });
-  put('sessions/s1/wolfAttackState/current', {
-    ...mock.documents.get('sessions/s1/wolfAttackState/current'), currentStep: 'medium-range',
+  const priorShort = resolveMaliadesStateShort(priorMedium.state, {
+    expectedRevision: 3, attackId: 'wolf-attack-wolf-declare-1', attackCycle: 1,
+    targetIds: ['wolf-destroyer'], random: () => 1,
   });
-  expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({ launched: true, attackId: 'wolf-attack-wolf-declare-1' });
-  expect(parseMaliadesState(mock.documents.get('sessions/s1').maliadesState)).not.toBeNull();
-  await expect(resolveMaliadesMedium.run(request({
-    sessionId: 's1', requestId: 'lifecycle-medium-1', expectedCycle: 1, expectedRevision: 2,
-    choices: [{ kind: 'attack', targetId: 'aegis' }],
-  }))).resolves.toMatchObject({ status: 'committed', revision: 3 });
-  const firstWolfState = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
-  firstWolfState.currentStep = 'short-range';
-  cryptoMock.randomInt.mockReturnValueOnce(1);
-  await expect(resolveMaliadesShort.run(request({
-    sessionId: 's1', requestId: 'lifecycle-short-1', expectedCycle: 1, expectedRevision: 3,
-    targetIds: ['dione'],
-  }))).resolves.toMatchObject({ status: 'committed', revision: 4, state: { damage: 1 } });
+  // Seed a valid state-domain result because no production lifecycle currently reaches range actions.
+  patchSession({ maliadesState: priorShort.state });
   const firstState = mock.documents.get('sessions/s1').maliadesState as Fields;
   expect(firstState).toMatchObject({
     attackId: 'wolf-attack-wolf-declare-1', launched: true, damage: 1,
-    medium: { attack: { targetId: 'aegis', die: 1, hit: false, selfDamage: 1 } },
-    short: { rolls: [{ targetId: 'dione', die: 2, hit: true, selfDamage: 0 }], selfDamage: 0 },
+    medium: { attack: { targetId: 'wolf-cruiser', die: 1, hit: false, selfDamage: 1 } },
+    short: { rolls: [{ targetId: 'wolf-destroyer', die: 2, hit: true, selfDamage: 0 }], selfDamage: 0 },
   });
 
   // The lifecycle owner removes the resolved declaration before the next cycle;
@@ -441,32 +429,12 @@ it('resets only per-attack Maliades actions across two declarations while preser
     sessionId: 's1', requestId: 'lifecycle-launch-2', expectedTurn: 2,
     expectedRevision: secondWolfState.revision as number,
   }))).resolves.toMatchObject({ status: 'committed', maliadesRevision: 6 });
-  const wolfAfterSecondLaunch = mock.documents.get('sessions/s1/wolfAttackState/current') as Fields;
-  wolfAfterSecondLaunch.currentStep = 'medium-range';
-  cryptoMock.randomInt.mockReturnValueOnce(3);
-  await expect(resolveMaliadesMedium.run(request({
-    sessionId: 's1', requestId: 'lifecycle-medium-2', expectedCycle: 2, expectedRevision: 6,
-    choices: [{ kind: 'attack', targetId: 'aegis' }],
-  }))).resolves.toMatchObject({
-    status: 'committed', revision: 7, state: { damage: 1, medium: { attack: { die: 4, hit: true, selfDamage: 0 } } },
-  });
-  (mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).currentStep = 'short-range';
-  cryptoMock.randomInt.mockReturnValueOnce(1);
-  await expect(resolveMaliadesShort.run(request({
-    sessionId: 's1', requestId: 'lifecycle-short-2', expectedCycle: 2, expectedRevision: 7,
-    targetIds: ['quellon'],
-  }))).resolves.toMatchObject({
-    status: 'committed', revision: 8, state: { damage: 1, short: { selfDamage: 0 } },
-  });
   expect(mock.documents.get('sessions/s1').maliadesState).toMatchObject({
     attackId: 'wolf-attack-wolf-declare-2', launched: true, damage: firstState.damage,
-    medium: { attack: { targetId: 'aegis' } }, short: { rolls: [{ targetId: 'quellon' }] },
+    medium: null, short: null,
   });
-  expect((mock.documents.get('sessions/s1/wolfAttackState/current') as Fields).maliadesRangeEffects).toEqual({
-    attackId: 'wolf-attack-wolf-declare-2', cycle: 2,
-    medium: { targetShifts: [], damageByTarget: { aegis: 1 } },
-    short: { damageByTarget: { quellon: 1 } },
-  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current') as Fields)
+    .toMatchObject({ currentStep: 'targeting', maliadesRangeEffects: { medium: null, short: null } });
 });
 
 it('blocks a destroyed Maliades from the next attack launch view', async () => {

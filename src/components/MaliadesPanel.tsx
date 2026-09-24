@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { findShip } from '@/data/ships';
 import { phaseForSession } from '@/lib/turnPhase';
-import { repairMaliades, resolveMaliadesMedium, resolveMaliadesShort, type MaliadesMediumChoice } from '@/lib/maliadesService';
+import { repairMaliades } from '@/lib/maliadesService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
@@ -15,8 +15,6 @@ interface Props {
 export default function MaliadesPanel({ control, docking, fuelled }: Props) {
   const session = useSessionStore((state) => state.session)!;
   const me = useSessionStore((state) => state.me)!;
-  const [mediumTarget, setMediumTarget] = useState('');
-  const [shortTargets, setShortTargets] = useState(['', '']);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const state = session.maliadesState;
@@ -26,47 +24,13 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
     phase.airspace.state === 'restricted' && !phase.timerPause;
   const isHolder = control.shuttleId === 'maliades' && control.ownerRoleId === 'dione-engineer' &&
     control.holderUid === me.uid && me.activeConsoleRoleId === 'dione-engineer';
-  const mediumChoices: MaliadesMediumChoice[] = mediumTarget.trim()
-    ? [{ kind: 'attack', targetId: mediumTarget.trim() }] : [];
-  const selectedShortTargets = shortTargets.map((target) => target.trim()).filter(Boolean);
   const hostName = docking ? findShip(docking.shipId)?.name ?? docking.shipId : undefined;
-  const canOperate = Boolean(state?.launched && !state.destroyed && isHolder && phaseOpen && !busy);
   const canRepair = Boolean(state?.launched && state.damage > 0 && !state.destroyed && isHolder && phaseOpen &&
     fuelled && docking && !busy);
 
   useEffect(() => {
-    setMediumTarget('');
-    setShortTargets(['', '']);
     setStatus('');
   }, [state?.revision, cycle, control.revision, docking?.shipId]);
-
-  async function operateMedium(): Promise<void> {
-    if (!canOperate || mediumChoices.length === 0) return;
-    setBusy(true);
-    setStatus('');
-    try {
-      const result = await resolveMaliadesMedium(cycle, state?.revision ?? 0, mediumChoices);
-      setStatus(`${result.status === 'replayed' ? 'Medium request replayed' : 'Medium resolution committed'} // cycle ${result.cycle} // damage ${result.state.damage}/3.`);
-    } catch (cause) {
-      setStatus(cause instanceof Error ? cause.message : 'Maliades Medium resolution failed.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function operateShort(): Promise<void> {
-    if (!canOperate || selectedShortTargets.length === 0) return;
-    setBusy(true);
-    setStatus('');
-    try {
-      const result = await resolveMaliadesShort(cycle, state?.revision ?? 0, selectedShortTargets);
-      setStatus(`${result.status === 'replayed' ? 'Short request replayed' : 'Short resolution committed'} // cycle ${result.cycle} // damage ${result.state.damage}/3.`);
-    } catch (cause) {
-      setStatus(cause instanceof Error ? cause.message : 'Maliades Short resolution failed.');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function repair(): Promise<void> {
     if (!canRepair || !docking || !state) return;
@@ -90,27 +54,7 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
     {!isHolder && <p>Only the current Dione Engineer holding Maliades may resolve its actions.</p>}
     {!phaseOpen && <p>Wolf attack actions and Team Phase repairs require restricted airspace in the current cycle.</p>}
     {docking ? <p>Docked host // {hostName} // fuel // {fuelled ? 'fuelled' : 'unfuelled'}</p> : <p>Maliades is not docked with an active host.</p>}
-
-    <fieldset disabled={!canOperate}>
-      <legend>Medium range // target and damage</legend>
-      <p>Target-number shifts are unavailable until a current Wolf target choice is available.</p>
-      <label>Attack target
-        <input value={mediumTarget} onChange={(event) => setMediumTarget(event.target.value)} placeholder="Wolf target ID" />
-      </label>
-      <button className="cic-action-button" type="button" disabled={mediumChoices.length === 0 || busy} onClick={() => void operateMedium()}>
-        Resolve Medium range
-      </button>
-    </fieldset>
-
-    <fieldset disabled={!canOperate}>
-      <legend>Short range // choose up to two distinct targets</legend>
-      {shortTargets.map((target, index) => <label key={index}>Target {index + 1}
-        <input value={target} onChange={(event) => setShortTargets((current) => current.map((value, item) => item === index ? event.target.value : value))} placeholder="Wolf target ID" />
-      </label>)}
-      <button className="cic-action-button" type="button" disabled={selectedShortTargets.length === 0 || busy} onClick={() => void operateShort()}>
-        Resolve Short range
-      </button>
-    </fieldset>
+    <p>Maliades Medium and Short attacks are unavailable until this console has safe Wolf target choices.</p>
 
     <fieldset disabled={!canRepair}>
       <legend>Team Phase repair</legend>

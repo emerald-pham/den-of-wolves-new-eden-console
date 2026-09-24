@@ -5,12 +5,7 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
-import { repairMaliades, resolveMaliadesMedium } from './maliadesService';
-
-const state = {
-  revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 0 as const, destroyed: false,
-  medium: { targetShift: null, attack: { targetId: 'dione', die: 4, hit: true, selfDamage: 0 } }, short: null,
-};
+import { repairMaliades, resolveMaliadesMedium, resolveMaliadesShort } from './maliadesService';
 
 beforeEach(() => {
   mocks.call.mockReset(); mocks.callable.mockReset().mockReturnValue(mocks.call);
@@ -26,23 +21,18 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
-it('calls available Medium attacks with the observed revision and validates its state projection', async () => {
-  mocks.call.mockImplementation(async (payload: { requestId: string }) => ({ data: {
-    status: 'committed', sessionId: 's1', requestId: payload.requestId, craftId: 'maliades', cycle: 2,
-    revision: 2, state, resolution: state.medium,
-  } }));
-  await expect(resolveMaliadesMedium(2, 1, [{ kind: 'attack', targetId: 'dione' }]))
-    .resolves.toMatchObject({ status: 'committed', cycle: 2, revision: 2 });
-  expect(mocks.callable).toHaveBeenCalledWith('functions', 'resolveMaliadesMedium');
-  expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
-    sessionId: 's1', expectedCycle: 2, expectedRevision: 1,
-    choices: [{ kind: 'attack', targetId: 'dione' }],
-  }));
-});
-
-it('does not send target-shift guesses without a safe current-target choice', async () => {
-  await expect(resolveMaliadesMedium(2, 1, [{ kind: 'target-shift', targetId: 'aegis', shift: 1 }]))
-    .rejects.toThrow(/current wolf target choices are not available/i);
+it('does not send enemy or friendly target guesses for unavailable range choices', async () => {
+  const attempts = [
+    resolveMaliadesMedium(2, 1, [{ kind: 'attack', targetId: 'wolf-fighter-wing' }]),
+    resolveMaliadesMedium(2, 1, [{ kind: 'attack', targetId: 'aegis' }]),
+    resolveMaliadesShort(2, 1, ['wolf-fighter-wing']),
+    resolveMaliadesShort(2, 1, ['aegis']),
+  ];
+  const messages: string[] = [];
+  for (const attempt of attempts) {
+    try { await attempt; } catch (error) { messages.push((error as Error).message); }
+  }
+  expect(messages).toEqual(Array(4).fill('Maliades range choices are not available for this attack.'));
   expect(mocks.callable).not.toHaveBeenCalled();
 });
 

@@ -60,12 +60,6 @@ function parseBaseReply(value: unknown, sessionId: string, requestId: string, ex
   return { ...raw, state };
 }
 
-function parseActionReply(value: unknown, sessionId: string, requestId: string, expectedCycle: number, expectedRevision: number): MaliadesActionReply {
-  const raw = parseBaseReply(value, sessionId, requestId, expectedCycle, expectedRevision);
-  if (!raw.resolution || !record(raw.resolution)) throw new Error('The Maliades response omitted its resolution.');
-  return raw as unknown as MaliadesActionReply;
-}
-
 export async function resolveMaliadesMedium(
   expectedCycle: number,
   expectedRevision: number,
@@ -82,17 +76,7 @@ export async function resolveMaliadesMedium(
       choices.some(choice => choice.kind === 'target-shift' && choice.shift !== -1 && choice.shift !== 1)) {
     throw new Error('The Maliades Medium selection is invalid. Refresh the console and try again.');
   }
-  if (choices.some(choice => choice.kind === 'target-shift')) {
-    throw new Error('Current Wolf target choices are not available for Maliades shifts.');
-  }
-  const checkpoint = captureSessionAuthority(session.id, me.uid);
-  const payload = { sessionId: session.id, requestId: commandId(), expectedCycle, expectedRevision, choices: [...choices] };
-  const reply = parseActionReply(
-    (await httpsCallable<typeof payload, unknown>(functions(), 'resolveMaliadesMedium')(payload)).data,
-    session.id, payload.requestId, expectedCycle, expectedRevision,
-  );
-  if (!isCurrentSessionAuthority(checkpoint)) return reply;
-  return reply;
+  throw new Error('Maliades range choices are not available for this attack.');
 }
 
 export async function resolveMaliadesShort(
@@ -109,14 +93,7 @@ export async function resolveMaliadesShort(
       new Set(targetIds).size !== targetIds.length) {
     throw new Error('The Maliades Short selection is invalid. Refresh the console and try again.');
   }
-  const checkpoint = captureSessionAuthority(session.id, me.uid);
-  const payload = { sessionId: session.id, requestId: commandId(), expectedCycle, expectedRevision, targetIds: [...targetIds] };
-  const reply = parseActionReply(
-    (await httpsCallable<typeof payload, unknown>(functions(), 'resolveMaliadesShort')(payload)).data,
-    session.id, payload.requestId, expectedCycle, expectedRevision,
-  );
-  if (!isCurrentSessionAuthority(checkpoint)) return reply;
-  return reply;
+  throw new Error('Maliades range choices are not available for this attack.');
 }
 
 export async function repairMaliades(
