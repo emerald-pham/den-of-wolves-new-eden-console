@@ -4,6 +4,9 @@ import { expect, it } from 'vitest';
 const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const callablePattern = /export const (\w+) = onCall/g;
 const matches = [...source.matchAll(callablePattern)];
+const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
+const highwallWindowGuardEnd = source.indexOf('\nfunction highwallCargo(', highwallWindowGuardStart);
+const highwallWindowGuard = source.slice(highwallWindowGuardStart, highwallWindowGuardEnd);
 
 const terminalFreezeExemptions = new Set([
   // Session lifecycle, authentication, presence, and GM administration remain
@@ -41,6 +44,7 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
     'requireSmallShipDockingPhase(',
     "get('phase') !== 'active'",
     'validateWolfAttackDeclaration(',
+    'requireLiveHighwallMiningWindow(',
   ];
 
   matches.forEach((match, index) => {
@@ -55,6 +59,10 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
 
   expect(unclassified, 'New callables must be classified or terminal-guarded').toEqual([]);
   expect(unguarded, 'Normal gameplay callables must reject terminal phases').toEqual([]);
+});
+
+it('requires the Highwall mining window guard to reject non-active sessions', () => {
+  expect(highwallWindowGuard).toContain("session.get('phase') !== 'active'");
 });
 
 it.each([
