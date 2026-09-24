@@ -318,3 +318,27 @@ zero long frames. These measurements are local Node 23.10 Chromium results,
 not CI-host or production telemetry. Exact source measurements are recorded in
 `/tmp/p637-render-performance/results.json`; remeasure if reviewed application
 code changes.
+
+Baseline version 20 calibrates only the complete-application JavaScript byte
+ceilings for the reviewed Maliades state integration. The exact clean main
+source at `3bf93ced10aed8240214077240df087ee0cd8584` measured 1,842,219 raw
+bytes and 488,383 gzip bytes across nine chunks, already 11,616 raw and 3,236
+gzip bytes above v19. Candidate `d0e2c3dff750b79091627ac39f4bb2520fe0a918`
+measured 1,849,458 raw bytes, 490,219 gzip bytes, and a 506,760-byte largest
+chunk across nine chunks: +7,239 raw and +1,836 gzip bytes over clean main.
+The v20 raw and gzip ceilings are 1,850,458 and 491,219 bytes, each exactly
+1,000 bytes above the measured candidate. Largest chunk remains below the
+unchanged 512,000-byte ceiling by 5,240 bytes.
+
+Candidate landing and cached Role Select startup p95 were 103.8 ms and
+95.52 ms; DRADIS, attack, and mission-hand update p95 were 33.4 ms, 33.5 ms,
+and 35.1 ms; the 390x844 mobile frame p95 was 16.8 ms with zero long frames.
+The corresponding clean-main values were 102.13 ms, 99.22 ms, 34.8 ms,
+34.4 ms, 34.9 ms, and 16.8 ms with zero long frames. The largest-chunk,
+startup, render-update, and mobile-frame budgets remain unchanged. These are
+same-toolchain local Node 23.10 Chromium measurements, not CI-host or
+production telemetry. The clean-main and candidate results are recorded in
+`/tmp/p397-main-p637/results.json` and
+`/tmp/p397-candidate-no-lazy-p637/results.json`; the candidate is 0.5.31 with
+P397/P453 still partial pending source-supported production paths. Remeasure
+if reviewed application code changes.
