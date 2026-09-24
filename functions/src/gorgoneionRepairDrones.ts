@@ -1,7 +1,7 @@
 import { phaseFromTurnPhase, type ActorScope } from './actionMetadata';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
-import { parseSmallShipState } from './smallShip';
+import { parseSmallShipState, SMALL_SHIP_RULES } from './smallShip';
 import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 
 const ROLE_ID = 'gorgoneion-captain' as const;
@@ -21,6 +21,12 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const expected = [...keys].sort();
   return JSON.stringify(Object.keys(value).sort()) === JSON.stringify(expected);
+}
+
+function repairableConsoleIds(hostShipId: string): ReadonlySet<string> {
+  return new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? [])
+    .filter(({ systemId }) => !systemId.startsWith('armoured-hull'))
+    .map(({ systemId }) => systemId));
 }
 
 export function parseGorgoneionRepairDronesState(value: unknown): GorgoneionRepairDronesState | null {
@@ -53,7 +59,8 @@ function requireCanonicalSmallShipState(value: unknown): ReturnType<typeof parse
         !/^[1-5]$/.test(key) || typeof result !== 'string') ||
       !Array.isArray(cycle.charges) || cycle.charges.some((charge) =>
         typeof charge !== 'string' || charge.length === 0) ||
-      new Set(cycle.charges).size !== cycle.charges.length) {
+      new Set(cycle.charges).size !== cycle.charges.length ||
+      cycle.charges.length > SMALL_SHIP_RULES.gorgoneion.reactorCapacity) {
     throw new Error('The Gorgoneion state is malformed.');
   }
   const parsed = parseSmallShipState(value, 'gorgoneion');
@@ -112,17 +119,31 @@ export function resolveGorgoneionRepairDrones(input: Readonly<{
   const hostShipId = smallShipState.hostShipId;
   if (!hostShipId) throw new Error('Gorgoneion Repair Drones require one docked host.');
   if (!isResourceShipId(hostShipId)) throw new Error('Gorgoneion is not docked with an eligible host.');
+  if (smallShipState.cycle.turn !== input.currentCycle || smallShipState.cycle.step !== 5 ||
+      !exactKeys(smallShipState.cycle.results, ['1', '2', '3', '4']) ||
+      smallShipState.cycle.chargingSkipped !== false ||
+      typeof smallShipState.cycle.startedAt !== 'string' ||
+      smallShipState.cycle.startedAt.length === 0 ||
+      smallShipState.cycle.completedAt !== undefined) {
+    throw new Error('Gorgoneion Repair Drones require current completed Team maintenance.');
+  }
+  if (!smallShipState.cycle.charges.includes('repair-drones')) {
+    throw new Error('Gorgoneion Repair Drones must be charged.');
+  }
   const hostResources = requireCanonicalInventory(input.hostResources, hostShipId);
 
   const damage = input.hostDamage;
+  const damageRaw = record(damage);
   const knownSystems = new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? []).map((card) => card.systemId));
-  if (!damage || typeof damage.destroyed !== 'boolean' || !Array.isArray(damage.damagedSystemIds) ||
+  const eligibleConsoles = repairableConsoleIds(hostShipId);
+  if (!damageRaw || !exactKeys(damageRaw, ['damagedSystemIds', 'destroyed']) ||
+      typeof damage.destroyed !== 'boolean' || !Array.isArray(damage.damagedSystemIds) ||
       damage.damagedSystemIds.some((id) => typeof id !== 'string' || !knownSystems.has(id)) ||
       new Set(damage.damagedSystemIds).size !== damage.damagedSystemIds.length) {
     throw new Error('The host damage authority is malformed.');
   }
   if (damage.destroyed) throw new Error('A destroyed host cannot receive Repair Drones.');
-  if (typeof input.systemId !== 'string' || !knownSystems.has(input.systemId) ||
+  if (typeof input.systemId !== 'string' || !eligibleConsoles.has(input.systemId) ||
       !damage.damagedSystemIds.includes(input.systemId)) {
     throw new Error('Choose one damaged console on the docked host.');
   }

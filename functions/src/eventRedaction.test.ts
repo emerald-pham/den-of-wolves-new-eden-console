@@ -218,6 +218,33 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('allow-lists Gorgoneion repair details without actor, role, or private repair authority', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'gorgoneion-repair-drones',
+      envelope: {
+        sessionId: 's1', actorUid: 'captain-secret', actorRoleId: 'gorgoneion-captain',
+        turn: 3, phase: 'active', requestId: 'gorg-repair-1', revision: 1,
+        serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        smallShipId: 'gorgoneion', hostShipId: 'aegis', systemId: 'reactor', materialsSpent: 3,
+        materialsRemaining: 2, expectedRevision: 0, actorUid: 'captain-secret',
+        actorRoleId: 'gorgoneion-captain', hostHolderUid: 'captain-secret', repairLedger: { cycle: 3 },
+        fingerprint: { actorUid: 'captain-secret' },
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 3, phase: 'active', type: 'gorgoneion-repair-drones',
+      requestId: 'gorg-repair-1', revision: 1,
+      serverTime: '2026-09-22T15:00:00.000Z', visibility: EventVisibility.Member,
+      createdAt: 'server-time', smallShipId: 'gorgoneion', hostShipId: 'aegis',
+      systemId: 'reactor', materialsSpent: 3,
+    });
+    expect(memberEventFieldsFor('gorgoneion-repair-drones')).toEqual([
+      'smallShipId', 'hostShipId', 'systemId', 'materialsSpent',
+    ]);
+  });
+
   it('publishes Endeavour upgrade targets without actor identity or research internals', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'endeavour-field-upgrade',

@@ -50,6 +50,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ],
   'chacau-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
   'ally-repair': ['shuttleId', 'hostShipId', 'systemIds', 'materialsSpent'],
+  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],
   'endeavour-field-upgrade': ['shuttleId', 'targets'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
 };
@@ -93,6 +94,8 @@ const MEMBER_ENVELOPE_FIELDS_BY_TYPE: Readonly<Record<string, readonly string[]>
   'chacau-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
   'ally-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>
+    field !== 'actorUid' && field !== 'actorRoleId'),
+  'gorgoneion-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>
     field !== 'actorUid' && field !== 'actorRoleId'),
 };
 
