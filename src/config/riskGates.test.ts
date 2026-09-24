@@ -166,6 +166,32 @@ describe('risk-based CI gates', () => {
     });
   });
 
+  it('classifies Firestore rule tests as rule risk without unrelated browser gates', () => {
+    expect(classifyRiskGates(['tests/rules/firestore.rules.test.ts'])).toMatchObject({
+      unit: true,
+      functions: false,
+      firestore: true,
+      webBuild: false,
+      ticker: false,
+      font: false,
+      render: false,
+      bundle: false,
+    });
+
+    expect(classifyRiskGates([
+      'functions/src/index.ts',
+      'firestore.rules',
+      'tests/rules/firestore.rules.test.ts',
+    ])).toMatchObject({
+      functions: true,
+      firestore: true,
+      ticker: false,
+      font: false,
+      render: false,
+      bundle: false,
+    });
+  });
+
   it('preserves supporting gates when tooling and a deployable surface share a release range', () => {
     expect(classifyRiskGates([
       'scripts/prompt-637-render-performance.mjs',

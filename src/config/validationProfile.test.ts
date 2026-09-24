@@ -88,6 +88,24 @@ describe('validation profiles', () => {
     expect(profile.commands).toContain('npm run test:all');
   });
 
+  it('keeps mixed callable and Firestore rule work on full server gates without unrelated browser checks', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: [
+        'functions/src/index.ts',
+        'firestore.rules',
+        'tests/rules/firestore.rules.test.ts',
+      ],
+    });
+    expect(profile.kind).toBe('full');
+    expect(profile.requiresReview).toBe(true);
+    expect(profile.commands).toContain('npm run test:all');
+    expect(profile.commands).toContain('npm run build --prefix functions');
+    expect(profile.commands).not.toContain('npm run test:font-consistency');
+    expect(profile.commands).not.toContain('npm run test:ticker:browser');
+    expect(profile.commands).not.toContain('node scripts/prompt-637-render-performance.mjs');
+    expect(profile.commands).not.toContain('node scripts/check-bundle-size.mjs');
+  });
+
   it('keeps roadmap evidence plus Functions tests focused and includes the Functions build', () => {
     const profile = deriveValidationProfile({
       changedFiles: [

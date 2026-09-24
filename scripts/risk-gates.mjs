@@ -102,12 +102,14 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
   const functionsTests = nonDocumentation.some((file) =>
     FUNCTIONS_PATTERN.test(file) && TEST_PATTERN.test(file));
   const functionsGate = functions || functionsTests;
-  const firestore = productionFiles.some((file) => FIRESTORE_PATTERN.test(file));
+  const firestoreTests = nonDocumentation.some((file) =>
+    /^tests\/rules\//i.test(file) && TEST_PATTERN.test(file));
+  const firestore = productionFiles.some((file) => FIRESTORE_PATTERN.test(file)) || firestoreTests;
   const tooling = nonDocumentation.some((file) => ROOT_TOOLING_PATTERN.test(file));
   const rootTests = nonDocumentation.some((file) =>
     TEST_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file));
   const unknown = nonDocumentation.some((file) =>
-    !WEB_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file) &&
+    !TEST_PATTERN.test(file) && !WEB_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file) &&
     !FIRESTORE_PATTERN.test(file) && !ROOT_TOOLING_PATTERN.test(file) &&
     file !== 'firebase.json' && file !== '.firebaserc');
   const firebaseConfig = nonDocumentation.some((file) => file === 'firebase.json' || file === '.firebaserc');
