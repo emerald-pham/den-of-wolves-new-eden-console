@@ -22,6 +22,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 42, active: 0, missing: 251,
+    },
+    changes: [
+      'After reconnecting, your console waits for current session information before showing game state again.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [618],
+  },
+
+  {
+    version: '0.5.32',
+    implementationProgress: {
       completed: 457, total: 751, percentage: '60.85%',
       done: 457, partial: 43, active: 0, missing: 251,
     },
