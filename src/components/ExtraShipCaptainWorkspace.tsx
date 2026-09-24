@@ -4,6 +4,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { RoleId } from '@/types/identifiers';
 import GorgoneionRepairDronesPanel from './GorgoneionRepairDronesPanel';
 import WarriorRepairDronesPanel from './WarriorRepairDronesPanel';
+import BaseCapybaraCargoTransferPanel from './BaseCapybaraCargoTransferPanel';
 
 export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId: RoleId }) {
   const session = useSessionStore((state) => state.session);
@@ -67,6 +68,7 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
             })}
           </div>
           {workspace.roleId === 'gorgoneion-captain' && <GorgoneionRepairDronesPanel />}
+          {workspace.roleId === 'capybara-small-captain' && <BaseCapybaraCargoTransferPanel />}
           {workspace.roleId === 'warrior-captain' && <WarriorRepairDronesPanel />}
         </>
       )}

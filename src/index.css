@@ -1259,6 +1259,42 @@ body {
 .extra-ship-workspace__actions p { font-size: 1rem; line-height: 1.5; overflow-wrap: anywhere; }
 .extra-ship-workspace__unavailable { color: var(--cic-muted) !important; }
 .extra-ship-workspace__available { color: var(--cic-cyan) !important; }
+.base-capybara-cargo { gap: 0.65rem; min-width: 0; border-color: var(--cic-cyan-dim); }
+.base-capybara-cargo p { font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.base-capybara-cargo__inventory {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.4rem;
+  margin: 0;
+}
+.base-capybara-cargo__inventory div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.45rem;
+  border: 1px solid var(--cic-rule);
+  overflow-wrap: anywhere;
+}
+.base-capybara-cargo__inventory dt,
+.base-capybara-cargo__inventory dd { margin: 0; font-size: 0.8125rem; line-height: 1.4; }
+.base-capybara-cargo__inventory dt { color: var(--cic-muted); }
+.base-capybara-cargo__inventory dd { color: var(--cic-ink); font-weight: 700; }
+.base-capybara-cargo .maintenance-controls { display: grid; grid-template-columns: minmax(0, 1fr); margin-bottom: 0; }
+.base-capybara-cargo .maintenance-controls label { min-height: 0; }
+.base-capybara-cargo .maintenance-controls select,
+.base-capybara-cargo .maintenance-controls input {
+  width: min(100%, 32rem);
+  max-width: 100%;
+}
+.base-capybara-cargo .cic-action-button {
+  min-height: 44px;
+  max-width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  white-space: normal;
+}
 .vulcan-labour-panel { border-color: var(--cic-cyan-dim); }
 .vulcan-labour-panel p { font-size: 0.875rem; }
 .vulcan-labour-panel .cic-action-button { min-height: 44px; max-width: 100%; white-space: normal; }

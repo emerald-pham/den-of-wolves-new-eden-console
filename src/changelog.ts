@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 457, partial: 39, active: 0, missing: 255,
     },
     changes: [
+      'Base Capybara Captains can transfer security teams, ore, fuel, food, water, or materials between Capybara cargo and its current docked host during Coordination.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+    implementationPrompts: ['241c'],
+  },
+
+  {
+    version: '0.5.26',
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 39, active: 0, missing: 255,
+    },
+    changes: [
       'Warrior Captains can use charged Repair Drones during Coordination to spend six materials from the current docked host and repair one or two damaged consoles once per cycle.',
       '457 of 751 planned items are complete (60.85%).',
     ],

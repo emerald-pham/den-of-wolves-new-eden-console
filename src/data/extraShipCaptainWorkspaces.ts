@@ -60,7 +60,15 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     actions: [
       unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
       unavailable('bulk-haulage', 'Bulk Haulage', 'Away Mission', 'A contributed opportunity grants one additional resource of every type won.'),
-      unavailable('cargo-transfer', 'Cargo Transfer', 'Coordination', 'Move security teams, ore, fuel, food, water, or materials between Capybara cargo and its docked host.', 'none', 'The strict server resolver exists; callable and workspace control remain unavailable.'),
+      {
+        id: 'cargo-transfer',
+        name: 'Cargo Transfer',
+        phase: 'Coordination',
+        effect: 'Move a positive whole amount of security teams, ore, fuel, food, water, or materials between base Capybara cargo and its current docked host.',
+        charge: 'none',
+        control: 'live-below',
+        availability: 'Live server-owned transfer control appears below when current authority permits.',
+      },
       unavailable('water-reclimator', 'Water Reclimator', 'Team', 'When charged, generate 4 water.', 'reactor', 'The production resolver exists on the facilitator small-ship lane; Captain control remains unavailable.'),
       unavailable('hydroponics', 'Hydroponics', 'Team', 'When charged, spend 1 water to generate 4 food.', 'reactor', 'The production resolver exists on the facilitator small-ship lane; Captain control remains unavailable.'),
       unavailable('fuel-processor', 'Fuel Processor', 'Team', 'When charged, convert up to 5 ore into the same amount of fuel.', 'reactor', 'The production resolver exists on the facilitator small-ship lane; Captain control remains unavailable.'),

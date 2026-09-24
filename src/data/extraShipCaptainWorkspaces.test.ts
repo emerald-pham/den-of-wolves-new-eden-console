@@ -57,6 +57,15 @@ describe('extra-ship Captain workspace catalog', () => {
       });
   });
 
+  it('connects base Capybara Cargo Transfer to the server-owned transfer control', () => {
+    expect(extraShipCaptainWorkspaceFor('capybara-small-captain')?.actions.find(({ id }) => id === 'cargo-transfer'))
+      .toMatchObject({
+        phase: 'Coordination', charge: 'none', control: 'live-below',
+        effect: expect.stringMatching(/positive whole amount.*security teams.*materials.*between base Capybara cargo and its current docked host/i),
+        availability: expect.stringMatching(/live server-owned transfer control appears below/i),
+      });
+  });
+
   it('uses cycle terminology and returns no workspace for ordinary replacement roles', () => {
     expect(JSON.stringify(EXTRA_SHIP_CAPTAIN_WORKSPACES)).not.toMatch(/\bturn\b/i);
     expect(extraShipCaptainWorkspaceFor('doctor')).toBeUndefined();

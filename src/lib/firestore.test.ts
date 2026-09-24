@@ -147,6 +147,50 @@ it('hydrates only canonical service-shuttle recharge accounting', () => {
   });
 });
 
+it('projects only a valid base Capybara cargo ledger for an admitted docked vessel', () => {
+  const base = {
+    ...sessionData(8),
+    expansion: 'base',
+    capybaraEnabled: true,
+    activeVesselIds: ['aegis'],
+    smallShipStates: {
+      'capybara-small': {
+        id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 2,
+        population: 700, unrest: 0,
+        cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+    shipResources: {
+      aegis: { securityTeams: 2, ore: 3, fuel: 4, food: 5, water: 6, materials: 7 },
+    },
+  };
+  expect(sessionFrom('admitted-capybara-cargo', {
+    ...base,
+    baseCapybaraCargo: {
+      revision: 3,
+      inventory: { securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6 },
+    },
+  }).baseCapybaraCargo).toEqual({
+    revision: 3,
+    inventory: { securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6 },
+  });
+  expect(sessionFrom('undocked-capybara-cargo', {
+    ...base,
+    smallShipStates: {},
+    baseCapybaraCargo: {
+      revision: 3,
+      inventory: { securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6 },
+    },
+  }).baseCapybaraCargo).toBeUndefined();
+  expect(sessionFrom('malformed-capybara-cargo', {
+    ...base,
+    baseCapybaraCargo: {
+      revision: 3,
+      inventory: { securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6, scrap: 99 },
+    },
+  }).baseCapybaraCargo).toBeUndefined();
+});
+
 it('hydrates only internally consistent Highwall mining results', () => {
   const valid = sessionFrom('highwall', {
     ...sessionData(8),

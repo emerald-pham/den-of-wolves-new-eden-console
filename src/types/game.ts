@@ -359,6 +359,19 @@ export interface SmallShipState {
   readonly cycle: SmallShipMaintenanceCycle;
 }
 
+/** Public six-resource cargo ledger for the admitted base small-ship Capybara. */
+export interface BaseCapybaraCargoState {
+  readonly revision: number;
+  readonly inventory: Readonly<{
+    securityTeams: number;
+    ore: number;
+    fuel: number;
+    food: number;
+    water: number;
+    materials: number;
+  }>;
+}
+
 /** Server-owned maintenance state for the admitted Voyage 33-0 vessel. */
 export interface Voyage33MaintenanceState {
   readonly id: 'voyage-33-0';
@@ -912,6 +925,8 @@ export interface GameSession {
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
   /** Optional small-ship state; resources are always borrowed from hostShipId. */
   readonly smallShipStates?: Readonly<Partial<Record<SmallShipId, SmallShipState>>>;
+  /** Visible only while the canonical base Capybara has valid server admission. */
+  readonly baseCapybaraCargo?: BaseCapybaraCargoState;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;

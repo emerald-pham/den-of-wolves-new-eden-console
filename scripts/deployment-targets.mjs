@@ -58,9 +58,11 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   ],
   'functions/src/extraShipAdmission.ts': [
     'assignReplacementRole', 'joinSession', 'resumeSession',
-    'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
+    'repairGorgoneionWithDrones', 'repairWarriorWithDrones', 'transferBaseCapybaraCargo',
   ],
-  'functions/src/replacementRoles.ts': ['assignReplacementRole'],
+  'functions/src/replacementRoles.ts': ['assignReplacementRole', 'transferBaseCapybaraCargo'],
+  'functions/src/baseCapybaraCargoTransfer.ts': ['transferBaseCapybaraCargo'],
+  'functions/src/baseCapybaraCargoTransferCallable.ts': ['transferBaseCapybaraCargo'],
   'functions/src/gorgoneionRepairDrones.ts': ['repairGorgoneionWithDrones'],
   'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
   'functions/src/warriorRepairDrones.ts': ['repairWarriorWithDrones'],
@@ -69,6 +71,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   // type-only and test imports do not add callable consumers.
   'functions/src/smallShip.ts': [
     'runSmallShipMaintenance', 'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
+    'transferBaseCapybaraCargo',
   ],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
@@ -567,6 +570,11 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       // deployable only after its index export landed. Historical ranges that
       // predate that export must not target a nonexistent Function.
       if (file === 'functions/src/smallShip.ts' && name === 'repairWarriorWithDrones' &&
+          !callableIsExportedAtRevision(name, after, cwd, sourceAtRevision)) continue;
+      if ((file === 'functions/src/extraShipAdmission.ts' || file === 'functions/src/replacementRoles.ts' ||
+          file === 'functions/src/smallShip.ts' || file === 'functions/src/baseCapybaraCargoTransfer.ts' ||
+          file === 'functions/src/baseCapybaraCargoTransferCallable.ts') &&
+          name === 'transferBaseCapybaraCargo' &&
           !callableIsExportedAtRevision(name, after, cwd, sourceAtRevision)) continue;
       selected.add(name);
     }

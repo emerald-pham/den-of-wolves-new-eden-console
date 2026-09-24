@@ -105,6 +105,7 @@ import { damageSystemIdsForShip, parseChacauRepairLedger } from './chacauRepairL
 import { parseAllyRepairLedger } from './allyRepairLedger';
 import { parseGorgoneionRepairDronesLedger } from './gorgoneionRepairDronesLedger';
 import { parseWarriorRepairDronesLedger } from './warriorRepairDronesLedger';
+import { parseBaseCapybaraCargoState } from './baseCapybaraCargoLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -2328,6 +2329,16 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentSmallShipStates = smallShipStates(
     data.smallShipStates, admissionVesselIds, data.expansion, data.capybaraEnabled,
   );
+  const currentShipResources = shipResources(data.shipResources);
+  const currentBaseCapybaraCargo = data.expansion === 'base' && data.capybaraEnabled === true &&
+    isPresentedSmallShipStateMapValid({
+      activeVesselIds: admissionVesselIds,
+      smallShipStates: data.smallShipStates,
+      expansion: data.expansion,
+      capybaraEnabled: data.capybaraEnabled,
+    }, 'capybara-small')
+    ? parseBaseCapybaraCargoState(data.baseCapybaraCargo) ?? undefined
+    : undefined;
   const storedDockings = Array.isArray(data.shuttleDockings)
     ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)
     : undefined;
@@ -2427,6 +2438,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     fleetTicker: fleetTickerState(data.fleetTicker),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
     smallShipStates: currentSmallShipStates,
+    ...(currentBaseCapybaraCargo ? { baseCapybaraCargo: currentBaseCapybaraCargo } : {}),
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),
@@ -2443,7 +2455,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
-    shipResources: shipResources(data.shipResources),
+    shipResources: currentShipResources,
     shipDamage: shipDamage(data.shipDamage),
     fighterWingCounts: fighterWingCounts(data.fighterWingCounts),
     shipUnrest: shipUnrest(data.shipUnrest),

@@ -22,6 +22,7 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
 ];
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
 const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
+const BASE_CAPYBARA_CARGO_CALLABLES = ['transferBaseCapybaraCargo'];
 const SMALL_SHIP_MAINTENANCE_CALLABLES = ['runSmallShipMaintenance'];
 const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';
 const P238_MAPPED_CANDIDATE = 'd005c510';
@@ -79,7 +80,7 @@ NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
   .replace(P541_NAVIGATION_WRITER_AFTER, P541_NAVIGATION_WRITER_BEFORE);
 const INDEX_SOURCE = [
   ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
-  ...SMALL_SHIP_MAINTENANCE_CALLABLES,
+  ...BASE_CAPYBARA_CARGO_CALLABLES, ...SMALL_SHIP_MAINTENANCE_CALLABLES,
 ].map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
 const GORGONEION_EVENT_FIELD_ENTRY =
   "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
@@ -187,17 +188,29 @@ test('maps Warrior repair resolver and transaction to its deployed repair callab
   }
 });
 
+test('maps base Capybara cargo resolver and transaction to its deployed transfer callable', () => {
+  for (const file of [
+    'functions/src/baseCapybaraCargoTransfer.ts',
+    'functions/src/baseCapybaraCargoTransferCallable.ts',
+  ]) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(BASE_CAPYBARA_CARGO_CALLABLES));
+  }
+});
+
 test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {
   const selected = selectorFor(['functions/src/extraShipAdmission.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
     'assignReplacementRole', 'joinSession', 'resumeSession',
-    'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
+    'repairGorgoneionWithDrones', 'repairWarriorWithDrones', ...BASE_CAPYBARA_CARGO_CALLABLES,
   ]));
 });
 
-test('maps the replacement-role admission change only to the assignment callable', () => {
+test('maps replacement-role admission changes to assignment and cargo transfer consumers', () => {
   const selected = selectorFor(['functions/src/replacementRoles.ts']);
-  assert.deepEqual(selectedFunctions(selected), functionTargets(['assignReplacementRole']));
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'assignReplacementRole', ...BASE_CAPYBARA_CARGO_CALLABLES,
+  ]));
 });
 
 test('maps small-ship maintenance changes only to the callables that execute the changed resolver', () => {
@@ -205,6 +218,7 @@ test('maps small-ship maintenance changes only to the callables that execute the
   assert.deepEqual(selectedFunctions(selected), functionTargets([
     ...GORGONEION_REPAIR_CALLABLES,
     ...WARRIOR_REPAIR_CALLABLES,
+    ...BASE_CAPYBARA_CARGO_CALLABLES,
     'runSmallShipMaintenance',
   ]));
 });
