@@ -18,6 +18,40 @@ describe('risk-based CI gates', () => {
     expect(profile.font).toBe(false);
   });
 
+  it('treats stored evidence PNGs as documentation while failing closed on other evidence artifacts', () => {
+    expect(classifyRiskGates([
+      'evidence/prompt-428-gm-control/phone-320-full.png',
+    ])).toMatchObject({
+      documentationOnly: true,
+      rootInstall: false,
+      functionsInstall: false,
+      lint: false,
+      unit: false,
+      functions: false,
+      firestore: false,
+      webBuild: false,
+      ticker: false,
+      font: false,
+      render: false,
+      bundle: false,
+    });
+
+    expect(classifyRiskGates([
+      'evidence/prompt-428-gm-control/phone-320-full.png',
+      'evidence/prompt-428-gm-control/unexpected.ts',
+    ])).toMatchObject({
+      documentationOnly: false,
+      unit: true,
+      functions: true,
+      firestore: true,
+      webBuild: true,
+      ticker: true,
+      font: true,
+      render: true,
+      bundle: true,
+    });
+  });
+
   it('runs ticker and font checks for shared UI and styling risks', () => {
     const route = classifyRiskGates(['src/routes/ShipConsole.tsx']);
     expect(route).toMatchObject({ webBuild: true, ticker: true, font: true, bundle: true });

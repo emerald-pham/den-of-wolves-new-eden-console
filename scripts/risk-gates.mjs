@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 
 const DOCUMENTATION_PATTERN = /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i;
+const STORED_EVIDENCE_IMAGE_PATTERN = /^evidence\/.*\.png$/i;
 const CATALOG_PATTERN = /^docs\/implementation-prompts\.json$/i;
 const ROADMAP_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/IMPLEMENTATION_[^/]*\.md)$/i;
 const TEST_PATTERN = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
@@ -88,7 +89,8 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
   }
 
   const nonDocumentation = changedFiles.filter((file) =>
-    !DOCUMENTATION_PATTERN.test(file) && !CATALOG_PATTERN.test(file));
+    !DOCUMENTATION_PATTERN.test(file) && !CATALOG_PATTERN.test(file) &&
+    !STORED_EVIDENCE_IMAGE_PATTERN.test(file));
   const productionFiles = nonDocumentation.filter((file) => !TEST_PATTERN.test(file));
   const riskProductionFiles = versionMetadataOnly
     ? productionFiles.filter((file) =>
