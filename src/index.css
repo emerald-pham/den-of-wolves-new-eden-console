@@ -3156,6 +3156,7 @@ body {
 
 .candidate-reveal-panel {
   margin: 1rem 0;
+  padding: 0.65rem;
 }
 
 .candidate-reveal-panel ul {
