@@ -6,6 +6,7 @@ const STORED_EVIDENCE_IMAGE_PATTERN = /^evidence\/.*\.png$/i;
 const CATALOG_PATTERN = /^docs\/implementation-prompts\.json$/i;
 const ROADMAP_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/IMPLEMENTATION_[^/]*\.md)$/i;
 const TEST_PATTERN = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
+const FIRESTORE_TEST_PATTERN = /^tests\/rules\/.+\.test\.ts$/i;
 const WEB_PATTERN = /^(?:src\/|public\/|index\.html$|package(?:-lock)?\.json$|tsconfig[^/]*\.json$|vite\.config\.[^/]+$)/i;
 const FUNCTIONS_PATTERN = /^functions\//i;
 const FIRESTORE_PATTERN = /^(?:firestore\.rules|firestore\.indexes\.json)$/i;
@@ -102,14 +103,13 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
   const functionsTests = nonDocumentation.some((file) =>
     FUNCTIONS_PATTERN.test(file) && TEST_PATTERN.test(file));
   const functionsGate = functions || functionsTests;
-  const firestoreTests = nonDocumentation.some((file) =>
-    /^tests\/rules\//i.test(file) && TEST_PATTERN.test(file));
+  const firestoreTests = nonDocumentation.some((file) => FIRESTORE_TEST_PATTERN.test(file));
   const firestore = productionFiles.some((file) => FIRESTORE_PATTERN.test(file)) || firestoreTests;
   const tooling = nonDocumentation.some((file) => ROOT_TOOLING_PATTERN.test(file));
   const rootTests = nonDocumentation.some((file) =>
-    TEST_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file));
+    TEST_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file) && !FIRESTORE_TEST_PATTERN.test(file));
   const unknown = nonDocumentation.some((file) =>
-    !TEST_PATTERN.test(file) && !WEB_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file) &&
+    !FIRESTORE_TEST_PATTERN.test(file) && !WEB_PATTERN.test(file) && !FUNCTIONS_PATTERN.test(file) &&
     !FIRESTORE_PATTERN.test(file) && !ROOT_TOOLING_PATTERN.test(file) &&
     file !== 'firebase.json' && file !== '.firebaserc');
   const firebaseConfig = nonDocumentation.some((file) => file === 'firebase.json' || file === '.firebaserc');

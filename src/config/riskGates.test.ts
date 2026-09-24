@@ -168,7 +168,7 @@ describe('risk-based CI gates', () => {
 
   it('classifies Firestore rule tests as rule risk without unrelated browser gates', () => {
     expect(classifyRiskGates(['tests/rules/firestore.rules.test.ts'])).toMatchObject({
-      unit: true,
+      unit: false,
       functions: false,
       firestore: true,
       webBuild: false,
@@ -257,6 +257,10 @@ describe('risk-based CI gates', () => {
   it('fails closed for unknown paths and manual releases', () => {
     for (const profile of [
       classifyRiskGates(['unexpected.production']),
+      classifyRiskGates(['unknown/prod.test.ts']),
+      classifyRiskGates(['unknown/tests/authority.ts']),
+      classifyRiskGates(['somewhere/tests/deploy.yml']),
+      classifyRiskGates(['tests/rules/firestore.rules.spec.ts']),
       classifyRiskGates([], { manual: true }),
     ]) {
       expect(profile).toMatchObject({
@@ -268,5 +272,19 @@ describe('risk-based CI gates', () => {
         render: true,
       });
     }
+
+    expect(classifyRiskGates([
+      'functions/src/index.ts',
+      'firestore.rules',
+      'tests/rules/firestore.rules.test.ts',
+      'unknown/prod.test.ts',
+    ])).toMatchObject({
+      functions: true,
+      firestore: true,
+      ticker: true,
+      font: true,
+      render: true,
+      bundle: true,
+    });
   });
 });

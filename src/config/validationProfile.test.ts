@@ -88,6 +88,18 @@ describe('validation profiles', () => {
     expect(profile.commands).toContain('npm run test:all');
   });
 
+  it('runs Firestore rules tests through the emulator-backed rules project', () => {
+    const profile = deriveValidationProfile({
+      changedFiles: ['tests/rules/firestore.rules.test.ts'],
+    });
+    expect(profile.kind).toBe('focused-tests');
+    expect(profile.commands).toContain('npm run test:rules');
+    expect(profile.commands).not.toContain('npm test -- --run tests/rules/firestore.rules.test.ts');
+    expect(profile.commands).not.toContain('npm run test:unit');
+    expect(profile.commands).not.toContain('npm run test:all');
+    expect(profile.commands).not.toContain('npm run test:ticker:browser');
+  });
+
   it('keeps mixed callable and Firestore rule work on full server gates without unrelated browser checks', () => {
     const profile = deriveValidationProfile({
       changedFiles: [
