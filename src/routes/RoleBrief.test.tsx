@@ -366,6 +366,11 @@ it.each([
   const workspace = screen.getByRole('region', { name: `${vesselName} Captain workspace` });
   expect(within(workspace).getByRole('heading', { name: ownAction })).toBeVisible();
   expect(within(workspace).queryByRole('heading', { name: foreignAction })).not.toBeInTheDocument();
+  if (roleId === 'gorgoneion-captain') {
+    const repair = within(workspace).getByRole('region', { name: 'Gorgoneion Repair Drones' });
+    expect(within(repair).getByRole('combobox', { name: 'Gorgoneion repair console' })).toBeVisible();
+    expect(within(repair).getByRole('button', { name: 'Repair one console' })).toBeDisabled();
+  }
 });
 
 it('withholds base Capybara procedures when the session selects the expansion Capybara', () => {
@@ -399,4 +404,6 @@ it('keeps extra-ship workspace copy console-styled and readable at phone size', 
   expect(stylesheet).toMatch(/\.extra-ship-workspace\s*\{[^}]*font-family:\s*var\(--cic-mono\)/s);
   expect(stylesheet).toMatch(/\.extra-ship-workspace__actions p\s*\{[^}]*font-size:\s*1rem/s);
   expect(stylesheet).toMatch(/grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*10rem\),\s*1fr\)\)/);
+  expect(stylesheet).toMatch(/\.gorgoneion-repair-drones\s*\{[^}]*min-width:\s*0/);
+  expect(stylesheet).toMatch(/\.gorgoneion-repair-drones \.maintenance-controls select\s*\{[^}]*max-width:\s*100%/);
 });

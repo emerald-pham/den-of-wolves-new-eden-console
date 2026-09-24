@@ -104,6 +104,33 @@ describe('small-ship rules', () => {
     })).toThrow(/base Capybara/i);
   });
 
+  it('keeps Capybara production gated after Team maintenance closes while expiring its unused charge next cycle', () => {
+    const baseState = docked('capybara-small');
+    const chargedState = {
+      ...baseState,
+      cycle: {
+        ...baseState.cycle,
+        step: 5, revision: 5, turn: 1,
+        charges: ['water-reclimator'],
+      },
+    };
+    const ended = advanceSmallShipMaintenance({
+      state: chargedState, action: 'end', expectedRevision: 5, currentTurn: 1,
+      hostResources, rolls: [], now: 'cycle-1-end',
+    });
+    expect(ended.state.cycle).toMatchObject({ step: 0, charges: ['water-reclimator'] });
+    expect(() => advanceSmallShipMaintenance({
+      state: ended.state, action: 'production', expectedRevision: 6, currentTurn: 1,
+      hostResources, productionConsoleId: 'water-reclimator', rolls: [], now: 'too-late',
+    })).toThrow(/not available at the current step/i);
+
+    const nextCycle = advanceSmallShipMaintenance({
+      state: ended.state, action: 'begin', expectedRevision: 6, currentTurn: 2,
+      hostResources, rolls: [], now: 'cycle-2-start',
+    });
+    expect(nextCycle.state.cycle).toMatchObject({ step: 1, turn: 2, charges: [] });
+  });
+
   it('converts a bounded ore amount to host fuel only through a charged Fuel Processor', () => {
     const state = {
       ...docked('capybara-small'),
@@ -175,8 +202,44 @@ describe('small-ship rules', () => {
       state, action: 'end', expectedRevision: 5, currentTurn: 1,
       hostResources: resources, rolls: [], now: '2026-01-01T00:00:05.000Z',
     }));
-    expect(state.cycle).toMatchObject({ step: 0, charges: [] });
+    expect(state.cycle).toMatchObject({ step: 0, charges: ['console-1'] });
   });
+
+  it.each(['gorgoneion', 'warrior'] as const)(
+    'keeps the %s Repair Drones charge through the rest of this cycle and clears it at next cycle start',
+    (id) => {
+      const baseState = docked(id);
+      const chargedState = {
+        ...baseState,
+        cycle: {
+          ...baseState.cycle,
+          step: 5,
+          revision: 5,
+          results: { '1': 'rations', '2': 'unrest', '3': 'riot', '4': 'reactor' },
+          charges: ['repair-drones'],
+          turn: 3,
+          chargingSkipped: false,
+          startedAt: '2026-01-01T00:00:00.000Z',
+        },
+      };
+
+      const ended = advanceSmallShipMaintenance({
+        state: chargedState, action: 'end', expectedRevision: 5, currentTurn: 3,
+        hostResources, rolls: [], now: '2026-01-01T00:05:00.000Z',
+      });
+      expect(ended.state.cycle).toMatchObject({
+        step: 0, revision: 6, turn: 3, completedAt: '2026-01-01T00:05:00.000Z',
+        charges: ['repair-drones'],
+      });
+
+      const nextCycle = advanceSmallShipMaintenance({
+        state: ended.state, action: 'begin', expectedRevision: 6, currentTurn: 4,
+        hostResources, rolls: [], now: '2026-01-02T00:00:00.000Z',
+      });
+      expect(nextCycle.state.cycle).toMatchObject({ step: 1, revision: 7, turn: 4, charges: [] });
+      expect(nextCycle.state.cycle.completedAt).toBeUndefined();
+    },
+  );
 
   it('turns a failed population roll into loss and skips charging without ship damage', () => {
     let state = docked('warrior');

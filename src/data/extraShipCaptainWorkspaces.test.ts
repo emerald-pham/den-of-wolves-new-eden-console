@@ -39,6 +39,15 @@ describe('extra-ship Captain workspace catalog', () => {
     expect(copy).not.toMatch(/laser cannon|missile array|repair drones/i);
   });
 
+  it('connects the Gorgoneion Repair Drones card to its server-owned live workspace control', () => {
+    expect(extraShipCaptainWorkspaceFor('gorgoneion-captain')?.actions.find(({ id }) => id === 'repair-drones'))
+      .toMatchObject({
+        phase: 'Coordination', charge: 'reactor', control: 'live-below',
+        effect: expect.stringMatching(/3 materials.*one damaged host console.*once per cycle/i),
+        availability: expect.stringMatching(/live server-owned repair control appears below/i),
+      });
+  });
+
   it('uses cycle terminology and returns no workspace for ordinary replacement roles', () => {
     expect(JSON.stringify(EXTRA_SHIP_CAPTAIN_WORKSPACES)).not.toMatch(/\bturn\b/i);
     expect(extraShipCaptainWorkspaceFor('doctor')).toBeUndefined();

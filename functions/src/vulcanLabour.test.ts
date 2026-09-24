@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { emptyMaintenanceCycle } from './maintenance';
+import { advanceSmallShipMaintenance, emptySmallShipState } from './smallShip';
 import { applyVulcanAdditionalLabour, VULCAN_ADDITIONAL_LABOUR_CONSOLES } from './vulcanLabour';
 
 const sourceCycle = {
@@ -81,4 +82,23 @@ it('rejects a duplicate, damaged, stale-turn, or unknown target before mutation'
   expect(() => applyVulcanAdditionalLabour({ ...base, currentTurn: 2 })).toThrow(/current cycle/i);
   expect(() => applyVulcanAdditionalLabour({ ...base, targetConsoleId: 'reactor' })).toThrow(/permitted/i);
   expect(() => applyVulcanAdditionalLabour({ ...base, targetShipId: 'vulcan' })).toThrow(/another active ship/i);
+});
+
+it('does not permit Vulcan Additional Labour after its current Team cycle is closed', () => {
+  const baseState = emptySmallShipState('vulcan', 'aegis');
+  const closed = advanceSmallShipMaintenance({
+    state: {
+      ...baseState,
+      cycle: {
+        ...baseState.cycle, step: 5, revision: 5, turn: 1,
+        charges: ['additional-labour-1'], startedAt: '2026-09-12T16:00:00.000Z',
+      },
+    },
+    action: 'end', expectedRevision: 5, currentTurn: 1,
+    hostResources: targetResources, rolls: [], now: '2026-09-12T16:05:00.000Z',
+  });
+
+  expect(closed.state.cycle).toMatchObject({ step: 0, charges: ['additional-labour-1'] });
+  expect(() => applyVulcanAdditionalLabour({ ...base, sourceCycle: closed.state.cycle }))
+    .toThrow(/available after Vulcan maintenance in the current cycle/i);
 });

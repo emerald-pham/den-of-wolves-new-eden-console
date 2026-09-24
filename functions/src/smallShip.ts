@@ -180,6 +180,8 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
   if (action === 'begin') {
     cycle.turn = input.currentTurn;
     cycle.results = {};
+    // Charges are available to their printed phases for this game cycle;
+    // the next Team cycle is the boundary that expires any unused charge.
     cycle.charges = [];
     cycle.rationBonus = 0;
     cycle.chargingSkipped = false;
@@ -269,7 +271,6 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
     cycle.charges = cycleInput.charges.filter((id) => id !== consoleId);
   } else if (action === 'end') {
     cycle.completedAt = input.now;
-    cycle.charges = [];
   }
   cycle.step = action === 'end' || isProduction ? (action === 'end' ? 0 : cycle.step) : cycle.step + 1;
   return {

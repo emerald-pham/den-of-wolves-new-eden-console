@@ -4,6 +4,10 @@ import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState, SMALL_SHIP_RULES } from './smallShip';
 import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 
+// Source: DoWNE Printer - A4 Card Duplex, base v1.1 PDF
+// (downe-home-printing-a4-double-sided-v1.1.pdf, SHA-256
+// be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86),
+// printed Gorgoneion card p. 23 and Gorgoneion Captain Role Guide p. 24.
 const ROLE_ID = 'gorgoneion-captain' as const;
 const REPAIR_COST = 3;
 
@@ -119,12 +123,16 @@ export function resolveGorgoneionRepairDrones(input: Readonly<{
   const hostShipId = smallShipState.hostShipId;
   if (!hostShipId) throw new Error('Gorgoneion Repair Drones require one docked host.');
   if (!isResourceShipId(hostShipId)) throw new Error('Gorgoneion is not docked with an eligible host.');
-  if (smallShipState.cycle.turn !== input.currentCycle || smallShipState.cycle.step !== 5 ||
+  const teamMaintenanceClosed = smallShipState.cycle.step === 0 &&
+    typeof smallShipState.cycle.completedAt === 'string' && smallShipState.cycle.completedAt.length > 0;
+  const teamMaintenanceOpenAtFinalStep = smallShipState.cycle.step === 5 &&
+    smallShipState.cycle.completedAt === undefined;
+  if (smallShipState.cycle.turn !== input.currentCycle ||
+      (!teamMaintenanceClosed && !teamMaintenanceOpenAtFinalStep) ||
       !exactKeys(smallShipState.cycle.results, ['1', '2', '3', '4']) ||
       smallShipState.cycle.chargingSkipped !== false ||
       typeof smallShipState.cycle.startedAt !== 'string' ||
-      smallShipState.cycle.startedAt.length === 0 ||
-      smallShipState.cycle.completedAt !== undefined) {
+      smallShipState.cycle.startedAt.length === 0) {
     throw new Error('Gorgoneion Repair Drones require current completed Team maintenance.');
   }
   if (!smallShipState.cycle.charges.includes('repair-drones')) {

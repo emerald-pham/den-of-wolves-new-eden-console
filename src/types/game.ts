@@ -778,6 +778,14 @@ export interface AllyRepairLedger {
   }>[];
 }
 
+/** Server-owned Gorgoneion Repair Drones use and replay revision for one cycle. */
+export interface GorgoneionRepairDronesState {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly hostShipId: VesselId | '';
+  readonly systemId: string;
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -907,6 +915,8 @@ export interface GameSession {
   readonly boaRecycling?: BoaRecyclingLedger | null;
   readonly chacauRepairs?: ChacauRepairLedger;
   readonly allyRepairs?: AllyRepairLedger;
+  /** Current or legacy-default Gorgoneion repair history; null means malformed. */
+  readonly gorgoneionRepairDrones?: GorgoneionRepairDronesState | null;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

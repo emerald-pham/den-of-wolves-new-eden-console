@@ -1293,6 +1293,11 @@ describe('session header', () => {
         'shipDamage.aegis.destroyed': true,
       }));
       await assertFails(updateDoc(session, {
+        gorgoneionRepairDrones: {
+          cycle: 3, revision: 1, hostShipId: 'aegis', systemId: 'reactor',
+        },
+      }));
+      await assertFails(updateDoc(session, {
         chacauRepairs: {
           cycle: 3,
           revision: 1,
@@ -1305,6 +1310,16 @@ describe('session header', () => {
         },
       }));
     }
+  });
+
+  it('keeps Gorgoneion repair member events and command receipts server-owned', async () => {
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/events/gorgoneion-repair-drones-forged`), {
+      sessionId: 's1', type: 'gorgoneion-repair-drones',
+      hostShipId: 'aegis', systemId: 'reactor', materialsSpent: 3,
+    }));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/commandReceipts/forged-gorg-repair`), {
+      actorUid: 'alice', result: { materialsRemaining: 99 },
+    }));
   });
 
   // This denial is the whole reason createSession has to be a callable: a

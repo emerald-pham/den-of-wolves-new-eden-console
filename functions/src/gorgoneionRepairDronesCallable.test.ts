@@ -1,5 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import type { ShipResourceInventory } from './resources';
+import { advanceSmallShipMaintenance, emptySmallShipState, type SmallShipMaintenanceInput } from './smallShip';
 
 type Fields = Record<string, unknown>;
 const mock = vi.hoisted(() => {
@@ -79,7 +81,9 @@ const resetFixture = () => {
   mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear(); mock.db.runTransaction.mockClear();
   put('sessions/s1', {
     phase: 'active', currentTurn: 3,
-    activeRoleIds: ['gorgoneion-captain'], activeVesselIds: ['aegis', 'gorgoneion'],
+    // The extra-ship Captain is a current replacement role, not a casting seat.
+    // This user's historical assignedRoleId remains unrelated to that entitlement.
+    activeRoleIds: ['warrior-captain'], activeVesselIds: ['aegis', 'gorgoneion'],
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
       openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
@@ -92,11 +96,8 @@ const resetFixture = () => {
     shipDamage: { aegis: { damagedSystemIds: ['reactor', 'storage'], destroyed: false } },
   });
   put('sessions/s1/players/captain', {
-    role: 'player', connected: true, assignedRoleId: 'gorgoneion-captain',
-    seatId: 'gorgoneion-captain', replacementRoleId: null,
-  });
-  put('sessions/s1/seats/gorgoneion-captain', {
-    roleId: 'gorgoneion-captain', status: 'claimed', holderUid: 'captain',
+    role: 'player', connected: true, assignedRoleId: 'warrior-captain',
+    seatId: null, activeConsoleRoleId: null, replacementRoleId: 'gorgoneion-captain',
   });
 };
 
@@ -129,6 +130,41 @@ it('atomically spends exactly three current docked-host materials, repairs one c
     .not.toHaveProperty('actorUid');
 });
 
+it('commits after the real Gorgoneion Team cycle ends before current Coordination', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  let state = { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 2 };
+  let hostResources = { ...((session.shipResources as Record<string, ShipResourceInventory>).aegis!) };
+  let stepIndex = 0;
+  const progress = (action: string, options: Partial<SmallShipMaintenanceInput> = {}) => {
+    const result = advanceSmallShipMaintenance({
+      state, action, expectedRevision: state.cycle.revision, currentTurn: 3,
+      hostResources, rolls: [], now: `2026-09-22T08:00:0${stepIndex++}.000Z`, ...options,
+    });
+    state = result.state;
+    hostResources = result.hostResources;
+  };
+
+  progress('begin');
+  progress('rations', { foodLevel: 0, waterLevel: 0 });
+  progress('unrest', { rolls: [6, 6] });
+  progress('riot', { rolls: [6] });
+  progress('reactor', { consoles: ['repair-drones'] });
+  progress('end');
+  expect(state.cycle).toMatchObject({ step: 0, turn: 3, charges: ['repair-drones'] });
+  session.smallShipStates = { gorgoneion: state };
+  session.shipResources = { aegis: hostResources };
+
+  await expect(repairGorgoneionWithDrones.run(request(command))).resolves.toMatchObject({
+    status: 'committed', hostShipId: 'aegis', systemId: 'reactor',
+    materialsSpent: 3, cycle: 3, repairRevision: 1,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
+    shipResources: { aegis: { materials: 2 } },
+    gorgoneionRepairDrones: { cycle: 3, revision: 1 },
+  });
+});
+
 it('replays a completed request after Coordination closes without spending or repairing twice', async () => {
   await repairGorgoneionWithDrones.run(request(command));
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
@@ -152,17 +188,16 @@ it('rejects altered replay payloads and a second repair in the same cycle before
 });
 
 it.each([
-  ['wrong assigned Captain role', { player: { assignedRoleId: 'warrior-captain' } }],
-  ['wrong player seat', { player: { seatId: 'warrior-captain' } }],
-  ['replacement occupant', { player: { replacementRoleId: 'commissar' } }],
-  ['another seat holder', { seat: { holderUid: 'someone-else' } }],
-  ['released Captain seat', { seat: { status: 'open' } }],
-  ['removed Captain entitlement', { session: { activeRoleIds: ['warrior-captain'] } }],
+  ['historical Gorgoneion role without replacement entitlement', {
+    player: { assignedRoleId: 'gorgoneion-captain', replacementRoleId: null },
+  }],
+  ['wrong active replacement role', { player: { replacementRoleId: 'commissar' } }],
+  ['replacement with an active console role', { player: { activeConsoleRoleId: 'gorgoneion-captain' } }],
+  ['replacement retaining a core seat', { player: { seatId: 'warrior-captain' } }],
   ['disconnected Captain', { player: { connected: false } }],
 ] as const)('denies %s without mutation', async (_label, change) => {
   if ('session' in change) Object.assign(mock.documents.get('sessions/s1')!, change.session);
   if ('player' in change) Object.assign(mock.documents.get('sessions/s1/players/captain')!, change.player);
-  if ('seat' in change) Object.assign(mock.documents.get('sessions/s1/seats/gorgoneion-captain')!, change.seat);
   await expect(repairGorgoneionWithDrones.run(request(command)))
     .rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set).not.toHaveBeenCalled();

@@ -40,7 +40,15 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     actions: [
       unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
       unavailable('mission-support', 'Mission Support', 'Away Mission', 'Before cards are dealt, inspect the top five mission cards and return each to the top or bottom.', 'none', 'Awaiting the authoritative pre-deal mission lifecycle.'),
-      unavailable('repair-drones', 'Repair Drones', 'Coordination', 'When charged, spend 3 host materials to repair one damaged host console, once per cycle.', 'reactor', 'The strict server resolver exists; callable and workspace control remain unavailable.'),
+      {
+        id: 'repair-drones',
+        name: 'Repair Drones',
+        phase: 'Coordination',
+        effect: 'When charged, spend 3 materials from the docked host to repair one damaged host console, once per cycle.',
+        charge: 'reactor',
+        control: 'live-below',
+        availability: 'Live server-owned repair control appears below when current authority permits.',
+      },
       unavailable('missile-array', 'Missile Array', 'Wolf attack', 'When charged, roll three dice at each range using the printed 6+ / 5+ / 4+ thresholds.', 'reactor', 'Awaiting the authoritative range-phase resolver.'),
       unavailable('force-field-projector', 'Force Field Projector', 'Wolf attack', 'When charged before targeting, protect one ship and reduce its final attack damage by 2.', 'reactor', 'Awaiting the authoritative before-targeting resolver.'),
     ],

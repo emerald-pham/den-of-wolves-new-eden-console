@@ -106,14 +106,12 @@ function activePlayer(player: DocumentSnapshot): boolean {
   return lastSeenAt instanceof Timestamp && !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
-function currentCaptainSeat(session: DocumentSnapshot, player: DocumentSnapshot, seat: DocumentSnapshot, uid: string): void {
-  const activeRoleIds = session.get('activeRoleIds');
-  if (!Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
-      new Set(activeRoleIds).size !== activeRoleIds.length || !activeRoleIds.includes(ROLE_ID) ||
-      player.get('assignedRoleId') !== ROLE_ID || player.get('seatId') !== ROLE_ID ||
-      (player.get('replacementRoleId') !== undefined && player.get('replacementRoleId') !== null) ||
-      !seat.exists || seat.id !== ROLE_ID || seat.get('roleId') !== ROLE_ID ||
-      seat.get('status') !== 'claimed' || seat.get('holderUid') !== uid) {
+function currentCaptainReplacementRole(player: DocumentSnapshot): void {
+  // Gorgoneion Captain is an extra-ship replacement role, not a core casting
+  // seat. Replacement assignment is the current server-owned entitlement;
+  // assignedRoleId may retain the player's historical printed core role.
+  if (player.get('replacementRoleId') !== ROLE_ID ||
+      player.get('activeConsoleRoleId') !== null || player.get('seatId') !== null) {
     throw new HttpsError('permission-denied', 'Only the current Gorgoneion Captain may use Repair Drones.');
   }
 }
@@ -197,21 +195,20 @@ export const repairGorgoneionWithDrones = onCall<{
   const db = getFirestore();
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
   const actorRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
-  const seatRef = db.doc(`sessions/${command.sessionId}/seats/${ROLE_ID}`);
   const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/${EVENT_TYPE}-${command.requestId}`);
   const legacyRefs = LEGACY_REQUEST_PATHS.map((path) => db.doc(path(command.sessionId, command.requestId)));
 
   return db.runTransaction(async (tx) => {
-    const [session, actor, seat, receipt, event, ...legacy] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(seatRef), tx.get(receiptRef), tx.get(eventRef),
+    const [session, actor, receipt, event, ...legacy] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
       ...legacyRefs.map((ref) => tx.get(ref)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!activePlayer(actor)) {
       throw new HttpsError('permission-denied', 'A connected Gorgoneion Captain is required.');
     }
-    currentCaptainSeat(session, actor, seat, uid);
+    currentCaptainReplacementRole(actor);
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
     if (legacy.some((snapshot) => snapshot.exists)) {
@@ -255,7 +252,7 @@ export const repairGorgoneionWithDrones = onCall<{
     let result: ReturnType<typeof resolveGorgoneionRepairDrones>;
     try {
       result = resolveGorgoneionRepairDrones({
-        actorRoleId: actor.get('assignedRoleId'),
+        actorRoleId: actor.get('replacementRoleId'),
         actorScope: 'player',
         currentCycle: currentCycle as number,
         expectedRevision: command.expectedRepairRevision,

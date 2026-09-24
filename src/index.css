@@ -1263,6 +1263,19 @@ body {
 .vulcan-labour-panel p { font-size: 0.875rem; }
 .vulcan-labour-panel .cic-action-button { min-height: 44px; max-width: 100%; white-space: normal; }
 .vulcan-labour-panel .maintenance-controls { margin-bottom: 0; }
+.gorgoneion-repair-drones { gap: 0.65rem; min-width: 0; border-color: var(--cic-cyan-dim); }
+.gorgoneion-repair-drones p { font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.gorgoneion-repair-drones .maintenance-controls { display: grid; grid-template-columns: minmax(0, 1fr); margin-bottom: 0; }
+.gorgoneion-repair-drones .maintenance-controls label { min-height: 0; }
+.gorgoneion-repair-drones .maintenance-controls select { width: min(100%, 32rem); max-width: 100%; }
+.gorgoneion-repair-drones .cic-action-button {
+  min-height: 44px;
+  max-width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  white-space: normal;
+}
 .role-brief__return { justify-self: start; }
 
 .wolf-commander-panel {

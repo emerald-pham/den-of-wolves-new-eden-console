@@ -529,6 +529,26 @@ it('hydrates only valid optional small-ship state and keeps host linkage explici
   expect(session.smallShipStates?.warrior).toBeUndefined();
 });
 
+it('hydrates only a known Gorgoneion repair outcome and preserves malformed history as unavailable', () => {
+  expect(sessionFrom('gorg-repair', {
+    ...sessionData(8),
+    gorgoneionRepairDrones: {
+      cycle: 3, revision: 1, hostShipId: 'aegis', systemId: 'reactor',
+    },
+  }).gorgoneionRepairDrones).toEqual({
+    cycle: 3, revision: 1, hostShipId: 'aegis', systemId: 'reactor',
+  });
+  expect(sessionFrom('gorg-repair-malformed', {
+    ...sessionData(8),
+    gorgoneionRepairDrones: {
+      cycle: 3, revision: 1, hostShipId: 'aegis', systemId: 'reactor', actorUid: 'private',
+    },
+  }).gorgoneionRepairDrones).toBeNull();
+  expect(sessionFrom('gorg-repair-legacy', sessionData(8)).gorgoneionRepairDrones).toEqual({
+    cycle: 0, revision: 0, hostShipId: '', systemId: '',
+  });
+});
+
 it('hydrates admitted Voyage 33-0 as a public vessel identity without widening the core roster', () => {
   const session = sessionFrom('voyage-admission-session', {
     ...sessionData(8),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptySmallShipState } from './smallShip';
+import { advanceSmallShipMaintenance, emptySmallShipState } from './smallShip';
 import { resolveGorgoneionRepairDrones } from './gorgoneionRepairDrones';
 
 const base = {
@@ -36,6 +36,27 @@ describe('Gorgoneion Repair Drones', () => {
       hostResources: { ...base.hostResources, materials: 2 },
       hostDamage: { damagedSystemIds: ['storage'], destroyed: false },
       state: { cycle: 3, revision: 1, hostShipId: 'aegis', systemId: 'reactor' },
+    });
+  });
+
+  it('repairs with the charge after the GM ends Team maintenance in the same cycle', () => {
+    const ended = advanceSmallShipMaintenance({
+      state: base.smallShipState,
+      action: 'end',
+      expectedRevision: 5,
+      currentTurn: 3,
+      hostResources: base.hostResources,
+      rolls: [],
+      now: '2026-09-22T08:05:00.000Z',
+    });
+
+    expect(ended.state.cycle).toMatchObject({
+      step: 0, turn: 3, charges: ['repair-drones'], completedAt: '2026-09-22T08:05:00.000Z',
+    });
+    expect(resolveGorgoneionRepairDrones({ ...base, smallShipState: ended.state })).toMatchObject({
+      hostShipId: 'aegis', repairedSystemId: 'reactor',
+      hostResources: { materials: 2 },
+      hostDamage: { damagedSystemIds: ['storage'], destroyed: false },
     });
   });
 
