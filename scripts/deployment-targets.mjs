@@ -29,14 +29,13 @@ const TOOLING_ONLY_FILES = new Set([
 
 const CANDIDATE_REVEAL_CALLABLES = Object.freeze([
   'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
-  'moveShipToLocation', 'resumeSession', 'runMaintenance', 'startGame', 'startSinglePlayerDemo',
+  'moveShipToLocation', 'resumeSession', 'runMaintenance',
 ]);
 
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/candidateRevealProjection.ts': CANDIDATE_REVEAL_CALLABLES,
-  'functions/src/navigationProjection.ts': CANDIDATE_REVEAL_CALLABLES,
   'functions/src/callableRateLimitFirestore.ts': [
     'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
     'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
@@ -309,6 +308,22 @@ const P436_COMMAND_AND_CONTROL_BLUEPRINT_AFTER = P436_COMMAND_AND_CONTROL_BLUEPR
   "    resolver: implemented('wolf-attack.command-and-control'),\n",
 );
 
+const P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS = Object.freeze([
+  ["import type { CandidateReveal } from './candidateRevealProjection';", 1],
+  ['  readonly candidateReveals?: readonly CandidateReveal[];', 1],
+  ['  candidateReveals?: readonly CandidateReveal[],', 2],
+  ['      ...(candidateReveals !== undefined ? { candidateReveals: [...candidateReveals] } : {}),', 1],
+  ['    ...(candidateReveals !== undefined ? { candidateReveals: [...candidateReveals] } : {}),', 1],
+]);
+const P541_NAVIGATION_WRITER_BEFORE =
+  '  tx.set(ref, playerDiscoveryProjection(player, navigation, revision, fleetGroupVesselIds));\n';
+const P541_NAVIGATION_WRITER_AFTER = [
+  '  const projection = playerDiscoveryProjection(\n',
+  '    player, navigation, revision, fleetGroupVesselIds, candidateReveals,\n',
+  '  );\n',
+  '  tx.set(ref, projection);\n',
+].join('');
+
 function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = null) {
   const file = 'functions/src/eventRedaction.ts';
   const readAt = (revision) => {
@@ -336,6 +351,41 @@ function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = n
     throw new Error('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
   }
   return ['upgradeEndeavourFieldTargets'];
+}
+
+function candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/navigationProjection.ts';
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, file);
+    try {
+      return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine candidate-reveal navigation changes at ${revision}:${file}.`);
+    }
+  };
+  const previous = readAt(before);
+  const current = readAt(after);
+  const countLine = (source, line) => source.split('\n').filter((entry) => entry === line).length;
+  const countBlock = (source, block) => source.split(block).length - 1;
+  for (const [addition, expectedCount] of P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS) {
+    if (countLine(previous, addition) !== 0 || countLine(current, addition) !== expectedCount) {
+      throw new Error('Cannot safely map navigation projection changes outside the additive candidate-reveal allowlist.');
+    }
+  }
+  if (countBlock(previous, P541_NAVIGATION_WRITER_BEFORE) !== 1 ||
+      countBlock(current, P541_NAVIGATION_WRITER_AFTER) !== 1) {
+    throw new Error('Cannot safely map navigation projection changes outside the additive candidate-reveal allowlist.');
+  }
+  const normalizedCurrent = P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS
+    .reduce((source, [addition]) => source.split('\n').filter((line) => line !== addition).join('\n'), current)
+    .replace(P541_NAVIGATION_WRITER_AFTER, P541_NAVIGATION_WRITER_BEFORE);
+  if (normalizedCurrent !== previous) {
+    throw new Error('Cannot safely map navigation projection changes outside the additive candidate-reveal allowlist.');
+  }
+  return [...CANDIDATE_REVEAL_CALLABLES];
 }
 
 function commandAndControlConsoleMetadataImpacts(before, after, cwd, sourceAtRevision = null) {
@@ -431,6 +481,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/eventRedaction.ts') {
       for (const name of endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/navigationProjection.ts') {
+      for (const name of candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     if (file === 'functions/src/consoleMetadata.ts') {
