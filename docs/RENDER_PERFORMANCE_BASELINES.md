@@ -246,3 +246,24 @@ startup p95 were 115.92 ms and 111.68 ms; DRADIS, attack, and mission-hand
 update p95 were 34.7 ms, 33.4 ms, and 33.5 ms; the 390x844 mobile frame was
 16.8 ms p95 with zero long frames. The measured bundle retains 2,238 raw and
 1,469 gzip bytes below the version 17 ceilings.
+
+After the independent authority review repairs, exact code candidate
+`6217e80bac945d92ccddd02ce19183583d6d790b` passed baseline v17 at
+`2026-09-24T09:59:28.268Z`. It measured the same 1,807,262 raw bytes,
+479,031 gzip bytes, and 496,263-byte largest chunk across nine chunks. Landing
+and cached Role Select startup p95 were 155.54 ms and 103.32 ms; DRADIS,
+attack, and mission-hand update p95 were 34.7 ms, 34.9 ms, and 34.5 ms; the
+390x844 mobile frame measured 16.8 ms p95 with zero long frames. The exact
+candidate retains 2,238 raw and 1,469 gzip bytes below the version 17 ceilings;
+all largest-chunk, startup, render-update, and mobile-frame limits are
+unchanged.
+
+Prompt 241c's rendered panel matrix on the unchanged client surface passed all
+eight combinations: 320x844 and 390x844 phones, 844x390 short landscape, and
+1440x900 desktop, each under normal and reduced motion. Every case had no
+horizontal overflow, a reachable 44px transfer button, visible keyboard focus
+(2px solid orange outline), and the expected monospace font stack. The narrow
+phone panel requires vertical scrolling, and keyboard navigation scrolled the
+focused transfer control into view. Screenshots and detailed measurements were
+captured in the local `/tmp/p241c-rendered-20260924` run; those temporary
+artifacts are not part of the repository.
