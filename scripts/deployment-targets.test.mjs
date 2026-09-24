@@ -22,6 +22,50 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
 ];
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
 const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
+const MALIADE_EVENT_REDACTION_ADDITIONS = [
+  {
+    eventField: "  'maliades-launched': ['craftId', 'status'],\n",
+    envelopeField: [
+      "  'maliades-launched': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+      "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+    ].join(''),
+    callable: 'launchDioneMaliades',
+  },
+  {
+    eventField: "  'maliades-medium': ['craftId', 'cycle', 'revision'],\n",
+    extraEntry: '  // Range outcomes remain private until an audience-safe attack projection exists.\n',
+    envelopeField: [
+      "  'maliades-medium': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+      "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+    ].join(''),
+    callable: 'resolveMaliadesMedium',
+  },
+  {
+    eventField: "  'maliades-short': ['craftId', 'cycle', 'revision'],\n",
+    envelopeField: [
+      "  'maliades-short': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+      "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+    ].join(''),
+    callable: 'resolveMaliadesShort',
+  },
+  {
+    eventField: "  'maliades-repair': ['craftId', 'hostShipId', 'damageRepaired', 'materialsSpent', 'damage', 'destroyed'],\n",
+    envelopeField: [
+      "  'maliades-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+      "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+    ].join(''),
+    callable: 'repairMaliades',
+  },
+];
+const MALIADE_SOURCE_MODULE_CALLABLES = Object.freeze({
+  'functions/src/maliadesCallable.ts': [
+    'repairMaliades', 'resolveMaliadesMedium', 'resolveMaliadesShort',
+  ],
+  'functions/src/maliadesState.ts': [
+    'declareWolfAttack', 'getDioneMaliadesLaunch', 'launchDioneMaliades', 'repairMaliades',
+  ],
+  'functions/src/wolfAttackDeclaration.ts': ['declareWolfAttack'],
+});
 const BASE_CAPYBARA_CARGO_CALLABLES = ['transferBaseCapybaraCargo'];
 const SMALL_SHIP_MAINTENANCE_CALLABLES = ['runSmallShipMaintenance'];
 const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';
@@ -174,7 +218,8 @@ NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
 const INDEX_SOURCE = [
   ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
   ...BASE_CAPYBARA_CARGO_CALLABLES, ...SMALL_SHIP_MAINTENANCE_CALLABLES,
-  'calculateArrestPosse',
+  'calculateArrestPosse', 'declareWolfAttack', 'getDioneMaliadesLaunch',
+  ...MALIADE_EVENT_REDACTION_ADDITIONS.map(({ callable }) => callable),
 ].map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
 const GORGONEION_EVENT_FIELD_ENTRY =
   "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
@@ -196,14 +241,24 @@ const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = [
 const EVENT_REDACTION_AFTER = readFileSync(
   new URL('../functions/src/eventRedaction.ts', import.meta.url), 'utf8',
 );
+for (const { eventField, envelopeField, extraEntry = '' } of MALIADE_EVENT_REDACTION_ADDITIONS) {
+  assert.equal(EVENT_REDACTION_AFTER.split(eventField).length - 1, 1);
+  assert.equal(EVENT_REDACTION_AFTER.split(envelopeField).length - 1, 1);
+  if (extraEntry) assert.equal(EVENT_REDACTION_AFTER.split(extraEntry).length - 1, 1);
+}
 assert.equal(EVENT_REDACTION_AFTER.split(GORGONEION_EVENT_FIELD_ENTRY).length - 1, 1);
 assert.equal(EVENT_REDACTION_AFTER.split(GORGONEION_ENVELOPE_FIELD_ENTRY).length - 1, 1);
 assert.equal(EVENT_REDACTION_AFTER.split(WARRIOR_EVENT_FIELD_ENTRY).length - 1, 1);
 assert.equal(EVENT_REDACTION_AFTER.split(WARRIOR_ENVELOPE_FIELD_ENTRY).length - 1, 1);
-const EVENT_REDACTION_P244_BEFORE = EVENT_REDACTION_AFTER
+const EVENT_REDACTION_P397_BEFORE = MALIADE_EVENT_REDACTION_ADDITIONS.reduce(
+  (source, { eventField, envelopeField, extraEntry = '' }) =>
+    source.replace(eventField, '').replace(envelopeField, '').replace(extraEntry, ''),
+  EVENT_REDACTION_AFTER,
+);
+const EVENT_REDACTION_P244_BEFORE = EVENT_REDACTION_P397_BEFORE
   .replace(WARRIOR_EVENT_FIELD_ENTRY, '')
   .replace(WARRIOR_ENVELOPE_FIELD_ENTRY, '');
-const EVENT_REDACTION_BEFORE = EVENT_REDACTION_AFTER
+const EVENT_REDACTION_BEFORE = EVENT_REDACTION_P397_BEFORE
   .replace(GORGONEION_EVENT_FIELD_ENTRY, '')
   .replace(GORGONEION_ENVELOPE_FIELD_ENTRY, '')
   .replace(WARRIOR_EVENT_FIELD_ENTRY, '')
@@ -218,7 +273,7 @@ function selectorFor(files, {
   navigationBefore = NAVIGATION_PROJECTION_BEFORE,
   navigationAfter = NAVIGATION_PROJECTION_AFTER,
   eventRedactionBefore = EVENT_REDACTION_BEFORE,
-  eventRedactionAfter = EVENT_REDACTION_AFTER,
+  eventRedactionAfter = EVENT_REDACTION_P397_BEFORE,
 } = {}) {
   return deploymentSelector({
     before: 'base',
@@ -421,7 +476,7 @@ test('maps the exact Gorgoneion member-event allowlist delta to its repair calla
 test('maps the exact Warrior member-event allowlist delta to its repair callable', () => {
   const selected = selectorFor(['functions/src/eventRedaction.ts'], {
     eventRedactionBefore: EVENT_REDACTION_P244_BEFORE,
-    eventRedactionAfter: EVENT_REDACTION_AFTER,
+    eventRedactionAfter: EVENT_REDACTION_P397_BEFORE,
   });
   assert.deepEqual(selectedFunctions(selected), functionTargets(WARRIOR_REPAIR_CALLABLES));
 });
@@ -443,10 +498,66 @@ test('preserves the exact Endeavour allowlist mapping and deduplicates bundled r
   ]));
 });
 
+test('maps each exact Maliades event field and envelope pair to its exported callable', () => {
+  for (const { eventField, envelopeField, extraEntry = '', callable } of MALIADE_EVENT_REDACTION_ADDITIONS) {
+    const before = EVENT_REDACTION_AFTER
+      .replace(eventField, '').replace(envelopeField, '').replace(extraEntry, '');
+    const selected = selectorFor(['functions/src/eventRedaction.ts'], {
+      eventRedactionBefore: before,
+      eventRedactionAfter: EVENT_REDACTION_AFTER,
+    });
+    assert.deepEqual(selectedFunctions(selected), functionTargets([callable]), callable);
+  }
+
+  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
+});
+
+test('maps the complete P397 event-redaction delta to its four current Maliades callables', () => {
+  const selected = selectorFor(['functions/src/eventRedaction.ts'], {
+    eventRedactionBefore: EVENT_REDACTION_P397_BEFORE,
+    eventRedactionAfter: EVENT_REDACTION_AFTER,
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'launchDioneMaliades', 'resolveMaliadesMedium', 'resolveMaliadesShort', 'repairMaliades',
+  ]));
+});
+
+test('maps Maliades source modules to the exact callables that consume them', () => {
+  for (const [file, callables] of Object.entries(MALIADE_SOURCE_MODULE_CALLABLES)) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(callables), file);
+  }
+
+  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
+  assert.match(indexSource, /export const getDioneMaliadesLaunch\s*=\s*onCall/);
+  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
+});
+
+test('fails closed when a Maliades member-event allowlist expands beyond its exact privacy fields', () => {
+  const medium = MALIADE_EVENT_REDACTION_ADDITIONS.find(({ callable }) => callable === 'resolveMaliadesMedium');
+  const altered = EVENT_REDACTION_AFTER.replace(
+    medium.eventField,
+    "  'maliades-medium': ['craftId', 'cycle', 'revision', 'attackRoll'],\n",
+  );
+  assert.notEqual(altered, EVENT_REDACTION_AFTER);
+  assert.throws(
+    () => selectorFor(['functions/src/eventRedaction.ts'], {
+      eventRedactionBefore: EVENT_REDACTION_P397_BEFORE,
+      eventRedactionAfter: altered,
+    }),
+    /Cannot safely map event redaction changes outside the reviewed additive event field allowlists/,
+  );
+});
+
 test('fails closed when the Gorgoneion event allowlist delta contains any unrelated edit', () => {
   assert.throws(
     () => selectorFor(['functions/src/eventRedaction.ts'], {
-      eventRedactionAfter: `${EVENT_REDACTION_AFTER}// unrelated redaction change\n`,
+      eventRedactionBefore: EVENT_REDACTION_P397_BEFORE,
+      eventRedactionAfter: `${EVENT_REDACTION_P397_BEFORE}// unrelated redaction change\n`,
     }),
     /Cannot safely map event redaction changes outside the reviewed additive event field allowlists/,
   );

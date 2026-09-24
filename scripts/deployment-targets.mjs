@@ -68,6 +68,14 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
   'functions/src/warriorRepairDrones.ts': ['repairWarriorWithDrones'],
   'functions/src/warriorRepairDronesCallable.ts': ['repairWarriorWithDrones'],
+  'functions/src/maliadesCallable.ts': [
+    'repairMaliades', 'resolveMaliadesMedium', 'resolveMaliadesShort',
+  ],
+  'functions/src/maliadesState.ts': [
+    'declareWolfAttack', 'getDioneMaliadesLaunch', 'launchDioneMaliades', 'repairMaliades',
+  ],
+  // The declaration module change adds only fields to the written attack record.
+  'functions/src/wolfAttackDeclaration.ts': ['declareWolfAttack'],
   // advanceSmallShipMaintenance is used by these three deployed transactions;
   // type-only and test imports do not add callable consumers.
   'functions/src/smallShip.ts': [
@@ -320,6 +328,21 @@ const WARRIOR_EVENT_FIELD_ENTRY =
   "  'warrior-repair-drones': ['smallShipId', 'hostShipId', 'systemIds', 'materialsSpent'],\n";
 const WARRIOR_ENVELOPE_FIELD_ENTRY =
   "  'warrior-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const MALIADE_LAUNCH_EVENT_FIELD_ENTRY = "  'maliades-launched': ['craftId', 'status'],\n";
+const MALIADE_LAUNCH_ENVELOPE_FIELD_ENTRY =
+  "  'maliades-launched': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const MALIADE_MEDIUM_EVENT_FIELD_ENTRY = "  'maliades-medium': ['craftId', 'cycle', 'revision'],\n";
+const MALIADE_RANGE_PRIVACY_COMMENT =
+  '  // Range outcomes remain private until an audience-safe attack projection exists.\n';
+const MALIADE_MEDIUM_ENVELOPE_FIELD_ENTRY =
+  "  'maliades-medium': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const MALIADE_SHORT_EVENT_FIELD_ENTRY = "  'maliades-short': ['craftId', 'cycle', 'revision'],\n";
+const MALIADE_SHORT_ENVELOPE_FIELD_ENTRY =
+  "  'maliades-short': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const MALIADE_REPAIR_EVENT_FIELD_ENTRY =
+  "  'maliades-repair': ['craftId', 'hostShipId', 'damageRepaired', 'materialsSpent', 'damage', 'destroyed'],\n";
+const MALIADE_REPAIR_ENVELOPE_FIELD_ENTRY =
+  "  'maliades-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
 const EVENT_REDACTION_ADDITIONS = Object.freeze([
   {
     entries: [ENDEAVOUR_EVENT_FIELD_ENTRY, ENDEAVOUR_ENVELOPE_FIELD_ENTRY],
@@ -332,6 +355,26 @@ const EVENT_REDACTION_ADDITIONS = Object.freeze([
   {
     entries: [WARRIOR_EVENT_FIELD_ENTRY, WARRIOR_ENVELOPE_FIELD_ENTRY],
     callables: ['repairWarriorWithDrones'],
+  },
+  {
+    entries: [MALIADE_LAUNCH_EVENT_FIELD_ENTRY, MALIADE_LAUNCH_ENVELOPE_FIELD_ENTRY],
+    callables: ['launchDioneMaliades'],
+  },
+  {
+    entries: [
+      MALIADE_RANGE_PRIVACY_COMMENT,
+      MALIADE_MEDIUM_EVENT_FIELD_ENTRY,
+      MALIADE_MEDIUM_ENVELOPE_FIELD_ENTRY,
+    ],
+    callables: ['resolveMaliadesMedium'],
+  },
+  {
+    entries: [MALIADE_SHORT_EVENT_FIELD_ENTRY, MALIADE_SHORT_ENVELOPE_FIELD_ENTRY],
+    callables: ['resolveMaliadesShort'],
+  },
+  {
+    entries: [MALIADE_REPAIR_EVENT_FIELD_ENTRY, MALIADE_REPAIR_ENVELOPE_FIELD_ENTRY],
+    callables: ['repairMaliades'],
   },
 ]);
 const EVENT_REDACTION_CHANGE_ERROR =
