@@ -3525,6 +3525,59 @@ it('accepts a current server write whose stored updatedAt moved backward', async
   });
 });
 
+it('raises the cursor floor after a confirmed server read before a delayed intermediate listener event', async () => {
+  const t1 = timestamp(1_789_077_000, 100_000_000);
+  const t2 = timestamp(1_789_077_000, 200_000_000);
+  const t3 = timestamp(1_789_077_000, 300_000_000);
+  const dataFor = (ore: number, updatedAt: ReturnType<typeof timestamp>) =>
+    liveTurnData(2, 'lifted', { updatedAt, shipResources: { aegis: { ore } } });
+  const confirmed = dataFor(9, t3);
+  vi.mocked(getDocFromServer).mockReset().mockResolvedValue(sessionSnapshot(confirmed, false) as never);
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(dataFor(1, t1), false));
+  callbacks[0]?.(sessionSnapshot(dataFor(2, t1), false));
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+  });
+
+  callbacks[0]?.(sessionSnapshot(dataFor(2, t2), false));
+  expect(getDocFromServer).toHaveBeenCalledTimes(2);
+  await Promise.resolve();
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+  });
+});
+
+it('does not restore freshness from a duplicate while ambiguous confirmation is pending', async () => {
+  const cursor = timestamp(1_789_077_000, 100_000_000);
+  const dataForOre = (ore: number) => liveTurnData(2, 'lifted', {
+    updatedAt: cursor, shipResources: { aegis: { ore } },
+  });
+  let completeRead!: (snapshot: unknown) => void;
+  vi.mocked(getDocFromServer).mockReset().mockImplementationOnce(() =>
+    new Promise<unknown>((resolve) => { completeRead = resolve; }) as never);
+  const { callbacks } = captureSessionListener();
+  const onSessionFreshness = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onSessionFreshness,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(dataForOre(1), false));
+  callbacks[0]?.(sessionSnapshot(dataForOre(2), false));
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(false);
+  callbacks[0]?.(sessionSnapshot(dataForOre(1), false));
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(false);
+
+  completeRead(sessionSnapshot(dataForOre(2), false));
+  await vi.waitFor(() => expect(onSessionFreshness).toHaveBeenLastCalledWith(true));
+});
+
 it('re-reads after another ambiguous callback arrives during server confirmation', async () => {
   const cursor = timestamp(1_789_077_000, 900_400_000);
   const dataForOre = (ore: number) => liveTurnData(2, 'lifted', {

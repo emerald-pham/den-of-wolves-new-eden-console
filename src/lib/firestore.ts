@@ -2919,11 +2919,26 @@ export function subscribeSessionState(
           onError();
           break;
         }
-        const session = sessionFrom(sessionId, confirmed.data());
+        const confirmedData = confirmed.data();
+        const session = sessionFrom(sessionId, confirmedData);
+        const readCursor = serverAuthorityCursor(confirmed, confirmedData);
+        const previousCursor = sessionSnapshotAuthority.latestServerAuthorityCursor;
+        // The server read can confirm a current document whose stored
+        // updatedAt went backward. Keep the old floor in that case, but raise
+        // it when the confirmed document has a later comparable timestamp.
+        const raisedCursor = readCursor &&
+          (!previousCursor || laterServerAuthorityCursor(readCursor, previousCursor))
+          ? readCursor : undefined;
         if (hasSameServerSessionProjection(sessionSnapshotAuthority, session)) {
+          if (raisedCursor && !acceptServerSessionAuthority(
+            sessionSnapshotAuthority, session, raisedCursor,
+          )) {
+            onError();
+            break;
+          }
           handlers.onSessionFreshness?.(true);
         } else if (acceptServerSessionAuthority(
-          sessionSnapshotAuthority, session, undefined, false, true,
+          sessionSnapshotAuthority, session, raisedCursor, false, true,
         )) {
           handlers.onSession(session);
           handlers.onSessionFreshness?.(true);
@@ -3002,7 +3017,7 @@ export function subscribeSessionState(
             // A server-confirmed copy of the accepted content restores freshness
             // without replaying it. A matching updatedAt alone is insufficient:
             // some session writes do not advance that field.
-            handlers.onSessionFreshness?.(true);
+            if (!sessionConfirmationInFlight) handlers.onSessionFreshness?.(true);
             return;
           }
           const previousCursor = sessionSnapshotAuthority.latestServerAuthorityCursor;

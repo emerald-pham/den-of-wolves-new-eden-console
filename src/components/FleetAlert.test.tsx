@@ -18,6 +18,7 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn((_database: unknown, path: string) => ({ path })),
   connectFirestoreEmulator: vi.fn(),
   doc: vi.fn((_database: unknown, path: string) => ({ path })),
+  getDocFromServer: vi.fn(),
   getFirestore: vi.fn(() => ({})),
   onSnapshot: firestoreMocks.onSnapshot,
   orderBy: vi.fn(),
@@ -280,7 +281,14 @@ it('rehydrates the live timer and permitted actions from the same server phase a
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-09T17:10:00.000Z'));
   const listeners: Array<{ path: string; callback: (snapshot: unknown) => void }> = [];
-  firestoreMocks.onSnapshot.mockImplementation((target: { path: string }, callback: (snapshot: unknown) => void) => {
+  firestoreMocks.onSnapshot.mockImplementation((
+    target: { path: string },
+    optionsOrCallback: object | ((snapshot: unknown) => void),
+    callbackArg?: (snapshot: unknown) => void,
+  ) => {
+    const callback = typeof optionsOrCallback === 'function'
+      ? optionsOrCallback as (snapshot: unknown) => void : callbackArg;
+    if (!callback) throw new Error('Expected a Firestore snapshot callback.');
     listeners.push({ path: target.path, callback });
     return vi.fn();
   });
@@ -363,7 +371,14 @@ it('rehydrates the live timer and permitted actions from the same server phase a
 it('rehydrates the latest turn transmission after reconnect without replaying its visual effect', () => {
   vi.useFakeTimers();
   const listeners: Array<{ path: string; callback: (snapshot: unknown) => void }> = [];
-  firestoreMocks.onSnapshot.mockImplementation((target: { path: string }, callback: (snapshot: unknown) => void) => {
+  firestoreMocks.onSnapshot.mockImplementation((
+    target: { path: string },
+    optionsOrCallback: object | ((snapshot: unknown) => void),
+    callbackArg?: (snapshot: unknown) => void,
+  ) => {
+    const callback = typeof optionsOrCallback === 'function'
+      ? optionsOrCallback as (snapshot: unknown) => void : callbackArg;
+    if (!callback) throw new Error('Expected a Firestore snapshot callback.');
     listeners.push({ path: target.path, callback });
     return vi.fn();
   });
