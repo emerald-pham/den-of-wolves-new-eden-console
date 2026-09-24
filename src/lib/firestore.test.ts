@@ -3199,7 +3199,7 @@ it('reconfirms unchanged session and player authority from metadata-only server 
   expect(onSeats).toHaveBeenCalledTimes(1);
 });
 
-it('publishes changed reconnect session data when its server updatedAt is unchanged or missing', () => {
+it('publishes server-confirmed reconnect data when updatedAt is unchanged or missing', async () => {
   const authority = { hasServerSessionAuthority: false, authorityVersion: 0 };
   const updatedAt = '2026-09-24T12:00:00.000Z';
   const onSession = vi.fn();
@@ -3223,9 +3223,12 @@ it('publishes changed reconnect session data when its server updatedAt is unchan
   const second = captureSessionListener();
   subscribeSessionState('s1', 'u1', handlers);
   second.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt, shuttleControl: shuttleControl('u1', 1) }, true));
+  vi.mocked(getDocFromServer).mockReset().mockResolvedValueOnce(
+    sessionSnapshot({ ...sessionData(8), updatedAt, shuttleControl: shuttleControl('u2', 2) }, false) as never,
+  );
   second.callbacks[0]?.(sessionSnapshot({ ...sessionData(8), updatedAt, shuttleControl: shuttleControl('u2', 2) }, false));
 
-  expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u2');
+  await vi.waitFor(() => expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u2'));
   expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
 
   onSession.mockClear();
@@ -3233,8 +3236,9 @@ it('publishes changed reconnect session data when its server updatedAt is unchan
     ...sessionData(8), shuttleControl: shuttleControl('u3', 3),
   };
   delete unversionedData.updatedAt;
+  vi.mocked(getDocFromServer).mockResolvedValueOnce(sessionSnapshot(unversionedData, false) as never);
   second.callbacks[0]?.(sessionSnapshot(unversionedData, false));
-  expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u3');
+  await vi.waitFor(() => expect(onSession.mock.lastCall?.[0].shuttleControl?.starlight?.holderUid).toBe('u3'));
   expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
 });
 
@@ -3392,9 +3396,15 @@ it('rejects a delayed older server snapshot in the same lifecycle window', () =>
   });
 });
 
-it('preserves nanosecond precision when same-millisecond callbacks arrive out of order', () => {
+it('confirms same-millisecond callbacks instead of trusting truncated timestamp order', async () => {
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();
+  vi.mocked(getDocFromServer).mockReset().mockResolvedValue(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: timestamp(1_789_077_000, 900_400_000),
+      shipResources: { aegis: { ore: 9 } },
+    }), false,
+  ) as never);
   subscribeSessionState('s1', 'u1', {
     onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
   });
@@ -3421,16 +3431,22 @@ it('preserves nanosecond precision when same-millisecond callbacks arrive out of
     false,
   ));
 
-  expect(onSession).toHaveBeenCalledTimes(2);
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
   expect(onSession.mock.lastCall?.[0]).toMatchObject({
     shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
   });
 });
 
-it('accepts changed server session content with an equal trusted cursor', () => {
+it('accepts server-confirmed session content with an equal trusted cursor', async () => {
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();
   const cursor = timestamp(1_789_077_000, 900_400_000);
+  vi.mocked(getDocFromServer).mockReset().mockResolvedValueOnce(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: cursor,
+      shipResources: { aegis: { ore: 1 } },
+    }), false,
+  ) as never);
   subscribeSessionState('s1', 'u1', {
     onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
   });
@@ -3448,15 +3464,161 @@ it('accepts changed server session content with an equal trusted cursor', () => 
     }), false,
   ));
 
-  expect(onSession).toHaveBeenCalledTimes(2);
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
   expect(onSession.mock.lastCall?.[0]).toMatchObject({
     shipResources: { aegis: expect.objectContaining({ ore: 1 }) },
   });
 });
 
-it('accepts changed server content without a cursor and later trusted cursor upgrades', () => {
+it('confirms an equal-cursor listener payload after a newer callable result before publishing it', async () => {
+  const sessionId = 'equal-cursor-callable-race';
+  const uid = 'callable-race-player';
+  const updatedAt = timestamp(1_789_040_000, 0);
+  const newerData = liveTurnData(2, 'lifted', {
+    updatedAt, shipResources: { aegis: { ore: 9 } },
+  });
+  const olderData = liveTurnData(2, 'lifted', {
+    updatedAt, shipResources: { aegis: { ore: 1 } },
+  });
+  expect(acceptCallableSessionAuthority(sessionFrom(sessionId, newerData), uid)).toBe(true);
+  vi.mocked(getDocFromServer).mockReset().mockResolvedValue(
+    { ...sessionSnapshot(newerData, false), id: sessionId } as never,
+  );
+
   const { callbacks } = captureSessionListener();
   const onSession = vi.fn();
+  const onSessionFreshness = vi.fn();
+  subscribeSessionState(sessionId, uid, {
+    sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, uid),
+    onSession, onSessionFreshness,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(olderData, false));
+
+  await vi.waitFor(() => expect(getDocFromServer).toHaveBeenCalledOnce());
+  expect(onSession).not.toHaveBeenCalled();
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(true);
+});
+
+it('accepts a current server write whose stored updatedAt moved backward', async () => {
+  const olderCursor = timestamp(1_789_077_000, 100_000_000);
+  const newerCursor = timestamp(1_789_077_000, 900_000_000);
+  const newerData = liveTurnData(2, 'lifted', {
+    updatedAt: olderCursor, shipResources: { aegis: { ore: 9 } },
+  });
+  vi.mocked(getDocFromServer).mockReset().mockResolvedValueOnce(
+    sessionSnapshot(newerData, false) as never,
+  );
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', {
+    updatedAt: newerCursor, shipResources: { aegis: { ore: 1 } },
+  }), false));
+  callbacks[0]?.(sessionSnapshot(newerData, false));
+
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+  });
+});
+
+it('re-reads after another ambiguous callback arrives during server confirmation', async () => {
+  const cursor = timestamp(1_789_077_000, 900_400_000);
+  const dataForOre = (ore: number) => liveTurnData(2, 'lifted', {
+    updatedAt: cursor, shipResources: { aegis: { ore } },
+  });
+  let completeFirst!: (snapshot: unknown) => void;
+  vi.mocked(getDocFromServer).mockReset()
+    .mockImplementationOnce(() => new Promise<unknown>((resolve) => { completeFirst = resolve; }) as never)
+    .mockResolvedValueOnce(sessionSnapshot(dataForOre(3), false) as never);
+
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(dataForOre(1), false));
+  callbacks[0]?.(sessionSnapshot(dataForOre(2), false));
+  callbacks[0]?.(sessionSnapshot(dataForOre(3), false));
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(getDocFromServer).toHaveBeenCalledTimes(1);
+
+  completeFirst(sessionSnapshot(dataForOre(2), false));
+  await vi.waitFor(() => expect(getDocFromServer).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 3 }) },
+  });
+});
+
+it('discards an in-flight confirmation after a newer callable result is accepted', async () => {
+  const sessionId = 'confirmation-callable-race';
+  const uid = 'confirmation-player';
+  // The callable returns ISO milliseconds while the listener sees the raw
+  // Firestore nanoseconds for the same stored updatedAt value.
+  const cursor = timestamp(1_789_077_000, 900_400_000);
+  const dataForOre = (ore: number) => liveTurnData(2, 'lifted', {
+    updatedAt: cursor, shipResources: { aegis: { ore } },
+  });
+  const snapshotForOre = (ore: number) => ({
+    ...sessionSnapshot(dataForOre(ore), false), id: sessionId,
+  });
+  let completeFirst!: (snapshot: unknown) => void;
+  vi.mocked(getDocFromServer).mockReset()
+    .mockImplementationOnce(() => new Promise<unknown>((resolve) => { completeFirst = resolve; }) as never)
+    .mockResolvedValueOnce(snapshotForOre(3) as never);
+
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  const onSessionFreshness = vi.fn();
+  subscribeSessionState(sessionId, uid, {
+    sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, uid),
+    onSession, onSessionFreshness,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(snapshotForOre(1));
+  callbacks[0]?.(snapshotForOre(2));
+  expect(getDocFromServer).toHaveBeenCalledTimes(1);
+  expect(acceptCallableSessionAuthority(sessionFrom(sessionId, dataForOre(3)), uid)).toBe(true);
+
+  completeFirst(snapshotForOre(2));
+  await vi.waitFor(() => expect(getDocFromServer).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(onSessionFreshness).toHaveBeenLastCalledWith(true));
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 1 }) },
+  });
+});
+
+it('keeps an ambiguous session stale when server confirmation fails', async () => {
+  const cursor = timestamp(1_789_077_000, 900_000_000);
+  const dataForOre = (ore: number) => liveTurnData(2, 'lifted', {
+    updatedAt: cursor, shipResources: { aegis: { ore } },
+  });
+  vi.mocked(getDocFromServer).mockReset().mockRejectedValueOnce(new Error('unavailable'));
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  const onSessionFreshness = vi.fn();
+  const onError = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onSessionFreshness, onError,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(dataForOre(1), false));
+  callbacks[0]?.(sessionSnapshot(dataForOre(2), false));
+
+  await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSessionFreshness).toHaveBeenLastCalledWith(false);
+});
+
+it('confirms unversioned content and rejects a delayed older payload after a trusted cursor upgrade', async () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  vi.mocked(getDocFromServer).mockReset();
   subscribeSessionState('s1', 'u1', {
     onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
   });
@@ -3466,16 +3628,23 @@ it('accepts changed server content without a cursor and later trusted cursor upg
   callbacks[0]?.(sessionSnapshot(legacy));
   const repeatedLegacy = liveTurnData(2, 'restricted', { setupRevision: 3 });
   delete repeatedLegacy.updatedAt;
+  vi.mocked(getDocFromServer).mockResolvedValueOnce(sessionSnapshot(repeatedLegacy, false) as never);
   callbacks[0]?.(sessionSnapshot(repeatedLegacy));
-  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted', {
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
+  const trusted = liveTurnData(2, 'restricted', {
     updatedAt: '2026-09-10T12:10:00.000Z', setupRevision: 8,
-  })));
+  });
+  vi.mocked(getDocFromServer).mockResolvedValueOnce(sessionSnapshot(trusted, false) as never);
+  callbacks[0]?.(sessionSnapshot(trusted));
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(3));
   const unversioned = liveTurnData(2, 'restricted', { setupRevision: 7 });
   delete unversioned.updatedAt;
+  vi.mocked(getDocFromServer).mockResolvedValueOnce(sessionSnapshot(trusted, false) as never);
   callbacks[0]?.(sessionSnapshot(unversioned));
 
-  expect(onSession).toHaveBeenCalledTimes(4);
-  expect(onSession.mock.lastCall?.[0]).toMatchObject({ setupRevision: 7 });
+  await vi.waitFor(() => expect(getDocFromServer).toHaveBeenCalledTimes(3));
+  expect(onSession).toHaveBeenCalledTimes(3);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ setupRevision: 8 });
 });
 
 it('does not let a delayed cache snapshot overwrite an accepted callable reply', () => {

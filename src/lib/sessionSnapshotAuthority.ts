@@ -10,7 +10,7 @@ export type SessionLifecycleCursor = {
   readonly airspaceState?: 0 | 1;
 };
 
-/** Firestore's full-precision monotonic server timestamp. */
+/** Session timestamp compared at the ISO millisecond precision of callable replies. */
 export type ServerAuthorityCursor = {
   readonly seconds: number;
   readonly nanoseconds: number;
@@ -127,6 +127,16 @@ export function trustedTimestampCursor(value: unknown): ServerAuthorityCursor | 
     return date instanceof Date ? cursorFromMillis(date.getTime()) : undefined;
   }
   return undefined;
+}
+
+/** Callable session projections encode updatedAt as ISO milliseconds. */
+export function comparableSessionCursor(value: unknown): ServerAuthorityCursor | undefined {
+  const cursor = trustedTimestampCursor(value);
+  if (!cursor) return undefined;
+  return {
+    seconds: cursor.seconds,
+    nanoseconds: Math.floor(cursor.nanoseconds / 1_000_000) * 1_000_000,
+  };
 }
 
 const ACTIONABLE_LIFECYCLE_PHASES: readonly LifecyclePhase[] = [
@@ -295,7 +305,7 @@ export function acceptCallableSessionAuthority(session: GameSession, uid: string
   return acceptServerSessionAuthority(
     sessionSnapshotAuthorityFor(session.id, uid),
     session,
-    trustedTimestampCursor(session.updatedAt),
+    comparableSessionCursor(session.updatedAt),
     true,
   );
 }

@@ -125,10 +125,11 @@ import { parseMaintenanceCycle } from './shipStateProjection';
 import { entityId, parseEntityId } from '@/types/identifiers';
 import {
   acceptServerSessionAuthority,
+  comparableSessionCursor,
   createSessionSnapshotAuthority,
   hasSameServerSessionProjection,
   sessionSnapshotAuthorityFor,
-  trustedTimestampCursor,
+  sessionSnapshotAuthorityVersion,
   type ServerAuthorityCursor,
   type SessionSnapshotAuthority,
 } from './sessionSnapshotAuthority';
@@ -158,8 +159,8 @@ function serverAuthorityCursor(
   data: DocumentData,
 ): ServerAuthorityCursor | undefined {
   const documentSnapshot = snapshot as { readonly updateTime?: unknown; readonly data: () => DocumentData };
-  return trustedTimestampCursor(documentSnapshot.updateTime) ??
-    trustedTimestampCursor(data.updatedAt);
+  return comparableSessionCursor(documentSnapshot.updateTime) ??
+    comparableSessionCursor(data.updatedAt);
 }
 
 function sameServerAuthorityCursor(
@@ -168,6 +169,14 @@ function sameServerAuthorityCursor(
 ): boolean {
   return left !== undefined && right !== undefined &&
     left.seconds === right.seconds && left.nanoseconds === right.nanoseconds;
+}
+
+function laterServerAuthorityCursor(
+  next: ServerAuthorityCursor,
+  previous: ServerAuthorityCursor,
+): boolean {
+  return next.seconds > previous.seconds ||
+    (next.seconds === previous.seconds && next.nanoseconds > previous.nanoseconds);
 }
 
 function createDistinctProjectionPublisher<T>(onProjection: (projection: T) => void) {
@@ -2849,6 +2858,7 @@ export function subscribeSessionState(
   const subscriptionToken = Symbol('session-subscription');
   let gmDiscoveryTerminated = false;
   currentSessionSubscriptionToken = subscriptionToken;
+  const sessionDocument = doc(database, `sessions/${sessionId}`);
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
   let acceptsWolfCultRevision = createMonotonicRevisionGate();
@@ -2868,6 +2878,61 @@ export function subscribeSessionState(
   let awayMissionHandListenerGeneration = 0;
   const onError = () => {
     if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
+  };
+  let sessionConfirmationInFlight = false;
+  let sessionConfirmationWanted = false;
+  const confirmAmbiguousSession = () => {
+    // A server-sourced listener event does not carry a public Firestore write
+    // version. Some session writers leave updatedAt unchanged, so changed
+    // equal/unversioned events may predate a callable reply or another event.
+    // A fresh server read establishes current document content after the
+    // accepted write; an authority-version fence rejects an older read result.
+    sessionConfirmationWanted = true;
+    handlers.onSessionFreshness?.(false);
+    if (sessionConfirmationInFlight) return;
+    sessionConfirmationInFlight = true;
+    void (async () => {
+      while (sessionConfirmationWanted && subscribed &&
+          currentSessionSubscriptionToken === subscriptionToken) {
+        sessionConfirmationWanted = false;
+        const startingVersion = sessionSnapshotAuthorityVersion(sessionSnapshotAuthority);
+        let confirmed;
+        try {
+          confirmed = await getDocFromServer(sessionDocument);
+        } catch {
+          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) break;
+          if (sessionConfirmationWanted ||
+              sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
+            sessionConfirmationWanted = true;
+            continue;
+          }
+          onError();
+          break;
+        }
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) break;
+        if (sessionConfirmationWanted ||
+            sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
+          sessionConfirmationWanted = true;
+          continue;
+        }
+        if (!confirmed?.exists()) {
+          onError();
+          break;
+        }
+        const session = sessionFrom(sessionId, confirmed.data());
+        if (hasSameServerSessionProjection(sessionSnapshotAuthority, session)) {
+          handlers.onSessionFreshness?.(true);
+        } else if (acceptServerSessionAuthority(
+          sessionSnapshotAuthority, session, undefined, false, true,
+        )) {
+          handlers.onSession(session);
+          handlers.onSessionFreshness?.(true);
+        } else {
+          onError();
+        }
+      }
+      sessionConfirmationInFlight = false;
+    })();
   };
   const startAwayMissionHandListeners = (pointers: readonly AwayMissionHandPointer[]) => {
     unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
@@ -2915,7 +2980,7 @@ export function subscribeSessionState(
     });
   };
   const unsubscribes = [
-    onSnapshot(doc(database, `sessions/${sessionId}`), { includeMetadataChanges: true }, (snapshot) => {
+    onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.exists()) {
         const fromCache = snapshot.metadata?.fromCache === true;
@@ -2940,16 +3005,19 @@ export function subscribeSessionState(
             handlers.onSessionFreshness?.(true);
             return;
           }
-          const allowEqualCursor = sessionSnapshotAuthority.hasServerSessionAuthority &&
-            !sameSessionProjection && sameCursor;
-          const allowUnversionedChange = sessionSnapshotAuthority.hasServerSessionAuthority &&
-            !sameSessionProjection && cursor === undefined;
+          const previousCursor = sessionSnapshotAuthority.latestServerAuthorityCursor;
+          const ambiguousChange = sessionSnapshotAuthority.hasServerSessionAuthority &&
+            !sameSessionProjection &&
+            (cursor === undefined || previousCursor === undefined ||
+              !laterServerAuthorityCursor(cursor, previousCursor));
+          if (ambiguousChange) {
+            confirmAmbiguousSession();
+            return;
+          }
           if (!acceptServerSessionAuthority(
             sessionSnapshotAuthority,
             session,
             cursor,
-            allowEqualCursor,
-            allowUnversionedChange,
           )) return;
         }
         handlers.onSession(session);
