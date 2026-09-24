@@ -590,6 +590,12 @@ import {
   type HummingbirdHarvestState,
 } from './hummingbirdHarvest';
 import {
+  SCOUT_ENTITLEMENTS,
+  requireScoutEntitlement,
+  type ScoutEntitlement,
+} from './scoutEntitlements';
+import { STAR_CHART_COORDINATES } from './starChartGraph';
+import {
   parseHighwallMiningState,
   resolveHighwallMining,
   type HighwallMiningResource,
@@ -22760,6 +22766,181 @@ export const runHighwallMining = onCall<{
 function hummingbirdHarvestRef(sessionId: string, uid: string): DocumentReference {
   return db.doc(`sessions/${sessionId}/hummingbirdHarvests/${uid}`);
 }
+
+type ScoutRequestReply = Readonly<{
+  status: 'requested';
+  resolution: 'pending';
+  requestId: string;
+  sessionId: string;
+  cycle: number;
+  entitlementId: ScoutEntitlement['id'];
+  source: ScoutEntitlement['source'];
+  ownerRoleId: string;
+  anchorShipId: string;
+  targetCoordinate: string;
+}>;
+
+function scoutRequestRef(sessionId: string, requestId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/scoutRequests/${requestId}`);
+}
+
+function strictScoutRosters(session: DocumentSnapshot): {
+  readonly activeRoleIds: readonly string[];
+  readonly activeVesselIds: readonly string[];
+} {
+  const roles = session.get('activeRoleIds');
+  const vessels = session.get('activeVesselIds');
+  if (!Array.isArray(roles) || roles.some((roleId) => typeof roleId !== 'string' || roleId.length === 0) ||
+      new Set(roles).size !== roles.length || !isValidRoleConfiguration(roles as string[])) {
+    throw commandError('failed-precondition', 'The current printed role roster is unavailable or malformed.', 'malformed-input');
+  }
+  if (!Array.isArray(vessels) || vessels.some((vesselId) => typeof vesselId !== 'string' || vesselId.length === 0) ||
+      new Set(vessels).size !== vessels.length) {
+    throw commandError('failed-precondition', 'The current vessel roster is unavailable or malformed.', 'malformed-input');
+  }
+  const activeRoleIds = roles as string[];
+  const activeVesselIds = vessels as string[];
+  const expectedVesselIds = activeVesselIdsForRoles(activeRoleIds);
+  if (expectedVesselIds.length !== activeVesselIds.length ||
+      expectedVesselIds.some((vesselId) => !activeVesselIds.includes(vesselId))) {
+    throw commandError('failed-precondition', 'The current vessel roster does not match the printed roles.', 'malformed-input');
+  }
+  return { activeRoleIds, activeVesselIds };
+}
+
+function isScoutRequestReply(value: unknown): value is ScoutRequestReply {
+  if (!isRecord(value)) return false;
+  return value.status === 'requested' && value.resolution === 'pending' &&
+    typeof value.requestId === 'string' && typeof value.sessionId === 'string' &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    typeof value.entitlementId === 'string' && typeof value.source === 'string' &&
+    typeof value.ownerRoleId === 'string' && typeof value.anchorShipId === 'string' &&
+    typeof value.targetCoordinate === 'string';
+}
+
+function isCurrentScoutRequestRecord(
+  snapshot: DocumentSnapshot,
+  expected: ScoutRequestReply,
+  actorUid: string,
+): boolean {
+  if (!snapshot.exists) return false;
+  const value = snapshot.data();
+  if (!isRecord(value)) return false;
+  const allowedKeys = new Set([
+    'type', 'status', 'resolution', 'requestId', 'sessionId', 'actorUid', 'cycle',
+    'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'targetCoordinate', 'createdAt',
+  ]);
+  return Object.keys(value).every((key) => allowedKeys.has(key)) &&
+    value.type === 'scout-request' && value.status === 'requested' && value.resolution === 'pending' &&
+    value.requestId === expected.requestId && value.sessionId === expected.sessionId &&
+    value.actorUid === actorUid && value.cycle === expected.cycle &&
+    value.entitlementId === expected.entitlementId && value.source === expected.source &&
+    value.ownerRoleId === expected.ownerRoleId && value.anchorShipId === expected.anchorShipId &&
+    value.targetCoordinate === expected.targetCoordinate && Object.hasOwn(value, 'createdAt');
+}
+
+/** Record an entitled scouting intent without resolving range, cadence, fuel, or chart content. */
+export const requestScout = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  entitlementId?: unknown;
+  targetCoordinate?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data as unknown;
+  const allowedFields = new Set(['sessionId', 'requestId', 'entitlementId', 'targetCoordinate']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowedFields.has(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid scout request.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const { requestId } = requireVesselActionRequest(raw);
+  if (typeof raw.entitlementId !== 'string' || raw.entitlementId.length === 0 ||
+      !SCOUT_ENTITLEMENTS.some(({ id }) => id === raw.entitlementId)) {
+    throw new HttpsError('invalid-argument', 'Choose one of the printed scout request identities.');
+  }
+  if (typeof raw.targetCoordinate !== 'string' ||
+      !(STAR_CHART_COORDINATES as readonly string[]).includes(raw.targetCoordinate)) {
+    throw new HttpsError('invalid-argument', 'Choose a printed system for the scout request.');
+  }
+  const entitlementId = raw.entitlementId as ScoutEntitlement['id'];
+  const targetCoordinate = raw.targetCoordinate;
+  const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const requestRef = scoutRequestRef(sessionId, requestId);
+  const markerRef = commandReceiptRef(sessionId, requestId);
+
+  return db.runTransaction(async tx => {
+    const [session, actor, marker, priorRequest] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(markerRef), tx.get(requestRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Only a connected player may request scouting.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    if (session.get('phase') !== 'active') {
+      throw commandError('failed-precondition', 'Scouting requests require active gameplay.', 'invalid-phase');
+    }
+    requireActionPhase(session, 'scouting', 'player');
+    const cycle = session.get('currentTurn');
+    const turnPhase = session.get('turnPhase');
+    if (!Number.isSafeInteger(cycle) || (cycle as number) < 1 || !isRecord(turnPhase) ||
+        turnPhase.turn !== cycle) {
+      throw commandError('failed-precondition', 'The current scouting cycle is unavailable.', 'invalid-phase');
+    }
+    const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
+    let entitlement: ScoutEntitlement;
+    try {
+      entitlement = requireScoutEntitlement({
+        requestedEntitlementId: entitlementId,
+        playerRole: actor.get('role'),
+        connected: actor.get('connected'),
+        assignedRoleId: actor.get('assignedRoleId'),
+        seatId: actor.get('seatId'),
+        replacementRoleId: actor.get('replacementRoleId'),
+        activeRoleIds,
+        activeVesselIds,
+      });
+    } catch {
+      throw new HttpsError('permission-denied', 'The current player does not hold that printed scout entitlement.');
+    }
+    const fingerprint: CommandFingerprint = {
+      action: 'request-scout', sessionId, requestId, actorUid: uid,
+      instanceId: null, expectedRevision: null,
+      payload: { entitlementId, targetCoordinate, cycle: cycle as number },
+    };
+    const replay = replayBoundCommand(
+      marker, fingerprint, isScoutRequestReply, 'scout request',
+    );
+    if (replay) {
+      if (replay.sessionId !== sessionId || replay.requestId !== requestId ||
+          replay.cycle !== cycle || replay.entitlementId !== entitlement.id ||
+          replay.source !== entitlement.source || replay.ownerRoleId !== entitlement.ownerRoleId ||
+          replay.anchorShipId !== entitlement.anchorShipId || replay.targetCoordinate !== targetCoordinate ||
+          !isCurrentScoutRequestRecord(priorRequest, replay, uid)) {
+        throw commandError('failed-precondition', 'The stored scout request is incomplete or stale.', 'conflict');
+      }
+      return { ...replay, status: 'replayed' as const };
+    }
+    if (priorRequest.exists) {
+      throw commandError('failed-precondition', 'The scout request has no matching command receipt.', 'conflict');
+    }
+    const reply: ScoutRequestReply = {
+      status: 'requested', resolution: 'pending', requestId, sessionId,
+      cycle: cycle as number, entitlementId: entitlement.id, source: entitlement.source,
+      ownerRoleId: entitlement.ownerRoleId, anchorShipId: entitlement.anchorShipId,
+      targetCoordinate,
+    };
+    tx.create(requestRef, {
+      type: 'scout-request', ...reply, actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.create(markerRef, {
+      fingerprint, result: reply, createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
+  });
+});
 
 function hummingbirdHarvestRequestRef(sessionId: string, requestId: string): DocumentReference {
   return db.doc(`sessions/${sessionId}/hummingbirdHarvestRequests/${requestId}`);

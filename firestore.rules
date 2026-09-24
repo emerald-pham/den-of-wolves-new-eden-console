@@ -932,6 +932,13 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Scout intents and their target coordinates are server-owned request
+      // state. The callable acknowledges a submitted request to its caller;
+      // no member or facilitator client may read, enumerate, or forge records.
+      match /scoutRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       // Shuttle arrival retries use a separate server-only receipt namespace;
       // their transit ids are visible to fleet peers and must not be claimable
       // through another caller-selected command id.

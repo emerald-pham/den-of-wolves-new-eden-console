@@ -1381,6 +1381,26 @@ describe('session header', () => {
     }));
   });
 
+  it('keeps scout requests and their targets private to the callable', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/scoutRequests/request-1`), {
+        type: 'scout-request', status: 'requested', resolution: 'pending',
+        actorUid: 'alice', targetCoordinate: '5143',
+      });
+    });
+
+    for (const uid of ['alice', 'gm1']) {
+      const request = doc(as(uid), `${SESSION}/scoutRequests/request-1`);
+      await assertFails(getDoc(request));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/scoutRequests`)));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/scoutRequests/forged-${uid}`), {
+        type: 'scout-request', status: 'requested', actorUid: uid, targetCoordinate: '5143',
+      }));
+      await assertFails(updateDoc(request, { targetCoordinate: '0000' }));
+      await assertFails(deleteDoc(request));
+    }
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.
