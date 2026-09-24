@@ -1,0 +1,66 @@
+.endeavour-field-upgrade-panel {
+  min-width: 0;
+}
+
+.endeavour-field-upgrade-panel fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--cic-border, currentColor);
+}
+
+.endeavour-field-upgrade-panel legend {
+  padding: 0 0.35rem;
+}
+
+.endeavour-field-upgrade-panel ul {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.endeavour-field-upgrade-panel li,
+.endeavour-field-upgrade-panel label {
+  min-width: 0;
+}
+
+.endeavour-field-upgrade-panel label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.endeavour-field-upgrade-panel input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--cic-accent, currentColor);
+}
+
+.endeavour-field-upgrade-panel label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.endeavour-field-upgrade-panel fieldset:disabled label {
+  cursor: not-allowed;
+}
+
+.endeavour-field-upgrade-panel .console-workspace__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.endeavour-field-upgrade-panel .cic-action-button {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+}
