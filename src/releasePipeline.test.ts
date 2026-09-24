@@ -106,7 +106,7 @@ it('fails closed when other event-redaction entries change alongside Endeavour a
     files: ['functions/src/eventRedaction.ts'],
     sourceAtRevision: (revision) => revision === 'base' ? before : unrelated,
     isAncestor: () => false,
-  })).toThrow('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
+  })).toThrow('Cannot safely map event redaction changes outside the reviewed additive event field allowlists.');
 });
 
 it('maps a changed existing policy with numeric separators alongside a changed index callable', () => {
