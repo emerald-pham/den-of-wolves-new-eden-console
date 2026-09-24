@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { deploymentSelector } from './deployment-targets.mjs';
@@ -20,6 +21,8 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
   'readEndeavourResearchWorkspace',
 ];
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
+const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';
+const P238_MAPPED_CANDIDATE = 'd005c510';
 const CANDIDATE_REVEAL_CALLABLES = [
   'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
   'moveShipToLocation', 'resumeSession', 'runMaintenance',
@@ -158,6 +161,22 @@ test('maps the Gorgoneion repair resolver and transaction to the deployed repair
 
 test('maps small-ship maintenance changes only to the callables that execute the changed resolver', () => {
   const selected = selectorFor(['functions/src/smallShip.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    ...GORGONEION_REPAIR_CALLABLES,
+    'runSmallShipMaintenance',
+  ]));
+});
+
+test('selects the complete P238 production callable set from the live 0.5.23 baseline', () => {
+  const files = execFileSync('git', ['diff', '--name-only', P238_DEPLOYMENT_BASELINE, P238_MAPPED_CANDIDATE], {
+    encoding: 'utf8',
+  }).split('\n').filter(Boolean);
+  const selected = deploymentSelector({
+    before: P238_DEPLOYMENT_BASELINE,
+    after: P238_MAPPED_CANDIDATE,
+    files,
+    targets: ['hosting', 'functions'],
+  });
   assert.deepEqual(selectedFunctions(selected), functionTargets([
     ...GORGONEION_REPAIR_CALLABLES,
     'runSmallShipMaintenance',
