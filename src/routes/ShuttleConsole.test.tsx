@@ -1153,6 +1153,8 @@ it('opens Chepu on its PDF Colonel route with its security and boarding envelope
   expect(screen.getByText(/docked ship.*security teams.*repel boarders/i)).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Fuelled redeployment' })).toBeInTheDocument();
   expect(screen.getByText(/fuelled.*chosen ship.*start of the Boarding Action step/i)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Chepu operational procedures' }))
+    .not.toHaveTextContent(/away mission|search\s*&\s*rescue|salvage/i);
 
   const back = screen.getByRole('link', { name: /back to refinery 124 p.d.f. colonel console/i });
   expect(back).toHaveAttribute('href', '/ships/refinery-124/roles/refinery-124-pdf-colonel');

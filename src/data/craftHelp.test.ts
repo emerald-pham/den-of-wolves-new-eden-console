@@ -63,6 +63,16 @@ describe('craft-specific private guidance', () => {
     expect(help).not.toHaveProperty('hostShipId');
   });
 
+  it('keeps Chepu out of the PDF Escort Fighter Wing mission guidance', () => {
+    const chepu = craftHelpFor('chepu');
+    const fighterWing = craftHelpFor('pdf-escort-fighter-wing');
+
+    expect(chepu?.missionRules).toBeUndefined();
+    expect(fighterWing?.missionRules).toEqual([
+      'Participate in Away Missions without a Fighter Bay charge, adding +2 to search & rescue and +1 to salvage checks.',
+    ]);
+  });
+
   it('fails closed for an unknown craft id instead of inventing guidance', () => {
     expect(craftHelpFor('unknown-craft')).toBeUndefined();
   });

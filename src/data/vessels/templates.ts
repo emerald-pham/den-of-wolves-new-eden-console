@@ -156,6 +156,14 @@ export type ShuttleAvailability = 'standard' | 'gm-controlled';
 export type ShuttleOperationPhase = 'Team' | 'Coordination' | 'Away mission' | 'Wolf attack';
 export type WolfAttackCraftRole = 'battle-table' | 'park-only';
 
+/** Printed away-mission support, kept distinct from unlisted shuttle abilities. */
+export type AwayMissionSupport =
+  | { readonly participation: 'not-printed'; readonly bonuses?: never }
+  | {
+      readonly participation: 'permitted';
+      readonly bonuses?: Readonly<Partial<Record<'exploration' | 'searchAndRescue' | 'salvage', number>>>;
+    };
+
 /** Printed operational rule shown in the shared shuttle role workspace. */
 export interface ShuttleOperation {
   readonly name: string;
@@ -184,6 +192,7 @@ export interface Shuttlecraft {
   readonly launchSystemId?: string;
   readonly capabilities: readonly ShuttleCapability[];
   readonly operations: readonly ShuttleOperation[];
+  readonly awayMission?: AwayMissionSupport;
   /** The source-aligned resource IDs a future transfer resolver must allow. */
   readonly cargoTransferTypes?: readonly ResourceId[];
   /** The printed cargo rule shown in the shared shuttle role workspace. */

@@ -13,7 +13,9 @@ import {
 import { DEFAULT_ACTIVE_ROLE_IDS } from './roles';
 import { recommendedRoleIds } from './rolePresets';
 import { SHIPS } from './ships';
+import { PDF_ESCORT_FIGHTER_WING } from './pdfConsoles';
 import { SHUTTLE_CARGO_TYPES as SERVER_SHUTTLE_CARGO_TYPES } from '../../functions/src/shuttleCargoTransfer';
+import { awayMissionCraftForRole } from '../../functions/src/awayMissionCards';
 
 describe('fleet shuttlebays', () => {
   it('keeps only printed range-combat shuttles on the Wolf battle table', () => {
@@ -385,6 +387,20 @@ describe('fleet shuttlebays', () => {
         effect: expect.stringMatching(/fuelled.*chosen ship.*start of the Boarding Action step/i),
       }),
     ]));
+  });
+
+  it('keeps Chepu away-mission support distinct from the PDF Escort Fighter Wing bonus', () => {
+    const chepu = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'chepu');
+
+    expect(chepu?.awayMission).toEqual({ participation: 'not-printed' });
+    expect(PDF_ESCORT_FIGHTER_WING.mission).toEqual({
+      participation: 'permitted',
+      phase: 'Away mission',
+      requiresFighterBayCharge: false,
+      bonuses: { searchAndRescue: 2, salvage: 1 },
+    });
+    expect(awayMissionCraftForRole('refinery-124-pdf-colonel'))
+      .toEqual([PDF_ESCORT_FIGHTER_WING.id]);
   });
 
   it('keeps Wobbly recharge and cargo attached to the active Quellon/Refinery Union assignment', () => {

@@ -19,6 +19,7 @@ describe('PDF Escort Fighter Wing registration', () => {
     });
     expect(PDF_ESCORT_FIGHTER_WING).not.toHaveProperty('countId');
     expect(PDF_ESCORT_FIGHTER_WING.mission).toEqual({
+      participation: 'permitted',
       phase: 'Away mission',
       requiresFighterBayCharge: false,
       bonuses: { searchAndRescue: 2, salvage: 1 },

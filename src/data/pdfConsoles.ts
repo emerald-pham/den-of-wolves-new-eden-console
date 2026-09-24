@@ -2,6 +2,8 @@
  * Printed PDF Escort Fighter Wing facts. This is reference metadata only: the
  * later wing-state and combat prompts own mutable counts and resolution.
  */
+import type { AwayMissionSupport } from './vessels/templates';
+
 export interface PdfFighterWingCombat {
   readonly mediumRange: string;
   readonly shortRange: string;
@@ -13,7 +15,7 @@ export interface PdfEscortFighterWing {
   readonly name: 'PDF Escort Fighter Wing';
   readonly ownerRoleId: 'refinery-124-pdf-colonel';
   readonly capacity: 4;
-  readonly mission: {
+  readonly mission: Extract<AwayMissionSupport, { readonly participation: 'permitted' }> & {
     readonly phase: 'Away mission';
     readonly requiresFighterBayCharge: false;
     readonly bonuses: {
@@ -36,6 +38,7 @@ export const PDF_ESCORT_FIGHTER_WING = {
   ownerRoleId: 'refinery-124-pdf-colonel',
   capacity: 4,
   mission: {
+    participation: 'permitted',
     phase: 'Away mission',
     requiresFighterBayCharge: false,
     bonuses: { searchAndRescue: 2, salvage: 1 },
