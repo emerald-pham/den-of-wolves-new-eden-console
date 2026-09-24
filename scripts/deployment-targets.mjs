@@ -294,6 +294,22 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
 
 const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
 const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = "  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const GORGONEION_EVENT_FIELD_ENTRY =
+  "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
+const GORGONEION_ENVELOPE_FIELD_ENTRY =
+  "  'gorgoneion-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const EVENT_REDACTION_ADDITIONS = Object.freeze([
+  {
+    entries: [ENDEAVOUR_EVENT_FIELD_ENTRY, ENDEAVOUR_ENVELOPE_FIELD_ENTRY],
+    callables: ['upgradeEndeavourFieldTargets'],
+  },
+  {
+    entries: [GORGONEION_EVENT_FIELD_ENTRY, GORGONEION_ENVELOPE_FIELD_ENTRY],
+    callables: ['repairGorgoneionWithDrones'],
+  },
+]);
+const EVENT_REDACTION_CHANGE_ERROR =
+  'Cannot safely map event redaction changes outside the reviewed additive event field allowlists.';
 const P436_CONSOLE_RESOLVER_ID = "  | 'wolf-attack.command-and-control'\n";
 const P436_COMMAND_AND_CONTROL_BLUEPRINT_BEFORE = [
   "  'aegis:command-and-control': {\n",
@@ -324,7 +340,7 @@ const P541_NAVIGATION_WRITER_AFTER = [
   '  tx.set(ref, projection);\n',
 ].join('');
 
-function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = null) {
+function eventRedactionImpacts(before, after, cwd, sourceAtRevision = null) {
   const file = 'functions/src/eventRedaction.ts';
   const readAt = (revision) => {
     if (sourceAtRevision) return sourceAtRevision(revision, file);
@@ -339,18 +355,28 @@ function endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision = n
   };
   const previous = readAt(before);
   const current = readAt(after);
-  const additions = [ENDEAVOUR_EVENT_FIELD_ENTRY, ENDEAVOUR_ENVELOPE_FIELD_ENTRY];
-  for (const addition of additions) {
-    const count = (source) => source.split(addition).length - 1;
-    if (count(previous) !== 0 || count(current) !== 1) {
-      throw new Error('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
+  const count = (source, entry) => source.split(entry).length - 1;
+  const additions = EVENT_REDACTION_ADDITIONS.flatMap(({ entries }) => entries);
+  const impacts = [];
+  for (const { entries, callables } of EVENT_REDACTION_ADDITIONS) {
+    const previousCounts = entries.map((entry) => count(previous, entry));
+    const currentCounts = entries.map((entry) => count(current, entry));
+    const hasCompletePreviousPair = previousCounts.every((entryCount) => entryCount === 1);
+    const hasNoPreviousPair = previousCounts.every((entryCount) => entryCount === 0);
+    const hasCompleteCurrentPair = currentCounts.every((entryCount) => entryCount === 1);
+    const hasNoCurrentPair = currentCounts.every((entryCount) => entryCount === 0);
+    if ((!hasCompletePreviousPair && !hasNoPreviousPair) ||
+        (!hasCompleteCurrentPair && !hasNoCurrentPair) ||
+        (hasCompletePreviousPair && hasNoCurrentPair)) {
+      throw new Error(EVENT_REDACTION_CHANGE_ERROR);
     }
+    if (hasNoPreviousPair && hasCompleteCurrentPair) impacts.push(...callables);
   }
-  const stripEndeavourAllowlist = (source) => additions.reduce((result, addition) => result.replace(addition, ''), source);
-  if (stripEndeavourAllowlist(previous) !== stripEndeavourAllowlist(current)) {
-    throw new Error('Cannot safely map event redaction changes outside the additive Endeavour field-upgrade allowlist.');
+  const stripReviewedAdditions = (source) => additions.reduce((result, addition) => result.replace(addition, ''), source);
+  if (impacts.length === 0 || stripReviewedAdditions(previous) !== stripReviewedAdditions(current)) {
+    throw new Error(EVENT_REDACTION_CHANGE_ERROR);
   }
-  return ['upgradeEndeavourFieldTargets'];
+  return [...new Set(impacts)];
 }
 
 function candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAtRevision = null) {
@@ -480,7 +506,7 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       continue;
     }
     if (file === 'functions/src/eventRedaction.ts') {
-      for (const name of endeavourEventRedactionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      for (const name of eventRedactionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     if (file === 'functions/src/navigationProjection.ts') {

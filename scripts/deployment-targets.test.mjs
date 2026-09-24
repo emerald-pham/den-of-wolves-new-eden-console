@@ -19,6 +19,7 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
   'advanceEndeavourResearchTrack',
   'readEndeavourResearchWorkspace',
 ];
+const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
 const CANDIDATE_REVEAL_CALLABLES = [
   'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
   'moveShipToLocation', 'resumeSession', 'runMaintenance',
@@ -72,12 +73,36 @@ assert.equal(NAVIGATION_PROJECTION_BEFORE.split(P541_NAVIGATION_WRITER_AFTER).le
 NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
   .replace(P541_NAVIGATION_WRITER_AFTER, P541_NAVIGATION_WRITER_BEFORE);
 const INDEX_SOURCE = P436_EXPORTS.map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
+const GORGONEION_EVENT_FIELD_ENTRY =
+  "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
+const GORGONEION_ENVELOPE_FIELD_ENTRY = [
+  "  'gorgoneion-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+  "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+].join('');
+const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
+const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = [
+  "  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+  "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+].join('');
+const EVENT_REDACTION_AFTER = readFileSync(
+  new URL('../functions/src/eventRedaction.ts', import.meta.url), 'utf8',
+);
+assert.equal(EVENT_REDACTION_AFTER.split(GORGONEION_EVENT_FIELD_ENTRY).length - 1, 1);
+assert.equal(EVENT_REDACTION_AFTER.split(GORGONEION_ENVELOPE_FIELD_ENTRY).length - 1, 1);
+const EVENT_REDACTION_BEFORE = EVENT_REDACTION_AFTER
+  .replace(GORGONEION_EVENT_FIELD_ENTRY, '')
+  .replace(GORGONEION_ENVELOPE_FIELD_ENTRY, '');
+const EVENT_REDACTION_WITHOUT_REVIEWED_ADDITIONS = EVENT_REDACTION_BEFORE
+  .replace(ENDEAVOUR_EVENT_FIELD_ENTRY, '')
+  .replace(ENDEAVOUR_ENVELOPE_FIELD_ENTRY, '');
 
 function selectorFor(files, {
   metadataBefore = CONSOLE_METADATA_BEFORE,
   metadataAfter = CONSOLE_METADATA_AFTER,
   navigationBefore = NAVIGATION_PROJECTION_BEFORE,
   navigationAfter = NAVIGATION_PROJECTION_AFTER,
+  eventRedactionBefore = EVENT_REDACTION_BEFORE,
+  eventRedactionAfter = EVENT_REDACTION_AFTER,
 } = {}) {
   return deploymentSelector({
     before: 'base',
@@ -92,6 +117,9 @@ function selectorFor(files, {
       }
       if (file === 'functions/src/navigationProjection.ts') {
         return revision === 'base' ? navigationBefore : navigationAfter;
+      }
+      if (file === 'functions/src/eventRedaction.ts') {
+        return revision === 'base' ? eventRedactionBefore : eventRedactionAfter;
       }
       return '';
     },
@@ -116,6 +144,36 @@ test('maps the private Endeavour research writer to both production callables', 
   const selected = selectorFor(['functions/src/endeavourResearchWriter.ts']);
   assert.equal(selected.split(',')[0], 'hosting');
   assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));
+});
+
+test('maps the exact Gorgoneion member-event allowlist delta to its repair callable', () => {
+  const selected = selectorFor(['functions/src/eventRedaction.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(GORGONEION_REPAIR_CALLABLES));
+});
+
+test('preserves the exact Endeavour allowlist mapping and deduplicates bundled reviewed additions', () => {
+  const endeavourOnly = selectorFor(['functions/src/eventRedaction.ts'], {
+    eventRedactionBefore: EVENT_REDACTION_WITHOUT_REVIEWED_ADDITIONS,
+    eventRedactionAfter: EVENT_REDACTION_BEFORE,
+  });
+  assert.deepEqual(selectedFunctions(endeavourOnly), functionTargets(['upgradeEndeavourFieldTargets']));
+
+  const bundled = selectorFor(['functions/src/eventRedaction.ts'], {
+    eventRedactionBefore: EVENT_REDACTION_WITHOUT_REVIEWED_ADDITIONS,
+  });
+  assert.deepEqual(selectedFunctions(bundled), functionTargets([
+    ...GORGONEION_REPAIR_CALLABLES,
+    'upgradeEndeavourFieldTargets',
+  ]));
+});
+
+test('fails closed when the Gorgoneion event allowlist delta contains any unrelated edit', () => {
+  assert.throws(
+    () => selectorFor(['functions/src/eventRedaction.ts'], {
+      eventRedactionAfter: `${EVENT_REDACTION_AFTER}// unrelated redaction change\n`,
+    }),
+    /Cannot safely map event redaction changes outside the reviewed additive event field allowlists/,
+  );
 });
 
 test('maps the canonical Endeavour research resolver to its writer and P391 consumer', () => {
