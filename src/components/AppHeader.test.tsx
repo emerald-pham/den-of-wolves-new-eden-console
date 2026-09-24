@@ -620,9 +620,15 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'After committed Wolf console or supply sabotage, the facilitator gets a private alert and can acknowledge the printed clue instruction before every player console receives an approved hacking notice.',
+    'Facilitators can privately calculate the players needed for an arrest using the chosen defenders and an optional one player adjustment. Suspicion stays private.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousHackingEntry = within(region).getByRole('heading', { name: 'Build 0.5.28' }).closest('article');
+  if (!previousHackingEntry) throw new Error('Expected the preserved P503a hacking-notice release entry.');
+  expect(within(previousHackingEntry).getByText(
+    'After committed Wolf console or supply sabotage, the facilitator gets a private alert and can acknowledge the printed clue instruction before every player console receives an approved hacking notice.',
+  )).toBeVisible();
+  expect(within(previousHackingEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
   const previousCapybaraEntry = within(region).getByRole('heading', { name: 'Build 0.5.27' }).closest('article');
   if (!previousCapybaraEntry) throw new Error('Expected the preserved P241c Capybara cargo release entry.');
   expect(within(previousCapybaraEntry).getByText(
