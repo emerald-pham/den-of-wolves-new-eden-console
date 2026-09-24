@@ -10,8 +10,8 @@ The versioned budgets live in
 
 | Surface | Budget |
 | --- | ---: |
-| Complete application JavaScript, raw | 1,809,500 bytes |
-| Complete application JavaScript, gzip | 480,500 bytes |
+| Complete application JavaScript, raw | 1,830,603 bytes |
+| Complete application JavaScript, gzip | 485,147 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
@@ -294,7 +294,7 @@ Verified live source `c64741b8fdddb14eb3847dc789838d70cd8db2d7` measured
 The P503a candidate with the durable sequence feed measured 1,821,830 raw
 bytes, 482,957 gzip bytes, and a 500,784-byte largest chunk across nine chunks:
 +14,015 raw and +3,852 gzip bytes over that source. The version 18 raw and gzip
-ceilings are 1,822,830 and 483,934 bytes, each 1,000 bytes above the measured
+ceilings are 1,822,830 and 483,957 bytes, each 1,000 bytes above the measured
 candidate; the largest chunk ceiling and every timing/frame limit remain
 unchanged. Its landing and cached Role Select startup p95 were 103.46 ms and
 106.05 ms; DRADIS, attack, and mission-hand update p95 were 35.3 ms, 33.5 ms,
@@ -302,4 +302,19 @@ and 35.4 ms; the 390x844 mobile frame p95 was 16.7 ms with zero long frames.
 These are local Node 23.10 Chromium measurements, not CI-host or production
 telemetry. The exact candidate and calibrated v18 rerun are recorded in
 `/tmp/p503a-p637-feed-20260924/results.json`; remeasure if reviewed application
+code changes.
+
+Baseline version 19 calibrates only the complete-application JavaScript byte
+ceilings for Prompt 513's private arrest-posse calculator. The implementation
+candidate at `27563a7b73b70ea80acb1c53cf8e3c93923068ec` measured 1,829,603 raw
+bytes and 484,147 gzip bytes across eight chunks, adding 7,773 raw bytes and
+1,190 gzip bytes over the version 18 P503a candidate. The v19 raw and gzip
+ceilings are 1,830,603 and 485,147 bytes, each 1,000 bytes above that measured
+candidate. The largest chunk measured 501,157 bytes and remains below its
+unchanged 512,000-byte ceiling. Landing and cached Role Select startup p95 were
+104.94 ms and 102.53 ms; DRADIS, attack, and mission-hand update p95 were
+34.6 ms, 35.0 ms, and 34.6 ms; the 390x844 mobile frame p95 was 16.8 ms with
+zero long frames. These measurements are local Node 23.10 Chromium results,
+not CI-host or production telemetry. Exact source measurements are recorded in
+`/tmp/p637-render-performance/results.json`; remeasure if reviewed application
 code changes.
