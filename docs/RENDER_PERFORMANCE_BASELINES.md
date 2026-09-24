@@ -11,7 +11,7 @@ The versioned budgets live in
 | Surface | Budget |
 | --- | ---: |
 | Complete application JavaScript, raw | 1,781,000 bytes |
-| Complete application JavaScript, gzip | 473,000 bytes |
+| Complete application JavaScript, gzip | 474,000 bytes |
 | Largest JavaScript chunk | 512,000 bytes |
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
