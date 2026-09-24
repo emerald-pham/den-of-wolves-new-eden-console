@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 457, partial: 41, active: 0, missing: 253,
     },
     changes: [
+      'The Endeavour Scientist console now shows field-upgrade targets with current research prices and cycle limits during Coordination.',
+      '457 of 751 planned items are complete (60.85%).',
+    ],
+    implementationPrompts: [391],
+  },
+
+  {
+    version: '0.5.29',
+    implementationProgress: {
+      completed: 457, total: 751, percentage: '60.85%',
+      done: 457, partial: 41, active: 0, missing: 253,
+    },
+    changes: [
       'Facilitators can privately calculate the players needed for an arrest using the chosen defenders and an optional one player adjustment. Suspicion stays private.',
       '457 of 751 planned items are complete (60.85%).',
     ],

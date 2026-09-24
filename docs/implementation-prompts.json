@@ -2874,9 +2874,16 @@
     {
       "direction": "391 -> 211;212",
       "id": "E-391-ENDEAVOUR-RESEARCH-LINK",
-      "language": "The 0.5.19 field-upgrade callable now reads progress written by the private Team-phase research transaction, so each target ship is priced from its current shared track. Prompt 212 adds the current Scientist reader and reachable research controls, but the field-upgrade purchase controls and authorized live end-to-end game proof are not yet present. Prompt 391 remains partial.",
+      "language": "The 0.5.19 field-upgrade callable reads progress written by the private Team-phase research transaction, so each target ship is priced from its current shared track. Version 0.5.22 adds the current Scientist reader and reachable research controls. At that release checkpoint, the purchase controls and authorized live end-to-end game proof were still outstanding.",
       "source": "functions/src/endeavourFieldUpgrades.ts; functions/src/endeavourResearchWriter.ts; functions/src/endeavourFieldUpgradeCallable.test.ts; src/components/EndeavourResearchPanel.tsx; src/routes/ShuttleConsole.test.tsx; focused integration tests; reduced-motion responsive render checks",
       "type": "evidence / feature / shared-research-price / partial-live-acceptance"
+    },
+    {
+      "direction": "391",
+      "id": "E-391-FIELD-UPGRADE-INTEGRATION",
+      "language": "Release 0.5.30 mounts the existing server-authoritative field-upgrade purchase panel in the Endeavour Scientist workspace. The private reader returns the opaque upgrade revision and current-cycle target count alongside research pricing from one Firestore transaction after current Scientist, holder, and Shepherd-group checks; no target identities leave the server, and malformed or future-cycle ledgers fail closed. Focused writer, client service, panel, and route tests pass; Functions build, app typecheck, and font consistency pass. Local Chrome renders at 320x844, 390x844, 844x390, and 1440x900 in normal and reduced motion show no horizontal overflow and retain 44px target labels and purchase actions. Team Phase keeps purchase disabled while a live Coordination window enables it. Independent gpt-6-sol high review found no actionable authorization or privacy issue; its future-cycle test gap was added before final validation. No ordinary authorized production purchase has been observed, so Prompt 391 remains partial.",
+      "source": "functions/src/endeavourFieldUpgrades.ts; functions/src/endeavourResearchWriter.ts; functions/src/endeavourResearchWriter.test.ts; functions/src/endeavourFieldUpgradeCallable.test.ts; src/lib/endeavourResearchService.ts; src/lib/endeavourResearchService.test.ts; src/lib/endeavourFieldUpgradeService.ts; src/lib/endeavourFieldUpgradeService.test.ts; src/components/EndeavourResearchPanel.tsx; src/components/EndeavourResearchPanel.test.tsx; src/components/EndeavourFieldUpgradePanel.tsx; src/components/EndeavourFieldUpgradePanel.test.tsx; src/routes/ShuttleConsole.test.tsx; independent gpt-6-sol high review; /tmp/p391-render",
+      "type": "evidence / feature / server-authority / privacy / transactional-read / responsive / reduced-motion / independent-review / production-path-pending"
     },
     {
       "direction": "392 -> 401",
@@ -16314,8 +16321,8 @@
         "acceptance": "two target consoles, or four when fuelled, use each target ship's current material cost.",
         "title": "Resolve Endeavour field upgrades."
       },
-      "description": "The 0.5.19 server-authoritative callable accepts up to two Endeavour field-upgrade targets, or four when fuelled, prices each target ship from the shared current research track, atomically installs the canonical consoles, and protects the purchase ledger and replay receipts in server-only state. Purchases do not advance research, and replies/events omit private pricing and ledger details. Version 0.5.22 connects private Team-phase research progress and reachable current Scientist controls to that price path. In-app field-upgrade purchase controls and authorized live end-to-end game proof remain outstanding; Prompt 391 stays partial.",
-      "evidenceIds": "E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK",
+      "description": "The 0.5.19 server-authoritative callable accepts up to two Endeavour field-upgrade targets, or four when fuelled, prices each target ship from the shared current research track, atomically installs the canonical consoles, and protects the purchase ledger and replay receipts in server-only state. Purchases do not advance research, and replies/events omit private pricing and ledger details. Version 0.5.22 connects private Team-phase research progress and reachable current Scientist controls to that price path. Version 0.5.30 mounts target-console purchase controls in the Scientist workspace and returns only an opaque upgrade revision and current-cycle target count beside current research pricing from one private read. Keep Prompt 391 partial until an ordinary authorized production field-upgrade purchase is observed.",
+      "evidenceIds": "E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK;E-391-FIELD-UPGRADE-INTEGRATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "267;165;124",
@@ -16325,7 +16332,8 @@
       "releaseBoundaries": "none",
       "releases": [
         "0.5.19",
-        "0.5.22"
+        "0.5.22",
+        "0.5.30"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
