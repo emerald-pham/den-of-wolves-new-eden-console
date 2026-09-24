@@ -620,9 +620,14 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Facilitators can assign an optional small-ship Captain after docking that ship to an active core ship. The optional ship stays outside the core fleet roster.',
+    'Warrior Captains can use charged Repair Drones during Coordination to spend six materials from the current docked host and repair one or two damaged consoles once per cycle.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('457 of 751 planned items are complete (60.85%).')).toBeVisible();
+  const previousAdmissionEntry = within(region).getByRole('heading', { name: 'Build 0.5.25' }).closest('article');
+  if (!previousAdmissionEntry) throw new Error('Expected the preserved 0.5.25 admission release entry.');
+  expect(within(previousAdmissionEntry).getByText(
+    'Facilitators can assign an optional small-ship Captain after docking that ship to an active core ship. The optional ship stays outside the core fleet roster.',
+  )).toBeVisible();
   const previousP238Entry = within(region).getByRole('heading', { name: 'Build 0.5.24' }).closest('article');
   if (!previousP238Entry) throw new Error('Expected the preserved P238 Gorgoneion release entry.');
   expect(within(previousP238Entry).getByText(

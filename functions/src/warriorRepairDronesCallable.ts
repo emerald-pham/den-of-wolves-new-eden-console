@@ -1,6 +1,9 @@
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
+import { isExtraShipAdmitted } from './extraShipAdmission';
+import { buildAuthoritativeEventEnvelope, EventVisibility } from './eventEnvelope';
+import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import {
@@ -14,6 +17,7 @@ import { isResourceShipId } from './resources';
 const ROLE_ID = 'warrior-captain' as const;
 const SMALL_SHIP_ID = 'warrior' as const;
 const ACTION = 'warrior-repair-drones' as const;
+const EVENT_TYPE = 'warrior-repair-drones' as const;
 const REPAIR_COST = 6;
 
 type RecordValue = Record<string, unknown>;
@@ -206,7 +210,7 @@ export const repairWarriorWithDrones = onCall<{
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
   const actorRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
   const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
-  const eventRef = db.doc(`sessions/${command.sessionId}/events/${ACTION}-${command.requestId}`);
+  const eventRef = db.doc(`sessions/${command.sessionId}/events/${EVENT_TYPE}-${command.requestId}`);
   const legacyRefs = LEGACY_REQUEST_PATHS.map((path) => db.doc(path(command.sessionId, command.requestId)));
 
   return db.runTransaction(async (tx) => {
@@ -242,6 +246,15 @@ export const repairWarriorWithDrones = onCall<{
 
     const activeVesselIds = activeVessels(session);
     const smallShipStates = session.get('smallShipStates');
+    if (!isExtraShipAdmitted({
+      smallShipId: SMALL_SHIP_ID,
+      activeVesselIds,
+      smallShipStates,
+      expansion: session.get('expansion') ?? 'base',
+      capybaraEnabled: session.get('capybaraEnabled'),
+    })) {
+      throw new HttpsError('failed-precondition', 'Warrior has not been admitted by current host docking.');
+    }
     const smallShipState = isRecord(smallShipStates) ? smallShipStates[SMALL_SHIP_ID] : undefined;
     if (!isRecord(smallShipState) || smallShipState.id !== SMALL_SHIP_ID ||
         smallShipState.dockingRevision !== command.expectedDockingRevision ||
@@ -296,6 +309,20 @@ export const repairWarriorWithDrones = onCall<{
       warriorRepairDrones: result.state satisfies WarriorRepairDronesState,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: EVENT_TYPE,
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: command.sessionId, actorUid: uid, actorRoleId: ROLE_ID,
+        turn: currentCycle as number, phase: 'active', type: EVENT_TYPE,
+        requestId: command.requestId, revision: result.state.revision,
+        serverTime: new Date(), visibility: EventVisibility.Member,
+      }),
+      payload: {
+        smallShipId: SMALL_SHIP_ID, hostShipId: result.hostShipId,
+        systemIds: result.repairedSystemIds, materialsSpent: REPAIR_COST,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(receiptRef, {
       actorRoleId,
       fingerprint,

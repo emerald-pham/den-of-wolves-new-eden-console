@@ -57,11 +57,14 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
   ],
   'functions/src/extraShipAdmission.ts': [
-    'assignReplacementRole', 'joinSession', 'resumeSession', 'repairGorgoneionWithDrones',
+    'assignReplacementRole', 'joinSession', 'resumeSession',
+    'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
   ],
   'functions/src/replacementRoles.ts': ['assignReplacementRole'],
   'functions/src/gorgoneionRepairDrones.ts': ['repairGorgoneionWithDrones'],
   'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
+  'functions/src/warriorRepairDrones.ts': ['repairWarriorWithDrones'],
+  'functions/src/warriorRepairDronesCallable.ts': ['repairWarriorWithDrones'],
   // advanceSmallShipMaintenance is used by these two deployed transactions;
   // type-only and test imports do not add callable consumers.
   'functions/src/smallShip.ts': ['runSmallShipMaintenance', 'repairGorgoneionWithDrones'],
@@ -307,6 +310,10 @@ const GORGONEION_EVENT_FIELD_ENTRY =
   "  'gorgoneion-repair-drones': ['smallShipId', 'hostShipId', 'systemId', 'materialsSpent'],\n";
 const GORGONEION_ENVELOPE_FIELD_ENTRY =
   "  'gorgoneion-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
+const WARRIOR_EVENT_FIELD_ENTRY =
+  "  'warrior-repair-drones': ['smallShipId', 'hostShipId', 'systemIds', 'materialsSpent'],\n";
+const WARRIOR_ENVELOPE_FIELD_ENTRY =
+  "  'warrior-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
 const EVENT_REDACTION_ADDITIONS = Object.freeze([
   {
     entries: [ENDEAVOUR_EVENT_FIELD_ENTRY, ENDEAVOUR_ENVELOPE_FIELD_ENTRY],
@@ -315,6 +322,10 @@ const EVENT_REDACTION_ADDITIONS = Object.freeze([
   {
     entries: [GORGONEION_EVENT_FIELD_ENTRY, GORGONEION_ENVELOPE_FIELD_ENTRY],
     callables: ['repairGorgoneionWithDrones'],
+  },
+  {
+    entries: [WARRIOR_EVENT_FIELD_ENTRY, WARRIOR_ENVELOPE_FIELD_ENTRY],
+    callables: ['repairWarriorWithDrones'],
   },
 ]);
 const EVENT_REDACTION_CHANGE_ERROR =

@@ -245,6 +245,34 @@ describe('buildPrivacySafeEventRecord', () => {
     ]);
   });
 
+  it('allow-lists the Warrior repair outcome without actor, role, or private repair authority', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'warrior-repair-drones',
+      envelope: {
+        sessionId: 's1', actorUid: 'captain-secret', actorRoleId: 'warrior-captain',
+        turn: 3, phase: 'active', requestId: 'warrior-repair-1', revision: 1,
+        serverTime: '2026-09-24T15:00:00.000Z', visibility: EventVisibility.Member,
+      },
+      payload: {
+        smallShipId: 'warrior', hostShipId: 'icebreaker',
+        systemIds: ['storage', 'reactor'], materialsSpent: 6,
+        materialsRemaining: 3, expectedRevision: 0, actorUid: 'captain-secret',
+        actorRoleId: 'warrior-captain', hostHolderUid: 'captain-secret',
+        repairLedger: { cycle: 3 }, fingerprint: { actorUid: 'captain-secret' },
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', turn: 3, phase: 'active', type: 'warrior-repair-drones',
+      requestId: 'warrior-repair-1', revision: 1,
+      serverTime: '2026-09-24T15:00:00.000Z', visibility: EventVisibility.Member,
+      createdAt: 'server-time', smallShipId: 'warrior', hostShipId: 'icebreaker',
+      systemIds: ['storage', 'reactor'], materialsSpent: 6,
+    });
+    expect(memberEventFieldsFor('warrior-repair-drones')).toEqual([
+      'smallShipId', 'hostShipId', 'systemIds', 'materialsSpent',
+    ]);
+  });
+
   it('publishes Endeavour upgrade targets without actor identity or research internals', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'endeavour-field-upgrade',

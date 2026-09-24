@@ -632,6 +632,26 @@ it('hydrates only a known Gorgoneion repair outcome and preserves malformed hist
   });
 });
 
+it('hydrates only a known Warrior repair outcome and preserves malformed history as unavailable', () => {
+  expect(sessionFrom('warrior-repair', {
+    ...sessionData(8),
+    warriorRepairDrones: {
+      cycle: 3, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    },
+  }).warriorRepairDrones).toEqual({
+    cycle: 3, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+  });
+  expect(sessionFrom('warrior-repair-malformed', {
+    ...sessionData(8),
+    warriorRepairDrones: {
+      cycle: 3, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'], actorUid: 'private',
+    },
+  }).warriorRepairDrones).toBeNull();
+  expect(sessionFrom('warrior-repair-legacy', sessionData(8)).warriorRepairDrones).toEqual({
+    cycle: 0, revision: 0, hostShipId: '', systemIds: [],
+  });
+});
+
 it('hydrates admitted Voyage 33-0 as a public vessel identity without widening the core roster', () => {
   const session = sessionFrom('voyage-admission-session', {
     ...sessionData(8),

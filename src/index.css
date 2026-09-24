@@ -1276,6 +1276,30 @@ body {
   letter-spacing: 0.04em;
   white-space: normal;
 }
+.warrior-repair-drones { gap: 0.65rem; min-width: 0; border-color: var(--cic-cyan-dim); }
+.warrior-repair-drones p { font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.warrior-repair-drones__choices { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.35rem; margin-bottom: 0; }
+.warrior-repair-drones__choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--cic-rule);
+  overflow-wrap: anywhere;
+}
+.warrior-repair-drones__choices input[type='checkbox'] { flex: 0 0 auto; accent-color: var(--cic-cyan); }
+.warrior-repair-drones__choices > p { grid-column: 1 / -1; }
+.warrior-repair-drones .cic-action-button {
+  min-height: 44px;
+  max-width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  white-space: normal;
+}
 .role-brief__return { justify-self: start; }
 
 .wolf-commander-panel {

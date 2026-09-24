@@ -786,6 +786,14 @@ export interface GorgoneionRepairDronesState {
   readonly systemId: string;
 }
 
+/** Server-owned Warrior Repair Drones use and replay revision for one cycle. */
+export interface WarriorRepairDronesState {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly hostShipId: VesselId | '';
+  readonly systemIds: readonly string[];
+}
+
 /** A surviving shuttle released from a destroyed host and held until redocking. */
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
@@ -917,6 +925,8 @@ export interface GameSession {
   readonly allyRepairs?: AllyRepairLedger;
   /** Current or legacy-default Gorgoneion repair history; null means malformed. */
   readonly gorgoneionRepairDrones?: GorgoneionRepairDronesState | null;
+  /** Current or legacy-default Warrior repair history; null means malformed. */
+  readonly warriorRepairDrones?: WarriorRepairDronesState | null;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

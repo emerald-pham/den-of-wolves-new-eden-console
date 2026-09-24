@@ -136,7 +136,17 @@ it('atomically spends six canonical host materials, repairs both selected consol
   expect(receipt.actorRoleId).toBe('warrior-captain');
   expect(receipt.result).not.toHaveProperty('actorUid');
   expect(receipt.result).not.toHaveProperty('activeRoleHolderUid');
-  expect(mock.documents.has('sessions/s1/events/warrior-repair-drones-warrior-repair-1')).toBe(false);
+  expect(mock.documents.get('sessions/s1/events/warrior-repair-drones-warrior-repair-1')).toEqual({
+    sessionId: 's1', turn: 3, phase: 'active', type: 'warrior-repair-drones',
+    requestId: 'warrior-repair-1', revision: 1, serverTime: expect.any(String),
+    visibility: 'member', createdAt: 'server-time', smallShipId: 'warrior',
+    hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'], materialsSpent: 6,
+  });
+  const event = mock.documents.get('sessions/s1/events/warrior-repair-drones-warrior-repair-1')!;
+  expect(event).not.toHaveProperty('actorUid');
+  expect(event).not.toHaveProperty('actorRoleId');
+  expect(event).not.toHaveProperty('fingerprint');
+  expect(event).not.toHaveProperty('materialsRemaining');
 });
 
 it('authorizes the current Warrior replacement role after GM assignment clears its seat pointers', async () => {
@@ -293,6 +303,18 @@ it.each([
   ['historical dock state after undocking', { ...warriorState(), hostShipId: null }],
 ] as const)('denies %s without mutating host state', async (_label, state) => {
   mock.documents.get('sessions/s1')!.smallShipStates = { warrior: state };
+  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('keeps the canonical core roster raw and denies Warrior being smuggled into it', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  expect(session.activeVesselIds).toEqual(['icebreaker']);
+  session.activeVesselIds = ['icebreaker', 'warrior'];
+
   await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
     code: 'failed-precondition',
   });

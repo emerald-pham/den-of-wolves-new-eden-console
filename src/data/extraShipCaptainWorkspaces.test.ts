@@ -48,6 +48,15 @@ describe('extra-ship Captain workspace catalog', () => {
       });
   });
 
+  it('connects Warrior Repair Drones to its current charged repair control', () => {
+    expect(extraShipCaptainWorkspaceFor('warrior-captain')?.actions.find(({ id }) => id === 'repair-drones'))
+      .toMatchObject({
+        phase: 'Coordination', charge: 'reactor', control: 'live-below',
+        effect: expect.stringMatching(/6 host materials.*one or two damaged host consoles.*once per cycle/i),
+        availability: expect.stringMatching(/live server-owned repair control appears below/i),
+      });
+  });
+
   it('uses cycle terminology and returns no workspace for ordinary replacement roles', () => {
     expect(JSON.stringify(EXTRA_SHIP_CAPTAIN_WORKSPACES)).not.toMatch(/\bturn\b/i);
     expect(extraShipCaptainWorkspaceFor('doctor')).toBeUndefined();

@@ -104,6 +104,7 @@ import { normalizePressDispatch } from './pressDispatchState';
 import { damageSystemIdsForShip, parseChacauRepairLedger } from './chacauRepairLedger';
 import { parseAllyRepairLedger } from './allyRepairLedger';
 import { parseGorgoneionRepairDronesLedger } from './gorgoneionRepairDronesLedger';
+import { parseWarriorRepairDronesLedger } from './warriorRepairDronesLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -1777,6 +1778,12 @@ function gorgoneionRepairDrones(
   return parseGorgoneionRepairDronesLedger(value);
 }
 
+function warriorRepairDrones(
+  value: unknown,
+): Exclude<GameSession['warriorRepairDrones'], undefined> {
+  return parseWarriorRepairDronesLedger(value);
+}
+
 function highwallMining(value: unknown): GameSession['highwallMining'] {
   const raw = recordValue(value);
   if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'operations'].includes(key)) ||
@@ -2431,6 +2438,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),
     ...(currentAllyRepairs ? { allyRepairs: currentAllyRepairs } : {}),
     gorgoneionRepairDrones: gorgoneionRepairDrones(data.gorgoneionRepairDrones),
+    warriorRepairDrones: warriorRepairDrones(data.warriorRepairDrones),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),

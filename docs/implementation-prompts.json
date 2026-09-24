@@ -6199,9 +6199,9 @@
     {
       "direction": "244 -> 234;361",
       "id": "E-244-WARRIOR-REPAIR-DRONES",
-      "language": "The source-verified server-domain transition binds the current Warrior Captain, current Coordination cycle, canonical active vessel set, strict current completed-maintenance and charged Warrior state, and its one active docked resource host. It spends exactly six host materials to remove one or two distinct known damaged consoles, never passive AEGIS armour once per cycle while rejecting malformed, stale, overcharged, foreign, unknown, destroyed, insufficient, repeated, or unreachable authority.",
-      "source": "functions/src/warriorRepairDrones.ts; functions/src/warriorRepairDrones.test.ts; functions/src/smallShip.ts; functions/src/resources.ts; functions/src/shipDamage.ts; functions/src/replacementRoles.ts; functions/src/maintenanceOrder.ts; authorized routed REFERENCE_ONLY_SHIPS.md; original base v1.1 A4 double-sided component page 27 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86) inspected as a full-page render; focused 112-test repair/small-ship/phase/role/resource/damage suite; Functions TypeScript build",
-      "type": "evidence / source-verified / server-domain / small-ship / charged-repair / coordination / host-resources / revision / regression"
+      "language": "The source-verified server callable authorizes the current Warrior Captain replacement role, verifies strict extra-ship admission from the raw active core roster and current docked-host map, accepts only current live Coordination with the current-cycle charged Team maintenance, spends exactly six materials from the current host, and repairs one or two distinct eligible damaged consoles once per cycle. It commits host resource and damage changes, the revision-bound use ledger, private actor-role replay receipt, and member-safe outcome event atomically. Stale cycle/dock/revision, foreign or replaced identity, malformed history/resources/damage, undocked or destroyed host, missing current charge, insufficient materials, and replay collision or second-cycle use fail closed. The client hydrates only a known ledger, renders a current replacement-role-bound responsive control, requires fresh server authority, and retries only the exact command. Firestore emulator tests deny direct ledger, event, and receipt writes. Focused callable/redaction and client/workspace tests, app and Functions builds, font consistency, and rules emulator pass. Exact-SHA Sol review and production deployment remain pending; no ordinary authorized production repair has been exercised, so P244 stays partial.",
+      "source": "functions/src/warriorRepairDrones.ts; functions/src/warriorRepairDrones.test.ts; functions/src/warriorRepairDronesCallable.ts; functions/src/warriorRepairDronesCallable.test.ts; functions/src/extraShipAdmission.ts; functions/src/smallShip.ts; functions/src/resources.ts; functions/src/shipDamage.ts; functions/src/replacementRoles.ts; functions/src/maintenanceOrder.ts; functions/src/eventRedaction.ts; functions/src/eventRedaction.test.ts; functions/src/index.ts; src/types/game.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/warriorRepairDronesLedger.ts; src/lib/warriorRepairDronesLedger.test.ts; src/lib/warriorRepairDronesService.ts; src/lib/warriorRepairDronesService.test.ts; src/components/WarriorRepairDronesPanel.tsx; src/components/WarriorRepairDronesPanel.test.tsx; src/data/extraShipCaptainWorkspaces.ts; tests/rules/firestore.rules.test.ts; scripts/deployment-targets.mjs; scripts/deployment-targets.test.mjs; authorized routed REFERENCE_ONLY_SHIPS.md; original base v1.1 A4 double-sided component page 27 (SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86) inspected as a full-page render; focused red/green and release validation",
+      "type": "evidence / source-verified / server-authority / strict-admission / callable / coordination / host-resources / revision / replay / member-event-privacy / client / direct-write-denial / deployment-selector / independent-review-pending / production-path-pending"
     },
     {
       "direction": "611",
@@ -12765,14 +12765,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "six materials repair up to two eligible consoles once in Coordination.",
         "title": "Resolve Warrior Repair Drones."
       },
-      "description": "The source-verified server-domain transition authorizes only the current Warrior Captain during the current Coordination cycle, requires current completed Team maintenance and the printed Repair Drones charge, derives the one active resource host from canonical docked Warrior state, spends exactly six host materials, and repairs a distinct selection of one or two known damaged host consoles while excluding passive AEGIS armour. Canonical active-vessel allowlisting, exact Warrior charge capacity, revision, phase, role custody, docking, resource, damage, selection, and history boundaries fail closed, including unreachable histories and historical consoles unknown to their recorded host. This closes Prompt 244's non-feature domain contract only; callable persistence, session wiring, durable replay/events, projections, UI, deployment, and a playable release remain unimplemented and unclaimed. No production callable consumes this transition yet.",
+      "description": "The source-verified Warrior Repair Drones feature now has a server-authoritative callable and role-bound client panel. The callable authorizes the current Warrior Captain replacement role, verifies strict admission from canonical core-roster and docked-host authority, accepts only current-cycle charged Team maintenance during Coordination, spends exactly six materials from the current host, and repairs one or two distinct known damaged consoles once per cycle. It commits host resources and damage, a revision-bound ledger, a private actor-role replay receipt, and a member-safe outcome event atomically; direct client writes are denied. The Captain panel consumes current server state and preserves the one/two-console and current-cycle charge contract. Prompt 244 remains partial until an ordinary authorized production repair is exercised end to end; deployment and source/test evidence alone do not close the prompt.",
       "evidenceIds": "E-AUDIT-244;E-244-WARRIOR-REPAIR-DRONES",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -12781,7 +12781,9 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.26"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
       "status": "partial",

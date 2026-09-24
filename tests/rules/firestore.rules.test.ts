@@ -1312,6 +1312,11 @@ describe('session header', () => {
         },
       }));
       await assertFails(updateDoc(session, {
+        warriorRepairDrones: {
+          cycle: 3, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+        },
+      }));
+      await assertFails(updateDoc(session, {
         chacauRepairs: {
           cycle: 3,
           revision: 1,
@@ -1332,6 +1337,17 @@ describe('session header', () => {
       hostShipId: 'aegis', systemId: 'reactor', materialsSpent: 3,
     }));
     await assertFails(setDoc(doc(as('alice'), `${SESSION}/commandReceipts/forged-gorg-repair`), {
+      actorUid: 'alice', result: { materialsRemaining: 99 },
+    }));
+  });
+
+  it('keeps Warrior repair member events and command receipts server-owned', async () => {
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/events/warrior-repair-drones-forged`), {
+      sessionId: 's1', type: 'warrior-repair-drones',
+      smallShipId: 'warrior', hostShipId: 'icebreaker',
+      systemIds: ['storage', 'reactor'], materialsSpent: 6,
+    }));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/commandReceipts/forged-warrior-repair`), {
       actorUid: 'alice', result: { materialsRemaining: 99 },
     }));
   });

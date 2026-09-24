@@ -363,6 +363,7 @@ import {
 } from './chacauRepairCallable';
 export { repairConsolesFromAlly } from './allyRepairCallable';
 export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
+export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
 import {
   ENDEAVOUR_FUELLED_UPGRADE_LIMIT,

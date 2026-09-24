@@ -21,6 +21,7 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
   'readEndeavourResearchWorkspace',
 ];
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
+const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
 const P238_DEPLOYMENT_BASELINE = '213efd24bedd65f5ef60c800f6dc8e63308af08b';
 const P238_MAPPED_CANDIDATE = 'd005c510';
 const CANDIDATE_REVEAL_CALLABLES = [
@@ -82,6 +83,12 @@ const GORGONEION_ENVELOPE_FIELD_ENTRY = [
   "  'gorgoneion-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
   "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
 ].join('');
+const WARRIOR_EVENT_FIELD_ENTRY =
+  "  'warrior-repair-drones': ['smallShipId', 'hostShipId', 'systemIds', 'materialsSpent'],\n";
+const WARRIOR_ENVELOPE_FIELD_ENTRY = [
+  "  'warrior-repair-drones': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
+  "    field !== 'actorUid' && field !== 'actorRoleId'),\n",
+].join('');
 const ENDEAVOUR_EVENT_FIELD_ENTRY = "  'endeavour-field-upgrade': ['shuttleId', 'targets'],\n";
 const ENDEAVOUR_ENVELOPE_FIELD_ENTRY = [
   "  'endeavour-field-upgrade': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n",
@@ -92,9 +99,16 @@ const EVENT_REDACTION_AFTER = readFileSync(
 );
 assert.equal(EVENT_REDACTION_AFTER.split(GORGONEION_EVENT_FIELD_ENTRY).length - 1, 1);
 assert.equal(EVENT_REDACTION_AFTER.split(GORGONEION_ENVELOPE_FIELD_ENTRY).length - 1, 1);
+assert.equal(EVENT_REDACTION_AFTER.split(WARRIOR_EVENT_FIELD_ENTRY).length - 1, 1);
+assert.equal(EVENT_REDACTION_AFTER.split(WARRIOR_ENVELOPE_FIELD_ENTRY).length - 1, 1);
+const EVENT_REDACTION_P244_BEFORE = EVENT_REDACTION_AFTER
+  .replace(WARRIOR_EVENT_FIELD_ENTRY, '')
+  .replace(WARRIOR_ENVELOPE_FIELD_ENTRY, '');
 const EVENT_REDACTION_BEFORE = EVENT_REDACTION_AFTER
   .replace(GORGONEION_EVENT_FIELD_ENTRY, '')
-  .replace(GORGONEION_ENVELOPE_FIELD_ENTRY, '');
+  .replace(GORGONEION_ENVELOPE_FIELD_ENTRY, '')
+  .replace(WARRIOR_EVENT_FIELD_ENTRY, '')
+  .replace(WARRIOR_ENVELOPE_FIELD_ENTRY, '');
 const EVENT_REDACTION_WITHOUT_REVIEWED_ADDITIONS = EVENT_REDACTION_BEFORE
   .replace(ENDEAVOUR_EVENT_FIELD_ENTRY, '')
   .replace(ENDEAVOUR_ENVELOPE_FIELD_ENTRY, '');
@@ -159,10 +173,21 @@ test('maps the Gorgoneion repair resolver and transaction to the deployed repair
   }
 });
 
+test('maps Warrior repair resolver and transaction to its deployed repair callable', () => {
+  for (const file of [
+    'functions/src/warriorRepairDrones.ts',
+    'functions/src/warriorRepairDronesCallable.ts',
+  ]) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(WARRIOR_REPAIR_CALLABLES));
+  }
+});
+
 test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {
   const selected = selectorFor(['functions/src/extraShipAdmission.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    'assignReplacementRole', 'joinSession', 'resumeSession', 'repairGorgoneionWithDrones',
+    'assignReplacementRole', 'joinSession', 'resumeSession',
+    'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
   ]));
 });
 
@@ -196,8 +221,19 @@ test('selects the complete P238 production callable set from the live 0.5.23 bas
 });
 
 test('maps the exact Gorgoneion member-event allowlist delta to its repair callable', () => {
-  const selected = selectorFor(['functions/src/eventRedaction.ts']);
+  const selected = selectorFor(['functions/src/eventRedaction.ts'], {
+    eventRedactionBefore: EVENT_REDACTION_BEFORE,
+    eventRedactionAfter: EVENT_REDACTION_P244_BEFORE,
+  });
   assert.deepEqual(selectedFunctions(selected), functionTargets(GORGONEION_REPAIR_CALLABLES));
+});
+
+test('maps the exact Warrior member-event allowlist delta to its repair callable', () => {
+  const selected = selectorFor(['functions/src/eventRedaction.ts'], {
+    eventRedactionBefore: EVENT_REDACTION_P244_BEFORE,
+    eventRedactionAfter: EVENT_REDACTION_AFTER,
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(WARRIOR_REPAIR_CALLABLES));
 });
 
 test('preserves the exact Endeavour allowlist mapping and deduplicates bundled reviewed additions', () => {
@@ -212,6 +248,7 @@ test('preserves the exact Endeavour allowlist mapping and deduplicates bundled r
   });
   assert.deepEqual(selectedFunctions(bundled), functionTargets([
     ...GORGONEION_REPAIR_CALLABLES,
+    ...WARRIOR_REPAIR_CALLABLES,
     'upgradeEndeavourFieldTargets',
   ]));
 });
