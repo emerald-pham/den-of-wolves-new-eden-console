@@ -1274,17 +1274,16 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
 function candidateRevealValues(value: unknown): readonly CandidateReveal[] | undefined {
   if (!Array.isArray(value) || value.length > 3) return undefined;
   const seen = new Set<string>();
-  const reveals: CandidateReveal[] = [];
-  for (const entry of value) {
+  const valid = value.every((entry) => {
     const raw = recordValue(entry);
     if (!raw || Object.keys(raw).length !== 2 ||
         (raw.code !== 'N' && raw.code !== 'O' && raw.code !== 'P') ||
         typeof raw.title !== 'string' || raw.title.trim().length === 0 || raw.title.length > 120 ||
-        seen.has(raw.code)) return undefined;
+        seen.has(raw.code)) return false;
     seen.add(raw.code);
-    reveals.push({ code: raw.code, title: raw.title });
-  }
-  return reveals;
+    return true;
+  });
+  return valid ? value as readonly CandidateReveal[] : undefined;
 }
 
 function organiserSiteProjection(value: unknown): OrganiserSiteProjection | undefined {

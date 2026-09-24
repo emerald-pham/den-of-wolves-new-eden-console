@@ -6,7 +6,7 @@ import { activeFleetShipIds, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
-import type { CandidateReveal, Seat, Voyage33Admission } from '@/types/game';
+import type { GameSession, Player, Seat, Voyage33Admission } from '@/types/game';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import CandidateRevealPanel from '@/components/CandidateRevealPanel';
 
@@ -35,6 +35,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   if (mode === 'console') {
     return (
       <FleetRoster
+        session={session}
+        player={me}
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
         dioneEnabled={session.dioneEnabled !== false}
@@ -45,10 +47,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         {...(session.admittedVesselIds === undefined ? {} : { admittedVesselIds: session.admittedVesselIds })}
         {...(session.voyage33Admission === undefined ? {} : { voyage33Admission: session.voyage33Admission })}
         isGm={isGm}
-        candidateReveals={me.role === 'player' && sessionSnapshotFreshness === 'server' &&
-          session.phase === 'active' && me.fleetGroupId &&
-          session.currentGroupCandidateReveals?.groupId === me.fleetGroupId
-          ? session.currentGroupCandidateReveals.candidateReveals : []}
+        sessionSnapshotFreshness={sessionSnapshotFreshness}
         seats={seats}
         viewerUid={me.uid}
         activeConsoleRoleId={me.activeConsoleRoleId ?? null}
@@ -84,6 +83,8 @@ const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
 
 function FleetRoster({
   sessionName,
+  session,
+  player,
   capybaraEnabled,
   dioneEnabled,
   pressEnabled,
@@ -93,12 +94,14 @@ function FleetRoster({
   admittedVesselIds,
   voyage33Admission,
   isGm,
-  candidateReveals,
+  sessionSnapshotFreshness,
   seats,
   viewerUid,
   activeConsoleRoleId,
   replacementRoleId,
 }: {
+  session: GameSession;
+  player: Player;
   sessionName: string;
   capybaraEnabled: boolean;
   dioneEnabled: boolean;
@@ -109,7 +112,7 @@ function FleetRoster({
   admittedVesselIds?: readonly string[];
   voyage33Admission?: Voyage33Admission;
   isGm: boolean;
-  candidateReveals: readonly CandidateReveal[];
+  sessionSnapshotFreshness: 'unknown' | 'cache' | 'server';
   seats: readonly Seat[];
   viewerUid: string;
   activeConsoleRoleId: string | null;
@@ -164,7 +167,7 @@ function FleetRoster({
         </label>
       </header>
 
-      <CandidateRevealPanel candidateReveals={candidateReveals} />
+      <CandidateRevealPanel session={session} player={player} sessionSnapshotFreshness={sessionSnapshotFreshness} />
 
       <section className="fleet-group" aria-labelledby="independent-roles">
         <h2 className="fleet-group__title" id="independent-roles">Independent stations</h2>

@@ -184,7 +184,6 @@ function AppRoutes() {
     let censusSubscribed = false;
     let censusGeneration = 0;
     let playerProjectionFresh = false;
-    let sessionProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
     const hideCurrentGroupCandidateReveals = () => {
@@ -204,7 +203,7 @@ function AppRoutes() {
       hideCurrentGroupCandidateReveals();
     };
     const restoreRetainedGroupCandidateProjection = () => {
-      if (!callbackCurrent() || !playerProjectionFresh || !sessionProjectionFresh) return;
+      if (!callbackCurrent() || !playerProjectionFresh) return;
       const store = useSessionStore.getState();
       if (store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server') return;
       const current = store.session;
@@ -237,8 +236,7 @@ function AppRoutes() {
       // both independent server snapshots because either can change the read
       // audience while this protected document is arriving.
       if (requiresCandidateAuthority &&
-          (!playerProjectionFresh || !sessionProjectionFresh || store.connection !== 'live' ||
-            store.sessionSnapshotFreshness !== 'server')) return;
+          (!playerProjectionFresh || store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server')) return;
       const me = store.me;
       if (me?.uid !== playerUid || me.role !== 'player' ||
           (requiresCandidateAuthority &&
@@ -284,7 +282,6 @@ function AppRoutes() {
         previousState.sessionSnapshotFreshness === 'server';
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
       if (!wasFresh || isFresh) return;
-      sessionProjectionFresh = false;
       playerProjectionFresh = false;
       clearCurrentGroupCandidateReveals();
     });
@@ -374,7 +371,7 @@ function AppRoutes() {
               store.me.role !== 'player' || store.me.fleetGroupId !== currentCandidateProjection.groupId)) {
             retainedGroupCandidateProjection = undefined;
           }
-          const candidateProjection = sessionProjectionFresh && playerProjectionFresh &&
+          const candidateProjection = store.connection === 'live' && store.sessionSnapshotFreshness === 'server' && playerProjectionFresh &&
             next.phase === 'active' && store.me?.uid === playerUid && store.me.role === 'player' &&
             currentCandidateProjection && store.me.fleetGroupId === currentCandidateProjection.groupId
             ? currentCandidateProjection : undefined;
@@ -441,7 +438,6 @@ function AppRoutes() {
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
-          sessionProjectionFresh = fresh;
           const store = useSessionStore.getState();
           store.setConnection(fresh ? 'live' : 'offline');
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
@@ -763,7 +759,6 @@ function AppRoutes() {
         },
         onError: () => {
           if (!callbackCurrent()) return;
-          sessionProjectionFresh = false;
           playerProjectionFresh = false;
           clearCurrentGroupCandidateReveals();
           const store = useSessionStore.getState();
