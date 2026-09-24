@@ -1,5 +1,5 @@
 import { phaseFromTurnPhase, type ActorScope } from './actionMetadata';
-import { MAINTENANCE_ORDERS } from './maintenanceOrder';
+import { isExtraShipAdmitted } from './extraShipAdmission';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState, SMALL_SHIP_RULES } from './smallShip';
@@ -96,8 +96,11 @@ export function resolveWarriorRepairDrones(input: Readonly<{
   currentCycle: number;
   expectedRevision: number;
   turnPhase: unknown;
+  /** Canonical core roster; optional ships are admitted from their dock state. */
   activeVesselIds: unknown;
-  smallShipState: unknown;
+  smallShipStates: unknown;
+  expansion?: unknown;
+  capybaraEnabled?: unknown;
   hostResources: unknown;
   hostDamage: ShipDamageState;
   systemIds: unknown;
@@ -126,27 +129,37 @@ export function resolveWarriorRepairDrones(input: Readonly<{
   }
 
   if (!Array.isArray(input.activeVesselIds) || input.activeVesselIds.length === 0 ||
-      input.activeVesselIds.some((id) => typeof id !== 'string') ||
+      input.activeVesselIds.some((id) => typeof id !== 'string' || !isResourceShipId(id)) ||
       new Set(input.activeVesselIds).size !== input.activeVesselIds.length ||
-      input.activeVesselIds.some((id) => !Object.prototype.hasOwnProperty.call(MAINTENANCE_ORDERS, id))) {
-    throw new Error('The active vessel authority is malformed.');
+      input.activeVesselIds.includes(SMALL_SHIP_ID)) {
+    throw new Error('The active core vessel authority is malformed.');
   }
-  if (!input.activeVesselIds.includes(SMALL_SHIP_ID)) {
-    throw new Error('Repair Drones require the active Warrior.');
-  }
-
-  const smallShipState = requireCanonicalSmallShipState(input.smallShipState);
+  const smallShipStates = record(input.smallShipStates);
+  const smallShipState = requireCanonicalSmallShipState(smallShipStates?.[SMALL_SHIP_ID]);
   const hostShipId = smallShipState.hostShipId;
   if (!hostShipId) throw new Error('Warrior Repair Drones require one docked host.');
   if (!isResourceShipId(hostShipId) || !input.activeVesselIds.includes(hostShipId)) {
     throw new Error('Warrior is not docked with an active eligible host.');
   }
-  if (smallShipState.cycle.turn !== input.currentCycle || smallShipState.cycle.step !== 5 ||
+  if (!isExtraShipAdmitted({
+    smallShipId: SMALL_SHIP_ID,
+    activeVesselIds: input.activeVesselIds,
+    smallShipStates: input.smallShipStates,
+    expansion: input.expansion,
+    capybaraEnabled: input.capybaraEnabled,
+  })) {
+    throw new Error('Repair Drones require Warrior admission from current host docking.');
+  }
+  const teamMaintenanceClosed = smallShipState.cycle.step === 0 &&
+    typeof smallShipState.cycle.completedAt === 'string' && smallShipState.cycle.completedAt.length > 0;
+  const teamMaintenanceOpenAtFinalStep = smallShipState.cycle.step === 5 &&
+    smallShipState.cycle.completedAt === undefined;
+  if (smallShipState.cycle.turn !== input.currentCycle ||
+      (!teamMaintenanceClosed && !teamMaintenanceOpenAtFinalStep) ||
       !exactKeys(smallShipState.cycle.results, ['1', '2', '3', '4']) ||
       smallShipState.cycle.chargingSkipped !== false ||
       typeof smallShipState.cycle.startedAt !== 'string' ||
-      smallShipState.cycle.startedAt.length === 0 ||
-      smallShipState.cycle.completedAt !== undefined) {
+      smallShipState.cycle.startedAt.length === 0) {
     throw new Error('Warrior Repair Drones require current completed Team maintenance.');
   }
   if (!smallShipState.cycle.charges.includes(CONSOLE_ID)) {

@@ -25,8 +25,10 @@ const base = {
   currentCycle: 3,
   expectedRevision: 0,
   turnPhase: { turn: 3, airspace: { state: 'lifted' } },
-  activeVesselIds: ['icebreaker', 'warrior'],
-  smallShipState: warriorState,
+  activeVesselIds: ['icebreaker'],
+  smallShipStates: { warrior: warriorState },
+  expansion: 'base',
+  capybaraEnabled: true,
   hostResources: { ore: 0, fuel: 4, food: 11, water: 9, materials: 9, securityTeams: 2 },
   hostDamage: { damagedSystemIds: ['storage', 'reactor', 'jump-drive'], destroyed: false },
   systemIds: ['storage', 'reactor'],
@@ -56,6 +58,19 @@ describe('Warrior Repair Drones', () => {
     expect(result.repairedSystemIds).toEqual(['storage']);
   });
 
+  it('accepts the admitted Warrior from the core roster after its current-cycle maintenance ends', () => {
+    const completedWarrior = {
+      ...warriorState,
+      cycle: {
+        ...warriorState.cycle, step: 0, completedAt: '2026-09-24T08:00:05.000Z',
+      },
+    };
+    expect(resolveWarriorRepairDrones({
+      ...base,
+      smallShipStates: { warrior: completedWarrior },
+    })).toMatchObject({ hostShipId: 'icebreaker', repairedSystemIds: ['storage', 'reactor'] });
+  });
+
   it('resets on a later cycle while preserving monotonic revision', () => {
     const prior = { cycle: 2, revision: 2, hostShipId: 'aegis', systemIds: ['storage'] };
     expect(resolveWarriorRepairDrones({ ...base, expectedRevision: 2, state: prior }).state)
@@ -74,22 +89,30 @@ describe('Warrior Repair Drones', () => {
     ['Team Phase', { turnPhase: { turn: 3, airspace: { state: 'restricted' } } }, /Coordination/i],
     ['missing phase', { turnPhase: undefined }, /phase.*unavailable/i],
     ['stale phase cycle', { turnPhase: { turn: 2, airspace: { state: 'lifted' } } }, /current cycle/i],
-    ['missing active Warrior', { activeVesselIds: ['icebreaker'] }, /active Warrior/i],
-    ['inactive host', { activeVesselIds: ['aegis', 'warrior'] }, /active eligible host/i],
-    ['undocked craft', { smallShipState: emptySmallShipState('warrior') }, /docked host/i],
-    ['wrong craft', { smallShipState: { ...emptySmallShipState('gorgoneion', 'icebreaker'), cycle: warriorState.cycle } }, /Warrior/i],
-    ['stale charged maintenance', { smallShipState: { ...warriorState, cycle: { ...warriorState.cycle, turn: 2 } } }, /current completed Team maintenance/i],
-    ['incomplete maintenance', { smallShipState: { ...warriorState, cycle: { ...warriorState.cycle, step: 4 } } }, /current completed Team maintenance/i],
-    ['uncharged console', { smallShipState: { ...warriorState, cycle: { ...warriorState.cycle, charges: [] } } }, /must be charged/i],
+    ['missing admitted Warrior', { smallShipStates: {} }, /malformed/i],
+    ['forged admission marker', { smallShipStates: { warrior: { ...warriorState, admitted: true } } }, /malformed/i],
+    ['inactive host', { activeVesselIds: ['aegis'] }, /active eligible host/i],
+    ['undocked craft', { smallShipStates: { warrior: emptySmallShipState('warrior') } }, /docked host/i],
+    ['historical dock state after undocking', {
+      smallShipStates: { warrior: { ...warriorState, hostShipId: null } },
+    }, /docked host/i],
+    ['wrong craft', { smallShipStates: { warrior: { ...emptySmallShipState('gorgoneion', 'icebreaker'), cycle: warriorState.cycle } } }, /Warrior/i],
+    ['stale charged maintenance', { smallShipStates: { warrior: { ...warriorState, cycle: { ...warriorState.cycle, turn: 2 } } } }, /current completed Team maintenance/i],
+    ['next-cycle maintenance', { smallShipStates: { warrior: { ...warriorState, cycle: { ...warriorState.cycle, turn: 4 } } } }, /current completed Team maintenance/i],
+    ['incomplete maintenance', { smallShipStates: { warrior: { ...warriorState, cycle: { ...warriorState.cycle, step: 4 } } } }, /current completed Team maintenance/i],
+    ['uncharged console', { smallShipStates: { warrior: { ...warriorState, cycle: { ...warriorState.cycle, charges: [] } } } }, /must be charged/i],
     ['destroyed host', { hostDamage: { damagedSystemIds: ['storage'], destroyed: true } }, /destroyed/i],
     ['zero consoles', { systemIds: [] }, /one or two distinct damaged/i],
     ['three consoles', { systemIds: ['storage', 'reactor', 'jump-drive'] }, /one or two distinct damaged/i],
     ['duplicate console', { systemIds: ['storage', 'storage'] }, /one or two distinct damaged/i],
     ['undamaged console', { systemIds: ['storage', 'armour'] }, /one or two distinct damaged/i],
     ['unknown console', { systemIds: ['storage', 'invented'] }, /one or two distinct damaged/i],
+    ['contradictory optional-ship admission flags', {
+      activeVesselIds: ['icebreaker', 'capybara'], expansion: 'base',
+    }, /admission from current host docking/i],
     ['passive AEGIS armour', {
-      activeVesselIds: ['aegis', 'warrior'],
-      smallShipState: { ...warriorState, hostShipId: 'aegis' },
+      activeVesselIds: ['aegis'],
+      smallShipStates: { warrior: { ...warriorState, hostShipId: 'aegis' } },
       hostResources: { ore: 0, fuel: 4, food: 8, water: 6, materials: 9, securityTeams: 9 },
       hostDamage: { damagedSystemIds: ['armoured-hull-i'], destroyed: false },
       systemIds: ['armoured-hull-i'],
@@ -103,8 +126,9 @@ describe('Warrior Repair Drones', () => {
   });
 
   it.each([
-    ['rogue active vessel', { activeVesselIds: ['icebreaker', 'warrior', 'rogue-vessel'] }],
-    ['duplicate active vessel', { activeVesselIds: ['icebreaker', 'warrior', 'warrior'] }],
+    ['rogue active vessel', { activeVesselIds: ['icebreaker', 'rogue-vessel'] }],
+    ['duplicate active vessel', { activeVesselIds: ['icebreaker', 'icebreaker'] }],
+    ['Warrior forged into the core roster', { activeVesselIds: ['icebreaker', 'warrior'] }],
     ['malformed ledger', { state: { cycle: 3, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage'], extra: true } }],
     ['unreachable ledger revision', { expectedRevision: 99, state: { cycle: 1, revision: 99, hostShipId: 'icebreaker', systemIds: ['storage'] } }],
     ['unknown ledger console', { expectedRevision: 1, state: { cycle: 1, revision: 1, hostShipId: 'icebreaker', systemIds: ['invented'] } }],
@@ -114,8 +138,8 @@ describe('Warrior Repair Drones', () => {
     ['unknown damage', { hostDamage: { damagedSystemIds: ['invented'], destroyed: false } }],
     ['extra damage field', { hostDamage: { damagedSystemIds: ['storage'], destroyed: false, extra: true } }],
     ['fractional materials', { hostResources: { ...base.hostResources, materials: 6.5 } }],
-    ['malformed docking revision', { smallShipState: { ...warriorState, dockingRevision: -1 } }],
-    ['overcharged Warrior', { smallShipState: { ...warriorState, cycle: { ...warriorState.cycle, charges: ['repair-drones', 'salvage-drones'] } } }],
+    ['malformed docking revision', { smallShipStates: { warrior: { ...warriorState, dockingRevision: -1 } } }],
+    ['overcharged Warrior', { smallShipStates: { warrior: { ...warriorState, cycle: { ...warriorState.cycle, charges: ['repair-drones', 'salvage-drones'] } } } }],
   ] as const)('fails closed on %s', (_label, patch) => {
     expect(() => resolveWarriorRepairDrones({ ...base, ...patch } as never)).toThrow(/malformed/i);
   });

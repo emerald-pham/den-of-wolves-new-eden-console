@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { advanceSmallShipMaintenance, emptySmallShipState } from './smallShip';
 
 type Fields = Record<string, unknown>;
 const mock = vi.hoisted(() => {
@@ -82,7 +83,8 @@ const resetFixture = () => {
   mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear(); mock.db.runTransaction.mockClear();
   put('sessions/s1', {
     phase: 'active', currentTurn: 3,
-    activeRoleIds: ['warrior-captain'], activeVesselIds: ['icebreaker', 'warrior'],
+    activeRoleIds: ['warrior-captain'], activeVesselIds: ['icebreaker'],
+    expansion: 'base', capybaraEnabled: true,
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
       openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
@@ -282,6 +284,67 @@ it('requires current charged completed Warrior maintenance in live Coordination'
   warrior.cycle = { ...maintenanceCycle(), charges: [] };
   await expect(repairWarriorWithDrones.run(request({ ...command, requestId: 'uncharged' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['forged admission marker', { ...warriorState(), admitted: true }],
+  ['historical dock state after undocking', { ...warriorState(), hostShipId: null }],
+] as const)('denies %s without mutating host state', async (_label, state) => {
+  mock.documents.get('sessions/s1')!.smallShipStates = { warrior: state };
+  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('accepts an unused Warrior charge after current-cycle Team maintenance ends', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const initial = emptySmallShipState('warrior', 'icebreaker');
+  let state = { ...initial, dockingRevision: 2 };
+  let hostResources = { ore: 0, fuel: 4, food: 11, water: 9, materials: 9, securityTeams: 2 };
+  let step = 0;
+  const progress = (action: string, options: Record<string, unknown> = {}) => {
+    const result = advanceSmallShipMaintenance({
+      state, action, expectedRevision: state.cycle.revision, currentTurn: 3,
+      hostResources, rolls: [], now: `2026-09-24T08:00:0${step++}.000Z`,
+      ...options,
+    });
+    state = result.state;
+    hostResources = result.hostResources;
+  };
+
+  progress('begin');
+  progress('rations', { foodLevel: 0, waterLevel: 0 });
+  progress('unrest', { rolls: [6, 6] });
+  progress('riot', { rolls: [6] });
+  progress('reactor', { consoles: ['repair-drones'] });
+  progress('end');
+  expect(state.cycle).toMatchObject({
+    step: 0, turn: 3, charges: ['repair-drones'], completedAt: expect.any(String),
+  });
+  session.smallShipStates = { warrior: state };
+
+  await expect(repairWarriorWithDrones.run(request(command))).resolves.toMatchObject({
+    status: 'committed', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    materialsSpent: 6, cycle: 3, repairRevision: 1,
+  });
+});
+
+it.each([
+  ['historical', 2],
+  ['next-cycle', 4],
+] as const)('rejects a completed %s Warrior charge outside the current cycle', async (_label, cycle) => {
+  const warrior = (mock.documents.get('sessions/s1')!.smallShipStates as Fields).warrior as Fields;
+  warrior.cycle = {
+    ...maintenanceCycle(), step: 0, turn: cycle, completedAt: '2026-09-24T08:00:05.000Z',
+  };
+
+  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });

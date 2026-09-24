@@ -1,7 +1,6 @@
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
-import { MAINTENANCE_ORDERS } from './maintenanceOrder';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import {
@@ -183,9 +182,9 @@ function replayReply(
 function activeVessels(session: DocumentSnapshot): readonly string[] {
   const ids = session.get('activeVesselIds');
   if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) =>
-    typeof id !== 'string' || !Object.hasOwn(MAINTENANCE_ORDERS, id)) ||
-      new Set(ids).size !== ids.length || !ids.includes(SMALL_SHIP_ID)) {
-    throw new HttpsError('failed-precondition', 'The active vessel authority is unavailable.');
+    typeof id !== 'string' || !isResourceShipId(id)) || new Set(ids).size !== ids.length ||
+      ids.includes(SMALL_SHIP_ID)) {
+    throw new HttpsError('failed-precondition', 'The active core vessel authority is unavailable.');
   }
   return ids as string[];
 }
@@ -271,7 +270,9 @@ export const repairWarriorWithDrones = onCall<{
         expectedRevision: command.expectedRepairRevision,
         turnPhase: session.get('turnPhase'),
         activeVesselIds,
-        smallShipState,
+        smallShipStates,
+        expansion: session.get('expansion') ?? 'base',
+        capybaraEnabled: session.get('capybaraEnabled'),
         hostResources,
         hostDamage,
         systemIds: command.systemIds,
